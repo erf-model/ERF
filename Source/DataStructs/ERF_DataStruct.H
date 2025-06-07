@@ -368,6 +368,9 @@ struct SolverChoice {
         // Which external forcings?
         abl_driver_type = ABLDriverType::None; // Default: no ABL driver for simulating classical fluid dynamics problems
         pp.query_enum_case_insensitive("abl_driver_type",abl_driver_type);
+        pp.query("const_massflux_x", const_massflux_x);
+        pp.query("const_massflux_y", const_massflux_y);
+        pp.query("const_massflux_tau", const_massflux_tau);
 
         // Which type of inflow turbulent generation
         pert_type = PerturbationType::None; // Default
@@ -833,5 +836,10 @@ struct SolverChoice {
 
     // Use forest canopy model?
     bool do_forest_drag {false};
+
+    // Enforce constant mass flux?
+    amrex::Real const_massflux_x = 0.0;
+    amrex::Real const_massflux_y = 0.0;
+    amrex::Real const_massflux_tau = 1.0;
 };
 #endif

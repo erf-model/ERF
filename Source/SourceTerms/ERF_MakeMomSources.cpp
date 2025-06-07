@@ -34,6 +34,7 @@ void make_mom_sources (Real time,
                        const Vector<MultiFab>& S_data,
                              MultiFab& z_phys_nd,
                              MultiFab& z_phys_cc,
+                             Vector<Real>& stretched_dz_h,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& wvel,
@@ -53,8 +54,8 @@ void make_mom_sources (Real time,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
-                       InputSoundingData& input_sounding_data,
-                       bool is_slow_step)
+                             InputSoundingData& input_sounding_data,
+                             bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
 
@@ -75,15 +76,16 @@ void make_mom_sources (Real time,
 
     // *****************************************************************************
     // Define source term for all three components of momenta from
-    //    1. Coriolis forcing   for (xmom,ymom,zmom)
-    //    2. Rayleigh damping   for (xmom,ymom,zmom)
+    //    1. Coriolis forcing for (xmom,ymom,zmom)
+    //    2. Rayleigh damping for (xmom,ymom,zmom)
     //    3. Constant / height-dependent geostrophic forcing
-    //    4. subsidence
-    //    5. nudging towards input sounding data
-    //    6. numerical diffusion for (xmom,ymom,zmom)
-    //    7. sponge
+    //    4. Subsidence
+    //    5. Nudging towards input sounding data
+    //    6. Numerical diffusion for (xmom,ymom,zmom)
+    //    7. Sponge
     //    8. Forest canopy
-    //    9. Immersed Forcing
+    //    9. Immersed forcing
+    //   10. Constant mass flux
     // *****************************************************************************
     // NOTE: buoyancy is now computed in a separate routine - it should not appear here
     // *****************************************************************************
@@ -124,19 +126,34 @@ void make_mom_sources (Real time,
     Real*     wbar = d_rayleigh_ptrs_at_lev[Rayleigh::wbar];
 
     // *****************************************************************************
-    // Planar averages for subsidence terms
+    // Data for constant mass flux
+    // *****************************************************************************
+    bool enforce_massflux_x = (solverChoice.const_massflux_x != 0);
+    bool enforce_massflux_y = (solverChoice.const_massflux_y != 0);
+    Real rhoUA_target = solverChoice.const_massflux_x;
+    Real rhoVA_target = solverChoice.const_massflux_y;
+    Real rhoUA{0}; // to be integrated
+    Real rhoVA{0}; // to be integrated
+
+    // *****************************************************************************
+    // Planar averages for subsidence, nudging, or constant mass flux
     // *****************************************************************************
     Table1D<Real>     dptr_r_plane, dptr_u_plane, dptr_v_plane;
     TableData<Real, 1> r_plane_tab,  u_plane_tab,  v_plane_tab;
 
-    if (is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding))
+    if (is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding ||
+                         enforce_massflux_x || enforce_massflux_y))
     {
+        const int offset = 1;
+        const int u_offset = 1;
+        const int v_offset = 1;
+
         //
         // We use the alias here to control ncomp inside the PlaneAverage
         //
         MultiFab cons(S_data[IntVars::cons], make_alias, 0, 1);
 
-        IntVect ng_c = S_data[IntVars::cons].nGrowVect(); ng_c[2] = 1;
+        IntVect ng_c = S_data[IntVars::cons].nGrowVect(); ng_c[2] = offset;
         PlaneAverage r_ave(&cons, geom, solverChoice.ave_plane, ng_c);
         r_ave.compute_averages(ZDir(), r_ave.field());
 
@@ -153,7 +170,6 @@ void make_mom_sources (Real time,
         Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
         r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
 
-        int offset = ng_c[2];
         dptr_r_plane = r_plane_tab.table();
         ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
         {
@@ -161,10 +177,10 @@ void make_mom_sources (Real time,
         });
 
         // U and V momentum
-        IntVect ng_u = S_data[IntVars::xmom].nGrowVect(); ng_u[2] = 1;
+        IntVect ng_u = S_data[IntVars::xmom].nGrowVect(); ng_u[2] = u_offset;
         PlaneAverage u_ave(&(S_data[IntVars::xmom]), geom, solverChoice.ave_plane, ng_u);
 
-        IntVect ng_v = S_data[IntVars::ymom].nGrowVect(); ng_v[2] = 1;
+        IntVect ng_v = S_data[IntVars::ymom].nGrowVect(); ng_v[2] = v_offset;
         PlaneAverage v_ave(&(S_data[IntVars::ymom]), geom, solverChoice.ave_plane, ng_v);
 
         u_ave.compute_averages(ZDir(), u_ave.field());
@@ -189,19 +205,96 @@ void make_mom_sources (Real time,
         u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
         v_plane_tab.resize({vdomain.smallEnd(2)}, {vdomain.bigEnd(2)});
 
-        int u_offset = ng_u[2];
         dptr_u_plane = u_plane_tab.table();
         ParallelFor(u_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
         {
             dptr_u_plane(k-u_offset) = dptr_u[k];
         });
 
-        int v_offset = ng_v[2];
         dptr_v_plane = v_plane_tab.table();
         ParallelFor(v_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
         {
             dptr_v_plane(k-v_offset) = dptr_v[k];
         });
+
+        // sum in z for massflux adjustment
+        if (enforce_massflux_x || enforce_massflux_y) {
+            Real Lx = geom.ProbHi(0) - geom.ProbLo(0);
+            Real Ly = geom.ProbHi(1) - geom.ProbLo(1);
+            Real Lz = geom.ProbHi(2) - geom.ProbLo(2);
+
+            if (solverChoice.mesh_type == MeshType::ConstantDz) {
+                rhoUA = std::accumulate(u_plane_h.begin() + u_offset, u_plane_h.end() - u_offset, 0.0);
+                rhoVA = std::accumulate(v_plane_h.begin() + v_offset, v_plane_h.end() - v_offset, 0.0);
+                rhoUA = rhoUA / domain.length(2) * Ly * Lz;
+                rhoVA = rhoVA / domain.length(2) * Lx * Lz;
+            } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
+                for (int k=0; k < domain.length(2); ++k) {
+                    rhoUA += u_plane_h[k+u_offset] * stretched_dz_h[k];
+                }
+                for (int k=0; k < domain.length(2); ++k) {
+                    rhoVA += v_plane_h[k+v_offset] * stretched_dz_h[k];
+                }
+                rhoUA = rhoUA * Ly;
+                rhoVA = rhoVA * Lx;
+            } else { // solverChoice.mesh_type == MeshType::VariableDz
+                Error("Variable dz not supported -- planar averages are on k rather than constant-z planes");
+#if 0
+                Real dx = geom.CellSize(0);
+                Real dy = geom.CellSize(1);
+
+                Gpu::DeviceScalar<Real> d_udz{0}, d_vdz{0};
+                Real* d_udz_ptr = d_udz.dataPtr();
+                Real* d_vdz_ptr = d_vdz.dataPtr();
+
+                // weighted average
+                for (MFIter mfi(z_phys_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    Box tbx = mfi.tilebox();
+
+                    // use xlo/ylo boundaries to calculate face areas
+                    if (tbx.smallEnd(0) == domain.smallEnd(0)) {
+                        Box xlo_slab = makeSlab(tbx, 0, 0);
+
+                        const Array4<const Real>& z_nd_arr = z_phys_nd.const_array(mfi);
+
+                        ParallelFor(xlo_slab,
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                        {
+                            Real dz = 0.5 * ( z_nd_arr(i, j, k+1) + z_nd_arr(i, j+1, k+1)
+                                            - z_nd_arr(i, j, k  ) - z_nd_arr(i, j+1, k  ));
+                            Gpu::Atomic::Add(d_udz_ptr, dptr_u_plane(k) * dz);
+                        });
+                    }
+
+                    if (tbx.smallEnd(1) == domain.smallEnd(1)) {
+                        Box ylo_slab = makeSlab(tbx, 1, 0);
+
+                        const Array4<const Real>& z_nd_arr = z_phys_nd.const_array(mfi);
+
+                        ParallelFor(ylo_slab,
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                        {
+                            Real dz = 0.5 * ( z_nd_arr(i, j, k+1) + z_nd_arr(i+1, j, k+1)
+                                            - z_nd_arr(i, j, k  ) - z_nd_arr(i+1, j, k  ));
+                            Gpu::Atomic::Add(d_vdz_ptr, dptr_v_plane(k) * dz);
+                        });
+                    }
+                }
+
+                Gpu::copy(Gpu::deviceToHost, d_udz_ptr, d_udz_ptr+1, &rhoUA);
+                Gpu::copy(Gpu::deviceToHost, d_vdz_ptr, d_vdz_ptr+1, &rhoVA);
+
+                ParallelAllReduce::Sum(&rhoUA, 1, ParallelContext::CommunicatorAll());
+                ParallelAllReduce::Sum(&rhoVA, 1, ParallelContext::CommunicatorAll());
+
+                rhoUA = rhoUA * dy; // == sum(u[k] * dy * dz[j,k])
+                rhoVA = rhoUA * dx; // == sum(v[k] * dx * dz[i,k])
+#endif
+            }
+            Print() << "Integrated mass flux : " << rhoUA << " " << rhoVA
+                << " (target: " << rhoUA_target << " " << rhoVA_target << ")"
+                << std::endl;
+        }
     }
 
     // *****************************************************************************
@@ -243,7 +336,7 @@ void make_mom_sources (Real time,
         const Array4<const Real>& z_cc_arr =  z_phys_cc.const_array(mfi);
 
         // *****************************************************************************
-        // 2. Add CORIOLIS forcing (this assumes east is +x, north is +y)
+        // 1. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis && is_slow_step) {
             if (var_coriolis && has_lat_lon) {
@@ -285,7 +378,7 @@ void make_mom_sources (Real time,
         } // use_coriolis
 
         // *****************************************************************************
-        // 3. Add RAYLEIGH damping
+        // 2. Add RAYLEIGH damping
         // *****************************************************************************
         Real zlo      = geom.ProbLo(2);
         Real dz       = geom.CellSize(2);
@@ -338,7 +431,7 @@ void make_mom_sources (Real time,
         } // fast or slow step
 
         // *****************************************************************************
-        // 4. Add constant GEOSTROPHIC forcing
+        // 3a. Add constant GEOSTROPHIC forcing
         // *****************************************************************************
         if (is_slow_step) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -359,7 +452,7 @@ void make_mom_sources (Real time,
         }
 
         // *****************************************************************************
-        // 4. Add height-dependent GEOSTROPHIC forcing
+        // 3b. Add height-dependent GEOSTROPHIC forcing
         // *****************************************************************************
         if (geo_wind_profile && is_slow_step) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -375,7 +468,7 @@ void make_mom_sources (Real time,
         } // geo_wind_profile
 
         // *****************************************************************************
-        // 5. Add custom SUBSIDENCE terms
+        // 4. Add custom SUBSIDENCE terms
         // *****************************************************************************
         if (solverChoice.custom_w_subsidence && is_slow_step) {
             if (solverChoice.custom_forcing_prim_vars) {
@@ -447,7 +540,7 @@ void make_mom_sources (Real time,
         }
 
         // *************************************************************************************
-        // 6. Add nudging towards value specified in input sounding
+        // 5. Add nudging towards value specified in input sounding
         // *************************************************************************************
         if (solverChoice.nudging_from_input_sounding && is_slow_step)
         {
@@ -494,7 +587,7 @@ void make_mom_sources (Real time,
         }
 
         // *****************************************************************************
-        // 7. Add NUMERICAL DIFFUSION terms
+        // 6. Add NUMERICAL DIFFUSION terms
         // *****************************************************************************
 #if 0
         if (l_use_ndiff) {
@@ -510,7 +603,7 @@ void make_mom_sources (Real time,
 #endif
 
         // *****************************************************************************
-        // 8. Add SPONGING
+        // 7. Add SPONGING
         // *****************************************************************************
         if (is_slow_step) {
             if (solverChoice.spongeChoice.sponge_type == "input_sponge")
@@ -528,7 +621,7 @@ void make_mom_sources (Real time,
         }
 
         // *****************************************************************************
-        // 9. Add CANOPY source terms
+        // 8. Add CANOPY source terms
         // *****************************************************************************
         if (solverChoice.do_forest_drag &&
            ((is_slow_step && !use_canopy_fast) || (!is_slow_step && use_canopy_fast))) {
@@ -567,7 +660,7 @@ void make_mom_sources (Real time,
             });
         }
         // *****************************************************************************
-        // 10. Add Immersed source terms
+        // 9. Add Immersed source terms
         // *****************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
@@ -608,6 +701,21 @@ void make_mom_sources (Real time,
                 const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
                 zmom_src_arr(i, j, k) -= t_blank * CdM * uz * windspeed;
+            });
+        }
+
+        // *****************************************************************************
+        // 10. Enforce constant mass flux
+        // *****************************************************************************
+        if (is_slow_step && (enforce_massflux_x || enforce_massflux_y)) {
+            Real tau_inv = Real(1.0) / solverChoice.const_massflux_tau;
+
+            ParallelFor(tbx, tby,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                xmom_src_arr(i, j, k) += tau_inv * (rhoUA_target - rhoUA);
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                ymom_src_arr(i, j, k) += tau_inv * (rhoVA_target - rhoVA);
             });
         }
     } // mfi
