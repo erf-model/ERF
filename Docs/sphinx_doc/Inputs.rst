@@ -1190,14 +1190,21 @@ List of Parameters
 |                                     |  delimited             |                   |                     |
 |                                     |  columns)              |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.const_massflux_x**            | Include a momentum     | Real              | None                |
+| **erf.const_massflux_x**            | Include a momentum     | Real              | 0.                  |
 | **erf.const_massflux_y**            | source at each time,   |                   |                     |
 |                                     | representing a         |                   |                     |
 |                                     | background driving     |                   |                     |
 |                                     | pressure gradient,     |                   |                     |
 |                                     | to obtain a desired    |                   |                     |
 |                                     | mass flux in the x,y   |                   |                     |
-|                                     | direction(s)           |                   |                     |
+|                                     | directions             |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.const_massflux_layer_lo**     | Two heights defining   | Real              | None                |
+| **erf.const_massflux_layer_hi**     | the layer over which   |                   |                     |
+|                                     | the mass flux is       |                   |                     |
+|                                     | integrated and compared|                   |                     |
+|                                     | to the desired input(s)|                   |                     |
+|                                     | specified above        |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.const_massflux_tau**          | Timescale over which   | Real              | None                |
 |                                     | to adjust the          |                   |                     |
