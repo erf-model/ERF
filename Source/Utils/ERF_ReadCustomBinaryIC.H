@@ -20,7 +20,6 @@ void ReadCustomBinaryIC(const std::string filename,
                         amrex::Vector<amrex::Real>& qc_h,
                         amrex::Vector<amrex::Real>& qr_h)
 {
-
     int nx, ny, nz, ndata;
     float value;
 
@@ -81,7 +80,6 @@ void ReadCustomBinaryIC(const std::string filename,
             }
         }
     }
-
     infile.close();
 }
 #endif
