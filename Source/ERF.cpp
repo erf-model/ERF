@@ -204,7 +204,7 @@ ERF::ERF_shared ()
     }
 
     // Get lo/hi indices for massflux calc
-    if ((solverChoice.const_massflux_x != 0) || (solverChoice.const_massflux_y != 0)) {
+    if ((solverChoice.const_massflux_u != 0) || (solverChoice.const_massflux_v != 0)) {
         if (solverChoice.mesh_type == MeshType::ConstantDz) {
             const Real massflux_zlo = solverChoice.const_massflux_layer_lo - geom[0].ProbLo(2);
             const Real massflux_zhi = solverChoice.const_massflux_layer_hi - geom[0].ProbLo(2);
@@ -774,12 +774,12 @@ ERF::InitData_pre ()
             Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
         }
 
-        if ( (solverChoice.const_massflux_x != 0) &&
+        if ( (solverChoice.const_massflux_u != 0) &&
              (phys_bc_type[Orientation(Direction::x,Orientation::low)] != ERF_BC::periodic ) )
         {
             Abort("Constant mass flux (in x) should be used with periodic boundaries");
         }
-        if ( (solverChoice.const_massflux_y != 0) &&
+        if ( (solverChoice.const_massflux_v != 0) &&
              (phys_bc_type[Orientation(Direction::y,Orientation::low)] != ERF_BC::periodic ) )
         {
             Abort("Constant mass flux (in y) should be used with periodic boundaries");

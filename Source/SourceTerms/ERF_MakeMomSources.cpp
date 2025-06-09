@@ -128,14 +128,18 @@ void make_mom_sources (Real time,
     // *****************************************************************************
     // Data for constant mass flux
     // *****************************************************************************
-    bool enforce_massflux_x = (solverChoice.const_massflux_x != 0);
-    bool enforce_massflux_y = (solverChoice.const_massflux_y != 0);
-    Real rhoUA_target = solverChoice.const_massflux_x;
-    Real rhoVA_target = solverChoice.const_massflux_y;
+    bool enforce_massflux_x = (solverChoice.const_massflux_u != 0);
+    bool enforce_massflux_y = (solverChoice.const_massflux_v != 0);
+    Real U_target = solverChoice.const_massflux_u;
+    Real V_target = solverChoice.const_massflux_v;
     int massflux_klo = solverChoice.massflux_klo;
     int massflux_khi = solverChoice.massflux_khi;
-    Real rhoUA{0}; // to be integrated
-    Real rhoVA{0}; // to be integrated
+
+    // These will be updated by integrating through the planar average profiles
+    Real rhoUA_target{0};
+    Real rhoVA_target{0};
+    Real rhoUA{0};
+    Real rhoVA{0};
 
     // *****************************************************************************
     // Planar averages for subsidence, nudging, or constant mass flux
@@ -226,21 +230,38 @@ void make_mom_sources (Real time,
 
             if (solverChoice.mesh_type == MeshType::ConstantDz) {
                 // note: massflux_khi corresponds to unstaggered indices in this case
-                rhoUA = std::accumulate(u_plane_h.begin() + u_offset + massflux_klo,
-                                        u_plane_h.begin() + u_offset + massflux_khi+1, 0.0);
-                rhoVA = std::accumulate(v_plane_h.begin() + v_offset + massflux_klo,
-                                        v_plane_h.begin() + v_offset + massflux_khi+1, 0.0);
-                rhoUA = rhoUA * geom.CellSize(2) * Ly;
-                rhoVA = rhoVA * geom.CellSize(2) * Lx;
+                rhoUA        = std::accumulate(u_plane_h.begin() + u_offset + massflux_klo,
+                                               u_plane_h.begin() + u_offset + massflux_khi+1, 0.0);
+                rhoVA        = std::accumulate(v_plane_h.begin() + v_offset + massflux_klo,
+                                               v_plane_h.begin() + v_offset + massflux_khi+1, 0.0);
+                rhoUA_target = std::accumulate(r_plane_h.begin() +   offset + massflux_klo,
+                                               r_plane_h.begin() +   offset + massflux_khi+1, 0.0);
+                rhoVA_target = rhoUA_target;
+
+                rhoUA        *= geom.CellSize(2) * Ly;
+                rhoVA        *= geom.CellSize(2) * Lx;
+                rhoUA_target *= geom.CellSize(2) * Ly;
+                rhoVA_target *= geom.CellSize(2) * Lx;
+
             } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
                 // note: massflux_khi corresponds to staggered indices in this case
                 for (int k=massflux_klo; k < massflux_khi; ++k) {
-                    rhoUA += u_plane_h[k+u_offset] * stretched_dz_h[k];
-                    rhoVA += v_plane_h[k+v_offset] * stretched_dz_h[k];
+                    rhoUA        += u_plane_h[k + u_offset] * stretched_dz_h[k];
+                    rhoVA        += v_plane_h[k + v_offset] * stretched_dz_h[k];
+                    rhoUA_target += r_plane_h[k +   offset] * stretched_dz_h[k];
                 }
-                rhoUA = rhoUA * Ly;
-                rhoVA = rhoVA * Lx;
+                rhoVA_target = rhoUA_target;
+
+                rhoUA        *= Ly;
+                rhoVA        *= Lx;
+                rhoUA_target *= Ly;
+                rhoVA_target *= Lx;
             }
+
+            // at this point, this is integrated rho*dA
+            rhoUA_target *= U_target;
+            rhoVA_target *= V_target;
+
             Print() << "Integrated mass flux : " << rhoUA << " " << rhoVA
                 << " (target: " << rhoUA_target << " " << rhoVA_target << ")"
                 << std::endl;
