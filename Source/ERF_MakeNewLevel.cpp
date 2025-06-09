@@ -64,7 +64,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     {
         const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
         const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
-        eb[lev]->make_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+        } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+            eb[lev]->make_cc_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+        }
     } else {
         // m_factory[lev] = std::make_unique<FabFactory<FArrayBox>>();
     }
