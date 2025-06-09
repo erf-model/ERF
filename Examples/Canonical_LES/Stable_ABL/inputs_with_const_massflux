@@ -65,8 +65,7 @@ erf.rotational_time_period = 86455.2516813368
 # drive towards a specified mass flux in the rotor layer
 erf.const_massflux_layer_lo = 25.5 # HH=89, D=127
 erf.const_massflux_layer_hi = 152.5
-erf.const_massflux_x = 537512.8112 # sum(ρ*U*dz) * Ly
-erf.const_massflux_tau = 300.0 # ad hoc timescale for background pressure adjustment
+erf.const_massflux_u = 8.0
 erf.const_massflux_tau = 3600.0
 
 erf.molec_diff_type = "None"
