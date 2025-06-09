@@ -57,7 +57,7 @@ class polygon_ {
         amrex::Print() << "m_vertices = 0\n";
       } else {
         for ( int i(0); i<m_vertices; ++i) {
-          amrex::Print() << "vertex "<< i << ", coordinates = "<< m_vertex[i]<< std::endl; 
+          amrex::Print() << "vertex "<< i << ", coordinates = "<< m_vertex[i]<< std::endl;
         }
       }
     }

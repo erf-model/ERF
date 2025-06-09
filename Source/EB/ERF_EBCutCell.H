@@ -859,7 +859,7 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P6: v3--v4: intersection ~ 1 :: add vIP to F2\n"; }
       else
 #endif
-      { 
+      {
         m_F2.add_vertex(v4);
       }
     }
