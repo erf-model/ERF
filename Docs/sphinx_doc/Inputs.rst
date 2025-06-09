@@ -1186,9 +1186,24 @@ List of Parameters
 |                                     | geostrophic wind       |                   |                     |
 |                                     | profile                |                   |                     |
 |                                     | (with z, Ug, and       |                   |                     |
-|                                     |  Vg whtiespace         |                   |                     |
+|                                     |  Vg whitespace         |                   |                     |
 |                                     |  delimited             |                   |                     |
 |                                     |  columns)              |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.const_massflux_x**            | Include a momentum     | Real              | None                |
+| **erf.const_massflux_y**            | source at each time,   |                   |                     |
+|                                     | representing a         |                   |                     |
+|                                     | background driving     |                   |                     |
+|                                     | pressure gradient,     |                   |                     |
+|                                     | to obtain a desired    |                   |                     |
+|                                     | mass flux in the x,y   |                   |                     |
+|                                     | direction(s)           |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.const_massflux_tau**          | Timescale over which   | Real              | None                |
+|                                     | to adjust the          |                   |                     |
+|                                     | background pressure    |                   |                     |
+|                                     | gradient to match the  |                   |                     |
+|                                     | specified mass flux    |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.use_gravity**                 | Include gravity        | true / false      | false               |
 |                                     | in momentum            |                   |                     |

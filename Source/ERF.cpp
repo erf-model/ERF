@@ -741,6 +741,17 @@ ERF::InitData_pre ()
             Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
         }
 
+        if ( (solverChoice.const_massflux_x != 0) &&
+             (phys_bc_type[Orientation(Direction::x,Orientation::low)] != ERF_BC::periodic ) )
+        {
+            Abort("Constant mass flux (in x) should be used with periodic boundaries");
+        }
+        if ( (solverChoice.const_massflux_y != 0) &&
+             (phys_bc_type[Orientation(Direction::y,Orientation::low)] != ERF_BC::periodic ) )
+        {
+            Abort("Constant mass flux (in y) should be used with periodic boundaries");
+        }
+
         // mesoscale diffusion
         if ((geom[lev].CellSize(0) > 2000.) || (geom[lev].CellSize(1) > 2000.))
         {
@@ -1052,6 +1063,27 @@ ERF::InitData_post ()
     }
 
     ComputeDt();
+
+    // Check the viscous limit
+    DiffChoice dc = solverChoice.diffChoice;
+    if (dc.molec_diff_type == MolecDiffType::Constant ||
+        dc.molec_diff_type == MolecDiffType::ConstantAlpha) {
+        Real delta = std::min({geom[finest_level].CellSize(0),
+                               geom[finest_level].CellSize(1),
+                               dz_min[finest_level]});
+        if (dc.dynamic_viscosity == 0) {
+            Print() << "Note: Molecular diffusion specified but dynamic_viscosity has not been specified" << std::endl;
+        } else {
+            Real nu = dc.dynamic_viscosity / dc.rho0_trans;
+            Real viscous_limit = 0.5 * delta*delta / nu;
+            Print() << "Viscous CFL is " << dt[finest_level] / viscous_limit << std::endl;
+            if (fixed_dt[finest_level] >= viscous_limit) {
+                Warning("Specified fixed_dt is above the viscous limit");
+            } else if (dt[finest_level] >= viscous_limit) {
+                Warning("Adaptive dt based on convective CFL only is above the viscous limit");
+            }
+        }
+    }
 
     // Fill ghost cells/faces
     for (int lev = 0; lev <= finest_level; ++lev)
