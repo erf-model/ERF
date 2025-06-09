@@ -276,6 +276,13 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     // Build the data structures for metric quantities used with terrain-fitted coordinates
     // ********************************************************************************************
+    if ( solverChoice.terrain_type == TerrainType::EB ||
+         solverChoice.terrain_type == TerrainType::ImmersedForcing)
+    {
+        const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
+        const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
+        eb[lev]->make_factory(lev, geom[lev], ba, dm, eb_level);
+    }
     init_zphys(lev, time);
     update_terrain_arrays(lev);
 
@@ -319,9 +326,17 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     make_physbcs(lev);
 
     // ********************************************************************************************
-    // Update the base state at this level by interpolation from coarser level (inside initHSE)
+    // Update the base state at this level by interpolation from coarser level
     // ********************************************************************************************
-    initHSE(lev);
+    InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
+                            IntVect(0,0,0), // do not fill ghost cells outside the domain
+                            base_state[lev-1], 0, 0, base_state[lev].nComp(),
+                            geom[lev-1], geom[lev],
+                            refRatio(lev-1), &cell_cons_interp,
+                            domain_bcs_type, BCVars::cons_bc);
+
+    // Impose bc's outside the domain
+    (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -409,6 +424,13 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // Build the data structures for terrain-related quantities
     // ********************************************************************************************
+    if ( solverChoice.terrain_type == TerrainType::EB ||
+         solverChoice.terrain_type == TerrainType::ImmersedForcing)
+    {
+        const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
+        const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
+        eb[lev]->make_factory(lev, geom[lev], ba, dm, eb_level);
+    }
     remake_zphys(lev, time, temp_zphys_nd);
     update_terrain_arrays(lev);
 

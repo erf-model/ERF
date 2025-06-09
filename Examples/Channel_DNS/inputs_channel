@@ -65,8 +65,8 @@ erf.dynamic_viscosity = 0.00253164557 # == 1 / Re_tau
 #erf.abl_driver_type = "PressureGradient"
 #erf.abl_pressure_grad = -0.1329113924 0 0 # dp/dx == -2 * u_0 / Re_tau
 
-# maintain bulk velocity ≈ 17.54 (from integrating MKM99 ref profile)
-erf.const_massflux_x = 110.2369226035554
+# maintain bulk velocity from integrating the MKM99 ref profile
+erf.const_massflux_u = 17.54475114359453
 erf.const_massflux_tau = 0.005 # ad hoc timescale for background pressure adjustment
 
 # INITIALIZATION
