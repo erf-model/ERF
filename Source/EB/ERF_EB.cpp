@@ -30,13 +30,12 @@ eb_::eb_ ( )
 { }
 
 void
-eb_::make_all_factories ( int level,
-                    Geometry            const& a_geom,
-                    BoxArray            const& ba,
-                    DistributionMapping const& dm,
-                    EB2::Level const& a_eb_level)
+eb_::make_all_factories (int level,
+                         Geometry            const& a_geom,
+                         BoxArray            const& ba,
+                         DistributionMapping const& dm,
+                         EB2::Level const& a_eb_level)
 {
-
   Print() << "making EB factory\n";
   m_factory = std::make_unique<EBFArrayBoxFactory>(a_eb_level, a_geom, ba, dm,
     Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
@@ -72,18 +71,16 @@ eb_::make_all_factories ( int level,
 }
 
 void
-eb_::make_cc_factory ( int level,
-                    Geometry            const& a_geom,
-                    BoxArray            const& ba,
-                    DistributionMapping const& dm,
-                    EB2::Level const& a_eb_level)
+eb_::make_cc_factory (int /*level*/,
+                      Geometry            const& a_geom,
+                      BoxArray            const& ba,
+                      DistributionMapping const& dm,
+                      EB2::Level const& a_eb_level)
 {
-
   Print() << "making EB factory\n";
   m_factory = std::make_unique<EBFArrayBoxFactory>(a_eb_level, a_geom, ba, dm,
     Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
 
-  int lev = level; // dummy
 #if 0
   eb_::WriteEBSurface(ba, dm, a_geom, m_factory.get(), level);
 #endif
@@ -100,7 +97,6 @@ WriteEBSurface (const BoxArray & ba,
                 const EBFArrayBoxFactory * ebf,
                 const int level)
 {
-
     EBToPVD eb_to_pvd;
 
     const Real* dx           = geom.CellSize();
