@@ -51,17 +51,6 @@ class polygon_ {
       m_vertices++;
     }
 
-    AMREX_GPU_HOST_DEVICE
-    void print_vertices ( ) {
-      if (m_vertices == 0) {
-        amrex::Print() << "m_vertices = 0\n";
-      } else {
-        for ( int i(0); i<m_vertices; ++i) {
-          amrex::Print() << "vertex "<< i << ", coordinates = "<< m_vertex[i]<< std::endl;
-        }
-      }
-    }
-
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     void set_area ( amrex::Real const& a_area ) { m_area = a_area; }
 
