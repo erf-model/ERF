@@ -281,7 +281,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     {
         const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
         const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
-        eb[lev]->make_factory(lev, geom[lev], ba, dm, eb_level);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+        } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+            eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+        }
     }
     init_zphys(lev, time);
     update_terrain_arrays(lev);
@@ -429,7 +433,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     {
         const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
         const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
-        eb[lev]->make_factory(lev, geom[lev], ba, dm, eb_level);
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+        } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+            eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+        }
     }
     remake_zphys(lev, time, temp_zphys_nd);
     update_terrain_arrays(lev);
