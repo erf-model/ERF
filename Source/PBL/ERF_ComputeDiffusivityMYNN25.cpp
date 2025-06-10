@@ -75,6 +75,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             const auto invCellSize = geom.InvCellSizeArray();
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
+                // q^2 / 2 is the TKE
                 qvel(i,j,k) = std::sqrt(2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
                 AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
 
@@ -87,10 +88,11 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         } else {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
+                // q^2 / 2 is the TKE
                 qvel(i,j,k) = std::sqrt(2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
                 AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
 
-                // Not multiplying by dz: its constant and would fall out when we divide qint0/qint1 anyway
+                // Not multiplying by dz: it's constant and would fall out when we divide qint0/qint1 anyway
 
                 Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
                 const Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
@@ -224,8 +226,8 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             mynn.calc_stability_funcs(SM,SH,SQ,GM,GH,alphac);
 
             // Clip SM, SH following WRF
-            SM = amrex::min(amrex::max(SM,mynn.SMmin), mynn.SMmax);
-            SH = amrex::min(amrex::max(SH,mynn.SHmin), mynn.SHmax);
+            SM = amrex::min(amrex::max(SM, mynn.SMmin), mynn.SMmax);
+            SH = amrex::min(amrex::max(SH, mynn.SHmin), mynn.SHmax);
 
             // Finally, compute the eddy viscosity/diffusivities
             const Real rho = cell_data(i,j,k,Rho_comp);
