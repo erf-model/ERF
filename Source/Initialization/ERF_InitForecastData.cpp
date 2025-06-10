@@ -59,40 +59,39 @@ void fill_weather_data_multifab(MultiFab& mf,
 
     for (MFIter mfi(mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
+        const Box& bx = mfi.nodaltilebox();
+        Array4<Real> const& arr = mf.array(mfi);
 
-    const Box& bx = mfi.nodaltilebox();
-    Array4<Real> const& arr = mf.array(mfi);
+        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+        {
+            const Real x        = prob_lo[0] + i * dx[0];
+            const Real y        = prob_lo[1] + j * dx[1];
+            const Real z        = prob_lo[2] + k * dx[2];
 
-    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
-    {
-        const Real x        = prob_lo[0] + i * dx[0];
-        const Real y        = prob_lo[1] + j * dx[1];
-        const Real z        = prob_lo[2] + k * dx[2];
+            int iloc=-1, jloc=-1, kloc=-1;
+            iloc = std::floor((x-xmin)/dx[0]);
+            jloc = std::floor((y-ymin)/dx[1]);
+            kloc = std::floor((z-zmin)/dx[2]);
 
-        int iloc=-1, jloc=-1, kloc=-1;
-        iloc = std::floor((x-xmin)/dx[0]);
-        jloc = std::floor((y-ymin)/dx[1]);
-        kloc = std::floor((z-zmin)/dx[2]);
-
-        int idx = get_single_index(iloc,jloc,kloc,nx_d,ny_d);
-        if(n==0) {
-            arr(i,j,k,n) = rho_d_ptr[idx];
-        } else if (n==1) {
-            arr(i,j,k,n) = uvel_d_ptr[idx];
-        } else if (n==2) {
-            arr(i,j,k,n) = vvel_d_ptr[idx];
-        } else if (n==3) {
-            arr(i,j,k,n) = wvel_d_ptr[idx];
-        } else if (n==4) {
-            arr(i,j,k,n) = theta_d_ptr[idx];
-        } else if (n==5) {
-            arr(i,j,k,n) = qv_d_ptr[idx];
-        } else if (n==6) {
-            arr(i,j,k,n) = qc_d_ptr[idx];
-        } else if (n==7) {
-            arr(i,j,k,n) = qr_d_ptr[idx];
-        }
-    });
+            int idx = get_single_index(iloc,jloc,kloc,nx_d,ny_d);
+            if(n==0) {
+                arr(i,j,k,n) = rho_d_ptr[idx];
+            } else if (n==1) {
+                arr(i,j,k,n) = uvel_d_ptr[idx];
+            } else if (n==2) {
+                arr(i,j,k,n) = vvel_d_ptr[idx];
+            } else if (n==3) {
+                arr(i,j,k,n) = wvel_d_ptr[idx];
+            } else if (n==4) {
+                arr(i,j,k,n) = theta_d_ptr[idx];
+            } else if (n==5) {
+                arr(i,j,k,n) = qv_d_ptr[idx];
+            } else if (n==6) {
+                arr(i,j,k,n) = qc_d_ptr[idx];
+            } else if (n==7) {
+                arr(i,j,k,n) = qr_d_ptr[idx];
+            }
+        });
     }
 }
 
