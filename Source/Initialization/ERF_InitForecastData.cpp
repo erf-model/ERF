@@ -1,5 +1,7 @@
 /**
  * \file ERF_ReadCustomBinaryForecastData.cpp
+ * This file contains routines to read-in the binary files for weather data
+ * and make multifabs for it
  */
 #include <ERF.H>
 #include "ERF_ReadCustomBinaryIC.H"
