@@ -32,6 +32,10 @@ SurfaceLayer::update_fluxes (const int& lev,
     //m_ma.write_norm_indices(lev);
     //step+=1;
 
+    // Do we have a constant flux for moisture?
+    bool cons_qflux = ( (moist_type == MoistCalcType::MOISTURE_FLUX) ||
+                        (moist_type == MoistCalcType::ADIABATIC) );
+
     // ***************************************************************
     // Iterate the fluxes if moeng type
     // First iterate over land -- the only model for surface roughness
@@ -42,7 +46,7 @@ SurfaceLayer::update_fluxes (const int& lev,
         bool is_land = true;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
             if (rough_type_land == RoughCalcType::CONSTANT) {
-                surface_flux most_flux(m_ma.get_zref(), surf_temp_flux);
+              surface_flux most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
@@ -50,14 +54,15 @@ SurfaceLayer::update_fluxes (const int& lev,
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             update_surf_temp(time);
             if (rough_type_land == RoughCalcType::CONSTANT) {
-                surface_temp most_flux(m_ma.get_zref(), surf_temp_flux);
+              surface_temp most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
             }
-        } else if (theta_type == ThetaCalcType::ADIABATIC) {
+        } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
+                   (moist_type == MoistCalcType::ADIABATIC)) {
             if (rough_type_land == RoughCalcType::CONSTANT) {
-                adiabatic most_flux(m_ma.get_zref(), surf_temp_flux);
+                adiabatic most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
@@ -77,16 +82,24 @@ SurfaceLayer::update_fluxes (const int& lev,
         bool is_land = false;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                surface_flux_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a, cnk_visc);
+                surface_flux_charnock most_flux(m_ma.get_zref(),
+                                                surf_temp_flux, surf_moist_flux,
+                                                cnk_a, cnk_visc, cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
-                surface_flux_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                surface_flux_mod_charnock most_flux(m_ma.get_zref(),
+                                                    surf_temp_flux, surf_moist_flux,
+                                                    depth, cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::DONELAN) {
-                surface_flux_donelan most_flux(m_ma.get_zref(), surf_temp_flux);
+                surface_flux_donelan most_flux(m_ma.get_zref(),
+                                               surf_temp_flux, surf_moist_flux,
+                                               cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
-                surface_flux_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
+                surface_flux_wave_coupled most_flux(m_ma.get_zref(),
+                                                    surf_temp_flux, surf_moist_flux,
+                                                    cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_sea");
@@ -95,33 +108,46 @@ SurfaceLayer::update_fluxes (const int& lev,
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             update_surf_temp(time);
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                surface_temp_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a, cnk_visc);
+                surface_temp_charnock most_flux(m_ma.get_zref(),
+                                                surf_temp_flux, surf_moist_flux,
+                                                cnk_a, cnk_visc, cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
-                surface_temp_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                surface_temp_mod_charnock most_flux(m_ma.get_zref(),
+                                                    surf_temp_flux, surf_moist_flux,
+                                                    depth, cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::DONELAN) {
-                surface_temp_donelan most_flux(m_ma.get_zref(), surf_temp_flux);
+                surface_temp_donelan most_flux(m_ma.get_zref(),
+                                               surf_temp_flux, surf_moist_flux,
+                                               cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
-                surface_temp_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
+                surface_temp_wave_coupled most_flux(m_ma.get_zref(),
+                                                    surf_temp_flux, surf_moist_flux,
+                                                    cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_sea");
             }
 
-        } else if (theta_type == ThetaCalcType::ADIABATIC) {
+        } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
+                   (moist_type == MoistCalcType::ADIABATIC)) {
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                adiabatic_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a, cnk_visc);
+                adiabatic_charnock most_flux(m_ma.get_zref(),
+                                             surf_temp_flux, surf_moist_flux,
+                                             cnk_a, cnk_visc);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
-                adiabatic_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                adiabatic_mod_charnock most_flux(m_ma.get_zref(),
+                                                 surf_temp_flux, surf_moist_flux,
+                                                 depth);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::DONELAN) {
-                adiabatic_donelan most_flux(m_ma.get_zref(), surf_temp_flux);
+                adiabatic_donelan most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
-                adiabatic_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
+                adiabatic_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_sea");
@@ -217,6 +243,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
         auto t_star_arr = t_star[lev]->array(mfi);
         auto q_star_arr = q_star[lev]->array(mfi);
         auto t_surf_arr = t_surf[lev]->array(mfi);
+        auto q_surf_arr = q_surf[lev]->array(mfi);
         auto olen_arr   = olen[lev]->array(mfi);
 
         const auto tm_arr  = tm_ptr->array(mfi);
@@ -247,9 +274,9 @@ SurfaceLayer::compute_fluxes (const int& lev,
             {
                 most_flux.iterate_flux(i, j, k, max_iters,
                                        z0_arr, umm_arr, tm_arr, tvm_arr, qvm_arr,
-                                       u_star_arr, w_star_arr,  // to be updated
-                                       t_star_arr, q_star_arr,  // to be updated
-                                       t_surf_arr, olen_arr,    // to be updated
+                                       u_star_arr, w_star_arr,           // to be updated
+                                       t_star_arr, q_star_arr,           // to be updated
+                                       t_surf_arr, q_surf_arr, olen_arr, // to be updated
                                        pblh_arr, Hwave_arr, Lwave_arr, eta_arr);
             }
         });
@@ -399,6 +426,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         const auto t_star_arr = t_star[lev]->array(mfi);
         const auto q_star_arr = q_star[lev]->array(mfi);
         const auto t_surf_arr = t_surf[lev]->array(mfi);
+        const auto q_surf_arr = q_surf[lev]->array(mfi);
 
         // Get LSM fluxes
         auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
@@ -468,14 +496,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
         // Rho*Qv flux
         //============================================================================
-        // TODO: Generalize MOST q flux
-        if ((flux_type == FluxCalcType::CUSTOM) && use_moisture) {
+        if (use_moisture) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real Qflux = flux_comp.compute_q_flux(i, j, k,
                                                       cons_arr, velx_arr, vely_arr,
                                                       umm_arr, qm_arr, u_star_arr,
-                                                      q_star_arr, t_surf_arr);
+                                                      q_star_arr, q_surf_arr);
 
                 if (rotate) {
                     rotate_scalar_flux(i, j, k, Qflux, dxInv, zphys_arr,
@@ -737,8 +764,8 @@ SurfaceLayer::update_pblh (const int& lev,
     if (pblh_type == PBLHeightCalcType::MYNN25) {
         MYNNPBLH estimator;
         compute_pblh(lev, vars, z_phys_cc, estimator, RhoQv_comp, RhoQc_comp, RhoQr_comp);
-    } else if (pblh_type == PBLHeightCalcType::YSU) {
-        amrex::Error("YSU PBLH calc not implemented yet");
+    } else if (pblh_type == PBLHeightCalcType::YSU || pblh_type == PBLHeightCalcType::MRF) {
+        amrex::Error("YSU/MRF PBLH calc not implemented yet");
     }
 }
 

@@ -129,7 +129,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.rans_type == RANSType::kEqn       ||
                                     tc.pbl_type  == PBLType::MYNN25      ||
                                     tc.pbl_type  == PBLType::MYNNEDMF    ||
-                                    tc.pbl_type  == PBLType::YSU );
+                                    tc.pbl_type  == PBLType::YSU ||
+                                    tc.pbl_type  == PBLType::MRF );
     const bool l_rotate         = (solverChoice.use_rotate_surface_flux);
 
     const Box& domain = geom.Domain();

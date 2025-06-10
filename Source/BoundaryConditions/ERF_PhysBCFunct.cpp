@@ -20,6 +20,15 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
 {
     BL_PROFILE("ERFPhysBCFunct_cons::()");
 
+    //
+    // We fill all of the interior and periodic ghost cells first, so we can fill
+    //    those directly inside the lateral and vertical calls.
+    // If triply periodic this is all we do
+    //
+    if (do_fb) {
+        mf.FillBoundary(icomp,ncomp,m_geom.periodicity());
+    }
+
     if (m_geom.isAllPeriodic()) return;
 
     const auto& domain = m_geom.Domain();
@@ -31,14 +40,6 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
         if (m_geom.isPeriodic(i)) {
             gdomain.grow(i, nghost[i]);
         }
-    }
-
-    //
-    // We fill all of the interior and periodic ghost cells first, so we can fill
-    //    those directly inside the lateral and vertical calls.
-    //
-    if (do_fb) {
-        mf.FillBoundary(icomp,ncomp,m_geom.periodicity());
     }
 
 #ifdef AMREX_USE_OMP
@@ -92,6 +93,15 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 {
     BL_PROFILE("ERFPhysBCFunct_u::()");
 
+    //
+    // We fill all of the interior and periodic ghost cells first, so we can fill
+    //    those directly inside the lateral and vertical calls.
+    // If triply periodic this is all we do
+    //
+    if (do_fb) {
+        mf.FillBoundary(m_geom.periodicity());
+    }
+
     if (m_geom.isAllPeriodic()) return;
 
     const auto& domain = m_geom.Domain();
@@ -102,14 +112,6 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
         if (m_geom.isPeriodic(i)) {
             gdomainx.grow(i, nghost[i]);
         }
-    }
-
-    //
-    // We fill all of the interior and periodic ghost cells first, so we can fill
-    //    those directly inside the lateral and vertical calls.
-    //
-    if (do_fb) {
-        mf.FillBoundary(m_geom.periodicity());
     }
 
 #ifdef AMREX_USE_OMP
@@ -166,6 +168,15 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 {
     BL_PROFILE("ERFPhysBCFunct_v::()");
 
+    //
+    // We fill all of the interior and periodic ghost cells first, so we can fill
+    //    those directly inside the lateral and vertical calls.
+    // If triply periodic this is all we do
+    //
+    if (do_fb) {
+        mf.FillBoundary(m_geom.periodicity());
+    }
+
     if (m_geom.isAllPeriodic()) return;
 
     const auto& domain = m_geom.Domain();
@@ -176,14 +187,6 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
         if (m_geom.isPeriodic(i)) {
             gdomainy.grow(i, nghost[i]);
         }
-    }
-
-    //
-    // We fill all of the interior and periodic ghost cells first, so we can fill
-    //    those directly inside the lateral and vertical calls.
-    //
-    if (do_fb) {
-        mf.FillBoundary(m_geom.periodicity());
     }
 
 #ifdef AMREX_USE_OMP
@@ -238,10 +241,19 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 {
     BL_PROFILE("ERFPhysBCFunct_w::()");
 
-    int bccomp_u = BCVars::xvel_bc;
-    int bccomp_v = BCVars::yvel_bc;
+    //
+    // We fill all of the interior and periodic ghost cells first, so we can fill
+    //    those directly inside the lateral and vertical calls.
+    // If triply periodic this is all we do
+    //
+    if (do_fb) {
+        mf.FillBoundary(m_geom.periodicity());
+    }
 
     if (m_geom.isAllPeriodic()) return;
+
+    int bccomp_u = BCVars::xvel_bc;
+    int bccomp_v = BCVars::yvel_bc;
 
     const auto& domain = m_geom.Domain();
     const auto dxInv   = m_geom.InvCellSizeArray();
@@ -256,14 +268,6 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
     // We want to make sure we impose the z-vels at k=0  if the box includes k=0
     //
     if (gdomainz.smallEnd(2) == 0) gdomainz.setSmall(2,1);
-
-    //
-    // We fill all of the interior and periodic ghost cells first, so we can fill
-    //    those directly inside the lateral and vertical calls.
-    //
-    if (do_fb) {
-        mf.FillBoundary(m_geom.periodicity());
-    }
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

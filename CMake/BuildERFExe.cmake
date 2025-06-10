@@ -201,6 +201,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNN25.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
+       ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMRF.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeBuoyancy.cpp

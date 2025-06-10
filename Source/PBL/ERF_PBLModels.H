@@ -104,7 +104,37 @@ ComputeDiffusivityYSU (const amrex::MultiFab& xvel,
                        const amrex::BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
-
+/**
+ * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
+ * older version of Yonsei University PBL scheme
+ *
+ * @param[in] xvel Velocity in x-dir
+ * @param[in] yvel Velocity in y-dir
+ * @param[in] cons_in Cell center conserved quantities
+ * @param[out] eddyViscosity Holds turbulent viscosity
+ * @param[in] geom Problem geometry
+ * @param[in] turbChoice Container with turbulence parameters
+ * @param[in] SurfLayer Pointer to Monin-Obukhov class if instantiated
+ * @param[in] use_moisture If we have microphysics enabled
+ * @param[in] level Current level
+ * @param[in] bc_ptr Pointer to array with boundary condition info
+ * @param[in] vert_only Only compute vertical eddy diffusivities
+ * @param[in] z_phys_nd Physical location of grid nodes, if terrain (or grid stretching) is enabled
+ */
+void
+ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
+                       const amrex::MultiFab& yvel,
+                       const amrex::MultiFab& cons_in,
+                       amrex::MultiFab& eddyViscosity,
+                       const amrex::Geometry& geom,
+                       const TurbChoice& turbChoice,
+                       std::unique_ptr<SurfaceLayer>& SurfLayer,
+                       bool use_terrain_fitted_coords,
+                       bool use_moisture,
+                       int level,
+                       const amrex::BCRec* bc_ptr,
+                       bool /*vert_only*/,
+                       const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
 /**
  * Function for computing vertical derivatives for use in PBL model
