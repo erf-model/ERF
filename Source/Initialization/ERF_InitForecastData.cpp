@@ -59,20 +59,11 @@ void fill_weather_data_multifab(MultiFab& mf,
 	const auto prob_lo  = geom.ProbLo();
     const auto dx       = geom.CellSize();
  
-	//std::cout << "Problo is " << prob_lo[0] << " " << prob_lo[1] << " " <<  prob_lo[2] << "\n";
-	//std::cout << "xmin, xmax etc is " << xmin << " " << ymin << " "<< zmin << "\n";
-	//std::cout << "dx is " << dx[0] << " " << dx[1] << " " << dx[2] << "\n";
- 
 	for (MFIter mfi(mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
 	{
 
 	const Box& bx = mfi.nodaltilebox();
 	Array4<Real> const& arr = mf.array(mfi);
-
-	std::cout << "Reaching inside here "
-          << "(" << bx.loVect()[0] << "," << bx.loVect()[1] << "," << bx.loVect()[2] << ") to "
-          << "(" << bx.hiVect()[0] << "," << bx.hiVect()[1] << "," << bx.hiVect()[2] << ")"
-          << std::endl;
 
 	ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
 	{
@@ -85,7 +76,6 @@ void fill_weather_data_multifab(MultiFab& mf,
         jloc = std::floor((y-ymin)/dx[1]);
         kloc = std::floor((z-zmin)/dx[2]);
 
-		// Replace this with logic using your coarse input data
 		int idx = get_single_index(iloc,jloc,kloc,nx_d,ny_d);
 		if(n==0) {
 			arr(i,j,k,n) = rho_d_ptr[idx];
@@ -169,7 +159,7 @@ ERF::init_coarse_weather_data()
 							   rho_h,uvel_h, vvel_h, wvel_h,
                                theta_h, qv_h, qc_h, qr_h);
 
-	Vector<std::string> varnames = {
+	/*Vector<std::string> varnames = {
     "var0", "var1", "var2", "var3", "var4", "var5", "var6", "var7"
 	}; // Customize variable names
 
@@ -193,6 +183,6 @@ ERF::init_coarse_weather_data()
     	geom,
     	time,
     	0 // level
-	);	
+	);*/	
 
 }
