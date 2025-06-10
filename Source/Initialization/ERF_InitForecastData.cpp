@@ -24,8 +24,6 @@ void fill_weather_data_multifab(MultiFab& mf,
                                 const Vector<Real>& qc_h,
                                 const Vector<Real>& qr_h)
 {
-
-
     const int nx_d = nx;
     const int ny_d = ny;
 
@@ -102,8 +100,6 @@ void fill_weather_data_multifab(MultiFab& mf,
 void
 ERF::init_coarse_weather_data()
 {
-
-
     Vector<Real> xvec_h, yvec_h, zvec_h, rho_h, uvel_h, vvel_h, wvel_h, theta_h, qv_h, qc_h, qr_h;
 
     std::string filename;
