@@ -30,7 +30,7 @@ eb_::eb_ ( )
 { }
 
 void
-eb_::make_factory ( int level,
+eb_::make_all_factories ( int level,
                     Geometry            const& a_geom,
                     BoxArray            const& ba,
                     DistributionMapping const& dm,
@@ -67,6 +67,23 @@ eb_::make_factory ( int level,
       Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
       m_factory.get());
   }
+
+  Print() << "\nDone making EB factory.\n\n";
+}
+
+void
+eb_::make_cc_factory ( int level,
+                    Geometry            const& a_geom,
+                    BoxArray            const& ba,
+                    DistributionMapping const& dm,
+                    EB2::Level const& a_eb_level)
+{
+
+  Print() << "making EB factory\n";
+  m_factory = std::make_unique<EBFArrayBoxFactory>(a_eb_level, a_geom, ba, dm,
+    Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
+
+  // eb_::WriteEBSurface(ba, dm, a_geom, m_factory.get(), level);
 
   Print() << "\nDone making EB factory.\n\n";
 }

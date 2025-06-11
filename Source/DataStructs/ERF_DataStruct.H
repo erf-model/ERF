@@ -368,6 +368,11 @@ struct SolverChoice {
         // Which external forcings?
         abl_driver_type = ABLDriverType::None; // Default: no ABL driver for simulating classical fluid dynamics problems
         pp.query_enum_case_insensitive("abl_driver_type",abl_driver_type);
+        pp.query("const_massflux_u", const_massflux_u);
+        pp.query("const_massflux_v", const_massflux_v);
+        pp.query("const_massflux_tau", const_massflux_tau);
+        pp.query("const_massflux_layer_lo", const_massflux_layer_lo);
+        pp.query("const_massflux_layer_hi", const_massflux_layer_hi);
 
         // Which type of inflow turbulent generation
         pert_type = PerturbationType::None; // Default
@@ -444,7 +449,19 @@ struct SolverChoice {
                 }
             }
         }
-
+        // MRF
+        for (int lev = 0; lev <= max_level; lev++) {
+            if (turbChoice[lev].pbl_ysu_use_consistent_coriolis) {
+                if (use_coriolis) {
+                    turbChoice[lev].pbl_ysu_coriolis_freq = coriolis_factor * sinphi;
+                    if (lev == 0) {
+                        amrex::Print() << "MRF PBL using ERF coriolis frequency: " << turbChoice[lev].pbl_ysu_coriolis_freq << std::endl;
+                    }
+                } else {
+                    amrex::Abort("MRF cannot use ERF coriolis frequency if not using coriolis");
+                }
+            }
+        }
 
         // Which type of multilevel coupling
         coupling_type = CouplingType::TwoWay; // Default
@@ -821,5 +838,14 @@ struct SolverChoice {
 
     // Use forest canopy model?
     bool do_forest_drag {false};
+
+    // Enforce constant mass flux?
+    amrex::Real const_massflux_u = 0.0;
+    amrex::Real const_massflux_v = 0.0;
+    amrex::Real const_massflux_tau = 1.0;
+    amrex::Real const_massflux_layer_lo = -1e34;
+    amrex::Real const_massflux_layer_hi =  1e34;
+    int massflux_klo {0}; // these are updated in ERF.cpp
+    int massflux_khi {0};
 };
 #endif

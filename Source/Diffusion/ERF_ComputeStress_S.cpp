@@ -33,8 +33,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          Array4<Real>& tau13, Array4<Real>& tau31,
                          Array4<Real>& tau23, Array4<Real>& tau32,
                          const Array4<const Real>& er_arr,
-                         const Array4<const Real>& z_nd,
-                         const Array4<const Real>& detJ,
+                         const Gpu::DeviceVector<Real>& stretched_dz_d,
                          const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                          const Array4<const Real>& mf_mx,
                          const Array4<const Real>& mf_ux,
@@ -64,6 +63,8 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         });
     }
 
+    auto dz_ptr = stretched_dz_d.data();
+
     // First block: cell centered stresses
     //***********************************************************************************
     Real OneThird   = (1./3.);
@@ -73,7 +74,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mfy = mf_my(i,j,0);
 
         Real mu_tot     = rhoAlpha(i,j,k);
-        Real met_h_zeta = detJ(i,j,k);
+        Real met_h_zeta = dz_ptr[k]*dxInv[2];
 
         tau11(i,j,k) = -mu_tot * (met_h_zeta/mfy) * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
         tau22(i,j,k) = -mu_tot * (met_h_zeta/mfx) * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
@@ -88,7 +89,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mfx = 0.5 * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
         Real mfy = 0.5 * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
 
-        Real met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
+        Real met_h_zeta = dz_ptr[k] * dxInv[2];
 
         Real mu_tot = 0.25*( rhoAlpha(i-1, j  , k) + rhoAlpha(i, j  , k)
                            + rhoAlpha(i-1, j-1, k) + rhoAlpha(i, j-1, k) );
@@ -100,7 +101,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     {
         Real mfy = mf_uy(i,j,0);
 
-        Real met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
+        Real met_h_zeta = 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
 
         Real mu_tot = 0.25 * ( rhoAlpha(i-1, j  , k  ) + rhoAlpha(i  , j  , k  )
                              + rhoAlpha(i-1, j  , k-1) + rhoAlpha(i  , j  , k-1) );
@@ -112,7 +113,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     {
         Real mfx = mf_vx(i,j,0);
 
-        Real met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
+        Real met_h_zeta = 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
 
         Real mu_tot = 0.25 * ( rhoAlpha(i  , j-1, k  ) + rhoAlpha(i  , j  , k  )
                              + rhoAlpha(i  , j-1, k-1) + rhoAlpha(i  , j  , k-1) );
@@ -154,8 +155,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         Array4<Real>& tau13, Array4<Real>& tau31,
                         Array4<Real>& tau23, Array4<Real>& tau32,
                         const Array4<const Real>& er_arr,
-                        const Array4<const Real>& z_nd,
-                        const Array4<const Real>& detJ,
+                        const Gpu::DeviceVector<Real>& stretched_dz_d,
                         const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                         const Array4<const Real>& mf_mx,
                         const Array4<const Real>& mf_ux,
@@ -185,6 +185,8 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         });
     }
 
+    auto dz_ptr = stretched_dz_d.data();
+
     // First block: cell centered stresses
     //***********************************************************************************
     Real OneThird   = (1./3.);
@@ -194,7 +196,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mfy = mf_my(i,j,0);
 
         Real mu_tot     = rhoAlpha(i,j,k) + 2.0*mu_turb(i, j, k, EddyDiff::Mom_h);
-        Real met_h_zeta = detJ(i,j,k);
+        Real met_h_zeta = dz_ptr[k]*dxInv[2];
 
         tau11(i,j,k) = -mu_tot * (met_h_zeta/mfy) * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
         tau22(i,j,k) = -mu_tot * (met_h_zeta/mfx) * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
@@ -209,7 +211,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mfx = 0.5 * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
         Real mfy = 0.5 * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
 
-        Real met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
+        Real met_h_zeta = dz_ptr[k]*dxInv[2];
 
         Real mu_bar = 0.25*( mu_turb(i-1, j  , k, EddyDiff::Mom_h) + mu_turb(i, j  , k, EddyDiff::Mom_h)
                            + mu_turb(i-1, j-1, k, EddyDiff::Mom_h) + mu_turb(i, j-1, k, EddyDiff::Mom_h) );
@@ -224,7 +226,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     {
         Real mfy = mf_uy(i,j,0);
 
-        Real met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
+        Real met_h_zeta = 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
 
         Real mu_bar = 0.25*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                            + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
@@ -239,7 +241,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     {
         Real mfx = mf_vx(i,j,0);
 
-        Real met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
+        Real met_h_zeta = 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
 
         Real mu_bar = 0.25*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                            + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );

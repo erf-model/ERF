@@ -135,8 +135,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_FillBdyCCVels.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatcher.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
-       ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom_N.cpp
-       ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom_T.cpp
+       ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_N.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_S.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_T.cpp
@@ -202,6 +201,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNN25.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
+       ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMRF.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeBuoyancy.cpp

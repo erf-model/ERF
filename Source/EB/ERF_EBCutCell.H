@@ -384,14 +384,14 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P1: v0--v1: intersection ~ 0 :: add vIP to F4\n"; }
         else
 #endif
-        { m_F4.add_vertex(vIP); }
+        { m_F4.add_vertex(v0); }
 
       } else if ( almostEqual(distIP, 1.0) ) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P1: v0--v1: intersection ~ 1 :: add vIP to F2\n"; }
         else
 #endif
-        { m_F2.add_vertex(vIP); }
+        { m_F2.add_vertex(v1); }
       }
 
     }
@@ -428,14 +428,14 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P1: v1--v4: intersection ~ 0 :: add vIP to F1\n"; }
         else
 #endif
-        {m_F1.add_vertex(vIP); }
+        {m_F1.add_vertex(v1); }
 
       } else if ( almostEqual(distIP, 1.0) ) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P1: v1--v4: intersection ~ 1 :: add vIP to F3\n"; }
         else
 #endif
-        { m_F3.add_vertex(vIP); }
+        { m_F3.add_vertex(v4); }
       }
 
     }
@@ -472,14 +472,14 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P1: v4--v7: intersection ~ 0 :: add vIP to F5\n"; }
         else
 #endif
-        { m_F5.add_vertex(vIP); }
+        { m_F5.add_vertex(v4); }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P1: v4--v7: intersection ~ 1 :: add vIP to F6\n"; }
         else
 #endif
-        { m_F6.add_vertex(vIP); }
+        { m_F6.add_vertex(v7); }
       }
     }
 
@@ -517,14 +517,14 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P1: v1--v5: intersection ~ 0 :: add vIP to F5\n"; }
       else
 #endif
-      { m_F5.add_vertex(vIP); }
+      { m_F5.add_vertex(v1); }
 
     } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
       if (a_dry_run) { Print() << "P1: v1--v5: intersection ~ 1 :: add vIP to F6\n"; }
       else
 #endif
-      { m_F6.add_vertex(vIP); }
+      { m_F6.add_vertex(v5); }
     }
   }
 
@@ -551,14 +551,14 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P2: v0--v2: intersection ~ 0 :: add vIP to F5\n"; }
         else
 #endif
-      { m_F5.add_vertex(vIP); }
+      { m_F5.add_vertex(v0); }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P2: v0--v2: intersection ~ 1 :: add vIP to F6\n"; }
         else
 #endif
-        { m_F6.add_vertex(vIP); }
+        { m_F6.add_vertex(v2); }
       }
 
     }
@@ -595,14 +595,14 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P2: v2--v5: intersection ~ 0 :: add vIP to F4\n"; }
         else
 #endif
-        { m_F4.add_vertex(vIP); }
+        { m_F4.add_vertex(v2); }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P2: v2--v5: intersection ~ 1 :: add vIP to F2\n"; }
         else
 #endif
-        { m_F2.add_vertex(vIP); }
+        { m_F2.add_vertex(v5); }
       }
     }
 
@@ -638,14 +638,14 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P2: v5--v7: intersection ~ 0 :: add vIP to F1\n"; }
         else
 #endif
-        { m_F1.add_vertex(vIP); }
+        { m_F1.add_vertex(v5); }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P2: v5--v7: intersection ~ 1 :: add vIP to F3\n"; }
         else
 #endif
-        { m_F3.add_vertex(vIP); }
+        { m_F3.add_vertex(v7); }
       }
     }
 
@@ -684,14 +684,14 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P5: v2--v6: intersection ~ 0 :: add vIP to F1\n"; }
       else
 #endif
-      { m_F1.add_vertex(vIP); }
+      { m_F1.add_vertex(v2); }
 
     } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
       if (a_dry_run) { Print() << "P5: v2--v6: intersection ~ 1 :: add vIP to F3\n"; }
       else
 #endif
-      { m_F3.add_vertex(vIP); }
+      { m_F3.add_vertex(v6); }
     }
   }
 
@@ -718,14 +718,14 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P3: v0--v3: intersection ~ 0 :: add vIP to F1\n"; }
         else
 #endif
-        { m_F1.add_vertex(vIP); }
+        { m_F1.add_vertex(v0); }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P3: v0--v3: intersection ~ 1 :: add vIP to F3\n"; }
         else
 #endif
-        { m_F3.add_vertex(vIP); }
+        { m_F3.add_vertex(v3); }
       }
 
     }
@@ -762,14 +762,14 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P3: v3--v6: intersection ~ 0 :: add vIP to F5\n"; }
         else
 #endif
-        { m_F5.add_vertex(vIP); }
+        { m_F5.add_vertex(v3); }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P3: v3--v6: intersection ~ 1 :: add vIP to F6\n"; }
         else
 #endif
-        { m_F6.add_vertex(vIP); }
+        { m_F6.add_vertex(v6); }
       }
 
     }
@@ -806,14 +806,14 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P3: v6--v7: intersection ~ 0 :: add vIP to F4\n"; }
         else
 #endif
-        { m_F4.add_vertex(vIP); }
+        { m_F4.add_vertex(v6); }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P3: v6--v7: intersection ~ 1 :: add vIP to F2\n"; }
         else
 #endif
-        { m_F2.add_vertex(vIP); }
+        { m_F2.add_vertex(v7); }
       }
     }
 
@@ -850,14 +850,18 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P6: v3--v4: intersection ~ 0 :: add vIP to F4\n"; }
       else
 #endif
-      { m_F4.add_vertex(vIP); }
+      {
+        m_F4.add_vertex(v3);
+      }
 
     } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
       if (a_dry_run) { Print() << "P6: v3--v4: intersection ~ 1 :: add vIP to F2\n"; }
       else
 #endif
-      { m_F2.add_vertex(vIP); }
+      {
+        m_F2.add_vertex(v4);
+      }
     }
   }
 }

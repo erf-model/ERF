@@ -1116,6 +1116,27 @@ List of Parameters
 |                                         | and use the value  |                     |             |
 |                                         | from ERF coriolis  |                     |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mrf_coriolis_freq**           | Coriolis frq. used | Real                | 1.0e-4      |
+|                                         | for MRF PBL Scheme |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mrf__Ribcr**                  | Over land critical | Real                | 0.5         |
+|                                         | Richardson number  |                     |             |
+|                                         | for MRF PBL Scheme |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mrf_const_b**                 | Coefficient for the| Real                | 7.8         |
+|                                         | countergradient    |                     |             |
+|                                         | term               |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mrf_sf**                      | ratio of surface   | Real                | 0.1         |
+|                                         | layer height to    |                     |             |
+|                                         | boundary layer     |                     |             |
+|                                         | height             |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.mrf_moistvars**                   | Diffuse moisture   | bool                | 0           |
+|                                         | variables using    |                     |             |
+|                                         | modeled eddy       |                     |             |
+|                                         | diffusivity        |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
 
 Note that both PBL schemes must be used in conjunction with a MOST boundary condition
 at the surface (Zlo) boundary. The YSU scheme is work in progress currently.
@@ -1165,9 +1186,32 @@ List of Parameters
 |                                     | geostrophic wind       |                   |                     |
 |                                     | profile                |                   |                     |
 |                                     | (with z, Ug, and       |                   |                     |
-|                                     |  Vg whtiespace         |                   |                     |
+|                                     |  Vg whitespace         |                   |                     |
 |                                     |  delimited             |                   |                     |
 |                                     |  columns)              |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.const_massflux_u**            | Include a momentum     | Real              | 0.                  |
+| **erf.const_massflux_v**            | source at each time,   |                   |                     |
+|                                     | (e.g., representing a  |                   |                     |
+|                                     | background driving     |                   |                     |
+|                                     | pressure gradient),    |                   |                     |
+|                                     | to obtain a desired    |                   |                     |
+|                                     | mass flux with the     |                   |                     |
+|                                     | specified bulk velocity|                   |                     |
+|                                     | in x,y                 |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.const_massflux_layer_lo**     | Two heights defining   | Real              | None                |
+| **erf.const_massflux_layer_hi**     | the layer over which   |                   |                     |
+|                                     | the mass flux is       |                   |                     |
+|                                     | integrated and compared|                   |                     |
+|                                     | to the desired input(s)|                   |                     |
+|                                     | specified above        |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.const_massflux_tau**          | Timescale over which   | Real              | None                |
+|                                     | to adjust the          |                   |                     |
+|                                     | background pressure    |                   |                     |
+|                                     | gradient to match the  |                   |                     |
+|                                     | specified mass flux    |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.use_gravity**                 | Include gravity        | true / false      | false               |
 |                                     | in momentum            |                   |                     |

@@ -123,6 +123,105 @@ MYNN-EDMF Level 2.5 PBL Model
 
 More recent advancements that add significant complexity to the MYNN scheme have been incorporated into WRF, as described in Olson et al. 2019. These advancements are not included in ERF, but may be in the future.
 
+.. _MRFPBL:
+
+MRF PBL Model
+-------------
+
+.. warning::
+
+   Implementation is in progress with basic support. Need to be tuned in future for real flows.
+
+The Medium Range Forecast (MRF) PBL model is a nonlocal PBL scheme that was originally developed for the MRF model,
+which was used in the NCEP global forecast system. It is a nonlocal scheme that uses a countergradient diffusion approach
+to model vertical turbulent transport within the PBL.
+
+The turbulent diffusion for prognostic variables (:math:`C= u, v, \theta, q_k`), where :math:`q_k` includes all moisture
+variables is given by
+
+.. math::
+   \frac{\partial C}{\partial t}
+   = \frac{\partial}{\partial z} \left[
+   K_c \left( \frac{\partial C}{\partial z} - \gamma_c \right)
+   \right]
+
+Here :math:`K_c` is the turbulent diffusion coefficient, and :math:`\gamma_c` is the countergradient correction term.
+
+The turbulent diffusion coefficient in the mixed layer is given by:
+
+.. math::
+   K_m = \kappa w_s z \left( 1- \frac{z}{h} \right)^2
+
+.. math::
+   w_s = \frac{u_*}{\phi_m}
+
+where :math:`\kappa` is the von Karman constant, :math:`w_s` is a representative velocity scale in the mixed layer,
+and :math:`h` is the PBL height. The stability function :math:`\phi_m` is computed to be consistent with the surface layer
+bottom. For unstable regime (:math:`u_*\theta_* < 0`), it is calculated as follows:
+
+.. math::
+   \phi_m = \left(1 - 8 sf \frac{h}{L}\right)^{-1/3}
+
+.. math::
+   \phi_{t,q} = \left(1 - 16 sf \frac{h}{L}\right)^{-1/2}
+
+and for stable regime (:math:`u_*\theta_* > 0`), it is calculated as:
+
+.. math::
+   \phi_{m,t,q} = \left(1 + 5 sf \frac{h}{L}\right)
+
+where :math:`sf`  is a fraction of the surface layer and  atmospheric boundary layer height and  :math:`L`
+is the Monin-Obukhov length,  which is computed from the surface heat fluxes. The turbulent coefficient for
+temperature and moisture is given by:
+
+.. math::
+   K_t = K_q = \frac{K_m}{Pr}
+
+.. math::
+   Pr = \left(\frac{\phi_t}{\phi_m}+ b \kappa sf\right)
+
+where :math:`K_t` is the turbulent diffusion coefficient for temperature, :math:`K_q` is the turbulent diffusion coefficient for moisture
+and :math:`Pr` is the Prandtl number.
+
+The turbulent diffusion coefficient in the free atmosphere is computed from the YSU model as the MRF
+expressions showed oscillations in the canonical stable boundary layer tests.
+
+.. math::
+   K_{m,t} = l^2 f_{m,t}(Rig)\left|\frac{\partial U}{\partial z}\right|
+
+.. math::
+   l = \frac{\kappa z \lambda}{\kappa z + \lambda}
+
+where :math:`l` is the length scale, :math:`f_{m,t}` is a stability function for momentum and temperature (or moisture),
+:math:`Rig` is the gradient Richardson number,  and :math:`U` is the horizontal wind speed. The gradient Richardson
+number is computed as:
+
+.. math::
+   Rig = \frac{g}{\theta_v}\left[\frac{\partial \theta_v}{\partial z} \left(\frac{\partial z}{\partial U}\right)^2\right]
+
+A different expression is used for the stability function :math:`f_{m,t}` for stable and unstable regimes. For stable regime we have,
+
+.. math::
+   f_t = f_m (1+2.1 Rig) = \frac{1}{\left(1 + 5 Rig\right)^2}
+
+For the unstable regime, we have:
+
+.. math::
+   f_t = 1 - \frac{8 Rig}{1+1.286\sqrt{-Rig}}
+
+.. math::
+   f_m = 1 - \frac{8 Rig}{1+1.746\sqrt{-Rig}}
+
+
+The countergradient correction term is given by:
+
+.. math::
+   \gamma_c = b \frac{ u_* \theta_*}{w_s}
+
+where :math:`b=7.8` is a constant, :math:`u_*` is the surface frictional velocity scale, :math:`\theta_*` is the
+surface potential temperature scale.
+
+
 .. _YSUPBL:
 
 YSU PBL Model
@@ -218,7 +317,7 @@ Within the PBL (:math:`z \leq h`),
 Useful References
 ~~~~~~~~~~~~~~~~~
 
-The following references have informed the implementation of the YSU model in ERF:
+The following references have informed the implementation of the MRF and YSU model in ERF:
 
 .. _HP96: https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
 

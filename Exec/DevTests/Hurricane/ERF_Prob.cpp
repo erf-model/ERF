@@ -2,6 +2,7 @@
 #include <ERF_Constants.H>
 
 #include "ERF_Interpolation_Bilinear.H"
+#include "ERF_ReadCustomBinaryIC.H"
 
 using namespace amrex;
 
@@ -137,10 +138,8 @@ Problem::init_custom_pert (
     Real* t   = d_t.data();
     Real* p   = d_p.data();
 
- // File to read
+    // File to read
 
-    // Parse params
-    //const std::string filename = "ERF_IC_gdas1.fnl0p25.2021081906.f00.bin";
     std::string filename;
     ParmParse pp("erf");
     pp.query("IC_file", filename);
@@ -149,91 +148,25 @@ Problem::init_custom_pert (
         amrex::Abort("Error: IC_file is not specified in the input file.");
     }
 
-    // Open the binary file in input mode
-    std::ifstream infile(filename, std::ios::binary);
-    if (!infile) {
-        std::cerr << "Error: Could not open file " << filename << std::endl;
-    }
-
-
-    int nx, ny, nz, ndata;
-    float value;
-
     Vector<Real> xvec_h, yvec_h, zvec_h;
-
-    // Read the four integers
-    infile.read(reinterpret_cast<char*>(&nx), sizeof(int));
-    infile.read(reinterpret_cast<char*>(&ny), sizeof(int));
-    infile.read(reinterpret_cast<char*>(&nz), sizeof(int));
-    infile.read(reinterpret_cast<char*>(&ndata), sizeof(int));
-
-    amrex::Gpu::DeviceVector<Real> xvec_d(nx*ny*nz), yvec_d(nx*ny*nz), zvec_d(nx*ny*nz);
-    for(int i=0; i<nx; i++) {
-        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-        xvec_h.emplace_back(value);
-    }
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xvec_h.begin(), xvec_h.end(), xvec_d.begin());
-
-    for(int j=0; j<ny; j++) {
-        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-        yvec_h.emplace_back(value);
-    }
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yvec_h.begin(), yvec_h.end(), yvec_d.begin());
-
-    for(int k=0; k<nz; k++) {
-        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-        zvec_h.emplace_back(value);
-    }
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zvec_h.begin(), zvec_h.end(), zvec_d.begin());
-
-    // Vector to store the data
     Vector<Real> rho_h, uvel_h, vvel_h, wvel_h, theta_h, qv_h, qc_h, qr_h;
 
-    Vector<Real>* data_h = nullptr; // Declare pointer outside the loop
+    ReadCustomBinaryIC(filename,xvec_h, yvec_h, zvec_h,rho_h, uvel_h, vvel_h, wvel_h, theta_h, qv_h, qc_h, qr_h);
 
-    Real* xvec_d_ptr = xvec_d.data();
-    Real* yvec_d_ptr = yvec_d.data();
-    Real* zvec_d_ptr = zvec_d.data();
+    int nx = xvec_h.size();
+    int ny = yvec_h.size();
+    int nz = zvec_h.size();
 
-    Real dxvec = (xvec_h[nx-1]-xvec_h[0])/(nx-1);
-    Real dyvec = (yvec_h[ny-1]-yvec_h[0])/(ny-1);
+    amrex::Real dxvec = (xvec_h[nx-1]-xvec_h[0])/(nx-1);
+    amrex::Real dyvec = (yvec_h[ny-1]-yvec_h[0])/(ny-1);
 
-    // Read the file
-    for(int idx=0; idx<ndata; idx++){
-        if(idx == 0){
-            data_h = &rho_h;
-        } else if (idx==1) {
-            data_h = &uvel_h;
-        } else if (idx==2) {
-            data_h = &vvel_h;
-        } else if (idx==3) {
-            data_h = &wvel_h;
-        } else if(idx==4) {
-            data_h = &theta_h;
-        } else if(idx==5) {
-            data_h = &qv_h;
-        } else if(idx==6) {
-            data_h = &qc_h;
-        } else if(idx==7) {
-            data_h = &qr_h;
-        }
-        for(int k=0; k<nz; k++) {
-            for(int j=0; j<ny; j++) {
-                for(int i=0; i<nx; i++) {
-                    infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-                    //if(idx == 3) {
-                        //printf("theta is %0.15g, %0.15g, %0.15g %0.15g\n", xvec_h[i], yvec_h[j], zvec_h[k], value);
-                    //}
-                    data_h->emplace_back(value);
-                }
-            }
-        }
-    }
-
-    infile.close();
-
+    amrex::Gpu::DeviceVector<Real> xvec_d(nx*ny*nz), yvec_d(nx*ny*nz), zvec_d(nx*ny*nz);
     amrex::Gpu::DeviceVector<Real> rho_d(nx*ny*nz), uvel_d(nx*ny*nz), vvel_d(nx*ny*nz), wvel_d(nx*ny*nz),
                                    theta_d(nx*ny*nz), qv_d(nx*ny*nz), qc_d(nx*ny*nz), qr_d(nx*ny*nz);
+
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xvec_h.begin(), xvec_h.end(), xvec_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yvec_h.begin(), yvec_h.end(), yvec_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zvec_h.begin(), zvec_h.end(), zvec_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, uvel_h.begin(), uvel_h.end(), uvel_d.begin());
@@ -243,6 +176,9 @@ Problem::init_custom_pert (
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qr_h.begin(), qr_h.end(), qr_d.begin());
 
+    Real* xvec_d_ptr = xvec_d.data();
+    Real* yvec_d_ptr = yvec_d.data();
+    Real* zvec_d_ptr = zvec_d.data();
     Real* rho_d_ptr   = rho_d.data();
     Real* uvel_d_ptr  = uvel_d.data();
     Real* vvel_d_ptr  = vvel_d.data();
