@@ -85,8 +85,6 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     bool extdir_klo = (d_bcrec_ptr[n].lo(2)==BCType::ext_dir || d_bcrec_ptr[n].lo(2)==BCType::hoextrap);
     bool extdir_khi = (d_bcrec_ptr[n].hi(2)==BCType::ext_dir || d_bcrec_ptr[n].hi(2)==BCType::hoextrap);
 
-    Print()<<"SK: DiffusionSrcForMom_EB()/ extdir_ilo = "<<extdir_ilo<<" extdir_ihi = "<<extdir_ihi<<" extdir_jlo = "<<extdir_jlo<<" extdir_jhi = "<<extdir_jhi<<" extdir_klo = "<<extdir_klo<<" extdir_khi = "<<extdir_khi<<std::endl;
-
     // EB u-factory
     Array4<const EBCellFlag> u_cellflg = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
     Array4<const Real      > u_volfrac = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
