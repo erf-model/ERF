@@ -128,6 +128,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool    l_use_terrain_fitted_coords    = (solverChoice.mesh_type == MeshType::VariableDz);
     const bool    l_moving_terrain               = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_stretched_dz || l_use_terrain_fitted_coords);
+    const bool    l_eb_terrain                   = (solverChoice.terrain_type == TerrainType::EB);
 
     const bool l_use_mono_adv   = solverChoice.use_mono_adv;
     const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
@@ -662,15 +663,26 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // viscosity") means that there is no contribution from a
             // turbulence model. However, whether this field truly is constant
             // depends on whether MolecDiffType is Constant or ConstantAlpha.
-            DiffusionSrcForMom(tbx, tby, tbz,
-                               rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                               tau11, tau22, tau33,
-                               tau12, tau21, tau13, tau31, tau23, tau32,
-                               detJ_arr, stretched_dz_d, dxInv,
-                               mf_mx, mf_ux, mf_vx,
-                               mf_my, mf_uy, mf_vy,
-                               l_use_stretched_dz,
-                               l_use_terrain_fitted_coords);
+            if (!l_eb_terrain) {
+                DiffusionSrcForMom(tbx, tby, tbz,
+                    rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                    tau11, tau22, tau33,
+                    tau12, tau21, tau13, tau31, tau23, tau32,
+                    detJ_arr, stretched_dz_d, dxInv,
+                    mf_mx, mf_ux, mf_vx,
+                    mf_my, mf_uy, mf_vy,
+                    l_use_stretched_dz,
+                    l_use_terrain_fitted_coords);   
+            } else {
+                DiffusionSrcForMom_EB(mfi, domain, tbx, tby, tbz,
+                    rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                    u, v, w,
+                    tau11, tau22, tau33,
+                    tau12, tau13, tau23, dxInv,
+                    mf_mx, mf_ux, mf_vx,
+                    mf_my, mf_uy, mf_vy,
+                    solverChoice, ebfact, bc_ptr_d);
+            }
         }
 
         auto abl_pressure_grad    = solverChoice.abl_pressure_grad;
