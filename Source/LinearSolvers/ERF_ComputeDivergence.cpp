@@ -48,6 +48,7 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Array<MultiFab const*,AMRE
                                              +(rho0v_arr(i  ,j+1,k  ) - rho0v_arr(i,j,k)) * dxInv[1]
                                              +(rho0w_arr(i  ,j  ,k+1) - rho0w_arr(i,j,k)) / dz );
                 });
+
             } else {
 
                 //
