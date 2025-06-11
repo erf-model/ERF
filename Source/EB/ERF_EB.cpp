@@ -97,7 +97,7 @@ WriteEBSurface (const BoxArray & ba,
                 const EBFArrayBoxFactory * ebf,
                 const int level)
 {
-    EBToPVD eb_to_pvd;
+    eb_::EBToPVD eb_to_pvd;
 
     const Real* dx           = geom.CellSize();
     const Real* problo       = geom.ProbLo();
@@ -172,7 +172,7 @@ WriteEBSurface (const BoxArray & ba,
     eb_to_pvd.WriteEBVTP(cpu, level);
 
     if(ParallelDescriptor::IOProcessor()) {
-        EBToPVD::WritePVTP(nProcs);
+        eb_::EBToPVD::WritePVTP(nProcs, level);
     }
 
     for (MFIter mfi(mf_ba); mfi.isValid(); ++mfi) {
