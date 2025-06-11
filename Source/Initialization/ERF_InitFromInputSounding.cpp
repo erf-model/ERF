@@ -64,6 +64,8 @@ ERF::init_from_input_sounding (int lev)
             input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n);
         }
 
+        input_sounding_data.set_start_time(start_time);
+
         // this will calculate the hydrostatically balanced density and pressure
         // profiles following WRF ideal.exe
         if (init_sounding_ideal) input_sounding_data.calc_rho_p(0);

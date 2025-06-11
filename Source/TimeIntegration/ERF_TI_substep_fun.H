@@ -62,7 +62,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                      mapfac[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                     input_sounding_data, turbPert, false);
+                     input_sounding_data, lsf, turbPert, false);
 
         // *************************************************************************
         // Set up flux registers if using two_way coupling
@@ -97,7 +97,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                          (solverChoice.have_geo_wind_profile) ? d_u_geos[level].data() : nullptr,
                          (solverChoice.have_geo_wind_profile) ? d_v_geos[level].data() : nullptr,
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                         input_sounding_data, false);
+                         input_sounding_data, lsf, lsf_data[level], nudge_data[level], false);
 
         // Moving terrain
         std::unique_ptr<MultiFab> z_t_pert;

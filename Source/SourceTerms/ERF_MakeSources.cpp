@@ -45,6 +45,7 @@ void make_sources (int level,
                    const Real* dptr_wbar_sub,
                    const Vector<Real*> d_rayleigh_ptrs_at_lev,
                    InputSoundingData& input_sounding_data,
+                   LargeScaleForcingData &lsf_data,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step)
 {
@@ -387,6 +388,7 @@ void make_sources (int level,
         // *************************************************************************************
         // 9. Add nudging towards value specified in input sounding
         // *************************************************************************************
+        /*
         if (solverChoice.nudging_from_input_sounding && is_slow_step)
         {
             int itime_n    = 0;
@@ -423,6 +425,7 @@ void make_sources (int level,
                 cell_src(i, j, k, n) += cell_data(i, j, k, nr) * nudge;
             });
         }
+        */
 
         // *************************************************************************************
         // 10. Add Immersed source terms

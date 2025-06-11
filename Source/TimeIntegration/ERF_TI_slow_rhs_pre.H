@@ -100,7 +100,7 @@
                      mapfac[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                     input_sounding_data, turbPert, true);
+                     input_sounding_data, lsf, turbPert, true);
 
         // *****************************************************************************
         // Define the pressure gradient
@@ -127,7 +127,7 @@
                          (solverChoice.have_geo_wind_profile) ? d_u_geos[level].data(): nullptr,
                          (solverChoice.have_geo_wind_profile) ? d_v_geos[level].data(): nullptr,
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
-                         input_sounding_data, true);
+                         input_sounding_data, lsf, lsf_data[level], nudge_data[level], true);
 
         // *****************************************************************************
         // Add body sources if doing flow around a body
