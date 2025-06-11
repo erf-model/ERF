@@ -24,13 +24,13 @@ struct MYNNLevel25 {
         amrex::Real alphac2 = alphac * alphac;
 
         // Compute non-dimensional parameters (notation follows NN09)
-        amrex::Real Phi1 = 1.0  - alphac2*3.0*A2*B2*(1-C3)*GH;
-        amrex::Real Phi2 = 1.0  - alphac2*9.0*A1*A2*(1-C2)*GH;
-        amrex::Real Phi3 = Phi1 + alphac2*9.0*A2*A2*(1-C2)*(1-C5)*GH;
-        amrex::Real Phi4 = Phi1 - alphac2*12.0*A1*A2*(1-C2)*GH;
-        amrex::Real Phi5 = 6.0*alphac*A1*A1*GM;
+        amrex::Real Phi1 = 1.0  -  3.0 * alphac2 * A2 * B2 * (1-C3) * GH;
+        amrex::Real Phi2 = 1.0  -  9.0 * alphac2 * A1 * A2 * (1-C2) * GH;
+        amrex::Real Phi3 = Phi1 +  9.0 * alphac2 * A2 * A2 * (1-C2) * (1-C5) * GH;
+        amrex::Real Phi4 = Phi1 - 12.0 * alphac2 * A1 * A2 * (1-C2) * GH;
+        amrex::Real Phi5 =         6.0 * alphac2 * A1 * A1 * GM;
 
-        // Compute stability functions
+        // Compute level 2.5 stability functions
         amrex::Real D = Phi2*Phi4 + Phi5*Phi3;
         SM = alphac * A1 * (Phi3 - 3*C1*Phi4) / D;
         SH = alphac * A2 * (Phi2 + 3*C1*Phi5) / D;
