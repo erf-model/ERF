@@ -34,7 +34,7 @@ struct MYNNLevel25 {
         amrex::Real D = Phi2*Phi4 + Phi5*Phi3;
         SM = alphac * A1 * (Phi3 - 3*C1*Phi4) / D;
         SH = alphac * A2 * (Phi2 + 3*C1*Phi5) / D;
-        SQ = 3.0 * SM; // revised in NN09
+        SQ = SQfac * SM;
     }
 
     // Closure coefficients (from Nakanishi & Niino 2009 [NN09])
@@ -47,6 +47,9 @@ struct MYNNLevel25 {
     amrex::Real C3 = 0.352;
     amrex::Real C4 = 0.0;
     amrex::Real C5 = 0.2;
+
+    // Third-order turbulent fluxes
+    amrex::Real SQfac = 3.0; // revised from 2.0 in NN09
 
     // Clipping (defaults from WRF v4.5.0 onward)
     amrex::Real SMmin = 0.0;

@@ -1082,6 +1082,10 @@ List of Parameters
 +-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_C5**                     | MYNN Constant C5   | Real                | 0.2         |
 +-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_SQfactor**               | MYNN ratio of      | Real                | 3.0         |
+|                                         | stability functions|                     |             |
+|                                         | SQ / SM            |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_diffuse_moistvars**      | Diffuse moisture   | bool                | 0           |
 |                                         | variables using    |                     |             |
 |                                         | modeled eddy       |                     |             |
