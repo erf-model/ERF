@@ -7,6 +7,8 @@
 
 using namespace amrex;
 
+#define EXTRA_MYNN25_CHECKS 0
+
 void
 ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const MultiFab& yvel,
@@ -221,6 +223,15 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             // Level 2 limiting (Helfand and Labraga 1988)
             Real alphac  = (qvel(i,j,k) >= qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
+#ifdef EXTRA_MYNN25_CHECKS
+            Real Ri = -GH/(GM+level2.eps);
+            if (alphac < 1 && (Ri > 1 || Ri < -1)) {
+                Warning("Level 2 limiting being applied with Ri out of expected range");
+                //AllPrint() << "alphac"<<IntVect(i,j,k)<<"= " << alphac
+                //    << " Ri,SM2,SH2= " << Ri << " " << SM2 << " " << level2.calc_SH(Rf)
+                //    << std::endl;
+            }
+#endif
 
             // Level 2.5 stability functions
             Real SM, SH, SQ;
@@ -229,6 +240,18 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             // Clip SM, SH following WRF
             SM = amrex::min(amrex::max(SM, mynn.SMmin), mynn.SMmax);
             SH = amrex::min(amrex::max(SH, mynn.SHmin), mynn.SHmax);
+#ifdef EXTRA_MYNN25_CHECKS
+            if (SM == mynn.SMmin) {
+                Warning("SM clipped at min val");
+            } else if (SM == mynn.SMmax) {
+                Warning("SM clipped at max val");
+            }
+            if (SH == mynn.SHmin) {
+                Warning("SH clipped at min val");
+            } else if (SH == mynn.SHmax) {
+                Warning("SH clipped at max val");
+            }
+#endif
 
             // Finally, compute the eddy viscosity/diffusivities
             const Real rho = cell_data(i,j,k,Rho_comp);
