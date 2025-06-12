@@ -40,7 +40,9 @@ eb_::make_all_factories (int level,
   m_factory = std::make_unique<EBFArrayBoxFactory>(a_eb_level, a_geom, ba, dm,
     Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
 
+#if 0
   eb_::WriteEBSurface(ba, dm, a_geom, m_factory.get(), level);
+#endif
 
   { int const idim(0);
 
