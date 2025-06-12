@@ -42,9 +42,6 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 {
     BL_PROFILE("ERF::project_momenta()");
 
-    auto const dom_lo = lbound(geom[lev].Domain());
-    auto const dom_hi = ubound(geom[lev].Domain());
-
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(mom_mf[Vars::cons].boxArray());
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(mom_mf[Vars::cons].DistributionMap());
