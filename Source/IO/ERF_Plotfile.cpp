@@ -1002,9 +1002,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             if(containerHasElement(plot_var_names, "qt"))
             {
                 int n_start = RhoQ1_comp; // qv
-                int n_end   = n_qstate_moist;
+                int n_end   = n_start + n_qstate_moist;
                 MultiFab::Copy(mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
-                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
+                for (int n_comp(n_start+1); n_comp < n_end; ++n_comp) {
                     MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
                 }
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
