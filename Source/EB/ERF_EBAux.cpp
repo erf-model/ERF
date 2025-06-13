@@ -68,6 +68,7 @@ define( int const& a_idim,
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
 
     const Box& bx = mfi.validbox();
+    const Box& bx_grown = mfi.growntilebox();
     const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
 
     if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
@@ -102,6 +103,16 @@ define( int const& a_idim,
       Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
 
       bool is_per = a_geom.isPeriodic(a_idim);
+
+      // Initialization 
+      // This is an ad-hoc; ideally, eb_aux should be defined in bx_grown.
+      ParallelFor(bx_grown, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        if (k < 0) {
+          aux_flag(i,j,k).setCovered();
+          aux_flag(i,j,k).setDisconnected();
+        }
+      });
 
       ParallelFor(bx, [
 #ifndef AMREX_USE_GPU
