@@ -136,7 +136,7 @@ struct MaterialProperties {
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real molarHeatCapacity( const amrex::Real a_T ) const
     {
-        auto retval = 0;
+        auto retval = 0.0;
         auto term = 1.0;
         for (auto i = 0; i < 7; i++) {
             retval += (m_mol_Cp_coeffs[i] * term);
