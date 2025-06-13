@@ -978,9 +978,6 @@ private:
                                                     "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup", "qt", "qn", "qp", "qsat",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     "rel_humidity", "condensation_rate",
-#ifdef ERF_USE_PARTICLES
-                                                    "qv_sdm","qc_sdm","qrain_sdm",
-#endif
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
                                                     // EB variables

@@ -9,6 +9,8 @@ void SuperDropletsMoist::Define (SolverChoice& a_sc /*!< Solver choices */)
 {
     BL_PROFILE("SuperDropletsMoist::Define()");
     m_fac_cond = lcond / a_sc.c_p;
+    m_fac_sub  = lsub  / a_sc.c_p;
+    m_fac_fus  = lfus  / a_sc.c_p;
 }
 
 /*! Read inputs from file */
@@ -26,6 +28,10 @@ void SuperDropletsMoist::readInputs ()
     // include coalescence in super-droplet dynamics?
     m_flag_coalescence = true; //default
     pp.query("include_coalescence", m_flag_coalescence);
+
+    // include cold processes?
+    m_with_ice = false;
+    pp.query("include_cold_processes", m_with_ice);
 
     // initial distribution type
     m_init_type = SupDropInit::init_uniform;
@@ -53,7 +59,13 @@ void SuperDropletsMoist::readInputs ()
     // add water
     m_idx_w = m_species.size();
     m_species.push_back(Species::Name::H2O);
+    // add ice
+    if (m_with_ice) {
+        m_idx_i = m_species.size();
+        m_species.push_back(Species::Name::ice);
+    }
     // add other species
+    m_istart_sp = m_species.size();
     std::string species_input = "species";
     if (pp.contains(species_input.c_str())) {
         int num_species = pp.countval(species_input.c_str());
@@ -64,7 +76,12 @@ void SuperDropletsMoist::readInputs ()
         }
     }
     m_num_species = m_species.size();
-    m_qstate_nonmoist_size = (m_num_species-1)*2; // qv, qc for each
+    m_num_nonmoist_sp = m_num_species - m_istart_sp;
+    m_qstate_nonmoist_size = (m_num_nonmoist_sp)*2; // qv, qc for each
+
+    if (m_num_nonmoist_sp > 5) {
+        amrex::Abort("SuperDropletsMoist: cannot run with more than 5 non-moist species (see ERF_IndexDefines.H, definitions of NBCVAR_max and NVAR_max).");
+    }
 
     // get aerosol names
     m_aerosols.clear();
@@ -115,13 +132,17 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                         MicVar_SD::q_c,
                         MicVar_SD::dqcdt,
                         MicVar_SD::q_r,
+                        MicVar_SD::q_i,
+                        MicVar_SD::q_g,
                         MicVar_SD::rh,
-                        MicVar_SD::rain_accum };
+                        MicVar_SD::rain_accum,
+                        MicVar_SD::graup_accum,
+                        MicVar_SD::snow_accum };
     AMREX_ALWAYS_ASSERT(m_qmoist_size == m_mic_var_map.size());
 
     /* allocate microphysics multifabs */
     m_mic_fab_vars.resize( MicVar_SD::NumVars
-                          +(m_num_species-1)*MicVar_SD_Species::NumVars);
+                          +(m_num_nonmoist_sp)*MicVar_SD_Species::NumVars);
     for (auto i(0); i < m_mic_fab_vars.size(); i++) {
       m_mic_fab_vars[i] = std::make_shared<MultiFab> ( a_cons_vars.boxArray(),
                                                        a_cons_vars.DistributionMap(),
@@ -140,6 +161,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
 
     amrex::Print() << "SuperDropletsMoist:\n"
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
+                   << "    include cold processes: " << (m_with_ice ? "true" : "false") << "\n"
                    << "    cloud/rain radius: " << m_r_rain << " [m]\n"
                    << "    kinematic mode: " << (m_kinematic_mode?"true":"false") << "\n"
                    << "    dimensionality: " << amrex::getEnumNameString(m_dimensionality)  << "\n"
@@ -247,6 +269,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
     }
 
     computeQcQrWater();
+    computeQiQgQsWater();
     computeQtWater();
 
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
@@ -254,17 +277,23 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         auto states_arr = a_cons_vars.array(mfi);
         auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->array(mfi);
         auto q_r_arr = m_mic_fab_vars[MicVar_SD::q_r]->array(mfi);
+        auto q_i_arr = m_mic_fab_vars[MicVar_SD::q_i]->array(mfi);
+        auto q_g_arr = m_mic_fab_vars[MicVar_SD::q_g]->array(mfi);
+        auto q_s_arr = m_mic_fab_vars[MicVar_SD::q_s]->array(mfi);
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
-            states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_r_arr(i,j,k);
+            states_arr(i,j,k,RhoQ3_comp) = states_arr(i,j,k,Rho_comp)*q_i_arr(i,j,k);
+            states_arr(i,j,k,RhoQ4_comp) = states_arr(i,j,k,Rho_comp)*q_r_arr(i,j,k);
+            states_arr(i,j,k,RhoQ5_comp) = states_arr(i,j,k,Rho_comp)*q_s_arr(i,j,k);
+            states_arr(i,j,k,RhoQ6_comp) = states_arr(i,j,k,Rho_comp)*q_g_arr(i,j,k);
         });
     }
 
     computeQcSpecies();
     computeQtSpecies();
 
-    for (int is = 1; is < m_num_species; is++) {
+    for (int is = m_istart_sp; is < m_num_species; is++) {
         for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
             const auto& box = mfi.tilebox();
             auto states_arr = a_cons_vars.array(mfi);

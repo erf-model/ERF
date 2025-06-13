@@ -1114,27 +1114,23 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             }
             else if(solverChoice.moisture_type == MoistureType::SuperDroplets) {
                 if (containerHasElement(plot_var_names, "rain_accum")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][6]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][8]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "graup_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][9]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "snow_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][10]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "rel_humidity")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][5]),0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][7]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "condensation_rate")) {
                     MultiFab::Copy(mf[lev],*(qmoist[lev][3]),0,mf_comp,1,0);
-                    mf_comp += 1;
-                }
-                if (containerHasElement(plot_var_names, "qv_sdm")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][1]),0,mf_comp,1,0);
-                    mf_comp += 1;
-                }
-                if (containerHasElement(plot_var_names, "qc_sdm")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][2]),0,mf_comp,1,0);
-                    mf_comp += 1;
-                }
-                if (containerHasElement(plot_var_names, "qrain_sdm")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][4]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
             }

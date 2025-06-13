@@ -18,11 +18,16 @@ namespace MicVar_SD {
         pressure,    /*!< Pressure */
         q_t,         /*!< Total (vapour + cloud) */
         q_v,         /*!< Water vapour */
-        q_c,         /*!< Cloud condensate */
-        dqcdt,       /*!< Condensation rate */
+        q_c,         /*!< Liquid water */
+        q_i,         /*!< Ice */
         q_r,         /*!< Rain */
+        q_s,         /*!< Snow */
+        q_g,         /*!< Graupel */
+        dqcdt,       /*!< Condensation rate */
         rh,          /*!< relative humidity */
         rain_accum,  /*!< rain accumulation (mm) */
+        graup_accum,  /*!< rain accumulation (mm) */
+        snow_accum,  /*!< snow accumulation (mm) */
         NumVars
     };
 }
@@ -108,8 +113,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Constructor */
         SuperDropletsMoist()
         {
-            m_qmoist_size = 7;
-            m_qstate_moist_size = 3; // qv, qc, qr
+            m_qmoist_size = 11;
+            m_qstate_moist_size = 6; // qv, qc, qi, qrain, qsnow, qgraup
             m_qstate_nonmoist_size = -1; // intentional
             m_name = "super_droplets_moisture";
             m_idx_w = -1;
@@ -205,13 +210,16 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             return m_name;
         }
 
-        /*! \brief compute cloud/rain mixing ratio */
+        /*! \brief compute cloud/rain mixing ratios */
         virtual void computeQcQrWater ();
+
+        /*! \brief compute ice/graupel/snow mixing ratios */
+        virtual void computeQiQgQsWater ();
 
         /*! \brief compute condensate for all non-water species */
         virtual void computeQcSpecies ()
         {
-            for (int is = 1; is < m_num_species; is++) { computeQcSpecies(is); }
+            for (int is = m_istart_sp; is < m_num_species; is++) { computeQcSpecies(is); }
         }
 
         /*! \brief compute condensate mixing ratio for a non-water species */
@@ -220,8 +228,12 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief compute condensate mixing ratio for a species */
         virtual void computeQc (const  int a_i)
         {
-            if (a_i == m_idx_w) { computeQcQrWater(); }
-            else                { computeQcSpecies(a_i); }
+            if (a_i == m_idx_w) {
+                computeQcQrWater();
+                computeQiQgQsWater();
+            } else {
+                computeQcSpecies(a_i);
+            }
         }
 
         /*! \brief compute total water mixing ratio */
@@ -230,7 +242,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief compute qt (total) for all non-water species */
         virtual void computeQtSpecies ()
         {
-            for (int is = 1; is < m_num_species; is++) { computeQtSpecies(is); }
+            for (int is = m_istart_sp; is < m_num_species; is++) { computeQtSpecies(is); }
         }
 
         /*! \brief compute qt (total) for a non-water species */
@@ -247,6 +259,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         virtual void rainAccumulation ();
 
         /*! \brief Compute rain accumulation */
+        virtual void snowAccumulation ();
+
+        /*! \brief Compute rain accumulation */
         virtual void speciesAccumulation ();
 
         /*! \brief Convert a multifab containing density of something to its mixing ratio */
@@ -261,7 +276,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         virtual void GetPlotVarNames (Vector<std::string>& a_names) const override
         {
-            for (int v = 1; v < m_num_species; v++) {
+            for (int v = m_istart_sp; v < m_num_species; v++) {
                 a_names.push_back("qv_"+getEnumNameString(m_species[v]));
                 a_names.push_back("qc_"+getEnumNameString(m_species[v]));
                 a_names.push_back("qt_"+getEnumNameString(m_species[v]));
@@ -274,7 +289,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                                  MultiFab& a_mf )  const override
         {
             AMREX_ASSERT(a_mf.nComp() >= 1);
-            for (int v = 1; v < m_num_species; v++) {
+            for (int v = m_istart_sp; v < m_num_species; v++) {
                 {
                     std::string varname = "qv_" + getEnumNameString(m_species[v]);
                     if (a_name == varname) {
@@ -345,7 +360,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         bool m_flag_advection;      /*!< Enable/disable advection */
         bool m_flag_coalescence;    /*!< Enable/disable coalescence */
 
-        amrex::Real m_fac_cond; /*!< latent heat factor */
+        amrex::Real m_fac_cond; /*!< latent heat factor for condensation */
+        amrex::Real m_fac_sub;  /*!< latent heat factor for sublimation */
+        amrex::Real m_fac_fus;  /*!< latent heat factor for freezing */
 
         amrex::Real m_r_rain; /*!< minimum radius to be considered rain */
 
@@ -402,6 +419,18 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! species index of water */
         int m_idx_w;
+
+        /*! species index of ice */
+        int m_idx_i;
+
+        /*! starting index of non-moisture species */
+        int m_istart_sp;
+
+        /*! number of non-moisture species */
+        int m_num_nonmoist_sp;
+
+        /*! include cold processes? */
+        bool m_with_ice;
 
         /*! \brief read inputs */
         virtual void readInputs();

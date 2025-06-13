@@ -156,7 +156,7 @@ struct SolverChoice {
         } else if (moisture_type == MoistureType::SuperDroplets) {
             RhoQv_comp = RhoQ1_comp;
             RhoQc_comp = RhoQ2_comp;
-            RhoQr_comp = RhoQ3_comp;
+            RhoQr_comp = RhoQ4_comp;
         }
 
         // TODO: should we set default for dry??

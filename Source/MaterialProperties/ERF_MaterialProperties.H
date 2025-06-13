@@ -12,6 +12,7 @@ namespace Species
 {
     AMREX_ENUM(Name,
         H2O,
+        ice,
         NaCl,
         NH42SO4,
         NH4HSO4,
@@ -31,6 +32,9 @@ namespace saturation_funcs
     /*! \brief Compute saturation pressure for moist air */
     AMREX_GPU_HOST
     void compute_saturation_pressure_H2O  (  amrex::MultiFab&, const amrex::MultiFab& );
+    /*! \brief Compute saturation pressure for icy air */
+    AMREX_GPU_HOST
+    void compute_saturation_pressure_ice  (  amrex::MultiFab&, const amrex::MultiFab& );
 
     /*! \brief Null function for saturation vapour fraction */
     AMREX_GPU_HOST
@@ -40,6 +44,11 @@ namespace saturation_funcs
     /*! \brief Compute saturation vapour fraction for moist air */
     AMREX_GPU_HOST
     void compute_saturation_vapfrac_H2O  ( amrex::MultiFab&,
+                                           const amrex::MultiFab&,
+                                           const amrex::MultiFab& );
+    /*! \brief Compute saturation vapour fraction for icy air */
+    AMREX_GPU_HOST
+    void compute_saturation_vapfrac_ice  ( amrex::MultiFab&,
                                            const amrex::MultiFab&,
                                            const amrex::MultiFab& );
 }
@@ -113,6 +122,9 @@ struct MaterialProperties {
     /*! \brief Set this material to H20 */
     AMREX_GPU_HOST_DEVICE
     void setProperties_H2O();
+    /*! \brief Set this material to ice */
+    AMREX_GPU_HOST_DEVICE
+    void setProperties_ice();
     /*! \brief Set this material to water */
     AMREX_GPU_HOST_DEVICE
     void setProperties_water();

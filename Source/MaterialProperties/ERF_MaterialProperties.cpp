@@ -26,6 +26,23 @@ namespace saturation_funcs
     }
 
     AMREX_GPU_HOST
+    void compute_saturation_pressure_ice  ( MultiFab&       a_mf_sat_pressure,
+                                            const MultiFab& a_mf_temperature)
+    {
+        const auto& gvec = a_mf_sat_pressure.nGrowVect();
+        for (MFIter mfi(a_mf_sat_pressure, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            Box bx = mfi.tilebox();
+            bx.grow(gvec);
+            const Array4<Real>& psat_arr = a_mf_sat_pressure.array(mfi);
+            const Array4<Real const>& temperature_arr = a_mf_temperature.array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                            { psat_arr(i,j,k,0) = erf_esati(temperature_arr(i,j,k,0))*100; } );
+                              // formula gives pressure in hPa; we will save it in Pa.
+        }
+    }
+
+    AMREX_GPU_HOST
     void compute_saturation_vapfrac_null ( MultiFab&, const MultiFab&) { }
 
     AMREX_GPU_HOST
@@ -45,6 +62,29 @@ namespace saturation_funcs
                             {
                                 // pressure is in Pa; formula takes pressure in hPa
                                 erf_qsatw(  temperature_arr(i,j,k,0),
+                                            pressure_arr(i,j,k,0)/100.0,
+                                            qsat_arr(i,j,k,0) );
+                            } );
+        }
+    }
+
+    AMREX_GPU_HOST
+    void compute_saturation_vapfrac_ice ( MultiFab&          a_mf_sat_vapfrac,
+                                          const MultiFab&    a_mf_temperature,
+                                          const MultiFab&    a_mf_pressure )
+    {
+        const auto& gvec = a_mf_sat_vapfrac.nGrowVect();
+        for (MFIter mfi(a_mf_sat_vapfrac, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            Box bx = mfi.tilebox();
+            bx.grow(gvec);
+            const Array4<Real>& qsat_arr = a_mf_sat_vapfrac.array(mfi);
+            const Array4<Real const>& temperature_arr = a_mf_temperature.array(mfi);
+            const Array4<Real const>& pressure_arr = a_mf_pressure.array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                            {
+                                // pressure is in Pa; formula takes pressure in hPa
+                                erf_qsati(  temperature_arr(i,j,k,0),
                                             pressure_arr(i,j,k,0)/100.0,
                                             qsat_arr(i,j,k,0) );
                             } );
@@ -114,6 +154,25 @@ void MaterialProperties::setProperties_H2O()
     AMREX_IF_ON_HOST((
         m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
         m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
+    ))
+
+}
+
+AMREX_GPU_HOST_DEVICE
+void MaterialProperties::setProperties_ice()
+{
+    m_density = 916.80; // kg m^{-3}
+
+    m_ionization = 0;
+    m_mol_weight = 1.802e-02; // kg mol^-1
+    m_lat_vap = 2.8342e6; // J kg^{-1} (latent heat of sublimation)
+    m_Rv = R_v; // ERF_Constants.H
+    m_Tb = 373.15; // K
+    m_Nav_by_molweight = s_N_av / m_mol_weight;
+
+    AMREX_IF_ON_HOST((
+        m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_ice;
+        m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_ice;
     ))
 
 }
