@@ -3,7 +3,7 @@
 ERF
 ---
 
-ERF solves the compressible Navier-Stokes on a Arakawa C-grid for large-scale weather modeling.
+ERF solves the governing equations for atmopsheric dynamics in a fully compressible form or using the anelastic approximation.
 
 ERF is built on `AMReX <https://github.com/AMReX-Codes/amrex>`_,
 an adaptive mesh refinement software framework, which provides the underlying software infrastructure

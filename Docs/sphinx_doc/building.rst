@@ -125,6 +125,16 @@ or if using tcsh,
    like ``ERF3d.gnu.MPI.ex``, indicating that this is a 3-d version of the code, made with
    ``COMP=gnu``, and ``USE_MPI=TRUE``.
 
+GNU Make Docs
+~~~~~~~~~~~~~
+Building the ERF documentation with GNU make can be completed by navigating to the ``/ERF/Docs/`` directory and executing the following command:
+
+.. code:: shell
+
+   source BuildDocs.sh
+
+Note that the sphinx as well as the doxygen documentation will be built.
+
 Job info
 ~~~~~~~~
 
@@ -236,6 +246,16 @@ ERF (tested with commit ``40e64ed35ebc080ad61d08aea828330dfbdbc162``)
        -DERF_ENABLE_NETCDF:BOOL=ON \
        -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
        .. && make -j8
+
+CMake Docs
+~~~~~~~~~~
+Building the ERF documentation with Cmake can be completed by configuring with the flag ``-DERF_ENABLE_DOCUMENTATION:BOOL=ON`` and then compiling the following target:
+
+.. code:: shell
+
+   make docs
+
+Note again that both the sphinx and doxygen documentation will be built.
 
 Perlmutter (NERSC)
 ~~~~~~~~~~~~~~~~~~

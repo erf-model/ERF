@@ -19,10 +19,10 @@ zhi.type = "SlipWall"
 
 zlo.type = "surface_layer"
 erf.most.average_policy = 1
-erf.most.radius    = 0
-erf.most.zref      = 10.0
-erf.most.z0        = 0.1
-erf.most.surf_temp = 300.0
+erf.most.radius     = 0
+erf.most.zref       = 10.0
+erf.most.z0         = 0.1
+erf.most.surf_temp  = 300.0
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.5  # fixed time step depending on grid resolution
