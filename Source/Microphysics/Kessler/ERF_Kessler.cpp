@@ -72,7 +72,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
                 //Real fac = qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2));
                 //Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
-                Real fac = 1.0 + (L_v/Cp_d)*dtqsat;
+                Real fac = (L_v/Cp_d)*dtqsat;
 
                 // If water vapor content exceeds saturation value, then vapor condenses to water and latent heat is released, increasing temperature
                 if (qv_array(i,j,k) > qsat) {
@@ -284,7 +284,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
                 //Real fac = qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2));
                 //Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
-                Real fac = 1.0 + (L_v/Cp_d)*dtqsat;
+                Real fac = (L_v/Cp_d)*dtqsat;
 
                 // If water vapor content exceeds saturation value, then vapor condenses to water and latent heat is released, increasing temperature
                 if (qv_array(i,j,k) > qsat){

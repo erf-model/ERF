@@ -31,6 +31,7 @@ void erf_make_tau_terms (int level, int nrk,
                          const amrex::Geometry geom,
                          const SolverChoice& solverChoice,
                          std::unique_ptr<SurfaceLayer>& SurfLayer,
+                         amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                          const amrex::MultiFab& detJ,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac);
 
@@ -124,6 +125,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& az,
                        std::unique_ptr<amrex::MultiFab>& dJ_old,
                        amrex::MultiFab* dJ_new,
+                       amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                        amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                        amrex::EBFArrayBoxFactory const& ebfact,
 #if defined(ERF_USE_NETCDF)

@@ -1,3 +1,16 @@
+#25.06
+    -- Optimize diffusion (#2356, 2355, 2351, 2349, 2348, 2346)
+
+    -- Fix initial projection w/ anelastic (#2344)
+
+    -- EB pressure gradient least squares (#2339)
+
+    -- Converter for AMReX --> Netcdf plotfiles (#2328)
+
+    -- RRTMGP radiation fixes (#2330)
+
+    -- Allow for sources to be added in acoustic steps (#2293, 2320)
+    
 #25.05
     -- EB interpolation of momentum (#2283)
 

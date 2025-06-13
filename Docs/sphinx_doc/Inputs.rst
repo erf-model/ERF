@@ -1116,6 +1116,27 @@ List of Parameters
 |                                         | and use the value  |                     |             |
 |                                         | from ERF coriolis  |                     |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mrf_coriolis_freq**           | Coriolis frq. used | Real                | 1.0e-4      |
+|                                         | for MRF PBL Scheme |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mrf__Ribcr**                  | Over land critical | Real                | 0.5         |
+|                                         | Richardson number  |                     |             |
+|                                         | for MRF PBL Scheme |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mrf_const_b**                 | Coefficient for the| Real                | 7.8         |
+|                                         | countergradient    |                     |             |
+|                                         | term               |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mrf_sf**                      | ratio of surface   | Real                | 0.1         |
+|                                         | layer height to    |                     |             |
+|                                         | boundary layer     |                     |             |
+|                                         | height             |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.mrf_moistvars**                   | Diffuse moisture   | bool                | 0           |
+|                                         | variables using    |                     |             |
+|                                         | modeled eddy       |                     |             |
+|                                         | diffusivity        |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
 
 Note that both PBL schemes must be used in conjunction with a MOST boundary condition
 at the surface (Zlo) boundary. The YSU scheme is work in progress currently.
