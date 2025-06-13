@@ -7,18 +7,22 @@ using namespace amrex;
 
 TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
                                 DistributionMapping const& dm,
+                                Array<std::string,2*AMREX_SPACEDIM>& domain_bcs_type,
                                 Gpu::DeviceVector<Real>& stretched_dz_lev_d,
-                                MultiFab const* z_phys_nd,
-                                Array<std::string,2*AMREX_SPACEDIM>& domain_bc_type)
+                                const MultiFab& ax, const MultiFab& ay,
+                                MultiFab const* z_phys_nd)
     : m_geom(geom),
       m_grids(ba),
       m_dmap(dm),
+      m_domain_bcs_type(domain_bcs_type),
       m_stretched_dz_d(stretched_dz_lev_d),
+      m_ax(ax),
+      m_ay(ay),
       m_zphys(z_phys_nd)
 {
     if (!m_2D_fft_precond) {
         Box bounding_box = ba.minimalBox();
-        bc_fft = get_fft_bc(geom,domain_bc_type,bounding_box);
+        bc_fft = get_fft_bc(geom,domain_bcs_type,bounding_box);
         m_2D_fft_precond = std::make_unique<FFT::PoissonHybrid<MultiFab>>(geom,bc_fft);
     }
 }
@@ -38,13 +42,15 @@ void TerrainPoisson::apply (MultiFab& lhs, MultiFab const& rhs)
 
     auto const& y = lhs.arrays();
     auto const& zpa = m_zphys->const_arrays();
+    auto const& axa = m_ax.const_arrays();
+    auto const& aya = m_ay.const_arrays();
 
     apply_bcs(xx);
 
     auto const& xc = xx.const_arrays();
     ParallelFor(rhs, [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
     {
-        terrpoisson_adotx(i, j, k, y[b], xc[b], zpa[b], dxinv[0], dxinv[1]);
+        terrpoisson_adotx(i, j, k, y[b], xc[b], axa[b], aya[b], zpa[b], dxinv[0], dxinv[1], dxinv[2]);
     });
 }
 
@@ -85,7 +91,7 @@ void TerrainPoisson::apply_bcs (MultiFab& phi)
                         phi_arr(i+1,j,k) =  -phi_arr(i,j,k);
                     });
                 }
-            } // lo x
+            } // hi x
         } // mfi
     } // not periodic in x
 
@@ -107,7 +113,7 @@ void TerrainPoisson::apply_bcs (MultiFab& phi)
                         phi_arr(i,j-1,k) =  -phi_arr(i,j,k);
                     });
                 }
-            } // lo x
+            } // lo y
             if (bx.bigEnd(1) >= domhi.y) {
                 if (bc_fft[1].second == FFT::Boundary::even) {
                     ParallelFor(makeSlab(bx2,1,domhi.y), [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -120,25 +126,31 @@ void TerrainPoisson::apply_bcs (MultiFab& phi)
                         phi_arr(i,j+1,k) =  -phi_arr(i,j,k);
                     });
                 }
-            } // lo x
+            } // hi y
 
         } // mfi
     } // not periodic in y
 
+    auto bc_type_lo = m_domain_bcs_type[Orientation(2,Orientation::low)];
+    auto bc_type_hi = m_domain_bcs_type[Orientation(2,Orientation::high)];
+
     for (MFIter mfi(phi,true); mfi.isValid(); ++mfi)
     {
         Box bx = mfi.tilebox();
-        Box bx2(bx); bx2.grow(0,1);
-        Box bx3(bx2); bx3.grow(1,1);
+        Box gbx(bx); gbx.grow(0,1); gbx.grow(1,1);
         const Array4<Real>& phi_arr = phi.array(mfi);
-        ParallelFor(bx3, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            if (k == domlo.z) {
+        if (bx.smallEnd(2) <= domlo.z) {
+            ParallelFor(makeSlab(gbx,2,domlo.z), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
                 phi_arr(i,j,k-1) = phi_arr(i,j,k);
-            } else if (k == domhi.z) {
+            });
+        } // lo z
+        if (bx.bigEnd(2) >= domhi.z) {
+            ParallelFor(makeSlab(gbx,2,domhi.z), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
                 phi_arr(i,j,k+1) = phi_arr(i,j,k);
-            }
-        });
+            });
+        } // hi z
     } // mfi
 
     phi.FillBoundary(m_geom.periodicity());
