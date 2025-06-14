@@ -20,6 +20,7 @@ AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>
 erf_calc_slopes_eb (int igrid_query,
                     int igrid_data,
+                    amrex::Real dx, amrex::Real dy, amrex::Real dz,
                     int i, int j, int k,
                     amrex::RealVect const& bcent_eb,
                     amrex::Real const state_eb,
@@ -56,6 +57,8 @@ erf_calc_slopes_eb (int igrid_query,
         bias[igrid_data-1] = -0.5;
     }
 
+    // amrex::Print()<<"SK: erf_calc_slopes_eb/ bias = "<< bias <<std::endl;
+
     amrex::Real A[dim_a][AMREX_SPACEDIM];
 
     // Array of distances from the query point
@@ -64,10 +67,14 @@ erf_calc_slopes_eb (int igrid_query,
     for(int jj(-1); jj<=jj_hi; jj++) {
     for(int ii(-1); ii<=ii_hi; ii++) {
 
-        if (!flag(i+ii,j+jj,k+kk).isCovered() ) {
-            A[lc][0] = amrex::Real(ii) + ccent(i+ii,j+jj,k+kk,0) + bias[0] - bcent_eb[0];
-            A[lc][1] = amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) + bias[1] - bcent_eb[1];
-            A[lc][2] = amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) + bias[2] - bcent_eb[2];
+        // amrex::Print()<<"SK: erf_calc_slopes_eb/ ii,jj,kk = "<< ii<<","<<jj<<","<<kk<<", isCovered() = "<< flag(i+ii,j+jj,k+kk).isCovered()
+        // <<", ccent = "<< ccent(i+ii,j+jj,k+kk,0)<<" "<< ccent(i+ii,j+jj,k+kk,1)<< " "<< ccent(i+ii,j+jj,k+kk,2)
+        // <<", state = "<< state(i+ii,j+jj,k+kk)<<std::endl;
+
+        if (!flag(i+ii,j+jj,k+kk).isCovered() && !(ii==0 && jj==0 && kk==0)) {
+            A[lc][0] = ( amrex::Real(ii) + ccent(i+ii,j+jj,k+kk,0) + bias[0] - bcent_eb[0] ) * dx;
+            A[lc][1] = ( amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) + bias[1] - bcent_eb[1] ) * dy;
+            A[lc][2] = ( amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) + bias[2] - bcent_eb[2] ) * dz;
         } else {
             A[lc][0] = amrex::Real(0.0);
             A[lc][1] = amrex::Real(0.0);
@@ -86,7 +93,7 @@ erf_calc_slopes_eb (int igrid_query,
     for(int jj(-1); jj<=jj_hi; jj++) {
     for(int ii(-1); ii<=ii_hi; ii++) {
 
-        if (!flag(i+ii,j+jj,k+kk).isCovered() ) {
+        if (!flag(i+ii,j+jj,k+kk).isCovered() && !(ii==0 && jj==0 && kk==0)) {
             du[ll] = state(i+ii,j+jj,k+kk) - state_eb;
         } else {
             du[ll] = amrex::Real(0.0);
