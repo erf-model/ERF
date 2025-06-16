@@ -491,10 +491,8 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         //       defined in ERF.H
         // *****************************************************************************************
 
-        bool ismoist = (solverChoice.moisture_type != MoistureType::None);
-
         calculate_derived("soundspeed",  vars_new[lev][Vars::cons], derived::erf_dersoundspeed);
-        if (ismoist) {
+        if (use_moisture) {
             calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dermoisttemp);
         } else {
             calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dertemp);
