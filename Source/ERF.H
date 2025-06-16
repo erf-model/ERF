@@ -952,7 +952,9 @@ private:
                                                      "rhoQ1", "rhoQ2", "rhoQ3",
                                                      "rhoQ4", "rhoQ5", "rhoQ6"};
 
-    // Note that the order of variable names here must match the order in ERF_Derive.cpp
+    // **************************************************************************************
+    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
+    // **************************************************************************************
     const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "scalar",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",

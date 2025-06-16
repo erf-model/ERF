@@ -403,46 +403,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp += 1;
         }
 
-        // Finally, check for any derived quantities and compute them, inserting
-        // them into our output multifab
-        auto calculate_derived = [&](const std::string& der_name,
-                                     MultiFab& src_mf,
-                                     decltype(derived::erf_dernull)& der_function)
-        {
-            if (containerHasElement(plot_var_names, der_name)) {
-                MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    auto& dfab = dmf[mfi];
-                    auto& sfab = src_mf[mfi];
-                    der_function(bx, dfab, 0, 1, sfab, Geom(lev), t_new[0], nullptr, lev);
-                }
-
-                mf_comp++;
-            }
-        };
-
-        bool ismoist = (solverChoice.moisture_type != MoistureType::None);
-
-        // Note: All derived variables must be computed in order of "derived_names" defined in ERF.H
-        calculate_derived("soundspeed",  vars_new[lev][Vars::cons], derived::erf_dersoundspeed);
-        if (ismoist) {
-            calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dermoisttemp);
-        } else {
-            calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dertemp);
-        }
-        calculate_derived("theta",       vars_new[lev][Vars::cons], derived::erf_dertheta);
-        calculate_derived("KE",          vars_new[lev][Vars::cons], derived::erf_derKE);
-        calculate_derived("scalar",      vars_new[lev][Vars::cons], derived::erf_derscalar);
-        calculate_derived("vorticity_x", mf_cc_vel[lev]           , derived::erf_dervortx);
-        calculate_derived("vorticity_y", mf_cc_vel[lev]           , derived::erf_dervorty);
-        calculate_derived("vorticity_z", mf_cc_vel[lev]           , derived::erf_dervortz);
-        calculate_derived("magvel"     , mf_cc_vel[lev]           , derived::erf_dermagvel);
-
+        // Create multifabs for HSE and pressure fields used to derive other quantities
         MultiFab  r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
         MultiFab  p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
         MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
@@ -501,6 +462,50 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 MultiFab::Copy(pressure,p_hse,0,0,1,0);
             }
         }
+
+        // Finally, check for any derived quantities and compute them, inserting
+        // them into our output multifab
+        auto calculate_derived = [&](const std::string& der_name,
+                                     MultiFab& src_mf,
+                                     decltype(derived::erf_dernull)& der_function)
+        {
+            if (containerHasElement(plot_var_names, der_name)) {
+                MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    auto& dfab = dmf[mfi];
+                    auto& sfab = src_mf[mfi];
+                    der_function(bx, dfab, 0, 1, sfab, Geom(lev), t_new[0], nullptr, lev);
+                }
+
+                mf_comp++;
+            }
+        };
+
+        // *****************************************************************************************
+        // NOTE: All derived variables computed below **MUST MATCH THE ORDER** of "derived_names"
+        //       defined in ERF.H
+        // *****************************************************************************************
+
+        bool ismoist = (solverChoice.moisture_type != MoistureType::None);
+
+        calculate_derived("soundspeed",  vars_new[lev][Vars::cons], derived::erf_dersoundspeed);
+        if (ismoist) {
+            calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dermoisttemp);
+        } else {
+            calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dertemp);
+        }
+        calculate_derived("theta",       vars_new[lev][Vars::cons], derived::erf_dertheta);
+        calculate_derived("KE",          vars_new[lev][Vars::cons], derived::erf_derKE);
+        calculate_derived("scalar",      vars_new[lev][Vars::cons], derived::erf_derscalar);
+        calculate_derived("vorticity_x", mf_cc_vel[lev]           , derived::erf_dervortx);
+        calculate_derived("vorticity_y", mf_cc_vel[lev]           , derived::erf_dervorty);
+        calculate_derived("vorticity_z", mf_cc_vel[lev]           , derived::erf_dervortz);
+        calculate_derived("magvel"     , mf_cc_vel[lev]           , derived::erf_dermagvel);
 
         if (containerHasElement(plot_var_names, "divU"))
         {
