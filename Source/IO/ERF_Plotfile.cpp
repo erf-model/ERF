@@ -600,13 +600,6 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp ++;
         }
 
-        if (containerHasElement(plot_var_names, "terrain_IB_mask"))
-        {
-            MultiFab* terrain_blank = terrain_blanking[lev].get();
-            MultiFab::Copy(mf[lev],*terrain_blank,0,mf_comp,1,0);
-            mf_comp ++;
-        }
-
 #ifdef ERF_USE_WINDFARM
         if ( containerHasElement(plot_var_names, "num_turb") and
              (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
@@ -630,7 +623,6 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             MultiFab::Copy(mf[lev],SMark[lev],1,mf_comp,1,0);
             mf_comp ++;
         }
-
 #endif
 
         // **********************************************************************************************
@@ -1107,44 +1099,11 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             }
         } // use_moisture
 
-#ifdef ERF_USE_PARTICLES
-        const auto& particles_namelist( particleData.getNames() );
-        for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++) {
-            if (containerHasElement(plot_var_names, std::string(particles_namelist[i]+"_count"))) {
-                MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
-                temp_dat.setVal(0);
-                particleData[particles_namelist[i]]->Increment(temp_dat, lev);
-                MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-        }
-
-        Vector<std::string> particle_mesh_plot_names(0);
-        particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
-        for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
-            std::string plot_var_name(particle_mesh_plot_names[i]);
-            if (containerHasElement(plot_var_names, plot_var_name) ) {
-                MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
-                temp_dat.setVal(0);
-                particleData.GetMeshPlotVar(plot_var_name, temp_dat, lev);
-                MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-        }
-#endif
-
+        if (containerHasElement(plot_var_names, "terrain_IB_mask"))
         {
-            Vector<std::string> microphysics_plot_names;
-            micro->GetPlotVarNames(microphysics_plot_names);
-            for (auto& plot_name : microphysics_plot_names) {
-                if (containerHasElement(plot_var_names, plot_name)) {
-                    MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
-                    temp_dat.setVal(0);
-                    micro->GetPlotVar(plot_name, temp_dat, lev);
-                    MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
-                    mf_comp += 1;
-                }
-            }
+            MultiFab* terrain_blank = terrain_blanking[lev].get();
+            MultiFab::Copy(mf[lev],*terrain_blank,0,mf_comp,1,0);
+            mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "volfrac")) {
@@ -1321,16 +1280,63 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         }
 #endif
 
-    if (solverChoice.rad_type != RadiationType::None) {
-        if (containerHasElement(plot_var_names, "qsrc_sw")) {
-            MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 0, mf_comp, 1, 0);
-            mf_comp += 1;
+        if (solverChoice.rad_type != RadiationType::None) {
+            if (containerHasElement(plot_var_names, "qsrc_sw")) {
+                MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 0, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+            if (containerHasElement(plot_var_names, "qsrc_lw")) {
+                MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 1, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
         }
-        if (containerHasElement(plot_var_names, "qsrc_lw")) {
-            MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 1, mf_comp, 1, 0);
-            mf_comp += 1;
+
+        // *****************************************************************************************
+        // End of derived variables corresponding to "derived_names" in ERF.H
+        //
+        // Particles and microphysics can provide additional outputs, which are handled below.
+        // *****************************************************************************************
+
+#ifdef ERF_USE_PARTICLES
+        const auto& particles_namelist( particleData.getNames() );
+        for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++) {
+            if (containerHasElement(plot_var_names, std::string(particles_namelist[i]+"_count"))) {
+                MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
+                temp_dat.setVal(0);
+                particleData[particles_namelist[i]]->Increment(temp_dat, lev);
+                MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
         }
-    }
+
+        Vector<std::string> particle_mesh_plot_names(0);
+        particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
+        for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
+            std::string plot_var_name(particle_mesh_plot_names[i]);
+            if (containerHasElement(plot_var_names, plot_var_name) ) {
+                MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
+                temp_dat.setVal(0);
+                particleData.GetMeshPlotVar(plot_var_name, temp_dat, lev);
+                MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+        }
+#endif
+
+        {
+            Vector<std::string> microphysics_plot_names;
+            micro->GetPlotVarNames(microphysics_plot_names);
+            for (auto& plot_name : microphysics_plot_names) {
+                if (containerHasElement(plot_var_names, plot_name)) {
+                    MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
+                    temp_dat.setVal(0);
+                    micro->GetPlotVar(plot_name, temp_dat, lev);
+                    MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+                    mf_comp += 1;
+                }
+            }
+        }
+
 
     }
 
