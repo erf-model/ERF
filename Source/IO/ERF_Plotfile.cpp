@@ -450,11 +450,13 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         MultiFab pressure;
 
         if (solverChoice.anelastic[lev] == 0) {
-            if (containerHasElement(plot_var_names, "pressure")  ||
-                containerHasElement(plot_var_names, "pert_pres") ||
-                containerHasElement(plot_var_names, "dpdx")      ||
-                containerHasElement(plot_var_names, "dpdy")      ||
-                containerHasElement(plot_var_names, "dpdz"))
+            if (containerHasElement(plot_var_names, "pressure")     ||
+                containerHasElement(plot_var_names, "pert_pres")    ||
+                containerHasElement(plot_var_names, "dpdx")         ||
+                containerHasElement(plot_var_names, "dpdy")         ||
+                containerHasElement(plot_var_names, "dpdz")         ||
+                containerHasElement(plot_var_names, "eq_pot_temp")  ||
+                containerHasElement(plot_var_names, "qsat"))
             {
                 int ng = (containerHasElement(plot_var_names, "dpdx") || containerHasElement(plot_var_names, "dpdy") ||
                           containerHasElement(plot_var_names, "dpdz")) ? 1 : 0;
@@ -468,7 +470,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-    #endif
+#endif
                 for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box& gbx = mfi.growntilebox(IntVect(ng,ng,0));
@@ -488,9 +490,16 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             } // compute compressible pressure
         } // not anelastic
         else {
-            // Copy p_hse into pressure if using anelastic
-            pressure.define(ba,dm,1,0);
-            MultiFab::Copy(pressure,p_hse,0,0,1,0);
+            if (containerHasElement(plot_var_names, "dpdx")         ||
+                containerHasElement(plot_var_names, "dpdy")         ||
+                containerHasElement(plot_var_names, "dpdz")         ||
+                containerHasElement(plot_var_names, "eq_pot_temp")  ||
+                containerHasElement(plot_var_names, "qsat"))
+            {
+                // Copy p_hse into pressure if using anelastic
+                pressure.define(ba,dm,1,0);
+                MultiFab::Copy(pressure,p_hse,0,0,1,0);
+            }
         }
 
         if (containerHasElement(plot_var_names, "divU"))
@@ -530,7 +539,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             }
 
             mf_comp += 1;
-        } // pressure
+        }
 
         if (containerHasElement(plot_var_names, "pert_pres"))
         {
@@ -639,13 +648,11 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         // These are based on computing gradient of full pressure
         // **********************************************************************************************
 
-        if (solverChoice.anelastic[lev] == 0) {
-            if ( (containerHasElement(plot_var_names, "dpdx")) ||
-                 (containerHasElement(plot_var_names, "dpdy")) ||
-                 (containerHasElement(plot_var_names, "dpdz")) ) {
-                BCRec const* bcrec_ptr = domain_bcs_type_d.data();
-                compute_gradp(pressure, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), bcrec_ptr, get_eb(lev), gradp_temp, solverChoice);
-            }
+        if ( (containerHasElement(plot_var_names, "dpdx")) ||
+             (containerHasElement(plot_var_names, "dpdy")) ||
+             (containerHasElement(plot_var_names, "dpdz")) ) {
+            BCRec const* bcrec_ptr = domain_bcs_type_d.data();
+            compute_gradp(pressure, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), bcrec_ptr, get_eb(lev), gradp_temp, solverChoice);
         }
 
         if (containerHasElement(plot_var_names, "dpdx"))

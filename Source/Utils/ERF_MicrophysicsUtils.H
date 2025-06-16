@@ -56,6 +56,7 @@ amrex::Real erf_esatw_cc (amrex::Real t) {
     return esatw;
 }
 
+// Saturation vapor pressure of water vapor [mbar]
 // From Flatau et al. (1992):
 // https://doi.org/10.1175/1520-0450(1992)031<1507:PFTSVP>2.0.CO;2
 // Coefficients come from Table 4 and the data is valid over a
@@ -137,7 +138,7 @@ amrex::Real erf_dtesatw (amrex::Real t) {
     amrex::Real const a7 = -0.792933209e-14;
     amrex::Real const a8 = -0.599634321e-17;
 
-    amrex::Real dtt = t-273.16;
+    amrex::Real dtt = t-273.16; // Goff-Gratch
     amrex::Real dtesatw;
     if (dtt>-85.0 && dtt<70.) {
         dtesatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
@@ -154,6 +155,10 @@ void erf_qsati (amrex::Real t, amrex::Real p, amrex::Real &qsati) {
     qsati = Rd_on_Rv*esati/std::max(esati,p-esati);
 }
 
+/* saturated water vapor mixing ratio
+ * t: temperature [K]
+ * p: pressure [mbar]
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_qsatw (amrex::Real t, amrex::Real p, amrex::Real &qsatw) {
     amrex::Real esatw;
