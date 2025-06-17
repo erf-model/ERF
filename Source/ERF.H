@@ -876,6 +876,8 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
 
+    amrex::Vector<amrex::MultiFab> weather_forecast_data;
+
     int last_plot_file_step_1;
     int last_plot_file_step_2;
     int last_subvol;

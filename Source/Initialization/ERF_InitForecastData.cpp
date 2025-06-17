@@ -1,7 +1,5 @@
 /**
  * \file ERF_ReadCustomBinaryForecastData.cpp
- * This file contains routines to read-in the binary files for weather data
- * and make multifabs for it
  */
 #include <ERF.H>
 #include "ERF_ReadCustomBinaryIC.H"
@@ -14,8 +12,6 @@ void fill_weather_data_multifab(MultiFab& mf,
                                 const int nx,
                                 const int ny,
                                 const int nz,
-                                const Vector<Real>& xvec_h,
-                                const Vector<Real>& yvec_h,
                                 const Vector<Real>& zvec_h,
                                 const Vector<Real>& rho_h,
                                 const Vector<Real>& uvel_h,
@@ -26,16 +22,18 @@ void fill_weather_data_multifab(MultiFab& mf,
                                 const Vector<Real>& qc_h,
                                 const Vector<Real>& qr_h)
 {
+
+
     const int nx_d = nx;
     const int ny_d = ny;
+    const int nz_d = nz;
+    const int tot_size = nx*ny*nz;
 
-    const Real xmin = xvec_h[0];
-    const Real ymin = yvec_h[0];
-    const Real zmin = zvec_h[0];
+    amrex::Gpu::DeviceVector<Real> zvec_d(nz), rho_d(tot_size), uvel_d(tot_size),
+                                   vvel_d(tot_size), wvel_d(tot_size), theta_d(tot_size),
+                                   qv_d(tot_size), qc_d(tot_size), qr_d(tot_size);
 
-    amrex::Gpu::DeviceVector<Real> rho_d(nx*ny*nz), uvel_d(nx*ny*nz), vvel_d(nx*ny*nz), wvel_d(nx*ny*nz),
-                                   theta_d(nx*ny*nz), qv_d(nx*ny*nz), qc_d(nx*ny*nz), qr_d(nx*ny*nz);
-
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zvec_h.begin(), zvec_h.end(), zvec_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, uvel_h.begin(), uvel_h.end(), uvel_d.begin());
@@ -45,6 +43,7 @@ void fill_weather_data_multifab(MultiFab& mf,
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qr_h.begin(), qr_h.end(), qr_d.begin());
 
+    Real* zvec_d_ptr  = zvec_d.data();
     Real* rho_d_ptr   = rho_d.data();
     Real* uvel_d_ptr  = uvel_d.data();
     Real* vvel_d_ptr  = vvel_d.data();
@@ -56,43 +55,36 @@ void fill_weather_data_multifab(MultiFab& mf,
 
     const int ncomp = mf.nComp();
 
-    const auto prob_lo  = geom.ProbLo();
-    const auto dx       = geom.CellSize();
+    const auto prob_lo  = geom.ProbLoArray();
+    const auto dx       = geom.CellSizeArray();
 
     for (MFIter mfi(mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.nodaltilebox();
         Array4<Real> const& arr = mf.array(mfi);
 
-        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            const Real x        = prob_lo[0] + i * dx[0];
-            const Real y        = prob_lo[1] + j * dx[1];
-            const Real z        = prob_lo[2] + k * dx[2];
-
-            int iloc=-1, jloc=-1, kloc=-1;
-            iloc = std::floor((x-xmin)/dx[0]);
-            jloc = std::floor((y-ymin)/dx[1]);
-            kloc = std::floor((z-zmin)/dx[2]);
-
-            int idx = get_single_index(iloc,jloc,kloc,nx_d,ny_d);
-            if(n==0) {
-                arr(i,j,k,n) = rho_d_ptr[idx];
-            } else if (n==1) {
-                arr(i,j,k,n) = uvel_d_ptr[idx];
-            } else if (n==2) {
-                arr(i,j,k,n) = vvel_d_ptr[idx];
-            } else if (n==3) {
-                arr(i,j,k,n) = wvel_d_ptr[idx];
-            } else if (n==4) {
-                arr(i,j,k,n) = theta_d_ptr[idx];
-            } else if (n==5) {
-                arr(i,j,k,n) = qv_d_ptr[idx];
-            } else if (n==6) {
-                arr(i,j,k,n) = qc_d_ptr[idx];
-            } else if (n==7) {
-                arr(i,j,k,n) = qr_d_ptr[idx];
+            const Real x = prob_lo[0] + i * dx[0];
+            const Real y = prob_lo[1] + j * dx[1];
+            const Real z = prob_lo[2] + k * dx[2];
+            int kloc = -1;
+            for (int kk = 0; kk < nz_d; kk++) {
+                if (zvec_d_ptr[kk] >= z) {
+                    kloc = kk;
+                    break;
+                }
             }
+            // Replace this with logic using your coarse input data
+            int idx = get_single_index(i,j,kloc,nx_d,ny_d);
+            arr(i,j,k,0) = rho_d_ptr[idx];
+            arr(i,j,k,1) = uvel_d_ptr[idx];
+            arr(i,j,k,2) = vvel_d_ptr[idx];
+            arr(i,j,k,3) = wvel_d_ptr[idx];
+            arr(i,j,k,4) = theta_d_ptr[idx];
+            arr(i,j,k,5) = qv_d_ptr[idx];
+            arr(i,j,k,6) = qc_d_ptr[idx];
+            arr(i,j,k,7) = qr_d_ptr[idx];
         });
     }
 }
@@ -116,25 +108,21 @@ ERF::init_coarse_weather_data()
                                 theta_h, qv_h, qc_h, qr_h);
 
     // Number of cells
-    int nx = xvec_h.size()-1;
-    int ny = yvec_h.size()-1;
-    int nz = zvec_h.size()-1;
+    int nx_cells = xvec_h.size()-1;
+    int ny_cells = yvec_h.size()-1;
+    int nz_cells = zvec_h.size()-1;
 
     IntVect dom_lo(0, 0, 0);
-    IntVect dom_hi(nx-1, ny-1, nz-1); // 64x64x32
+    IntVect dom_hi(nx_cells-1, ny_cells-1, nz_cells-1);
     Box domain(dom_lo, dom_hi);
 
     // Define the extents of the physical domain box
-    RealBox real_box({xvec_h[0], yvec_h[0], zvec_h[0]}, {xvec_h[nx], yvec_h[ny], zvec_h[nz]});
+    RealBox real_box({xvec_h[0], yvec_h[0], zvec_h[0]}, {xvec_h[nx_cells], yvec_h[ny_cells], zvec_h[nz_cells]});
 
     int coord = 0; // Cartesian
     Array<int, AMREX_SPACEDIM> is_periodic{0, 0, 0}; // non-periodic
 
     Geometry geom(domain, real_box, coord, is_periodic);
-
-    // -------------------------
-    // Make BoxArray and MultiFab
-    // -------------------------
 
     BoxArray ba(domain);
     ba.maxSize(64);
@@ -146,18 +134,17 @@ ERF::init_coarse_weather_data()
     int ncomp = 8;
     int ngrow = 0;
 
-    MultiFab weather_mf(nba, dm, ncomp, ngrow);
+    int n_time = 1;      // or however many time slices you want
+    weather_forecast_data.resize(n_time);
+    MultiFab& weather_mf = weather_forecast_data[0];
+    weather_mf.define(nba, dm, ncomp, ngrow);
 
-    // -------------------------
-    // Fill the MultiFab
-    // -------------------------
-    fill_weather_data_multifab(weather_mf, geom, nx+1, ny+1, nz+1,
-                               xvec_h, yvec_h, zvec_h,
-                               rho_h,uvel_h, vvel_h, wvel_h,
+    fill_weather_data_multifab(weather_mf, geom, nx_cells+1, ny_cells+1, nz_cells+1,
+                               zvec_h, rho_h,uvel_h, vvel_h, wvel_h,
                                theta_h, qv_h, qc_h, qr_h);
 
-    /*Vector<std::string> varnames = {
-    "var0", "var1", "var2", "var3", "var4", "var5", "var6", "var7"
+    Vector<std::string> varnames = {
+    "rho", "uvel", "vvel", "wvel", "theta", "qv", "qc", "qr"
     }; // Customize variable names
 
     const std::string plotfilename = "plt_weather"; // or any name you want
@@ -180,6 +167,6 @@ ERF::init_coarse_weather_data()
         geom,
         time,
         0 // level
-    );*/
+    );
 
 }
