@@ -15,11 +15,15 @@ SurfaceLayer::update_fluxes (const int& lev,
 {
     bool zlo = (int) m_face == Orientation::zlo();
     // Update SST data if we have a valid pointer
-    if (m_sst_lev[lev][0] && zlo) fill_tsurf_with_sst_and_tsk(lev, time);
+//    if (m_sst_lev[lev][0] && zlo) fill_tsurf_with_sst_and_tsk(lev, time);
+    if (m_sst_lev[lev][0]) fill_tsurf_with_sst_and_tsk(lev, time);
+
 
     // TODO: we want 0 index to always be theta?
     // Update land surface temp if we have a valid pointer
-    if (m_lsm_data_lev[lev][0] && zlo) get_lsm_tsurf(lev);
+    //if (m_lsm_data_lev[lev][0] && zlo) get_lsm_tsurf(lev);
+    if (m_lsm_data_lev[lev][0]) get_lsm_tsurf(lev);
+
 
     // Fill interior ghost cells
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
@@ -191,10 +195,12 @@ SurfaceLayer::compute_fluxes (const int& lev,
                               bool is_land)
 {
     // Pointers to the computed averages
-    const auto *const tm_ptr  = m_ma.get_average(lev,2); // potential temperature
-    const auto *const qvm_ptr = m_ma.get_average(lev,3); // water vapor mixing ratio
-    const auto *const tvm_ptr = m_ma.get_average(lev,4); // virtual potential temperature
-    const auto *const umm_ptr = m_ma.get_average(lev,5); // horizontal velocity magnitude
+    const auto *const tm_ptr  = m_ma.get_average(lev,3); // potential temperature
+    const auto *const qvm_ptr = m_ma.get_average(lev,4); // water vapor mixing ratio
+    const auto *const tvm_ptr = m_ma.get_average(lev,5); // virtual potential temperature
+    const auto *const umm_ptr = m_ma.get_average(lev,6); // horizontal velocity magnitude
+    const auto *const uw_mag_mean = m_ma.get_average(lev,7); // x/z velocity magnitude
+    const auto *const vw_mag_mean = m_ma.get_average(lev,8); // y/z velocity magnitude
 
     const int dir = m_face.coordDir();
     int sm_index = 0;
@@ -250,6 +256,11 @@ SurfaceLayer::compute_fluxes (const int& lev,
         const auto tvm_arr = tvm_ptr->array(mfi);
         const auto qvm_arr = qvm_ptr->array(mfi);
         const auto umm_arr = umm_ptr->array(mfi);
+        const auto vwmm_arr = (dir == 0) ? vw_mag_mean->array(mfi) : Array4<Real>{};
+        const auto uwmm_arr = (dir == 1) ? uw_mag_mean->array(mfi) : Array4<Real>{};
+
+        // umm depending on face direction (YZ, XZ, XY)
+        const auto dir_umm_arr = ((dir == 0) ? vwmm_arr : ((dir == 1) ? uwmm_arr : umm_arr));
         const auto z0_arr  = z_0[lev].array();
 
         // PBL height if we need to calculate wstar for the Beljaars correction
@@ -273,7 +284,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
                 (!is_land && lmask_arr(i,j,0) == 0))
             {
                 most_flux.iterate_flux(i, j, k, max_iters,
-                                       z0_arr, umm_arr, tm_arr, tvm_arr, qvm_arr,
+                                       z0_arr, dir_umm_arr, tm_arr, tvm_arr, qvm_arr,
                                        u_star_arr, w_star_arr,           // to be updated
                                        t_star_arr, q_star_arr,           // to be updated
                                        t_surf_arr, q_surf_arr, olen_arr, // to be updated
@@ -409,17 +420,26 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
 
         // Get average arrays
-        const auto *const u_mean     = m_ma.get_average(lev,0);
-        const auto *const v_mean     = m_ma.get_average(lev,1);
-        const auto *const t_mean     = m_ma.get_average(lev,2);
-        const auto *const q_mean     = m_ma.get_average(lev,3);
-        const auto *const u_mag_mean = m_ma.get_average(lev,5);
+        const auto *const u_mean      = m_ma.get_average(lev,0);
+        const auto *const v_mean      = m_ma.get_average(lev,1);
+        const auto *const w_mean      = m_ma.get_average(lev,2);
+        const auto *const t_mean      = m_ma.get_average(lev,3);
+        const auto *const q_mean      = m_ma.get_average(lev,4);
+        const auto *const u_mag_mean  = m_ma.get_average(lev,6);
+        const auto *const uw_mag_mean = m_ma.get_average(lev,7);
+        const auto *const vw_mag_mean = m_ma.get_average(lev,8);
 
         const auto um_arr  = u_mean->array(mfi);
         const auto vm_arr  = v_mean->array(mfi);
+        const auto wm_arr  = w_mean->array(mfi);
         const auto tm_arr  = t_mean->array(mfi);
         const auto qm_arr  = q_mean->array(mfi);
         const auto umm_arr = u_mag_mean->array(mfi);
+        const auto vwmm_arr = (dir == 0) ? vw_mag_mean->array(mfi) : Array4<Real>{};
+        const auto uwmm_arr = (dir == 1) ? uw_mag_mean->array(mfi) : Array4<Real>{};
+
+        // umm depending on face direction (YZ, XZ, XY)
+        const auto dir_umm_arr = ((dir == 0) ? vwmm_arr : ((dir == 1) ? uwmm_arr : umm_arr));
 
         // Get derived arrays
         const auto u_star_arr = u_star[lev]->array(mfi);
@@ -451,13 +471,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real Tflux = flux_comp.compute_t_flux(i, j, k,
-                                                  cons_arr, velx_arr, vely_arr,
-                                                  umm_arr, tm_arr, u_star_arr,
+            Real Tflux = flux_comp.compute_t_flux(i, j, k, dir,
+                                                  cons_arr, velx_arr, vely_arr, velz_arr,
+                                                  dir_umm_arr, tm_arr, u_star_arr,
                                                   t_star_arr, t_surf_arr);
 
             if (rotate) {
-                rotate_scalar_flux(i, j, k, Tflux, dxInv, zphys_arr,
+                rotate_scalar_flux(i, j, k, dir, Tflux, dxInv, zphys_arr,
                                    hfx1_arr, hfx2_arr, hfx3_arr);
             } else {
                 // TODO: better way to generalize this?
@@ -499,13 +519,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         if (use_moisture) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real Qflux = flux_comp.compute_q_flux(i, j, k,
-                                                      cons_arr, velx_arr, vely_arr,
-                                                      umm_arr, qm_arr, u_star_arr,
+                Real Qflux = flux_comp.compute_q_flux(i, j, k, dir,
+                                                      cons_arr, velx_arr, vely_arr, velz_arr,
+                                                      dir_umm_arr, qm_arr, u_star_arr,
                                                       q_star_arr, q_surf_arr);
 
                 if (rotate) {
-                    rotate_scalar_flux(i, j, k, Qflux, dxInv, zphys_arr,
+                    rotate_scalar_flux(i, j, k, dir, Qflux, dxInv, zphys_arr,
                                        qfx1_arr, qfx2_arr, qfx3_arr);
                 } else {
                     // TODO: better way to generalize this?
@@ -548,12 +568,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         }
         ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real stressx = flux_comp.compute_u_flux(i, j, k,
-                                                    cons_arr, velx_arr, vely_arr,
-                                                    umm_arr, um_arr, u_star_arr);
+            Real stressx = flux_comp.compute_u_flux(i, j, k, dir,
+                                                    cons_arr, velx_arr, vely_arr, velz_arr,
+                                                    dir_umm_arr, um_arr, vm_arr, wm_arr, u_star_arr);
 
             if (rotate) {
-                rotate_stress_tensor(i, j, k, stressx, dxInv, zphys_arr,
+                rotate_stress_tensor(i, j, k, dir, stressx, dxInv, zphys_arr,
                                      velx_arr, vely_arr, velz_arr,
                                      t11_arr, t22_arr, t33_arr,
                                      t12_arr, t21_arr,
@@ -605,9 +625,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         }
         ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real stressy = flux_comp.compute_v_flux(i, j, k,
-                                                    cons_arr, velx_arr, vely_arr,
-                                                    umm_arr, vm_arr, u_star_arr);
+            Real stressy = flux_comp.compute_v_flux(i, j, k, dir,
+                                                    cons_arr, velx_arr, vely_arr, velz_arr,
+                                                    dir_umm_arr, um_arr, vm_arr, wm_arr, u_star_arr);
 
             // NOTE: One stress rotation for ALL the stress components
             if (!rotate) {

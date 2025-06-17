@@ -1016,6 +1016,7 @@ struct surface_temp
         amrex::Real psi_h = 0.0;
         amrex::Real Olen  = 0.0;
         amrex::Real Oleno = 0.0;
+        // NOTE: umm here will be either mean x/y velocity if on a Z-face, x/z velocity if on a Y-face, or y/z velocity if on an X-face
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == 1.E34) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
@@ -1580,9 +1581,11 @@ struct moeng_flux
     compute_q_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& velz_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& qvm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
@@ -1591,8 +1594,27 @@ struct moeng_flux
     {
         amrex::Real rho   = cons_arr(i,j,k,Rho_comp);
         amrex::Real qv    = cons_arr(i,j,k,RhoQ1_comp) / rho;
-        amrex::Real velx  = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
-        amrex::Real vely  = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
+        //amrex::Real velx  = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
+        //amrex::Real vely  = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
+
+        amrex::Real velx, vely;
+        if (dir == 0) {
+            // X-face: y/z velocity, velx = vely, vely = velz here
+            velx  = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
+                           + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+            vely  = 0.25 * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
+                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+        } else if (dir == 1) {
+            // Y-face: x/z velocity, vely = velz here
+            velx  = velx_arr(i,j,k);
+            vely  = 0.25 * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
+                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+        } else {
+            // Z face: x/y velocity
+            velx = velx_arr(i,j,k);
+            vely = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
+                          + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+        }
 
         amrex::Real qv_mean  = qvm_arr(i,j,k);
         amrex::Real ustar    = u_star_arr(i,j,k);
@@ -1618,9 +1640,11 @@ struct moeng_flux
     compute_t_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& velz_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& tm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
@@ -1629,8 +1653,28 @@ struct moeng_flux
     {
         amrex::Real rho   = cons_arr(i,j,k,Rho_comp);
         amrex::Real theta = cons_arr(i,j,k,RhoTheta_comp) / rho;
-        amrex::Real velx  = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
-        amrex::Real vely  = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
+        //amrex::Real velx  = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
+        //amrex::Real vely  = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
+        amrex::Real velz  = 0.5 * ( velz_arr(i,j,k) + velz_arr(i  ,j  ,k+1) );
+
+        amrex::Real velx, vely;
+        if (dir == 0) {
+            // X-face: y/z velocity, velx = vely, vely = velz here
+            velx  = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
+                           + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+            vely  = 0.25 * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
+                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+        } else if (dir == 1) {
+            // Y-face: x/z velocity, vely = velz here
+            velx  = velx_arr(i,j,k);
+            vely  = 0.25 * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
+                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+        } else {
+            // Z face: x/y velocity
+            velx = velx_arr(i,j,k);
+            vely = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
+                          + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+        }
 
         amrex::Real theta_mean  = tm_arr(i,j,k);
         amrex::Real ustar       = u_star_arr(i,j,k);
@@ -1639,7 +1683,7 @@ struct moeng_flux
         amrex::Real wsp_mean    = umm_arr(i,j,k);
         wsp_mean = std::max(wsp_mean, WSMIN);
 
-        amrex::Real wsp     = sqrt(velx*velx+vely*vely);
+        amrex::Real wsp     = sqrt(velx*velx+vely*vely); // FIX ---
         amrex::Real num1    = wsp * (theta_mean-theta_surf);
         amrex::Real num2    = wsp_mean * (theta-theta_mean);
 
@@ -1656,19 +1700,44 @@ struct moeng_flux
     compute_u_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& velz_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& um_arr,
+                    const amrex::Array4<const amrex::Real>& vm_arr,
+                    const amrex::Array4<const amrex::Real>& wm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
-        amrex::Real velx  = velx_arr(i,j,k);
-        amrex::Real vely  = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                                   + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+        amrex::Real velx, vely;
+        if (dir == 0) {
+            // X-face: y/z velocity, velx = vely, vely = velz here
+            velx  = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
+                           + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+            vely  = 0.25 * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
+                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+        } else if (dir == 1) {
+            // Y-face: x/z velocity, vely = velz here
+            velx  = velx_arr(i,j,k);
+            vely  = 0.25 * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
+                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+        } else {
+            // Z face: x/y velocity
+            velx = velx_arr(i,j,k);
+            vely = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
+                          + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+        }
         amrex::Real rho   = 0.5  * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
-        amrex::Real umean    = um_arr(i,j,k);
+        //amrex::Real umean    = um_arr(i,j,k);
+        amrex::Real umean;
+        if (dir == 0) {
+            umean = vm_arr(i, j, k);
+        } else {
+            umean = um_arr(i, j, k);
+        }
         amrex::Real ustar    = 0.5 * ( u_star_arr(i-1,j,k) + u_star_arr(i,j,k) );
         amrex::Real wsp_mean = 0.5 * (    umm_arr(i-1,j,k) +    umm_arr(i,j,k) );
         wsp_mean = std::max(wsp_mean, WSMIN);
@@ -1693,19 +1762,47 @@ struct moeng_flux
     compute_v_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& velz_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
+                    const amrex::Array4<const amrex::Real>& um_arr,
                     const amrex::Array4<const amrex::Real>& vm_arr,
+                    const amrex::Array4<const amrex::Real>& wm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
-        amrex::Real velx  = 0.25 * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
-        amrex::Real vely  = vely_arr(i,j,k);
+        amrex::Real velx, vely;
+        if (dir == 0) {
+            // X-face: y/z velocity, velx = vely, vely = velz here
+            velx  = vely_arr(i,j,k);
+            vely  = 0.25 * ( velz_arr(i,j,  k) + velz_arr(i  ,j,k+1)
+                           + velz_arr(i,j-1,k) + velz_arr(i  ,j-1,k+1) );
+        } else if (dir == 1) {
+            // Y-face: x/z velocity, vely = velz here
+            velx  = 0.25 * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
+                           + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+            vely  = 0.25 * ( velz_arr(i,j,  k) + velz_arr(i  ,j,k+1)
+                           + velz_arr(i,j-1,k) + velz_arr(i  ,j-1,k+1) );
+        } else {
+            velx  = 0.25 * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
+                           + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+            vely  = vely_arr(i,j,k);
+        }
+        //amrex::Real velx  = 0.25 * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
+        //                           + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+        //amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = 0.5  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
-        amrex::Real vmean     = vm_arr(i,j,k);
+        //amrex::Real vmean     = vm_arr(i,j,k);
+        amrex::Real vmean;
+        if (dir == 2) {
+            vmean = vm_arr(i, j, k);
+        } else {
+            vmean = wm_arr(i, j, k);
+        }
+
         amrex::Real ustar     = 0.5 * ( u_star_arr(i,j-1,k) + u_star_arr(i,j,k) );
         amrex::Real wsp_mean  = 0.5 * (    umm_arr(i,j-1,k) +    umm_arr(i,j,k) );
         wsp_mean = std::max(wsp_mean, WSMIN);
@@ -1743,9 +1840,11 @@ struct donelan_flux
     compute_q_flux (const int& /*i*/,
                     const int& /*j*/,
                     const int& /*k*/,
+                    const int& /*dir*/,
                     const amrex::Array4<const amrex::Real>& /*cons_arr*/,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*velz_arr*/,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*qm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -1764,9 +1863,11 @@ struct donelan_flux
     compute_t_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*velz_arr*/,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& tm_arr,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -1791,21 +1892,41 @@ struct donelan_flux
     compute_u_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& velz_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& /*um_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*vm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*wm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/) const
     {
-        amrex::Real velx  = velx_arr(i,j,k);
-        amrex::Real vely  = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                                   + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+        amrex::Real velx, vely;
+        if (dir == 0) {
+            // X-face: y/z velocity, velx = velz here
+            velx  = 0.25 * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
+                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+            vely  = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
+                           + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+        } else if (dir == 1) {
+            // Y-face: x/z velocity, vely = velz here
+            velx  = velx = velx_arr(i,j,k);
+            vely  = 0.25 * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
+                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+        } else {
+            // Z face: x/y velocity
+            velx = velx_arr(i,j,k);
+            vely = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
+                          + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+        }
         amrex::Real rho   = 0.5  * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real Cd       = 0.001;
         const amrex::Real c  = 7e-5;
         amrex::Real wsp      = sqrt(velx*velx+vely*vely);
+        // NOTE: umm here will be either mean x/y velocity if on a Z-face, x/z velocity if on a Y-face, or y/z velocity if on an X-face
         amrex::Real wsp_mean = 0.5 * ( umm_arr(i-1,j,k) + umm_arr(i,j,k) );
         if (wsp_mean <= 5.0) {
             Cd = 0.001;
@@ -1827,16 +1948,35 @@ struct donelan_flux
     compute_v_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& velz_arr,
                     const amrex::Array4<const amrex::Real>& umm_arr,
+                    const amrex::Array4<const amrex::Real>& /*um_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*wm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/) const
     {
-        amrex::Real velx  = 0.25 * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
-        amrex::Real vely  = vely_arr(i,j,k);
+        amrex::Real velx, vely;
+        if (dir == 0) {
+            // X-face: y/z velocity, velx = velz here
+            velx  = 0.25 * ( velz_arr(i,j,  k) + velz_arr(i  ,j,k+1)
+                           + velz_arr(i,j-1,k) + velz_arr(i  ,j-1,k+1) );
+            vely  = vely_arr(i,j,k);
+        } else if (dir == 1) {
+            // Y-face: x/z velocity, vely = velz here
+            velx  = 0.25 * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
+                           + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+            vely  = 0.25 * ( velz_arr(i,j,  k) + velz_arr(i  ,j,k+1)
+                           + velz_arr(i,j-1,k) + velz_arr(i  ,j-1,k+1) );
+        } else {
+            velx  = 0.25 * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
+                           + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+            vely  = vely_arr(i,j,k);
+        }
+
         amrex::Real rho   = 0.5  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real Cd       = 0.001;
@@ -1875,9 +2015,11 @@ struct custom_flux
     compute_q_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*velz_arr*/,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*qm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -1899,9 +2041,11 @@ struct custom_flux
     compute_t_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*velz_arr*/,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*tm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -1923,11 +2067,15 @@ struct custom_flux
     compute_u_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& velz_arr,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*um_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*vm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*wm_arr*/,
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
         amrex::Real velx  = velx_arr(i,j,k);
@@ -1950,11 +2098,15 @@ struct custom_flux
     compute_v_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& velz_arr,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*um_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*wm_arr*/,
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
         amrex::Real velx  = 0.25 * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
@@ -1989,9 +2141,11 @@ struct rotate_flux
     compute_q_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*velz_arr*/,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& qvm_arr,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -2014,9 +2168,11 @@ struct rotate_flux
     compute_t_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*velz_arr*/,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& tm_arr,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -2039,11 +2195,15 @@ struct rotate_flux
     compute_u_flux (const int& i,
                     const int& j,
                     const int& k,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*velz_arr*/,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*um_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*vm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*wm_arr*/,
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
         // NOTE: this is the total stress
@@ -2060,11 +2220,15 @@ struct rotate_flux
     compute_v_flux (const int& /*i*/,
                     const int& /*j*/,
                     const int& /*k*/,
+                    const int& dir,
                     const amrex::Array4<const amrex::Real>& /*cons_arr*/,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*velz_arr*/,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*um_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*wm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/) const
     {
         // NOTE: this is the total stress

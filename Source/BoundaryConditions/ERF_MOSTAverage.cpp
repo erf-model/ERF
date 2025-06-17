@@ -137,6 +137,27 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
             m_rot_fields[lev][1] = nullptr;
         }
     }
+    { // Nodal in z
+        auto& mf  = *vars_old[Vars::zvel];
+        // Create a 2D ba, dm, & ghost cells
+        const BoxArray& ba = mf.boxArray();
+        BoxList bl2d = ba.boxList();
+        for (auto& b : bl2d) b.setRange(dir, sm_index);
+        BoxArray ba2d(std::move(bl2d));
+        const DistributionMapping& dm = mf.DistributionMap();
+        const int ncomp = 1;
+        IntVect ng = mf.nGrowVect(); ng[2]=0;
+
+        m_fields[lev][2] = vars_old[Vars::zvel];
+        m_averages[lev][2] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
+        m_averages[lev][2]->setVal(1.E34);
+        if (m_rotate) {
+            m_rot_fields[lev][2] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
+            MultiFab::Copy(*m_rot_fields[lev][2],mf,0,0,1,ng);
+        } else {
+            m_rot_fields[lev][2] = nullptr;
+        }
+    }
     { // CC vars
         auto& mf  = *Theta_prim;
         // Create a 2D ba, dm, & ghost cells
@@ -150,27 +171,27 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         IntVect ng = mf.nGrowVect(); ng[2]=0;
 
         // Get field pointers
-        m_fields[lev][2] = Theta_prim.get();
-        m_fields[lev][3] = Qv_prim.get();
-        m_fields[lev][4] = Qr_prim.get();
+        m_fields[lev][3] = Theta_prim.get();
+        m_fields[lev][4] = Qv_prim.get();
+        m_fields[lev][5] = Qr_prim.get();
 
         // Initialize remaining multifabs
-        for (int iavg(2); iavg < m_navg; ++iavg) {
+        for (int iavg(3); iavg < m_navg; ++iavg) {
             m_averages[lev][iavg] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
             m_averages[lev][iavg]->setVal(1.E34);
         }
 
         // Default to dry
-        m_averages[lev][3]->setVal(0.0);
+        m_averages[lev][4]->setVal(0.0); // Qv
 
         if (m_rotate) {
-            m_rot_fields[lev][2] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
             m_rot_fields[lev][3] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
-            MultiFab::Copy(*m_rot_fields[lev][2],*Theta_prim,0,0,1,ng);
-            if (Qv_prim) MultiFab::Copy(*m_rot_fields[lev][3],*Qv_prim,0,0,1,ng);
+            m_rot_fields[lev][4] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
+            MultiFab::Copy(*m_rot_fields[lev][3],*Theta_prim,0,0,1,ng);
+            if (Qv_prim) MultiFab::Copy(*m_rot_fields[lev][4],*Qv_prim,0,0,1,ng);
         } else {
-            m_rot_fields[lev][2] = nullptr;
             m_rot_fields[lev][3] = nullptr;
+            m_rot_fields[lev][4] = nullptr;
         }
 
         if (use_terrain_fitted_coords && m_norm_vec && m_interp) {
@@ -190,7 +211,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         }
     }
     // Nodal in z (only used with terrain stress rotations)
-    m_fields[lev][4] = vars_old[Vars::zvel];
+    //m_fields[lev][2] = vars_old[Vars::zvel];
 
     // Setup auxiliary data for spatial configuration & policy
     //--------------------------------------------------------
@@ -235,6 +256,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     // Corrections to the mean surface velocity
     m_Vsg = Vector<Real>(m_maxlev, 0.0);
     if (include_subgrid_vel) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dir == 2, "Subgrid velocity correction only for Z faces!");
         if (include_subgrid_vel) {
             Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
             const auto dxArr = m_geom[lev].CellSizeArray();
@@ -264,10 +286,10 @@ MOSTAverage::update_field_ptrs (const int& lev,
 {
     m_fields[lev][0] = &vars_old[lev][Vars::xvel];
     m_fields[lev][1] = &vars_old[lev][Vars::yvel];
-    m_fields[lev][2] = Theta_prim[lev].get();
-    m_fields[lev][3] = Qv_prim[lev].get();
-    m_fields[lev][4] = Qr_prim[lev].get();
-    m_fields[lev][5] = &vars_old[lev][Vars::zvel];
+    m_fields[lev][2] = &vars_old[lev][Vars::zvel];
+    m_fields[lev][3] = Theta_prim[lev].get();
+    m_fields[lev][4] = Qv_prim[lev].get();
+    m_fields[lev][5] = Qr_prim[lev].get();
 }
 
 /**
@@ -286,7 +308,7 @@ MOSTAverage::set_rotated_fields (const int& lev)
     const auto dxInv = m_geom[lev].InvCellSizeArray();
 
     // Single MFIter over CC data
-    int imf_cc = 2;
+    int imf_cc = 3;
 
     // Populate rotated U & V for terrain
 #ifdef _OPENMP
@@ -300,7 +322,7 @@ MOSTAverage::set_rotated_fields (const int& lev)
 
         const Array4<const Real>& u_arr = fields[0]->const_array(mfi);
         const Array4<const Real>& v_arr = fields[1]->const_array(mfi);
-        const Array4<const Real>& w_arr = fields[4]->const_array(mfi);
+        const Array4<const Real>& w_arr = fields[2]->const_array(mfi);
 
         const Array4<Real>& u_rot_arr = rot_fields[0]->array(mfi);
         const Array4<Real>& v_rot_arr = rot_fields[1]->array(mfi);
@@ -324,9 +346,10 @@ MOSTAverage::set_rotated_fields (const int& lev)
         });
     }
 
+    // TODO: Add W to rot_fields?
     // Direct copy of other scalar variables
-    MultiFab::Copy(*rot_fields[2],*fields[2],0,0,1,rot_fields[2]->nGrowVect());
-    if (fields[3]) MultiFab::Copy(*rot_fields[3],*fields[3],0,0,1,rot_fields[3]->nGrowVect());
+    MultiFab::Copy(*rot_fields[2],*fields[3],0,0,1,rot_fields[2]->nGrowVect());
+    if (fields[4]) MultiFab::Copy(*rot_fields[3],*fields[4],0,0,1,rot_fields[3]->nGrowVect());
 }
 
 /**
@@ -349,7 +372,7 @@ MOSTAverage::set_plane_normalization (const int& lev)
     //       for normalization, consistent with avg routine.
 
     // Bounded box of CC data used for normalization
-    Box bnd_bx = (m_fields[lev][2]->boxArray()).minimalBox();
+    Box bnd_bx = (m_fields[lev][3]->boxArray()).minimalBox();
 
     // NOTE: Bounding box must lie on the periodic boundaries
     //       in order to trip the is_per flag
@@ -888,8 +911,8 @@ MOSTAverage::compute_plane_averages (const int& lev)
 
     const int dir = m_face.coordDir();
 
-    // Averages for U,V,T,Qv (not Qr or W)
-    for (int imf(0); imf < 4; ++imf) {
+    // Averages for U,V,W,T,Qv (not Qr)
+    for (int imf(0); imf < 5; ++imf) {
 
         int sm_index = 0;
         if (m_face.isLow()) {
@@ -983,7 +1006,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
     // (This is cell-centered so we don't need to worry about double-counting)
     //------------------------------------------------------------------------
     //
-    if (fields[3]) // We have water vapor
+    if (fields[4]) // We have water vapor
     {
         int sm_index = 0;
         if (m_face.isLow()) {
@@ -992,14 +1015,14 @@ MOSTAverage::compute_plane_averages (const int& lev)
             sm_index = m_geom[lev].Domain().bigEnd(dir);
         }
 
-        int iavg = 4;
+        int iavg = 5;
         denom[iavg]   = 1.0 / (Real)ncell_plane[iavg];
         val_old[iavg] = plane_average[iavg]*d_fact_old;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for (MFIter mfi(*fields[3], TileNoZ()); mfi.isValid(); ++mfi)
+        for (MFIter mfi(*fields[4], TileNoZ()); mfi.isValid(); ++mfi)
         //for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box pbx = mfi.tilebox();
@@ -1017,9 +1040,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
 
             pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
 
-            const Array4<Real const>& T_mf_arr = fields[2]->const_array(mfi);
-            const Array4<Real const>& qv_mf_arr = (fields[3])? fields[3]->const_array(mfi) : Array4<const Real>{};
-            const Array4<Real const>& qr_mf_arr = (fields[4])? fields[4]->const_array(mfi) : Array4<const Real>{};
+            const Array4<Real const>& T_mf_arr = fields[3]->const_array(mfi);
+            const Array4<Real const>& qv_mf_arr = (fields[4])? fields[4]->const_array(mfi) : Array4<const Real>{};
+            const Array4<Real const>& qr_mf_arr = (fields[5])? fields[5]->const_array(mfi) : Array4<const Real>{};
 
             if (m_interp) {
                 const auto plo   = m_geom[lev].ProbLoArray();
@@ -1075,10 +1098,10 @@ MOSTAverage::compute_plane_averages (const int& lev)
     }
     else // copy temperature
     {
-        int iavg    = m_navg - 2;
+        int iavg    = m_navg - 4;
         denom[iavg] = 1.0 / (Real)ncell_plane[iavg];
         // plane_avg[iavg] = plane_avg[2]
-        Gpu::copy(Gpu::deviceToDevice, pavg.begin() + 2, pavg.begin() + 3,
+        Gpu::copy(Gpu::deviceToDevice, pavg.begin() + 3, pavg.begin() + 4,
                   pavg.begin() + iavg);
     }
 
@@ -1096,8 +1119,10 @@ MOSTAverage::compute_plane_averages (const int& lev)
             sm_index = m_geom[lev].Domain().bigEnd(dir);
         }
 
-        int imf  = 0;
-        int iavg = m_navg - 1;
+        const int imf  = 0;
+        const int iavg = m_navg - 3;
+        const int iavg_xz = m_navg - 2;
+        const int iavg_yz = m_navg - 1;
         denom[iavg]   = 1.0 / (Real)ncell_plane[iavg];
         val_old[iavg] = plane_average[iavg]*d_fact_old;
 
@@ -1106,7 +1131,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for (MFIter mfi(*fields[2], TileNoZ()); mfi.isValid(); ++mfi) // cell-centered for velocity mag
+        for (MFIter mfi(*fields[3], TileNoZ()); mfi.isValid(); ++mfi) // cell-centered for velocity mag
         //for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box pbx = mfi.tilebox();
@@ -1129,8 +1154,11 @@ MOSTAverage::compute_plane_averages (const int& lev)
                                              fields[imf  ]->const_array(mfi);
             auto v_mf_arr = (m_rotate) ? rot_fields[imf+1]->const_array(mfi) :
                                              fields[imf+1]->const_array(mfi);
+            auto w_mf_arr = (m_rotate) ? rot_fields[imf+2]->const_array(mfi) :
+                                             fields[imf+2]->const_array(mfi);
 
             if (m_interp) {
+                // TODO: trilinear interp needs to be fixed for X and Y faces
                 const auto plo   = m_geom[lev].ProbLoArray();
                 const auto dxInv = m_geom[lev].InvCellSizeArray();
                 const auto z_phys_arr = z_phys->const_array(mfi);
@@ -1148,6 +1176,17 @@ MOSTAverage::compute_plane_averages (const int& lev)
                                             &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
                     const Real val = std::sqrt(u_interp*u_interp + v_interp*v_interp + Vsg*Vsg);
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
+
+                    if (dir < 2) {
+                        // averages for mean velocity on XZ and YZ planes
+                        Real w_interp{0};
+                        trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
+                                            &w_interp, w_mf_arr, z_phys_arr, plo, dxInv, 1);
+                        const Real val_xz = std::sqrt(u_interp*u_interp + w_interp*w_interp + Vsg*Vsg);
+                        const Real val_yz = std::sqrt(v_interp*v_interp + w_interp*w_interp + Vsg*Vsg);
+                        Gpu::deviceReduceSum(&plane_avg[iavg_xz], val_xz, handler);
+                        Gpu::deviceReduceSum(&plane_avg[iavg_yz], val_yz, handler);
+                    }
                 });
             } else {
                 auto k_arr = k_indx->const_array(mfi);
@@ -1163,6 +1202,15 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     const Real v_val = 0.5 * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
                     const Real val = std::sqrt(u_val*u_val + v_val*v_val + Vsg*Vsg);
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
+
+                     if (dir < 2) {
+                        // averages for mean velocity on XZ and YZ planes
+                        const Real w_val = 0.5 * (w_mf_arr(mi,mj,mk) + w_mf_arr(mi  ,mj,mk+1));
+                        const Real val_xz = std::sqrt(u_val*u_val + w_val*w_val + Vsg*Vsg);
+                        const Real val_yz = std::sqrt(v_val*v_val + w_val*w_val + Vsg*Vsg);
+                        Gpu::deviceReduceSum(&plane_avg[iavg_xz], val_xz, handler);
+                        Gpu::deviceReduceSum(&plane_avg[iavg_yz], val_yz, handler);
+                    }
                 });
             }
         }
@@ -1204,6 +1252,9 @@ MOSTAverage::compute_region_averages (const int& lev)
     auto& j_indx   = m_j_indx[lev];
     auto& k_indx   = m_k_indx[lev];
 
+    const int dir = m_face.coordDir();
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dir == 2, "Regional average does not work yet with X or Y faces!");
+
     // Set factors for time averaging
     Real d_fact_new, d_fact_old;
     if (m_t_avg && m_t_init[lev]) {
@@ -1222,10 +1273,10 @@ MOSTAverage::compute_region_averages (const int& lev)
 
     //
     //----------------------------------------------------------
-    // Averages for U,V,T,Qv
+    // Averages for U,V,W,T,Qv
     //----------------------------------------------------------
     //
-    for (int imf(0); imf < 4; ++imf) {
+    for (int imf(0); imf < 5; ++imf) {
 
         // Continue if no valid Qv pointer
         if (!fields[imf]) continue;
@@ -1301,9 +1352,9 @@ MOSTAverage::compute_region_averages (const int& lev)
     // Averages for virtual potential temperature
     //----------------------------------------------------------
     //
-    if (fields[3]) // We have water vapor
+    if (fields[4]) // We have water vapor
     {
-        int iavg = 4;
+        int iavg = 5;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -1311,9 +1362,9 @@ MOSTAverage::compute_region_averages (const int& lev)
         for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
             Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
 
-            const Array4<Real const>& T_mf_arr = fields[2]->const_array(mfi);
-            const Array4<Real const>& qv_mf_arr = (fields[3])? fields[3]->const_array(mfi) : Array4<const Real>{};
-            const Array4<Real const>& qr_mf_arr = (fields[4])? fields[4]->const_array(mfi) : Array4<const Real>{};
+            const Array4<Real const>& T_mf_arr = fields[3]->const_array(mfi);
+            const Array4<Real const>& qv_mf_arr = (fields[4])? fields[4]->const_array(mfi) : Array4<const Real>{};
+            const Array4<Real const>& qr_mf_arr = (fields[5])? fields[5]->const_array(mfi) : Array4<const Real>{};
             auto ma_arr   = averages[iavg]->array(mfi);
 
             if (m_interp) {
@@ -1394,9 +1445,9 @@ MOSTAverage::compute_region_averages (const int& lev)
     }
     else // copy temperature
     {
-        int iavg   = m_navg - 2;
+        int iavg   = m_navg - 4;
         IntVect ng = averages[iavg]->nGrowVect();
-        MultiFab::Copy(*(averages[iavg]),*(averages[2]),0,0,1,ng);
+        MultiFab::Copy(*(averages[iavg]),*(averages[3]),0,0,1,ng);
     }
 
     //
@@ -1406,7 +1457,7 @@ MOSTAverage::compute_region_averages (const int& lev)
     //
     {
         int imf  = 0;
-        int iavg = m_navg - 1;
+        int iavg = m_navg - 3;
 
         const Real Vsg = m_Vsg[lev];
 
@@ -1492,10 +1543,10 @@ MOSTAverage::compute_region_averages (const int& lev)
     // Need to fill ghost cells outside the domain if not periodic
     bool not_per_x = !(geom.periodicity().isPeriodic(0));
     bool not_per_y = !(geom.periodicity().isPeriodic(1));
-    Box cc_bnd_bx  = (m_fields[lev][2]->boxArray()).minimalBox();
+    Box cc_bnd_bx  = (m_fields[lev][3]->boxArray()).minimalBox();
     Box domain     = geom.Domain();
     if (domain.contains(cc_bnd_bx) || (not_per_x || not_per_y)) {
-        for (int iavg(0); iavg < m_navg; ++iavg) {
+        for (int iavg(0); iavg < m_navg - 4; ++iavg) {
             IntVect ng = averages[iavg]->nGrowVect(); ng[2]=0;
 
             // NOTE:  Level 0 spans the whole domain, but finer
@@ -1508,7 +1559,7 @@ MOSTAverage::compute_region_averages (const int& lev)
             //        We clip iavg at 2 since all the remaining data is CC
 
             // Bounded box of CC data used for normalization
-            int imf = min(iavg,2);
+            int imf = min(iavg,3);
             Box bnd_bx = (m_fields[lev][imf]->boxArray()).minimalBox();
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -1550,7 +1601,7 @@ MOSTAverage::write_k_indices (const int& lev)
     auto& averages = m_averages[lev];
     auto& k_indx   = m_k_indx[lev];
 
-    int navg = m_navg - 1;
+    int navg = m_navg - 4;
 
     std::ofstream ofile;
     ofile.open ("MOST_k_indices_" + std::to_string(m_face) + ".txt");
@@ -1611,7 +1662,7 @@ MOSTAverage::write_norm_indices (const int& lev)
     auto& j_indx   = m_j_indx[lev];
     auto& i_indx   = m_i_indx[lev];
 
-    int navg = m_navg - 1;
+    int navg = m_navg - 4;
 
     std::ofstream ofile;
     ofile.open ("MOST_ijk_indices_" + std::to_string(m_face) + ".txt");
@@ -1698,7 +1749,7 @@ MOSTAverage::write_averages (const int& lev, const int step)
     // Peel back the level
     auto& averages = m_averages[lev];
 
-    int navg = m_navg - 1;
+    int navg = m_navg - 4;
 
     std::ofstream ofile;
     ofile.open (std::string("MOST_averages_" + std::to_string(m_face) + 

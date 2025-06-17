@@ -1134,6 +1134,7 @@ ERF::InitData_post ()
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
     //if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
     m_SurfaceLayer.resize(AMREX_SPACEDIM*2);
+    bool updated_prim = false;
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
         if (phys_bc_type[ori] == ERF_BC::surface_layer) {
@@ -1180,21 +1181,24 @@ ERF::InitData_post ()
                 Real time  = t_new[lev];
                 IntVect ng = Theta_prim[lev]->nGrowVect();
 
-                MultiFab::Copy(  *Theta_prim[lev], vars_new[lev][Vars::cons], RhoTheta_comp, 0, 1, ng);
-                MultiFab::Divide(*Theta_prim[lev], vars_new[lev][Vars::cons],      Rho_comp, 0, 1, ng);
+                if (!updated_prim) {
+                    // This only needs to be done once (Theta,Qv_prim,Qr_prim should only be calculated once and reused for other faces)
+                    MultiFab::Copy(  *Theta_prim[lev], vars_new[lev][Vars::cons], RhoTheta_comp, 0, 1, ng);
+                    MultiFab::Divide(*Theta_prim[lev], vars_new[lev][Vars::cons],      Rho_comp, 0, 1, ng);
 
-                if (solverChoice.moisture_type != MoistureType::None) {
-                    ng = Qv_prim[lev]->nGrowVect();
+                    if (solverChoice.moisture_type != MoistureType::None) {
+                        ng = Qv_prim[lev]->nGrowVect();
 
-                    MultiFab::Copy(  *Qv_prim[lev], vars_new[lev][Vars::cons], RhoQ1_comp, 0, 1, ng);
-                    MultiFab::Divide(*Qv_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
+                        MultiFab::Copy(  *Qv_prim[lev], vars_new[lev][Vars::cons], RhoQ1_comp, 0, 1, ng);
+                        MultiFab::Divide(*Qv_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
 
-                    int rhoqr_comp = solverChoice.RhoQr_comp;
-                    if (rhoqr_comp > -1) {
-                        MultiFab::Copy(  *Qr_prim[lev], vars_new[lev][Vars::cons], rhoqr_comp, 0, 1, ng);
-                        MultiFab::Divide(*Qr_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
-                    } else {
-                        Qr_prim[lev]->setVal(0.0);
+                        int rhoqr_comp = solverChoice.RhoQr_comp;
+                        if (rhoqr_comp > -1) {
+                            MultiFab::Copy(  *Qr_prim[lev], vars_new[lev][Vars::cons], rhoqr_comp, 0, 1, ng);
+                            MultiFab::Divide(*Qr_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
+                        } else {
+                            Qr_prim[lev]->setVal(0.0);
+                        }
                     }
                 }
                 m_SurfaceLayer[ori]->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim, Qr_prim);
@@ -1210,6 +1214,7 @@ ERF::InitData_post ()
                     m_SurfaceLayer[ori]->update_fluxes(lev, time);
                 }
             }
+            updated_prim = true;
         } else {
             m_SurfaceLayer[ori] = nullptr;
         }
