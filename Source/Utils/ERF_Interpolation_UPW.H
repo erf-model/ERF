@@ -237,8 +237,8 @@ struct UPWIND3SL
         amrex::Real sm2 = m_phi(i-2, j  , k  , qty_index);
 
         // Left and right fluxes
-        amrex::Real Fhi = Evaluate(sp1,s  ,sm1);
-        amrex::Real Flo = Evaluate(s  ,sm1,sm2);
+        amrex::Real Fhi = Evaluate(s  ,sm1,sm2);
+        amrex::Real Flo = Evaluate(sm1,s  ,sp1);
 
         // Numerical flux
         val_lo = (1.0 + upw_lo)/2.0 * Fhi + (1.0 - upw_lo)/2.0 * Flo;
@@ -264,8 +264,8 @@ struct UPWIND3SL
         amrex::Real sm2 = m_phi(i  , j-2, k  , qty_index);
 
         // Left and right fluxes
-        amrex::Real Fhi = Evaluate(sp1,s  ,sm1);
-        amrex::Real Flo = Evaluate(s  ,sm1,sm2);
+        amrex::Real Fhi = Evaluate(s  ,sm1,sm2);
+        amrex::Real Flo = Evaluate(sm1,s  ,sp1);
 
         // Numerical flux
         val_lo = (1.0 + upw_lo)/2.0 * Fhi + (1.0 - upw_lo)/2.0 * Flo;
@@ -291,8 +291,8 @@ struct UPWIND3SL
         amrex::Real sm2 = m_phi(i  , j  , k-2, qty_index);
 
         // Left and right fluxes
-        amrex::Real Fhi = Evaluate(sp1,s  ,sm1);
-        amrex::Real Flo = Evaluate(s  ,sm1,sm2);
+        amrex::Real Fhi = Evaluate(s  ,sm1,sm2);
+        amrex::Real Flo = Evaluate(sm1,s  ,sp1);
 
         // Numerical flux
         val_lo = (1.0 + upw_lo)/2.0 * Fhi + (1.0 - upw_lo)/2.0 * Flo;
@@ -301,17 +301,17 @@ struct UPWIND3SL
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
-    Evaluate (const amrex::Real& sp1,
-              const amrex::Real& s,
-              const amrex::Real& sm1) const
+    Evaluate (const amrex::Real& s,
+              const amrex::Real& sm1,
+              const amrex::Real& sm2) const
     {
-        if (std::abs(s - sm1) > 1.0e-15) {
-            amrex::Real rph = (sp1 - s) / (s - sm1);
-            amrex::Real K   = l2 + 2.0*l2*rph;
-            amrex::Real phi = std::max(0.0,std::min(2.0*rph,std::min(del,K)));
-            return (s + 0.5 * phi * (s - sm1));
+        if (std::abs(sm1 - sm2) > 1.0e-15) {
+            amrex::Real rmh = (s - sm1) / (sm1 - sm2);
+            amrex::Real K   = l2 + 2.0*l2*rmh;
+            amrex::Real phi = std::max(0.0,std::min(2.0*rmh,std::min(del,K)));
+            return (sm1 + 0.5 * phi * (sm1 - sm2));
         } else {
-            return (s + l1 * (s - sm1) + l2 * (sp1 - s) );
+            return (sm1 + l1 * (sm1 - sm2) + l2 * (s - sm1) );
         }
     }
 
