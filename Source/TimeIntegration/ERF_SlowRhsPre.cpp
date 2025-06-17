@@ -490,6 +490,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<const Real> fcy_arr{};
         Array4<const Real> fcz_arr{};
         Array4<const Real> detJ_arr{};
+        Array4<const Real> u_detJ_arr{};
+        Array4<const Real> v_detJ_arr{};
+        Array4<const Real> w_detJ_arr{};
         if (solverChoice.terrain_type == TerrainType::EB)
         {
             EBCellFlagFab const& cfg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi];
@@ -503,6 +506,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
             detJ_arr = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
             // if (!already_on_centroids) {mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);}
             mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);
+
+            u_detJ_arr = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
+            v_detJ_arr = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
+            w_detJ_arr = (ebfact.get_w_const_factory())->getVolFrac().const_array(mfi);
         } else {
             ax_arr   = ax.const_array(mfi);
             ay_arr   = ay.const_array(mfi);
@@ -695,7 +702,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : 0.0;
 
-            rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k);
+            if (!l_eb_terrain) {
+                rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k);
+            } else {
+                if (u_detJ_arr(i,j,k) >0.0) {
+                    rho_u_rhs(i, j, k) += ( (-gpx - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k) ) / u_detJ_arr(i,j,k);
+                }
+            }
 
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
@@ -715,7 +728,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : 0.0;
 
-            rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k);
+            if (!l_eb_terrain) {
+                rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k);
+            } else {
+                if (v_detJ_arr(i,j,k) >0.0) {
+                    rho_v_rhs(i, j, k) += ( (-gpy - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k) ) / v_detJ_arr(i,j,k);
+                }
+            }
 
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
@@ -797,7 +816,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : 0.0;
 
-            rho_w_rhs(i, j, k) += (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (1.0 + q) + zmom_src_arr(i,j,k);
+            if (!l_eb_terrain) {
+                rho_w_rhs(i, j, k) += (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (1.0 + q) + zmom_src_arr(i,j,k);    
+            } else {
+                if (w_detJ_arr(i,j,k) > 0.0) {
+                    rho_w_rhs(i, j, k) += ( (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (1.0 + q) + zmom_src_arr(i,j,k) ) / w_detJ_arr(i,j,k);   
+                }
+            }
 
             if (l_moving_terrain) {
                  rho_w_rhs(i, j, k) *= 0.5 * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
