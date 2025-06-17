@@ -207,6 +207,128 @@ private:
 
 
 /**
+ * Interpolation operators used for 3rd order upwind scheme
+ */
+struct UPWIND3SL
+{
+    UPWIND3SL (const amrex::Array4<const amrex::Real>& phi,
+               const amrex::Real upw_frac)
+        : m_phi(phi)
+        , m_upw_frac(upw_frac)
+    {}
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    InterpolateInX (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& qty_index,
+                    amrex::Real& val_lo,
+                    amrex::Real upw_lo) const
+    {
+        // Upwinding flags
+        if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
+
+        // Data to interpolate on
+        amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
+        amrex::Real s   = m_phi(i  , j  , k  , qty_index);
+        amrex::Real sm1 = m_phi(i-1, j  , k  , qty_index);
+        amrex::Real sm2 = m_phi(i-2, j  , k  , qty_index);
+
+        // Left and right fluxes
+        amrex::Real Fhi = Evaluate(sp1,s  ,sm1);
+        amrex::Real Flo = Evaluate(s  ,sm1,sm2);
+
+        // Numerical flux
+        val_lo = (1.0 + upw_lo)/2.0 * Fhi + (1.0 - upw_lo)/2.0 * Flo;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    InterpolateInY (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& qty_index,
+                    amrex::Real& val_lo,
+                    amrex::Real upw_lo) const
+    {
+        // Upwinding flags
+        if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
+
+        // Data to interpolate on
+        amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
+        amrex::Real s   = m_phi(i  , j  , k  , qty_index);
+        amrex::Real sm1 = m_phi(i  , j-1, k  , qty_index);
+        amrex::Real sm2 = m_phi(i  , j-2, k  , qty_index);
+
+        // Left and right fluxes
+        amrex::Real Fhi = Evaluate(sp1,s  ,sm1);
+        amrex::Real Flo = Evaluate(s  ,sm1,sm2);
+
+        // Numerical flux
+        val_lo = (1.0 + upw_lo)/2.0 * Fhi + (1.0 - upw_lo)/2.0 * Flo;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    InterpolateInZ (const int& i,
+                    const int& j,
+                    const int& k,
+                    const int& qty_index,
+                    amrex::Real& val_lo,
+                    amrex::Real upw_lo) const
+    {
+        // Upwinding flags
+        if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
+
+        // Data to interpolate on
+        amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
+        amrex::Real s   = m_phi(i  , j  , k  , qty_index);
+        amrex::Real sm1 = m_phi(i  , j  , k-1, qty_index);
+        amrex::Real sm2 = m_phi(i  , j  , k-2, qty_index);
+
+        // Left and right fluxes
+        amrex::Real Fhi = Evaluate(sp1,s  ,sm1);
+        amrex::Real Flo = Evaluate(s  ,sm1,sm2);
+
+        // Numerical flux
+        val_lo = (1.0 + upw_lo)/2.0 * Fhi + (1.0 - upw_lo)/2.0 * Flo;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    Evaluate (const amrex::Real& sp1,
+              const amrex::Real& s,
+              const amrex::Real& sm1) const
+    {
+        if (std::abs(s - sm1) > 1.0e-15) {
+            amrex::Real rph = (sp1 - s) / (s - sm1);
+            amrex::Real K   = l2 + 2.0*l2*rph;
+            amrex::Real phi = std::max(0.0,std::min(2.0*rph,std::min(del,K)));
+            return (s + 0.5 * phi * (s - sm1));
+        } else {
+            return (s + l1 * (s - sm1) + l2 * (sp1 - s) );
+        }
+    }
+
+    int GetUpwindCellNumber() const {return 2;}
+
+    void SetUpwinding(amrex::Real upw_frac) {m_upw_frac = upw_frac;}
+
+private:
+    amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
+    amrex::Real m_upw_frac; // Upwinding fraction
+    static constexpr amrex::Real del=2.0;
+    static constexpr amrex::Real l1=(1.0/6.0);
+    static constexpr amrex::Real l2=(1.0/3.0);
+};
+
+
+/**
  * Interpolation operators used for 4th order centered scheme
  */
 struct CENTERED4
