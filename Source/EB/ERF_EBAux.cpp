@@ -1,3 +1,4 @@
+#include <AMReX_BoxList.H>
 #include <ERF_EBAux.H>
 #include <ERF_EBCutCell.H>
 
@@ -106,13 +107,30 @@ define( int const& a_idim,
 
       // Initialization 
       // This is an ad-hoc; ideally, eb_aux should be defined in bx_grown.
-      ParallelFor(bx_grown, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-      {
-        if (k < 0) {
-          aux_flag(i,j,k).setCovered();
-          aux_flag(i,j,k).setDisconnected();
+
+      // Extended domain in the direction of periodicity
+      Box dom_grown = domain;
+      for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        if (a_geom.isPeriodic(idim)) {
+          dom_grown.grow(idim, a_ngrow[0]);
         }
-      });
+      }
+      
+      const IntVect dom_grown_lo = dom_grown.smallEnd();
+      const IntVect dom_grown_hi = dom_grown.bigEnd();
+
+      BoxList diffList = boxDiff(bx_grown, bx);
+      for (const Box& b : diffList) {
+        ParallelFor(b, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          if ( i < dom_grown_lo[0] || i > dom_grown_hi[0] || 
+               j < dom_grown_lo[1] || j > dom_grown_hi[1] || 
+               k < dom_grown_lo[2] || k > dom_grown_hi[2] ) {
+            aux_flag(i,j,k).setCovered();
+            aux_flag(i,j,k).setDisconnected(); 
+          }
+        });
+      }
 
       ParallelFor(bx, [
 #ifndef AMREX_USE_GPU
