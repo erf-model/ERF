@@ -30,7 +30,7 @@ eb_::eb_ ( )
 { }
 
 void
-eb_::make_all_factories (int level,
+eb_::make_all_factories (int /*level*/,
                          Geometry            const& a_geom,
                          BoxArray            const& ba,
                          DistributionMapping const& dm,
