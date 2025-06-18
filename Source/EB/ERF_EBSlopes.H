@@ -33,13 +33,30 @@ erf_calc_slopes_eb (int igrid_query,
 
     // Fitting stencil
 
+    amrex::RealVect bias{0.,0.,0.};
+    // int ii_lo = -2;
+    // int jj_lo = -2;
+    // int kk_lo = -2;
+    // int ii_hi = 2;
+    // int jj_hi = 2;
+    // int kk_hi = 2;
+    // int dim_a = 125;
+
+    int ii_lo = -1;
+    int jj_lo = -1;
+    int kk_lo = -1;
     int ii_hi = 1;
     int jj_hi = 1;
     int kk_hi = 1;
-    int dim_a = 27; // neighbor stencil
-    amrex::RealVect bias{0.,0.,0.};
+    int dim_a = 27;
 
     if (igrid_query != igrid_data) {
+        ii_lo = -1;
+        jj_lo = -1;
+        kk_lo = -1;
+        ii_hi = 1;
+        jj_hi = 1;
+        kk_hi = 1;
 
         // Determine which directions are involved
         bool x_involved = (igrid_query == Vars::xvel || igrid_data == Vars::xvel);
@@ -63,13 +80,9 @@ erf_calc_slopes_eb (int igrid_query,
 
     // Array of distances from the query point
     int lc=0;
-    for(int kk(-1); kk<=kk_hi; kk++) {
-    for(int jj(-1); jj<=jj_hi; jj++) {
-    for(int ii(-1); ii<=ii_hi; ii++) {
-
-        // amrex::Print()<<"SK: erf_calc_slopes_eb/ ii,jj,kk = "<< ii<<","<<jj<<","<<kk<<", isCovered() = "<< flag(i+ii,j+jj,k+kk).isCovered()
-        // <<", ccent = "<< ccent(i+ii,j+jj,k+kk,0)<<" "<< ccent(i+ii,j+jj,k+kk,1)<< " "<< ccent(i+ii,j+jj,k+kk,2)
-        // <<", state = "<< state(i+ii,j+jj,k+kk)<<std::endl;
+    for(int kk(kk_lo); kk<=kk_hi; kk++) {
+    for(int jj(jj_lo); jj<=jj_hi; jj++) {
+    for(int ii(ii_lo); ii<=ii_hi; ii++) {
 
         if (!flag(i+ii,j+jj,k+kk).isCovered() && !(ii==0 && jj==0 && kk==0)) {
             A[lc][0] = ( amrex::Real(ii) + ccent(i+ii,j+jj,k+kk,0) + bias[0] - bcent_eb[0] ) * dx;
@@ -89,9 +102,9 @@ erf_calc_slopes_eb (int igrid_query,
     amrex::Real du[dim_a];
 
     int ll=0;
-    for(int kk(-1); kk<=kk_hi; kk++) {
-    for(int jj(-1); jj<=jj_hi; jj++) {
-    for(int ii(-1); ii<=ii_hi; ii++) {
+    for(int kk(kk_lo); kk<=kk_hi; kk++) {
+    for(int jj(jj_lo); jj<=jj_hi; jj++) {
+    for(int ii(ii_lo); ii<=ii_hi; ii++) {
 
         if (!flag(i+ii,j+jj,k+kk).isCovered() && !(ii==0 && jj==0 && kk==0)) {
             du[ll] = state(i+ii,j+jj,k+kk) - state_eb;
