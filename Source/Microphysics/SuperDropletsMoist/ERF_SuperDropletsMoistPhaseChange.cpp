@@ -34,10 +34,10 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
             qt_ptr = m_mic_fab_vars[MicVar_SD::q_t].get();
             sr_ptr = m_mic_fab_vars[MicVar_SD::rh].get();
         } else {
-            qv_ptr = m_mic_fab_vars[s_qv_idx(is)].get();
-            qc_ptr = m_mic_fab_vars[s_qc_idx(is)].get();
-            qt_ptr = m_mic_fab_vars[s_qt_idx(is)].get();
-            sr_ptr = m_mic_fab_vars[s_sr_idx(is)].get();
+            qv_ptr = m_mic_fab_vars[s_qv_idx(is,m_istart_sp)].get();
+            qc_ptr = m_mic_fab_vars[s_qc_idx(is,m_istart_sp)].get();
+            qt_ptr = m_mic_fab_vars[s_qt_idx(is,m_istart_sp)].get();
+            sr_ptr = m_mic_fab_vars[s_sr_idx(is,m_istart_sp)].get();
         }
 
         // Compute saturation pressure

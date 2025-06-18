@@ -297,8 +297,8 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
             const auto& box = mfi.tilebox();
             auto states_arr = a_cons_vars.array(mfi);
-            auto q_c_arr = m_mic_fab_vars[s_qc_idx(is)]->array(mfi);
-            auto qc_comp = q_qc_idx(is);
+            auto q_c_arr = m_mic_fab_vars[s_qc_idx(is,m_istart_sp)]->array(mfi);
+            auto qc_comp = q_qc_idx(is,m_istart_sp);
             ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 states_arr(i,j,k,qc_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);

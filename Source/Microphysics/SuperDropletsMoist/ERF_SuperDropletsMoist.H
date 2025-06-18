@@ -44,47 +44,52 @@ namespace MicVar_SD_Species {
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int s_qt_idx (const int a_i /*!< species index */ )
+static int s_qt_idx (const int a_i, /*!< species index */
+                     const int a_is /*!< Index of first non-water/ice species */ )
 {
     AMREX_ALWAYS_ASSERT(a_i > 0);
     return      MicVar_SD::NumVars
-            +   (a_i-1)*MicVar_SD_Species::NumVars
+            +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::q_t;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int s_qv_idx (const int a_i /*!< species index */ )
+static int s_qv_idx (const int a_i, /*!< Species index */
+                     const int a_is /*!< Index of first non-water/ice species */ )
 {
     AMREX_ALWAYS_ASSERT(a_i > 0);
     return      MicVar_SD::NumVars
-            +   (a_i-1)*MicVar_SD_Species::NumVars
+            +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::q_v;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int s_qc_idx (const int a_i /*!< species index */ )
+static int s_qc_idx (const int a_i, /*!< Species index */
+                     const int a_is /*!< Index of first non-water/ice species */ )
 {
     AMREX_ALWAYS_ASSERT(a_i > 0);
     return      MicVar_SD::NumVars
-            +   (a_i-1)*MicVar_SD_Species::NumVars
+            +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::q_c;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int s_sr_idx (const int a_i /*!< species index */ )
+static int s_sr_idx (const int a_i, /*!< Species index */
+                     const int a_is /*!< Index of first non-water/ice species */ )
 {
     AMREX_ALWAYS_ASSERT(a_i > 0);
     return      MicVar_SD::NumVars
-            +   (a_i-1)*MicVar_SD_Species::NumVars
+            +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::sr;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int s_accum_idx (const int a_i /*!< species index */ )
+static int s_accum_idx (const int a_i, /*!< Species index */
+                     const int a_is /*!< Index of first non-water/ice species */ )
 {
     AMREX_ALWAYS_ASSERT(a_i > 0);
     return      MicVar_SD::NumVars
-            +   (a_i-1)*MicVar_SD_Species::NumVars
+            +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::accum;
 }
 
@@ -294,7 +299,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     std::string varname = "qv_" + getEnumNameString(m_species[v]);
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_qv_idx(v)],
+                                        *m_mic_fab_vars[s_qv_idx(v,m_istart_sp)],
                                         0, 0, 1, IntVect::TheZeroVector() );
                         return;
                     }
@@ -303,7 +308,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     std::string varname = "qc_" + getEnumNameString(m_species[v]);
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_qc_idx(v)],
+                                        *m_mic_fab_vars[s_qc_idx(v,m_istart_sp)],
                                         0, 0, 1, IntVect::TheZeroVector() );
                         return;
                     }
@@ -312,7 +317,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     std::string varname = "qt_" + getEnumNameString(m_species[v]);
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_qt_idx(v)],
+                                        *m_mic_fab_vars[s_qt_idx(v,m_istart_sp)],
                                         0, 0, 1, IntVect::TheZeroVector() );
                         return;
                     }
@@ -321,7 +326,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     std::string varname = "sat_ratio_" + getEnumNameString(m_species[v]);
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_sr_idx(v)],
+                                        *m_mic_fab_vars[s_sr_idx(v,m_istart_sp)],
                                         0, 0, 1, IntVect::TheZeroVector() );
                         return;
                     }
@@ -330,7 +335,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     std::string varname = "accum_" + getEnumNameString(m_species[v]);
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_accum_idx(v)],
+                                        *m_mic_fab_vars[s_accum_idx(v,m_istart_sp)],
                                         0, 0, 1, IntVect::TheZeroVector() );
                         return;
                     }
@@ -341,17 +346,19 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         }
 
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-        int q_qv_idx (const int a_i /*!< species index */ )
+        int q_qv_idx (const int a_i, /*!< species index */
+                      const int a_is /*!< index of first non-water/ice species */ )
         {
             AMREX_ALWAYS_ASSERT(a_i > 0);
-            return RhoQ1_comp + m_qstate_moist_size + 2*(a_i-1) + 0;
+            return RhoQ1_comp + m_qstate_moist_size + 2*(a_i-a_is) + 0;
         }
 
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-        int q_qc_idx (const int a_i /*!< species index */ )
+        int q_qc_idx (const int a_i, /*!< species index */
+                      const int a_is /*!< index of first non-water/ice species */ )
         {
             AMREX_ALWAYS_ASSERT(a_i > 0);
-            return RhoQ1_comp + m_qstate_moist_size + 2*(a_i-1) + 1;
+            return RhoQ1_comp + m_qstate_moist_size + 2*(a_i-a_is) + 1;
         }
 
     protected:
