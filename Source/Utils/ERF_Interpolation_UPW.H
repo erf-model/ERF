@@ -306,7 +306,7 @@ struct UPWIND3SL
     {
         amrex::Real rmh = (s - sm1) / ((sm1 - sm2) + eps);
         amrex::Real K   = l2 + 2.0*l2*rmh;
-        amrex::Real phi = std::max(0.0,std::min(2.0*rmh,std::min(del,K)));
+        amrex::Real phi = std::max(0.0,std::min(2.0*rmh,std::min(delta,K)));
         return (sm1 + 0.5 * phi * (sm1 - sm2));
     }
 
@@ -314,10 +314,10 @@ struct UPWIND3SL
 
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
-    static constexpr amrex::Real eps=(1.0e-16);
-    static constexpr amrex::Real del=(2.0);
-    static constexpr amrex::Real  l1=(1.0/6.0);
-    static constexpr amrex::Real  l2=(1.0/3.0);
+    static constexpr amrex::Real eps  =(1.0e-16);
+    static constexpr amrex::Real delta=(2.0);
+    static constexpr amrex::Real l1   =(1.0/6.0);
+    static constexpr amrex::Real l2   =(1.0/3.0);
 };
 
 
