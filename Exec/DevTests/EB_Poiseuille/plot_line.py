@@ -15,7 +15,7 @@ H = 0.1 - z0
 h = H/2
 
 u_approx = df["x_velocity"]
-zcoord_org = df["Points:2"] 
+zcoord_org = df["Points:2"]
 
 # Analytical solution
 
@@ -44,7 +44,7 @@ plt.rcParams.update({'font.style': 'normal'})
 plt.rcParams.update({'font.weight': 'normal'})
 
 font_label = {'family': 'serif', 'size': fs}
-font_tick = font_manager.FontProperties(family='serif', style='normal', 
+font_tick = font_manager.FontProperties(family='serif', style='normal',
                                         size=fs, weight='normal', stretch='normal')
 
 # Create the plot
