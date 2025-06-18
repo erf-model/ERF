@@ -99,6 +99,8 @@ MaterialProperties::MaterialProperties ( const Species::Name& a_name )
 
     if (a_name == Species::Name::H2O) {
         setProperties_H2O();
+    } else if (a_name == Species::Name::ice) {
+        setProperties_ice();
     } else if (a_name == Species::Name::water) {
         setProperties_water();
     } else if (a_name == Species::Name::agua) {
