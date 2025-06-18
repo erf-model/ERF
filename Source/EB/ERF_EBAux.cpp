@@ -105,7 +105,7 @@ define( int const& a_idim,
 
       bool is_per = a_geom.isPeriodic(a_idim);
 
-      // Initialization 
+      // Initialization
       // This is an ad-hoc; ideally, eb_aux should be defined in bx_grown.
 
       // Extended domain in the direction of periodicity
@@ -115,7 +115,7 @@ define( int const& a_idim,
           dom_grown.grow(idim, a_ngrow[0]);
         }
       }
-      
+
       const IntVect dom_grown_lo = dom_grown.smallEnd();
       const IntVect dom_grown_hi = dom_grown.bigEnd();
 
@@ -123,11 +123,11 @@ define( int const& a_idim,
       for (const Box& b : diffList) {
         ParallelFor(b, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-          if ( i < dom_grown_lo[0] || i > dom_grown_hi[0] || 
-               j < dom_grown_lo[1] || j > dom_grown_hi[1] || 
+          if ( i < dom_grown_lo[0] || i > dom_grown_hi[0] ||
+               j < dom_grown_lo[1] || j > dom_grown_hi[1] ||
                k < dom_grown_lo[2] || k > dom_grown_hi[2] ) {
             aux_flag(i,j,k).setCovered();
-            aux_flag(i,j,k).setDisconnected(); 
+            aux_flag(i,j,k).setDisconnected();
           }
         });
       }

@@ -137,7 +137,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
             // Inv Jacobian
             Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
-            Real diffContrib  = ( (tau11(i  , j  , k  ) * u_afrac_x(i+1,j  ,k  ) 
+            Real diffContrib  = ( (tau11(i  , j  , k  ) * u_afrac_x(i+1,j  ,k  )
                                 -  tau11(i-1, j  , k  ) * u_afrac_x(i  ,j  ,k  ) ) * dxinv * mfsq
                                 + (tau12(i  , j+1, k  ) * u_afrac_y(i  ,j+1,k  )
                                 -  tau12(i  , j  , k  ) * u_afrac_y(i  ,j  ,k  ) ) * dyinv * mfsq
@@ -167,9 +167,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real dist_y = u_bcent(i,j,k,1)*dy;
                     Real dist_z = u_bcent(i,j,k,2)*dz;
 
-                    // 
+                    //
                     // Should this be the distance from the centroid to the face?
-                    // 
+                    //
                     Real dn = std::sqrt( dist_x * dist_x + dist_y * dist_y + dist_z * dist_z );
 
                     rho_u_rhs(i,j,k) -= - mu_eff * barea / vol * u_arr(i,j,k) / dn / u_volfrac(i,j,k);
@@ -206,8 +206,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real tau12_eb = - mu_eff * 0.5 * (dudy + dvdx);
                     Real tau13_eb = - mu_eff * 0.5 * (dudz + dwdx);
 
-                    rho_u_rhs(i,j,k) -= barea / vol * (u_bnorm(i,j,k,0) * tau11_eb 
-                                                     + u_bnorm(i,j,k,1) * tau12_eb 
+                    rho_u_rhs(i,j,k) -= barea / vol * (u_bnorm(i,j,k,0) * tau11_eb
+                                                     + u_bnorm(i,j,k,1) * tau12_eb
                                                      + u_bnorm(i,j,k,2) * tau13_eb) / u_volfrac(i,j,k);
                 }
             }
@@ -288,8 +288,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real tau12_eb = - mu_eff * 0.5 * (dudy + dvdx);
                     Real tau23_eb = - mu_eff * 0.5 * (dvdz + dwdy);
 
-                    rho_v_rhs(i,j,k) -= mu_eff * barea / vol * (v_bnorm(i,j,k,0) * tau12_eb 
-                                                     + v_bnorm(i,j,k,1) * tau22_eb 
+                    rho_v_rhs(i,j,k) -= mu_eff * barea / vol * (v_bnorm(i,j,k,0) * tau12_eb
+                                                     + v_bnorm(i,j,k,1) * tau22_eb
                                                      + v_bnorm(i,j,k,2) * tau23_eb) / v_volfrac(i,j,k);
                 }
             }
@@ -369,8 +369,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real tau13_eb = - mu_eff * 0.5 * (dudz + dwdx);
                     Real tau23_eb = - mu_eff * 0.5 * (dvdz + dwdy);
 
-                    rho_w_rhs(i,j,k) -= barea / vol * (w_bnorm(i,j,k,0) * tau13_eb 
-                                                     + w_bnorm(i,j,k,1) * tau23_eb 
+                    rho_w_rhs(i,j,k) -= barea / vol * (w_bnorm(i,j,k,0) * tau13_eb
+                                                     + w_bnorm(i,j,k,1) * tau23_eb
                                                      + w_bnorm(i,j,k,2) * tau33_eb) / w_volfrac(i,j,k);
                 }
             }

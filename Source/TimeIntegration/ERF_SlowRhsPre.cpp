@@ -679,7 +679,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     mf_mx, mf_ux, mf_vx,
                     mf_my, mf_uy, mf_vy,
                     l_use_stretched_dz,
-                    l_use_terrain_fitted_coords);   
+                    l_use_terrain_fitted_coords);
             } else {
                 DiffusionSrcForMom_EB(mfi, domain, tbx, tby, tbz,
                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
@@ -817,10 +817,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : 0.0;
 
             if (!l_eb_terrain) {
-                rho_w_rhs(i, j, k) += (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (1.0 + q) + zmom_src_arr(i,j,k);    
+                rho_w_rhs(i, j, k) += (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (1.0 + q) + zmom_src_arr(i,j,k);
             } else {
                 if (w_detJ_arr(i,j,k) > 0.0) {
-                    rho_w_rhs(i, j, k) += ( (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (1.0 + q) + zmom_src_arr(i,j,k) ) / w_detJ_arr(i,j,k);   
+                    rho_w_rhs(i, j, k) += ( (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (1.0 + q) + zmom_src_arr(i,j,k) ) / w_detJ_arr(i,j,k);
                 }
             }
 
