@@ -195,8 +195,8 @@ protected:
 
     // General vars for multiple or all policies
     //--------------------------------------------
-    int  m_nvar{6};                                                  // 6 fields for U/V/T/Qv/Qr/W
-    int  m_navg{6};                                                  // 6 averages for U/V/T/Qv/Tv/Umag
+    int  m_nvar{6};                                                  // 6 fields for U/V/W/T/Qv/Qr
+    int  m_navg{9};                                                  // 9 averages for U/V/W/T/Qv/Tv/Umag_XY,Umag_XZ,Umag_YZ
     int  m_maxlev{0};                                                // Total number of levels
     int  m_policy{0};                                                // Policy for type of averaging
     bool m_rotate{false};                                            // Do vector rotations for terrain?
