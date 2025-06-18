@@ -26,13 +26,13 @@ void ERF::project_velocity (int lev, Real l_dt)
 
     project_momenta(lev, l_dt, tmp_mom);
 
-   MomentumToVelocity(vars_new[lev][Vars::xvel],
-                      vars_new[lev][Vars::yvel],
-                      vars_new[lev][Vars::zvel],
-                      vars_new[lev][Vars::cons],
-                      rU_new[lev], rV_new[lev], rW_new[lev],
-                      Geom(lev).Domain(), domain_bcs_type);
-}
+    MomentumToVelocity(vars_new[lev][Vars::xvel],
+                       vars_new[lev][Vars::yvel],
+                       vars_new[lev][Vars::zvel],
+                       vars_new[lev][Vars::cons],
+                       rU_new[lev], rV_new[lev], rW_new[lev],
+                       Geom(lev).Domain(), domain_bcs_type);
+ }
 
 /**
  * Project the single-level momenta to enforce the anelastic constraint
@@ -41,9 +41,6 @@ void ERF::project_velocity (int lev, Real l_dt)
 void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 {
     BL_PROFILE("ERF::project_momenta()");
-
-    auto const dom_lo = lbound(geom[lev].Domain());
-    auto const dom_hi = ubound(geom[lev].Domain());
 
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(mom_mf[Vars::cons].boxArray());
@@ -124,13 +121,13 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             //
             Box tbz = mfi.nodaltilebox(2);
             ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                if (k > dom_lo.z && k <= dom_hi.z) {
+                if (k == 0) {
+                    rho0w_arr(i,j,k) = Real(0.0);
+                } else {
                     Real rho0w = rho0w_arr(i,j,k);
                     rho0w_arr(i,j,k) = OmegaFromW(i,j,k,rho0w,
                                                   rho0u_arr,rho0v_arr,
                                                   mf_u,mf_v,z_nd,dxInv);
-                } else {
-                    rho0w_arr(i,j,k) = Real(0.0);
                 }
             });
         } // mfi
@@ -147,10 +144,15 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
     compute_divergence(lev, rhs[0], rho0_u_const, geom_tmp[0]);
 
+    if (solverChoice.mesh_type == MeshType::VariableDz) {
+        MultiFab::Multiply(rhs[0], *detJ_cc[lev], 0, 0, 1, 0);
+    }
+
     Real rhsnorm = rhs[0].norm0();
+    Real rhssum  = rhs[0].sum();
 
     if (mg_verbose > 0) {
-        Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " << rhs[0].norm2() << std::endl;
+        Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " << rhs[0].norm2() << " and sum " << rhssum << std::endl;
     }
 
     // ****************************************************************************
@@ -244,10 +246,6 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     // ****************************************************************************
     else if (solverChoice.mesh_type == MeshType::VariableDz) {
 #ifdef ERF_USE_FFT
-        if (use_fft)
-        {
-            amrex::Warning("FFT solver does not work for general terrain: switching to FFT-preconditioned GMRES");
-        }
         if (!boxes_make_rectangle) {
             amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
         } else {
@@ -298,7 +296,12 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     {
         compute_divergence(lev, rhs[0], rho0_u_const, geom_tmp[0]);
 
-        Print() << "Max/L2 norm of divergence  after solve at level " << lev << " : " << rhs[0].norm0() << " " << rhs[0].norm2() << std::endl;
+        if (solverChoice.mesh_type == MeshType::VariableDz) {
+            MultiFab::Multiply(rhs[0], *detJ_cc[lev], 0, 0, 1, 0);
+        }
+
+        Print() << "Max/L2 norm of divergence  after solve at level " << lev << " : " << rhs[0].norm0() << " " <<
+                    rhs[0].norm2() << " and sum " << rhssum << std::endl;
 
 #if 0
          // FOR DEBUGGING ONLY
