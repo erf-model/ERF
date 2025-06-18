@@ -30,7 +30,7 @@ void SuperDropletsMoist::readInputs ()
     pp.query("include_coalescence", m_flag_coalescence);
 
     // include cold processes?
-    m_with_ice = false;
+    m_with_ice = true;
     pp.query("include_cold_processes", m_with_ice);
 
     // initial distribution type
