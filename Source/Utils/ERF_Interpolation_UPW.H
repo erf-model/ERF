@@ -212,9 +212,8 @@ private:
 struct UPWIND3SL
 {
     UPWIND3SL (const amrex::Array4<const amrex::Real>& phi,
-               const amrex::Real upw_frac)
+               const amrex::Real /*upw_frac*/)
         : m_phi(phi)
-        , m_upw_frac(upw_frac)
     {}
 
     AMREX_GPU_DEVICE
@@ -305,26 +304,20 @@ struct UPWIND3SL
               const amrex::Real& sm1,
               const amrex::Real& sm2) const
     {
-        if (std::abs(sm1 - sm2) > 1.0e-15) {
-            amrex::Real rmh = (s - sm1) / (sm1 - sm2);
-            amrex::Real K   = l2 + 2.0*l2*rmh;
-            amrex::Real phi = std::max(0.0,std::min(2.0*rmh,std::min(del,K)));
-            return (sm1 + 0.5 * phi * (sm1 - sm2));
-        } else {
-            return (sm1 + l1 * (sm1 - sm2) + l2 * (s - sm1) );
-        }
+        amrex::Real rmh = (s - sm1) / ((sm1 - sm2) + eps);
+        amrex::Real K   = l2 + 2.0*l2*rmh;
+        amrex::Real phi = std::max(0.0,std::min(2.0*rmh,std::min(del,K)));
+        return (sm1 + 0.5 * phi * (sm1 - sm2));
     }
 
     int GetUpwindCellNumber() const {return 2;}
 
-    void SetUpwinding(amrex::Real upw_frac) {m_upw_frac = upw_frac;}
-
 private:
     amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
-    amrex::Real m_upw_frac; // Upwinding fraction
-    static constexpr amrex::Real del=2.0;
-    static constexpr amrex::Real l1=(1.0/6.0);
-    static constexpr amrex::Real l2=(1.0/3.0);
+    static constexpr amrex::Real eps=(1.0e-16);
+    static constexpr amrex::Real del=(2.0);
+    static constexpr amrex::Real  l1=(1.0/6.0);
+    static constexpr amrex::Real  l2=(1.0/3.0);
 };
 
 
