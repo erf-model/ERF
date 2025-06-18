@@ -19,12 +19,21 @@ void SDInitialization::setDefaults ( const MatVec& a_species_mat,
     for (int i = 0; i < m_num_species; i++) {
         // default values
         m_species_init_type[i] = SupDropInit::attrib_init_const;
-        m_mass_species_min[i]   = 4.1887902e-42;
-        m_mass_species_max[i]   = 4.1887902e-42;
-        m_mass_species_mean[i]  = 4.1887902e-42;
-        m_radius_species_min[i] = 1.0e-15;
-        m_radius_species_max[i] = 1.0e-15;
-        m_radius_species_mean[i] = 1.0e-15;
+        if (a_species_mat[i]->m_is_water) {
+            m_mass_species_min[i]   = 4.1887902e-42;
+            m_mass_species_max[i]   = 4.1887902e-42;
+            m_mass_species_mean[i]  = 4.1887902e-42;
+            m_radius_species_min[i] = 1.0e-15;
+            m_radius_species_max[i] = 1.0e-15;
+            m_radius_species_mean[i] = 1.0e-15;
+        } else {
+            m_mass_species_min[i]   = 0.0;
+            m_mass_species_max[i]   = 0.0;
+            m_mass_species_mean[i]  = 0.0;
+            m_radius_species_min[i] = 0.0;
+            m_radius_species_max[i] = 0.0;
+            m_radius_species_mean[i] = 0.0;
+        }
         m_radius_species_geom_std[i] = 1.0;
     }
 
