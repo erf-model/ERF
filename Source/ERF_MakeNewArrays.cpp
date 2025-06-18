@@ -314,8 +314,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 #endif
 
 
-
-
 #ifdef ERF_USE_WW3_COUPLING
     // create a new BoxArray and DistributionMapping for a MultiFab with 1 box
     BoxArray ba_onegrid(geom[lev].Domain());
@@ -420,8 +418,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     #ifdef ERF_USE_WINDFARM
         //init_windfarm(lev);
     #endif
-
-    //init_coarse_weather_data();
 }
 
 void
