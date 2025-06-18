@@ -248,7 +248,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         }
     }
 #endif
-         init_coarse_weather_data();
 }
 
 // Make a new level using provided BoxArray and DistributionMapping and
