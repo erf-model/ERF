@@ -65,11 +65,10 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                                      : 2.0 * dc.dynamic_viscosity;
 
     auto dxinv = dxInv[0], dyinv = dxInv[1], dzinv = dxInv[2];
-    // auto dx = 1.0/dxInv[0], dy = 1.0/dxInv[1], dz = 1.0/dxInv[2];
     Real dx = dx_arr[0], dy = dx_arr[1], dz = dx_arr[2];
     Real vol = dx * dy * dz;
 
-    bool l_simple = false;
+    const bool l_simple = false;
 
     const int domain_ilo = domain.smallEnd(0);
     const int domain_ihi = domain.bigEnd(0);
@@ -130,8 +129,6 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     // (1) Simple method: approximate the gradient at EB
     // (2) Compute the gradient at EB using Least-Squares fitting
 
-    // Print()<<"SK: ERF_DiffusionSrcForMom_EB: bxx = "<< bxx  << std::endl;
-
     ParallelFor(bxx, bxy, bxz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k)
     {
@@ -149,17 +146,6 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
             diffContrib      /= u_volfrac(i,j,k);
             rho_u_rhs(i,j,k) -= diffContrib;
 
-            // if (i==0 && j==0 && (k==0 || k==1)) {
-            //     Print()<<"SK: DiffusionSrcForMom_EB/ tau11(i  , j  , k  ), u_afrac_x(i+1,j  ,k  ) = "<< tau11(i  , j  , k  ) <<" "<< u_afrac_x(i+1,j  ,k  ) << std::endl;
-            //     Print()<<"SK: DiffusionSrcForMom_EB/ tau11(i-1, j  , k  ), u_afrac_x(i  ,j  ,k  ) = "<< tau11(i-1, j  , k  ) <<" "<< u_afrac_x(i  ,j  ,k  ) << std::endl;
-            //     Print()<<"SK: DiffusionSrcForMom_EB/ tau12(i  , j+1, k  ), u_afrac_y(i  ,j+1,k  ) = "<< tau12(i  , j+1, k  ) <<" "<< u_afrac_y(i  ,j+1,k  ) << std::endl;
-            //     Print()<<"SK: DiffusionSrcForMom_EB/ tau12(i  , j  , k  ), u_afrac_y(i  ,j  ,k  ) = "<< tau12(i  , j  , k  ) <<" "<< u_afrac_y(i  ,j  ,k  ) << std::endl;
-            //     Print()<<"SK: DiffusionSrcForMom_EB/ tau13(i  , j  , k+1), u_afrac_z(i  ,j  ,k+1) = "<< tau13(i  , j  , k+1) <<" "<< u_afrac_z(i  ,j  ,k+1) << std::endl;
-            //     Print()<<"SK: DiffusionSrcForMom_EB/ tau13(i  , j  , k  ), u_afrac_z(i  ,j  ,k  ) = "<< tau13(i  , j  , k  ) <<" "<< u_afrac_z(i  ,j  ,k  ) << std::endl;
-            //     Print()<<"SK: DiffusionSrcForMom_EB/ u_volfrac(i,j,k) = "<< u_volfrac(i,j,k) << std::endl;
-            // }
-
-            // Boundary flux (simple version)
             if (u_cellflg(i,j,k).isSingleValued()) {
 
                 Real axm = u_afrac_x(i  ,j  ,k  );
@@ -191,24 +177,6 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     // barea needs scaling back? No, it is already in physical scale.
                     // This needs to be multiplied by diffusion.
 
-                    // // SK *******************************************************
-                    // if (i<=2 && j==0 && k==0) {
-                    //     Print()<<" "<<std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ i, j, k    = "<< i <<" "<< j << " "<< k << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ dx, dy, dz = "<< dx <<" "<< dy << " "<< dz << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ tau11(i  , j  , k  ), u_afrac_x(i+1,j  ,k  ) = "<< tau11(i  , j  , k  ) <<" "<< u_afrac_x(i+1,j  ,k  ) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ tau11(i-1, j  , k  ), u_afrac_x(i  ,j  ,k  ) = "<< tau11(i-1, j  , k  ) <<" "<< u_afrac_x(i  ,j  ,k  ) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ tau12(i  , j+1, k  ), u_afrac_y(i  ,j+1,k  ) = "<< tau12(i  , j+1, k  ) <<" "<< u_afrac_y(i  ,j+1,k  ) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ tau12(i  , j  , k  ), u_afrac_y(i  ,j  ,k  ) = "<< tau12(i  , j  , k  ) <<" "<< u_afrac_y(i  ,j  ,k  ) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ tau13(i  , j  , k+1), u_afrac_z(i  ,j  ,k+1) = "<< tau13(i  , j  , k+1) <<" "<< u_afrac_z(i  ,j  ,k+1) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ tau13(i  , j  , k  ), u_afrac_z(i  ,j  ,k  ) = "<< tau13(i  , j  , k  ) <<" "<< u_afrac_z(i  ,j  ,k  ) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ u_volfrac(i,j,k) = "<< u_volfrac(i,j,k) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ dn               = "<< dn << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ barea            = "<< barea << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ u_arr(i,j,k)     = "<< u_arr(i,j,k) << std::endl;
-                    // }
-                    // // SK *******************************************************
-
                 } else {
 
                     const RealVect bcent_eb {u_bcent(i,j,k,0), u_bcent(i,j,k,1), u_bcent(i,j,k,2)};
@@ -221,33 +189,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     GpuArray<Real,AMREX_SPACEDIM> slopes_w;
 
                     slopes_u = erf_calc_slopes_eb( Vars::xvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_u, u_arr, u_volcent, u_cellflg);
-
-                    // // SK *******************************************************
-                    // if (i<64 && j==0 && k==0) {
-                    //     Print()<<" "<<std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ i, j, k    = "<< i <<" "<< j << " "<< k << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ dx, dy, dz = "<< dx <<" "<< dy << " "<< dz << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ tau11(i  , j  , k  ), u_afrac_x(i+1,j  ,k  ) = "<< tau11(i  , j  , k  ) <<" "<< u_afrac_x(i+1,j  ,k  ) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ tau11(i-1, j  , k  ), u_afrac_x(i  ,j  ,k  ) = "<< tau11(i-1, j  , k  ) <<" "<< u_afrac_x(i  ,j  ,k  ) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ tau12(i  , j+1, k  ), u_afrac_y(i  ,j+1,k  ) = "<< tau12(i  , j+1, k  ) <<" "<< u_afrac_y(i  ,j+1,k  ) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ tau12(i  , j  , k  ), u_afrac_y(i  ,j  ,k  ) = "<< tau12(i  , j  , k  ) <<" "<< u_afrac_y(i  ,j  ,k  ) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ tau13(i  , j  , k+1), u_afrac_z(i  ,j  ,k+1) = "<< tau13(i  , j  , k+1) <<" "<< u_afrac_z(i  ,j  ,k+1) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ tau13(i  , j  , k  ), u_afrac_z(i  ,j  ,k  ) = "<< tau13(i  , j  , k  ) <<" "<< u_afrac_z(i  ,j  ,k  ) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ u_volfrac(i,j,k) = "<< u_volfrac(i,j,k) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ dudx, dudy, dudz   = "<< dudx << " "<< dudy << " "<< dudz << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ dvdx, dvdy, dwdz   = "<< dvdx << " "<< dvdy << " "<< dwdz << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ tau11,12,13_eb   = "<< tau11_eb << " "<< tau12_eb << " "<< tau13_eb << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ bcent            = "<< u_bcent(i,j,k,0) << " "<< u_bcent(i,j,k,1) << " "<< u_bcent(i,j,k,2) << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ barea            = "<< barea << std::endl;
-                    //     Print()<<"SK: DiffusionSrcForMom_EB/ u_arr(i,j,k)     = "<< u_arr(i,j,k) << std::endl;
-                    //     // Print()<<"SK: DiffusionSrcForMom_EB/ slopes_u         = "<< slopes_u[0] << " "<< slopes_u[1] << " "<< slopes_u[2] << std::endl;
-                    //     Abort("DiffusionSrcForMom_EB");
-                    // }
-                    // // SK *******************************************************
-
-
-                    slopes_v = erf_calc_slopes_eb( Vars::xvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_v, v_arr, u_volcent, u_cellflg);
-                    slopes_w = erf_calc_slopes_eb( Vars::xvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_w, w_arr, u_volcent, u_cellflg);
+                    slopes_v = erf_calc_slopes_eb( Vars::xvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_v, v_arr, u_volcent, v_cellflg);
+                    slopes_w = erf_calc_slopes_eb( Vars::xvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_w, w_arr, u_volcent, w_cellflg);
 
                     Real dudx = slopes_u[0];
                     Real dudy = slopes_u[1];
@@ -327,9 +270,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     GpuArray<Real,AMREX_SPACEDIM> slopes_v;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_w;
 
-                    slopes_u = erf_calc_slopes_eb( Vars::yvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_u, u_arr, v_volcent, v_cellflg);
+                    slopes_u = erf_calc_slopes_eb( Vars::yvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_u, u_arr, v_volcent, u_cellflg);
                     slopes_v = erf_calc_slopes_eb( Vars::yvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_v, v_arr, v_volcent, v_cellflg);
-                    slopes_w = erf_calc_slopes_eb( Vars::yvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_w, w_arr, v_volcent, v_cellflg);
+                    slopes_w = erf_calc_slopes_eb( Vars::yvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_w, w_arr, v_volcent, w_cellflg);
 
                     Real dudx = slopes_u[0];
                     Real dudy = slopes_u[1];
@@ -408,8 +351,8 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     GpuArray<Real,AMREX_SPACEDIM> slopes_v;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_w;
 
-                    slopes_u = erf_calc_slopes_eb( Vars::zvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_u, u_arr, w_volcent, w_cellflg);
-                    slopes_v = erf_calc_slopes_eb( Vars::zvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_v, v_arr, w_volcent, w_cellflg);
+                    slopes_u = erf_calc_slopes_eb( Vars::zvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_u, u_arr, w_volcent, u_cellflg);
+                    slopes_v = erf_calc_slopes_eb( Vars::zvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_v, v_arr, w_volcent, v_cellflg);
                     slopes_w = erf_calc_slopes_eb( Vars::zvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_w, w_arr, w_volcent, w_cellflg);
 
                     Real dudx = slopes_u[0];
