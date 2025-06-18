@@ -12,11 +12,17 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                                        const bool a_update_qv )
 {
     BL_PROFILE("SuperDropletsMoist::phaseChange()");
+
+    // evaporation and condensation - vapour <--> liquid
+    // for all species except ice
     for (int is = 0; is < m_num_species; is++) {
+
         auto& species = m_species[is];
         auto& vapour_mat = m_super_droplets->getSpeciesMaterial(species);
         bool is_water = vapour_mat.m_is_water;
         const auto idx_w = m_idx_w;
+
+        if (species == Species::Name::ice) { continue; }
 
         MultiFab* qv_ptr = nullptr;
         MultiFab* qc_ptr = nullptr;
