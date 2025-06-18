@@ -1,5 +1,5 @@
 /**
- * \file ERF_ReadCustomBinaryForecastData.cpp
+ * \file ERF_InitForecastData.cpp
  */
 #include <ERF.H>
 #include "ERF_ReadCustomBinaryIC.H"
