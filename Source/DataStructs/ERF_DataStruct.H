@@ -154,6 +154,7 @@ struct SolverChoice {
             RhoQc_comp = RhoQ2_comp;
             RhoQr_comp = RhoQ3_comp;
         }
+        pp.query("moisture_tight_coupling",moisture_tight_coupling);
 
         // TODO: should we set default for dry??
         // Set a different default for moist vs dry
@@ -828,6 +829,8 @@ struct SolverChoice {
     // if Kessler, then it will be set to RhoQ3
     // if     SAM, then it will be set to RhoQ4
     int RhoQr_comp {-1};
+
+    bool moisture_tight_coupling {false};
 
     std::string windfarm_loc_table, windfarm_spec_table, windfarm_spec_table_extra;
     std::string windfarm_blade_table, windfarm_airfoil_tables;

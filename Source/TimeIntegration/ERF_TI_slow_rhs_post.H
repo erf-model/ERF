@@ -66,4 +66,11 @@
         // in both the fast and slow integrators
         apply_bcs(S_new, new_stage_time, S_new[IntVars::cons].nGrow(), S_new[IntVars::xmom].nGrow(),
                   fast_only=false, vel_and_mom_synced=false);
+
+        if (solverChoice.moisture_tight_coupling) {
+            // TODO: need iteration var for lagrangian microphysics
+            // call signature in ERF::Advance() is
+            //advance_microphysics(lev, S_new,    dt_lev,  iteration, time);
+            advance_microphysics(level, S_new[0], slow_dt, 123456789, old_step_time);
+        }
     }; // end slow_rhs_fun_post
