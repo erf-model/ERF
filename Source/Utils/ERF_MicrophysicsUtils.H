@@ -163,21 +163,27 @@ void erf_qsatw (amrex::Real t, amrex::Real p, amrex::Real &qsatw) {
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_dtqsati (amrex::Real t, amrex::Real p, amrex::Real &dtqsati) {
-    dtqsati = Rd_on_Rv*erf_dtesati(t)/p;
+    amrex::Real esati   = erf_esati(t);
+    amrex::Real dtesati = erf_dtesati(t);
+    amrex::Real denom   = p - esati;
+    dtqsati = Rd_on_Rv * dtesati * p / (denom * denom);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_dtqsatw (amrex::Real t, amrex::Real p, amrex::Real &dtqsatw) {
-    dtqsatw = Rd_on_Rv*erf_dtesatw(t)/p;
+    amrex::Real esatw   = erf_esatw(t);
+    amrex::Real dtesatw = erf_dtesatw(t);
+    amrex::Real denom   = p - esatw;
+    dtqsatw = Rd_on_Rv * dtesatw * p / (denom * denom);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void z0_est (amrex::Real z, amrex::Real bflx, amrex::Real wnd, amrex::Real ustar, amrex::Real &z0) {
     amrex::Real vonk = 0.4;
-    amrex::Real eps = 1.0e-10;
-    amrex::Real am = 4.8;
-    amrex::Real bm = 19.3;
-    amrex::Real c1 = 3.14159/2.0 - 3.0*log(2.0);
+    amrex::Real eps  = 1.0e-10;
+    amrex::Real am   = 4.8;
+    amrex::Real bm   = 19.3;
+    amrex::Real c1   = 3.14159/2.0 - 3.0*log(2.0);
     amrex::Real rlmo = -bflx*vonk/(ustar*ustar*ustar+eps);
     amrex::Real zeta = std::min(1.0,z*rlmo);
     amrex::Real x;

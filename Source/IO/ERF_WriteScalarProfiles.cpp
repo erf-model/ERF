@@ -26,6 +26,7 @@ ERF::sum_integrated_quantities (Real time)
     Real mass_ml = 0.0;
     Real rhth_ml = 0.0;
     Real scal_ml = 0.0;
+    Real mois_ml = 0.0;
 
 #if 1
     mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],Rho_comp,false);
@@ -57,10 +58,23 @@ ERF::sum_integrated_quantities (Real time)
 
     Real rhth_sl = volWgtSumMF(0,vars_new[0][Vars::cons], RhoTheta_comp,false);
     Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,false);
+    Real mois_sl = 0.0;
+    if (solverChoice.moisture_type != MoistureType::None) {
+        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+        for (int qoff(0); qoff<n_qstate_moist; ++qoff) {
+            mois_sl += volWgtSumMF(0,vars_new[0][Vars::cons],RhoQ1_comp+qoff,false);
+        }
+    }
 
     for (int lev = 0; lev <= finest_level; lev++) {
         rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,true);
         scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,true);
+        if (solverChoice.moisture_type != MoistureType::None) {
+            int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+            for (int qoff(0); qoff<n_qstate_moist; ++qoff) {
+                mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,false);
+            }
+        }
     }
 
     Gpu::HostVector<Real> h_avg_ustar; h_avg_ustar.resize(1);
@@ -85,8 +99,8 @@ ERF::sum_integrated_quantities (Real time)
         h_avg_olen[0]  = 0.;
     }
 
-    const int nfoo = 6;
-    Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mass_ml,rhth_ml,scal_ml};
+    const int nfoo = 8;
+    Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,mass_ml,rhth_ml,scal_ml,mois_ml};
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
 #endif
@@ -98,9 +112,11 @@ ERF::sum_integrated_quantities (Real time)
         mass_sl = foo[i++];
         rhth_sl = foo[i++];
         scal_sl = foo[i++];
+        mois_sl = foo[i++];
         mass_ml = foo[i++];
         rhth_ml = foo[i++];
         scal_ml = foo[i++];
+        mois_ml = foo[i++];
 
         Print() << '\n';
         Print() << "TIME= " << std::setw(datwidth) << std::setprecision(timeprecision) << std::left << time << '\n';
@@ -112,6 +128,7 @@ ERF::sum_integrated_quantities (Real time)
 #endif
            Print() << " RHO THETA  = " << rhth_sl << '\n';
            Print() << " RHO SCALAR = " << scal_sl << '\n';
+           Print() << " RHO QTOTAL = " << mois_sl << '\n';
         } else {
 #if 1
            Print() << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
@@ -120,6 +137,7 @@ ERF::sum_integrated_quantities (Real time)
 #endif
            Print() << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
            Print() << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n';
+           Print() << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n';
         }
 
         // The first data log only holds scalars
