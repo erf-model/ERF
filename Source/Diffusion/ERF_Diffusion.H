@@ -32,7 +32,7 @@ void DiffusionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const bool use_stretched_dz, const bool use_variable_dz);
 
 void DiffusionSrcForMom_EB (const amrex::MFIter& mfi,
-                        const amrex::Box& domain,
+                        [[maybe_unused]] const amrex::Box& domain,
                         const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
                         const amrex::Array4<      amrex::Real>& rho_u_rhs,
                         const amrex::Array4<      amrex::Real>& rho_v_rhs,
@@ -56,7 +56,7 @@ void DiffusionSrcForMom_EB (const amrex::MFIter& mfi,
                         const amrex::Array4<const amrex::Real>& mf_vy     ,
                         const SolverChoice& solverChoice,
                         const eb_& ebfact,
-                        const amrex::BCRec* bc_ptr);
+                        [[maybe_unused]] const amrex::BCRec* bc_ptr);
 
 void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              int start_comp, int num_comp,

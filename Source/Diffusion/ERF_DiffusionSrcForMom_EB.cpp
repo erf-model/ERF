@@ -31,7 +31,7 @@ using namespace amrex;
  */
 void
 DiffusionSrcForMom_EB (const MFIter& mfi,
-                    const Box& domain,
+                    [[maybe_unused]] const Box& domain,
                     const Box& bxx, const Box& bxy , const Box& bxz,
                     const Array4<Real>& rho_u_rhs  ,
                     const Array4<Real>& rho_v_rhs  ,
@@ -55,7 +55,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     const Array4<const Real>& mf_vy,
                     const SolverChoice& solverChoice,
                     const eb_& ebfact,
-                    const BCRec* d_bcrec_ptr)
+                   [[maybe_unused]] const BCRec* d_bcrec_ptr)
 {
     BL_PROFILE_VAR("DiffusionSrcForMom_EB()",DiffusionSrcForMom_EB);
 
