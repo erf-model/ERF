@@ -9,6 +9,7 @@
 #include "ERF_TI_slow_headers.H"
 #include "ERF_EOS.H"
 #include "ERF_Utils.H"
+#include "ERF_Diffusion.H"
 #include "ERF_EBAdvection.H"
 #include "ERF_EB.H"
 #include "ERF_SurfaceLayer.H"

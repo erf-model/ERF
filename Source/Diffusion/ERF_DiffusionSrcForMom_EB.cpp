@@ -70,21 +70,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
     const bool l_simple = false;
 
-    const int domain_ilo = domain.smallEnd(0);
-    const int domain_ihi = domain.bigEnd(0);
-    const int domain_jlo = domain.smallEnd(1);
-    const int domain_jhi = domain.bigEnd(1);
-    const int domain_klo = domain.smallEnd(2);
-    const int domain_khi = domain.bigEnd(2);
-
-    int n = 0;
-
-    bool extdir_ilo = (d_bcrec_ptr[n].lo(0)==BCType::ext_dir || d_bcrec_ptr[n].lo(0)==BCType::hoextrap);
-    bool extdir_ihi = (d_bcrec_ptr[n].hi(0)==BCType::ext_dir || d_bcrec_ptr[n].hi(0)==BCType::hoextrap);
-    bool extdir_jlo = (d_bcrec_ptr[n].lo(1)==BCType::ext_dir || d_bcrec_ptr[n].lo(1)==BCType::hoextrap);
-    bool extdir_jhi = (d_bcrec_ptr[n].hi(1)==BCType::ext_dir || d_bcrec_ptr[n].hi(1)==BCType::hoextrap);
-    bool extdir_klo = (d_bcrec_ptr[n].lo(2)==BCType::ext_dir || d_bcrec_ptr[n].lo(2)==BCType::hoextrap);
-    bool extdir_khi = (d_bcrec_ptr[n].hi(2)==BCType::ext_dir || d_bcrec_ptr[n].hi(2)==BCType::hoextrap);
+    // int n = 0;
 
     // EB u-factory
     Array4<const EBCellFlag> u_cellflg = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
@@ -197,9 +183,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     Real dudz = slopes_u[2];
                     Real dvdx = slopes_v[0];
                     Real dvdy = slopes_v[1];
-                    Real dvdz = slopes_v[2];
+                    // Real dvdz = slopes_v[2];
                     Real dwdx = slopes_w[0];
-                    Real dwdy = slopes_w[1];
+                    // Real dwdy = slopes_w[1];
                     Real dwdz = slopes_w[2];
 
                     Real tau11_eb = - mu_eff * ( dudx - ( dudx + dvdy + dwdz ) / 3. );
@@ -276,11 +262,11 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
                     Real dudx = slopes_u[0];
                     Real dudy = slopes_u[1];
-                    Real dudz = slopes_u[2];
+                    // Real dudz = slopes_u[2];
                     Real dvdx = slopes_v[0];
                     Real dvdy = slopes_v[1];
                     Real dvdz = slopes_v[2];
-                    Real dwdx = slopes_w[0];
+                    // Real dwdx = slopes_w[0];
                     Real dwdy = slopes_w[1];
                     Real dwdz = slopes_w[2];
 
@@ -356,9 +342,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     slopes_w = erf_calc_slopes_eb( Vars::zvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_w, w_arr, w_volcent, w_cellflg);
 
                     Real dudx = slopes_u[0];
-                    Real dudy = slopes_u[1];
+                    // Real dudy = slopes_u[1];
                     Real dudz = slopes_u[2];
-                    Real dvdx = slopes_v[0];
+                    // Real dvdx = slopes_v[0];
                     Real dvdy = slopes_v[1];
                     Real dvdz = slopes_v[2];
                     Real dwdx = slopes_w[0];
