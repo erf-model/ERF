@@ -703,13 +703,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : 0.0;
 
-            if (!l_eb_terrain) {
-                rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k);
-            } else {
-                if (u_detJ_arr(i,j,k) >0.0) {
-                    rho_u_rhs(i, j, k) += ( (-gpx - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k) ) / u_detJ_arr(i,j,k);
-                }
-            }
+            rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
@@ -729,13 +723,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : 0.0;
 
-            if (!l_eb_terrain) {
-                rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k);
-            } else {
-                if (v_detJ_arr(i,j,k) >0.0) {
-                    rho_v_rhs(i, j, k) += ( (-gpy - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k) ) / v_detJ_arr(i,j,k);
-                }
-            }
+            rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
@@ -817,13 +805,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : 0.0;
 
-            if (!l_eb_terrain) {
-                rho_w_rhs(i, j, k) += (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (1.0 + q) + zmom_src_arr(i,j,k);
-            } else {
-                if (w_detJ_arr(i,j,k) > 0.0) {
-                    rho_w_rhs(i, j, k) += ( (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (1.0 + q) + zmom_src_arr(i,j,k) ) / w_detJ_arr(i,j,k);
-                }
-            }
+            rho_w_rhs(i, j, k) += (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (1.0 + q) + zmom_src_arr(i,j,k)
 
             if (l_moving_terrain) {
                  rho_w_rhs(i, j, k) *= 0.5 * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
