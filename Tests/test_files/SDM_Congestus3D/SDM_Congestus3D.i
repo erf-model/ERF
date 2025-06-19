@@ -91,24 +91,16 @@ erf.buoyancy_type   = 1
 
 #sdm parameters
 super_droplets_moisture.stable_redistribute = true
+super_droplets_moisture.place_randomly_in_cells = false
 super_droplets_moisture.initial_distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = -1
 super_droplets_moisture.coalescence_kernel = "Halls"
 super_droplets_moisture.aerosols = NH42SO4
-super_droplets_moisture.num_initializations = 2
 super_droplets_moisture.density_scaling = true
 
-super_droplets_moisture.0.initial_aerosol_distribution_type_NH42SO4 = "radius_log_normal"
-super_droplets_moisture.0.initial_aerosol_mean_radius_NH42SO4 = 30.0e-9 #kg (0.03 mu-m)
-super_droplets_moisture.0.initial_aerosol_geomstd_radius_NH42SO4 = 1.28
-super_droplets_moisture.0.initial_number_density = 9.0e7 #m^{-3}
-super_droplets_moisture.0.initial_particles_per_cell = 4
-#
-super_droplets_moisture.1.initial_aerosol_distribution_type_NH42SO4 = "radius_log_normal"
-super_droplets_moisture.1.initial_aerosol_mean_radius_NH42SO4 = 140.0e-9 #kg (0.14 mu-m)
-super_droplets_moisture.1.initial_aerosol_geomstd_radius_NH42SO4 = 1.75
-super_droplets_moisture.1.initial_number_density = 1.5e7 #m^{-3}
-super_droplets_moisture.1.initial_particles_per_cell = 4
+super_droplets_moisture.num_initializations = 1
+super_droplets_moisture.initial_aerosol_distribution_type_NH42SO4 = "mass_constant"
+super_droplets_moisture.initial_aerosol_mean_mass_NH42SO4 = 2.649201195e-17
 
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
