@@ -198,11 +198,22 @@ add_test_0(PoiseuilleFlow_y                  "DryRegTests/Couette_Poiseuille" "e
 add_test_0(InitSoundingIdeal_stationary      "ABL" "erf_abl" "plt00010")
 add_test_0(Deardorff_stationary              "ABL" "erf_abl" "plt00010")
 
+# log-normal distribution for radius
+add_test_sdm(SDM_RICO3D_InitSampling         "DevTests/RICO"        "erf_rico"     "plt00000" 1e-14 1e-14 INPUT_SOUNDING "input_sounding")
+# mass-exponential distribution for mass
+add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "MoistRegTests/Bubble" "erf_bubble"   "plt00000" 1e-14 1e-14)
+
+# passive advection of particles
 add_test_sdm(SDM_Bubble2D_Adv                "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 1e-12 1e-12)
+# condensation/evaporation
 add_test_sdm(SDM_Box3D_Cond                  "MoistRegTests/Bubble" "erf_bubble"   "plt00001" 1e-14 1e-14)
+# terminal velocity
 add_test_sdm(SDM_Box3D_VTerm                 "MoistRegTests/Bubble" "erf_bubble"   "plt00001" 5e-13 1e-14)
+# Congestus case
 add_test_sdm(SDM_Congestus3D                 "DevTests/TemperatureSourceSpatial"   "erf_abl_with_spatial_temperature_source" "plt00020" 5e-13 1e-14 INPUT_SOUNDING "input_sounding")
+# RICO case
 add_test_sdm(SDM_RICO3D                      "DevTests/RICO"        "erf_rico"     "plt00010" 5e-13 1e-14 INPUT_SOUNDING "input_sounding")
+# multispecies setup with dummy water species
 add_test_sdm(SDM_MultiSpecies_Bubble2D       "DevTests/MultiSpeciesBubble" "erf_multispeciesbubble"     "plt00001" 5e-12 1e-12)
 
 #=============================================================================
