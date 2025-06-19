@@ -28,9 +28,6 @@ erf_calc_slopes_eb (int igrid_query,
                     amrex::Array4<amrex::Real const> const& ccent,
                     amrex::Array4<amrex::EBCellFlag const> const& flag)
 {
-
-    // amrex::Print()<<"SK: erf_calc_slopes_eb/ igrid_query = "<<igrid_query<<" igrid_data = "<<igrid_data<<std::endl;
-
     // Fitting stencil
 
     amrex::RealVect bias{0.,0.,0.};
@@ -42,13 +39,14 @@ erf_calc_slopes_eb (int igrid_query,
     // int kk_hi = 2;
     // int dim_a = 125;
 
+    const int dim_a = 48; // This is the maximum size of the stencil
+
     int ii_lo = -1;
     int jj_lo = -1;
     int kk_lo = -1;
     int ii_hi = 1;
     int jj_hi = 1;
     int kk_hi = 1;
-    int dim_a = 27;
 
     if (igrid_query != igrid_data) {
         ii_lo = -1;
@@ -67,14 +65,10 @@ erf_calc_slopes_eb (int igrid_query,
         if (y_involved) jj_hi = 2;
         if (z_involved) kk_hi = 2;
 
-        dim_a = 48;
-
         // Set bias in the index space between the two staggered grids
         bias[igrid_query-1] = 0.5;
         bias[igrid_data-1] = -0.5;
     }
-
-    // amrex::Print()<<"SK: erf_calc_slopes_eb/ bias = "<< bias <<std::endl;
 
     amrex::Real A[dim_a][AMREX_SPACEDIM];
 
