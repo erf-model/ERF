@@ -18,8 +18,8 @@
 
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>
-erf_calc_slopes_eb (int igrid_query,
-                    int igrid_data,
+erf_calc_slopes_eb ([[maybe_unused]] int igrid_query,
+                    [[maybe_unused]] int igrid_data,
                     amrex::Real dx, amrex::Real dy, amrex::Real dz,
                     int i, int j, int k,
                     amrex::RealVect const& bcent_eb,
