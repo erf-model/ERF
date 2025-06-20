@@ -77,6 +77,12 @@ AdvectionSrcForScalarsVert (const amrex::Box& bx,
                                                             avg_xmom, avg_ymom, avg_zmom,
                                                             horiz_upw_frac, vert_upw_frac);
         break;
+    case AdvType::Upwind_3rd_SL:
+        AdvectionSrcForScalarsWrapper<InterpType_H,UPWIND3SL>(bx, cons_index,
+                                                              flx_arr, cell_prim,
+                                                              avg_xmom, avg_ymom, avg_zmom,
+                                                              horiz_upw_frac, vert_upw_frac);
+        break;
     case AdvType::Centered_4th:
         AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED4>(bx, cons_index,
                                                               flx_arr, cell_prim,
