@@ -1867,7 +1867,9 @@ private:
  */
 struct custom_flux
 {
-    custom_flux () {}
+    custom_flux (bool specified_rho_surf)
+    : fluxes_include_rho(specified_rho_surf)
+    {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -1884,7 +1886,7 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& q_star_arr,
                     const amrex::Array4<const amrex::Real>& /*q_surf_arr*/) const
     {
-        amrex::Real rho   =   cons_arr(i,j,k,Rho_comp);
+        amrex::Real rho   = (fluxes_include_rho) ? 1.0 : cons_arr(i,j,k,Rho_comp);
         amrex::Real qstar = q_star_arr(i,j,k);
 
         // NOTE: this is rho*<q'w'> = -K dqdz
@@ -1908,7 +1910,7 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& t_star_arr,
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/) const
     {
-        amrex::Real rho   =   cons_arr(i,j,k,Rho_comp);
+        amrex::Real rho   = (fluxes_include_rho) ? 1.0 : cons_arr(i,j,k,Rho_comp);
         amrex::Real tstar = t_star_arr(i,j,k);
 
         // NOTE: this is rho*<T'w'> = -K dTdz
@@ -1933,7 +1935,7 @@ struct custom_flux
         amrex::Real velx  = velx_arr(i,j,k);
         amrex::Real vely  = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
                                    + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
-        amrex::Real rho   = 0.5  * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
+        amrex::Real rho   = (fluxes_include_rho) ? 1.0 : 0.5 * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real ustar   = 0.5 * ( u_star_arr(i-1,j,k) + u_star_arr(i,j,k) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
@@ -1960,7 +1962,7 @@ struct custom_flux
         amrex::Real velx  = 0.25 * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
                                    + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
         amrex::Real vely  = vely_arr(i,j,k);
-        amrex::Real rho   = 0.5  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
+        amrex::Real rho   = (fluxes_include_rho) ? 1.0 : 0.5 * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
         amrex::Real ustar   = 0.5 * ( u_star_arr(i,j-1,k) + u_star_arr(i,j,k) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
@@ -1973,6 +1975,7 @@ struct custom_flux
 
 private:
     const amrex::Real eps = 1e-15;
+    const bool fluxes_include_rho{false};
 
 };
 
