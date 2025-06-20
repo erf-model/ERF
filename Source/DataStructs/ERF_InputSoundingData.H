@@ -192,7 +192,8 @@ public:
                                               R_d/Cp_d,
                                               qv_ref_inp_sound);
 
-        amrex::Print() << "ideal sounding init: surface density of moist air = "
+        amrex::Print() << "ideal sounding init: surface dry air density = "
+                       << std::setprecision(15)
                        << rhod_integ[0] << " kg/m^3" << std::endl;
 
         // Note:
