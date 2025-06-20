@@ -54,21 +54,21 @@ erf_calc_slopes_eb ([[maybe_unused]] int igrid_query,
     amrex::Real A[dim_a][AMREX_SPACEDIM];
 
     // Array of distances from the query point
-    int lc=0;
+    int ll=0;
     for(int kk(kk_lo); kk<=kk_hi; kk++) {
     for(int jj(jj_lo); jj<=jj_hi; jj++) {
     for(int ii(ii_lo); ii<=ii_hi; ii++) {
 
         if (!flag(i+ii,j+jj,k+kk).isCovered() && !(ii==0 && jj==0 && kk==0)) {
-            A[lc][0] = ( amrex::Real(ii) + ccent(i+ii,j+jj,k+kk,0) + bias[0] - bcent_eb[0] ) * dx;
-            A[lc][1] = ( amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) + bias[1] - bcent_eb[1] ) * dy;
-            A[lc][2] = ( amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) + bias[2] - bcent_eb[2] ) * dz;
+            A[ll][0] = ( amrex::Real(ii) + ccent(i+ii,j+jj,k+kk,0) + bias[0] - bcent_eb[0] ) * dx;
+            A[ll][1] = ( amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) + bias[1] - bcent_eb[1] ) * dy;
+            A[ll][2] = ( amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) + bias[2] - bcent_eb[2] ) * dz;
         } else {
-            A[lc][0] = amrex::Real(0.0);
-            A[lc][1] = amrex::Real(0.0);
-            A[lc][2] = amrex::Real(0.0);
+            A[ll][0] = amrex::Real(0.0);
+            A[ll][1] = amrex::Real(0.0);
+            A[ll][2] = amrex::Real(0.0);
         }
-        lc++;
+        ll++;
     }}}
 
     //
@@ -76,7 +76,7 @@ erf_calc_slopes_eb ([[maybe_unused]] int igrid_query,
     //
     amrex::Real du[dim_a];
 
-    int ll=0;
+    ll=0;
     for(int kk(kk_lo); kk<=kk_hi; kk++) {
     for(int jj(jj_lo); jj<=jj_hi; jj++) {
     for(int ii(ii_lo); ii<=ii_hi; ii++) {
@@ -204,21 +204,21 @@ erf_calc_slopes_eb_staggered (int igrid_query,
     amrex::Real A[dim_a][AMREX_SPACEDIM];
 
     // Array of distances from the query point
-    int lc=0;
+    int ll=0;
     for(int kk(kk_lo); kk<=kk_hi; kk++) {
     for(int jj(jj_lo); jj<=jj_hi; jj++) {
     for(int ii(ii_lo); ii<=ii_hi; ii++) {
 
         if (!flag(i+ii,j+jj,k+kk).isCovered() && !(ii==0 && jj==0 && kk==0)) {
-            A[lc][0] = ( amrex::Real(ii) + ccent(i+ii,j+jj,k+kk,0) + bias[0] - bcent_eb[0] ) * dx;
-            A[lc][1] = ( amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) + bias[1] - bcent_eb[1] ) * dy;
-            A[lc][2] = ( amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) + bias[2] - bcent_eb[2] ) * dz;
+            A[ll][0] = ( amrex::Real(ii) + ccent(i+ii,j+jj,k+kk,0) + bias[0] - bcent_eb[0] ) * dx;
+            A[ll][1] = ( amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) + bias[1] - bcent_eb[1] ) * dy;
+            A[ll][2] = ( amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) + bias[2] - bcent_eb[2] ) * dz;
         } else {
-            A[lc][0] = amrex::Real(0.0);
-            A[lc][1] = amrex::Real(0.0);
-            A[lc][2] = amrex::Real(0.0);
+            A[ll][0] = amrex::Real(0.0);
+            A[ll][1] = amrex::Real(0.0);
+            A[ll][2] = amrex::Real(0.0);
         }
-        lc++;
+        ll++;
     }}}
 
     //
@@ -226,7 +226,7 @@ erf_calc_slopes_eb_staggered (int igrid_query,
     //
     amrex::Real du[dim_a];
 
-    int ll=0;
+    ll=0;
     for(int kk(kk_lo); kk<=kk_hi; kk++) {
     for(int jj(jj_lo); jj<=jj_hi; jj++) {
     for(int ii(ii_lo); ii<=ii_hi; ii++) {
