@@ -105,6 +105,8 @@ public:
           pp, "pbl_mynn_SHmin", pbl_mynn.SHmin, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mynn_SHmax", pbl_mynn.SHmax, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_mynn_SQfactor", pbl_mynn.SQfac, lev, max_level);
       } else if (pbl_type == PBLType::YSU) {
         query_one_or_per_level(
           pp, "pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq, lev, max_level);
