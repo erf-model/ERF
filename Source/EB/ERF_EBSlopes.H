@@ -304,6 +304,7 @@ erf_calc_slopes_eb_staggered (int igrid_query,
                     int igrid_data,
                     amrex::Real dx, amrex::Real dy, amrex::Real dz,
                     int i, int j, int k,
+                    const amrex::Array4<const amrex::Real>& vel_arr,
                     amrex::Array4<amrex::Real const> const& state,
                     amrex::Array4<amrex::Real const> const& ccent,
                     amrex::Array4<amrex::EBCellFlag const> const& flag)
@@ -319,15 +320,24 @@ erf_calc_slopes_eb_staggered (int igrid_query,
     int jj_hi = 1;
     int kk_hi = 1;
 
-    if (igrid_query == Vars::xvel) ii_lo = -2;
-    if (igrid_query == Vars::yvel) jj_lo = -2;
-    if (igrid_query == Vars::zvel) kk_lo = -2;
+    if (igrid_query == Vars::xvel && vel_arr(i,j,k)>0.0) {
+        ii_lo = -2;
+        ii_hi = 0;
+    }
+    if (igrid_query == Vars::yvel && vel_arr(i,j,k)>0.0) {
+        jj_lo = -2;
+        jj_hi = 0;
+    }
+    if (igrid_query == Vars::zvel && vel_arr(i,j,k)>0.0) {
+        kk_lo = -2;
+        kk_hi = 0;
+    }
 
     // Set bias in the index space between the two staggered grids
     amrex::RealVect bias{0.,0.,0.};
     bias[igrid_query-1] = 0.5;
 
-    constexpr int dim_a = 36;
+    constexpr int dim_a = 27;
 
     amrex::Real A[dim_a][AMREX_SPACEDIM];
 

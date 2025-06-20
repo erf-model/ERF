@@ -37,6 +37,7 @@ void make_gradp_pert (int level,
                       Vector<MultiFab>& gradp)
 {
     const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
+    const bool l_eb_terrain    = (solverChoice.terrain_type == TerrainType::EB);
     //
     // Note that we only recompute gradp if compressible;
     //      if anelastic then we have computed gradp in the projection
@@ -44,7 +45,7 @@ void make_gradp_pert (int level,
     //
     if (solverChoice.anelastic[level] == 0)
     {
-        const int ngrow = (solverChoice.terrain_type == TerrainType::EB) ? 2 : 1;
+        const int ngrow = (l_eb_terrain) ? 2 : 1;
         MultiFab p(S_data[Vars::cons].boxArray(), S_data[Vars::cons].DistributionMap(), 1, ngrow);
 
         // *****************************************************************************
@@ -66,15 +67,16 @@ void make_gradp_pert (int level,
             });
         }
 
-        compute_gradp(p,geom,z_phys_nd,z_phys_cc,d_bcrec_ptr,ebfact,gradp,solverChoice);
+        compute_gradp(p,geom,z_phys_nd,z_phys_cc,S_data,d_bcrec_ptr,ebfact,gradp,solverChoice);
     }
 }
 
 void
-compute_gradp (const MultiFab& p,
+compute_gradp (const MultiFab& p,        
                const Geometry& geom,
                MultiFab& z_phys_nd,
                MultiFab& z_phys_cc,
+               Vector<MultiFab>& S_data,
                BCRec const* d_bcrec_ptr,
                const eb_& ebfact,
                Vector<MultiFab>& gradp,
@@ -187,17 +189,21 @@ compute_gradp (const MultiFab& p,
                 gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) )  / met_h_zeta;
             });
 
-        } else { // TerrainType::EB
+        } else {
 
             // Pressure gradients are fitted at the centroids of cut cells, if EB and Compressible.
             // Least-Squares Fitting: Compute slope using 3x3x3 stencil
 
-            const bool l_fitting = true;
+            const bool l_fitting = false;
 
             const Real* dx_arr = geom.CellSize();
             const Real dx = dx_arr[0];
             const Real dy = dx_arr[1];
             const Real dz = dx_arr[2];
+
+            const Array4<const Real>& xvel_arr = S_data[Vars::xvel].array(mfi);
+            const Array4<const Real>& yvel_arr = S_data[Vars::yvel].array(mfi);
+            const Array4<const Real>& zvel_arr = S_data[Vars::zvel].array(mfi);
 
             // EB u-factory
             Array4<const EBCellFlag> u_cellflg = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
@@ -223,7 +229,7 @@ compute_gradp (const MultiFab& p,
 
                         GpuArray<Real,AMREX_SPACEDIM> slopes;
 
-                        slopes = erf_calc_slopes_eb_staggered( Vars::xvel, Vars::cons, dx, dy, dz, i, j, k, p_arr, u_volcent, u_cellflg);
+                        slopes = erf_calc_slopes_eb_staggered(Vars::xvel, Vars::cons, dx, dy, dz, i, j, k, xvel_arr, p_arr, u_volcent, u_cellflg);
 
                         gpx_arr(i,j,k) = slopes[0];
 
@@ -237,7 +243,7 @@ compute_gradp (const MultiFab& p,
 
                         GpuArray<Real,AMREX_SPACEDIM> slopes;
 
-                        slopes = erf_calc_slopes_eb_staggered( Vars::yvel, Vars::cons, dx, dy, dz, i, j, k, p_arr, v_volcent, v_cellflg);
+                        slopes = erf_calc_slopes_eb_staggered(Vars::yvel, Vars::cons, dx, dy, dz, i, j, k, yvel_arr, p_arr, v_volcent, v_cellflg);
 
                         gpy_arr(i,j,k) = slopes[1];
                     } else {
@@ -250,7 +256,7 @@ compute_gradp (const MultiFab& p,
 
                         GpuArray<Real,AMREX_SPACEDIM> slopes;
 
-                        slopes = erf_calc_slopes_eb_staggered( Vars::zvel, Vars::cons, dx, dy, dz, i, j, k, p_arr, w_volcent, w_cellflg);
+                        slopes = erf_calc_slopes_eb_staggered(Vars::zvel, Vars::cons, dx, dy, dz, i, j, k, zvel_arr, p_arr, w_volcent, w_cellflg);
                         
                         gpz_arr(i,j,k) = slopes[2];
                     } else {

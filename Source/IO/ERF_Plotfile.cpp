@@ -644,7 +644,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                  (containerHasElement(plot_var_names, "dpdy")) ||
                  (containerHasElement(plot_var_names, "dpdz")) ) {
                 BCRec const* bcrec_ptr = domain_bcs_type_d.data();
-                compute_gradp(pressure, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), bcrec_ptr, get_eb(lev), gradp_temp, solverChoice);
+                compute_gradp(pressure, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), vars_new[lev], bcrec_ptr, get_eb(lev), gradp_temp, solverChoice);
             }
         }
 
@@ -700,7 +700,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         if ( (containerHasElement(plot_var_names, "pres_hse_x")) ||
              (containerHasElement(plot_var_names, "pres_hse_y")) ) {
             BCRec const* bcrec_ptr = domain_bcs_type_d.data();
-            compute_gradp(p_hse, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), bcrec_ptr, get_eb(lev), gradp_temp, solverChoice);
+            compute_gradp(p_hse, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), vars_new[lev], bcrec_ptr, get_eb(lev), gradp_temp, solverChoice);
         }
 
         if (containerHasElement(plot_var_names, "pres_hse_x"))
