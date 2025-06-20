@@ -475,6 +475,11 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         } else {
             Tau[lev][TauType::tau32] = nullptr;
         }
+
+        for (int i = 0; i < 9; i++) {
+            Tau[lev][i]->setVal(0.0);
+        }
+
         SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
         SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
         SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
