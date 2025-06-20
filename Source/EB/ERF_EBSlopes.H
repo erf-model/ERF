@@ -28,6 +28,8 @@ erf_calc_slopes_eb (int igrid_query,
                     amrex::Array4<amrex::Real const> const& ccent,
                     amrex::Array4<amrex::EBCellFlag const> const& flag)
 {
+    AMREX_ASSERT( igrid_query == igrid_data );
+
     // Fitting stencil
 
     amrex::RealVect bias{0.,0.,0.};
