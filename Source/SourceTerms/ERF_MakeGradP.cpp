@@ -194,7 +194,7 @@ compute_gradp (const MultiFab& p,
             // Pressure gradients are fitted at the centroids of cut cells, if EB and Compressible.
             // Least-Squares Fitting: Compute slope using 3x3x3 stencil
 
-            const bool l_fitting = false;
+            const bool l_fitting = true;
 
             const Real* dx_arr = geom.CellSize();
             const Real dx = dx_arr[0];
@@ -227,11 +227,16 @@ compute_gradp (const MultiFab& p,
                 {
                     if (u_volfrac(i,j,k) > 0.0) {
 
-                        GpuArray<Real,AMREX_SPACEDIM> slopes;
+                        if (u_cellflg(i,j,k).isSingleValued()) {
 
-                        slopes = erf_calc_slopes_eb_staggered(Vars::xvel, Vars::cons, dx, dy, dz, i, j, k, xvel_arr, p_arr, u_volcent, u_cellflg);
+                            GpuArray<Real,AMREX_SPACEDIM> slopes;
+                            slopes = erf_calc_slopes_eb_staggered(Vars::xvel, Vars::cons, dx, dy, dz, i, j, k, xvel_arr, p_arr, u_volcent, u_cellflg);
 
-                        gpx_arr(i,j,k) = slopes[0];
+                            gpx_arr(i,j,k) = slopes[0];
+
+                        } else {
+                            gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
+                        }
 
                     } else {
                         gpx_arr(i,j,k) = 0.0;
@@ -241,11 +246,16 @@ compute_gradp (const MultiFab& p,
                 {
                     if (v_volfrac(i,j,k) > 0.0) {
 
-                        GpuArray<Real,AMREX_SPACEDIM> slopes;
+                        if (v_cellflg(i,j,k).isSingleValued()) {
 
-                        slopes = erf_calc_slopes_eb_staggered(Vars::yvel, Vars::cons, dx, dy, dz, i, j, k, yvel_arr, p_arr, v_volcent, v_cellflg);
+                            GpuArray<Real,AMREX_SPACEDIM> slopes;
+                            slopes = erf_calc_slopes_eb_staggered(Vars::yvel, Vars::cons, dx, dy, dz, i, j, k, yvel_arr, p_arr, v_volcent, v_cellflg);
 
-                        gpy_arr(i,j,k) = slopes[1];
+                            gpy_arr(i,j,k) = slopes[1];
+
+                        } else {
+                            gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
+                        }
                     } else {
                         gpy_arr(i,j,k) = 0.0;
                     }
@@ -254,11 +264,16 @@ compute_gradp (const MultiFab& p,
                 {
                     if (w_volfrac(i,j,k) > 0.0) {
 
-                        GpuArray<Real,AMREX_SPACEDIM> slopes;
+                        if (w_cellflg(i,j,k).isSingleValued()) {
 
-                        slopes = erf_calc_slopes_eb_staggered(Vars::zvel, Vars::cons, dx, dy, dz, i, j, k, zvel_arr, p_arr, w_volcent, w_cellflg);
-                        
-                        gpz_arr(i,j,k) = slopes[2];
+                            GpuArray<Real,AMREX_SPACEDIM> slopes;
+                            slopes = erf_calc_slopes_eb_staggered(Vars::zvel, Vars::cons, dx, dy, dz, i, j, k, zvel_arr, p_arr, w_volcent, w_cellflg);
+                            
+                            gpz_arr(i,j,k) = slopes[2];
+
+                        } else {
+                            gpz_arr(i,j,k) = dxInv[2] * (p_arr(i,j,k) - p_arr(i,j,k-1));
+                        }
                     } else {
                         gpz_arr(i,j,k) = 0.0;
                     }
