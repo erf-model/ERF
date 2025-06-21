@@ -194,7 +194,7 @@ compute_gradp (const MultiFab& p,
             // Pressure gradients are fitted at the centroids of cut cells, if EB and Compressible.
             // Least-Squares Fitting: Compute slope using 3x3x3 stencil
 
-            const bool l_fitting = true;
+            const bool l_fitting = false;
 
             const Real* dx_arr = geom.CellSize();
             const Real dx = dx_arr[0];
