@@ -1,5 +1,6 @@
-#ifndef ERF_UTILS_THETAV_H_
-#define ERF_UTILS_THETAV_H_
+#ifndef ERF_UTILS_MOISTTHETA_H_
+#define ERF_UTILS_MOISTTHETA_H_
+
 /*
  * Calculate virtual potential temperature, returning potential temperature in
  * the absence of moisture.
@@ -20,7 +21,7 @@ Thetav (int i, int j, int k,
                               - cell_data(i,j,k,RhoQc_comp) / cell_data(i,j,k,Rho_comp)
                               - cell_data(i,j,k,RhoQr_comp) / cell_data(i,j,k,Rho_comp));
     } else if (RhoQv_comp > 0) {
-        thetav *= (1.0 + 0.61 * cell_data(i,j,k,RhoQ1_comp) / cell_data(i,j,k,Rho_comp)
+        thetav *= (1.0 + 0.61 * cell_data(i,j,k,RhoQv_comp) / cell_data(i,j,k,Rho_comp)
                               - cell_data(i,j,k,RhoQc_comp) / cell_data(i,j,k,Rho_comp));
     }
 

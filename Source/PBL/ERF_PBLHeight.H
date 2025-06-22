@@ -3,7 +3,7 @@
 
 #include <AMReX_MultiFabUtil.H>
 #include <ERF_TileNoZ.H>
-#include <ERF_Thetav.H>
+#include <ERF_MoistTheta.H>
 
 struct MYNNPBLH {
     /*
