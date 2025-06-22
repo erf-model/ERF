@@ -1,4 +1,5 @@
 #include <AMReX_BoxList.H>
+#include <AMReX_ParmParse.H>
 #include <ERF_EBAux.H>
 #include <ERF_EBCutCell.H>
 
@@ -25,6 +26,11 @@ define( int const& a_idim,
         EBFArrayBoxFactory  const* a_factory)
 {
   // Box dbox(a_geom.Domain());
+
+  // small_volfrac
+  Real small_volfrac = 1.e-14;
+  ParmParse pp("eb2");
+  pp.queryAdd("small_volfrac", small_volfrac);
 
   const IntVect vdim(IntVect::TheDimensionVector(a_idim));
 
@@ -141,7 +147,7 @@ define( int const& a_idim,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
                   aux_barea, aux_bcent, aux_bnorm,
-                  vdim, idim=a_idim, is_per ]
+                  vdim, idim=a_idim, is_per, small_volfrac ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
 
@@ -760,6 +766,24 @@ define( int const& a_idim,
             aux_bnorm(i,j,k,0) = eb_normal[0];
             aux_bnorm(i,j,k,1) = eb_normal[1];
             aux_bnorm(i,j,k,2) = eb_normal[2];
+
+            // small cell
+
+            if (aux_vfrac(i,j,k) < small_volfrac) {
+              aux_vfrac(i,j,k) = 0.0;
+              aux_vcent(i,j,k,0) = 0.0;
+              aux_vcent(i,j,k,1) = 0.0;
+              aux_vcent(i,j,k,2) = 0.0;
+              aux_bcent(i,j,k,0) = 0.0;
+              aux_bcent(i,j,k,1) = 0.0;
+              aux_bcent(i,j,k,2) = 0.0;
+              aux_bnorm(i,j,k,0) = 0.0;
+              aux_bnorm(i,j,k,1) = 0.0;
+              aux_bnorm(i,j,k,2) = 0.0;
+              aux_barea(i,j,k) = 0.0;
+              aux_flag(i,j,k).setCovered();
+            }
+
           }
 
         } // flag(iv_lo) and flag(iv_hi)
