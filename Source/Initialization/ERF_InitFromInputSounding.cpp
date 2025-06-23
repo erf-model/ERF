@@ -66,9 +66,10 @@ ERF::init_from_input_sounding (int lev)
 
         // this will calculate the hydrostatically balanced density and pressure
         // profiles following WRF ideal.exe
-        if (init_sounding_ideal) {
+        if (solverChoice.sounding_type == SoundingType::Ideal) {
             input_sounding_data.calc_rho_p(0);
-        } else {
+        } else { // SoundingType::Isentropic or SoundingType::DryIsentropic
+            bool assume_dry = (solverChoice.sounding_type == SoundingType::DryIsentropic);
             input_sounding_data.calc_rho_p_isentropic(0);
         }
 
@@ -98,7 +99,10 @@ ERF::init_from_input_sounding (int lev)
 
     auto& lev_new = vars_new[lev];
 
-    // update if init_sounding_ideal == true
+    // updated if sounding is ideal (following WRF) or isentropic
+    const bool sounding_ideal_or_isentropic = (solverChoice.sounding_type == SoundingType::Ideal      ||
+                                               solverChoice.sounding_type == SoundingType::Isentropic ||
+                                               solverChoice.sounding_type == SoundingType::DryIsentropic);
     MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
     MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
     MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
@@ -127,10 +131,10 @@ ERF::init_from_input_sounding (int lev)
         Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
 
-        if (init_sounding_ideal || init_sounding_isentropic)
+        if (sounding_ideal_or_isentropic)
         {
             // HSE will be initialized here, interpolated from values previously
-            // calculated by calc_rho_p()
+            // calculated by calc_rho_p() or calc_rho_p_isentropic
             init_bx_scalars_from_input_sounding_hse(
                 bx, cons_arr,
                 r_hse_arr, p_hse_arr, pi_hse_arr, th_hse_arr, qv_hse_arr,

@@ -34,6 +34,10 @@ AMREX_ENUM(InitType,
     None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform
 );
 
+AMREX_ENUM(SoundingType,
+    Ideal, Isentropic, DryIsentropic
+);
+
 AMREX_ENUM(ABLDriverType,
     None, PressureGradient, GeostrophicWind
 );
@@ -251,6 +255,10 @@ struct SolverChoice {
             pp.query("rebalance_wrfinput",rebalance_wrfinput);
         }
 
+        // How to interpret input_sounding
+        if (init_type == InitType::Input_Sounding) {
+            pp.query_enum_case_insensitive("sounding_type",sounding_type);
+        }
 
         if (terrain_type == TerrainType::StaticFittedMesh ||
             terrain_type == TerrainType::MovingFittedMesh) {
@@ -698,6 +706,9 @@ struct SolverChoice {
 
     inline static
     InitType init_type = InitType::None;
+
+    inline static
+    SoundingType sounding_type = SoundingType::Ideal;
 
     inline static
     TerrainType terrain_type = TerrainType::None;
