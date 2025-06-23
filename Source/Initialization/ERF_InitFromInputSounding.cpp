@@ -66,7 +66,11 @@ ERF::init_from_input_sounding (int lev)
 
         // this will calculate the hydrostatically balanced density and pressure
         // profiles following WRF ideal.exe
-        if (init_sounding_ideal) input_sounding_data.calc_rho_p(0);
+        if (init_sounding_ideal) {
+            input_sounding_data.calc_rho_p(0);
+        } else {
+            input_sounding_data.calc_rho_p_isentropic(0);
+        }
 
     } else {
         //
@@ -123,7 +127,7 @@ ERF::init_from_input_sounding (int lev)
         Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
 
-        if (init_sounding_ideal)
+        if (init_sounding_ideal || init_sounding_isentropic)
         {
             // HSE will be initialized here, interpolated from values previously
             // calculated by calc_rho_p()

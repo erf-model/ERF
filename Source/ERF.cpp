@@ -66,6 +66,7 @@ std::string ERF::nc_low_file; // Must provide via input
 
 // Flag to trigger initialization from input_sounding like WRF's ideal.exe
 bool ERF::init_sounding_ideal = false;
+bool ERF::init_sounding_isentropic = false;
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int  ERF::output_1d_column = 0;
@@ -1554,7 +1555,7 @@ ERF::init_only (int lev, Real time)
         // Now init the base state and the data itself
         init_from_input_sounding(lev);
 
-        if (init_sounding_ideal) {
+        if (init_sounding_ideal || init_sounding_isentropic) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_gravity,
                 "Gravity should be on to be consistent with sounding initialization.");
         } else {
@@ -1776,6 +1777,10 @@ ERF::ReadParameters ()
 
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe
         pp.query("init_sounding_ideal", init_sounding_ideal);
+
+        // Flag to trigger initialization from input_sounding like PINACLES
+        pp.query("init_sounding_isentropic", init_sounding_isentropic);
+        AMREX_ALWAYS_ASSERT(!(init_sounding_ideal && init_sounding_isentropic));
 
         // Options for vertical interpolation of met_em*.nc data.
         pp.query("metgrid_debug_quiescent",  metgrid_debug_quiescent);

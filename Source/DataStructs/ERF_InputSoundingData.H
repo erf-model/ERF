@@ -259,6 +259,85 @@ public:
         host_to_device(itime);
     }
 
+    void calc_rho_p_isentropic (int itime)
+    {
+        /* Calculate density and pressure assuming isentropic (constant theta)
+           background conditions. This does not use Newton-Raphson iterations
+           to calculate rho and p.
+         */
+        const amrex::Real tol = 1.0e-12;
+        const int Ninp = size(itime);
+        pm_integ.resize(Ninp);
+        rhod_integ.resize(Ninp);
+
+        // evaluate surface quantities (k=0): total pressure and dry air
+          pm_integ[0] = press_ref_inp_sound;
+        rhod_integ[0] = getRhogivenThetaPress(theta_ref_inp_sound,
+                                              press_ref_inp_sound,
+                                              R_d/Cp_d,
+                                              qv_ref_inp_sound);
+
+        const amrex::Real th0 = theta_inp_sound[itime][0];
+        const amrex::Real p0_pow = std::pow(p_0, (Gamma-1)/Gamma);
+
+        amrex::Print() << "isentropic sounding init: surface dry air density = "
+                       << std::setprecision(15)
+                       << rhod_integ[0] << " kg/m^3" << std::endl;
+
+#if 0   // Printing
+        // In this absence of moisture, this moist profile will match the
+        // following dry profile
+        amrex::Print() << "z  p_m  rho_d  theta  qv  U  V" << std::endl;
+        amrex::Print() << z_inp_sound[itime][0]
+                       << " " << pm_integ[0]
+                       << " " << rhod_integ[0]
+                       << " " << theta_inp_sound[itime][0]
+                       << " " << qv_inp_sound[itime][0]
+                       << " " << U_inp_sound[itime][0]
+                       << " " << V_inp_sound[itime][0]
+                       << std::endl;
+#endif
+
+         // integrate from surface to domain top
+        amrex::Real dz, F, C;
+        for (int k=1; k < size(itime); ++k)
+        {
+            // Vertical grid spacing
+            dz = z_inp_sound[itime][k] - z_inp_sound[itime][k-1];
+
+            // Isentropic pressure at next level
+            amrex::Real qvmean = 0.5*(qv_inp_sound[itime][k-1] + qv_inp_sound[itime][k]);
+            amrex::Real thm0 = th0 * (1 + R_v/R_d * qvmean);
+            amrex::Real plo_pow = std::pow(pm_integ[k-1], (Gamma-1)/Gamma);
+            pm_integ[k] = (Gamma-1)/Gamma *
+                (-CONST_GRAV * p0_pow / (R_d * thm0) * dz
+                 + Gamma/(Gamma-1) * plo_pow);
+            pm_integ[k] = std::pow(pm_integ[k], Gamma / (Gamma-1));
+
+            // Get corresponding dry air density
+            rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[itime][k],
+                                                  pm_integ[k],
+                                                  R_d/Cp_d,
+                                                  qv_inp_sound[itime][k]);
+
+#if 0       // Printing
+            amrex::Print() << z_inp_sound[itime][k]
+                           << " " << pm_integ[k]
+                           << " " << rhod_integ[k]
+                           << " " << theta_inp_sound[itime][k]
+                           << " " << qv_inp_sound[itime][k]
+                           << " " << U_inp_sound[itime][k]
+                           << " " << V_inp_sound[itime][k]
+                           << std::endl;
+#endif
+        }
+        // Note: at this point, the surface pressure, density of the dry air
+        // column is stored in pm_integ[0], rhod_integ[0]
+
+        // update
+        host_to_device(itime);
+    }
+
     void host_to_device (int itime)
     {
         const int Ninp = size(itime);

@@ -1058,9 +1058,9 @@ private:
     // NetCDF initialization of zlo boundary values
     static std::string nc_low_file;
 
-    // Flag to trigger initialization from input_sounding like WRF's ideal.exe
-    // used with init_type == InitType::Input_Sounding
+    // Flags used with init_type == InitType::Input_Sounding
     static bool init_sounding_ideal;
+    static bool init_sounding_isentropic;
 
     // Options for vertical interpolation of met_em*.nc data.
     bool        metgrid_debug_quiescent{false};
