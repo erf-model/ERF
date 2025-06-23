@@ -48,6 +48,7 @@ erf.Ck       = 0.1
 erf.sigma_k  = 1.0
 erf.Ce       = 0.1
 erf.RhoKE_0  = 0.1
+erf.theta_ref = 300.0 # don't specify for variable theta when diagnosing stability
 
 erf.moisture_model  = "Kessler"
 erf.buoyancy_type   = 1
