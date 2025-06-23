@@ -253,8 +253,16 @@ ComputeQKESourceTerms (int i, int j, int k,
                                   dthetadz, dudz, dvdz,
                                   RhoQv_comp, RhoQc_comp, RhoQr_comp);
 
-    // Note: Transport terms due to turbulence and pressure are included when
-    // DiffusionSrcForState_* is called from ERF_slow_rhs_post.
+    // Notes:
+    // - We transport TKE = 0.5*QKE rather than QKE, so the RHS terms do not
+    //   have a factor of two.
+    // - Transport terms due to turbulence and pressure are included when
+    //   DiffusionSrcForState_* is called from ERF_slow_rhs_post.
+    // - Eddy diffusivities are updated at the beginning of each time step only.
+
+    // Second-order turbulent fluxes, e.g.:
+    // -<uw> = L q SM dU/dz  (NN09, Eqn. 18)
+    //       = Kmv/rho dU/dz
 
     // Shear Production
     source_term += K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
@@ -262,7 +270,7 @@ ComputeQKESourceTerms (int i, int j, int k,
     // Buoyancy Production
     source_term -= (CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
 
-    // Dissipation
+    // Dissipation (NN09, Eqn. 12)
     amrex::Real qke = 2.0 * cell_prim(i,j,k,PrimKE_comp);
     if (std::abs(qke) > 0.0) {
         source_term -= cell_data(i,j,k,Rho_comp) * std::pow(qke,1.5) /

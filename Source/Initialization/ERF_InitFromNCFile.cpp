@@ -49,6 +49,10 @@ ERF::init_from_ncfile (int lev)
     FArrayBox NC_yvel_fab;
     FArrayBox NC_zvel_fab;
 
+    FArrayBox NC_r_hse_fab;
+    FArrayBox NC_p_hse_fab;
+    FArrayBox NC_th_hse_fab;
+
     Print() << "Loading data from NetCDF file " << fname << " at level " << lev << std::endl;
 
     Vector<FArrayBox*>  NC_fabs;
@@ -60,6 +64,10 @@ ERF::init_from_ncfile (int lev)
     NC_fabs.push_back(&NC_xvel_fab) ; NC_fnames.push_back("U")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
     NC_fabs.push_back(&NC_yvel_fab) ; NC_fnames.push_back("V")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
     NC_fabs.push_back(&NC_zvel_fab) ; NC_fnames.push_back("W")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+
+    NC_fabs.push_back(&NC_r_hse_fab)  ; NC_fnames.push_back("RHO_HSE"); NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+    NC_fabs.push_back(&NC_p_hse_fab)    ; NC_fnames.push_back("P_HSE")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+    NC_fabs.push_back(&NC_th_hse_fab)    ; NC_fnames.push_back("T_HSE")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
 
     Vector<int> success; success.resize(NC_fabs.size());
 
@@ -108,6 +116,10 @@ ERF::init_from_ncfile (int lev)
         FArrayBox &yvel_fab = lev_new[Vars::yvel][mfi];
         FArrayBox &zvel_fab = lev_new[Vars::zvel][mfi];
 
+        FArrayBox &r_hse_fab  = r_hse[mfi];
+        FArrayBox &p_hse_fab  = p_hse[mfi];
+        FArrayBox &th_hse_fab = th_hse[mfi];
+
         // Copy on intersect...
         if (success[0]) {
             int dest_comp = 0;
@@ -132,8 +144,65 @@ ERF::init_from_ncfile (int lev)
             zvel_fab.template copy<RunOn::Device>(NC_zvel_fab , src_comp, dest_comp, num_comp);
         }
 
+        if (success[5]) {
+            int dest_comp = 0;
+            r_hse_fab.template copy<RunOn::Device>(NC_r_hse_fab , src_comp, dest_comp, num_comp);
+        }
+        if (success[6]) {
+            int dest_comp = 0;
+            p_hse_fab.template copy<RunOn::Device>(NC_p_hse_fab , src_comp, dest_comp, num_comp);
+        }
+        if (success[7]) {
+            int dest_comp = 0;
+            th_hse_fab.template copy<RunOn::Device>(NC_th_hse_fab , src_comp, dest_comp, num_comp);
+        }
+
     } // mf
 
     MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], 0, 1, 1, 0);
+
+    // Populate the base state ghost cells and derived data structures if needed
+    if (success[6]) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+        for ( MFIter mfi(p_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            Box vbx  = mfi.validbox();
+            Box gtbx = mfi.growntilebox();
+
+            int ilo = vbx.smallEnd(0); int ihi = vbx.bigEnd(0);
+            int jlo = vbx.smallEnd(1); int jhi = vbx.bigEnd(1);
+            int klo = vbx.smallEnd(2); int khi = vbx.bigEnd(2);
+
+            Array4<Real>  r_hse_arr = r_hse.array(mfi);
+            Array4<Real>  p_hse_arr = p_hse.array(mfi);
+            Array4<Real> th_hse_arr = th_hse.array(mfi);
+            Array4<Real> pi_hse_arr = pi_hse.array(mfi);
+
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                // Base state needs ghost cells filled, protect FAB access
+                int ii = std::max(i , ilo);
+                    ii = std::min(ii, ihi);
+                int jj = std::max(j , jlo);
+                    jj = std::min(jj, jhi);
+                int kk = std::max(k , klo);
+                    kk = std::min(kk, khi);
+
+                 r_hse_arr(i,j,k) =  r_hse_arr(ii,jj,kk);
+                 p_hse_arr(i,j,k) =  p_hse_arr(ii,jj,kk);
+                th_hse_arr(i,j,k) = th_hse_arr(ii,jj,kk);
+                pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(ii,jj,kk), R_d/Cp_d);
+            });
+        }// mfi
+
+        // Fill boundary if periodic
+        r_hse.FillBoundary(geom[lev].periodicity());
+        p_hse.FillBoundary(geom[lev].periodicity());
+        th_hse.FillBoundary(geom[lev].periodicity());
+        pi_hse.FillBoundary(geom[lev].periodicity());
+
+    }// success[6]
 }
 #endif // ERF_USE_NETCDF

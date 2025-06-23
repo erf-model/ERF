@@ -55,7 +55,11 @@ void add_par () {
 int main (int argc, char* argv[])
 {
 
-#ifdef AMREX_USE_MPI
+#if defined(AMREX_MPI_THREAD_MULTIPLE)
+    int requested = MPI_THREAD_MULTIPLE;
+    int provided = -1;
+    MPI_Init_thread(&argc, &argv, requested, &provided);
+#elif defined(AMREX_USE_MPI)
     MPI_Init(&argc, &argv);
 #endif
 

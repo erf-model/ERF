@@ -1082,6 +1082,10 @@ List of Parameters
 +-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_C5**                     | MYNN Constant C5   | Real                | 0.2         |
 +-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_SQfactor**               | MYNN ratio of      | Real                | 3.0         |
+|                                         | stability functions|                     |             |
+|                                         | SQ / SM            |                     |             |
++-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_diffuse_moistvars**      | Diffuse moisture   | bool                | 0           |
 |                                         | variables using    |                     |             |
 |                                         | modeled eddy       |                     |             |
@@ -1186,9 +1190,32 @@ List of Parameters
 |                                     | geostrophic wind       |                   |                     |
 |                                     | profile                |                   |                     |
 |                                     | (with z, Ug, and       |                   |                     |
-|                                     |  Vg whtiespace         |                   |                     |
+|                                     |  Vg whitespace         |                   |                     |
 |                                     |  delimited             |                   |                     |
 |                                     |  columns)              |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.const_massflux_u**            | Include a momentum     | Real              | 0.                  |
+| **erf.const_massflux_v**            | source at each time,   |                   |                     |
+|                                     | (e.g., representing a  |                   |                     |
+|                                     | background driving     |                   |                     |
+|                                     | pressure gradient),    |                   |                     |
+|                                     | to obtain a desired    |                   |                     |
+|                                     | mass flux with the     |                   |                     |
+|                                     | specified bulk velocity|                   |                     |
+|                                     | in x,y                 |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.const_massflux_layer_lo**     | Two heights defining   | Real              | None                |
+| **erf.const_massflux_layer_hi**     | the layer over which   |                   |                     |
+|                                     | the mass flux is       |                   |                     |
+|                                     | integrated and compared|                   |                     |
+|                                     | to the desired input(s)|                   |                     |
+|                                     | specified above        |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.const_massflux_tau**          | Timescale over which   | Real              | None                |
+|                                     | to adjust the          |                   |                     |
+|                                     | background pressure    |                   |                     |
+|                                     | gradient to match the  |                   |                     |
+|                                     | specified mass flux    |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.use_gravity**                 | Include gravity        | true / false      | false               |
 |                                     | in momentum            |                   |                     |

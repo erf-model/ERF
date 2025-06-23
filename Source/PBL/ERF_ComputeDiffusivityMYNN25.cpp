@@ -7,6 +7,8 @@
 
 using namespace amrex;
 
+#define EXTRA_MYNN25_CHECKS 0
+
 void
 ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const MultiFab& yvel,
@@ -75,6 +77,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             const auto invCellSize = geom.InvCellSizeArray();
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
+                // q^2 / 2 is the TKE
                 qvel(i,j,k) = std::sqrt(2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
                 AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
 
@@ -87,10 +90,11 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         } else {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
+                // q^2 / 2 is the TKE
                 qvel(i,j,k) = std::sqrt(2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
                 AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
 
-                // Not multiplying by dz: its constant and would fall out when we divide qint0/qint1 anyway
+                // Not multiplying by dz: it's constant and would fall out when we divide qint0/qint1 anyway
 
                 Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
                 const Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
@@ -127,13 +131,14 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             // Compute some partial derivatives that we will need (second order)
             // U and V derivatives are interpolated to account for staggered grid
             const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : 1.0;
-            Real dthetadz, dudz, dvdz;
+
+            Real dthetavdz, dudz, dvdz;
             ComputeVerticalDerivativesPBL(i, j, k,
                                           uvel, vvel, cell_data, izmin, izmax, dz_inv/met_h_zeta,
                                           c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                           u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                           v_ext_dir_on_zlo, v_ext_dir_on_zhi,
-                                          dthetadz, dudz, dvdz,
+                                          dthetavdz, dudz, dvdz,
                                           RhoQv_comp, RhoQc_comp, RhoQr_comp);
 
             // Spatially varying MOST
@@ -181,8 +186,8 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             // Buoyancy length scale (NN09, Eqn. 55)
             Real l_B;
-            if (dthetadz > 0) {
-                Real N_brunt_vaisala = std::sqrt(CONST_GRAV/theta0 * dthetadz);
+            if (dthetavdz > 0) {
+                Real N_brunt_vaisala = std::sqrt(CONST_GRAV/theta0 * dthetavdz);
                 if (zeta < 0) {
                     Real qc = CONST_GRAV/theta0 * surface_heat_flux * l_T; // velocity scale
                     qc = std::pow(qc,1.0/3.0);
@@ -205,27 +210,48 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             // Calculate nondimensional production terms
             Real shearProd  = dudz*dudz + dvdz*dvdz;
-            Real buoyProd   = -(CONST_GRAV/theta0) * dthetadz;
+            Real buoyProd   = -(CONST_GRAV/theta0) * dthetavdz;
             Real L2_over_q2 = Lm*Lm/(qvel(i,j,k)*qvel(i,j,k));
             Real GM         = L2_over_q2 * shearProd;
             Real GH         = L2_over_q2 * buoyProd;
 
-            // Equilibrium (Level-2) q calculation follows NN09, Appendix 2
+            // Equilibrium (Level-2) q calculation follows NN09, Appendix A
             Real Rf  = level2.calc_Rf(GM, GH);
             Real SM2 = level2.calc_SM(Rf);
-            Real qe2 = mynn.B1*Lm*Lm*SM2*(1.0-Rf)*shearProd;
+            Real qe2 = mynn.B1 * Lm*Lm * SM2 * (1.0-Rf) * shearProd;
             Real qe  = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2);
 
             // Level 2 limiting (Helfand and Labraga 1988)
-            Real alphac  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
+            Real alphac  = (qvel(i,j,k) >= qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
+#ifdef EXTRA_MYNN25_CHECKS
+            Real Ri = -GH/(GM+level2.eps);
+            if (alphac < 1 && (Ri > 1 || Ri < -1)) {
+                Warning("Level 2 limiting being applied with Ri out of expected range");
+                //AllPrint() << "alphac"<<IntVect(i,j,k)<<"= " << alphac
+                //    << " Ri,SM2,SH2= " << Ri << " " << SM2 << " " << level2.calc_SH(Rf)
+                //    << std::endl;
+            }
+#endif
 
             // Level 2.5 stability functions
             Real SM, SH, SQ;
             mynn.calc_stability_funcs(SM,SH,SQ,GM,GH,alphac);
 
             // Clip SM, SH following WRF
-            SM = amrex::min(amrex::max(SM,mynn.SMmin), mynn.SMmax);
-            SH = amrex::min(amrex::max(SH,mynn.SHmin), mynn.SHmax);
+            SM = amrex::min(amrex::max(SM, mynn.SMmin), mynn.SMmax);
+            SH = amrex::min(amrex::max(SH, mynn.SHmin), mynn.SHmax);
+#ifdef EXTRA_MYNN25_CHECKS
+            if (SM == mynn.SMmin) {
+                Warning("SM clipped at min val");
+            } else if (SM == mynn.SMmax) {
+                Warning("SM clipped at max val");
+            }
+            if (SH == mynn.SHmin) {
+                Warning("SH clipped at min val");
+            } else if (SH == mynn.SHmax) {
+                Warning("SH clipped at max val");
+            }
+#endif
 
             // Finally, compute the eddy viscosity/diffusivities
             const Real rho = cell_data(i,j,k,Rho_comp);
