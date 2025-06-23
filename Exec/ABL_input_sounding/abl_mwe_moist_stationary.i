@@ -54,7 +54,7 @@ erf.buoyancy_type   = 1
     
 erf.init_type = "input_sounding"
 erf.input_sounding_file = "input_sounding_moist"
-erf.init_sounding_ideal = true
+erf.sounding_type = Ideal
 
 # PROBLEM PARAMETERS
 # these are zeroed because we are using an input_sounding

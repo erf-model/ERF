@@ -80,7 +80,7 @@ erf.rayleigh_zdamp =  50.0
 erf.rayleigh_dampcoef = 0.2
 
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
+erf.sounding_type = Ideal
 erf.input_sounding_file = "stable_sounding.txt"
 
 ## Turbulent inflow generation
