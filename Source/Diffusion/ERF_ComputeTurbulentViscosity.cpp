@@ -140,7 +140,9 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         const Real l_C_e_wall   = turbChoice.Ce_wall;
         const Real Ce_lcoeff    = amrex::max(0.0, l_C_e - 1.9*l_C_k);
         const Real l_abs_g      = const_grav;
-        const Real l_inv_theta0 = 1.0 / turbChoice.theta_ref;
+
+        const bool use_ref_theta = (turbChoice.theta_ref > 0);
+        const Real l_inv_theta0  = (use_ref_theta) ? 1.0 / turbChoice.theta_ref : 1.0;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -194,6 +196,11 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 // Calculate stratification-dependent mixing length (Deardorff 1980, Eqn. 10a)
                 Real E              = amrex::max(cell_data(i,j,k,RhoKE_comp)/cell_data(i,j,k,Rho_comp),Real(0.0));
                 Real stratification = l_abs_g * dtheta_dz * l_inv_theta0;
+                if (!use_ref_theta) {
+                    // l_inv_theta0 == 1, divide by actual theta
+                    stratification *= cell_data(i,j,k,Rho_comp) /
+                                      cell_data(i,j,k,RhoTheta_comp);
+                }
 
                 // Following WRF, the stratification effects are applied to the vertical length scales
                 // in the case of anistropic mixing

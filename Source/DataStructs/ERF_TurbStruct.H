@@ -255,8 +255,13 @@ public:
         amrex::Print() << "Ck                          : " << Ck << std::endl;
         amrex::Print() << "sigma_k                     : " << sigma_k
                        << std::endl;
-        amrex::Print() << "reference theta             : " << theta_ref
-                       << std::endl;
+        if (theta_ref > 0) {
+            amrex::Print() << "reference theta             : " << theta_ref
+                           << std::endl;
+        } else {
+            amrex::Print() << "reference theta             : n/a"
+                           << std::endl;
+        }
         // Sullivan et al 1994, Eqn 14
         amrex::Real Cs_equiv = std::sqrt(Ck * std::sqrt(Ck / Ce));
         amrex::Print() << "equivalent Cs               : " << Cs_equiv
@@ -278,8 +283,13 @@ public:
                        << std::endl;
         amrex::Print() << "max_geom_lscale             : " << l_g_max
                        << std::endl;
-        amrex::Print() << "reference theta             : " << theta_ref
-                       << std::endl;
+        if (theta_ref > 0) {
+            amrex::Print() << "reference theta             : " << theta_ref
+                           << std::endl;
+        } else {
+            amrex::Print() << "reference theta             : n/a"
+                           << std::endl;
+        }
       }
     }
 
@@ -355,7 +365,7 @@ public:
   amrex::Real sigma_k = 0.5;
   // - reference potential temperature used to quantify the stratification in
   //   a stable region
-  amrex::Real theta_ref = 300.0;
+  amrex::Real theta_ref = 0.0;
   // - how to quantify stratification effects
   StratType strat_type = StratType::theta;
 
