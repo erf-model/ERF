@@ -205,6 +205,9 @@ compute_gradp (const MultiFab& p,
             const Array4<const Real>& yvel_arr = S_data[Vars::yvel].array(mfi);
             const Array4<const Real>& zvel_arr = S_data[Vars::zvel].array(mfi);
 
+            // EB factory
+            Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+
             // EB u-factory
             Array4<const EBCellFlag> u_cellflg = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
             Array4<const Real      > u_volfrac = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
@@ -286,7 +289,15 @@ compute_gradp (const MultiFab& p,
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (u_volfrac(i,j,k) > 0.0) {
-                        gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
+                        if (!cellflg(i-1,j,k).isCovered()) {
+                            gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));   
+                        } else {
+                            if (!cellflg(i+1,j,k).isCovered()) {
+                                gpx_arr(i,j,k) = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
+                            } else {
+                                Abort("MakeGradP: both neighbors in x-direction are covered");
+                            }
+                        }
                     } else {
                         gpx_arr(i,j,k) = 0.0;
                     }
@@ -295,7 +306,15 @@ compute_gradp (const MultiFab& p,
                 ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (v_volfrac(i,j,k) > 0.0) {
-                        gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
+                        if (!cellflg(i,j-1,k).isCovered()) {
+                            gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
+                        } else {
+                            if (!cellflg(i,j+1,k).isCovered()) {
+                                gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
+                            } else {
+                                Abort("MakeGradP: both neighbors in y-direction are covered");
+                            }
+                        }
                     } else {
                         gpy_arr(i,j,k) = 0.0;
                     }
@@ -304,7 +323,15 @@ compute_gradp (const MultiFab& p,
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (w_volfrac(i,j,k) > 0.0) {
-                        gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) )  ;
+                        if (!cellflg(i,j,k-1).isCovered()) {
+                            gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) );    
+                        } else {
+                            if (!cellflg(i,j,k+1).isCovered()) {
+                                gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k+1)-p_arr(i,j,k) );
+                            } else {
+                                Abort("MakeGradP: both neighbors in z-direction are covered");
+                            }
+                        }
                     } else {
                         gpz_arr(i,j,k) = 0.0;
                     }
