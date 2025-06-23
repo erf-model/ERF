@@ -38,32 +38,22 @@ struct SuperDropletsRealIdxSoA_RT
     };
 };
 
+/*! \brief Real-type struct-of-array attributes added during runtime for ice */
+struct SDIceRealIdxSoA_RT
+{
+    enum {
+        T_fz = 0,   /*!< freezing temperature */
+        a,          /*!< equatorial radius */
+        c,          /*!< porous radius */
+        rho,        /*!< apparent density */
+        m_rime,     /*!< rime mass */
+        n_mono,     /*!< number of primary ice crystals */
+        ncomps
+    };
+};
+
 /*! \brief Int-type struct-of-array attributes of a super-droplet */
 using SuperDropletsIntIdxSoA = ERFParticlesIntIdxSoA;
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int idx_a(const int a_i, /*!< Species index */
-                 const int a_num_a, /*!< Number of aerosols */
-                 const int a_num_s  /*!< Number of species */)
-{
-    amrex::ignore_unused(a_num_a);
-    amrex::ignore_unused(a_num_s);
-    return    SuperDropletsRealIdxSoA::ncomps
-            + SuperDropletsRealIdxSoA_RT::ncomps
-            + a_i;
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int idx_s(const int a_i, /*!< Species index */
-                 const int a_num_a, /*!< Number of aerosols */
-                 const int a_num_s  /*!< Number of species */)
-{
-    amrex::ignore_unused(a_num_s);
-    return    SuperDropletsRealIdxSoA::ncomps
-            + SuperDropletsRealIdxSoA_RT::ncomps
-            + a_num_a
-            + a_i;
-}
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int ridx_a(const int a_i, /*!< Species index */
@@ -85,6 +75,124 @@ static int ridx_s(const int a_i, /*!< Species index */
     return    SuperDropletsRealIdxSoA_RT::ncomps
             + a_num_a
             + a_i;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int idx_a(const int a_i, /*!< Species index */
+                 const int a_num_a, /*!< Number of aerosols */
+                 const int a_num_s  /*!< Number of species */)
+{
+    return SuperDropletsRealIdxSoA::ncomps + ridx_a(a_i,a_num_a,a_num_s);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int idx_s(const int a_i, /*!< Species index */
+                 const int a_num_a, /*!< Number of aerosols */
+                 const int a_num_s  /*!< Number of species */)
+{
+    return SuperDropletsRealIdxSoA::ncomps + ridx_s(a_i,a_num_a,a_num_s);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int ridx_ice_Tfz(const int a_num_a, /*!< Number of aerosols */
+                        const int a_num_s  /*!< Number of species */)
+{
+    return   SuperDropletsRealIdxSoA_RT::ncomps
+           + a_num_a
+           + a_num_s
+           + SDIceRealIdxSoA_RT::T_fz;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int ridx_ice_a(const int a_num_a, /*!< Number of aerosols */
+                      const int a_num_s  /*!< Number of species */)
+{
+    return   SuperDropletsRealIdxSoA_RT::ncomps
+           + a_num_a
+           + a_num_s
+           + SDIceRealIdxSoA_RT::a;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int ridx_ice_c(const int a_num_a, /*!< Number of aerosols */
+                      const int a_num_s  /*!< Number of species */)
+{
+    return   SuperDropletsRealIdxSoA_RT::ncomps
+           + a_num_a
+           + a_num_s
+           + SDIceRealIdxSoA_RT::c;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int ridx_ice_rho(const int a_num_a, /*!< Number of aerosols */
+                        const int a_num_s  /*!< Number of species */)
+{
+    return   SuperDropletsRealIdxSoA_RT::ncomps
+           + a_num_a
+           + a_num_s
+           + SDIceRealIdxSoA_RT::rho;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int ridx_ice_mrime(const int a_num_a, /*!< Number of aerosols */
+                          const int a_num_s  /*!< Number of species */)
+{
+    return   SuperDropletsRealIdxSoA_RT::ncomps
+           + a_num_a
+           + a_num_s
+           + SDIceRealIdxSoA_RT::m_rime;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int ridx_ice_nmono(const int a_num_a, /*!< Number of aerosols */
+                          const int a_num_s  /*!< Number of species */)
+{
+    return   SuperDropletsRealIdxSoA_RT::ncomps
+           + a_num_a
+           + a_num_s
+           + SDIceRealIdxSoA_RT::n_mono;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int idx_ice_Tfz(const int a_num_a, /*!< Number of aerosols */
+                       const int a_num_s  /*!< Number of species */)
+{
+    return SuperDropletsRealIdxSoA::ncomps + ridx_ice_Tfz(a_num_a,a_num_s);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int idx_ice_a(const int a_num_a, /*!< Number of aerosols */
+                     const int a_num_s  /*!< Number of species */)
+{
+    return SuperDropletsRealIdxSoA::ncomps + ridx_ice_a(a_num_a,a_num_s);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int idx_ice_c(const int a_num_a, /*!< Number of aerosols */
+                     const int a_num_s  /*!< Number of species */)
+{
+    return SuperDropletsRealIdxSoA::ncomps + ridx_ice_c(a_num_a,a_num_s);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int idx_ice_rho(const int a_num_a, /*!< Number of aerosols */
+                       const int a_num_s  /*!< Number of species */)
+{
+    return SuperDropletsRealIdxSoA::ncomps + ridx_ice_rho(a_num_a,a_num_s);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int idx_ice_mrime(const int a_num_a, /*!< Number of aerosols */
+                         const int a_num_s  /*!< Number of species */)
+{
+    return SuperDropletsRealIdxSoA::ncomps + ridx_ice_mrime(a_num_a,a_num_s);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int idx_ice_nmono(const int a_num_a, /*!< Number of aerosols */
+                         const int a_num_s  /*!< Number of species */)
+{
+    return SuperDropletsRealIdxSoA::ncomps + ridx_ice_nmono(a_num_a,a_num_s);
 }
 
 /*! \brief Compute total mass of a droplet from its components */

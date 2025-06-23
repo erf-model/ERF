@@ -52,9 +52,8 @@ class SuperDropletPC : public ERFPC
         AMREX_FORCE_INLINE
         virtual void setSpeciesMaterial ( const Species::Name& a_name )
         {
-            if (a_name == Species::Name::H2O) {
-                m_idx_w = m_species_mat.size();
-            }
+            if (a_name == Species::Name::H2O) { m_idx_w = m_species_mat.size(); }
+            if (a_name == Species::Name::ice) { m_idx_i = m_species_mat.size(); }
             m_species_mat.push_back(std::make_unique<MaterialProperties>(a_name));
         }
 
@@ -289,7 +288,10 @@ class SuperDropletPC : public ERFPC
         std::mt19937 m_rndeng;
 
         /*! species index of water */
-        int m_idx_w;
+        int m_idx_w = -1;
+
+        /*! species index of ice */
+        int m_idx_i = -1;
 
         /*! \brief read inputs from file */
         virtual void readInputs () override;

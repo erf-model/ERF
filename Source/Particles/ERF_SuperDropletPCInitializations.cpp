@@ -24,6 +24,12 @@ void SuperDropletPC::add_superdroplet_attributes()
         AddRealComp(communicate_this_comp);
         count++;
     }
+    if (m_idx_i >= 0) {
+        for (int i = 0; i < SDIceRealIdxSoA_RT::ncomps; i++) {
+            AddRealComp(communicate_this_comp);
+            count++;
+        }
+    }
     Print() << "SuperDropletPC(" << m_name << "): added " << count << " real-type attibute(s).\n";
     return;
 }
@@ -173,9 +179,10 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
     setAerosolMaterial( a_aerosol_mat );
     m_num_aerosols = m_aerosol_mat.size();
 
-    AMREX_ASSERT(m_num_species  > 0);
-    AMREX_ASSERT(m_num_species  <= SupDropInit::num_species_max);
-    AMREX_ASSERT(m_num_aerosols <= SupDropInit::num_aerosols_max);
+    AMREX_ALWAYS_ASSERT(m_num_species  > 0);
+    AMREX_ALWAYS_ASSERT(m_num_species  <= SupDropInit::num_species_max);
+    AMREX_ALWAYS_ASSERT(m_num_aerosols <= SupDropInit::num_aerosols_max);
+    AMREX_ALWAYS_ASSERT(m_idx_w >= 0);
 
     add_superdroplet_attributes();
     readInputs();
@@ -719,6 +726,25 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
            }
         });
         Gpu::synchronize();
+
+        /* Initialize ice attributes */
+        if (m_idx_i >= 0) {
+            auto* Tfz_ptr = soa.GetRealData(idx_ice_Tfz(num_ae,num_sp)).data() + size_old;
+            auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data() + size_old;
+            auto* c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data() + size_old;
+            auto* rho_ptr = soa.GetRealData(idx_ice_rho(num_ae,num_sp)).data() + size_old;
+            auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data() + size_old;
+            auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data() + size_old;
+
+            ParallelFor(np, [=] AMREX_GPU_DEVICE(int i)
+            {
+                Tfz_ptr[i] = 235.15; // -38 degrees Celsius
+                a_ptr[i] = c_ptr[i] = 0.0;
+                rho_ptr[i] = 0.0;
+                mrime_ptr[i] = 0.0;
+                nmono_ptr[i] = 0.0;
+            });
+        }
     }
 
     return;
