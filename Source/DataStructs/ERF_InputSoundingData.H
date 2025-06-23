@@ -259,7 +259,7 @@ public:
         host_to_device(itime);
     }
 
-    void calc_rho_p_isentropic (int itime)
+    void calc_rho_p_isentropic (int itime, bool assume_dry)
     {
         /* Calculate density and pressure assuming isentropic (constant theta)
            background conditions. This does not use Newton-Raphson iterations
@@ -306,7 +306,7 @@ public:
             dz = z_inp_sound[itime][k] - z_inp_sound[itime][k-1];
 
             // Isentropic pressure at next level
-            amrex::Real qvmean = 0.5*(qv_inp_sound[itime][k-1] + qv_inp_sound[itime][k]);
+            amrex::Real qvmean = (assume_dry) ? 0.0 : 0.5*(qv_inp_sound[itime][k-1] + qv_inp_sound[itime][k]);
             amrex::Real thm0 = th0 * (1 + R_v/R_d * qvmean);
             amrex::Real plo_pow = std::pow(pm_integ[k-1], (Gamma-1)/Gamma);
             pm_integ[k] = (Gamma-1)/Gamma *
