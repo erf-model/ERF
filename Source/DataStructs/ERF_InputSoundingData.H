@@ -265,7 +265,6 @@ public:
            background conditions. This does not use Newton-Raphson iterations
            to calculate rho and p.
          */
-        const amrex::Real tol = 1.0e-12;
         const int Ninp = size(itime);
         pm_integ.resize(Ninp);
         rhod_integ.resize(Ninp);
@@ -299,7 +298,7 @@ public:
 #endif
 
          // integrate from surface to domain top
-        amrex::Real dz, F, C;
+        amrex::Real dz;
         for (int k=1; k < size(itime); ++k)
         {
             // Vertical grid spacing
