@@ -75,7 +75,6 @@ T terrpoisson_flux_y (int i, int j, int k,
 
     // On y-face
     py_lo -= Real(0.5) * ( pz_md_lo_hi + pz_md_lo_lo );
-
     return -py_lo;
 }
 
@@ -149,6 +148,8 @@ T terrpoisson_flux_z (int i, int j, int k,
     pz_lo -= 0.5 * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
     pz_lo -= 0.5 * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
 
+    if (k == 0) pz_lo = 0.0;
+
     return -pz_lo;
 }
 
@@ -156,12 +157,15 @@ template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
                         amrex::Array4<T const> const& x,
+                        amrex::Array4<T const> const& ax,
+                        amrex::Array4<T const> const& ay,
                         amrex::Array4<T const> const& zp,
-                        T dxinv, T dyinv) noexcept
+                        T dxinv, T dyinv, T dzinv) noexcept
 {
     using amrex::Real;
     Real h_xi, h_eta, h_zeta;
 
+#if 1
     // *********************************************************
     // Hi x-face
     // *********************************************************
@@ -325,6 +329,8 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     pz_lo -= 0.5 * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
     pz_lo -= 0.5 * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
 
+#else
+
     // *********************************************************
     // Version which calls flux routines
     // *********************************************************
@@ -333,26 +339,21 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     //      some duplicated computation
     // This option should give the same answer as above
     //
-    //  Real px_lo = -terrpoisson_flux_x(i  ,j,k,x,zp,dxinv);
-    //  Real px_hi = -terrpoisson_flux_x(i+1,j,k,x,zp,dxinv);
-    //  Real py_lo = -terrpoisson_flux_y(i,j  ,k,x,zp,dxinv);
-    //  Real py_hi = -terrpoisson_flux_y(i,j+1,k,x,zp,dyinv);
-    //  Real pz_lo = -terrpoisson_flux_z(i,j,k  ,x,zp,dxinv,dyinv);
-    //  Real pz_hi = -terrpoisson_flux_z(i,j,k+1,x,zp,dxinv,dyinv);
+        Real px_lo = -terrpoisson_flux_x(i  ,j,k,x,zp,dxinv);
+        Real px_hi = -terrpoisson_flux_x(i+1,j,k,x,zp,dxinv);
+        Real py_lo = -terrpoisson_flux_y(i,j  ,k,x,zp,dxinv);
+        Real py_hi = -terrpoisson_flux_y(i,j+1,k,x,zp,dyinv);
+        Real pz_lo = -terrpoisson_flux_z(i,j,k  ,x,zp,dxinv,dyinv);
+        Real pz_hi = -terrpoisson_flux_z(i,j,k+1,x,zp,dxinv,dyinv);
+#endif
     //
     // *********************************************************
     // Adotx
     // *********************************************************
-    Real invdJ = 4.0 / ( zp(i,j,k+1) + zp(i+1,j,k+1) + zp(i,j+1,k+1) + zp(i+1,j+1,k+1)
-                        -zp(i,j,k  ) - zp(i+1,j,k  ) - zp(i,j+1,k  ) - zp(i+1,j+1,k  ) );
+    if (k == 0) pz_lo = 0.0;
 
-    Real ax_lo = .5 * (zp(i  ,j,k+1) + zp(i  ,j+1,k+1) - zp(i  ,j,k) - zp(i  ,j+1,k));
-    Real ax_hi = .5 * (zp(i+1,j,k+1) + zp(i+1,j+1,k+1) - zp(i+1,j,k) - zp(i+1,j+1,k));
-    Real ay_lo = .5 * (zp(i,j  ,k+1) + zp(i+1,j  ,k+1) - zp(i,j  ,k) - zp(i+1,j  ,k));
-    Real ay_hi = .5 * (zp(i,j+1,k+1) + zp(i+1,j+1,k+1) - zp(i,j+1,k) - zp(i+1,j+1,k));
-
-    y(i,j,k) =  ( (ax_hi*px_hi - ax_lo*px_lo) * dxinv
-                 +(ay_hi*py_hi - ay_lo*py_lo) * dyinv
-                 +(      pz_hi -       pz_lo)        ) * invdJ;
+    y(i,j,k) =  (ax(i+1,j,k)*px_hi - ax(i,j,k)*px_lo) * dxinv
+               +(ay(i,j+1,k)*py_hi - ay(i,j,k)*py_lo) * dyinv
+               +(            pz_hi -           pz_lo) * dzinv;
 }
 #endif

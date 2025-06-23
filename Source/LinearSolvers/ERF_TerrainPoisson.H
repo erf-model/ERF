@@ -3,6 +3,7 @@
 
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_BCRec.H>
 
 #ifdef ERF_USE_FFT
 
@@ -17,9 +18,10 @@ public:
 
     TerrainPoisson (amrex::Geometry const& geom, amrex::BoxArray const& ba,
                     amrex::DistributionMapping const& dm,
+                    amrex::Array<std::string,2*AMREX_SPACEDIM>& domain_bcs_type,
                     amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_lev_d,
-                    amrex::MultiFab const* z_phys_nd,
-                    amrex::Array<std::string,2*AMREX_SPACEDIM>& domain_bc_type);
+                    const amrex::MultiFab& ax, const amrex::MultiFab& ay,
+                    amrex::MultiFab const* z_phys_nd);
 
     void apply(amrex::MultiFab& lhs, amrex::MultiFab const& rhs);
 
@@ -55,7 +57,10 @@ private:
     amrex::Geometry m_geom;
     amrex::BoxArray m_grids;
     amrex::DistributionMapping m_dmap;
+    amrex::Array<std::string,2*AMREX_SPACEDIM> m_domain_bcs_type;
     amrex::Gpu::DeviceVector<amrex::Real> m_stretched_dz_d;
+    const amrex::MultiFab& m_ax;
+    const amrex::MultiFab& m_ay;
     const amrex::MultiFab* m_zphys;
 
     std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_2D_fft_precond;

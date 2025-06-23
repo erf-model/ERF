@@ -3,7 +3,7 @@
 
 /**
  * Function for computing the advective tendency for the x-component of momentum
- * without metric terms and for higher-order stencils
+ * without metric terms (constant OR stretched dz) and for higher-order stencils
  *
  * @param[in] i,j,k indices of x-face at which to create tendency
  * @param[in] rho_u x-component of momentum

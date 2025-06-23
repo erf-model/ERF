@@ -41,6 +41,11 @@ class polygon_ {
 
     AMREX_GPU_HOST_DEVICE
     void add_vertex ( amrex::RealVect const& a_v ) {
+      for ( int i(0); i<m_vertices; ++i) {
+        if (m_vertex[i] == a_v) {
+          return;
+        }
+      }
       AMREX_ASSERT( m_vertices < m_max_vertices );
       m_vertex[m_vertices] = a_v;
       m_vertices++;
