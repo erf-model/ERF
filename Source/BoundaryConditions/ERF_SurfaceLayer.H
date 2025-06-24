@@ -315,7 +315,7 @@ public:
           std::string sfc_file = "";
           pp.query("most.sfc_file", sfc_file);
 
-          sfc = SLM::read_cols(sfc_file, 1);
+          sfc = read_cols(sfc_file, 1);
 
           // sfc contains: time(day) sst(K) H(W/m2) LE(W/m2) USTAR(m/s)
           
@@ -549,7 +549,10 @@ public:
 
       return lmask_min;
   }
-  
+
+  static std::vector<std::vector<amrex::Real>>
+  read_cols(const std::string& fname, const int skip_nlines = 1);
+
   enum struct FluxCalcType {
     MOENG = 0, ///< Moeng functional form
     DONELAN,   ///< Donelan functional form

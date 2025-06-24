@@ -719,3 +719,60 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                        bcr, 0, 0, RunOn::Gpu);
     }
 }
+
+/**
+ * Read columns of data from a file, returning each column in a vector.
+ */
+std::vector<std::vector<amrex::Real>> SurfaceLayer::read_cols(const std::string &fname, const int skip_nlines)
+{
+    std::ifstream ifs(fname);
+    if (!ifs.is_open())
+    {
+        amrex::Error("Error opening input file " + fname);
+    }
+
+    std::vector<std::vector<amrex::Real>> datasets;
+    std::string line;
+    int i = 0;
+    int ncols = -1;
+
+    while (std::getline(ifs, line))
+    {
+        i++;
+        if (i <= skip_nlines) continue;
+
+        std::istringstream iss(line);
+
+        amrex::Real tmp;
+        // Get the number of columns in the file
+        if (ncols == -1) {
+            int j = 0;
+            while (iss >> tmp) {
+                datasets.push_back(std::vector<amrex::Real>());
+                j+= 1;
+            }
+
+            ncols = j;
+            iss = std::istringstream(line);
+
+            amrex::Print() << "-> got " << std::to_string(j) << " columns\n";
+        }
+
+        int j = 0;
+        while (iss >> tmp) {
+            // verify each line has the same number of columns
+            if (j > ncols) {
+              amrex::Error(
+                "Error reading file '" + fname + "': expected line " +
+                std::to_string(i) + " to have " + std::to_string(ncols) +
+                " columns, but got " + std::to_string(j));
+            }
+            datasets[j].push_back(tmp);
+            j+= 1;
+        }
+    }
+
+    ifs.close();
+
+    return datasets;
+}
