@@ -50,6 +50,8 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
 
                 Real qsatnew;
                 erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsatnew);
+                amrex::ignore_unused(qvprev);
+                amrex::ignore_unused(qcprev);
                 AMREX_ASSERT(std::abs(qv_array(i,j,k)-qsatnew) < 1e-16);
                 AMREX_ASSERT(std::abs(qv_array(i,j,k)+qc_array(i,j,k)-qvprev-qcprev) < 1e-16);
 
@@ -91,6 +93,9 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
 
                     Real qsatnew;
                     erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsatnew);
+                    amrex::ignore_unused(qvprev);
+                    amrex::ignore_unused(qcprev);
+                    amrex::ignore_unused(Tprev);
                     AMREX_ASSERT(qv_array(i,j,k) < qvprev);
                     AMREX_ASSERT(qc_array(i,j,k) > qcprev);
                     AMREX_ASSERT(tabs_array(i,j,k) > Tprev);
