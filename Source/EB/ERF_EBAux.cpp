@@ -803,6 +803,7 @@ define( int const& a_idim,
 
   // Fill Boundary
 
+  m_cellflags->FillBoundary(a_geom.periodicity());
   m_volfrac->FillBoundary(a_geom.periodicity());
   m_volcent->FillBoundary(a_geom.periodicity());
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
