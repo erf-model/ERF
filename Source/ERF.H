@@ -61,6 +61,7 @@
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
 #endif
+#include <ERF_SurfaceModel.H>
 
 #include <ERF_RadiationModels.H>
 
@@ -757,6 +758,8 @@ private:
                                                    // to the number of the wind turbine to sample
                                                    // velocity upstream of the turbine
 #endif
+
+    std::unique_ptr<SurfaceModel> m_SurfaceModel = nullptr;
 
     LandSurface lsm;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2

@@ -18,7 +18,7 @@ SurfaceLayer::update_fluxes (const int& lev,
 
     // TODO: we want 0 index to always be theta?
     // Update land surface temp if we have a valid pointer
-    if (m_lsm_data_lev[lev][0]) get_lsm_tsurf(lev);
+    if (use_surface_model && time > 0.0) get_lsm_tsurf(lev);
 
     // Fill interior ghost cells
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
@@ -156,6 +156,23 @@ SurfaceLayer::update_fluxes (const int& lev,
         u_star[lev]->setVal(custom_ustar);
         t_star[lev]->setVal(custom_tstar);
         q_star[lev]->setVal(custom_qstar);
+    }
+
+    // If using Land and/or Urban models, then overwrite u_star and t_star with values calculated from the surface models
+    if (use_surface_model) {
+
+        // NOTE: these are already weight-averaged if land and urban model
+        MultiFab::Copy(*u_star[lev], *(m_surf_model->get_ustar(lev)), 0, 0, 1, 0);
+        MultiFab::Copy(*t_star[lev], *(m_surf_model->get_tstar(lev)), 0, 0, 1, 0);
+        MultiFab::Copy(*q_star[lev], *(m_surf_model->get_qstar(lev)), 0, 0, 1, 0);
+
+        // Fill interior ghost cells
+        u_star[lev]->FillBoundary(m_geom[lev].periodicity());
+        t_star[lev]->FillBoundary(m_geom[lev].periodicity());
+        q_star[lev]->FillBoundary(m_geom[lev].periodicity());
+    
+        //m_lsm_data_lev[lev][11]->FillBoundary(m_geom[lev].periodicity());
+        //m_lsm_data_lev[lev][12]->FillBoundary(m_geom[lev].periodicity());
     }
 }
 
@@ -533,7 +550,12 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                   Array4<int> {};
-        const auto lsm_arr = m_lsm_data_lev[lev][0]->const_array(mfi);
+        //const auto lsm_arr = m_lsm_data_lev[lev][0]->const_array(mfi);
+        const auto surf_arr = m_surf_model->get_tsurf(lev)->const_array(mfi);
+        // get the top-most index of the LSM to use as the surface temperature
+        // this is -1 for SLM, but could be different for other models?
+        //const auto &lsm_box = surf_arr.box(mfi.index());
+        //const int lsm_khi = lsm_box.bigEnd(2);
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -541,7 +563,7 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
             if (is_land) {
                 int li = amrex::min(amrex::max(i, i_lo), i_hi);
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                t_surf_arr(i,j,k) = lsm_arr(li,lj,k);
+                t_surf_arr(i,j,k) = surf_arr(li,lj,0);
             }
         });
     }

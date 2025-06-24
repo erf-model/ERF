@@ -190,6 +190,13 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     advance_lsm(lev, S_new, U_new, V_new, dt_lev);
 
+
+    // Update weight average of land surface and urban model
+    if (m_SurfaceModel) {
+        MultiFab urban_frac(ba,dm,1,1); urban_frac.setVal(.25); // placeholder
+        m_SurfaceModel->calculate_weight_average(lev, &urban_frac);
+    }
+
     // **************************************************************************************
     // Update the radiation
     // **************************************************************************************

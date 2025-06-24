@@ -25,3 +25,6 @@ CEXE_headers += ERF_MOSTAverage.H
 CEXE_sources += ERF_MOSTAverage.cpp
 
 CEXE_headers += ERF_MOSTStress.H
+
+CEXE_headers += ERF_SurfaceModel.H
+CEXE_sources += ERF_SurfaceModel.cpp
