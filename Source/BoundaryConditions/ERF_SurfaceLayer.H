@@ -306,8 +306,37 @@ public:
       m_Hwave_lev[lev] = Hwave;
       m_Lwave_lev[lev] = Lwave;
       m_eddyDiffs_lev[lev] = eddyDiffs;
+      
+      // For the case where surface heat fluxes and ustar are prescribed from a given file
+      pp.query("most.use_sfc_fluxes", use_sfc_fluxes);
+      if (use_sfc_fluxes)
+      {
+          // load sensible and latent heat fluxes from sfc to prescribe
+          std::string sfc_file = "";
+          pp.query("most.sfc_file", sfc_file);
 
-      // Get pointers to LSM data and Fluxes
+          sfc = SLM::read_cols(sfc_file, 1);
+
+          // sfc contains: time(day) sst(K) H(W/m2) LE(W/m2) USTAR(m/s)
+          
+          // convert day to seconds, H to m2/s2, LE to kg/kg m/s
+          // fluxes are divided by rho in MOST routine
+          amrex::Real start_day = sfc[0][0];
+          for(int i = 0; i < sfc[0].size(); i++)
+          {
+              // time
+              sfc[0][i] = 86400.0 * (sfc[0][i] - start_day);
+
+              // sensible heat flux
+              //sfc[2][i] = sfc[2][i] / Cp_d;
+
+              // latent heat flux
+              //sfc[3][i] = sfc[3][i] / L_v;
+             
+          }
+      }
+
+	  // Get pointers to LSM data and Fluxes
       int nvar = lsm_data.size();
       m_lsm_data_lev[lev].resize(nvar);
       m_lsm_flux_lev[lev].resize(nvar);
@@ -520,7 +549,7 @@ public:
 
       return lmask_min;
   }
-
+  
   enum struct FluxCalcType {
     MOENG = 0, ///< Moeng functional form
     DONELAN,   ///< Donelan functional form
@@ -582,7 +611,12 @@ private:
   amrex::Vector<amrex::FArrayBox> z_0;
   bool m_var_z0{false};
 
+  bool use_sfc_fluxes = false;
   bool use_moisture;
+  int sfc_time_ind = 0;
+  amrex::Real sfc_qflux;
+  amrex::Real sfc_tflux;
+  amrex::Real sfc_ustar;
 
   MOSTAverage m_ma;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
@@ -602,6 +636,8 @@ private:
   amrex::Vector<amrex::MultiFab*> m_Hwave_lev;
   amrex::Vector<amrex::MultiFab*> m_Lwave_lev;
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;
+  
+  std::vector<std::vector<amrex::Real>> sfc;
 };
 
 #endif /* SURFACELAYER_H */

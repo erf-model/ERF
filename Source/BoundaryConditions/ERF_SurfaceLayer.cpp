@@ -157,6 +157,48 @@ SurfaceLayer::update_fluxes (const int& lev,
         t_star[lev]->setVal(custom_tstar);
         q_star[lev]->setVal(custom_qstar);
     }
+    
+	if (use_sfc_fluxes)
+    {
+        amrex::Real t0 = sfc[0][sfc_time_ind];
+        amrex::Real t1 = sfc[0][sfc_time_ind+1];
+        while (time >= t1)
+        {
+            int prev_index = sfc_time_ind;
+            // shift time index to next window
+            sfc_time_ind = std::min(sfc_time_ind + 1, int(sfc[0].size() - 2));
+            t0 = sfc[0][sfc_time_ind];
+            t1 = sfc[0][sfc_time_ind+1];
+            if (prev_index == sfc_time_ind) {
+                break;
+            }
+        }
+
+        auto linear_interp = [](const amrex::Real t0, const amrex::Real t1, const amrex::Real t,
+                                const amrex::Real x, const amrex::Real y) -> amrex::Real {
+            // returns a value that is linearly interpolated between x and y at time t. x
+            // is at t=t0, y is at t=t1.
+            if (t0 == t1 || t > t1) {
+                return y;
+            }
+            const amrex::Real dt = (t - t0) / (t1 - t0);
+            return x + (y - x) * dt;
+        };
+
+        sfc_qflux = linear_interp(t0, t1, time, sfc[3][sfc_time_ind], sfc[3][sfc_time_ind + 1]);
+        sfc_tflux = linear_interp(t0, t1, time, sfc[2][sfc_time_ind], sfc[2][sfc_time_ind + 1]);
+        sfc_ustar = linear_interp(t0, t1, time, sfc[4][sfc_time_ind], sfc[4][sfc_time_ind + 1]);
+
+        amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time " << time << ": SHF = " << sfc_tflux << " LHF = " << sfc_qflux << " USTAR = " << sfc_ustar << std::endl;
+    
+        // since no rho factors, these can be set here
+        //t_star[lev]->setVal(sfc_tflux / Cp_d);
+        //q_star[lev]->setVal(sfc_qflux / L_v);
+
+		u_star[lev]->setVal(sfc_ustar);
+        t_star[lev]->setVal(sfc_tflux / 1004.0);
+        q_star[lev]->setVal(sfc_qflux / 2.5104e6);
+    }
 }
 
 /**
