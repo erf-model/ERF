@@ -274,7 +274,7 @@ public:
         rhod_integ[0] = getRhogivenThetaPress(theta_ref_inp_sound,
                                               press_ref_inp_sound,
                                               R_d/Cp_d,
-                                              qv_ref_inp_sound);
+                                              (assume_dry) ? 0.0 : qv_ref_inp_sound);
 
         const amrex::Real th0 = theta_ref_inp_sound;
         const amrex::Real p0_pow = std::pow(p_0, (Gamma-1)/Gamma);
@@ -320,7 +320,7 @@ public:
             rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[itime][k],
                                                   pm_integ[k],
                                                   R_d/Cp_d,
-                                                  qv_inp_sound[itime][k]);
+                                                  (assume_dry) ? 0.0 : qv_inp_sound[itime][k]);
 
 #if 0       // Printing
             amrex::Print() << z_inp_sound[itime][k]
