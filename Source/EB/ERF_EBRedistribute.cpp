@@ -71,17 +71,17 @@ redistribute_term ( int ncomp,
 
             // State redist acts on the state.
             Array4<Real const> state_arr = state.const_array(mfi);
-            // ApplyRedistribution( bx, ncomp, out, in, state_arr,
-            //                      scratch, flag,
-            //                      apx, apy, apz, vfrac,
-            //                      fcx, fcy, fcz, ccc,
-            //                      bc, geom, local_dt, redistribution_type,
-            //                      false, 2, 0.25_rt, {});
             ApplyRedistribution( bx, ncomp, out, in, state_arr,
                                  scratch, flag,
                                  apx, apy, apz, vfrac,
                                  fcx, fcy, fcz, ccc,
-                                 bc, geom, local_dt, redistribution_type);
+                                 bc, geom, local_dt, redistribution_type,
+                                 false, 2, 0.75_rt, {});
+            // ApplyRedistribution( bx, ncomp, out, in, state_arr,
+            //                      scratch, flag,
+            //                      apx, apy, apz, vfrac,
+            //                      fcx, fcy, fcz, ccc,
+            //                      bc, geom, local_dt, redistribution_type);
         }
         else
         {
@@ -101,7 +101,8 @@ redistribute_term ( int ncomp,
                     MultiFab const& state,
                     eb_aux_ const& ebfact,
                     BCRec const* bc, // this is bc for the state (needed for SRD slopes)
-                    Real const local_dt)
+                    Real const local_dt,
+                    int const igrid)
 {
     // ************************************************************************
     // Redistribute result_tmp and pass out result
@@ -141,7 +142,12 @@ redistribute_term ( int ncomp,
 
             Box bx_cc = bx;
             bx_cc = bx_cc.convert(IntVect::TheZeroVector());
-            // bx_cc = bx_cc.setBig(0, bx_cc.bigEnd(0) + 1);
+
+            // Extend box for staggered grids
+            if (igrid == IntVars::xmom) bx_cc = bx_cc.setBig(0, bx_cc.bigEnd(0) + 1);
+            if (igrid == IntVars::ymom) bx_cc = bx_cc.setBig(1, bx_cc.bigEnd(1) + 1);
+            if (igrid == IntVars::zmom) bx_cc = bx_cc.setBig(2, bx_cc.bigEnd(2) + 1);
+            
             Box gbx = bx_cc; gbx.grow(3);
 
             FArrayBox scratch_fab(gbx,ncomp);
@@ -154,17 +160,18 @@ redistribute_term ( int ncomp,
 
             // State redist acts on the state.
             Array4<Real const> state_arr = state.const_array(mfi);
-            // ApplyRedistribution( bx_cc, ncomp, out, in, state_arr,
-            //                      scratch, flag,
-            //                      apx, apy, apz, vfrac,
-            //                      fcx, fcy, fcz, ccc,
-            //                      bc, geom, local_dt, redistribution_type,
-            //                      false, 2, 0.25_rt, {});
             ApplyRedistribution( bx_cc, ncomp, out, in, state_arr,
                                  scratch, flag,
                                  apx, apy, apz, vfrac,
                                  fcx, fcy, fcz, ccc,
-                                 bc, geom, local_dt, redistribution_type);
+                                 bc, geom, local_dt, redistribution_type,
+                                 false, 2, 0.75_rt, {});
+            // ApplyRedistribution( bx_cc, ncomp, out, in, state_arr,
+            //                      scratch, flag,
+            //                      apx, apy, apz, vfrac,
+            //                      fcx, fcy, fcz, ccc,
+            //                      bc, geom, local_dt, redistribution_type);
+
         }
         else
         {
