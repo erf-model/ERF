@@ -309,7 +309,7 @@ public:
             amrex::Real thm0 = th0 * (1 + R_v/R_d * qvmean);
             amrex::Real plo_pow = std::pow(pm_integ[k-1], (Gamma-1)/Gamma);
             pm_integ[k] = (Gamma-1)/Gamma *
-                (-CONST_GRAV * p0_pow / (R_d * thm0) * dz
+                (-CONST_GRAV * p0_pow / (R_d * thm0) * (1 + qvmean) * dz
                  + Gamma/(Gamma-1) * plo_pow);
             pm_integ[k] = std::pow(pm_integ[k], Gamma / (Gamma-1));
 
