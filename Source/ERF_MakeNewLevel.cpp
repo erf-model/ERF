@@ -164,8 +164,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                 input_sounding_data.calc_rho_p(0);
             } else if (solverChoice.sounding_type == SoundingType::Isentropic ||
                        solverChoice.sounding_type == SoundingType::DryIsentropic) {
-                bool assume_dry = (solverChoice.sounding_type == SoundingType::DryIsentropic);
-                input_sounding_data.calc_rho_p_isentropic(0, assume_dry);
+                input_sounding_data.assume_dry = (solverChoice.sounding_type == SoundingType::DryIsentropic);
+                input_sounding_data.calc_rho_p_isentropic(0);
             }
         }
 

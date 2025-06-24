@@ -259,7 +259,7 @@ public:
         host_to_device(itime);
     }
 
-    void calc_rho_p_isentropic (int itime, bool assume_dry)
+    void calc_rho_p_isentropic (int itime)
     {
         /* Calculate density and pressure assuming isentropic (constant theta)
            background conditions. This does not use Newton-Raphson iterations
@@ -270,13 +270,13 @@ public:
         rhod_integ.resize(Ninp);
 
         // evaluate surface quantities (k=0): total pressure and dry air
-          pm_integ[0] = press_ref_inp_sound;
+        pm_integ[0] = press_ref_inp_sound;
         rhod_integ[0] = getRhogivenThetaPress(theta_ref_inp_sound,
                                               press_ref_inp_sound,
                                               R_d/Cp_d,
                                               qv_ref_inp_sound);
 
-        const amrex::Real th0 = theta_inp_sound[itime][0];
+        const amrex::Real th0 = theta_ref_inp_sound;
         const amrex::Real p0_pow = std::pow(p_0, (Gamma-1)/Gamma);
 
         amrex::Print() << "isentropic sounding init: surface dry air density = "
@@ -312,6 +312,9 @@ public:
                 (-CONST_GRAV * p0_pow / (R_d * thm0) * dz
                  + Gamma/(Gamma-1) * plo_pow);
             pm_integ[k] = std::pow(pm_integ[k], Gamma / (Gamma-1));
+
+            // Note: The pressure calculated here is copied to `p_inp_sound_d`
+            // and currently not used.
 
             // Get corresponding dry air density
             rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[itime][k],
@@ -394,6 +397,8 @@ public:
     amrex::Vector<amrex::Real> input_sounding_time = {};
     int n_sounding_files = 0;
     int n_sounding_times = 0;
+
+    bool assume_dry{false};
 
     // - read from file
     amrex::Real press_ref_inp_sound, theta_ref_inp_sound, qv_ref_inp_sound; // input
