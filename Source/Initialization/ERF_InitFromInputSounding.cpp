@@ -278,7 +278,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
 
         Real rho_k_base = rho_k;
         if (l_isentropic) {
-            // `rho_inp_sound` previously calcualted in calc_rho_p_isentropic()
+            // `rho_inp_sound` previously calculated in calc_rho_p_isentropic()
             // is in HSE and, when multiplied by the specified
             // `theta_input_sound`, give p, T, and theta that are consistent
             // with each other.
