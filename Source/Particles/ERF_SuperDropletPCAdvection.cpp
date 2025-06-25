@@ -49,6 +49,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const int idx_w = m_idx_w;
     const int idx_i = m_idx_i;
 
+    const auto vterm_type_w = m_term_vel_type_w;
+    const auto vterm_type_i = m_term_vel_type_i;
+
     Real rho_w = m_species_mat[m_idx_w]->m_density;
     Real rho_i = DBL_MAX;
     if (idx_i >= 0) { rho_i = m_species_mat[m_idx_i]->m_density; }
@@ -137,7 +140,6 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         }
 
         TerminalVelocity<ParticleReal> term_vel { rho_w, rho_i };
-        auto term_vel_type = m_term_vel_type;
 
         auto sp_rho_arr = sp_density.data();
         auto sp_sol_arr = sp_solubility.data();
@@ -178,34 +180,44 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                }
             }
 
+            // compute effective radius
+            auto r_eff = SD_effective_radius( i, idx_w,
+                                              rho_w,
+                                              num_sp, num_ae,
+                                              sp_sol_arr, ae_sol_arr,
+                                              sp_mass_ptrs, ae_mass_ptrs,
+                                              sp_rho_arr, ae_rho_arr );
+
             ParticleReal terminal_vel = 0.0;
             auto par_phase = SD_phase(i, idx_w, idx_i, sp_mass_ptrs);
             if (par_phase == SDPhase::water) {
-                // compute effective radius
-                auto r_eff = SD_effective_radius( i, idx_w,
-                                                  rho_w,
-                                                  num_sp, num_ae,
-                                                  sp_sol_arr, ae_sol_arr,
-                                                  sp_mass_ptrs, ae_mass_ptrs,
-                                                  sp_rho_arr, ae_rho_arr );
-
-
-                if (term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
+                if (vterm_type_w == SDTerminalVelocityType::AtlasUlbrich) {
                     terminal_vel = term_vel.AtlasUlbrich( r_eff );
-                } else if (term_vel_type == SDTerminalVelocityType::RogersYau) {
+                } else if (vterm_type_w == SDTerminalVelocityType::RogersYau) {
                     terminal_vel = term_vel.RogersYau( r_eff );
-                } else if (term_vel_type == SDTerminalVelocityType::CloudRainShima) {
+                } else if (vterm_type_w == SDTerminalVelocityType::CloudRainShima) {
                     terminal_vel = term_vel.CloudRainShima( r_eff,
                                                             density,
                                                             pressure,
                                                             temperature );
+                } else {
+                    amrex::Abort("Invalid option for water droplet terminal velocity model");
                 }
+
             } else if (par_phase == SDPhase::ice) {
                 AMREX_ALWAYS_ASSERT(idx_i >= 0);
-                auto m_total = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
-                terminal_vel = term_vel.IceBohm( m_total,
-                                                 a_ptr[i], c_ptr[i], rhoi_ptr[i],
-                                                 density, temperature );
+                if (vterm_type_i == SDTerminalVelocityType::AtlasUlbrich) {
+                    terminal_vel = term_vel.AtlasUlbrich( r_eff );
+                } else if (vterm_type_i == SDTerminalVelocityType::RogersYau) {
+                    terminal_vel = term_vel.RogersYau( r_eff );
+                } else if (vterm_type_i == SDTerminalVelocityType::IceBohm) {
+                    auto m_total = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+                    terminal_vel = term_vel.IceBohm( m_total,
+                                                     a_ptr[i], c_ptr[i], rhoi_ptr[i],
+                                                     density, temperature );
+                } else {
+                    amrex::Abort("Invalid option for ice particle terminal velocity model");
+                }
             } else {
                 amrex::Abort("Unknown value for particle phase (must be ice or water)");
             }

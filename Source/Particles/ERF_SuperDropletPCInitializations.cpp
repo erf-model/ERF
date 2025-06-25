@@ -73,7 +73,8 @@ void SuperDropletPC::readInputs ()
     m_coalescence_kernel = SDCoalescenceKernelType::sedimentation;
     coal_kernel_name = "sedimentation";
     m_include_brownian_coalescence = false;
-    m_term_vel_type = SDTerminalVelocityType::CloudRainShima;
+    m_term_vel_type_w = SDTerminalVelocityType::CloudRainShima;
+    m_term_vel_type_i = SDTerminalVelocityType::IceBohm;
 
     /* read these parameters if specified */
     pp.query("density_scaling", m_density_scaling);
@@ -126,7 +127,15 @@ void SuperDropletPC::readInputs ()
         amrex::Abort("Error in SuperDropletPC::readInputs() - invalid kernel choice!");
     }
 
-    pp.query("terminal_velocity_model", m_term_vel_type);
+    {
+        std::string inp_string = "terminal_velocity_model";
+        if (pp.contains(inp_string.c_str())) {
+            int num_inputs = pp.countval(inp_string.c_str());
+            AMREX_ALWAYS_ASSERT((num_inputs == 1) || (num_inputs == 2));
+            pp.get(inp_string.c_str(), m_term_vel_type_w, 0);
+            if (num_inputs > 1) { pp.get(inp_string.c_str(), m_term_vel_type_i, 1); }
+        }
+    }
 
     {
         Vector<int> bin_size = {1,1,1};
@@ -243,7 +252,12 @@ void SuperDropletPC::InitializeParticles (const MFPtr& a_ptr)
         Print() << "dirk2";
     }
     Print() << " (cfl = " << m_mass_change_cfl << ")\n";
-    Print() << "    Terminal velocity model: " << getEnumNameString(m_term_vel_type) << "\n";
+    Print() << "    Terminal velocity model(s): "
+            << getEnumNameString(m_term_vel_type_w) << " (water)";
+    if (m_idx_i >= 0) {
+        Print() << ", " << getEnumNameString(m_term_vel_type_i) << " (ice)";
+    }
+    Print() << "\n";
 
     for (int i = 0; i < m_num_initializations; i++) {
         Print() << "SuperDropletPC(" << m_name << ") Initialization";

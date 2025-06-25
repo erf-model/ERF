@@ -229,7 +229,8 @@ class SuperDropletPC : public ERFPC
         SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
         bool m_include_brownian_coalescence; /*!< Include Brownian coalescence? */
 
-        SDTerminalVelocityType m_term_vel_type; /*!< Terminal velocity model */
+        SDTerminalVelocityType m_term_vel_type_w; /*!< Terminal velocity model for water droplets */
+        SDTerminalVelocityType m_term_vel_type_i; /*!< Terminal velocity model for ice particles */
 
         int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
         bool m_density_scaling; /*!< Scale initial number density with air density */
