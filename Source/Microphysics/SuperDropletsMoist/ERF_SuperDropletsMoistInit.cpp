@@ -8,7 +8,7 @@
 void SuperDropletsMoist::Define (SolverChoice& a_sc /*!< Solver choices */)
 {
     BL_PROFILE("SuperDropletsMoist::Define()");
-    m_fac_cond = lcond / a_sc.c_p;
+    m_Cp = a_sc.c_p;
 }
 
 /*! Read inputs from file */
