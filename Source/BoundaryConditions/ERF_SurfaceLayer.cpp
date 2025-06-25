@@ -461,14 +461,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             if (bx.smallEnd(dir) != klo) {
                 continue;
             }
-            bx.setBig(dir, klo);
+            //bx.setBig(dir, klo);
         } else {
             if (bx.bigEnd(dir) != klo) {
                 continue;
             }
-            bx.setSmall(dir, klo);
+            //bx.setSmall(dir, klo);
         }
-
+        bx.makeSlab(dir, klo);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real Tflux = flux_comp.compute_t_flux(i, j, k, dir,

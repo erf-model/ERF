@@ -118,6 +118,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_xlo || SurfLayer_on_xhi)) {
                     hfx_x(i,j,k) = xflux(i,j,k);
@@ -127,6 +128,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                     qfx1_x(i,j,k) = xflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -159,6 +161,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_ylo || SurfLayer_on_yhi)) {
                     hfx_y(i,j,k) = yflux(i,j,k);
@@ -168,6 +171,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                     qfx1_y(i,j,k) = yflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -227,14 +231,11 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 zflux(i,j,k) = hfx_z(i,j,k);
             } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k) = qfx1_z(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     hfx_z(i,j,k) = zflux(i,j,k);
@@ -246,6 +247,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
+            */
         });
     // Constant rho*alpha & Turb model
     } else if (l_turb) {
@@ -278,6 +280,8 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) *  GradCx;
             }
 
+            /*
+            // TODO: fix - this will overwrite corners when using multiple SurfaceLayer BCs
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_xlo || SurfLayer_on_xhi)) {
                     hfx_x(i,j,k) = xflux(i,j,k);
@@ -287,6 +291,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                     qfx1_x(i,j,k) = xflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -317,6 +322,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_ylo || SurfLayer_on_yhi)) {
                     hfx_y(i,j,k) = yflux(i,j,k);
@@ -326,6 +332,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                     qfx1_y(i,j,k) = yflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -384,14 +391,11 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 zflux(i,j,k) = hfx_z(i,j,k);
             } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k) = qfx1_z(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     hfx_z(i,j,k) = zflux(i,j,k);
@@ -403,6 +407,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
+            */
         });
     // Constant alpha & no LES/PBL model
     } else if(l_consA) {
@@ -434,6 +439,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_xlo || SurfLayer_on_xhi)) {
                     hfx_x(i,j,k) = xflux(i,j,k);
@@ -443,6 +449,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                     qfx1_x(i,j,k) = xflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -472,6 +479,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_ylo || SurfLayer_on_yhi)) {
                     hfx_y(i,j,k) = yflux(i,j,k);
@@ -481,6 +489,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                     qfx1_y(i,j,k) = yflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -537,14 +546,11 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 zflux(i,j,k) = hfx_z(i,j,k);
             } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k) = qfx1_z(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     hfx_z(i,j,k) = zflux(i,j,k);
@@ -556,6 +562,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             } else if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
+            */
         });
     // Constant rho*alpha & no LES/PBL model
     } else {
@@ -586,6 +593,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
               xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_xlo || SurfLayer_on_xhi)) {
                     hfx_x(i,j,k) = xflux(i,j,k);
@@ -595,6 +603,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                     qfx1_x(i,j,k) = xflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -623,6 +632,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_ylo || SurfLayer_on_yhi)) {
                     hfx_y(i,j,k) = yflux(i,j,k);
@@ -632,6 +642,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                     qfx1_y(i,j,k) = yflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -687,14 +698,11 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 zflux(i,j,k) = hfx_z(i,j,k);
             } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k) = qfx1_z(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     hfx_z(i,j,k) = zflux(i,j,k);
@@ -706,6 +714,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
+            */
         });
     }
 

@@ -203,6 +203,39 @@ ERF::ERF_shared ()
         // Redefine the problem domain here?
     }
 
+    // Get lo/hi indices for massflux calc
+    if ((solverChoice.const_massflux_u != 0) || (solverChoice.const_massflux_v != 0)) {
+        if (solverChoice.mesh_type == MeshType::ConstantDz) {
+            const Real massflux_zlo = solverChoice.const_massflux_layer_lo - geom[0].ProbLo(2);
+            const Real massflux_zhi = solverChoice.const_massflux_layer_hi - geom[0].ProbLo(2);
+            const Real dz = geom[0].CellSize(2);
+            if (massflux_zlo == -1e34) {
+                solverChoice.massflux_klo = geom[0].Domain().smallEnd(2);
+            } else {
+                solverChoice.massflux_klo = static_cast<int>(std::ceil(massflux_zlo / dz - 0.5));
+            }
+            if (massflux_zhi ==  1e34) {
+                solverChoice.massflux_khi = geom[0].Domain().bigEnd(2);
+            } else {
+                solverChoice.massflux_khi = static_cast<int>(std::floor(massflux_zhi / dz - 0.5));
+            }
+        } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
+            const Real massflux_zlo = solverChoice.const_massflux_layer_lo;
+            const Real massflux_zhi = solverChoice.const_massflux_layer_hi;
+            solverChoice.massflux_klo = geom[0].Domain().smallEnd(2);
+            solverChoice.massflux_khi = geom[0].Domain().bigEnd(2) + 1;
+            for (int k=0; k <= geom[0].Domain().bigEnd(2)+1; ++k) {
+                if (zlevels_stag[0][k] <= massflux_zlo) solverChoice.massflux_klo = k;
+                if (zlevels_stag[0][k] <= massflux_zhi) solverChoice.massflux_khi = k;
+            }
+        } else { // solverChoice.mesh_type == MeshType::VariableDz
+            Error("Const massflux with variable dz not supported -- planar averages are on k rather than constant-z planes");
+        }
+
+        Print() << "Constant mass flux based on k in ["
+            << solverChoice.massflux_klo << ", " << solverChoice.massflux_khi << "]" << std::endl;
+    }
+
     prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
 
     // Geometry on all levels has been defined already.
@@ -741,6 +774,17 @@ ERF::InitData_pre ()
             Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
         }
 
+        if ( (solverChoice.const_massflux_u != 0) &&
+             (phys_bc_type[Orientation(Direction::x,Orientation::low)] != ERF_BC::periodic ) )
+        {
+            Abort("Constant mass flux (in x) should be used with periodic boundaries");
+        }
+        if ( (solverChoice.const_massflux_v != 0) &&
+             (phys_bc_type[Orientation(Direction::y,Orientation::low)] != ERF_BC::periodic ) )
+        {
+            Abort("Constant mass flux (in y) should be used with periodic boundaries");
+        }
+
         // mesoscale diffusion
         if ((geom[lev].CellSize(0) > 2000.) || (geom[lev].CellSize(1) > 2000.))
         {
@@ -1053,6 +1097,27 @@ ERF::InitData_post ()
 
     ComputeDt();
 
+    // Check the viscous limit
+    DiffChoice dc = solverChoice.diffChoice;
+    if (dc.molec_diff_type == MolecDiffType::Constant ||
+        dc.molec_diff_type == MolecDiffType::ConstantAlpha) {
+        Real delta = std::min({geom[finest_level].CellSize(0),
+                               geom[finest_level].CellSize(1),
+                               dz_min[finest_level]});
+        if (dc.dynamic_viscosity == 0) {
+            Print() << "Note: Molecular diffusion specified but dynamic_viscosity has not been specified" << std::endl;
+        } else {
+            Real nu = dc.dynamic_viscosity / dc.rho0_trans;
+            Real viscous_limit = 0.5 * delta*delta / nu;
+            Print() << "Viscous CFL is " << dt[finest_level] / viscous_limit << std::endl;
+            if (fixed_dt[finest_level] >= viscous_limit) {
+                Warning("Specified fixed_dt is above the viscous limit");
+            } else if (dt[finest_level] >= viscous_limit) {
+                Warning("Adaptive dt based on convective CFL only is above the viscous limit");
+            }
+        }
+    }
+
     // Fill ghost cells/faces
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -1141,6 +1206,8 @@ ERF::InitData_post ()
             bool rotate = solverChoice.use_rotate_surface_flux;
             if (rotate) {
                 Print() << "Using surface layer model with stress rotations" << std::endl;
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ori.coordDir() == 2 && ori.faceDir() == Orientation::Side::low,
+                                                 "Surface layer with stress rotations can only be enabled for the bottom z face");
             }
 
             //

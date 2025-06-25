@@ -127,6 +127,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                             cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_xlo || SurfLayer_on_xhi)) {
                     hfx_x(i,j,k) = xflux(i,j,k);
@@ -136,6 +137,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                     qfx1_x(i,j,k) = xflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -179,6 +181,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
               yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_ylo || SurfLayer_on_yhi)) {
                     hfx_y(i,j,k) = yflux(i,j,k);
@@ -188,6 +191,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                     qfx1_y(i,j,k) = yflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -229,6 +233,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     hfx_z(i,j,k) = zflux(i,j,k);
@@ -240,6 +245,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
+            */
         });
     } else if (l_turb) {
         // with MolecDiffType::Constant or None
@@ -284,6 +290,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
               xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_xlo || SurfLayer_on_xhi)) {
                     hfx_x(i,j,k) = xflux(i,j,k);
@@ -293,6 +300,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                     qfx1_x(i,j,k) = xflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -335,6 +343,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
               yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_ylo || SurfLayer_on_yhi)) {
                     hfx_y(i,j,k) = yflux(i,j,k);
@@ -344,6 +353,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                     qfx1_y(i,j,k) = yflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -381,6 +391,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     hfx_z(i,j,k) = zflux(i,j,k);
@@ -392,6 +403,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
+            */
         });
     } else if(l_consA) {
         // without an LES/PBL model
@@ -434,6 +446,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
               xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_xlo || SurfLayer_on_xhi)) {
                     hfx_x(i,j,k) = xflux(i,j,k);
@@ -443,6 +456,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                     qfx1_x(i,j,k) = xflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -483,6 +497,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
               yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_ylo || SurfLayer_on_yhi)) {
                     hfx_y(i,j,k) = yflux(i,j,k);
@@ -492,6 +507,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                     qfx1_y(i,j,k) = yflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -528,6 +544,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     hfx_z(i,j,k) = zflux(i,j,k);
@@ -539,6 +556,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
+            */
         });
     } else {
         // with MolecDiffType::Constant or None
@@ -581,6 +599,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
               xflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_xlo || SurfLayer_on_xhi)) {
                     hfx_x(i,j,k) = xflux(i,j,k);
@@ -590,6 +609,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                     qfx1_x(i,j,k) = xflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -629,6 +649,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
               yflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_ylo || SurfLayer_on_yhi)) {
                     hfx_y(i,j,k) = yflux(i,j,k);
@@ -638,6 +659,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                     qfx1_y(i,j,k) = yflux(i,j,k);
                 }
             }
+            */
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -673,6 +695,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
 
+            /*
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     hfx_z(i,j,k) = zflux(i,j,k);
@@ -684,6 +707,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
+            */
         });
     }
 

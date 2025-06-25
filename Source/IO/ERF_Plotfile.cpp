@@ -117,6 +117,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                 if (solverChoice.moisture_type == MoistureType::None) { // no moist quantities allowed
                     if (derived_names[i] != "qv" && derived_names[i] != "qc"    && derived_names[i] != "qrain"  &&
                         derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
+                        derived_names[i] != "qt" && derived_names[i] != "qn"    && derived_names[i] != "qp" &&
                         derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
                     {
                         tmp_plot_names.push_back(derived_names[i]);
@@ -134,6 +135,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                             (solverChoice.moisture_type == MoistureType::Kessler_NoRain) ) { // allow qv, qc
                     if (derived_names[i] != "qrain"  &&
                         derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
+                        derived_names[i] != "qp" &&
                         derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
                     {
                         tmp_plot_names.push_back(derived_names[i]);
@@ -348,6 +350,117 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         } // lev
     } // if (vel or vort)
 
+    Vector<MultiFab> mf_cc_tau(finest_level+1);
+    Vector<MultiFab> mf_cc_fx(finest_level+1);
+
+    if (containerHasElement(plot_var_names, "Tau11" ) ||
+        containerHasElement(plot_var_names, "Tau12" ) ||
+        containerHasElement(plot_var_names, "Tau13" ) ||
+        containerHasElement(plot_var_names, "Tau21" ) ||
+        containerHasElement(plot_var_names, "Tau22" ) ||
+        containerHasElement(plot_var_names, "Tau23" ) ||
+        containerHasElement(plot_var_names, "Tau31" ) ||
+        containerHasElement(plot_var_names, "Tau32" ) ||
+        containerHasElement(plot_var_names, "Tau33" )) {
+
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            mf_cc_tau[lev].define(grids[lev], dmap[lev], 9, IntVect(1,1,1));
+            mf_cc_tau[lev].setVal(-1.e20);
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(mf_cc_tau[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bxcc_ba12 = mfi.tilebox();
+                const Box& bxcc_ba13 = mfi.tilebox(); // IntVect(1,0,1)
+                const Box& bxcc_ba23 = mfi.tilebox();
+
+                const Box& bxcc= mfi.tilebox();
+
+                const Array4<Real>& tau12 = (Tau[lev][TauType::tau12]) ? Tau[lev][TauType::tau12]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& tau21 = (Tau[lev][TauType::tau21]) ? Tau[lev][TauType::tau21]->array(mfi) : Array4<Real>{};
+
+
+                const Array4<Real>& tau13 = (Tau[lev][TauType::tau13]) ? Tau[lev][TauType::tau13]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& tau31 = (Tau[lev][TauType::tau31]) ? Tau[lev][TauType::tau31]->array(mfi) : Array4<Real>{};
+
+                const Array4<Real>& tau23 = (Tau[lev][TauType::tau23]) ? Tau[lev][TauType::tau23]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& tau32 = (Tau[lev][TauType::tau32]) ? Tau[lev][TauType::tau32]->array(mfi) : Array4<Real>{};
+
+                //const Array4<Real>& tau11 = (Tau[lev][TauType::tau11]) ? Tau[lev][TauType::tau11]->array(mfi) : Array4<Real>{};
+                //const Array4<Real>& tau22 = (Tau[lev][TauType::tau22]) ? Tau[lev][TauType::tau22]->array(mfi) : Array4<Real>{};
+                //const Array4<Real>& tau33 = (Tau[lev][TauType::tau33]) ? Tau[lev][TauType::tau33]->array(mfi) : Array4<Real>{};
+
+                const Array4<Real>& tau_cc   = mf_cc_tau[lev].array(mfi);
+                ParallelFor(bxcc_ba12, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    tau_cc(i, j, k, TauType::tau12) = 0.25 * (tau12(i, j, k) + tau12(i, j+1, k) + tau12(i+1,j+1,k) + tau12(i+1, j, k));
+                    tau_cc(i, j, k, TauType::tau21) = 0.25 * (tau21(i, j, k) + tau21(i, j+1, k) + tau21(i+1,j+1,k) + tau21(i+1, j, k));
+                });
+
+                ParallelFor(bxcc_ba13, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    tau_cc(i, j, k, TauType::tau13) = 0.25 * (tau13(i, j, k) + tau13(i, j, k+1) + tau13(i+1,j,k+1) + tau13(i+1, j, k));
+                    tau_cc(i, j, k, TauType::tau31) = 0.25 * (tau31(i, j, k) + tau31(i, j, k+1) + tau31(i+1,j,k+1) + tau31(i+1, j, k));
+                });
+
+
+                ParallelFor(bxcc_ba23, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    tau_cc(i, j, k, TauType::tau23) = 0.25 * (tau23(i, j, k) + tau23(i, j, k+1) + tau23(i,j+1,k+1) + tau23(i, j+1, k));
+                    tau_cc(i, j, k, TauType::tau32) = 0.25 * (tau32(i, j, k) + tau32(i, j, k+1) + tau32(i,j+1,k+1) + tau32(i, j+1, k));
+                });
+
+                /*
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    tau_cc(i, j, k, TauType::tau11) = tau11(i, j, k);
+                    tau_cc(i, j, k, TauType::tau22) = 0.25 * (tau22(i, j, k) + tau22(i, j+1, k) + tau22(i+1,j+1,k) + tau22(i+1, j, k));
+                    tau_cc(i, j, k, TauType::tau33) = 0.25 * (tau33(i, j, k) + tau33(i, j+1, k) + tau33(i+1,j+1,k) + tau33(i+1, j, k));
+                });
+                */
+            }
+        }
+    }
+
+    if (containerHasElement(plot_var_names, "hfx1" ) ||
+        containerHasElement(plot_var_names, "hfx2" ) ||
+        containerHasElement(plot_var_names, "hfx3" ) ||
+        containerHasElement(plot_var_names, "q1fx1" ) ||
+        containerHasElement(plot_var_names, "q1fx2" ) ||
+        containerHasElement(plot_var_names, "q1fx3" ) ||
+        containerHasElement(plot_var_names, "q2fx3" ))
+    {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            mf_cc_fx[lev].define(grids[lev], dmap[lev], 7, IntVect(1,1,1));
+            mf_cc_fx[lev].setVal(-1.e20);
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(mf_cc_fx[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bxcc= mfi.tilebox();
+
+                const Array4<Real>& hfx1 = (SFS_hfx1_lev[lev]) ? SFS_hfx1_lev[lev]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& hfx2 = (SFS_hfx2_lev[lev]) ? SFS_hfx2_lev[lev]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& hfx3 = (SFS_hfx3_lev[lev]) ? SFS_hfx3_lev[lev]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& q1fx1 = (SFS_q1fx1_lev[lev]) ? SFS_q1fx1_lev[lev]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& q1fx2 = (SFS_q1fx2_lev[lev]) ? SFS_q1fx2_lev[lev]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& q1fx3 = (SFS_q1fx3_lev[lev]) ? SFS_q1fx3_lev[lev]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& q2fx3 = (SFS_q2fx3_lev[lev]) ? SFS_q2fx3_lev[lev]->array(mfi) : Array4<Real>{};
+
+                const Array4<Real>& tau_fx   = mf_cc_fx[lev].array(mfi);
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    tau_fx(i, j, k, 0) = 0.5 * (hfx1(i, j, k) + hfx1(i+1, j  , k));
+                    tau_fx(i, j, k, 1) = 0.5 * (hfx2(i, j, k) + hfx2(i  , j+1, k));
+                    tau_fx(i, j, k, 2) = 0.5 * (hfx3(i, j, k) + hfx3(i  , j  , k+1));
+                    tau_fx(i, j, k, 3) = 0.5 * (q1fx1(i, j, k) + q1fx1(i+1, j  , k));
+                    tau_fx(i, j, k, 4) = 0.5 * (q1fx2(i, j, k) + q1fx2(i  , j+1, k));
+                    tau_fx(i, j, k, 5) = 0.5 * (q1fx3(i, j, k) + q1fx3(i  , j  , k+1));
+                    tau_fx(i, j, k, 6) = 0.5 * (q2fx3(i, j, k) + q2fx3(i  , j  , k+1));
+                }); 
+            }
+        }
+    }
+
     // We need ghost cells if computing vorticity
     if ( containerHasElement(plot_var_names, "vorticity_x")||
          containerHasElement(plot_var_names, "vorticity_y") ||
@@ -403,6 +516,66 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp += 1;
         }
 
+        // Create multifabs for HSE and pressure fields used to derive other quantities
+        MultiFab  r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
+        MultiFab  p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
+        MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
+
+        MultiFab pressure;
+
+        if (solverChoice.anelastic[lev] == 0) {
+            if (containerHasElement(plot_var_names, "pressure")     ||
+                containerHasElement(plot_var_names, "pert_pres")    ||
+                containerHasElement(plot_var_names, "dpdx")         ||
+                containerHasElement(plot_var_names, "dpdy")         ||
+                containerHasElement(plot_var_names, "dpdz")         ||
+                containerHasElement(plot_var_names, "eq_pot_temp")  ||
+                containerHasElement(plot_var_names, "qsat"))
+            {
+                int ng = (containerHasElement(plot_var_names, "dpdx") || containerHasElement(plot_var_names, "dpdy") ||
+                          containerHasElement(plot_var_names, "dpdz")) ? 1 : 0;
+
+                // Allocate space for pressure
+                pressure.define(ba,dm,1,ng);
+
+                if (ng > 0) {
+                    // Default to p_hse as a way of filling ghost cells at domain boundaries
+                    MultiFab::Copy(pressure,p_hse,0,0,1,1);
+                }
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& gbx = mfi.growntilebox(IntVect(ng,ng,0));
+
+                    const Array4<Real      >& p_arr = pressure.array(mfi);
+                    const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                    const int ncomp = vars_new[lev][Vars::cons].nComp();
+
+                    ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                    {
+                        Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
+                        const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
+                        p_arr(i, j, k) = getPgivenRTh(rhotheta,qv_for_p);
+                    });
+               } // mfi
+               pressure.FillBoundary(geom[lev].periodicity());
+            } // compute compressible pressure
+        } // not anelastic
+        else {
+            if (containerHasElement(plot_var_names, "dpdx")         ||
+                containerHasElement(plot_var_names, "dpdy")         ||
+                containerHasElement(plot_var_names, "dpdz")         ||
+                containerHasElement(plot_var_names, "eq_pot_temp")  ||
+                containerHasElement(plot_var_names, "qsat"))
+            {
+                // Copy p_hse into pressure if using anelastic
+                pressure.define(ba,dm,1,0);
+                MultiFab::Copy(pressure,p_hse,0,0,1,0);
+            }
+        }
+
         // Finally, check for any derived quantities and compute them, inserting
         // them into our output multifab
         auto calculate_derived = [&](const std::string& der_name,
@@ -426,11 +599,13 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             }
         };
 
-        bool ismoist = (solverChoice.moisture_type != MoistureType::None);
+        // *****************************************************************************************
+        // NOTE: All derived variables computed below **MUST MATCH THE ORDER** of "derived_names"
+        //       defined in ERF.H
+        // *****************************************************************************************
 
-        // Note: All derived variables must be computed in order of "derived_names" defined in ERF.H
         calculate_derived("soundspeed",  vars_new[lev][Vars::cons], derived::erf_dersoundspeed);
-        if (ismoist) {
+        if (use_moisture) {
             calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dermoisttemp);
         } else {
             calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dertemp);
@@ -443,58 +618,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         calculate_derived("vorticity_z", mf_cc_vel[lev]           , derived::erf_dervortz);
         calculate_derived("magvel"     , mf_cc_vel[lev]           , derived::erf_dermagvel);
 
-        MultiFab  r_hse(base_state[lev], make_alias, BaseState::r0_comp , 1);
-        MultiFab  p_hse(base_state[lev], make_alias, BaseState::p0_comp , 1);
-        MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
-
-        MultiFab pressure;
-
-        if (solverChoice.anelastic[lev] == 0) {
-            if (containerHasElement(plot_var_names, "pressure")  ||
-                containerHasElement(plot_var_names, "pert_pres") ||
-                containerHasElement(plot_var_names, "dpdx")      ||
-                containerHasElement(plot_var_names, "dpdy")      ||
-                containerHasElement(plot_var_names, "dpdz"))
-            {
-                int ng = (containerHasElement(plot_var_names, "dpdx") || containerHasElement(plot_var_names, "dpdy") ||
-                          containerHasElement(plot_var_names, "dpdz")) ? 1 : 0;
-
-                // Allocate space for pressure
-                pressure.define(ba,dm,1,ng);
-
-                if (ng > 0) {
-                    // Default to p_hse as a way of filling ghost cells at domain boundaries
-                    MultiFab::Copy(pressure,p_hse,0,0,1,1);
-                }
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-    #endif
-                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& gbx = mfi.growntilebox(IntVect(ng,ng,0));
-
-                    const Array4<Real      >& p_arr = pressure.array(mfi);
-                    const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                    const int ncomp = vars_new[lev][Vars::cons].nComp();
-
-                    ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                    {
-                        Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
-                        const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
-                        p_arr(i, j, k) = getPgivenRTh(rhotheta,qv_for_p);
-                    });
-               } // mfi
-               pressure.FillBoundary(geom[lev].periodicity());
-            } // compute compressible pressure
-        } // not anelastic
-        else {
-            // Copy p_hse into pressure if using anelastic
-            pressure.define(ba,dm,1,0);
-            MultiFab::Copy(pressure,p_hse,0,0,1,0);
-        }
-
         if (containerHasElement(plot_var_names, "divU"))
         {
+            // TODO TODO TODO  -- we need to convert w to omega here!!
             MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
             Array<MultiFab const*, AMREX_SPACEDIM> u;
             u[0] = &(vars_new[lev][Vars::xvel]);
@@ -529,7 +655,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             }
 
             mf_comp += 1;
-        } // pressure
+        }
 
         if (containerHasElement(plot_var_names, "pert_pres"))
         {
@@ -585,13 +711,6 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp ++;
         }
 
-        if (containerHasElement(plot_var_names, "terrain_IB_mask"))
-        {
-            MultiFab* terrain_blank = terrain_blanking[lev].get();
-            MultiFab::Copy(mf[lev],*terrain_blank,0,mf_comp,1,0);
-            mf_comp ++;
-        }
-
 #ifdef ERF_USE_WINDFARM
         if ( containerHasElement(plot_var_names, "num_turb") and
              (solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP or
@@ -615,7 +734,6 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             MultiFab::Copy(mf[lev],SMark[lev],1,mf_comp,1,0);
             mf_comp ++;
         }
-
 #endif
 
         // **********************************************************************************************
@@ -638,13 +756,11 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         // These are based on computing gradient of full pressure
         // **********************************************************************************************
 
-        if (solverChoice.anelastic[lev] == 0) {
-            if ( (containerHasElement(plot_var_names, "dpdx")) ||
-                 (containerHasElement(plot_var_names, "dpdy")) ||
-                 (containerHasElement(plot_var_names, "dpdz")) ) {
-                BCRec const* bcrec_ptr = domain_bcs_type_d.data();
-                compute_gradp(pressure, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), bcrec_ptr, get_eb(lev), gradp_temp, solverChoice);
-            }
+        if ( (containerHasElement(plot_var_names, "dpdx")) ||
+             (containerHasElement(plot_var_names, "dpdy")) ||
+             (containerHasElement(plot_var_names, "dpdz")) ) {
+            BCRec const* bcrec_ptr = domain_bcs_type_d.data();
+            compute_gradp(pressure, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), bcrec_ptr, get_eb(lev), gradp_temp, solverChoice);
         }
 
         if (containerHasElement(plot_var_names, "dpdx"))
@@ -931,75 +1047,91 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
         if (containerHasElement(plot_var_names, "Tau11")) {
             MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau11],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau11,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau12")) {
-            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau12],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau12],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau12,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau13")) {
-            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau13],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau13],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau13,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau21")) {
-            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau21],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau21],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau21,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau22")) {
             MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau22],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau22,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau23")) {
-            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau23],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau23],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau23,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau31")) {
-            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau31],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau31],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau31,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau32")) {
-            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau32],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau32],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau32,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau33")) {
             MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau33],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau33,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "hfx1")) {
-            MultiFab::Copy(mf[lev],*SFS_hfx1_lev[lev],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],*SFS_hfx1_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "hfx2")) {
-            MultiFab::Copy(mf[lev],*SFS_hfx2_lev[lev],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],*SFS_hfx2_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],1,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "hfx3")) {
-            MultiFab::Copy(mf[lev],*SFS_hfx3_lev[lev],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],*SFS_hfx3_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],2,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "q1fx1")) {
-            MultiFab::Copy(mf[lev],*SFS_q1fx1_lev[lev],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],*SFS_q1fx1_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],3,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "q1fx2")) {
-            MultiFab::Copy(mf[lev],*SFS_q1fx2_lev[lev],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],*SFS_q1fx2_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],4,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "q1fx3")) {
-            MultiFab::Copy(mf[lev],*SFS_q1fx3_lev[lev],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],*SFS_q1fx3_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],5,mf_comp,1,0);
             mf_comp ++;
         }
-        if (containerHasElement(plot_var_names, "q1fx3")) {
-            MultiFab::Copy(mf[lev],*SFS_q2fx3_lev[lev],0,mf_comp,1,0);
+        if (containerHasElement(plot_var_names, "q2fx3")) {
+            //MultiFab::Copy(mf[lev],*SFS_q2fx3_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],6,mf_comp,1,0);
             mf_comp ++;
         }
 
@@ -1075,9 +1207,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             if(containerHasElement(plot_var_names, "qt"))
             {
                 int n_start = RhoQ1_comp; // qv
-                int n_end   = n_qstate_moist;
+                int n_end   = n_start + n_qstate_moist;
                 MultiFab::Copy(mf[lev], vars_new[lev][Vars::cons], n_start, mf_comp, 1, 0);
-                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
+                for (int n_comp(n_start+1); n_comp < n_end; ++n_comp) {
                     MultiFab::Add(mf[lev], vars_new[lev][Vars::cons], n_comp, mf_comp, 1, 0);
                 }
                 MultiFab::Divide(mf[lev], vars_new[lev][Vars::cons], Rho_comp  , mf_comp, 1, 0);
@@ -1168,44 +1300,11 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             }
         } // use_moisture
 
-#ifdef ERF_USE_PARTICLES
-        const auto& particles_namelist( particleData.getNames() );
-        for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++) {
-            if (containerHasElement(plot_var_names, std::string(particles_namelist[i]+"_count"))) {
-                MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
-                temp_dat.setVal(0);
-                particleData[particles_namelist[i]]->Increment(temp_dat, lev);
-                MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-        }
-
-        Vector<std::string> particle_mesh_plot_names(0);
-        particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
-        for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
-            std::string plot_var_name(particle_mesh_plot_names[i]);
-            if (containerHasElement(plot_var_names, plot_var_name) ) {
-                MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
-                temp_dat.setVal(0);
-                particleData.GetMeshPlotVar(plot_var_name, temp_dat, lev);
-                MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
-                mf_comp += 1;
-            }
-        }
-#endif
-
+        if (containerHasElement(plot_var_names, "terrain_IB_mask"))
         {
-            Vector<std::string> microphysics_plot_names;
-            micro->GetPlotVarNames(microphysics_plot_names);
-            for (auto& plot_name : microphysics_plot_names) {
-                if (containerHasElement(plot_var_names, plot_name)) {
-                    MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
-                    temp_dat.setVal(0);
-                    micro->GetPlotVar(plot_name, temp_dat, lev);
-                    MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
-                    mf_comp += 1;
-                }
-            }
+            MultiFab* terrain_blank = terrain_blanking[lev].get();
+            MultiFab::Copy(mf[lev],*terrain_blank,0,mf_comp,1,0);
+            mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "volfrac")) {
@@ -1382,16 +1481,63 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         }
 #endif
 
-    if (solverChoice.rad_type != RadiationType::None) {
-        if (containerHasElement(plot_var_names, "qsrc_sw")) {
-            MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 0, mf_comp, 1, 0);
-            mf_comp += 1;
+        if (solverChoice.rad_type != RadiationType::None) {
+            if (containerHasElement(plot_var_names, "qsrc_sw")) {
+                MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 0, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+            if (containerHasElement(plot_var_names, "qsrc_lw")) {
+                MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 1, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
         }
-        if (containerHasElement(plot_var_names, "qsrc_lw")) {
-            MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 1, mf_comp, 1, 0);
-            mf_comp += 1;
+
+        // *****************************************************************************************
+        // End of derived variables corresponding to "derived_names" in ERF.H
+        //
+        // Particles and microphysics can provide additional outputs, which are handled below.
+        // *****************************************************************************************
+
+#ifdef ERF_USE_PARTICLES
+        const auto& particles_namelist( particleData.getNames() );
+        for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++) {
+            if (containerHasElement(plot_var_names, std::string(particles_namelist[i]+"_count"))) {
+                MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
+                temp_dat.setVal(0);
+                particleData[particles_namelist[i]]->Increment(temp_dat, lev);
+                MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
         }
-    }
+
+        Vector<std::string> particle_mesh_plot_names(0);
+        particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
+        for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
+            std::string plot_var_name(particle_mesh_plot_names[i]);
+            if (containerHasElement(plot_var_names, plot_var_name) ) {
+                MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
+                temp_dat.setVal(0);
+                particleData.GetMeshPlotVar(plot_var_name, temp_dat, lev);
+                MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+        }
+#endif
+
+        {
+            Vector<std::string> microphysics_plot_names;
+            micro->GetPlotVarNames(microphysics_plot_names);
+            for (auto& plot_name : microphysics_plot_names) {
+                if (containerHasElement(plot_var_names, plot_name)) {
+                    MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
+                    temp_dat.setVal(0);
+                    micro->GetPlotVar(plot_name, temp_dat, lev);
+                    MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+                    mf_comp += 1;
+                }
+            }
+        }
+
 
     }
 
