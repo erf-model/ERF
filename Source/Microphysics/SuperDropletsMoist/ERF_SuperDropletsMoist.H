@@ -47,7 +47,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int s_qt_idx (const int a_i, /*!< species index */
                      const int a_is /*!< Index of first non-water/ice species */ )
 {
-    AMREX_ALWAYS_ASSERT(a_i > 0);
+    AMREX_ALWAYS_ASSERT(a_i >= a_is);
     return      MicVar_SD::NumVars
             +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::q_t;
@@ -57,7 +57,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int s_qv_idx (const int a_i, /*!< Species index */
                      const int a_is /*!< Index of first non-water/ice species */ )
 {
-    AMREX_ALWAYS_ASSERT(a_i > 0);
+    AMREX_ALWAYS_ASSERT(a_i >= a_is);
     return      MicVar_SD::NumVars
             +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::q_v;
@@ -67,7 +67,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int s_qc_idx (const int a_i, /*!< Species index */
                      const int a_is /*!< Index of first non-water/ice species */ )
 {
-    AMREX_ALWAYS_ASSERT(a_i > 0);
+    AMREX_ALWAYS_ASSERT(a_i >= a_is);
     return      MicVar_SD::NumVars
             +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::q_c;
@@ -77,7 +77,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int s_sr_idx (const int a_i, /*!< Species index */
                      const int a_is /*!< Index of first non-water/ice species */ )
 {
-    AMREX_ALWAYS_ASSERT(a_i > 0);
+    AMREX_ALWAYS_ASSERT(a_i >= a_is);
     return      MicVar_SD::NumVars
             +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::sr;
@@ -87,7 +87,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int s_accum_idx (const int a_i, /*!< Species index */
                      const int a_is /*!< Index of first non-water/ice species */ )
 {
-    AMREX_ALWAYS_ASSERT(a_i > 0);
+    AMREX_ALWAYS_ASSERT(a_i >= a_is);
     return      MicVar_SD::NumVars
             +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::accum;
@@ -274,9 +274,14 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Convert a multifab containing the mixing ratio of something to its density */
         void ratioToDensity ( MultiFab&, const int a_comp = 0 );
 
-        /*! \brief Compute phase changes (vapour <--> cloud water) */
-        virtual void phaseChange (  const Real&,
-                                    const Vector<MFPtr>& );
+        /*! \brief Compute phase changes */
+        virtual void phaseChange (  const Real&, const Vector<MFPtr>& );
+
+        /*! \brief Evaporation/condensation for water */
+        virtual void phaseChange_LV_w (const Real&, const Vector<MFPtr>&);
+
+        /*! \brief Evaporation/condensation for other species */
+        virtual void phaseChange_LV_s (const int, const Real&, const Vector<MFPtr>&);
 
         virtual void GetPlotVarNames (Vector<std::string>& a_names) const override
         {
@@ -348,7 +353,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         int q_qv_idx (const int a_i, /*!< species index */
                       const int a_is /*!< index of first non-water/ice species */ )
         {
-            AMREX_ALWAYS_ASSERT(a_i > 0);
+            AMREX_ALWAYS_ASSERT(a_i >= a_is);
             return RhoQ1_comp + m_qstate_moist_size + 2*(a_i-a_is) + 0;
         }
 
@@ -356,13 +361,13 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         int q_qc_idx (const int a_i, /*!< species index */
                       const int a_is /*!< index of first non-water/ice species */ )
         {
-            AMREX_ALWAYS_ASSERT(a_i > 0);
+            AMREX_ALWAYS_ASSERT(a_i >= a_is);
             return RhoQ1_comp + m_qstate_moist_size + 2*(a_i-a_is) + 1;
         }
 
     protected:
 
-        bool m_flag_phase_change;   /*!< Enable/disable phase change */
+        bool m_flag_phase_change;   /*!< Enable/disable phase changes */
         bool m_flag_advection;      /*!< Enable/disable advection */
         bool m_flag_coalescence;    /*!< Enable/disable coalescence */
 
