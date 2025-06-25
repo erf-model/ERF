@@ -262,7 +262,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         /* call the phase change function so that the super-droplets "relax" to their
          * physical size corresponding to the initial flow */
         if (m_flag_phase_change && m_init_phase_change) {
-            phaseChange(m_init_phase_change_time, a_z_phys_nd, true);
+            phaseChange(m_init_phase_change_time, a_z_phys_nd );
         }
     }
 

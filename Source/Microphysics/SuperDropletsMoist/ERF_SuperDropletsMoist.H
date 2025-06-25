@@ -276,8 +276,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! \brief Compute phase changes (vapour <--> cloud water) */
         virtual void phaseChange (  const Real&,
-                                    const Vector<MFPtr>&,
-                                    const bool );
+                                    const Vector<MFPtr>& );
 
         virtual void GetPlotVarNames (Vector<std::string>& a_names) const override
         {
