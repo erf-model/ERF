@@ -367,10 +367,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         bool m_flag_advection;      /*!< Enable/disable advection */
         bool m_flag_coalescence;    /*!< Enable/disable coalescence */
 
-        amrex::Real m_fac_cond; /*!< latent heat factor for condensation */
-        amrex::Real m_fac_sub;  /*!< latent heat factor for sublimation */
-        amrex::Real m_fac_fus;  /*!< latent heat factor for freezing */
-
+        amrex::Real m_Cp; /*!< specific heat at constant pressure for dry air */
         amrex::Real m_r_rain; /*!< minimum radius to be considered rain */
 
         /*! let initial superdroplets "relax" to a physically-appropriate size? */

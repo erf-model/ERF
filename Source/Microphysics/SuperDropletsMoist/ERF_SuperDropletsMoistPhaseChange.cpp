@@ -109,7 +109,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                     auto dqc_arr = m_mic_fab_vars[MicVar_SD::dqcdt]->array(mfi);
                     auto qr_arr = m_mic_fab_vars[MicVar_SD::q_r]->array(mfi);
 
-                    auto fac_cond = m_fac_cond;
+                    auto fac_cond = vapour_mat.m_lat_vap / m_Cp;
 
                     ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
