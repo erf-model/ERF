@@ -69,12 +69,11 @@ void SuperDropletPC::readInputs ()
     m_mass_change_log_fname = "unconverged_superdroplets.log";
 
     std::string coal_kernel_name = "";
-    std::string term_vel_name = "";
 
     m_coalescence_kernel = SDCoalescenceKernelType::sedimentation;
     coal_kernel_name = "sedimentation";
     m_include_brownian_coalescence = false;
-    term_vel_name = "CloudRainShima";
+    m_term_vel_type = SDTerminalVelocityType::CloudRainShima;
 
     /* read these parameters if specified */
     pp.query("density_scaling", m_density_scaling);
@@ -127,16 +126,7 @@ void SuperDropletPC::readInputs ()
         amrex::Abort("Error in SuperDropletPC::readInputs() - invalid kernel choice!");
     }
 
-    pp.query("terminal_velocity_model", term_vel_name);
-    if (term_vel_name == "AtlasUlbrich") {
-        m_term_vel_type = SDTerminalVelocityType::AtlasUlbrich;
-    } else if (term_vel_name == "RogersYau") {
-        m_term_vel_type = SDTerminalVelocityType::RogersYau;
-    } else if (term_vel_name == "CloudRainShima") {
-        m_term_vel_type = SDTerminalVelocityType::CloudRainShima;
-    } else {
-        amrex::Abort("Error in SuperDropletPC::readInputs() - invalid terminal velocity choice!");
-    }
+    pp.query("terminal_velocity_model", m_term_vel_type);
 
     {
         Vector<int> bin_size = {1,1,1};
@@ -253,14 +243,7 @@ void SuperDropletPC::InitializeParticles (const MFPtr& a_ptr)
         Print() << "dirk2";
     }
     Print() << " (cfl = " << m_mass_change_cfl << ")\n";
-    Print() << "    Terminal velocity model: ";
-    if (m_term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
-        Print() << "AtlasUlbrich" << "\n";
-    } else if (m_term_vel_type == SDTerminalVelocityType::RogersYau) {
-        Print() << "RogersYau" << "\n";
-    } else if (m_term_vel_type ==  SDTerminalVelocityType::CloudRainShima) {
-        Print() << "CloudRainShima" << "\n";
-    }
+    Print() << "    Terminal velocity model: " << getEnumNameString(m_term_vel_type) << "\n";
 
     for (int i = 0; i < m_num_initializations; i++) {
         Print() << "SuperDropletPC(" << m_name << ") Initialization";

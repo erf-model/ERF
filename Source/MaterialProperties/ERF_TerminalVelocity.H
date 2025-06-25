@@ -8,7 +8,23 @@
 template <typename RT /*!< real-type */>
 struct TerminalVelocity
 {
-    RT m_rho;
+    RT m_rho_w; /*!< density of water */
+    RT m_rho_i; /*!< density of ice */
+
+    /*! \brief Compute viscosity coefficient - Pruppacher & Klett, 1997*/
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    auto viscCoeff( const RT a_T /*!< temperature [K] */ ) const noexcept
+    {
+        RT T_degC = a_T - 273.15; // [K] -> [deg Celsius]
+        RT viscosity = 0.0;
+        if (T_degC >= 0) {
+            viscosity = (1.7180 + 4.9e-3*T_degC) * 1.0e-4;
+        } else {
+            viscosity = (  1.7180 + 4.9e-3*T_degC
+                         - 1.2e-5*T_degC*T_degC     ) * 1.0e-4;
+        }
+        return viscosity;
+    }
 
     /*! \brief Terminal velocity - Rogers & Yau, 1989 */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -45,21 +61,13 @@ struct TerminalVelocity
         RT tb4l = 293.15;     // base temperarure[20C] for mean free path of air molecules
 
         RT P_hPa = a_P / 100.0;           // [Pa] -> [hPa]
-        RT T_degC = a_T - 273.15;         // [K] -> [deg Celsius]
         RT diameter_cm = 2.0*a_r*100.0;   // [m] -> [cm]
-        RT rho_mat_cgs = m_rho/1000.0;    // [kg/m^3] -> [g/cm^3]
+        RT rho_mat_cgs = m_rho_w/1000.0;    // [kg/m^3] -> [g/cm^3]
         RT rho_air_cgs = a_rho/1000.0;    // [kg/m^3] -> [g/cm^3]
         RT grav_cgs = CONST_GRAV * 100;   // [m/s^2] -> [cm/s^2]
 
         RT gxdrow = grav_cgs * ( rho_mat_cgs - rho_air_cgs );
-
-        RT viscosity = 0.0;
-        if (T_degC >= 0) {
-            viscosity = (1.7180 + 4.9e-3*T_degC) * 1.0e-4;
-        } else {
-            viscosity = (  1.7180 + 4.9e-3*T_degC
-                         - 1.2e-5*T_degC*T_degC     ) * 1.0e-4;
-        }
+        RT viscosity = viscCoeff(a_T);
 
         RT v_terminal = 0.0;
         if (diameter_cm < 1.9e-3) {
@@ -130,6 +138,56 @@ struct TerminalVelocity
                - 0.542819E-1  * x2*x2
                + 0.238449E-2  * x3*x2;
         return y;
+    }
+
+    /*! \brief Terminal velocity - ice particles (Bohm's theory)
+     *  Ref: Shima et al., 2020, "Predicting the morphology of ice particles
+     *  in deep convection using the super-droplet method: development and
+     *  evaluation of SCALE-SDM 0.2.5-2.2.0, -2.2.1, and -2.2.2.",
+     *  Geosci. Model Dev., 13, 4107–4157, 2020
+     *
+     *  and
+     *
+     *  Code: https://doi.org/10.5281/zenodo.3483650
+     *  File: [...]/contrib/SDM/sdm_motion.f90 */
+    AMREX_GPU_HOST_DEVICE
+    RT IceBohm ( const RT a_m,      /*!< mass */
+                 const RT a_a,      /*!< ice particle equatorial radius */
+                 const RT a_c,      /*!< ice particle polar radius */
+                 const RT a_rhoi,   /*!< ice particle density */
+                 const RT a_rho,    /*!< density */
+                 const RT a_T       /*!< temperature */) const noexcept
+    {
+        RT mu = viscCoeff(a_T);
+
+        auto phi = a_c / a_a; // aspect ratio
+        auto d = 2.0 * a_a; // characteristic length
+        auto q = std::exp( std::exp(-phi) * std::log(a_rhoi/m_rho_i) ); // area ratio
+
+        RT X0 = 2.8e06;
+        auto t3 = PI * mu*mu * std::max(phi,1.0) * std::max(std::sqrt(std::sqrt(q)), q);
+        auto X = (8.0*a_m*CONST_GRAV*a_rho) / t3;
+        auto Xp = X * (1.0 + (X/X0)*(X/X0)) / (1.0 + 1.6*(X/X0)*(X/X0));
+
+        auto k = std::min( std::max(RT(0.82)+0.18*phi, RT(0.85)),
+                           std::min( RT(0.37) + 0.63/std::sqrt(phi),
+                                     RT(1.33)/(std::max(std::log(phi),0.0)+RT(1.19)) ));
+
+        auto phi_poly = 3.76-8.41*phi+9.18*phi*phi-3.53*phi*phi*phi;
+        auto Gamma = std::max( RT(1.0), std::min(RT(1.98), phi_poly) );
+
+        auto C_DPS = std::max(0.292*k*Gamma, 0.492 - 0.2/std::sqrt(phi));
+        auto C_DP  = std::max( RT(1.0), q*(1.46*q-0.46) ) * C_DPS;
+        auto C_DO = 4.5 * k*k * std::max(phi, 1.0);
+
+        auto t2 = RT(1.0) + C_DP/(6.0*k) * std::sqrt(Xp/C_DP);
+        auto beta = std::sqrt(t2) - 1.0;
+        auto gamma = (C_DO-C_DP) / (4*C_DP);
+        auto t1 = RT(1.0) + (2*beta*std::exp(-beta*gamma)) / ((2.0+beta)*(1.0+beta));
+        auto N_Re = (6.0*k/C_DP) * beta*beta * t1;
+
+        auto vterm = (mu*N_Re)/(a_rho*d);
+        return vterm;
     }
 
 };

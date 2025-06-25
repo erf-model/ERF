@@ -46,8 +46,12 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     const int num_sp = m_num_species;
     const int num_ae = m_num_aerosols;
 
-    const Real rho_w = m_species_mat[m_idx_w]->m_density;
-    int idx_w = m_idx_w;
+    const int idx_w = m_idx_w;
+    const int idx_i = m_idx_i;
+
+    Real rho_w = m_species_mat[m_idx_w]->m_density;
+    Real rho_i = DBL_MAX;
+    if (idx_i >= 0) { rho_i = m_species_mat[m_idx_i]->m_density; }
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -82,6 +86,13 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+
+        const ParticleReal *a_ptr(nullptr), *c_ptr(nullptr), *rhoi_ptr(nullptr);
+        if (idx_i >= 0) {
+            a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data();
+            c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data();
+            rhoi_ptr = soa.GetRealData(idx_ice_rho(num_ae,num_sp)).data();
+        }
 
         SDSpeciesMassArr sp_mass_ptrs;
         Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
@@ -125,7 +136,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                         ae_solubility.begin() );
         }
 
-        TerminalVelocity<ParticleReal> term_vel { m_species_mat[m_idx_w]->m_density };
+        TerminalVelocity<ParticleReal> term_vel { rho_w, rho_i };
         auto term_vel_type = m_term_vel_type;
 
         auto sp_rho_arr = sp_density.data();
@@ -148,13 +159,18 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
             }
 
+            ParticleReal density, pressure, temperature;
+            if (is_periodic_z) {
+                cic_interpolate( p, plo, dxi, density_arr, &density, 1 );
+                cic_interpolate( p, plo, dxi, pressure_arr, &pressure, 1 );
+                cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
+            } else {
+                cic_interpolate_mapped_z( p, plo, dxi, density_arr, zheight, &density, 1 );
+                cic_interpolate_mapped_z( p, plo, dxi, pressure_arr, zheight, &pressure, 1 );
+                cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
+            }
+
             if (prescribed_advection) {
-               ParticleReal density;
-               if (is_periodic_z) {
-                  cic_interpolate( p, plo, dxi, density_arr, &density, 1 );
-               } else {
-                  cic_interpolate_mapped_z( p, plo, dxi, density_arr, zheight, &density, 1 );
-               }
                if (a_time < 600) {
                    v[2] = 2.0*sin(PI*a_time/600)/density;
                } else {
@@ -162,35 +178,36 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                }
             }
 
-            // compute effective radius
-            auto r_eff = SD_effective_radius( i, idx_w,
-                                              rho_w,
-                                              num_sp, num_ae,
-                                              sp_sol_arr, ae_sol_arr,
-                                              sp_mass_ptrs, ae_mass_ptrs,
-                                              sp_rho_arr, ae_rho_arr );
-
-
             ParticleReal terminal_vel = 0.0;
-            if (term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
-                terminal_vel = term_vel.AtlasUlbrich( r_eff );
-            } else if (term_vel_type == SDTerminalVelocityType::RogersYau) {
-                terminal_vel = term_vel.RogersYau( r_eff );
-            } else if (term_vel_type == SDTerminalVelocityType::CloudRainShima) {
-                ParticleReal density, pressure, temperature;
-                if (is_periodic_z) {
-                    cic_interpolate( p, plo, dxi, density_arr, &density, 1 );
-                    cic_interpolate( p, plo, dxi, pressure_arr, &pressure, 1 );
-                    cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
-                } else {
-                    cic_interpolate_mapped_z( p, plo, dxi, density_arr, zheight, &density, 1 );
-                    cic_interpolate_mapped_z( p, plo, dxi, pressure_arr, zheight, &pressure, 1 );
-                    cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
+            auto par_phase = SD_phase(i, idx_w, idx_i, sp_mass_ptrs);
+            if (par_phase == SDPhase::water) {
+                // compute effective radius
+                auto r_eff = SD_effective_radius( i, idx_w,
+                                                  rho_w,
+                                                  num_sp, num_ae,
+                                                  sp_sol_arr, ae_sol_arr,
+                                                  sp_mass_ptrs, ae_mass_ptrs,
+                                                  sp_rho_arr, ae_rho_arr );
+
+
+                if (term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
+                    terminal_vel = term_vel.AtlasUlbrich( r_eff );
+                } else if (term_vel_type == SDTerminalVelocityType::RogersYau) {
+                    terminal_vel = term_vel.RogersYau( r_eff );
+                } else if (term_vel_type == SDTerminalVelocityType::CloudRainShima) {
+                    terminal_vel = term_vel.CloudRainShima( r_eff,
+                                                            density,
+                                                            pressure,
+                                                            temperature );
                 }
-                terminal_vel = term_vel.CloudRainShima( r_eff,
-                                                        density,
-                                                        pressure,
-                                                        temperature );
+            } else if (par_phase == SDPhase::ice) {
+                AMREX_ALWAYS_ASSERT(idx_i >= 0);
+                auto m_total = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+                terminal_vel = term_vel.IceBohm( m_total,
+                                                 a_ptr[i], c_ptr[i], rhoi_ptr[i],
+                                                 density, temperature );
+            } else {
+                amrex::Abort("Unknown value for particle phase (must be ice or water)");
             }
 
             for (int dim=0; dim < AMREX_SPACEDIM; dim++) {

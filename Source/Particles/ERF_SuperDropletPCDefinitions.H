@@ -3,6 +3,7 @@
 
 #ifdef ERF_USE_PARTICLES
 
+#include <AMReX_Enum.H>
 #include <AMReX_Array.H>
 #include <AMReX_REAL.H>
 #include <AMReX_Particles.H>
@@ -288,12 +289,41 @@ static auto SD_dry_radius( const int a_idx, /*!< Particle index */
     return r_dry;
 }
 
+/* \brief SD phase (ice or water) */
+AMREX_ENUM (SDPhase,
+    ice,
+    water
+);
+
+/*! \brief Is the SD ice or water? */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+static auto SD_phase( const int a_p, /*!< Particle index */
+                      const int a_i_w, /*!< Species index of water */
+                      const int a_i_i, /*!< Species index of ice */
+                      const SDSpeciesMassArr& a_sp_mass  /*!< species masses */)
+{
+    if (a_i_i < 0) {
+        return SDPhase::water; // not modeling ice
+    } else {
+        auto m_water = a_sp_mass[a_i_w][a_p];
+        auto m_ice   = a_sp_mass[a_i_i][a_p];
+        if (m_ice > 0.0) {
+            AMREX_ALWAYS_ASSERT(m_water == 0.0); // must be pure ice
+            return SDPhase::ice;
+        } else {
+            AMREX_ALWAYS_ASSERT(m_ice == 0.0); // must be pure water
+            return SDPhase::water;
+        }
+    }
+}
+
 /*! \brief Types of terminal velocity models */
-enum struct SDTerminalVelocityType {
+AMREX_ENUM(SDTerminalVelocityType,
     RogersYau,
     AtlasUlbrich,
-    CloudRainShima
-};
+    CloudRainShima,
+    IceBohm
+);
 
 /*! \brief Types of coalescence kernels */
 enum struct SDCoalescenceKernelType {
