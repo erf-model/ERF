@@ -28,15 +28,15 @@ zhi.type = "SlipWall"
 #zhi.theta_grad = 0.00365
     
 # TIME STEP CONTROL
-erf.fixed_dt           = 0.3 # fixed time step depending on grid resolution
-erf.fixed_mri_dt_ratio = 4
+erf.anelastic = 1
+erf.cfl = 0.5
     
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
 amr.v              = 1       # verbosity in Amr.cpp
 erf.data_log       = "surf" "mean" "flux" "subgrid"
-erf.profile_int    = 200     # (every minute with dt = 0.075)
+erf.profile_int    = 20     # (every minute with dt = 0.075)
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
@@ -66,8 +66,8 @@ erf.dryscal_vert_adv_type    = Upwind_3rd_SL
 erf.moistscal_horiz_adv_type = Upwind_3rd_SL
 erf.moistscal_vert_adv_type  = Upwind_3rd_SL
 
-erf.moisture_model  = "Kessler_NoRain"
-erf.buoyancy_type   = 1
+erf.moisture_model  = "SatAdj"
+erf.buoyancy_type   = 4
 
 erf.molec_diff_type = "None"
 
