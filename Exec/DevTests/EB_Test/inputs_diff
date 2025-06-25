@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 100
+max_step = 150
 
 amr.max_grid_size = 256 256 256
 
@@ -52,7 +52,7 @@ erf.check_int       = -100        # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
-erf.plot_int_1      = 1         # number of timesteps between plotfiles
+erf.plot_int_1      = 10         # number of timesteps between plotfiles
 erf.plot_vars_1     = density pert_dens rhotheta theta x_velocity y_velocity z_velocity pressure pert_pres scalar volfrac
 
 # SOLVER CHOICE
@@ -80,7 +80,7 @@ erf.rayleigh_damp_U = false
 erf.rayleigh_damp_V = false
 erf.rayleigh_damp_W = true
 erf.rayleigh_damp_T = false
-erf.rayleigh_dampcoef = 0.2 # [1/s] following FastEddy
+erf.rayleigh_dampcoef = 10.0 # [1/s] following FastEddy
 erf.rayleigh_zdamp = 1.
 
 # PROBLEM PARAMETERS
