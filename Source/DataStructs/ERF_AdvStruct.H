@@ -111,6 +111,7 @@ struct AdvChoice {
 
         if ( (dryscal_horiz_adv_string == "Centered_2nd") ||
              (dryscal_horiz_adv_string == "Upwind_3rd"  ) ||
+             (dryscal_horiz_adv_string == "Upwind_3rd_SL") ||
              (dryscal_horiz_adv_string == "Blended_3rd4th") ||
              (dryscal_horiz_adv_string == "Centered_4th") ||
              (dryscal_horiz_adv_string == "Upwind_5th"  ) ||
@@ -129,6 +130,7 @@ struct AdvChoice {
 
         if ( (dryscal_vert_adv_string == "Centered_2nd") ||
              (dryscal_vert_adv_string == "Upwind_3rd"  ) ||
+             (dryscal_vert_adv_string == "Upwind_3rd_SL") ||
              (dryscal_vert_adv_string == "Blended_3rd4th") ||
              (dryscal_vert_adv_string == "Centered_4th") ||
              (dryscal_vert_adv_string == "Upwind_5th"  ) ||
@@ -147,6 +149,7 @@ struct AdvChoice {
 
         if ( (moistscal_horiz_adv_string == "Centered_2nd") ||
              (moistscal_horiz_adv_string == "Upwind_3rd"  ) ||
+             (moistscal_horiz_adv_string == "Upwind_3rd_SL"  ) ||
              (moistscal_horiz_adv_string == "Blended_3rd4th") ||
              (moistscal_horiz_adv_string == "Centered_4th") ||
              (moistscal_horiz_adv_string == "Upwind_5th"  ) ||
@@ -165,6 +168,7 @@ struct AdvChoice {
 
         if ( (moistscal_vert_adv_string == "Centered_2nd") ||
              (moistscal_vert_adv_string == "Upwind_3rd"  ) ||
+             (moistscal_vert_adv_string == "Upwind_3rd_SL"  ) ||
              (moistscal_vert_adv_string == "Blended_3rd4th") ||
              (moistscal_vert_adv_string == "Centered_4th") ||
              (moistscal_vert_adv_string == "Upwind_5th"  ) ||
@@ -277,6 +281,8 @@ struct AdvChoice {
             return "Centered_2nd";
         } else if (adv_int == AdvType::Upwind_3rd) {
             return "Upwind_3rd";
+        } else if (adv_int == AdvType::Upwind_3rd_SL) {
+            return "Upwind_3rd_SL";
         } else if (adv_int == AdvType::Centered_4th) {
             return "Centered_4th";
         } else if (adv_int == AdvType::Upwind_5th) {
@@ -308,6 +314,8 @@ struct AdvChoice {
             return AdvType::Centered_2nd;
         } else if ((adv_string == "Upwind_3rd") || (adv_string == "Blended_3rd4th")) {
             return AdvType::Upwind_3rd;
+        } else if (adv_string == "Upwind_3rd_SL") {
+            return AdvType::Upwind_3rd_SL;
         } else if (adv_string == "Centered_4th") {
             return AdvType::Centered_4th;
         } else if (adv_string == "Upwind_5th" || (adv_string == "Blended_5th6th")) {
