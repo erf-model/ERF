@@ -1141,6 +1141,8 @@ ERF::InitData_post ()
             bool rotate = solverChoice.use_rotate_surface_flux;
             if (rotate) {
                 Print() << "Using surface layer model with stress rotations" << std::endl;
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ori.coordDir() == 2 && ori.faceDir() == Orientation::Side::low,
+                                                 "Surface layer with stress rotations can only be enabled for the bottom z face");
             }
 
             //

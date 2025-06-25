@@ -86,19 +86,19 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
                                        (m_terrain_type == TerrainType::MovingFittedMesh) );
 
     const int dir = m_face.coordDir();
-    int sm_index;
-    if (m_face.isLow()) {
-        sm_index = m_geom[lev].Domain().smallEnd(dir);
-    } else {
-        sm_index = m_geom[lev].Domain().bigEnd(dir);
-    }
-
-    //amrex::Print() << " MostAverage:: Face = " << m_face << ": dir = " << dir << " sm_index = " << sm_index << std::endl;
 
     { // Nodal in x
         auto& mf = *vars_old[Vars::xvel];
         // Create a 2D ba, dm, & ghost cells
+        int sm_index;
         const BoxArray& ba = mf.boxArray();
+        auto m_bx = ba.minimalBox();
+        if (m_face.isLow()) {
+            sm_index = m_bx.smallEnd(dir);
+        } else {
+            sm_index = m_bx.bigEnd(dir);
+        }
+
         BoxList bl2d = ba.boxList();
         for (auto& b : bl2d) b.setRange(dir, sm_index);
         BoxArray ba2d(std::move(bl2d));
@@ -119,7 +119,16 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     { // Nodal in y
         auto& mf  = *vars_old[Vars::yvel];
         // Create a 2D ba, dm, & ghost cells
+        int sm_index;
         const BoxArray& ba = mf.boxArray();
+        auto m_bx = ba.minimalBox();
+
+        if (m_face.isLow()) {
+            sm_index = m_bx.smallEnd(dir);
+        } else {
+            sm_index = m_bx.bigEnd(dir);
+        }
+
         BoxList bl2d = ba.boxList();
         for (auto& b : bl2d) b.setRange(dir, sm_index);
         BoxArray ba2d(std::move(bl2d));
@@ -140,7 +149,16 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     { // Nodal in z
         auto& mf  = *vars_old[Vars::zvel];
         // Create a 2D ba, dm, & ghost cells
+        int sm_index;
         const BoxArray& ba = mf.boxArray();
+        auto m_bx = ba.minimalBox();
+
+        if (m_face.isLow()) {
+            sm_index = m_bx.smallEnd(dir);
+        } else {
+            sm_index = m_bx.bigEnd(dir);
+        }
+
         BoxList bl2d = ba.boxList();
         for (auto& b : bl2d) b.setRange(dir, sm_index);
         BoxArray ba2d(std::move(bl2d));
@@ -161,6 +179,13 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     { // CC vars
         auto& mf  = *Theta_prim;
         // Create a 2D ba, dm, & ghost cells
+        int sm_index;
+        if (m_face.isLow()) {
+            sm_index = m_geom[lev].Domain().smallEnd(dir);
+        } else {
+            sm_index = m_geom[lev].Domain().bigEnd(dir);
+        }
+
         const BoxArray& ba = mf.boxArray();
         BoxList bl2d = ba.boxList();
         for (auto& b : bl2d) b.setRange(dir, sm_index);
