@@ -184,7 +184,7 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
             }
 
             goffset += glen;
-            glen = ba.numPts();
+            glen = bx.numPts();
 
             auto nc_x_grid = ncf.var("x_grid");
             auto nc_y_grid = ncf.var("y_grid");
