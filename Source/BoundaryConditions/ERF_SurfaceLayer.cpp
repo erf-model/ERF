@@ -372,6 +372,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         sm_index = m_geom[lev].Domain().smallEnd(dir);
     } else {
         sm_index = m_geom[lev].Domain().bigEnd(dir);
+        // pick up extra cell at horizontal edges
+        if (dir != 2) sm_index +=1;
     }
 
     //const int klo = m_geom[lev].Domain().smallEnd(dir);
@@ -456,19 +458,27 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
         // Rho*Theta flux
         //============================================================================
-        Box bx = mfi.tilebox();
+        IntVect nd(0,0,0);
+        if (dir < 2) {
+            // hfx and qfx are not cc
+            nd[dir] = 1;
+        }
+        Box bx = mfi.tilebox(nd);
         if (m_face.isLow()) {
+            // skip if this rank doesn't work on this box
             if (bx.smallEnd(dir) != klo) {
                 continue;
             }
             //bx.setBig(dir, klo);
+            bx.setBig(dir, bx.smallEnd(dir));
         } else {
             if (bx.bigEnd(dir) != klo) {
                 continue;
             }
             //bx.setSmall(dir, klo);
+            bx.setSmall(dir, bx.bigEnd(dir));
         }
-        bx.makeSlab(dir, klo);
+
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real Tflux = flux_comp.compute_t_flux(i, j, k, dir,

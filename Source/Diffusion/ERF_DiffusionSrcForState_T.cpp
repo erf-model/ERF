@@ -112,7 +112,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
 
             bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
-            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x);
+            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = 1.0 / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
@@ -161,7 +161,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
-            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y);
+            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = 1.0 / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
@@ -293,7 +293,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
-            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x);
+            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = 1.0 / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
@@ -340,7 +340,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
-            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y);
+            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = 1.0 / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
@@ -470,7 +470,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
-            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x);
+            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = 1.0 / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
@@ -516,7 +516,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
-            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y);
+            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = 1.0 / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
@@ -643,7 +643,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
-            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x);
+            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = 1.0 / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
@@ -688,7 +688,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
             bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
-            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y);
+            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = 1.0 / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
