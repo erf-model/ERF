@@ -51,7 +51,7 @@ define( int const& a_idim,
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
       const BoxArray& faceba = amrex::convert(a_grids, IntVect::TheDimensionVector(idim));
-      m_areafrac[idim] = new MultiFab(faceba, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+      m_areafrac[idim] = new MultiFab(faceba, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
       m_facecent[idim] = new MultiFab(faceba, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
   }
 
@@ -788,7 +788,6 @@ define( int const& a_idim,
 
         } // flag(iv_lo) and flag(iv_hi)
       });
-
 
       // Set Connectivities
 
