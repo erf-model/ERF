@@ -103,7 +103,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                     (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_upwind && u(dom_hi.x+1,j,k) <= 0.) );
             ext_dir_on_xlo &= (i == dom_hi.x+1);
             bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
-            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x);
+            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
@@ -158,7 +158,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             ext_dir_on_yhi &= (j == dom_hi.y+1);
 
             bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
-            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y);
+            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_scal_index];
@@ -268,7 +268,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             ext_dir_on_xhi &= (i == dom_hi.x+1);
 
             bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
-            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x);
+            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += 0.5 * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
@@ -321,7 +321,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             ext_dir_on_yhi &= (j == dom_hi.y+1);
 
             bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
-            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y);
+            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
 
             Real rhoAlpha = d_alpha_eff[prim_index];
             rhoAlpha += 0.5 * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
@@ -425,7 +425,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                     (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_upwind && u(dom_hi.x+1,j,k) <= 0.) );
             ext_dir_on_xhi &= (i == dom_hi.x+1);
             bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
-            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x);
+            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
@@ -476,7 +476,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                     (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_upwind && v(i,dom_hi.y+1,k) <= 0.) );
             ext_dir_on_yhi &= (j == dom_hi.y+1);
             bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
-            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y);
+            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
 
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
@@ -579,7 +579,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                     (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_upwind && u(dom_hi.x+1,j,k) <= 0.) );
             ext_dir_on_xhi &= (i == dom_hi.x+1);
             bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
-            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x);
+            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
 
             Real rhoAlpha = d_alpha_eff[prim_index];
 
@@ -629,7 +629,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                     (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_upwind && v(i,dom_hi.y+1,k) <= 0.) );
             ext_dir_on_yhi &= (j == dom_hi.y+1);
             bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
-            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y);
+            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
 
             Real rhoAlpha = d_alpha_eff[prim_index];
 
