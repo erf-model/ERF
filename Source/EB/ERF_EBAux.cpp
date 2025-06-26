@@ -109,7 +109,10 @@ define( int const& a_idim,
       Array4<Real>       const& aux_bcent = m_bndrycent->array(mfi);
       Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
 
-      bool is_per = a_geom.isPeriodic(a_idim);
+      bool l_periodic   = a_geom.isPeriodic(a_idim);
+      bool l_periodic_x = a_geom.isPeriodic(0);
+      bool l_periodic_y = a_geom.isPeriodic(1);
+      bool l_periodic_z = a_geom.isPeriodic(2);
 
       // Initialization
       // This is an ad-hoc; ideally, eb_aux should be defined in bx_grown.
@@ -147,7 +150,8 @@ define( int const& a_idim,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
                   aux_barea, aux_bcent, aux_bnorm,
-                  vdim, idim=a_idim, is_per, small_volfrac ]
+                  vdim, idim=a_idim, l_periodic, l_periodic_x, l_periodic_y, l_periodic_z,
+                  small_volfrac ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
 
@@ -198,10 +202,10 @@ define( int const& a_idim,
         // Index for low and hi cells
         IntVect iv_hi(i,j,k);
         IntVect iv_lo(iv_hi - vdim);
-        if (!is_per && iv_hi[idim]==domain.bigEnd(idim)){
+        if (!l_periodic && iv_hi[idim]==domain.bigEnd(idim)){
           iv_hi = iv_lo; // At the upper boundary, hi cell takes the values of the low cell.
         }
-        if (!is_per && iv_hi[idim]==domain.smallEnd(idim)){
+        if (!l_periodic && iv_hi[idim]==domain.smallEnd(idim)){
           iv_lo = iv_hi; // At the lower boundary, low cell takes the values of the high cell.
         }
 
@@ -212,6 +216,7 @@ define( int const& a_idim,
         } else if ( flag(iv_lo).isRegular() && flag(iv_hi).isRegular()) {
 
           aux_flag(i,j,k).setRegular();
+          aux_flag(i,j,k).setConnected();
 
           aux_vfrac(i,j,k) = 1.0;
 
@@ -257,7 +262,7 @@ define( int const& a_idim,
           RealVect lo_point (bcent(iv_lo,0), bcent(iv_lo,1), bcent(iv_lo,2));
           RealVect lo_normal(bnorm(iv_lo,0), bnorm(iv_lo,1), bnorm(iv_lo,2));
 
-          if (!is_per && iv_hi[idim]==domain.smallEnd(idim)){
+          if (!l_periodic && iv_hi[idim]==domain.smallEnd(idim)){
             lo_point[idim] += 1.0; // Move the boundary centroid upward in the idim direction.
           }
 
@@ -296,7 +301,7 @@ define( int const& a_idim,
           RealVect hi_point (bcent(iv_hi,0), bcent(iv_hi,1), bcent(iv_hi,2));
           RealVect hi_normal(bnorm(iv_hi,0), bnorm(iv_hi,1), bnorm(iv_hi,2));
 
-          if (!is_per && iv_hi[idim]==domain.bigEnd(idim)){
+          if (!l_periodic && iv_hi[idim]==domain.bigEnd(idim)){
             lo_point[idim] += -1.0; // Move the boundary centroid downward in the idim direction.
           }
 
@@ -478,6 +483,7 @@ define( int const& a_idim,
           } else if (lo_eb_cc.isRegular() && hi_eb_cc.isRegular()) {
 
             aux_flag(i,j,k).setRegular();
+            aux_flag(i,j,k).setConnected();
 
             aux_vfrac(i,j,k) = 1.0;
 
@@ -511,6 +517,8 @@ define( int const& a_idim,
 #endif
 
           } else {
+
+            // 0. Cell Flag
 
             aux_flag(i,j,k).setSingleValued();
 
@@ -788,21 +796,13 @@ define( int const& a_idim,
 
         } // flag(iv_lo) and flag(iv_hi)
       });
-
-      // Set Connectivities
-
-      ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-      {
-        EB2::build_cellflag_from_ap (i, j, k, aux_flag, aux_afrac_x, aux_afrac_y, aux_afrac_z);
-      });
-
+      
     } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued )
 
   } // MFIter
 
   // Fill Boundary
 
-  m_cellflags->FillBoundary(a_geom.periodicity());
   m_volfrac->FillBoundary(a_geom.periodicity());
   m_volcent->FillBoundary(a_geom.periodicity());
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
@@ -812,6 +812,33 @@ define( int const& a_idim,
   m_bndryarea->FillBoundary(a_geom.periodicity());
   m_bndrycent->FillBoundary(a_geom.periodicity());
   m_bndrynorm->FillBoundary(a_geom.periodicity());
+
+  // Set Connectivities
+
+  for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
+
+    const Box& bx = mfi.validbox();
+    const Box& bx_grown = mfi.growntilebox();
+    const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
+
+    if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
+    
+      Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
+      Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
+      Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
+      Array4<Real>       const& aux_afrac_z = m_areafrac[2]->array(mfi);
+
+      ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        EB2::build_cellflag_from_ap (i, j, k, aux_flag, aux_afrac_x, aux_afrac_y, aux_afrac_z);
+      });
+    } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued )
+  } // MFIter
+
+  // Fill Boundary
+
+  m_cellflags->FillBoundary(a_geom.periodicity());
+
 
 }
 
