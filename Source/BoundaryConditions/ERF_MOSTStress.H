@@ -1052,6 +1052,11 @@ struct surface_temp
             Oleno = Olen;
 
             zeta  = mdata.zref / Olen;
+            if (zeta >= 0.0) {  // Stable
+                zeta = std::min(0.5, std::max(zeta, 0.01));
+            } else {  // Unstable
+                zeta = std::max(-100.0, std::min(zeta, -0.01));
+            }
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
             u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0_arr(i,j,k)) - psi_m);
