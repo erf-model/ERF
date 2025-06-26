@@ -18,7 +18,7 @@ variables:
   # Update to checkout a different git reference (branch name, tag, hash, etc.)
   # in the gold file repo
   # CI_GOLD_FILES_GIT_REF: main
-  CI_GOLD_FILES_GIT_REF: SDM_gold_files
+  CI_GOLD_FILES_GIT_REF: SDM_w_ice
 
   # Uncomment to disable testing on particular system
   #ON_LASSEN: "OFF"
