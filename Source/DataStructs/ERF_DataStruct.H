@@ -158,7 +158,6 @@ struct SolverChoice {
             RhoQc_comp = RhoQ2_comp;
             RhoQr_comp = RhoQ3_comp;
         }
-        pp.query("moisture_tight_coupling",moisture_tight_coupling);
 
         // TODO: should we set default for dry??
         // Set a different default for moist vs dry
@@ -175,6 +174,8 @@ struct SolverChoice {
             } else {
                 buoyancy_type = 2; // uses Tprime
             }
+
+            pp.query("moisture_tight_coupling",moisture_tight_coupling);
         }
 
         // Which expression (1,2/3 or 4) to use for buoyancy
