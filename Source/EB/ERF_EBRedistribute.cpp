@@ -71,12 +71,17 @@ redistribute_term ( int ncomp,
 
             // State redist acts on the state.
             Array4<Real const> state_arr = state.const_array(mfi);
+            // ApplyRedistribution( bx, ncomp, out, in, state_arr,
+            //                      scratch, flag,
+            //                      apx, apy, apz, vfrac,
+            //                      fcx, fcy, fcz, ccc,
+            //                      bc, geom, local_dt, redistribution_type,
+            //                      false, 2, 0.25_rt, {});
             ApplyRedistribution( bx, ncomp, out, in, state_arr,
                                  scratch, flag,
                                  apx, apy, apz, vfrac,
                                  fcx, fcy, fcz, ccc,
-                                 bc, geom, local_dt, redistribution_type,
-                                 false, 2, 0.25_rt, {});
+                                 bc, geom, local_dt, redistribution_type);
         }
         else
         {
@@ -149,12 +154,17 @@ redistribute_term ( int ncomp,
 
             // State redist acts on the state.
             Array4<Real const> state_arr = state.const_array(mfi);
+            // ApplyRedistribution( bx_cc, ncomp, out, in, state_arr,
+            //                      scratch, flag,
+            //                      apx, apy, apz, vfrac,
+            //                      fcx, fcy, fcz, ccc,
+            //                      bc, geom, local_dt, redistribution_type,
+            //                      false, 2, 0.25_rt, {});
             ApplyRedistribution( bx_cc, ncomp, out, in, state_arr,
                                  scratch, flag,
                                  apx, apy, apz, vfrac,
                                  fcx, fcy, fcz, ccc,
-                                 bc, geom, local_dt, redistribution_type,
-                                 false, 2, 0.25_rt, {});
+                                 bc, geom, local_dt, redistribution_type);
         }
         else
         {
