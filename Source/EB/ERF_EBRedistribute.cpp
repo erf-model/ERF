@@ -150,6 +150,11 @@ redistribute_term ( int ncomp,
             
             Box gbx = bx_cc; gbx.grow(3);
 
+            // Extended geometry domain
+            Box domain_grown = geom.Domain();
+            domain_grown.grow(igrid-1, 1); // Extend geometry domain by 1 in the staggering direction
+            Geometry geom_new(domain_grown, geom.ProbDomain(), geom.Coord(), geom.isPeriodic());
+
             FArrayBox scratch_fab(gbx,ncomp);
             Array4<Real> scratch = scratch_fab.array();
             Elixir eli_scratch = scratch_fab.elixir();
@@ -164,7 +169,7 @@ redistribute_term ( int ncomp,
                                  scratch, flag,
                                  apx, apy, apz, vfrac,
                                  fcx, fcy, fcz, ccc,
-                                 bc, geom, local_dt, redistribution_type,
+                                 bc, geom_new, local_dt, redistribution_type,
                                  false, 2, 0.75_rt, {});
             // ApplyRedistribution( bx_cc, ncomp, out, in, state_arr,
             //                      scratch, flag,
