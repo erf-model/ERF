@@ -319,8 +319,6 @@ void SuperDropletPC::aerosolMassFlux ( MultiFab& a_mf,  /*!< Aerosol mass flux m
 /*! Computes the species mass density of the particles over a mesh */
 void SuperDropletPC::speciesMassDensity ( MultiFab&  a_mf,  /*!< Species mass density multifab */
                                           const int  a_idx, /*!< Species index */
-                                          const Real a_rmin, /*!< minimum radius */
-                                          const Real a_rmax, /*!< maximum radius */
                                           const int  a_comp /*!< Multifab component to fill */) const
 {
     BL_PROFILE("SuperDropletPC::speciesMassDensity()");
@@ -334,8 +332,49 @@ void SuperDropletPC::speciesMassDensity ( MultiFab&  a_mf,  /*!< Species mass de
 
     const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
 
-    auto na = m_num_aerosols;
-    auto ns = m_num_species;
+    const auto na = m_num_aerosols;
+    const auto ns = m_num_species;
+
+    a_mf.setVal(0.0);
+
+    ParticleToMesh( *this, a_mf, m_lev,
+        [=] AMREX_GPU_DEVICE (  const SuperDropletPC::ParticleTileType::ConstParticleTileDataType& ptd,
+                                int i, Array4<Real> const& rho)
+        {
+            auto p = ptd.m_aos[i];
+            ParticleInterpolator::Linear interp(p, plo, dxi);
+            interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
+                {
+                    auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                    auto species_mass = ptd.m_runtime_rdata[ridx_s(a_idx,na,ns)][i];
+                    return num_par*species_mass*inv_cell_volume;
+                });
+        });
+
+    return;
+}
+
+/*! Computes the cloud/rain mass density of the particles over a mesh */
+void SuperDropletPC::cloudRainDensity ( MultiFab&  a_mf,  /*!< Species mass density multifab */
+                                        const Real a_rmin, /*!< minimum radius */
+                                        const Real a_rmax, /*!< maximum radius */
+                                        const int  a_comp /*!< Multifab component to fill */) const
+{
+    BL_PROFILE("SuperDropletPC::cloudRainDensity()");
+
+    AMREX_ASSERT(OK());
+    AMREX_ASSERT(numParticlesOutOfRange(*this, 0) == 0);
+
+    const auto& geom = Geom(m_lev);
+    const auto plo = geom.ProbLoArray();
+    const auto dxi = geom.InvCellSizeArray();
+
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+
+    const auto na = m_num_aerosols;
+    const auto ns = m_num_species;
+    const auto idx = m_idx_w;
 
     a_mf.setVal(0.0);
 
@@ -353,8 +392,61 @@ void SuperDropletPC::speciesMassDensity ( MultiFab&  a_mf,  /*!< Species mass de
                         return 0.0;
                     } else {
                         auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                        auto species_mass = ptd.m_runtime_rdata[ridx_s(a_idx,na,ns)][i];
+                        auto species_mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
                         return num_par*species_mass*inv_cell_volume;
+                    }
+                });
+        });
+
+    return;
+}
+
+/*! Computes the cloud/rain mass density of the particles over a mesh */
+void SuperDropletPC::iceSnowGraupelDensity (MultiFab&  a_mf,  /*!< Species mass density multifab */
+                                            const Real a_rmin, /*!< minimum rime mass ratio */
+                                            const Real a_rmax, /*!< maximum rime mass ratio */
+                                            const int  a_comp /*!< Multifab component to fill */) const
+{
+    BL_PROFILE("SuperDropletPC::iceSnowGraupelDensity()");
+
+    a_mf.setVal(0.0);
+    if (m_idx_i < 0) { return; }
+
+    AMREX_ASSERT(OK());
+    AMREX_ASSERT(numParticlesOutOfRange(*this, 0) == 0);
+
+    const auto& geom = Geom(m_lev);
+    const auto plo = geom.ProbLoArray();
+    const auto dxi = geom.InvCellSizeArray();
+
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+
+    const auto na = m_num_aerosols;
+    const auto ns = m_num_species;
+    const auto idx = m_idx_i;
+
+    ParticleToMesh( *this, a_mf, m_lev,
+        [=] AMREX_GPU_DEVICE (  const SuperDropletPC::ParticleTileType::ConstParticleTileDataType& ptd,
+                                int i, Array4<Real> const& rho)
+        {
+            auto p = ptd.m_aos[i];
+            ParticleInterpolator::Linear interp(p, plo, dxi);
+            interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
+                {
+                    auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
+                    auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
+                    if (mass == 0.0) {
+                        AMREX_ALWAYS_ASSERT(mrime == 0);
+                        return 0.0;
+                    } else {
+                        auto ratio = mrime / mass;
+                        if ((ratio < a_rmin) || (ratio >= a_rmax)) {
+                            return 0.0;
+                        } else {
+                            auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                            return num_par*mass*inv_cell_volume;
+                        }
                     }
                 });
         });

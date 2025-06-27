@@ -71,6 +71,7 @@ struct MaterialProperties {
     amrex::Real m_ionization = DBL_MAX; /*!< ionization */
     amrex::Real m_mol_weight = DBL_MAX; /*!< molecular weight (condensate) */
     amrex::Real m_lat_vap = DBL_MAX; /*!< latent heat of vaporization */
+    amrex::Real m_lat_fus = DBL_MAX; /*!< latent heat of fusion */
     amrex::Real m_Rv = DBL_MAX; /*!< gas constant for vapour of this material */
     amrex::Real m_Tc = DBL_MAX; /*!< critical temperature for surface tension */
     amrex::Real m_Tb = DBL_MAX; /*!< boiling temperature */
@@ -110,6 +111,7 @@ struct MaterialProperties {
         amrex::Print() << "    ionization: " << m_ionization << "\n";
         amrex::Print() << "    mol. weight: " << m_mol_weight << "\n";
         amrex::Print() << "    latent heat (vap.): " << m_lat_vap << "\n";
+        amrex::Print() << "    latent heat (fus.): " << m_lat_fus << "\n";
         amrex::Print() << "    Rv: " << m_Rv << "\n";
         amrex::Print() << "    Tc: " << m_Tc << "\n";
         amrex::Print() << "    Tb: " << m_Tb << "\n";

@@ -34,6 +34,9 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
 
     for (int substep = 0; substep < m_num_substeps_phase_change; substep++) {
 
+        // freezing/melting (solid <--> liquid) -  water
+        phaseChange_SL_w(dt_s, a_z);
+
         // evaporation and condensation (vapour <--> liquid) - water
         phaseChange_LV_w(dt_s, a_z);
 
@@ -148,15 +151,15 @@ void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt, /*!< Timestep */
     }
 
     // Compute super-droplets mass change
-    m_super_droplets->MassChange (  0,
-                                    a_dt,
-                                    m_species[m_idx_w],
-                                    (*m_mic_fab_vars[MicVar_SD::temperature]),
-                                    (*m_mic_fab_vars[MicVar_SD::pressure]),
-                                    mf_sat_pressure,
-                                    (*sr_ptr),
-                                    a_z,
-                                    is_water );
+    m_super_droplets->MassChange_LV ( 0,
+                                      a_dt,
+                                      m_species[m_idx_w],
+                                      (*m_mic_fab_vars[MicVar_SD::temperature]),
+                                      (*m_mic_fab_vars[MicVar_SD::pressure]),
+                                      mf_sat_pressure,
+                                      (*sr_ptr),
+                                      a_z,
+                                      is_water );
 
     // Compute new condensate mixing ratio
     computeQcQrWater();
@@ -173,7 +176,7 @@ void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt, /*!< Timestep */
         auto qr_arr = qr_ptr->array(mfi);
 
         auto theta_arr = m_mic_fab_vars[MicVar_SD::theta]->array(mfi);
-        auto T_arr = m_mic_fab_vars[MicVar_SD::temperature]->array(mfi);
+        auto T_arr = m_mic_fab_vars[MicVar_SD::temperature]->const_array(mfi);
         auto dqc_arr = m_mic_fab_vars[MicVar_SD::dqcdt]->array(mfi);
 
         auto fac_cond = species_mat.m_lat_vap / m_Cp;
@@ -248,15 +251,15 @@ void SuperDropletsMoist::phaseChange_LV_s ( const int a_idx, /*!< Species index 
     computeQtSpecies(a_idx);
 
     // Compute super-droplets mass change
-    m_super_droplets->MassChange (  0,
-                                    a_dt,
-                                    m_species[a_idx],
-                                    (*m_mic_fab_vars[MicVar_SD::temperature]),
-                                    (*m_mic_fab_vars[MicVar_SD::pressure]),
-                                    mf_sat_pressure,
-                                    (*sr_ptr),
-                                    a_z,
-                                    is_water );
+    m_super_droplets->MassChange_LV ( 0,
+                                      a_dt,
+                                      m_species[a_idx],
+                                      (*m_mic_fab_vars[MicVar_SD::temperature]),
+                                      (*m_mic_fab_vars[MicVar_SD::pressure]),
+                                      mf_sat_pressure,
+                                      (*sr_ptr),
+                                      a_z,
+                                      is_water );
 
     // Compute new condensate mixing ratio
     computeQcSpecies(a_idx);
@@ -272,7 +275,7 @@ void SuperDropletsMoist::phaseChange_LV_s ( const int a_idx, /*!< Species index 
         auto qc_arr = qc_ptr->array(mfi);
 
         auto theta_arr = m_mic_fab_vars[MicVar_SD::theta]->array(mfi);
-        auto T_arr = m_mic_fab_vars[MicVar_SD::temperature]->array(mfi);
+        auto T_arr = m_mic_fab_vars[MicVar_SD::temperature]->const_array(mfi);
         auto L_by_Cp = species_mat.m_lat_vap / m_Cp;
 
         ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -292,6 +295,104 @@ void SuperDropletsMoist::phaseChange_LV_s ( const int a_idx, /*!< Species index 
         });
 
     }
+}
+
+/*! Freezing/melting (solid <--> liquid) for water: transfer mass between solid
+ * and liquid phases for the super-droplet particles for a timestep, depending on
+ * the ambient flow conditions (saturation ratio and temperature). Update the Eulerian
+ * ice and cloud/rain mixing ratios accordingly. */
+void SuperDropletsMoist::phaseChange_SL_w ( const Real& a_dt, /*!< Timestep */
+                                            const Vector<std::unique_ptr<MultiFab>>& a_z /*!< terrain */ )
+{
+    BL_PROFILE("SuperDropletsMoist::phaseChange_SL_w()");
+
+    auto& species = m_species[m_idx_w];
+    auto& species_mat = m_super_droplets->getSpeciesMaterial(species);
+    bool is_water = species_mat.m_is_water;
+
+    AMREX_ALWAYS_ASSERT(species == Species::Name::H2O);
+    AMREX_ALWAYS_ASSERT(is_water);
+
+    auto* qv_ptr = m_mic_fab_vars[MicVar_SD::q_v].get();
+    auto* qc_ptr = m_mic_fab_vars[MicVar_SD::q_c].get();
+    auto* qr_ptr = m_mic_fab_vars[MicVar_SD::q_r].get();
+    auto* qi_ptr = m_mic_fab_vars[MicVar_SD::q_i].get();
+    auto* qs_ptr = m_mic_fab_vars[MicVar_SD::q_s].get();
+    auto* qg_ptr = m_mic_fab_vars[MicVar_SD::q_g].get();
+    auto* qt_ptr = m_mic_fab_vars[MicVar_SD::q_t].get();
+    auto* sr_ptr = m_mic_fab_vars[MicVar_SD::rh].get();
+
+    // Compute saturation ratio
+    saturation_ratio( (*sr_ptr),
+                      (*qv_ptr),
+                      (*m_mic_fab_vars[MicVar_SD::temperature]),
+                      (*m_mic_fab_vars[MicVar_SD::pressure]),
+                      species_mat );
+
+    // Compute total liquid and ice/snow/graupel water content in qt
+    for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
+
+        Box bx = mfi.tilebox();
+        bx.grow(qv_ptr->nGrowVect());
+
+        auto qt_arr = qt_ptr->array(mfi);
+        auto qc_arr = qc_ptr->const_array(mfi);
+        auto qr_arr = qr_ptr->const_array(mfi);
+        auto qi_arr = qi_ptr->const_array(mfi);
+        auto qs_arr = qs_ptr->const_array(mfi);
+        auto qg_arr = qg_ptr->const_array(mfi);
+
+        ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            qt_arr(i,j,k) =   qc_arr(i,j,k) + qr_arr(i,j,k)
+                            + qi_arr(i,j,k) + qs_arr(i,j,k) + qg_arr(i,j,k);
+        });
+    }
+
+    // Compute super-droplets mass change
+    m_super_droplets->MassChange_SL ( 0,
+                                      a_dt,
+                                      (*m_mic_fab_vars[MicVar_SD::temperature]),
+                                      (*sr_ptr),
+                                      a_z );
+
+    // Compute new cloud/rain mixing ratios
+    computeQcQrWater();
+
+    // Compute latent heat
+    for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
+
+        Box bx = mfi.tilebox();
+        bx.grow(qv_ptr->nGrowVect());
+
+        auto qt_arr = qt_ptr->const_array(mfi);
+        auto qc_arr = qc_ptr->const_array(mfi);
+        auto qr_arr = qr_ptr->const_array(mfi);
+        auto qi_arr = qi_ptr->const_array(mfi);
+        auto qs_arr = qs_ptr->const_array(mfi);
+        auto qg_arr = qg_ptr->const_array(mfi);
+
+        auto theta_arr = m_mic_fab_vars[MicVar_SD::theta]->array(mfi);
+        auto T_arr = m_mic_fab_vars[MicVar_SD::temperature]->const_array(mfi);
+
+        auto fac_cond = species_mat.m_lat_fus / m_Cp;
+
+        ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            auto q_liquid = qc_arr(i,j,k) + qr_arr(i,j,k);
+
+            auto q_solid  = qi_arr(i,j,k) + qs_arr(i,j,k) + qg_arr(i,j,k);
+            auto q_liquid_old = qt_arr(i,j,k) - q_solid;
+
+            auto dq_liquid = q_liquid_old - q_liquid;
+
+            auto theta_over_T = theta_arr(i,j,k)/T_arr(i,j,k);
+            theta_arr(i,j,k) += theta_over_T * fac_cond * dq_liquid;
+        });
+    }
+
+    // Now compute new ice/snow/graupel mixing ratio
+    computeQiQgQsWater();
 }
 
 #endif

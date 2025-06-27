@@ -268,14 +268,12 @@ void SuperDropletsMoist::ratioToDensity (  MultiFab& a_var, /*!< Multifab */
 void SuperDropletsMoist::computeQcQrWater ()
 {
     BL_PROFILE("SuperDropletsMoist::computeQcQrWater()");
-    m_super_droplets->speciesMassDensity( *(m_mic_fab_vars[MicVar_SD::q_c]),
-                                          m_idx_w,
-                                          0,
-                                          m_r_rain );
-    m_super_droplets->speciesMassDensity( *(m_mic_fab_vars[MicVar_SD::q_r]),
-                                          m_idx_w,
-                                          m_r_rain,
-                                          1.0 );
+    m_super_droplets->cloudRainDensity( *(m_mic_fab_vars[MicVar_SD::q_c]),
+                                        0,
+                                        m_r_rain );
+    m_super_droplets->cloudRainDensity( *(m_mic_fab_vars[MicVar_SD::q_r]),
+                                        m_r_rain,
+                                        1.0 );
 
     if (m_dimensionality == SDMSimulationDim::one_d_z) {
         for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_c]); mfi.isValid(); ++mfi) {
@@ -302,14 +300,14 @@ void SuperDropletsMoist::computeQiQgQsWater ()
 {
     BL_PROFILE("SuperDropletsMoist::computeQiQgQsWater()");
     if (m_with_ice) {
-        //m_super_droplets->speciesMassDensity( *(m_mic_fab_vars[MicVar_SD::q_i]),
-        //                                      m_idx_i,
-        //                                      0.0,
-        //                                      m_rime_mass_frac );
-        //m_super_droplets->speciesMassDensity( *(m_mic_fab_vars[MicVar_SD::q_g]),
-        //                                      m_idx_i,
-        //                                      m_rime_mass_frac,
-        //                                      1.0 );
+        m_super_droplets->iceSnowGraupelDensity ( *(m_mic_fab_vars[MicVar_SD::q_i]),
+                                                  0.0,
+                                                  m_rime_ratio );
+        m_super_droplets->iceSnowGraupelDensity ( *(m_mic_fab_vars[MicVar_SD::q_g]),
+                                                  m_rime_ratio,
+                                                  1.0 );
+
+        // TODO: What is snow?
 
         if (m_dimensionality == SDMSimulationDim::one_d_z) {
             for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_c]); mfi.isValid(); ++mfi) {

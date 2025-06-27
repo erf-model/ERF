@@ -283,6 +283,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Evaporation/condensation for other species */
         virtual void phaseChange_LV_s (const int, const Real&, const Vector<MFPtr>&);
 
+        /*! \brief Freezing/melting for water */
+        virtual void phaseChange_SL_w (const Real&, const Vector<MFPtr>&);
+
         virtual void GetPlotVarNames (Vector<std::string>& a_names) const override
         {
             for (int v = m_istart_sp; v < m_num_species; v++) {
@@ -373,6 +376,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         amrex::Real m_Cp; /*!< specific heat at constant pressure for dry air */
         amrex::Real m_r_rain; /*!< minimum radius to be considered rain */
+        amrex::Real m_rime_ratio; /*!< rime mass ratio to be considered graupel */
 
         /*! let initial superdroplets "relax" to a physically-appropriate size? */
         bool m_init_phase_change;

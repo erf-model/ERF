@@ -39,6 +39,9 @@ void SuperDropletsMoist::readInputs ()
     m_r_rain = 4.0e-5; // 40 micrometers
     pp.query("radius_raindrop", m_r_rain);
 
+    m_rime_ratio = 0.3;
+    pp.query("rime_mass_ratio", m_rime_ratio);
+
     // whether to run in kinematic mode
     m_kinematic_mode = false;
     pp.query("kinematic_mode", m_kinematic_mode);

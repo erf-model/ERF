@@ -1,11 +1,13 @@
-#ifndef SUPERDROPLET_PC_COALESCENCE_H_
-#define SUPERDROPLET_PC_COALESCENCE_H_
+#ifndef SUPERDROPLET_PC_MASSCHANGE_H_
+#define SUPERDROPLET_PC_MASSCHANGE_H_
 
 #include <cmath>
 
 #ifdef ERF_USE_PARTICLES
 
-namespace SDMassChangeUtils
+/*! \brief Namespace with classes and functions for condensation/evaporation
+ *  (liquid <--> vapour) */
+namespace SDMassChangeUtils_LV
 {
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
     /*! \brief Phase change equation (in terms of R) */

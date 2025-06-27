@@ -144,8 +144,8 @@ class SuperDropletPC : public ERFPC
                                          const amrex::Vector<MFPtr>&,
                                          const BCTypeArr& );
 
-        /*! \brief Grow/shrink particles for one time step */
-        virtual void MassChange (   int,
+        /*! \brief Condensation and evaporation growth/shrinking for one time step */
+        virtual void MassChange_LV (int,
                                     amrex::Real,
                                     const Species::Name&,
                                     const amrex::MultiFab&,
@@ -154,6 +154,13 @@ class SuperDropletPC : public ERFPC
                                     const amrex::MultiFab&,
                                     const amrex::Vector<MFPtr>&,
                                     const bool );
+
+        /*! \brief Freezing/melting for one time step */
+        virtual void MassChange_SL (int,
+                                    amrex::Real,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::Vector<MFPtr>& );
 
         /*! \brief Coalescence of super-droplets */
         virtual void Coalescence (  int,
@@ -197,18 +204,24 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute the mass flux component on a mesh */
         virtual void massFlux ( amrex::MultiFab&, const int, const int a_comp=0 ) const;
 
-        /*! \brief Compute the condensate mass density on a mesh */
-        virtual void speciesMassDensity ( amrex::MultiFab& a_mf, const int a_i ) const
-        {
-            speciesMassDensity(a_mf, a_i, 0.0, DBL_MAX);
-        }
-        /*! \brief Compute the condensate mass density on a mesh */
+        /*! \brief Compute the species mass density on a mesh */
         virtual void speciesMassDensity ( amrex::MultiFab&,
-                                          const int,
-                                          const amrex::Real,
-                                          const amrex::Real,
+                                          int,
                                           const int a_comp = 0) const;
-        /*! \brief Compute the condensate mass flux component on a mesh */
+
+        /*! \brief Compute the cloud/rain mass density on a mesh */
+        virtual void cloudRainDensity ( amrex::MultiFab&,
+                                        amrex::Real,
+                                        amrex::Real,
+                                        const int a_comp = 0) const;
+
+        /*! \brief Compute the ice/snow/graupel mass density on a mesh */
+        virtual void iceSnowGraupelDensity ( amrex::MultiFab&,
+                                             amrex::Real,
+                                             amrex::Real,
+                                             const int a_comp = 0) const;
+
+        /*! \brief Compute the species mass flux component on a mesh */
         virtual void speciesMassFlux ( amrex::MultiFab&, const int, const int, const int a_comp=0 ) const;
 
         /*! \brief Compute the aerosol mass density on a mesh */

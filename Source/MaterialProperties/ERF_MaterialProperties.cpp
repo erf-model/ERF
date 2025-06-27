@@ -127,6 +127,7 @@ MaterialProperties::MaterialProperties ( const MaterialProperties& a_matprop )
     m_ionization = a_matprop.m_ionization;
     m_mol_weight = a_matprop.m_mol_weight;
     m_lat_vap = a_matprop.m_lat_vap;
+    m_lat_fus = a_matprop.m_lat_fus;
     m_Rv = a_matprop.m_Rv;
     m_Tc = a_matprop.m_Tc;
     m_Tb = a_matprop.m_Tb;
@@ -148,6 +149,7 @@ void MaterialProperties::setProperties_H2O()
     m_ionization = 0;
     m_mol_weight = 1.802e-02; // kg mol^-1
     m_lat_vap = L_v; // ERF_Constants.H
+    m_lat_fus = lfus; // ERF_Constants.H
     m_Rv = R_v; // ERF_Constants.H
     m_Tb = 373.15; // K
     m_Nav_by_molweight = s_N_av / m_mol_weight;
@@ -168,6 +170,7 @@ void MaterialProperties::setProperties_ice()
     m_ionization = 0;
     m_mol_weight = 1.802e-02; // kg mol^-1
     m_lat_vap = 2.8342e6; // J kg^{-1} (latent heat of sublimation)
+    m_lat_fus = lfus; // ERF_Constants.H
     m_Rv = R_v; // ERF_Constants.H
     m_Tb = 373.15; // K
     m_Nav_by_molweight = s_N_av / m_mol_weight;
