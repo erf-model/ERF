@@ -1,3 +1,4 @@
+#include <AMReX_BoxList.H>
 #include <ERF_EBAux.H>
 #include <ERF_EBCutCell.H>
 
@@ -68,6 +69,7 @@ define( int const& a_idim,
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
 
     const Box& bx = mfi.validbox();
+    const Box& bx_grown = mfi.growntilebox();
     const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
 
     if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
@@ -102,6 +104,33 @@ define( int const& a_idim,
       Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
 
       bool is_per = a_geom.isPeriodic(a_idim);
+
+      // Initialization
+      // This is an ad-hoc; ideally, eb_aux should be defined in bx_grown.
+
+      // Extended domain in the direction of periodicity
+      Box dom_grown = domain;
+      for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        if (a_geom.isPeriodic(idim)) {
+          dom_grown.grow(idim, a_ngrow[0]);
+        }
+      }
+
+      const IntVect dom_grown_lo = dom_grown.smallEnd();
+      const IntVect dom_grown_hi = dom_grown.bigEnd();
+
+      BoxList diffList = boxDiff(bx_grown, bx);
+      for (const Box& b : diffList) {
+        ParallelFor(b, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          if ( i < dom_grown_lo[0] || i > dom_grown_hi[0] ||
+               j < dom_grown_lo[1] || j > dom_grown_hi[1] ||
+               k < dom_grown_lo[2] || k > dom_grown_hi[2] ) {
+            aux_flag(i,j,k).setCovered();
+            aux_flag(i,j,k).setDisconnected();
+          }
+        });
+      }
 
       ParallelFor(bx, [
 #ifndef AMREX_USE_GPU

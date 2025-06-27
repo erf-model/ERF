@@ -222,9 +222,10 @@ void eb_::EBToPVD::WriteEBVTP(const int myID, const int level) const
    }
 }
 
-void eb_::EBToPVD::WritePVTP(const int nProcs)
+void eb_::EBToPVD::WritePVTP(const int nProcs, const int level)
 {
-   std::ofstream myfile("eb.pvtp");
+   std::string cID = "eb_level_" + std::to_string(level) + ".pvtp";
+   std::ofstream myfile(cID);
 
    if(myfile.is_open()) {
       myfile << "<?xml version=\"1.0\"?>\n";
@@ -238,7 +239,7 @@ void eb_::EBToPVD::WritePVTP(const int nProcs)
 
       for(int lc1 = 0; lc1 < nProcs; ++lc1) {
          std::stringstream ss;
-         ss << std::setw(8) << std::setfill('0') << lc1;
+         ss << std::setw(8) << std::setfill('0') << lc1 << "_level_"<< level;
          std::string clc1 = "eb_" + ss.str() + ".vtp";
          myfile << "<Piece Source=\"" << clc1 << "\"/>\n";
       }
