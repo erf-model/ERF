@@ -80,7 +80,7 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
                 }
 
                 // We send the full FAB box with ghost cells
-                impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,dxInv,icomp,ncomp,do_terrain_adjustment,time);
+                impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,dxInv,icomp,ncomp,time,do_terrain_adjustment);
             }
 
         } // MFIter
