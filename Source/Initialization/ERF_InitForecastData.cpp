@@ -192,7 +192,7 @@ ERF::init_coarse_weather_data()
     geom_weather.define(domain, real_box, coord, is_periodic);
 
     BoxArray ba(domain);
-    ba.maxSize(64);
+    ba.maxSize(32);
     BoxArray nba = amrex::convert(ba, IntVect::TheNodeVector()); // nodal in all directions
 
     // Create DistributionMapping
@@ -332,10 +332,11 @@ ERF::interp_weather_data_onto_mesh ()
 
         const Array4<Real> &crse_arr = tmp_coarse_data.array(mfi);
 
-        const Box& gbx = mfi.growntilebox(); // validbox + ghost cells
-        const Box gtbx = mfi.grownnodaltilebox(0);
-        const Box gtby = mfi.grownnodaltilebox(1);
-        const Box gtbz = mfi.grownnodaltilebox(2);
+         const Box& gbx = mfi.growntilebox(); // validbox + ghost cells
+
+        const Box &gtbx = mfi.tilebox(IntVect(1,0,0));
+        const Box &gtby = mfi.tilebox(IntVect(0,1,0));
+        const Box &gtbz = mfi.tilebox(IntVect(0,0,1));
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
