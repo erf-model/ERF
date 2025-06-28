@@ -256,7 +256,6 @@ ERF::interp_weather_data_onto_mesh ()
     ParmParse pp_erf("erf");
     bool is_lateral_sponges_hurricanes = false;
     if (pp_erf.query("is_lateral_sponges_hurricanes", is_lateral_sponges_hurricanes)) {
-        // Copying the intiial state to initial_state for use in boundary condition
         initial_state.resize(max_level+1);
         for (int lev = 0; lev < max_level+1; ++lev) {
             initial_state[lev].resize(vars_new[lev].size());
@@ -287,11 +286,10 @@ ERF::interp_weather_data_onto_mesh ()
     const auto dx_erf       = geom[0].CellSizeArray();
 
     for (auto& b : bl_erf) {
-        //b = coarsen_box(b);
         // You look at the lo corner of b, and find out the lowest cell in
         // coarse weather data you need for the interpolation. That gives
         // you the lo corner of the new b. Similarly, you can find out the
-        // hi corner fo the new b. For cells outside the coarse_weath_data's
+        // hi corner of the new b. For cells outside the coarse_weath_data's
         // bounding data, it's up to you. You probably want to use a biased
         // interpolation stencil.
 
