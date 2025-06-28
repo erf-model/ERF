@@ -32,15 +32,7 @@ erf_calc_slopes_eb_Dirichlet (int igrid_query,
     // Fitting stencil
 
     amrex::RealVect bias{0.,0.,0.};
-    // int ii_lo = -2;
-    // int jj_lo = -2;
-    // int kk_lo = -2;
-    // int ii_hi = 2;
-    // int jj_hi = 2;
-    // int kk_hi = 2;
-    // int dim_a = 125;
 
-    // const int dim_a = 48; // This is the maximum size of the stencil
     constexpr int dim_a = 27;
 
     int ii_lo = -1;
@@ -185,14 +177,21 @@ erf_calc_slopes_eb_Dirichlet_staggered (int igrid_query,
     int jj_hi = 1;
     int kk_hi = 1;
 
-    // Determine which directions are involved
-    bool x_involved = (igrid_query == Vars::xvel || igrid_data == Vars::xvel);
-    bool y_involved = (igrid_query == Vars::yvel || igrid_data == Vars::yvel);
-    bool z_involved = (igrid_query == Vars::zvel || igrid_data == Vars::zvel);
+    if (igrid_query == Vars::xvel) {
+        ii_lo = -2;
+    } else if (igrid_query == Vars::yvel) {
+        jj_lo = -2;
+    } else if (igrid_query == Vars::zvel) {
+        kk_lo = -2;
+    }
 
-    if (x_involved) ii_hi = 2;
-    if (y_involved) jj_hi = 2;
-    if (z_involved) kk_hi = 2;
+    if (igrid_data == Vars::xvel) {
+        ii_hi = 2;
+    } else if (igrid_data == Vars::yvel) {
+        jj_hi = 2;
+    } else if (igrid_data == Vars::zvel) {
+        kk_hi = 2;
+    }
 
     // Set bias in the index space between the two staggered grids
     bias[igrid_query-1] = 0.5;
@@ -206,7 +205,7 @@ erf_calc_slopes_eb_Dirichlet_staggered (int igrid_query,
     for(int jj(jj_lo); jj<=jj_hi; jj++) {
     for(int ii(ii_lo); ii<=ii_hi; ii++) {
 
-        if (!flag(i+ii,j+jj,k+kk).isCovered() && !(ii==0 && jj==0 && kk==0)) {
+        if (!flag(i+ii,j+jj,k+kk).isCovered()) {
             A[lc][0] = ( amrex::Real(ii) + ccent(i+ii,j+jj,k+kk,0) + bias[0] - bcent_eb[0] ) * dx;
             A[lc][1] = ( amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) + bias[1] - bcent_eb[1] ) * dy;
             A[lc][2] = ( amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) + bias[2] - bcent_eb[2] ) * dz;
@@ -228,7 +227,7 @@ erf_calc_slopes_eb_Dirichlet_staggered (int igrid_query,
     for(int jj(jj_lo); jj<=jj_hi; jj++) {
     for(int ii(ii_lo); ii<=ii_hi; ii++) {
 
-        if (!flag(i+ii,j+jj,k+kk).isCovered() && !(ii==0 && jj==0 && kk==0)) {
+        if (!flag(i+ii,j+jj,k+kk).isCovered()) {
             du[ll] = state(i+ii,j+jj,k+kk) - state_eb;
         } else {
             du[ll] = amrex::Real(0.0);
