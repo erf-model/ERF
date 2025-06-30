@@ -14,11 +14,11 @@ ERF can be run in two different modes: in the first, ERF solves the fully compre
 in the second, ERF solves a modified set of equations which approximates the density field with the
 hydrostatic density and imposes the anelastic constraint on the velocity field.
 
-In compressible mode, in the absence of moisture, ERF solves the following partial differential equations
-expressing conservation of mass, momentum, potential temperature, and scalars subject to an equation of state.
+In compressible mode, ERF solves partial differential equations expressing conservation of mass, momentum,
+potential temperature, and scalars (such as moisture variables) subject to an equation of state.
 
-In anelastic mode, in the absence of moisture, ERF solves the following partial differential equations
-expressing conservation of momentum, potential temperature, and scalars, as well the anelastic constraint
+In anelastic mode, ERF solves partial differential equations expressing conservation of momentum,
+potential temperature, and scalars (such as moisture variables), as well the anelastic constraint
 on the velocity.
 
 Below :math:`\rho, T, \theta_{d}`, and :math:`p` are the density, temperature, dry potential temperature and pressure, respectively;
@@ -30,7 +30,7 @@ and are defined on faces.
 Compressible Equations
 ------------------------
 
-The first three equations governing fully compressible flow with precipitating and non-precipitating moisture components are
+The first three equations governing fully compressible flow are
 
 .. math::
    \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u}),
@@ -39,10 +39,12 @@ The first three equations governing fully compressible flow with precipitating a
 
    \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u}        \theta_d) + \nabla \cdot ( \rho_d \alpha_{\theta}\ \nabla \theta_d) + F_{\theta} + H_{n} + H_{p},
 
+supplemented with the equation of state as given below.
+
 Anelastic Equations
 ------------------------
 
-The first two equations for the anelastic formulation with precipitating and non-precipitating moisture components are
+The first two equations for the anelastic formulation are
 
 .. math::
   \frac{\partial (\rho_0 \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_0 \mathbf{u} \mathbf{u}) - \nabla p^\prime
@@ -53,31 +55,34 @@ The first two equations for the anelastic formulation with precipitating and non
 supplemented with the constraint
 
 .. math::
-  \nabla \cdot (rho_0 \mathbf{u}) = 0
+  \nabla \cdot (\rho_0 \mathbf{u}) = 0
 
-Scalar updates
-------------------------
+(Dry and Moist) Scalars
+-----------------------
 
-We supplement the above equations with the following equations for advected scalars and moisture variables (identical for compressible and anelastic)
+We supplement the above equations with the following equations for advected scalars (:math:`\phi`) and
+precipitating (:math:`\mathbf{q_{p}}`) and non-precipitating (:math:`\mathbf{q_{n}}`)
+moisture variables (identical for compressible and anelastic)
 
+.. math::
    \frac{\partial (\rho_d \boldsymbol{\phi})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \boldsymbol{\phi}) + \nabla \cdot ( \rho_d \alpha_{\phi}\ \nabla \boldsymbol{\phi}) + \mathbf{F}_{\phi},
 
    \frac{\partial (\rho_d \mathbf{q_{n}})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{q_{n}}) + \nabla \cdot (\rho_d \alpha_{q} \nabla \mathbf{q_{n}}) + \mathbf{F_{n}} + \mathbf{G_{p}},
 
    \frac{\partial (\rho_d \mathbf{q_{p}})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{q_{p}}) + \partial_{z} \left( \rho_d \mathbf{w_{t}} \mathbf{q_{p}} \right) + \mathbf{F_{p}}.
 
+The non-precipitating water mixing ratio vector :math:`\mathbf{q_{n}} = \left[ q_v \;\; q_c \;\; q_i \right]` includes water vapor, :math:`q_v`, cloud water, :math:`q_c`, and cloud ice, :math:`q_i`, although some microphysical moisture models may not include cloud ice; similarly, the precipitating water mixing ratio vector :math:`\mathbf{q_{p}} = \left[ q_r \;\; q_s \;\; q_g \right]` involves rain, :math:`q_r`, snow, :math:`q_s`, and graupel, :math:`q_g`, though some models may not include these terms. The source terms for moisture variables, :math:`\mathbf{F_{p}}`, :math:`\mathbf{F_{n}}`, :math:`\mathbf{G_{p}}`, and their corresponding impact on potential temperature, :math:`H_{n}` and :math:`H_{p}`, and the terminal velocity, :math:`\mathbf{w_{t}}` are specific to the employed model. For the Kessler microphysics scheme, these terms are detailed in :ref:`sec:Kessler Microphysics model <Microphysics>`.
+
 Background (reference) state
 -----------------------------
 
 - Pressure and density perturbations are defined with respect to a hydrostatically stratified background state, i.e.
 .. math::
-
   p = p_{0}(z) + p^\prime  \hspace{24pt} \rho = \rho_{0}(z) + \rho^\prime
 
 with
 
 .. math::
-
   \frac{d p_{0}}{d z} = - \rho_{0} g
 
 Equation of state (compressible only)
@@ -118,7 +123,8 @@ with :math:`\sigma_{ij} = S_{ij} -D_{ij}` being the deviatoric part of the strai
 
   \theta_d = T \left( \frac{P_{00}}{p} \right)^{R_d / c_p}.
 
-The non-precipitating water mixing ratio vector :math:`\mathbf{q_{n}} = \left[ q_v \;\; q_c \;\; q_i \right]` includes water vapor, :math:`q_v`, cloud water, :math:`q_c`, and cloud ice, :math:`q_i`, although some microphysical moisture models may not include cloud ice; similarly, the precipitating water mixing ratio vector :math:`\mathbf{q_{p}} = \left[ q_r \;\; q_s \;\; q_g \right]` involves rain, :math:`q_r`, snow, :math:`q_s`, and graupel, :math:`q_g`, though some models may not include these terms. The source terms for moisture variables, :math:`\mathbf{F_{p}}`, :math:`\mathbf{F_{n}}`, :math:`\mathbf{G_{p}}`, and their corresponding impact on potential temperature, :math:`H_{n}` and :math:`H_{p}`, and the terminal velocity, :math:`\mathbf{w_{t}}` are specific to the employed model. For the Kessler microphysics scheme, these terms are detailed in :ref:`sec:Kessler Microphysics model <Microphysics>`.
+(In the anelastic case, :math:`p` is replaced by :math:`p_0` in the relationship between :math:`\theta_d` and :math:`T`.)
+
 
 Assumptions
 ------------------------
