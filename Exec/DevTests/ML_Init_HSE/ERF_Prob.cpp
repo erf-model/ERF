@@ -202,7 +202,7 @@ Problem::erf_init_dens_hse (amrex::MultiFab& rho_hse,
         Array4<Real> rho_hse_arr = rho_hse.array(mfi);
         Array4<Real> zcc_arr     = (z_phys_cc) ? z_phys_cc->array(mfi) : Array4<Real>{};
 
-        // Auxillary array for pytorch
+        // Auxiliary array for pytorch
         int nin   = 2; // theta, z
         int nout  = 2; // P, rho
         int ncell = bx.numPts();
@@ -213,7 +213,7 @@ Problem::erf_init_dens_hse (amrex::MultiFab& rho_hse,
         const IntVect bx_lo = bx.smallEnd();
         const IntVect nbox  = bx.size();
 
-        // Copy the ML inputs into auxillary array
+        // Copy the ML inputs into auxiliary array
         ParallelFor(bx, nin, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept
         {
             // Flatten indexing
@@ -252,7 +252,7 @@ Problem::erf_init_dens_hse (amrex::MultiFab& rho_hse,
         // Copy ML outputs to the dycore vars
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            // NOTE: We only asign the density here.
+            // NOTE: We only assign the density here.
             //       The call pathway (from ERF_Init1D.cpp) then goes
             //       to "erf_enforce_hse" which does the pressure integration
             //       and sets theta according to rho and pressure.
@@ -264,7 +264,7 @@ Problem::erf_init_dens_hse (amrex::MultiFab& rho_hse,
             int kk = k - bx_lo[2];
             index += kk*nbox[0]*nbox[1];
 
-            // ML ouput is {P, Rho}
+            // ML output is {P, Rho}
             int n = 1;
             rho_hse_arr(i,j,k) = outputs_torch_acc[index][n]*(rmax - rmin) + rmin;
         });
