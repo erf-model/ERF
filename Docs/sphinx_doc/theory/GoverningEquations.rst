@@ -35,9 +35,13 @@ The first three equations governing fully compressible flow are
 .. math::
    \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u}),
 
-   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) - \frac{1}{1 + q_v + q_c} ( \nabla p^{\prime}  - \delta_{i,3}\mathbf{B} ) - \nabla \cdot \boldsymbol{\tau} + \mathbf{F}_{u},
+   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
+                                                        \frac{1}{1 + q_t} ( \nabla p^{\prime}  - \delta_{i,3}\mathbf{B} ) -
+                                                        \nabla \cdot \boldsymbol{\tau} + \mathbf{F}_{u},
 
-   \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u}        \theta_d) + \nabla \cdot ( \rho_d \alpha_{\theta}\ \nabla \theta_d) + F_{\theta} + H_{n} + H_{p},
+   \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d) +
+                                                      \nabla \cdot ( \rho_d \alpha_{\theta}\ \nabla \theta_d) +
+                                                      F_{\theta} + H_{n} + H_{p},
 
 supplemented with the equation of state as given below.
 
@@ -47,10 +51,13 @@ Anelastic Equations
 The first two equations for the anelastic formulation are
 
 .. math::
-  \frac{\partial (\rho_0 \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_0 \mathbf{u} \mathbf{u}) - \nabla p^\prime
-        + \delta_{i,3}\mathbf{B} - \nabla \cdot \tau + \mathbf{F},
+  \frac{\partial (\rho_0 \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_0 \mathbf{u} \mathbf{u}) -
+                                                       \frac{1}{1 + q_t} ( \nabla p^\prime + \delta_{i,3}\mathbf{B} ) -
+                                                       \nabla \cdot \boldsymbol{\tau} + \mathbf{F}_{u},
 
-  \frac{\partial (\rho_0 \theta)}{\partial t} &= - \nabla \cdot (\rho_0 \mathbf{u} \theta) + \nabla \cdot ( \rho_0 \alpha_{T}\ \nabla \theta) + F_{\rho_0 \theta},
+   \frac{\partial (\rho_0 \theta_d)}{\partial t} &= - \nabla \cdot (\rho_0 \mathbf{u} \theta_d) +
+                                                      \nabla \cdot (\rho_ \alpha_{\theta}\ \nabla \theta_d) +
+                                                      F_{\theta} + H_{n} + H_{p},
 
 supplemented with the constraint
 
