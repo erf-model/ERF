@@ -1917,7 +1917,7 @@ struct donelan_flux
                            + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         } else if (dir == 1) {
             // Y-face: x/z velocity, vely = velz here
-            velx  = velx = velx_arr(i,j,k);
+            velx  = velx_arr(i,j,k);
             vely  = 0.25 * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
                            + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
         } else {
