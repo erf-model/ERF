@@ -192,7 +192,7 @@ ERF::init_coarse_weather_data()
     geom_weather.define(domain, real_box, coord, is_periodic);
 
     BoxArray ba(domain);
-    ba.maxSize(32);
+    ba.maxSize(64);
     BoxArray nba = amrex::convert(ba, IntVect::TheNodeVector()); // nodal in all directions
 
     // Create DistributionMapping
@@ -296,7 +296,6 @@ ERF::interp_weather_data_onto_mesh ()
         // Get the cell indices of the bottom corner and top corner
         const IntVect& lo_erf = b.smallEnd();  // Lower corner (inclusive)
         const IntVect& hi_erf = b.bigEnd();    // Upper corner (inclusive)
-        IntVect hi_plus1_erf(hi_erf[0] + 1, hi_erf[1] + 1, hi_erf[2] + 1);
 
         Real x = prob_lo_erf[0] + lo_erf[0] * dx_erf[0];
         Real y = prob_lo_erf[1] + lo_erf[1] * dx_erf[1];
@@ -304,9 +303,9 @@ ERF::interp_weather_data_onto_mesh ()
 
         auto idx_lo = find_bound_idx(x, y, z, bl_weather, geom_weather, BoundType::Lo);
 
-        x = prob_lo_erf[0] + hi_erf[0] * dx_erf[0];
-        y = prob_lo_erf[1] + hi_erf[1] * dx_erf[1];
-        z = prob_lo_erf[2] + hi_erf[2] * dx_erf[2];
+        x = prob_lo_erf[0] + (hi_erf[0]+1) * dx_erf[0];
+        y = prob_lo_erf[1] + (hi_erf[1]+1) * dx_erf[1];
+        z = prob_lo_erf[2] + (hi_erf[2]+1) * dx_erf[2];
 
         auto idx_hi = find_bound_idx(x, y, z, bl_weather, geom_weather, BoundType::Hi);
 
