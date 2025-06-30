@@ -46,7 +46,7 @@ List of Parameters
 |                             |                  | Values                |            |
 +=============================+==================+=======================+============+
 | **erf.plotfile_type**       | AMReX or NETCDF  | "amrex" or            | "amrex"    |
-|                             |                  | "netcdf / "NetCDF" or |            |
+|                             |                  | "netcdf / "NetCDF"    |            |
 +-----------------------------+------------------+-----------------------+------------+
 | **erf.plot_file_1**         | prefix for       | String                | “*plt_1_*” |
 |                             | plotfiles        |                       |            |
