@@ -40,7 +40,7 @@ The first three equations governing fully compressible flow are
                                                         \nabla \cdot \boldsymbol{\tau} + \mathbf{F}_{u},
 
    \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d) +
-                                                      \nabla \cdot ( \rho_d \alpha_{\theta}\ \nabla \theta_d) +
+                                                      \nabla \cdot (\rho_d \alpha_{\theta}\ \nabla \theta_d) +
                                                       F_{\theta} + H_{n} + H_{p},
 
 supplemented with the equation of state as given below.
@@ -51,12 +51,12 @@ Anelastic Equations
 The first two equations for the anelastic formulation are
 
 .. math::
-  \frac{\partial (\rho_0 \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_0 \mathbf{u} \mathbf{u}) -
-                                                       \frac{1}{1 + q_t} ( \nabla p^\prime + \delta_{i,3}\mathbf{B} ) -
-                                                       \nabla \cdot \boldsymbol{\tau} + \mathbf{F}_{u},
+   \frac{\partial (\rho_0 \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_0 \mathbf{u} \mathbf{u}) -
+                                                        \frac{1}{1 + q_t} ( \nabla p^\prime + \delta_{i,3}\mathbf{B} ) -
+                                                        \nabla \cdot \boldsymbol{\tau} + \mathbf{F}_{u},
 
    \frac{\partial (\rho_0 \theta_d)}{\partial t} &= - \nabla \cdot (\rho_0 \mathbf{u} \theta_d) +
-                                                      \nabla \cdot (\rho_ \alpha_{\theta}\ \nabla \theta_d) +
+                                                      \nabla \cdot (\rho_0 \alpha_{\theta}\ \nabla \theta_d) +
                                                       F_{\theta} + H_{n} + H_{p},
 
 supplemented with the constraint
@@ -78,7 +78,8 @@ moisture variables (identical for compressible and anelastic)
 
    \frac{\partial (\rho_d \mathbf{q_{p}})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{q_{p}}) + \partial_{z} \left( \rho_d \mathbf{w_{t}} \mathbf{q_{p}} \right) + \mathbf{F_{p}}.
 
-The non-precipitating water mixing ratio vector :math:`\mathbf{q_{n}} = \left[ q_v \;\; q_c \;\; q_i \right]` includes water vapor, :math:`q_v`, cloud water, :math:`q_c`, and cloud ice, :math:`q_i`, although some microphysical moisture models may not include cloud ice; similarly, the precipitating water mixing ratio vector :math:`\mathbf{q_{p}} = \left[ q_r \;\; q_s \;\; q_g \right]` involves rain, :math:`q_r`, snow, :math:`q_s`, and graupel, :math:`q_g`, though some models may not include these terms. The source terms for moisture variables, :math:`\mathbf{F_{p}}`, :math:`\mathbf{F_{n}}`, :math:`\mathbf{G_{p}}`, and their corresponding impact on potential temperature, :math:`H_{n}` and :math:`H_{p}`, and the terminal velocity, :math:`\mathbf{w_{t}}` are specific to the employed model. For the Kessler microphysics scheme, these terms are detailed in :ref:`sec:Kessler Microphysics model <Microphysics>`.
+The non-precipitating water mixing ratio vector :math:`\mathbf{q_{n}} = \left[ q_v \;\; q_c \;\; q_i \right]` includes water vapor, :math:`q_v`, cloud water, :math:`q_c`, and cloud ice, :math:`q_i`, although some microphysical moisture models may not include cloud ice; similarly, the precipitating water mixing ratio vector :math:`\mathbf{q_{p}} = \left[ q_r \;\; q_s \;\; q_g \right]` involves rain, :math:`q_r`, snow, :math:`q_s`, and graupel, :math:`q_g`, though some models may not include these terms. The source terms for moisture variables, :math:`\mathbf{F_{p}}`, :math:`\mathbf{F_{n}}`, :math:`\mathbf{G_{p}}`, and their corresponding impact on potential temperature, :math:`H_{n}` and :math:`H_{p}`, and the terminal velocity, :math:`\mathbf{w_{t}}` are specific to the employed model.
+See the :ref:`Microphysics<Microphysics>` section for more details.
 
 Background (reference) state
 -----------------------------
@@ -122,7 +123,7 @@ with :math:`\sigma_{ij} = S_{ij} -D_{ij}` being the deviatoric part of the strai
    D_{ij} = \frac{1}{3}  S_{kk} \delta_{ij} = \frac{1}{3} (\nabla \cdot \mathbf{u}) \delta_{ij},
 
 - :math:`\mathbf{F}_{u}` and :math:`F_{\theta_d}` are the forcing terms described in :ref:`Forcings`,
-- :math:`\mathbf{B} = -(\rho - \rho_{0})\mathbf{g}` is the buoyancy term described in :ref:`sec:Buoyancy <Buoyancy>`,
+- :math:`\mathbf{B} = -(\rho - \rho_{0})\mathbf{g}` is the buoyancy term described in :ref:`Buoyancy <Buoyancy>`,
 - :math:`\mathbf{g} = (0,0,-g)` is the gravity vector,
 - The dry potential temperature :math:`\theta_d` is defined from temperature :math:`T`, pressure :math:`p`, and reference pressure :math:`P_{00} = 10^{5}` Pa as
 
