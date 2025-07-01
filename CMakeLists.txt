@@ -37,6 +37,9 @@ option(ERF_ENABLE_SYCL "Enable SYCL" OFF)
 #Options for NOAH-MP
 option(ERF_ENABLE_NOAH "Enable Noah-MP" OFF)
 
+#Option to build tools
+option(ERF_ENABLE_TOOLS "Enable building of additional tools" OFF)
+
 #Options for C++
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -129,7 +132,7 @@ endif()
 
 ########################## NETCDF ##################################
 
-if(ERF_ENABLE_NETCDF)
+if(ERF_ENABLE_NETCDF OR ERF_ENABLE_TOOLS)
   set(CMAKE_PREFIX_PATH ${NETCDF_DIR} ${CMAKE_PREFIX_PATH})
 ##  set(NETCDF_CXX "YES")
   find_package (NetCDF REQUIRED)
