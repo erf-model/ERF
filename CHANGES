@@ -1,3 +1,18 @@
+#25.07
+    -- Enable initialization from netcdf file (#2390)
+
+    -- Read & interpolate weather data onto ERF mesh (#2391, 2377)
+
+    -- EB diffusion progress (#2379)
+
+    -- Fix WENO conservation (#2387)
+
+    -- Correction to Bomex (#2384)
+
+    -- Correct Poisson solve with terrain (#2371)
+
+    -- Surface layer moisture fluxes (#2360)
+
 #25.06
     -- Optimize diffusion (#2356, 2355, 2351, 2349, 2348, 2346)
 
