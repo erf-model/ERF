@@ -61,6 +61,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         phi.resize(1); phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1);
     }
 
+    MultiFab rhs_lev(rhs[0], make_alias, 0, 1);
+
     auto dxInv = geom[lev].InvCellSizeArray();
 
     // Inflow on an x-face -- note only the normal velocity is used in the projection
@@ -106,7 +108,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     //
     if (solverChoice.mesh_type == MeshType::VariableDz)
     {
-        for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(rhs_lev,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Array4<Real const>& rho0u_arr = mom_mf[IntVars::xmom].const_array(mfi);
             const Array4<Real const>& rho0v_arr = mom_mf[IntVars::ymom].const_array(mfi);
@@ -142,17 +144,52 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     rho0_u_const[1] = &mom_mf[IntVars::ymom];
     rho0_u_const[2] = &mom_mf[IntVars::zmom];
 
-    compute_divergence(lev, rhs[0], rho0_u_const, geom_tmp[0]);
+    compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
 
     if (solverChoice.mesh_type == MeshType::VariableDz) {
-        MultiFab::Multiply(rhs[0], *detJ_cc[lev], 0, 0, 1, 0);
+        MultiFab::Multiply(rhs_lev, *detJ_cc[lev], 0, 0, 1, 0);
     }
 
-    Real rhsnorm = rhs[0].norm0();
-    Real rhssum  = rhs[0].sum();
+    // Max norm over the entire MultiFab
+    Real rhsnorm = rhs_lev.norm0();
 
     if (mg_verbose > 0) {
-        Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " << rhs[0].norm2() << " and sum " << rhssum << std::endl;
+        Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " <<
+                    rhs_lev.norm2() << " and sum " << rhs_lev.sum() << std::endl;
+    }
+
+    std::cout << " There are " << subdomains[lev].size() << " bins " << std::endl;
+
+    if (lev > 0)
+    {
+        Vector<Real> sum; sum.resize(subdomains[lev].size());
+
+        for ( MFIter mfi(rhs_lev,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            Box bx = mfi.validbox();
+            for (int i = 0; i < subdomains[lev].size(); ++i) {
+                if (subdomains[lev][i].intersects(bx)) {
+                    sum[i] += rhs_lev[mfi.index()].sum(0);
+                }
+            }
+        }
+
+        for (int i = 0; i < subdomains[lev].size(); ++i) {
+            sum[i] /= subdomains[lev][i].numPts();
+            if (mg_verbose > 0) {
+                std::cout << " Subtracting " << sum[i] << " in BoxArray " << subdomains[lev][i] << std::endl;
+            }
+        }
+
+        for ( MFIter mfi(rhs_lev,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            Box bx = mfi.validbox();
+            for (int i = 0; i < subdomains[lev].size(); ++i) {
+                if (subdomains[lev][i].intersects(bx)) {
+                    rhs_lev[mfi.index()].template minus<RunOn::Device>(sum[i]);
+                }
+            }
+        }
     }
 
     // ****************************************************************************
@@ -207,7 +244,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 #ifdef ERF_USE_FFT
         if (use_fft) {
             if (boxes_make_rectangle) {
-                solve_with_fft(lev, rhs[0], phi[0], fluxes[0]);
+                solve_with_fft(lev, rhs_lev, phi[0], fluxes[0]);
             } else {
                 amrex::Warning("FFT won't work unless the union of boxes is rectangular: defaulting to MLMG");
                 solve_with_mlmg(lev, rhs, phi, fluxes);
@@ -236,7 +273,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             if (!use_fft) {
                 amrex::Warning("Using FFT even though you didn't set use_fft to true; it's the best choice");
             }
-            solve_with_fft(lev, rhs[0], phi[0], fluxes[0]);
+            solve_with_fft(lev, rhs_lev, phi[0], fluxes[0]);
         }
 #endif
     } // grid stretching
@@ -294,20 +331,20 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     //
     if (mg_verbose > 0)
     {
-        compute_divergence(lev, rhs[0], rho0_u_const, geom_tmp[0]);
+        compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
 
         if (solverChoice.mesh_type == MeshType::VariableDz) {
-            MultiFab::Multiply(rhs[0], *detJ_cc[lev], 0, 0, 1, 0);
+            MultiFab::Multiply(rhs_lev, *detJ_cc[lev], 0, 0, 1, 0);
         }
 
-        Print() << "Max/L2 norm of divergence  after solve at level " << lev << " : " << rhs[0].norm0() << " " <<
-                    rhs[0].norm2() << " and sum " << rhssum << std::endl;
+        Print() << "Max/L2 norm of divergence  after solve at level " << lev << " : " << rhs_lev.norm0() << " " <<
+                    rhs_lev.norm2() << " and sum " << rhs_lev.sum() << std::endl;
 
 #if 0
          // FOR DEBUGGING ONLY
-         for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+         for ( MFIter mfi(rhs_lev,TilingIfNotGPU()); mfi.isValid(); ++mfi)
          {
-            const Array4<Real const>& rhs_arr = rhs[0].const_array(mfi);
+            const Array4<Real const>& rhs_arr = rhs_lev.const_array(mfi);
             Box bx = mfi.validbox();
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 if (std::abs(rhs_arr(i,j,k)) > 1.e-10) {
