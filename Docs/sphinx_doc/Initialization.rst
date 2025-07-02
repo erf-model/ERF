@@ -27,7 +27,7 @@ integrated to generate the background pressure
 as described in :ref:`sec:BaseState`.
 
 If **erf.init_type = InputSounding**, then the thermodynamic profiles in the
-provided **erf.input_sounding_file** are used to set intial conditions and the
+provided **erf.input_sounding_file** are used to set initial conditions and the
 base state depending on **erf.sounding_type**.
 For an ``Ideal`` sounding (default), a stratified, hydrostatically balanced base
 state is reconstructed from the 1-D input sounding data as described in
