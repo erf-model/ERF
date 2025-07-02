@@ -158,7 +158,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                     rhs_lev.norm2() << " and sum " << rhs_lev.sum() << std::endl;
     }
 
-    std::cout << " There are " << subdomains[lev].size() << " bins " << std::endl;
+    amrex::Print() << " There are " << subdomains[lev].size() << " bins " << std::endl;
 
     if (lev > 0)
     {
@@ -169,15 +169,16 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             Box bx = mfi.validbox();
             for (int i = 0; i < subdomains[lev].size(); ++i) {
                 if (subdomains[lev][i].intersects(bx)) {
-                    sum[i] += rhs_lev[mfi.index()].sum(0);
+                    sum[i] += rhs_lev[mfi.index()].template sum<RunOn::Device>(0);
                 }
             }
         }
+        ParallelDescriptor::ReduceRealSum(sum.data(), sum.size());
 
         for (int i = 0; i < subdomains[lev].size(); ++i) {
             sum[i] /= subdomains[lev][i].numPts();
             if (mg_verbose > 0) {
-                std::cout << " Subtracting " << sum[i] << " in BoxArray " << subdomains[lev][i] << std::endl;
+                amrex::Print() << " Subtracting " << sum[i] << " in BoxArray " << subdomains[lev][i] << std::endl;
             }
         }
 
