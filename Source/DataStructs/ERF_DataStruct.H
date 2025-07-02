@@ -424,9 +424,6 @@ struct SolverChoice {
             num_diff_coeff *= std::pow(2.0,-6);
         }
 
-        // Use monotonic advection?
-        pp.query("use_mono_adv",use_mono_adv);
-
            advChoice.init_params(pp_prefix);
           diffChoice.init_params(pp_prefix);
         spongeChoice.init_params(pp_prefix);
@@ -793,9 +790,6 @@ struct SolverChoice {
     // Numerical diffusion
     bool use_num_diff{false};
     amrex::Real num_diff_coeff{0.};
-
-    // Monotonic advection limiter
-    bool use_mono_adv{false};
 
     // Rebalance wrfinput
     bool rebalance_wrfinput{false};
