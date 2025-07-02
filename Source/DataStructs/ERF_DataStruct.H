@@ -35,7 +35,7 @@ AMREX_ENUM(InitType,
 );
 
 AMREX_ENUM(SoundingType,
-    ProfileOnly, Ideal, Isentropic, DryIsentropic
+    ConstantDensity, Ideal, Isentropic, DryIsentropic
 );
 
 AMREX_ENUM(ABLDriverType,

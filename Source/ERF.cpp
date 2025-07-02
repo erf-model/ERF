@@ -1551,14 +1551,16 @@ ERF::init_only (int lev, Real time)
         // Now init the base state and the data itself
         init_from_input_sounding(lev);
 
-        // The base state is initialized by integrating vertically through the
-        // input sounding for ideal (WRF) or isentropic approaches
+        // The base state has been initialized by integrating vertically
+        // through the sounding for ideal (like WRF) or isentropic approaches
         if (solverChoice.sounding_type == SoundingType::Ideal ||
             solverChoice.sounding_type == SoundingType::Isentropic ||
             solverChoice.sounding_type == SoundingType::DryIsentropic) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_gravity,
                 "Gravity should be on to be consistent with sounding initialization.");
-        } else {
+        } else { // SoundingType::ConstantDensity
+            AMREX_ASSERT_WITH_MESSAGE(!solverChoice.use_gravity,
+                "Constant density probably doesn't make sense with gravity");
             initHSE();
         }
 

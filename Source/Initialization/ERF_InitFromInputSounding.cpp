@@ -137,7 +137,7 @@ ERF::init_from_input_sounding (int lev)
         if (sounding_ideal_or_isentropic)
         {
             // HSE will be initialized here, interpolated from values previously
-            // calculated by calc_rho_p() or calc_rho_p_isentropic
+            // calculated by calc_rho_p or calc_rho_p_isentropic
             init_bx_scalars_from_input_sounding_hse(
                 bx, cons_arr,
                 r_hse_arr, p_hse_arr, pi_hse_arr, th_hse_arr, qv_hse_arr,
@@ -147,6 +147,7 @@ ERF::init_from_input_sounding (int lev)
         }
         else
         {
+            // This assumes rho_0 = 1.0
             // HSE will be calculated later with call to initHSE
             init_bx_scalars_from_input_sounding(
                 bx, cons_arr,
