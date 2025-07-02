@@ -1364,10 +1364,11 @@ List of Parameters
 |                                  | input sounding      |                    |                       |
 |                                  | file                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.init_sounding_ideal**      | Perform             |  true or false     | false                 |
-|                                  | initialization      |                    |                       |
-|                                  | like WRF's          |                    |                       |
-|                                  | ideal.exe           |                    |                       |
+| **erf.sounding_type**            | How to interpret    | "Ideal",           | Ideal                 |
+|                                  | the sounding        | "Isentropic",      |                       |
+|                                  | provided with       | "DryIsentropic",   |                       |
+|                                  | init_type =         | "ConstantDensity"  |                       |
+|                                  | "input_sounding"    |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.use_real_bcs**             | If init_type is     | true or false      | true if               |
 |                                  | WRFInput or Metgrid |                    | if init_type          |
