@@ -31,6 +31,7 @@ define( int const& a_idim,
   Real small_volfrac = 1.e-14;
   ParmParse pp("eb2");
   pp.queryAdd("small_volfrac", small_volfrac);
+  const Real small_value = 1.e-15;
 
   const IntVect vdim(IntVect::TheDimensionVector(a_idim));
 
@@ -151,7 +152,7 @@ define( int const& a_idim,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
                   aux_barea, aux_bcent, aux_bnorm,
                   vdim, idim=a_idim, l_periodic, l_periodic_x, l_periodic_y, l_periodic_z,
-                  small_volfrac ]
+                  small_volfrac, small_value ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
 
@@ -775,7 +776,7 @@ define( int const& a_idim,
             aux_bnorm(i,j,k,1) = eb_normal[1];
             aux_bnorm(i,j,k,2) = eb_normal[2];
 
-            // small cell
+            // Small cell
 
             if (aux_vfrac(i,j,k) < small_volfrac) {
               aux_vfrac(i,j,k) = 0.0;
@@ -791,6 +792,13 @@ define( int const& a_idim,
               aux_barea(i,j,k) = 0.0;
               aux_flag(i,j,k).setCovered();
             }
+
+            if (aux_vcent(i,j,k,0) < small_value) aux_vcent(i,j,k,0) = 0.0;
+            if (aux_vcent(i,j,k,1) < small_value) aux_vcent(i,j,k,1) = 0.0;
+            if (aux_vcent(i,j,k,2) < small_value) aux_vcent(i,j,k,2) = 0.0;
+            if (aux_bcent(i,j,k,0) < small_value) aux_bcent(i,j,k,0) = 0.0;
+            if (aux_bcent(i,j,k,1) < small_value) aux_bcent(i,j,k,1) = 0.0;
+            if (aux_bcent(i,j,k,2) < small_value) aux_bcent(i,j,k,2) = 0.0;
 
           }
 
