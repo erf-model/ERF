@@ -163,8 +163,11 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     if (lev > 0)
     {
         Vector<Real> sum; sum.resize(subdomains[lev].size());
+        for (int i = 0; i < subdomains[lev].size(); ++i) {
+            sum[i] = 0.0;
+        }
 
-        for ( MFIter mfi(rhs_lev,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for (MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
         {
             Box bx = mfi.validbox();
             for (int i = 0; i < subdomains[lev].size(); ++i) {
@@ -176,18 +179,18 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         ParallelDescriptor::ReduceRealSum(sum.data(), sum.size());
 
         for (int i = 0; i < subdomains[lev].size(); ++i) {
-            sum[i] /= subdomains[lev][i].numPts();
-            if (mg_verbose > 0) {
-                amrex::Print() << " Subtracting " << sum[i] << " in BoxArray " << subdomains[lev][i] << std::endl;
-            }
+            sum[i] /= static_cast<Real>(subdomains[lev][i].numPts());
         }
 
-        for ( MFIter mfi(rhs_lev,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
         {
             Box bx = mfi.validbox();
             for (int i = 0; i < subdomains[lev].size(); ++i) {
                 if (subdomains[lev][i].intersects(bx)) {
                     rhs_lev[mfi.index()].template minus<RunOn::Device>(sum[i]);
+                    if (mg_verbose > 0) {
+                        amrex::Print() << " Subtracting " << sum[i] << " in BoxArray " << subdomains[lev][i] << std::endl;
+                    }
                 }
             }
         }

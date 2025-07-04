@@ -68,7 +68,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         // 1) all boxes in a given subdomain are "connected"
         // 2) no boxes in a subdomain touch any boxes in any other subdomain
         //
-        make_subdomains(grids[lev].simplified_list(), subdomains[lev]);
+        make_subdomains(ba.simplified_list(), subdomains[lev]);
     }
 
     if (lev == 0) init_bcs();
@@ -291,7 +291,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         BoxArray dom(geom[lev].Domain());
         subdomains[lev].push_back(dom);
     } else {
-        make_subdomains(grids[lev].simplified_list(), subdomains[lev]);
+        make_subdomains(ba.simplified_list(), subdomains[lev]);
     }
 
     if (lev == 0) init_bcs();
@@ -446,7 +446,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // 2) no boxes in a subdomain touch any boxes in any other subdomain
     //
     if (solverChoice.anelastic[lev] == 1) {
-        make_subdomains(grids[lev].simplified_list(), subdomains[lev]);
+        make_subdomains(ba.simplified_list(), subdomains[lev]);
     }
 
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
