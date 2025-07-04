@@ -7,8 +7,8 @@ ERF::make_subdomains(const BoxList& bl, Vector<BoxArray>& bins)
 {
     Vector<BoxList> bins_bl;
 
-    // Initialize bins
-    bins_bl.clear();
+    // Clear out any old bins
+    bins.clear();
 
     // Iterate over boxes
     for (auto bx : bl)
