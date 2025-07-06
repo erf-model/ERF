@@ -59,7 +59,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     }
 
     subdomains.resize(lev+1);
-    if (solverChoice.anelastic[lev] == 0 || lev == 0) {
+    if ( (lev == 0) || (solverChoice.anelastic[lev] == 0 && !solverChoice.project_initial_velocity) ) {
         BoxArray dom(geom[lev].Domain());
         subdomains[lev].push_back(dom);
     } else {
@@ -287,7 +287,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // 1) all boxes in a given subdomain are "connected"
     // 2) no boxes in a subdomain touch any boxes in any other subdomain
     //
-    if (solverChoice.anelastic[lev] == 0) {
+    if (solverChoice.anelastic[lev] == 0 && !solverChoice.project_initial_velocity) {
         BoxArray dom(geom[lev].Domain());
         subdomains[lev].push_back(dom);
     } else {

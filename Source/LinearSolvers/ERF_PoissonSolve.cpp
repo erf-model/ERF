@@ -162,10 +162,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
     if (lev > 0)
     {
-        Vector<Real> sum; sum.resize(subdomains[lev].size());
-        for (int i = 0; i < subdomains[lev].size(); ++i) {
-            sum[i] = 0.0;
-        }
+        Vector<Real> sum; sum.resize(subdomains[lev].size(),Real(0.));
 
         for (MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
         {

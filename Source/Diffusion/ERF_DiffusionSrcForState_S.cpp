@@ -421,7 +421,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
             } else {
-                Real dzk_inv = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                Real dzk_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
@@ -583,6 +583,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
         cell_rhs(i,j,k,qty_index) -= stateContrib;
     });
+
     } // n
 
 #include "ERF_DiffTKEAdjustment.H"
