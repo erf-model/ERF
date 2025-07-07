@@ -17,6 +17,10 @@ function(build_erf_lib erf_lib_name)
 
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
 
+  if(ERF_ENABLE_KOKKOS)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_KOKKOS)
+  endif()
+
   if(ERF_ENABLE_MULTIBLOCK)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
   endif()
@@ -35,6 +39,10 @@ function(build_erf_lib erf_lib_name)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/LinearSolvers/ERF_SolveWithFFT.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_FFT)
+  endif()
+
+  if(ERF_ENABLE_KOKKOS)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_KOKKOS)
   endif()
 
   if(ERF_ENABLE_NETCDF)
@@ -231,6 +239,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
        ${SRC_DIR}/Utils/ERF_InitZLevels.cpp
+       ${SRC_DIR}/Utils/ERF_MakeSubdomains.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp
        ${SRC_DIR}/Utils/ERF_TerrainMetrics.cpp
        ${SRC_DIR}/Utils/ERF_VelocityToMomentum.cpp
@@ -257,6 +266,12 @@ function(build_erf_lib erf_lib_name)
       target_link_libraries(${erf_lib_name} PUBLIC ${NETCDF_LINK_LIBRARIES})
       target_include_directories(${erf_lib_name} PUBLIC ${NETCDF_INCLUDE_DIRS})
     endif()
+  endif()
+
+  if(ERF_ENABLE_KOKKOS)
+      #Link our executable to the Kokkos library
+      target_link_libraries(${erf_lib_name} PUBLIC ${KOKKO_LINK_LIBRARIES})
+      target_include_directories(${erf_lib_name} PUBLIC ${KOKKOS_INCLUDE_DIRS})
   endif()
 
   if(ERF_ENABLE_MPI)
