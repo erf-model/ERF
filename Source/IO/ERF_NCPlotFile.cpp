@@ -86,12 +86,12 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
     ncf.def_var("Geom.bigend"  , NC_INT, {ndim_name});
     ncf.def_var("CellSize"     , NC_FLOAT, {ndim_name});
 
-    ncf.def_var("x_grid", NC_FLOAT, {np_name});
-    ncf.def_var("y_grid", NC_FLOAT, {np_name});
-    ncf.def_var("z_grid", NC_FLOAT, {np_name});
+    ncf.def_var("x_grid", NC_DOUBLE, {np_name});
+    ncf.def_var("y_grid", NC_DOUBLE, {np_name});
+    ncf.def_var("z_grid", NC_DOUBLE, {np_name});
 
     for (int i = 0; i < plot_var_names.size(); i++) {
-        ncf.def_var(plot_var_names[i], NC_FLOAT, {nz_name, ny_name, nx_name});
+        ncf.def_var(plot_var_names[i], NC_DOUBLE, {nz_name, ny_name, nx_name});
     }
 
     ncf.exit_def_mode();
@@ -184,7 +184,7 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
             }
 
             goffset += glen;
-            glen = ba.numPts();
+            glen = bx.numPts();
 
             auto nc_x_grid = ncf.var("x_grid");
             auto nc_y_grid = ncf.var("y_grid");

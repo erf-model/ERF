@@ -212,6 +212,11 @@ AdvectionSrcForScalars (const Real& dt,
                                                 avg_xmom, avg_ymom, avg_zmom,
                                                 horiz_upw_frac, vert_upw_frac, vert_adv_type);
             break;
+        case AdvType::Upwind_3rd_SL:
+             AdvectionSrcForScalarsVert<UPWIND3SL>(bx, cons_index, flx_arr, cell_prim,
+                                                  avg_xmom, avg_ymom, avg_zmom,
+                                                  horiz_upw_frac, vert_upw_frac, vert_adv_type);
+             break;
         case AdvType::Centered_4th:
             AdvectionSrcForScalarsVert<CENTERED4>(bx, cons_index, flx_arr, cell_prim,
                                                   avg_xmom, avg_ymom, avg_zmom,
