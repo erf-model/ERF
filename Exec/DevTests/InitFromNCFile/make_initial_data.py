@@ -5,7 +5,7 @@
 # ERF.
 #
 # This file and method of data generation are based
-# on the original python notebook written by 
+# on the original python notebook written by
 # Timothy Sliwinski at CIRA/CSU/NOAA GSL.
 #
 ###################################################
@@ -58,8 +58,8 @@ a_inf = np.sqrt(gamma * R_d * T_inf)
 rdOcp = R_d / Cp_d
 
 ###################################################
-# Problem-specific function for calculating 
-# certain space-dependent values in the 
+# Problem-specific function for calculating
+# certain space-dependent values in the
 # isentropic vortex
 ###################################################
 
@@ -79,9 +79,9 @@ def getRhoThetagivenP(p, qv=0.0):
 
 
 ###################################################
-# Data for setting up the grid. These values are 
+# Data for setting up the grid. These values are
 # specific to the problem grid size defined in
-# inputs file; cf. the field `amr.n_cell` in 
+# inputs file; cf. the field `amr.n_cell` in
 # the local file `inputs`.
 ###################################################
 
@@ -93,13 +93,13 @@ Nx_cell = 48
 Ny_cell = 48
 Nz_cell = 4
 
-# The number of faces required for staggered grids in each 
+# The number of faces required for staggered grids in each
 # direction. These are used for the velocity components.
 Nx_face = Nx_cell + 1
 Ny_face = Ny_cell + 1
 Nz_face = Nz_cell + 1
 
-# Problem geometry data. Cf. `geometry.prob_lo` and 
+# Problem geometry data. Cf. `geometry.prob_lo` and
 # `geometry.prob_hi` in `inputs`.
 prob_lo = np.array([-12, -12, -1])
 prob_hi = np.array([12, 12, 1])
@@ -112,12 +112,12 @@ dx = (prob_hi - prob_lo) / n_cell
 
 
 ###################################################
-# Populate data. Here we use numpy arrays to 
+# Populate data. Here we use numpy arrays to
 # represent our discretized domain and store
 # point-wise values. Note that, for clarity,
 # we will calculate and store these values for
-# time t = 0 in the order x, y, z. 
-# These will have to rearranged before export 
+# time t = 0 in the order x, y, z.
+# These will have to rearranged before export
 # to netCDF, as ERF is expecting the format z, y, x
 # for the spatial grid.
 ###################################################
@@ -174,8 +174,8 @@ z_vel = np.zeros((Nx_cell, Ny_cell, Nz_face), np.float64)
 
 
 ###################################################
-# Populate netCDF file with the quantities 
-# calculated above. See documentation for the 
+# Populate netCDF file with the quantities
+# calculated above. See documentation for the
 # python packages netCDF4.
 ###################################################
 
@@ -216,7 +216,7 @@ outfile.setncattr("SOUTH-NORTH_GRID_DIMENSION", int(Ny_face))  # based on stagge
 # Times variable (1 single time for initialization)
 times_var = outfile.createVariable("Times", "S1", ("time", "DateStrLen"))
 
-# Follow the naming conventions for the variables that 
+# Follow the naming conventions for the variables that
 # ERF is expecting.
 Rho_var = outfile.createVariable("RHO", np.float64, dims4d)
 RhoTheta_var = outfile.createVariable("T", np.float64, dims4d)
