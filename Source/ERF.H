@@ -142,6 +142,7 @@ public:
 
     // Hurricane track line output as VTKPolyline
     amrex::Vector<std::array<amrex::Real, 2>> hurricane_track_xy;
+    amrex::Vector<amrex::Vector<amrex::MultiFab>> initial_state;
     std::string MakeVTKFilename(int nstep);
     void WriteVTKPolyline(const std::string& filename,
                           amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
@@ -170,6 +171,8 @@ public:
 
     // Calculate wall distance by solving a Poisson equation
     void poisson_wall_dist (int lev);
+
+    void make_subdomains(const amrex::BoxList& ba, amrex::Vector<amrex::BoxArray>& bins);
 
 #ifdef ERF_USE_FFT
     void solve_with_fft (int lev, amrex::MultiFab& rhs, amrex::MultiFab& p,
@@ -406,6 +409,8 @@ public:
     void init_thin_body (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
     void init_coarse_weather_data();
+
+    void interp_weather_data_onto_mesh();
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -877,6 +882,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
 
     amrex::Vector<amrex::MultiFab> weather_forecast_data;
+    amrex::Geometry geom_weather;
 
     int last_plot_file_step_1;
     int last_plot_file_step_2;
@@ -1167,6 +1173,8 @@ private:
     // Holds info for dynamically generated tagging criteria
     //
     static amrex::Vector<amrex::AMRErrorTag> ref_tags;
+
+    amrex::Vector<amrex::Vector<amrex::BoxArray>> subdomains;
 
     //
     // Build a mask that zeroes out values on a coarse level underlying

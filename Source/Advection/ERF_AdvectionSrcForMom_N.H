@@ -415,6 +415,76 @@ AdvectionSrcForMomVert_N (const amrex::Box& bxx, const amrex::Box& bxy, const am
                                                                       upw_frac_h, upw_frac_v,
                                                                       vert_adv_type,
                                                                       lo_z_face, hi_z_face);
+    } else if (vert_adv_type == AdvType::Weno_3) {
+        AdvectionSrcForMomWrapper_N<InterpType_H,WENO3,UPWINDALL>(bxx, bxy, bxz,
+                                                                  rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                                                  rho_u, rho_v, rho_w, u, v, w,
+                                                                  cellSizeInv, stretched_dz_d,
+                                                                  mf_mx, mf_ux_inv, mf_vx_inv,
+                                                                  mf_my, mf_uy_inv, mf_vy_inv,
+                                                                  upw_frac_h, upw_frac_v,
+                                                                  vert_adv_type,
+                                                                  lo_z_face, hi_z_face);
+    } else if (vert_adv_type == AdvType::Weno_3Z) {
+        AdvectionSrcForMomWrapper_N<InterpType_H,WENO_Z3,UPWINDALL>(bxx, bxy, bxz,
+                                                                    rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                                                    rho_u, rho_v, rho_w, u, v, w,
+                                                                    cellSizeInv, stretched_dz_d,
+                                                                    mf_mx, mf_ux_inv, mf_vx_inv,
+                                                                    mf_my, mf_uy_inv, mf_vy_inv,
+                                                                    upw_frac_h, upw_frac_v,
+                                                                    vert_adv_type,
+                                                                    lo_z_face, hi_z_face);
+    } else if (vert_adv_type == AdvType::Weno_3MZQ) {
+        AdvectionSrcForMomWrapper_N<InterpType_H,WENO_MZQ3,UPWINDALL>(bxx, bxy, bxz,
+                                                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                                                      rho_u, rho_v, rho_w, u, v, w,
+                                                                      cellSizeInv, stretched_dz_d,
+                                                                      mf_mx, mf_ux_inv, mf_vx_inv,
+                                                                      mf_my, mf_uy_inv, mf_vy_inv,
+                                                                      upw_frac_h, upw_frac_v,
+                                                                      vert_adv_type,
+                                                                      lo_z_face, hi_z_face);
+    } else if (vert_adv_type == AdvType::Weno_5) {
+        AdvectionSrcForMomWrapper_N<InterpType_H,WENO5,UPWINDALL>(bxx, bxy, bxz,
+                                                                  rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                                                  rho_u, rho_v, rho_w, u, v, w,
+                                                                  cellSizeInv, stretched_dz_d,
+                                                                  mf_mx, mf_ux_inv, mf_vx_inv,
+                                                                  mf_my, mf_uy_inv, mf_vy_inv,
+                                                                  upw_frac_h, upw_frac_v,
+                                                                  vert_adv_type,
+                                                                  lo_z_face, hi_z_face);
+    } else if (vert_adv_type == AdvType::Weno_5Z) {
+        AdvectionSrcForMomWrapper_N<InterpType_H,WENO_Z5,UPWINDALL>(bxx, bxy, bxz,
+                                                                    rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                                                    rho_u, rho_v, rho_w, u, v, w,
+                                                                    cellSizeInv, stretched_dz_d,
+                                                                    mf_mx, mf_ux_inv, mf_vx_inv,
+                                                                    mf_my, mf_uy_inv, mf_vy_inv,
+                                                                    upw_frac_h, upw_frac_v,
+                                                                    vert_adv_type,
+                                                                    lo_z_face, hi_z_face);
+    } else if (vert_adv_type == AdvType::Weno_7) {
+        AdvectionSrcForMomWrapper_N<InterpType_H,WENO7,UPWINDALL>(bxx, bxy, bxz,
+                                                                  rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                                                  rho_u, rho_v, rho_w, u, v, w,
+                                                                  cellSizeInv, stretched_dz_d,
+                                                                  mf_mx, mf_ux_inv, mf_vx_inv,
+                                                                  mf_my, mf_uy_inv, mf_vy_inv,
+                                                                  upw_frac_h, upw_frac_v,
+                                                                  vert_adv_type,
+                                                                  lo_z_face, hi_z_face);
+    } else if (vert_adv_type == AdvType::Weno_7Z) {
+        AdvectionSrcForMomWrapper_N<InterpType_H,WENO_Z7,UPWINDALL>(bxx, bxy, bxz,
+                                                                    rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                                                    rho_u, rho_v, rho_w, u, v, w,
+                                                                    cellSizeInv, stretched_dz_d,
+                                                                    mf_mx, mf_ux_inv, mf_vx_inv,
+                                                                    mf_my, mf_uy_inv, mf_vy_inv,
+                                                                    upw_frac_h, upw_frac_v,
+                                                                    vert_adv_type,
+                                                                    lo_z_face, hi_z_face);
     } else {
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
     }

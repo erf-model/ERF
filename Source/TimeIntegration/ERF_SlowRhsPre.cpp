@@ -131,7 +131,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_stretched_dz || l_use_terrain_fitted_coords);
     const bool    l_eb_terrain                   = (solverChoice.terrain_type == TerrainType::EB);
 
-    const bool l_use_mono_adv   = solverChoice.use_mono_adv;
     const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
 
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
@@ -191,32 +190,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         }
     } // l_use_diff
 
-    // *****************************************************************************
-    // Monotonic advection for scalars
-    // *****************************************************************************
-    int nvar = S_data[IntVars::cons].nComp();
-    Vector<Real> max_scal(nvar, 1.0e34); Gpu::DeviceVector<Real> max_scal_d(nvar);
-    Vector<Real> min_scal(nvar,-1.0e34); Gpu::DeviceVector<Real> min_scal_d(nvar);
-    if (l_use_mono_adv) {
-        auto const& ma_s_arr = S_data[IntVars::cons].const_arrays();
-        for (int ivar(RhoTheta_comp); ivar<RhoKE_comp; ++ivar) {
-            GpuTuple<Real,Real> mm = ParReduce(TypeList<ReduceOpMax,ReduceOpMin>{},
-                                               TypeList<Real, Real>{},
-                                               S_data[IntVars::cons], IntVect(0),
-                [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
-                -> GpuTuple<Real,Real>
-                {
-                    return { ma_s_arr[box_no](i,j,k,ivar), ma_s_arr[box_no](i,j,k,ivar) };
-                });
-            max_scal[ivar] = get<0>(mm);
-            min_scal[ivar] = get<1>(mm);
-        }
-    }
-    Gpu::copy(Gpu::hostToDevice, max_scal.begin(), max_scal.end(), max_scal_d.begin());
-    Gpu::copy(Gpu::hostToDevice, min_scal.begin(), min_scal.end(), min_scal_d.begin());
-    Real* max_s_ptr = max_scal_d.data();
-    Real* min_s_ptr = min_scal_d.data();
-
     // This is just cautionary to deal with grid boundaries that aren't domain boundaries
     S_rhs[IntVars::zmom].setVal(0.0);
 
@@ -231,7 +204,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     std::array<FArrayBox,AMREX_SPACEDIM> flux_u;
     std::array<FArrayBox,AMREX_SPACEDIM> flux_v;
     std::array<FArrayBox,AMREX_SPACEDIM> flux_w;
-    std::array<FArrayBox,AMREX_SPACEDIM> flux_tmp;
 
     // Cell-centered masks for EB (used for flux interpolation)
     bool already_on_centroids = false;
@@ -356,10 +328,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 flux[dir].resize(surroundingNodes(bx,dir).grow(1),2);
             }
             flux[dir].setVal<RunOn::Device>(0.);
-            if (l_use_mono_adv) {
-                flux_tmp[dir].resize(surroundingNodes(bx,dir),2);
-                flux_tmp[dir].setVal<RunOn::Device>(0.);
-            }
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
@@ -381,11 +349,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 flx_w_arr[dir] = flux_w[dir].array();
             }
         }
-
-        Array4<Real> tmpx = (l_use_mono_adv) ? flux_tmp[0].array() : Array4<Real>{};
-        Array4<Real> tmpy = (l_use_mono_adv) ? flux_tmp[1].array() : Array4<Real>{};
-        Array4<Real> tmpz = (l_use_mono_adv) ? flux_tmp[2].array() : Array4<Real>{};
-        const GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_tmp_arr{{AMREX_D_DECL(tmpx,tmpy,tmpz)}};
 
         // *****************************************************************************
         // Contravariant flux field
@@ -539,14 +502,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         int icomp = RhoTheta_comp; int ncomp = 1;
         if (solverChoice.terrain_type != TerrainType::EB){
-            AdvectionSrcForScalars(dt, bx, icomp, ncomp,
+            AdvectionSrcForScalars(bx, icomp, ncomp,
                                    avg_xmom, avg_ymom, avg_zmom,
-                                   cell_data, cell_prim, cell_rhs,
-                                   l_use_mono_adv, max_s_ptr, min_s_ptr,
+                                   cell_prim, cell_rhs,
                                    detJ_arr, dxInv, mf_mx, mf_my,
                                    l_horiz_adv_type, l_vert_adv_type,
                                    l_horiz_upw_frac, l_vert_upw_frac,
-                                   flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                                   flx_arr, domain, bc_ptr_h);
         } else {
             EBAdvectionSrcForScalars(bx, icomp, ncomp,
                                      avg_xmom, avg_ymom, avg_zmom,
