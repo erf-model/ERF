@@ -54,7 +54,21 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     SetDistributionMap(lev, dm);
 
     if (verbose) {
-        amrex::Print() <<" BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
+        amrex::Print() <<            "BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
+        amrex::Print() <<" SIMPLIFIED BA FROM SCRATCH AT LEVEL " << lev << " " << ba.simplified_list() << std::endl;
+    }
+
+    subdomains.resize(lev+1);
+    if ( (lev == 0) || (solverChoice.anelastic[lev] == 0 && !solverChoice.project_initial_velocity) ) {
+        BoxArray dom(geom[lev].Domain());
+        subdomains[lev].push_back(dom);
+    } else {
+        //
+        // Create subdomains at each level within the domain such that
+        // 1) all boxes in a given subdomain are "connected"
+        // 2) no boxes in a subdomain touch any boxes in any other subdomain
+        //
+        make_subdomains(ba.simplified_list(), subdomains[lev]);
     }
 
     if (lev == 0) init_bcs();
@@ -270,6 +284,24 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         amrex::Print() <<" NEW BA FROM COARSE AT LEVEL " << lev << " " << ba << std::endl;
     }
 
+    //
+    // Grow the subdomains vector and build the subdomains vector at this level
+    //
+    subdomains.resize(lev+1);
+    //
+    // Create subdomains at each level within the domain such that
+    // 1) all boxes in a given subdomain are "connected"
+    // 2) no boxes in a subdomain touch any boxes in any other subdomain
+    //
+    if (solverChoice.anelastic[lev] == 0 && !solverChoice.project_initial_velocity) {
+        BoxArray dom(geom[lev].Domain());
+        subdomains[lev].push_back(dom);
+    } else {
+        make_subdomains(ba.simplified_list(), subdomains[lev]);
+    }
+
+    if (lev == 0) init_bcs();
+
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
     //      terrain arrays, metric terms and base state.
@@ -412,6 +444,15 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     if (verbose) {
         amrex::Print() <<"               OLD BA AT LEVEL " << lev << " " << ba_old << std::endl;
+    }
+
+    //
+    // Re-define subdomain at this level within the domain such that
+    // 1) all boxes in a given subdomain are "connected"
+    // 2) no boxes in a subdomain touch any boxes in any other subdomain
+    //
+    if (solverChoice.anelastic[lev] == 1) {
+        make_subdomains(ba.simplified_list(), subdomains[lev]);
     }
 
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
