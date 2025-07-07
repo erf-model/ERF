@@ -146,7 +146,7 @@ AdvectionSrcForMom_StretchedDz (const Box& bxx, const Box& bxy, const Box& bxz,
 
                 Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
-                Real dzInv = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                Real dzInv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0/(dz_ptr[k] + dz_ptr[k-1]);
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq

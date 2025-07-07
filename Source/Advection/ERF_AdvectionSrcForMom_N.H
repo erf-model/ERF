@@ -328,7 +328,7 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     amrex::ParallelFor(bxz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        auto dzInv = 2.0/(dz_ptr[k] + dz_ptr[k-1]);
+        auto dzInv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0/(dz_ptr[k] + dz_ptr[k-1]);
         rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_N(i, j, k, rho_u, rho_v, rho_w, w,
                                                     interp_w_h, interp_w_v, interp_w_wall,
                                                     mf_mx, mf_my, mf_uy_inv, mf_vx_inv,

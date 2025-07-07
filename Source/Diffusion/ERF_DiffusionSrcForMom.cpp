@@ -122,7 +122,7 @@ DiffusionSrcForMom (const Box& bxx, const Box& bxy , const Box& bxz,
         {
             // Inv Jacobian
             Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
-            Real dzloc = (k == 0) ? dz_ptr[k]*dzinv :  0.5 * (dz_ptr[k] + dz_ptr[k-1])*dzinv;
+            Real dzloc = (k == 0) ? dz_ptr[k]*dzinv : 0.5 * (dz_ptr[k] + dz_ptr[k-1])*dzinv;
 
             Real diffContrib  = ( (tau31(i+1, j  , k  ) - tau31(i  , j  , k  )) * dxinv * mfsq // Contribution to z-mom eqn from diffusive flux in x-dir
                                 + (tau32(i  , j+1, k  ) - tau32(i  , j  , k  )) * dyinv * mfsq // Contribution to z-mom eqn from diffusive flux in y-dir
