@@ -1,7 +1,7 @@
 # Initializing ERF from a NetCDF file.
 
 This folder contains a proof-of-concept demonstration for a newer workflow scheme, 
-originally developed by Timothy Sliwinski at NOAA:
+originally developed by Timothy Sliwinski at CIRA/CSU/NOAA GSL:
 1. Create initial conditions using python.
 2. Export those values to a NetCDF file.
 3. Initialize an ERF simluation using that NetCDF data, along with a standard inputs file.
