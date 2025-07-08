@@ -1015,7 +1015,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
           // One FArrayBox to rule them all
           FArrayBox morr_fab(grown_box, MORRInd::NumInds, The_Async_Arena());  // All the data members
-          morr_fab.setVal(0.0);
+          morr_fab.template setVal<RunOn::Device>(0.0);
           auto const& morr_arr = morr_fab.array();
 
           ////////////////////////////////////////////////////////////
