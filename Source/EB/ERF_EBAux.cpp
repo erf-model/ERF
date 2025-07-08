@@ -111,9 +111,6 @@ define( int const& a_idim,
       Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
 
       bool l_periodic   = a_geom.isPeriodic(a_idim);
-      bool l_periodic_x = a_geom.isPeriodic(0);
-      bool l_periodic_y = a_geom.isPeriodic(1);
-      bool l_periodic_z = a_geom.isPeriodic(2);
 
       // Initialization
       // This is an ad-hoc; ideally, eb_aux should be defined in bx_grown.
@@ -151,7 +148,7 @@ define( int const& a_idim,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
                   aux_barea, aux_bcent, aux_bnorm,
-                  vdim, idim=a_idim, l_periodic, l_periodic_x, l_periodic_y, l_periodic_z,
+                  vdim, idim=a_idim, l_periodic,
                   small_volfrac, small_value ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
@@ -826,8 +823,6 @@ define( int const& a_idim,
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
 
     const Box& bx = mfi.validbox();
-    const Box& bx_grown = mfi.growntilebox();
-    const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
 
     if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
 

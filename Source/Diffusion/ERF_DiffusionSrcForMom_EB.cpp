@@ -82,9 +82,6 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     Array4<const Real      > u_afrac_x = (ebfact.get_u_const_factory())->getAreaFrac()[0]->const_array(mfi);
     Array4<const Real      > u_afrac_y = (ebfact.get_u_const_factory())->getAreaFrac()[1]->const_array(mfi);
     Array4<const Real      > u_afrac_z = (ebfact.get_u_const_factory())->getAreaFrac()[2]->const_array(mfi);
-    Array4<const Real      > u_fcx   = (ebfact.get_u_const_factory())->getFaceCent()[0]->const_array(mfi);
-    Array4<const Real      > u_fcy   = (ebfact.get_u_const_factory())->getFaceCent()[1]->const_array(mfi);
-    Array4<const Real      > u_fcz   = (ebfact.get_u_const_factory())->getFaceCent()[2]->const_array(mfi);
     Array4<const Real      > u_bcent = (ebfact.get_u_const_factory())->getBndryCent().const_array(mfi);
     Array4<const Real      > u_bnorm = (ebfact.get_u_const_factory())->getBndryNorm().const_array(mfi);
 
@@ -95,9 +92,6 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     Array4<const Real      > v_afrac_x = (ebfact.get_v_const_factory())->getAreaFrac()[0]->const_array(mfi);
     Array4<const Real      > v_afrac_y = (ebfact.get_v_const_factory())->getAreaFrac()[1]->const_array(mfi);
     Array4<const Real      > v_afrac_z = (ebfact.get_v_const_factory())->getAreaFrac()[2]->const_array(mfi);
-    Array4<const Real      > v_fcx   = (ebfact.get_v_const_factory())->getFaceCent()[0]->const_array(mfi);
-    Array4<const Real      > v_fcy   = (ebfact.get_v_const_factory())->getFaceCent()[1]->const_array(mfi);
-    Array4<const Real      > v_fcz   = (ebfact.get_v_const_factory())->getFaceCent()[2]->const_array(mfi);
     Array4<const Real      > v_bcent = (ebfact.get_v_const_factory())->getBndryCent().const_array(mfi);
     Array4<const Real      > v_bnorm = (ebfact.get_v_const_factory())->getBndryNorm().const_array(mfi);
 
@@ -108,9 +102,6 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     Array4<const Real      > w_afrac_x = (ebfact.get_w_const_factory())->getAreaFrac()[0]->const_array(mfi);
     Array4<const Real      > w_afrac_y = (ebfact.get_w_const_factory())->getAreaFrac()[1]->const_array(mfi);
     Array4<const Real      > w_afrac_z = (ebfact.get_w_const_factory())->getAreaFrac()[2]->const_array(mfi);
-    Array4<const Real      > w_fcx   = (ebfact.get_w_const_factory())->getFaceCent()[0]->const_array(mfi);
-    Array4<const Real      > w_fcy   = (ebfact.get_w_const_factory())->getFaceCent()[1]->const_array(mfi);
-    Array4<const Real      > w_fcz   = (ebfact.get_w_const_factory())->getFaceCent()[2]->const_array(mfi);
     Array4<const Real      > w_bcent = (ebfact.get_w_const_factory())->getBndryCent().const_array(mfi);
     Array4<const Real      > w_bnorm = (ebfact.get_w_const_factory())->getBndryNorm().const_array(mfi);
 
