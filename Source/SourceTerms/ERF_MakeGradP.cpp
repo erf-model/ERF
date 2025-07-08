@@ -53,7 +53,7 @@ void make_gradp_pert (int level,
         // *****************************************************************************
         for ( MFIter mfi(S_data[Vars::cons]); mfi.isValid(); ++mfi)
         {
-            Box gbx = mfi.tilebox(); 
+            Box gbx = mfi.tilebox();
             gbx.grow(IntVect(ngrow,ngrow,ngrow));
 
             if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
@@ -72,7 +72,7 @@ void make_gradp_pert (int level,
 }
 
 void
-compute_gradp (const MultiFab& p,        
+compute_gradp (const MultiFab& p,
                const Geometry& geom,
                MultiFab& z_phys_nd,
                MultiFab& z_phys_cc,
@@ -271,7 +271,7 @@ compute_gradp (const MultiFab& p,
 
                             GpuArray<Real,AMREX_SPACEDIM> slopes;
                             slopes = erf_calc_slopes_eb_staggered(Vars::zvel, Vars::cons, dx, dy, dz, i, j, k, zvel_arr, p_arr, w_volcent, w_cellflg);
-                            
+
                             gpz_arr(i,j,k) = slopes[2];
 
                         } else {
@@ -290,7 +290,7 @@ compute_gradp (const MultiFab& p,
                 {
                     if (u_volfrac(i,j,k) > 0.0) {
                         if (!cellflg(i-1,j,k).isCovered()) {
-                            gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));   
+                            gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
                         } else {
                             if (!cellflg(i+1,j,k).isCovered()) {
                                 gpx_arr(i,j,k) = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
@@ -324,7 +324,7 @@ compute_gradp (const MultiFab& p,
                 {
                     if (w_volfrac(i,j,k) > 0.0) {
                         if (!cellflg(i,j,k-1).isCovered()) {
-                            gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) );    
+                            gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) );
                         } else {
                             if (!cellflg(i,j,k+1).isCovered()) {
                                 gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k+1)-p_arr(i,j,k) );

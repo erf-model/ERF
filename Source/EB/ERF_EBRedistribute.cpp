@@ -153,7 +153,7 @@ redistribute_term ( int ncomp,
             if (igrid == IntVars::xmom) bx_cc = bx_cc.setBig(0, bx_cc.bigEnd(0) + 1);
             if (igrid == IntVars::ymom) bx_cc = bx_cc.setBig(1, bx_cc.bigEnd(1) + 1);
             if (igrid == IntVars::zmom) bx_cc = bx_cc.setBig(2, bx_cc.bigEnd(2) + 1);
-            
+
             Box gbx = bx_cc; gbx.grow(3);
 
             // Extended geometry domain

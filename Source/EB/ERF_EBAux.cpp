@@ -804,7 +804,7 @@ define( int const& a_idim,
 
         } // flag(iv_lo) and flag(iv_hi)
       });
-      
+
     } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued )
 
   } // MFIter
@@ -830,7 +830,7 @@ define( int const& a_idim,
     const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
 
     if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
-    
+
       Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
       Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
       Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
