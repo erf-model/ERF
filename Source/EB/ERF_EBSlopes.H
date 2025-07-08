@@ -301,7 +301,6 @@ erf_calc_slopes_eb_staggered (int igrid_query,
                     int igrid_data,
                     amrex::Real dx, amrex::Real dy, amrex::Real dz,
                     int i, int j, int k,
-                    const amrex::Array4<const amrex::Real>& vel_arr,
                     amrex::Array4<amrex::Real const> const& state,
                     amrex::Array4<amrex::Real const> const& ccent,
                     amrex::Array4<amrex::EBCellFlag const> const& flag)

@@ -67,7 +67,7 @@ void make_gradp_pert (int level,
             });
         }
 
-        compute_gradp(p,geom,z_phys_nd,z_phys_cc,S_data,d_bcrec_ptr,ebfact,gradp,solverChoice);
+        compute_gradp(p,geom,z_phys_nd,z_phys_cc,d_bcrec_ptr,ebfact,gradp,solverChoice);
     }
 }
 
@@ -76,7 +76,6 @@ compute_gradp (const MultiFab& p,
                const Geometry& geom,
                MultiFab& z_phys_nd,
                MultiFab& z_phys_cc,
-               Vector<MultiFab>& S_data,
                BCRec const* d_bcrec_ptr,
                const eb_& ebfact,
                Vector<MultiFab>& gradp,
@@ -201,10 +200,6 @@ compute_gradp (const MultiFab& p,
             const Real dy = dx_arr[1];
             const Real dz = dx_arr[2];
 
-            const Array4<const Real>& xvel_arr = S_data[Vars::xvel].array(mfi);
-            const Array4<const Real>& yvel_arr = S_data[Vars::yvel].array(mfi);
-            const Array4<const Real>& zvel_arr = S_data[Vars::zvel].array(mfi);
-
             // EB factory
             Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
 
@@ -233,7 +228,7 @@ compute_gradp (const MultiFab& p,
                         if (u_cellflg(i,j,k).isSingleValued()) {
 
                             GpuArray<Real,AMREX_SPACEDIM> slopes;
-                            slopes = erf_calc_slopes_eb_staggered(Vars::xvel, Vars::cons, dx, dy, dz, i, j, k, xvel_arr, p_arr, u_volcent, u_cellflg);
+                            slopes = erf_calc_slopes_eb_staggered(Vars::xvel, Vars::cons, dx, dy, dz, i, j, k, p_arr, u_volcent, u_cellflg);
 
                             gpx_arr(i,j,k) = slopes[0];
 
@@ -252,7 +247,7 @@ compute_gradp (const MultiFab& p,
                         if (v_cellflg(i,j,k).isSingleValued()) {
 
                             GpuArray<Real,AMREX_SPACEDIM> slopes;
-                            slopes = erf_calc_slopes_eb_staggered(Vars::yvel, Vars::cons, dx, dy, dz, i, j, k, yvel_arr, p_arr, v_volcent, v_cellflg);
+                            slopes = erf_calc_slopes_eb_staggered(Vars::yvel, Vars::cons, dx, dy, dz, i, j, k, p_arr, v_volcent, v_cellflg);
 
                             gpy_arr(i,j,k) = slopes[1];
 
@@ -270,7 +265,7 @@ compute_gradp (const MultiFab& p,
                         if (w_cellflg(i,j,k).isSingleValued()) {
 
                             GpuArray<Real,AMREX_SPACEDIM> slopes;
-                            slopes = erf_calc_slopes_eb_staggered(Vars::zvel, Vars::cons, dx, dy, dz, i, j, k, zvel_arr, p_arr, w_volcent, w_cellflg);
+                            slopes = erf_calc_slopes_eb_staggered(Vars::zvel, Vars::cons, dx, dy, dz, i, j, k, p_arr, w_volcent, w_cellflg);
 
                             gpz_arr(i,j,k) = slopes[2];
 
