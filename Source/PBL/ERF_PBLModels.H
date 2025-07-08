@@ -1,7 +1,7 @@
 #ifndef ERF_PBLMODELS_H_
 #define ERF_PBLMODELS_H_
 
-#include "ERF_Thetav.H"
+#include "ERF_MoistTheta.H"
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the

@@ -76,9 +76,10 @@ erf.Ck       = 0.1
 erf.sigma_k  = 1.0
 erf.Ce       = 0.1
 erf.RhoKE_0  = 0.1
+erf.theta_ref = 300.0 # don't specify for variable theta when diagnosing stability
 
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
+erf.sounding_type = Ideal
 
 # PROBLEM PARAMETERS
 # these are zeroed because we are using an input_sounding

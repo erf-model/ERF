@@ -9,6 +9,8 @@ AMREX_ENUM(RANSType, None, kEqn);
 
 AMREX_ENUM(PBLType, None, MYNN25, MYNNEDMF, YSU, MRF);
 
+AMREX_ENUM(StratType, theta, thetav, thetal);
+
 template <typename T>
 void
 query_one_or_per_level(
@@ -153,11 +155,20 @@ public:
     Pr_t_inv = amrex::Real(1.0) / Pr_t;
     Sc_t_inv = amrex::Real(1.0) / Sc_t;
 
-    query_one_or_per_level(pp, "Ce", Ce, lev, max_level);
-    query_one_or_per_level(pp, "Ce_wall", Ce_wall, lev, max_level);
-
     if (les_type == LESType::Deardorff) {
-      query_one_or_per_level(pp, "Ck", Ck, lev, max_level);
+        query_one_or_per_level(pp, "Ck", Ck, lev, max_level);
+        query_one_or_per_level(pp, "Ce", Ce, lev, max_level);
+        query_one_or_per_level(pp, "Ce_wall", Ce_wall, lev, max_level);
+    }
+
+    // To quantify atmospheric stability for subgrid modeling
+    query_one_or_per_level(pp, "thermal_stratification", strat_type, lev, max_level);
+    if (strat_type == StratType::theta) {
+        amrex::Print() << "Thermal stratification based on gradient of potential temperature" << std::endl;
+    } else if (strat_type == StratType::thetav) {
+        amrex::Print() << "Thermal stratification based on gradient of virtual potential temperature" << std::endl;
+    } else if (strat_type == StratType::thetal) {
+        amrex::Print() << "Thermal stratification based on gradient of linearized liquid-water potential temperature" << std::endl;
     }
 
     // k-eqn constants
@@ -244,8 +255,13 @@ public:
         amrex::Print() << "Ck                          : " << Ck << std::endl;
         amrex::Print() << "sigma_k                     : " << sigma_k
                        << std::endl;
-        amrex::Print() << "reference theta             : " << theta_ref
-                       << std::endl;
+        if (theta_ref > 0) {
+            amrex::Print() << "reference theta             : " << theta_ref
+                           << std::endl;
+        } else {
+            amrex::Print() << "reference theta             : n/a"
+                           << std::endl;
+        }
         // Sullivan et al 1994, Eqn 14
         amrex::Real Cs_equiv = std::sqrt(Ck * std::sqrt(Ck / Ce));
         amrex::Print() << "equivalent Cs               : " << Cs_equiv
@@ -267,8 +283,13 @@ public:
                        << std::endl;
         amrex::Print() << "max_geom_lscale             : " << l_g_max
                        << std::endl;
-        amrex::Print() << "reference theta             : " << theta_ref
-                       << std::endl;
+        if (theta_ref > 0) {
+            amrex::Print() << "reference theta             : " << theta_ref
+                           << std::endl;
+        } else {
+            amrex::Print() << "reference theta             : n/a"
+                           << std::endl;
+        }
       }
     }
 
@@ -344,7 +365,9 @@ public:
   amrex::Real sigma_k = 0.5;
   // - reference potential temperature used to quantify the stratification in
   //   a stable region
-  amrex::Real theta_ref = 300.0;
+  amrex::Real theta_ref = 0.0;
+  // - how to quantify stratification effects
+  StratType strat_type = StratType::theta;
 
   // Anistropic length scales
   bool mix_isotropic = true;

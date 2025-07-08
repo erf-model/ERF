@@ -183,7 +183,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     // Update the microphysics (moisture)
     // **************************************************************************************
-    advance_microphysics(lev, S_new, dt_lev, iteration, time);
+    if (!solverChoice.moisture_tight_coupling) {
+        advance_microphysics(lev, S_new, dt_lev, iteration, time);
+    }
 
     // **************************************************************************************
     // Update the land surface model

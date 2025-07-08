@@ -64,9 +64,6 @@ std::string ERF::nc_bdy_file; // Must provide via input
 // NetCDF wrflow (bottom boundary) file
 std::string ERF::nc_low_file; // Must provide via input
 
-// Flag to trigger initialization from input_sounding like WRF's ideal.exe
-bool ERF::init_sounding_ideal = false;
-
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int  ERF::output_1d_column = 0;
 int  ERF::column_interval  = -1;
@@ -827,6 +824,10 @@ ERF::InitData_post ()
 
 #ifdef ERF_USE_PARTICLES
         if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+            if (solverChoice.moisture_tight_coupling) {
+                Warning("Tight coupling has not been tested with Lagrangian microphysics");
+            }
+
             for (int lev = 0; lev <= finest_level; lev++) {
                 dynamic_cast<LagrangianMicrophysics&>(*micro).initParticles(z_phys_nd[lev]);
             }
@@ -1542,10 +1543,6 @@ ERF::init_only (int lev, Real time)
 
     // Initialize background flow (optional)
     if (solverChoice.init_type == InitType::Input_Sounding) {
-        // The base state is initialized by integrating vertically through the
-        // input sounding, if the init_sounding_ideal flag is set; otherwise
-        // it is set by initHSE()
-
         // The physbc's need the terrain but are needed for initHSE
         // We have already made the terrain in the call to init_zphys
         //    in MakeNewLevelFromScratch
@@ -1554,10 +1551,16 @@ ERF::init_only (int lev, Real time)
         // Now init the base state and the data itself
         init_from_input_sounding(lev);
 
-        if (init_sounding_ideal) {
+        // The base state has been initialized by integrating vertically
+        // through the sounding for ideal (like WRF) or isentropic approaches
+        if (solverChoice.sounding_type == SoundingType::Ideal ||
+            solverChoice.sounding_type == SoundingType::Isentropic ||
+            solverChoice.sounding_type == SoundingType::DryIsentropic) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_gravity,
                 "Gravity should be on to be consistent with sounding initialization.");
-        } else {
+        } else { // SoundingType::ConstantDensity
+            AMREX_ASSERT_WITH_MESSAGE(!solverChoice.use_gravity,
+                "Constant density probably doesn't make sense with gravity");
             initHSE();
         }
 
@@ -1773,9 +1776,6 @@ ERF::ReadParameters ()
         }
 
 #endif
-
-        // Flag to trigger initialization from input_sounding like WRF's ideal.exe
-        pp.query("init_sounding_ideal", init_sounding_ideal);
 
         // Options for vertical interpolation of met_em*.nc data.
         pp.query("metgrid_debug_quiescent",  metgrid_debug_quiescent);

@@ -67,7 +67,7 @@ erf.rayleigh_zdamp    = 10000.0
 erf.rayleigh_dampcoef = 0.005
 
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
+erf.sounding_type = Ideal
 
 erf.dycore_horiz_adv_type    = Centered_4th
 erf.dycore_vert_adv_type     = Centered_4th
