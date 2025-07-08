@@ -90,7 +90,7 @@ namespace MORRInd {
            asn,
            acn,
            agn,
-           dumi,
+           dumi, // MASSIVE LIST STARTS
            dumr,
            dumfni,
            dumg,
@@ -1014,8 +1014,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           if(run_morr_cpp) {
 
           // One FArrayBox to rule them all
-          FArrayBox morr_fab(grown_box, MORRInd::NumInds, The_Async_Arena());  // All the data members
-          morr_fab.template setVal<RunOn::Device>(0.0);
+          FArrayBox morr_fab(grown_box, MORRInd::NumInds);  // All the data members
+          morr_fab.template setVal<RunOn::Device>(0.0,grown_box,MORRInd::NumInds);
           auto const& morr_arr = morr_fab.array();
 
           ////////////////////////////////////////////////////////////
