@@ -71,18 +71,18 @@ namespace MORRInd {
            qisten, // CLOUD ICE SED TEND
            qnisten, // SNOW SED TEND
            qcsten, // CLOUD WAT SED TEND
-           qrcu1d,
-           qscu1d,
-           qicu1d,
-           precrt,
-           snowrt,
-           snowprt,
-           grplprt,
-           effc,
-           effi,
-           effs,
-           effr,
-           effg,
+           qrcu1d, // RAIN FROM CUMULUS PARAMETERIZATION
+           qscu1d, // SNOW FROM CUMULUS PARAMETERIZATION
+           qicu1d, // ICE FROM CUMULUS PARAMETERIZATION
+           precrt, // TOTAL PRECIP PER TIME STEP
+           snowrt, // SNOW PER TIME STEP
+           snowprt, // TOTAL CLOUD ICE PLUS SNOW PER TIME STEP
+           grplprt, // TOTAL GRAUPEL PER TIME STEP
+           effc,  // DROPLET EFFECTIVE RADIUS
+           effi, // CLOUD ICE EFFECTIVE RADIUS
+           effs, // SNOW EFFECTIVE RADIUS
+           effr, // RAIN EFFECTIVE RADIUS
+           effg, // GRAUPEL EFFECTIVE RADIUS
            rho,
            mu,
            ain,
@@ -146,10 +146,10 @@ namespace MORRInd {
            dlami,
            dlamc,
            dlamg,
-           xxls,
-           xxlv,
-           cpm,
-           xlf,
+           xxls, // Latent heat of sublimation
+           xxlv, // Latent heat of vaporization
+           cpm, // Specific heat at constant pressure for moist air
+           xlf, // Latent heat of freezing
            NumInds
     };
 }
