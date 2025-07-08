@@ -21,6 +21,7 @@ CEXE_sources += ERF_AverageDown.cpp
 CEXE_sources += ERF_ChopGrids.cpp
 CEXE_sources += ERF_ConvertForProjection.cpp
 CEXE_sources += ERF_InitZLevels.cpp
+CEXE_sources += ERF_MakeSubdomains.cpp
 CEXE_sources += ERF_MomentumToVelocity.cpp
 CEXE_sources += ERF_VelocityToMomentum.cpp
 CEXE_sources += ERF_InteriorGhostCells.cpp
