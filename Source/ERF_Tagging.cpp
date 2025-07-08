@@ -11,11 +11,54 @@ using namespace amrex;
  * @param[in] time current time
 */
 
+#ifdef ERF_USE_NETCDF
+Box
+read_subdomain_from_wrfinput (int lev, const std::string& fname, int& ratio);
+#endif
+
 void
 ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 {
     const int clearval = TagBox::CLEAR;
     const int   tagval = TagBox::SET;
+
+    Box subdomain;
+    int ratio;
+
+#ifdef ERF_USE_NETCDF
+    if (solverChoice.init_type == InitType::WRFInput) {
+        if (!nc_init_file[levc+1].empty()) {
+             amrex::Print() << "WRFIinput file to read: " << nc_init_file[levc+1][0] << std::endl;
+            subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][0], ratio);
+            amrex::Print() << " WRFInput subdomain at level " << levc+1 << " is " << subdomain << std::endl;
+        }
+
+        if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
+            amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
+            amrex::Print() << "The inputs file has refinement ratio = " << ref_ratio[levc] << std::endl;
+            amrex::Abort("These must be the same -- please edit your inputs file and try again.");
+        }
+
+        subdomain.coarsen(IntVect(ratio,ratio,1));
+
+        if (verbose > 0) {
+            amrex::Print() << " Crse subdomain to be tagged is" << subdomain << std::endl;
+        }
+
+        for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
+            auto tag_arr = tags.array(mfi);  // Get device-accessible array
+
+            Box bx = mfi.validbox(); bx &= subdomain;
+
+            if (!bx.isEmpty()) {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    tag_arr(i,j,k) = TagBox::SET;
+                });
+            }
+        }
+        return;
+    }
+#endif
 
     //
     // Make sure the ghost cells of the level we are tagging at are filled
@@ -292,6 +335,7 @@ ERF::refinement_criteria_setup ()
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
+
                 if (solverChoice.init_type == InitType::WRFInput) {
                     if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
                         amrex::Error("Number of boxes doesn't match number of input files");
@@ -330,6 +374,7 @@ ERF::refinement_criteria_setup ()
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
+
                 if (solverChoice.init_type == InitType::WRFInput) {
                     if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
                         amrex::Error("Number of boxes doesn't match number of input files");

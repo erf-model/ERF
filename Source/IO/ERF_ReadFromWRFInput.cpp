@@ -5,6 +5,31 @@
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
+Box
+read_subdomain_from_wrfinput(int lev, const std::string& fname, int& ratio)
+{
+    int  is, js;
+    int  nx, ny, nz;
+    if (ParallelDescriptor::IOProcessor()) {
+        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+        { // Global Attributes (int)
+            std::vector<int> attr;
+            ncf.get_attr("WEST-EAST_GRID_DIMENSION"  , attr); nx = attr[0]-1;
+            ncf.get_attr("SOUTH-NORTH_GRID_DIMENSION", attr); ny = attr[0]-1;
+            ncf.get_attr("BOTTOM-TOP_GRID_DIMENSION" , attr); nz = attr[0]-1;
+            amrex::Print() << "Have read (nx,ny,nz) = " << nx << " " << ny << " " << nz << std::endl;
+            ncf.get_attr("I_PARENT_START", attr)   ; is    = attr[0];
+            ncf.get_attr("J_PARENT_START", attr)   ; js    = attr[0];
+            ncf.get_attr("PARENT_GRID_RATIO", attr); ratio = attr[0];
+        }
+        ncf.close();
+        amrex::Print() << "Have read (parent_ilo,parent_jlo) = " << is << " " << js << std::endl;
+        amrex::Print() << "Have read refinement ratio        = " << ratio << std::endl;
+    }
+
+    return Box( IntVect(ratio*is,ratio*js,0), IntVect(ratio*is+nx-1, ratio*js+ny-1, nz-1) );
+}
+
 void
 read_from_wrfinput (int /*lev*/,
                     const Box& domain,
