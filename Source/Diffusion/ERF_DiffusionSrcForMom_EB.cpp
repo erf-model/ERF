@@ -135,7 +135,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
             diffContrib      /= u_volfrac(i,j,k);
             rho_u_rhs(i,j,k) -= diffContrib;
 
-            if (l_constraint_x && u_cellflg(i,j,k).isSingleValued()) {
+            if (!l_constraint_x && u_cellflg(i,j,k).isSingleValued()) {
 
                 Real axm = u_afrac_x(i  ,j  ,k  );
                 Real axp = u_afrac_x(i+1,j  ,k  );
@@ -301,7 +301,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
             rho_w_rhs(i,j,k) -= diffContrib;
 
             // Boundary flux (simple version)
-            if (l_constraint_z && w_cellflg(i,j,k).isSingleValued()) {
+            if (!l_constraint_z && w_cellflg(i,j,k).isSingleValued()) {
 
                 Real axm = w_afrac_x(i  ,j  ,k  );
                 Real axp = w_afrac_x(i+1,j  ,k  );
