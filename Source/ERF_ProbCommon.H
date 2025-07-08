@@ -139,23 +139,20 @@ public:
                              amrex::Vector<amrex::Real>& src,
                              amrex::Gpu::DeviceVector<amrex::Real>& d_src,
                              const amrex::Geometry& geom,
-                             std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+                             std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {
         if (src.empty()) return;
 
-        if (z_phys_cc) {
-            // use_terrain=1
-            amrex::Error("Temperature forcing not defined for "+name()+" problem with terrain");
-        } else {
-            const int khi              = geom.Domain().bigEnd()[2];
-            // const amrex::Real* prob_lo = geom.ProbLo();
-            // const auto dx              = geom.CellSize();
-            for (int k = 0; k <= khi; k++)
-            {
-                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-                // set RHS term of RhoTheta equation based on time, z_cc here
-                src[k] = 0.0;
-            }
+        amrex::Warning("Temperature forcing not defined for "+name()+" problem");
+
+        const int khi              = geom.Domain().bigEnd()[2];
+        // const amrex::Real* prob_lo = geom.ProbLo();
+        // const auto dx              = geom.CellSize();
+        for (int k = 0; k <= khi; k++)
+        {
+            // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+            // set RHS term of RhoTheta equation based on time, z_cc here
+            src[k] = 0.0;
         }
 
         // Copy from host version to device version
@@ -176,23 +173,20 @@ public:
                              amrex::Vector<amrex::Real>& qsrc,
                              amrex::Gpu::DeviceVector<amrex::Real>& d_qsrc,
                              const amrex::Geometry& geom,
-                             std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+                             std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {
         if (qsrc.empty()) return;
 
-        if (z_phys_cc) {
-            // use_terrain=1
-            amrex::Error("Moisture forcing not defined for "+name()+" problem with terrain");
-        } else {
-            const int khi              = geom.Domain().bigEnd()[2];
-            // const amrex::Real* prob_lo = geom.ProbLo();
-            // const auto dx              = geom.CellSize();
-            for (int k = 0; k <= khi; k++)
-            {
-                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-                // set RHS term of RhoQ1 equation based on time, z_cc here
-                qsrc[k] = 0.0;
-            }
+        amrex::Warning("Moisture forcing not defined for "+name()+" problem");
+
+        const int khi              = geom.Domain().bigEnd()[2];
+        // const amrex::Real* prob_lo = geom.ProbLo();
+        // const auto dx              = geom.CellSize();
+        for (int k = 0; k <= khi; k++)
+        {
+            // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+            // set RHS term of RhoQ1 equation based on time, z_cc here
+            qsrc[k] = 0.0;
         }
 
         // Copy from host version to device version
@@ -216,23 +210,20 @@ public:
                          amrex::Vector<amrex::Real>& wbar,
                          amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
                          const amrex::Geometry& geom,
-                         std::unique_ptr<amrex::MultiFab>& z_phys_nd)
+                         std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {
         if (wbar.empty()) return;
 
-        if (z_phys_nd) {
-            // use_terrain=1
-            amrex::Error("Moisture forcing not defined for "+name()+" problem with terrain");
-        } else {
-            const int khi              = geom.Domain().bigEnd()[2];
-            // const amrex::Real* prob_lo = geom.ProbLo();
-            // const auto dx              = geom.CellSize();
-            for (int k = 0; k <= khi; k++)
-            {
-                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-                // set vertical velocity profile based on time, z_cc here
-                wbar[k] = 0.0;
-            }
+        amrex::Warning("Moisture forcing not defined for "+name()+" problem");
+
+        const int khi              = geom.Domain().bigEnd()[2];
+        // const amrex::Real* prob_lo = geom.ProbLo();
+        // const auto dx              = geom.CellSize();
+        for (int k = 0; k <= khi; k++)
+        {
+            // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+            // set vertical velocity profile based on time, z_cc here
+            wbar[k] = 0.0;
         }
 
         // Copy from host version to device version
@@ -255,24 +246,21 @@ public:
                          amrex::Vector<amrex::Real>& v_geos,
                          amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
                          const amrex::Geometry& geom,
-                         std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+                         std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {
         if (u_geos.empty()) return;
 
-        if (z_phys_cc) {
-            // use_terrain=1
-            amrex::Error("Geostrophic wind profile not defined for "+name()+" problem with terrain");
-        } else {
-            const int khi              = geom.Domain().bigEnd()[2];
-            // const amrex::Real* prob_lo = geom.ProbLo();
-            // const auto dx              = geom.CellSize();
-            for (int k = 0; k <= khi; k++)
-            {
-                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-                // set RHS term of RhoTheta equation based on time, z_cc here
-                u_geos[k] = 0.0;
-                v_geos[k] = 0.0;
-            }
+        amrex::Warning("Geostrophic wind profile not defined for "+name()+" problem");
+
+        const int khi              = geom.Domain().bigEnd()[2];
+        // const amrex::Real* prob_lo = geom.ProbLo();
+        // const auto dx              = geom.CellSize();
+        for (int k = 0; k <= khi; k++)
+        {
+            // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+            // set RHS term of RhoTheta equation based on time, z_cc here
+            u_geos[k] = 0.0;
+            v_geos[k] = 0.0;
         }
 
         // Copy from host version to device version
