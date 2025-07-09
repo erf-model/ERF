@@ -15,7 +15,7 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                                                 const Array4<Real const>& xvel_arr,
                                                 const Array4<Real const>& yvel_arr,
                                                 const Box& bx, const Box& domain,
-                                                int bccomp)
+                                                int bccomp, const Real /*time*/)
 {
     BL_PROFILE_VAR("impose_lateral_yvel_bcs()",impose_lateral_yvel_bcs);
     const auto& dom_lo = lbound(domain);
@@ -194,7 +194,7 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
                                                  const Box& bx, const Box& domain,
                                                  const Array4<Real const>& z_phys_nd,
                                                  const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                                 int bccomp)
+                                                 int bccomp, const Real /*time*/)
 {
     BL_PROFILE_VAR("impose_vertical_yvel_bcs()",impose_vertical_yvel_bcs);
     const auto& dom_lo = lbound(domain);
