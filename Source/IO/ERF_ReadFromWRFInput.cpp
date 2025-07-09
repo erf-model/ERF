@@ -90,7 +90,7 @@ read_from_wrfinput (int lev,
                 Print() << "dy: " << NC_dy << ' ' << "Ny: " << NC_ny-1 << "\n";
                 Abort("Domain specification error");
             }
-        } // lev == 0 
+        } // lev == 0
     } // IOProc
 
     Vector<FArrayBox*> NC_fabs; NC_fabs.push_back(&NC_fab);
