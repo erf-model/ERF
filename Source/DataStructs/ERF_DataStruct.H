@@ -34,6 +34,10 @@ AMREX_ENUM(InitType,
     None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform
 );
 
+AMREX_ENUM(SoundingType,
+    ConstantDensity, Ideal, Isentropic, DryIsentropic
+);
+
 AMREX_ENUM(ABLDriverType,
     None, PressureGradient, GeostrophicWind
 );
@@ -170,6 +174,8 @@ struct SolverChoice {
             } else {
                 buoyancy_type = 2; // uses Tprime
             }
+
+            pp.query("moisture_tight_coupling",moisture_tight_coupling);
         }
 
         // Which expression (1,2/3 or 4) to use for buoyancy
@@ -250,6 +256,10 @@ struct SolverChoice {
             pp.query("rebalance_wrfinput",rebalance_wrfinput);
         }
 
+        // How to interpret input_sounding
+        if (init_type == InitType::Input_Sounding) {
+            pp.query_enum_case_insensitive("sounding_type",sounding_type);
+        }
 
         if (terrain_type == TerrainType::StaticFittedMesh ||
             terrain_type == TerrainType::MovingFittedMesh) {
@@ -696,6 +706,9 @@ struct SolverChoice {
     InitType init_type = InitType::None;
 
     inline static
+    SoundingType sounding_type = SoundingType::Ideal;
+
+    inline static
     TerrainType terrain_type = TerrainType::None;
 
     inline static
@@ -822,6 +835,8 @@ struct SolverChoice {
     // if Kessler, then it will be set to RhoQ3
     // if     SAM, then it will be set to RhoQ4
     int RhoQr_comp {-1};
+
+    bool moisture_tight_coupling {false};
 
     std::string windfarm_loc_table, windfarm_spec_table, windfarm_spec_table_extra;
     std::string windfarm_blade_table, windfarm_airfoil_tables;

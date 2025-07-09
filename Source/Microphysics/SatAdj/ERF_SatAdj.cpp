@@ -26,7 +26,7 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
+            //qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
 
             //------- Evaporation/condensation
             Real qsat;
@@ -34,11 +34,26 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
 
             // There is enough moisutre to drive to equilibrium
             if ((qv_array(i,j,k)+qc_array(i,j,k)) > qsat) {
+                Real qvprev = qv_array(i,j,k);
+                Real qcprev = qc_array(i,j,k);
+
+                // clip qc but maintain total water
+                if (qc_array(i,j,k) < 0) {
+                    qv_array(i,j,k) += qc_array(i,j,k);
+                    qc_array(i,j,k)  = 0.0;
+                }
 
                 // Update temperature
                 tabs_array(i,j,k) = NewtonIterSat(i, j, k   ,
                                                   d_fac_cond, tabs_array, pres_array,
                                                   qv_array  , qc_array  );
+
+                Real qsatnew;
+                erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsatnew);
+                amrex::ignore_unused(qvprev);
+                amrex::ignore_unused(qcprev);
+                AMREX_ASSERT(std::abs(qv_array(i,j,k)-qsatnew) < 1e-16);
+                AMREX_ASSERT(std::abs(qv_array(i,j,k)+qc_array(i,j,k)-qvprev-qcprev) < 1e-16);
 
                 // Update theta (constant pressure)
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
@@ -67,11 +82,25 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
                 // Verify assumption that qv > qsat does not occur
                 erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsat);
                 if (qv_array(i,j,k) > qsat) {
+                    Real qvprev = qv_array(i,j,k);
+                    Real qcprev = qc_array(i,j,k);
+                    Real Tprev = tabs_array(i,j,k);
 
                     // Update temperature
                     tabs_array(i,j,k) = NewtonIterSat(i, j, k     ,
                                                       d_fac_cond  , tabs_array, pres_array,
                                                       qv_array    , qc_array  );
+
+                    Real qsatnew;
+                    erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsatnew);
+                    amrex::ignore_unused(qvprev);
+                    amrex::ignore_unused(qcprev);
+                    amrex::ignore_unused(Tprev);
+                    AMREX_ASSERT(qv_array(i,j,k) < qvprev);
+                    AMREX_ASSERT(qc_array(i,j,k) > qcprev);
+                    AMREX_ASSERT(tabs_array(i,j,k) > Tprev);
+                    AMREX_ASSERT(std::abs(qv_array(i,j,k)-qsatnew) < 1e-16);
+                    AMREX_ASSERT(std::abs(qv_array(i,j,k)+qc_array(i,j,k)-qvprev-qcprev) < 1e-16);
 
                     // Update theta
                     theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);

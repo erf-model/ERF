@@ -71,6 +71,7 @@ erf.Ck       = 0.1  # Coefficient in Moeng1984, Eqn. 19
 erf.Ce       = 0.7  # Note: Ce_lcoeff = C_e - 1.9*C_k
 erf.Ce_wall  = 3.9  # To account for "wall effects"
 erf.sigma_k  = 0.5  # TKE diffusion coeff = 2*Km = Km * inv_sigma_k, Moeng1984, Eqn. 15
+erf.theta_ref = 300.0 # don't specify for variable theta when diagnosing stability
 
 erf.rayleigh_damp_U = true
 erf.rayleigh_damp_V = true
@@ -80,7 +81,7 @@ erf.rayleigh_zdamp =  50.0
 erf.rayleigh_dampcoef = 0.2
 
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
+erf.sounding_type = Ideal
 erf.input_sounding_file = "stable_sounding.txt"
 
 ## Turbulent inflow generation

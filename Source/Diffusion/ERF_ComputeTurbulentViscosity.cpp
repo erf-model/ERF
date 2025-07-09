@@ -6,6 +6,7 @@
 #include "ERF_PBLModels.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_TerrainMetrics.H"
+#include "ERF_MoistTheta.H"
 
 using namespace amrex;
 
@@ -30,7 +31,10 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                    Vector<std::unique_ptr<MultiFab>>& mapfac,
                                    const std::unique_ptr<MultiFab>& z_phys_nd,
                                    const TurbChoice& turbChoice, const Real const_grav,
-                                   std::unique_ptr<SurfaceLayer>& /*SurfLayer*/)
+                                   std::unique_ptr<SurfaceLayer>&, /*SurfLayer*/
+                                   const int RhoQv_comp,
+                                   const int RhoQc_comp,
+                                   const int RhoQr_comp)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const Box& domain = geom.Domain();
@@ -38,6 +42,9 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
     Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
+
+    bool use_thetav_grad = (turbChoice.strat_type == StratType::thetav);
+    bool use_thetal_grad = (turbChoice.strat_type == StratType::thetal);
 
     bool isotropic   = turbChoice.mix_isotropic;
 
@@ -133,7 +140,9 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         const Real l_C_e_wall   = turbChoice.Ce_wall;
         const Real Ce_lcoeff    = amrex::max(0.0, l_C_e - 1.9*l_C_k);
         const Real l_abs_g      = const_grav;
-        const Real l_inv_theta0 = 1.0 / turbChoice.theta_ref;
+
+        const bool use_ref_theta = (turbChoice.theta_ref > 0);
+        const Real l_inv_theta0  = (use_ref_theta) ? 1.0 / turbChoice.theta_ref : 1.0;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -172,16 +181,31 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                     Delta = 1.0 / dzInv;
                 }
 
-                // Calculate stratification-dependent mixing length (Deardorff 1980)
-                Real eps       = std::numeric_limits<Real>::epsilon();
-                Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
+                Real dtheta_dz;
+                if (use_thetav_grad) {
+                    dtheta_dz = 0.5 * ( Thetav(i, j, k+1, cell_data, RhoQv_comp, RhoQc_comp, RhoQr_comp)
+                                      - Thetav(i, j, k-1, cell_data, RhoQv_comp, RhoQc_comp, RhoQr_comp) )*dzInv;
+                } else if (use_thetal_grad) {
+                    dtheta_dz = 0.5 * ( Thetal(i, j, k+1, cell_data, RhoQv_comp, RhoQc_comp, RhoQr_comp)
+                                      - Thetal(i, j, k-1, cell_data, RhoQv_comp, RhoQc_comp, RhoQr_comp) )*dzInv;
+                } else {
+                    dtheta_dz = 0.5 * ( cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)
+                                      - cell_data(i, j, k-1, RhoTheta_comp) / cell_data(i, j, k-1, Rho_comp) )*dzInv;
+                }
+
+                // Calculate stratification-dependent mixing length (Deardorff 1980, Eqn. 10a)
                 Real E              = amrex::max(cell_data(i,j,k,RhoKE_comp)/cell_data(i,j,k,Rho_comp),Real(0.0));
                 Real stratification = l_abs_g * dtheta_dz * l_inv_theta0;
+                if (!use_ref_theta) {
+                    // l_inv_theta0 == 1, divide by actual theta
+                    stratification *= cell_data(i,j,k,Rho_comp) /
+                                      cell_data(i,j,k,RhoTheta_comp);
+                }
 
                 // Following WRF, the stratification effects are applied to the vertical length scales
                 // in the case of anistropic mixing
                 Real length;
+                Real eps       = std::numeric_limits<Real>::epsilon();
                 if (stratification <= eps) {
                     length = Delta;  // cbrt(dx*dy*dz) -or- dz
                 } else {
@@ -560,7 +584,8 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
                                      Hfx1, Hfx2, Hfx3, Diss,
                                      geom, use_terrain_fitted_coords,
                                      mapfac, z_phys_nd, turbChoice, const_grav,
-                                     SurfLayer);
+                                     SurfLayer, solverChoice.RhoQv_comp,
+                                     solverChoice.RhoQc_comp, solverChoice.RhoQr_comp);
     }
 
     if (turbChoice.rans_type != RANSType::None) {

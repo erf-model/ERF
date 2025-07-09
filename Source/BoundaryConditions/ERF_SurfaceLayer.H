@@ -112,6 +112,7 @@ public:
           pp.query("most.ustar", custom_ustar);
           pp.query("most.tstar", custom_tstar);
           pp.query("most.qstar", custom_qstar);
+          pp.query("most.rhosurf", custom_rhosurf);
           if (custom_qstar != 0) {
               AMREX_ASSERT_WITH_MESSAGE(use_moisture,
               "Specified custom MOST qv flux without moisture model!");
@@ -576,6 +577,8 @@ private:
   amrex::Real custom_ustar{0};
   amrex::Real custom_tstar{0};
   amrex::Real custom_qstar{0};
+  amrex::Real custom_rhosurf{0}; // use specified value instead of rho from first cell
+  bool specified_rho_surf{false};
   amrex::Real cnk_a{0.0185};
   bool cnk_visc{false};
   amrex::Real depth{30.0};
