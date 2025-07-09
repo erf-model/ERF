@@ -18,14 +18,21 @@ read_subdomain_from_wrfinput(int lev, const std::string& fname, int& ratio)
             ncf.get_attr("SOUTH-NORTH_GRID_DIMENSION", attr); ny = attr[0]-1;
             ncf.get_attr("BOTTOM-TOP_GRID_DIMENSION" , attr); nz = attr[0]-1;
             amrex::Print() << "Have read (nx,ny,nz) = " << nx << " " << ny << " " << nz << std::endl;
-            ncf.get_attr("I_PARENT_START", attr)   ; is    = attr[0];
-            ncf.get_attr("J_PARENT_START", attr)   ; js    = attr[0];
+            ncf.get_attr("I_PARENT_START", attr)   ; is    = attr[0]-1;
+            ncf.get_attr("J_PARENT_START", attr)   ; js    = attr[0]-1;
             ncf.get_attr("PARENT_GRID_RATIO", attr); ratio = attr[0];
         }
         ncf.close();
         amrex::Print() << "Have read (parent_ilo,parent_jlo) = " << is << " " << js << std::endl;
         amrex::Print() << "Have read refinement ratio        = " << ratio << std::endl;
     }
+
+    amrex::ParallelDescriptor::Bcast(&is   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&js   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&nx   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&ny   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&nz   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&ratio,1,amrex::ParallelDescriptor::IOProcessorNumber());
 
     return Box( IntVect(ratio*is,ratio*js,0), IntVect(ratio*is+nx-1, ratio*js+ny-1, nz-1) );
 }
