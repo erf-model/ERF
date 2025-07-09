@@ -22,6 +22,7 @@ void make_buoyancy (const amrex::Vector<amrex::MultiFab>& S_data,
                     const SolverChoice& solverChoice,
                     const amrex::MultiFab& base_state,
                     const int n_qstate,
+                    const eb_& ebfact,
                     const int anelastic);
 
 void make_gradp_pert (int level,

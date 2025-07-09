@@ -112,7 +112,7 @@
         // Define the buoyancy forcing term in the z-direction
         // *****************************************************************************
         make_buoyancy(S_data, S_prim, qt, buoyancy, fine_geom, solverChoice, base_to_use,
-                      micro->Get_Qstate_Moist_Size(), solverChoice.anelastic[level]);
+                      micro->Get_Qstate_Moist_Size(), get_eb(level), solverChoice.anelastic[level]);
 
         // *****************************************************************************
         // Make remaining (not gradp or buoyancy) momentum sources
