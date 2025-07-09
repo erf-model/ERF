@@ -38,7 +38,7 @@ read_subdomain_from_wrfinput(int lev, const std::string& fname, int& ratio)
 }
 
 void
-read_from_wrfinput (int /*lev*/,
+read_from_wrfinput (int lev,
                     const Box& domain,
                     const std::string& fname,
                     FArrayBox& NC_fab,
@@ -74,22 +74,24 @@ read_from_wrfinput (int /*lev*/,
         amrex::ignore_unused(NC_dateTime); amrex::ignore_unused(NC_epochTime);
 
         // Verify the inputs geometry matches what the NETCDF file has
-        Real rtol   = 1.0e-7;
-        Real Len_x = NC_dx * Real(NC_nx-1);
-        Real Len_y = NC_dy * Real(NC_ny-1);
-        if (std::fabs((Len_x - (geom.ProbHi(0) - geom.ProbLo(0))) / Len_x) > rtol) {
-            Print() << "X problem extent " << (geom.ProbHi(0) - geom.ProbLo(0)) << " does not match NETCDF file "
-                    << Len_x << "!\n";
-            Print() << "dx: " << NC_dx << ' ' << "Nx: " << NC_nx-1 << "\n";
-            Abort("Domain specification error");
-        }
-        if (std::fabs((Len_y - (geom.ProbHi(1) - geom.ProbLo(1))) / Len_y) > rtol) {
-            Print() << "Y problem extent " << (geom.ProbHi(1) - geom.ProbLo(1)) << " does not match NETCDF file "
-                    << Len_y << "!\n";
-            Print() << "dy: " << NC_dy << ' ' << "Ny: " << NC_ny-1 << "\n";
-            Abort("Domain specification error");
-        }
-    }
+        if (lev == 0) {
+            Real rtol   = 1.0e-7;
+            Real Len_x = NC_dx * Real(NC_nx-1);
+            Real Len_y = NC_dy * Real(NC_ny-1);
+            if (std::fabs((Len_x - (geom.ProbHi(0) - geom.ProbLo(0))) / Len_x) > rtol) {
+                Print() << "X problem extent " << (geom.ProbHi(0) - geom.ProbLo(0)) << " does not match NETCDF file "
+                            << Len_x << "!\n";
+                Print() << "dx: " << NC_dx << ' ' << "Nx: " << NC_nx-1 << "\n";
+                Abort("Domain specification error");
+            }
+            if (std::fabs((Len_y - (geom.ProbHi(1) - geom.ProbLo(1))) / Len_y) > rtol) {
+                Print() << "Y problem extent " << (geom.ProbHi(1) - geom.ProbLo(1)) << " does not match NETCDF file "
+                        << Len_y << "!\n";
+                Print() << "dy: " << NC_dy << ' ' << "Ny: " << NC_ny-1 << "\n";
+                Abort("Domain specification error");
+            }
+        } // lev == 0 
+    } // IOProc
 
     Vector<FArrayBox*> NC_fabs; NC_fabs.push_back(&NC_fab);
     Vector<std::string> NC_names; NC_names.push_back(NC_name);

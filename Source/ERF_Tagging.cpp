@@ -33,6 +33,9 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             amrex::Print() << " WRFInput subdomain at level " << levc+1 << " is " << subdomain << std::endl;
         }
 
+        num_boxes_at_level[levc+1] = 1;
+        boxes_at_level[levc+1].push_back(subdomain);
+
         if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
             amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
             amrex::Print() << "The inputs file has refinement ratio = " << ref_ratio[levc] << std::endl;
