@@ -32,7 +32,7 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
             Real qsat;
             erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsat);
 
-            // There is enough moisutre to drive to equilibrium
+            // There is enough moisture to drive to equilibrium
             if ((qv_array(i,j,k)+qc_array(i,j,k)) > qsat) {
                 Real qvprev = qv_array(i,j,k);
                 Real qcprev = qc_array(i,j,k);
