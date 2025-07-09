@@ -154,8 +154,6 @@ namespace MORRInd {
     };
 }
 
-
-
 constexpr Real xxx = 0.9189385332046727417803297;
 /*
 !------------------------------------------------------------------------------
@@ -1013,10 +1011,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
           if(run_morr_cpp) {
 
-          // One FArrayBox to rule them all
-          FArrayBox morr_fab(grown_box, MORRInd::NumInds);  // All the data members
-          morr_fab.template setVal<RunOn::Device>(0.0,grown_box,MORRInd::NumInds);
-          auto const& morr_arr = morr_fab.array();
+            // One FAB to rule them all
+            FArrayBox morr_fab(grown_box, MORRInd::NumInds);
+            morr_fab.template setVal<RunOn::Device>(0.0);
+            auto const& morr_arr = morr_fab.array();
 
           ////////////////////////////////////////////////////////////
           // ParallelFor for testing partial C++ implementation
@@ -2904,16 +2902,16 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
               // CLOUD ICE
               if (morr_arr(i,j,k,MORRInd::dumi) >= m_qsmall) {
-                morr_arr(i,j,k,MORRInd::lami) = std::pow(m_cons12 * morr_arr(i,j,k,MORRInd::dumfni) / morr_arr(i,j,k,MORRInd::dumi), 1.0/di0);
-                morr_arr(i,j,k,MORRInd::lami) = amrex::max(morr_arr(i,j,k,MORRInd::lami), m_lammini);
-                morr_arr(i,j,k,MORRInd::lami) = amrex::min(morr_arr(i,j,k,MORRInd::lami), m_lammaxi);
+                morr_arr(i,j,k,MORRInd::dlami) = std::pow(m_cons12 * morr_arr(i,j,k,MORRInd::dumfni) / morr_arr(i,j,k,MORRInd::dumi), 1.0/di0);
+                morr_arr(i,j,k,MORRInd::dlami) = amrex::max(morr_arr(i,j,k,MORRInd::dlami), m_lammini);
+                morr_arr(i,j,k,MORRInd::dlami) = amrex::min(morr_arr(i,j,k,MORRInd::dlami), m_lammaxi);
               }
 
               // RAIN
               if (morr_arr(i,j,k,MORRInd::dumr) >= m_qsmall) {
-                morr_arr(i,j,k,MORRInd::lamr) = std::pow(m_pi * m_rhow * morr_arr(i,j,k,MORRInd::dumfnr) / morr_arr(i,j,k,MORRInd::dumr), 1.0/3.0);
-                morr_arr(i,j,k,MORRInd::lamr) = amrex::max(morr_arr(i,j,k,MORRInd::lamr), m_lamminr);
-                morr_arr(i,j,k,MORRInd::lamr) = amrex::min(morr_arr(i,j,k,MORRInd::lamr), m_lammaxr);
+                morr_arr(i,j,k,MORRInd::dlamr) = std::pow(m_pi * m_rhow * morr_arr(i,j,k,MORRInd::dumfnr) / morr_arr(i,j,k,MORRInd::dumr), 1.0/3.0);
+                morr_arr(i,j,k,MORRInd::dlamr) = amrex::max(morr_arr(i,j,k,MORRInd::dlamr), m_lamminr);
+                morr_arr(i,j,k,MORRInd::dlamr) = amrex::min(morr_arr(i,j,k,MORRInd::dlamr), m_lammaxr);
               }
 
               // CLOUD DROPLETS
@@ -2924,35 +2922,35 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 morr_arr(i,j,k,MORRInd::pgam) = amrex::max(morr_arr(i,j,k,MORRInd::pgam), 2.0);
                 morr_arr(i,j,k,MORRInd::pgam) = amrex::min(morr_arr(i,j,k,MORRInd::pgam), 10.0);
 
-                morr_arr(i,j,k,MORRInd::lamc) = std::pow(m_cons26 * morr_arr(i,j,k,MORRInd::dumfnc) * gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 4.0) /
+                morr_arr(i,j,k,MORRInd::dlamc) = std::pow(m_cons26 * morr_arr(i,j,k,MORRInd::dumfnc) * gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 4.0) /
                                         (morr_arr(i,j,k,MORRInd::dumc) * gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 1.0)), 1.0/3.0);
                 lammin = (morr_arr(i,j,k,MORRInd::pgam) + 1.0) / 60.0e-6;
                 lammax = (morr_arr(i,j,k,MORRInd::pgam) + 1.0) / 1.0e-6;
-                morr_arr(i,j,k,MORRInd::lamc) = amrex::max(morr_arr(i,j,k,MORRInd::lamc), lammin);
-                morr_arr(i,j,k,MORRInd::lamc) = amrex::min(morr_arr(i,j,k,MORRInd::lamc), lammax);
+                morr_arr(i,j,k,MORRInd::dlamc) = amrex::max(morr_arr(i,j,k,MORRInd::dlamc), lammin);
+                morr_arr(i,j,k,MORRInd::dlamc) = amrex::min(morr_arr(i,j,k,MORRInd::dlamc), lammax);
               }
 
               // SNOW
               if (morr_arr(i,j,k,MORRInd::dumqs) >= m_qsmall) {
-                morr_arr(i,j,k,MORRInd::lams) = std::pow(m_cons1 * morr_arr(i,j,k,MORRInd::dumfns) / morr_arr(i,j,k,MORRInd::dumqs), 1.0/ds0);
-                morr_arr(i,j,k,MORRInd::lams) = amrex::max(morr_arr(i,j,k,MORRInd::lams), m_lammins);
-                morr_arr(i,j,k,MORRInd::lams) = amrex::min(morr_arr(i,j,k,MORRInd::lams), m_lammaxs);
+                morr_arr(i,j,k,MORRInd::dlams) = std::pow(m_cons1 * morr_arr(i,j,k,MORRInd::dumfns) / morr_arr(i,j,k,MORRInd::dumqs), 1.0/ds0);
+                morr_arr(i,j,k,MORRInd::dlams) = amrex::max(morr_arr(i,j,k,MORRInd::dlams), m_lammins);
+                morr_arr(i,j,k,MORRInd::dlams) = amrex::min(morr_arr(i,j,k,MORRInd::dlams), m_lammaxs);
               }
 
               // GRAUPEL
               if (morr_arr(i,j,k,MORRInd::dumg) >= m_qsmall) {
-                morr_arr(i,j,k,MORRInd::lamg) = std::pow(m_cons2 * morr_arr(i,j,k,MORRInd::dumfng) / morr_arr(i,j,k,MORRInd::dumg), 1.0/dg0);
-                morr_arr(i,j,k,MORRInd::lamg) = amrex::max(morr_arr(i,j,k,MORRInd::lamg), m_lamming);
-                morr_arr(i,j,k,MORRInd::lamg) = amrex::min(morr_arr(i,j,k,MORRInd::lamg), m_lammaxg);
+                morr_arr(i,j,k,MORRInd::dlamg) = std::pow(m_cons2 * morr_arr(i,j,k,MORRInd::dumfng) / morr_arr(i,j,k,MORRInd::dumg), 1.0/dg0);
+                morr_arr(i,j,k,MORRInd::dlamg) = amrex::max(morr_arr(i,j,k,MORRInd::dlamg), m_lamming);
+                morr_arr(i,j,k,MORRInd::dlamg) = amrex::min(morr_arr(i,j,k,MORRInd::dlamg), m_lammaxg);
               }
 
               // Calculate number-weighted and mass-weighted terminal fall speeds
               // CLOUD WATER
               if (morr_arr(i,j,k,MORRInd::dumc) >= m_qsmall) {
                 morr_arr(i,j,k,MORRInd::unc) = morr_arr(i,j,k,MORRInd::acn) * gamma_function(1. + m_bc + morr_arr(i,j,k,MORRInd::pgam)) /
-                             (std::pow(morr_arr(i,j,k,MORRInd::lamc), m_bc) * gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 1.));
+                             (std::pow(morr_arr(i,j,k,MORRInd::dlamc), m_bc) * gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 1.));
                 morr_arr(i,j,k,MORRInd::umc) = morr_arr(i,j,k,MORRInd::acn) * gamma_function(4. + m_bc + morr_arr(i,j,k,MORRInd::pgam)) /
-                             (std::pow(morr_arr(i,j,k,MORRInd::lamc), m_bc) * gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 4.));
+                             (std::pow(morr_arr(i,j,k,MORRInd::dlamc), m_bc) * gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 4.));
               } else {
                 morr_arr(i,j,k,MORRInd::umc) = 0.;
                 morr_arr(i,j,k,MORRInd::unc) = 0.;
@@ -2960,8 +2958,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
               // CLOUD ICE
               if (morr_arr(i,j,k,MORRInd::dumi) >= m_qsmall) {
-                morr_arr(i,j,k,MORRInd::uni) = morr_arr(i,j,k,MORRInd::ain) * m_cons27 / std::pow(morr_arr(i,j,k,MORRInd::lami), m_bi);
-                morr_arr(i,j,k,MORRInd::umi) = morr_arr(i,j,k,MORRInd::ain) * m_cons28 / std::pow(morr_arr(i,j,k,MORRInd::lami), m_bi);
+                morr_arr(i,j,k,MORRInd::uni) = morr_arr(i,j,k,MORRInd::ain) * m_cons27 / std::pow(morr_arr(i,j,k,MORRInd::dlami), m_bi);
+                morr_arr(i,j,k,MORRInd::umi) = morr_arr(i,j,k,MORRInd::ain) * m_cons28 / std::pow(morr_arr(i,j,k,MORRInd::dlami), m_bi);
               } else {
                 morr_arr(i,j,k,MORRInd::umi) = 0.;
                 morr_arr(i,j,k,MORRInd::uni) = 0.;
@@ -2969,8 +2967,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
               // RAIN
               if (morr_arr(i,j,k,MORRInd::dumr) >= m_qsmall) {
-                morr_arr(i,j,k,MORRInd::unr) = morr_arr(i,j,k,MORRInd::arn) * m_cons6 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
-                morr_arr(i,j,k,MORRInd::umr) = morr_arr(i,j,k,MORRInd::arn) * m_cons4 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
+                morr_arr(i,j,k,MORRInd::unr) = morr_arr(i,j,k,MORRInd::arn) * m_cons6 / std::pow(morr_arr(i,j,k,MORRInd::dlamr), m_br);
+                morr_arr(i,j,k,MORRInd::umr) = morr_arr(i,j,k,MORRInd::arn) * m_cons4 / std::pow(morr_arr(i,j,k,MORRInd::dlamr), m_br);
               } else {
                 morr_arr(i,j,k,MORRInd::umr) = 0.;
                 morr_arr(i,j,k,MORRInd::unr) = 0.;
@@ -2978,8 +2976,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
               // SNOW
               if (morr_arr(i,j,k,MORRInd::dumqs) >= m_qsmall) {
-                morr_arr(i,j,k,MORRInd::ums) = morr_arr(i,j,k,MORRInd::asn) * m_cons3 / std::pow(morr_arr(i,j,k,MORRInd::lams), m_bs);
-                morr_arr(i,j,k,MORRInd::uns) = morr_arr(i,j,k,MORRInd::asn) * m_cons5 / std::pow(morr_arr(i,j,k,MORRInd::lams), m_bs);
+                morr_arr(i,j,k,MORRInd::ums) = morr_arr(i,j,k,MORRInd::asn) * m_cons3 / std::pow(morr_arr(i,j,k,MORRInd::dlams), m_bs);
+                morr_arr(i,j,k,MORRInd::uns) = morr_arr(i,j,k,MORRInd::asn) * m_cons5 / std::pow(morr_arr(i,j,k,MORRInd::dlams), m_bs);
               } else {
                 morr_arr(i,j,k,MORRInd::ums) = 0.;
                 morr_arr(i,j,k,MORRInd::uns) = 0.;
@@ -2987,8 +2985,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
               // GRAUPEL
               if (morr_arr(i,j,k,MORRInd::dumg) >= m_qsmall) {
-                morr_arr(i,j,k,MORRInd::umg) = morr_arr(i,j,k,MORRInd::agn) * m_cons7 / std::pow(morr_arr(i,j,k,MORRInd::lamg), m_bg);
-                morr_arr(i,j,k,MORRInd::ung) = morr_arr(i,j,k,MORRInd::agn) * m_cons8 / std::pow(morr_arr(i,j,k,MORRInd::lamg), m_bg);
+                morr_arr(i,j,k,MORRInd::umg) = morr_arr(i,j,k,MORRInd::agn) * m_cons7 / std::pow(morr_arr(i,j,k,MORRInd::dlamg), m_bg);
+                morr_arr(i,j,k,MORRInd::ung) = morr_arr(i,j,k,MORRInd::agn) * m_cons8 / std::pow(morr_arr(i,j,k,MORRInd::dlamg), m_bg);
               } else {
                 morr_arr(i,j,k,MORRInd::umg) = 0.;
                 morr_arr(i,j,k,MORRInd::ung) = 0.;
@@ -3023,34 +3021,34 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
               // V3.3 MODIFY FALLSPEED BELOW LEVEL OF PRECIP
               if (morr_arr(i,j,k,MORRInd::fr) < 1.e-10) {
-                  morr_arr(i,j,k,MORRInd::fr) = morr_arr(i,j,k+1,MORRInd::fr);
+                morr_arr(i,j,k,MORRInd::fr) = morr_arr(i,j,k+1,MORRInd::fr);
               }
               if (morr_arr(i,j,k,MORRInd::fi) < 1.e-10) {
-                  morr_arr(i,j,k,MORRInd::fi) = morr_arr(i,j,k+1,MORRInd::fi);
+                morr_arr(i,j,k,MORRInd::fi) = morr_arr(i,j,k+1,MORRInd::fi);
               }
               if (morr_arr(i,j,k,MORRInd::fni) < 1.e-10) {
-                  morr_arr(i,j,k,MORRInd::fni) = morr_arr(i,j,k+1,MORRInd::fni);
+                morr_arr(i,j,k,MORRInd::fni) = morr_arr(i,j,k+1,MORRInd::fni);
               }
               if (morr_arr(i,j,k,MORRInd::fs) < 1.e-10) {
-                  morr_arr(i,j,k,MORRInd::fs) = morr_arr(i,j,k+1,MORRInd::fs);
+                morr_arr(i,j,k,MORRInd::fs) = morr_arr(i,j,k+1,MORRInd::fs);
               }
               if (morr_arr(i,j,k,MORRInd::fns) < 1.e-10) {
-                  morr_arr(i,j,k,MORRInd::fns) = morr_arr(i,j,k+1,MORRInd::fns);
+                morr_arr(i,j,k,MORRInd::fns) = morr_arr(i,j,k+1,MORRInd::fns);
               }
               if (morr_arr(i,j,k,MORRInd::fnr) < 1.e-10) {
-                  morr_arr(i,j,k,MORRInd::fnr) = morr_arr(i,j,k+1,MORRInd::fnr);
+                morr_arr(i,j,k,MORRInd::fnr) = morr_arr(i,j,k+1,MORRInd::fnr);
               }
               if (morr_arr(i,j,k,MORRInd::fc) < 1.e-10) {
-                  morr_arr(i,j,k,MORRInd::fc) = morr_arr(i,j,k+1,MORRInd::fc);
+                morr_arr(i,j,k,MORRInd::fc) = morr_arr(i,j,k+1,MORRInd::fc);
               }
               if (morr_arr(i,j,k,MORRInd::fnc) < 1.e-10) {
-                  morr_arr(i,j,k,MORRInd::fnc) = morr_arr(i,j,k+1,MORRInd::fnc);
+                morr_arr(i,j,k,MORRInd::fnc) = morr_arr(i,j,k+1,MORRInd::fnc);
               }
               if (morr_arr(i,j,k,MORRInd::fg) < 1.e-10) {
-                  morr_arr(i,j,k,MORRInd::fg) = morr_arr(i,j,k+1,MORRInd::fg);
+                morr_arr(i,j,k,MORRInd::fg) = morr_arr(i,j,k+1,MORRInd::fg);
               }
               if (morr_arr(i,j,k,MORRInd::fng) < 1.e-10) {
-                  morr_arr(i,j,k,MORRInd::fng) = morr_arr(i,j,k+1,MORRInd::fng);
+                morr_arr(i,j,k,MORRInd::fng) = morr_arr(i,j,k+1,MORRInd::fng);
               }
 
               // CALCULATE NUMBER OF SPLIT TIME STEPS
@@ -3131,15 +3129,15 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               // Process remaining levels from top to bottom
               for (k = khi-1; k >= klo; k--) {
                 // Calculate tendencies based on difference between levels
-                morr_arr(i,j,k,MORRInd::faltndr)  = (morr_arr(i,j,k+1,MORRInd::faloutr)  - morr_arr(i,j,k,MORRInd::faloutr)) / morr_arr(i,j,k,MORRInd::dzq);
-                morr_arr(i,j,k,MORRInd::faltndi)  = (morr_arr(i,j,k+1,MORRInd::falouti)  - morr_arr(i,j,k,MORRInd::falouti)) / morr_arr(i,j,k,MORRInd::dzq);
+                morr_arr(i,j,k,MORRInd::faltndr) = (morr_arr(i,j,k+1,MORRInd::faloutr) - morr_arr(i,j,k,MORRInd::faloutr)) / morr_arr(i,j,k,MORRInd::dzq);
+                morr_arr(i,j,k,MORRInd::faltndi) = (morr_arr(i,j,k+1,MORRInd::falouti) - morr_arr(i,j,k,MORRInd::falouti)) / morr_arr(i,j,k,MORRInd::dzq);
                 morr_arr(i,j,k,MORRInd::faltndni) = (morr_arr(i,j,k+1,MORRInd::faloutni) - morr_arr(i,j,k,MORRInd::faloutni)) / morr_arr(i,j,k,MORRInd::dzq);
-                morr_arr(i,j,k,MORRInd::faltnds)  = (morr_arr(i,j,k+1,MORRInd::falouts)  - morr_arr(i,j,k,MORRInd::falouts)) / morr_arr(i,j,k,MORRInd::dzq);
+                morr_arr(i,j,k,MORRInd::faltnds) = (morr_arr(i,j,k+1,MORRInd::falouts) - morr_arr(i,j,k,MORRInd::falouts)) / morr_arr(i,j,k,MORRInd::dzq);
                 morr_arr(i,j,k,MORRInd::faltndns) = (morr_arr(i,j,k+1,MORRInd::faloutns) - morr_arr(i,j,k,MORRInd::faloutns)) / morr_arr(i,j,k,MORRInd::dzq);
                 morr_arr(i,j,k,MORRInd::faltndnr) = (morr_arr(i,j,k+1,MORRInd::faloutnr) - morr_arr(i,j,k,MORRInd::faloutnr)) / morr_arr(i,j,k,MORRInd::dzq);
-                morr_arr(i,j,k,MORRInd::faltndc)  = (morr_arr(i,j,k+1,MORRInd::faloutc)  - morr_arr(i,j,k,MORRInd::faloutc)) / morr_arr(i,j,k,MORRInd::dzq);
+                morr_arr(i,j,k,MORRInd::faltndc) = (morr_arr(i,j,k+1,MORRInd::faloutc) - morr_arr(i,j,k,MORRInd::faloutc)) / morr_arr(i,j,k,MORRInd::dzq);
                 morr_arr(i,j,k,MORRInd::faltndnc) = (morr_arr(i,j,k+1,MORRInd::faloutnc) - morr_arr(i,j,k,MORRInd::faloutnc)) / morr_arr(i,j,k,MORRInd::dzq);
-                morr_arr(i,j,k,MORRInd::faltndg)  = (morr_arr(i,j,k+1,MORRInd::faloutg)  - morr_arr(i,j,k,MORRInd::faloutg)) / morr_arr(i,j,k,MORRInd::dzq);
+                morr_arr(i,j,k,MORRInd::faltndg) = (morr_arr(i,j,k+1,MORRInd::faloutg) - morr_arr(i,j,k,MORRInd::faloutg)) / morr_arr(i,j,k,MORRInd::dzq);
                 morr_arr(i,j,k,MORRInd::faltndng) = (morr_arr(i,j,k+1,MORRInd::faloutng) - morr_arr(i,j,k,MORRInd::faloutng)) / morr_arr(i,j,k,MORRInd::dzq);
 
                 // Add fallout terms to Eulerian tendencies (positive here, as mass flows in from above)
@@ -3169,18 +3167,12 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               // Factor of 1000 converts from m to mm, but division by density
               // of liquid water cancels this factor of 1000
               int kts=klo;
-              morr_arr(i,j,klo,MORRInd::precrt) += ( morr_arr(i,j,kts,MORRInd::faloutr)
-                                                   + morr_arr(i,j,kts,MORRInd::faloutc)
-                                                   + morr_arr(i,j,kts,MORRInd::falouts)
-                                                   + morr_arr(i,j,kts, MORRInd::falouti)
-                                                   + morr_arr(i,j,kts, MORRInd::faloutg) ) * dt / nstep;
-              morr_arr(i,j,klo,MORRInd::snowrt) += ( morr_arr(i,j,kts,MORRInd::falouts)
-                                                   + morr_arr(i,j,kts,MORRInd::falouti)
-                                                   + morr_arr(i,j,kts,MORRInd::faloutg) ) * dt / nstep;
+              morr_arr(i,j,klo,MORRInd::precrt) += (morr_arr(i,j,kts,MORRInd::faloutr) + morr_arr(i,j,kts,MORRInd::faloutc) + morr_arr(i,j,kts,MORRInd::falouts) +
+                         morr_arr(i,j,kts,MORRInd::falouti) + morr_arr(i,j,kts,MORRInd::faloutg)) * dt / nstep;
+              morr_arr(i,j,klo,MORRInd::snowrt) += (morr_arr(i,j,kts,MORRInd::falouts) + morr_arr(i,j,kts,MORRInd::falouti) + morr_arr(i,j,kts,MORRInd::faloutg)) * dt / nstep;
 
               // Added 7/13/13
-              morr_arr(i,j,klo,MORRInd::snowprt) += ( morr_arr(i,j,kts,MORRInd::falouti)
-                                                    + morr_arr(i,j,kts,MORRInd::falouts) ) * dt / nstep;
+              morr_arr(i,j,klo,MORRInd::snowprt) += (morr_arr(i,j,kts,MORRInd::falouti) + morr_arr(i,j,kts,MORRInd::falouts)) * dt / nstep;
               morr_arr(i,j,klo,MORRInd::grplprt) += morr_arr(i,j,kts,MORRInd::faloutg) * dt / nstep;
             }
             for(int k=klo; k<=khi; k++) {
@@ -3543,16 +3535,16 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             rain_accum_arr(i,j,k) = rain_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::precrt);
             snow_accum_arr(i,j,k) = snow_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::snowprt);
             graup_accum_arr(i,j,k) = graup_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::grplprt);*/
-            rainncv_arr(i,j,0)    = morr_arr(i,j,klo,MORRInd::precrt);
-            snowncv_arr(i,j,0)    = morr_arr(i,j,klo,MORRInd::snowprt);
+            rainncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::precrt);
+            snowncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::snowprt);
             graupelncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::grplprt);
             sr_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::snowrt) / (morr_arr(i,j,klo,MORRInd::precrt) + 1.e-12);
               }
             // Update precipitation accumulation variables
             // These are outside the k-loop in the original code
-              rain_accum_arr(i,j,klo)  = rain_accum_arr(i,j,klo)  + morr_arr(i,j,klo,MORRInd::precrt);
-              snow_accum_arr(i,j,klo)  = snow_accum_arr(i,j,klo)  + morr_arr(i,j,klo,MORRInd::snowprt);
-              graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::grplprt);
+            rain_accum_arr(i,j,klo) = rain_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::precrt);
+            snow_accum_arr(i,j,klo) = snow_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::snowprt);
+            graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::grplprt);
             }
          });
           //          amrex::Print()<<FArrayBox(qv_arr)<<std::endl;
