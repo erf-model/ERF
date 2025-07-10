@@ -1,6 +1,5 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
-#include <AMReX_EB_Slopes_K.H>
 #include "AMReX_BCRec.H"
 
 #include "ERF.H"
@@ -8,6 +7,7 @@
 #include "ERF_DataStruct.H"
 #include "ERF_Utils.H"
 #include "ERF_EB.H"
+#include <ERF_EBSlopes.H>
 
 using namespace amrex;
 
@@ -32,11 +32,11 @@ void make_gradp_pert (int level,
                       MultiFab& p0,
                       MultiFab& z_phys_nd,
                       MultiFab& z_phys_cc,
-                      BCRec const* d_bcrec_ptr,
                       const eb_& ebfact,
                       Vector<MultiFab>& gradp)
 {
     const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
+    const bool l_eb_terrain    = (solverChoice.terrain_type == TerrainType::EB);
     //
     // Note that we only recompute gradp if compressible;
     //      if anelastic then we have computed gradp in the projection
@@ -44,14 +44,17 @@ void make_gradp_pert (int level,
     //
     if (solverChoice.anelastic[level] == 0)
     {
-        MultiFab p(S_data[Vars::cons].boxArray(), S_data[Vars::cons].DistributionMap(), 1, 1);
+        const int ngrow = (l_eb_terrain) ? 2 : 1;
+        MultiFab p(S_data[Vars::cons].boxArray(), S_data[Vars::cons].DistributionMap(), 1, ngrow);
 
         // *****************************************************************************
         // Compute pressure or perturbataional pressure
         // *****************************************************************************
         for ( MFIter mfi(S_data[Vars::cons]); mfi.isValid(); ++mfi)
         {
-            Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,1));
+            Box gbx = mfi.tilebox();
+            gbx.grow(IntVect(ngrow,ngrow,ngrow));
+
             if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
             const Array4<const Real>& cell_data = S_data[Vars::cons].array(mfi);
             const Array4<const Real>& p0_arr = p0.const_array(mfi);
@@ -63,7 +66,7 @@ void make_gradp_pert (int level,
             });
         }
 
-        compute_gradp(p,geom,z_phys_nd,z_phys_cc,d_bcrec_ptr,ebfact,gradp,solverChoice);
+        compute_gradp(p,geom,z_phys_nd,z_phys_cc,ebfact,gradp,solverChoice);
     }
 }
 
@@ -72,7 +75,6 @@ compute_gradp (const MultiFab& p,
                const Geometry& geom,
                MultiFab& z_phys_nd,
                MultiFab& z_phys_cc,
-               BCRec const* d_bcrec_ptr,
                const eb_& ebfact,
                Vector<MultiFab>& gradp,
                const SolverChoice& solverChoice)
@@ -191,181 +193,83 @@ compute_gradp (const MultiFab& p,
 
             const bool l_fitting = false;
 
-            const int domain_ilo = domain.smallEnd(0);
-            const int domain_ihi = domain.bigEnd(0);
-            const int domain_jlo = domain.smallEnd(1);
-            const int domain_jhi = domain.bigEnd(1);
+            const Real* dx_arr = geom.CellSize();
+            const Real dx = dx_arr[0];
+            const Real dy = dx_arr[1];
+            const Real dz = dx_arr[2];
 
-            int n = 0;
-
-            // Need to check d_bcrec_ptr[n]
-
-            bool extdir_ilo = (d_bcrec_ptr[n].lo(0)==BCType::ext_dir || d_bcrec_ptr[n].lo(0)==BCType::hoextrap);
-            bool extdir_ihi = (d_bcrec_ptr[n].hi(0)==BCType::ext_dir || d_bcrec_ptr[n].hi(0)==BCType::hoextrap);
-            bool extdir_jlo = (d_bcrec_ptr[n].lo(1)==BCType::ext_dir || d_bcrec_ptr[n].lo(1)==BCType::hoextrap);
-            bool extdir_jhi = (d_bcrec_ptr[n].hi(1)==BCType::ext_dir || d_bcrec_ptr[n].hi(1)==BCType::hoextrap);
-            bool extdir_klo = (d_bcrec_ptr[n].lo(2)==BCType::ext_dir || d_bcrec_ptr[n].lo(2)==BCType::hoextrap);
-            bool extdir_khi = (d_bcrec_ptr[n].hi(2)==BCType::ext_dir || d_bcrec_ptr[n].hi(2)==BCType::hoextrap);
-
-            // Pressure in staggered grids
-            MultiFab u_p((ebfact.get_u_const_factory())->getVolFrac().boxArray(), (ebfact.get_u_const_factory())->getVolFrac().DistributionMap(), 1, 1);
-            MultiFab v_p((ebfact.get_v_const_factory())->getVolFrac().boxArray(), (ebfact.get_v_const_factory())->getVolFrac().DistributionMap(), 1, 1);
-            MultiFab w_p((ebfact.get_w_const_factory())->getVolFrac().boxArray(), (ebfact.get_w_const_factory())->getVolFrac().DistributionMap(), 1, 1);
-
-            const Array4<Real>& u_p_arr = u_p.array(mfi);
-            const Array4<Real>& v_p_arr = v_p.array(mfi);
-            const Array4<Real>& w_p_arr = w_p.array(mfi);
+            // EB factory
+            Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
 
             // EB u-factory
-            Array4<const EBCellFlag> u_cflag = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-            Array4<const Real      > u_vfrac = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
-            Array4<const Real      > u_vcent = (ebfact.get_u_const_factory())->getCentroid().const_array(mfi);
-            Array4<const Real      > u_fcx   = (ebfact.get_u_const_factory())->getFaceCent()[0]->const_array(mfi);
-            Array4<const Real      > u_fcy   = (ebfact.get_u_const_factory())->getFaceCent()[1]->const_array(mfi);
-            Array4<const Real      > u_fcz   = (ebfact.get_u_const_factory())->getFaceCent()[2]->const_array(mfi);
+            Array4<const EBCellFlag> u_cellflg = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const Real      > u_volfrac = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
+            Array4<const Real      > u_volcent = (ebfact.get_u_const_factory())->getCentroid().const_array(mfi);
 
             // EB v-factory
-            Array4<const EBCellFlag> v_cflag = (ebfact.get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-            Array4<const Real      > v_vfrac = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
-            Array4<const Real      > v_vcent = (ebfact.get_v_const_factory())->getCentroid().const_array(mfi);
-            Array4<const Real      > v_fcx   = (ebfact.get_v_const_factory())->getFaceCent()[0]->const_array(mfi);
-            Array4<const Real      > v_fcy   = (ebfact.get_v_const_factory())->getFaceCent()[1]->const_array(mfi);
-            Array4<const Real      > v_fcz   = (ebfact.get_v_const_factory())->getFaceCent()[2]->const_array(mfi);
+            Array4<const EBCellFlag> v_cellflg = (ebfact.get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const Real      > v_volfrac = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
+            Array4<const Real      > v_volcent = (ebfact.get_v_const_factory())->getCentroid().const_array(mfi);
 
             // EB w-factory
-            Array4<const EBCellFlag> w_cflag = (ebfact.get_w_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-            Array4<const Real      > w_vfrac = (ebfact.get_w_const_factory())->getVolFrac().const_array(mfi);
-            Array4<const Real      > w_vcent = (ebfact.get_w_const_factory())->getCentroid().const_array(mfi);
-            Array4<const Real      > w_fcx   = (ebfact.get_w_const_factory())->getFaceCent()[0]->const_array(mfi);
-            Array4<const Real      > w_fcy   = (ebfact.get_w_const_factory())->getFaceCent()[1]->const_array(mfi);
-            Array4<const Real      > w_fcz   = (ebfact.get_w_const_factory())->getFaceCent()[2]->const_array(mfi);
+            Array4<const EBCellFlag> w_cellflg = (ebfact.get_w_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const Real      > w_volfrac = (ebfact.get_w_const_factory())->getVolFrac().const_array(mfi);
+            Array4<const Real      > w_volcent = (ebfact.get_w_const_factory())->getCentroid().const_array(mfi);
 
             if (l_fitting) {
 
-                // STEP 1: Compute pressure in the staggered grids
-
-                const Box tbx_g1 = amrex::grow(tbx,1);
-                const Box tby_g1 = amrex::grow(tby,1);
-                const Box tbz_g1 = amrex::grow(tbz,1);
-
-                int tbx_g1_ilo = tbx_g1.smallEnd(0);
-                int tby_g1_jlo = tby_g1.smallEnd(1);
-                int tbz_g1_klo = tbz_g1.smallEnd(2);
-                int tbx_g1_ihi = tbx_g1.bigEnd(0);
-                int tby_g1_jhi = tby_g1.bigEnd(1);
-                int tbz_g1_khi = tbz_g1.bigEnd(2);
-
-                // Print()<<"SK: tbx    = "<<tbx   <<", tby    = "<<tby   <<", tbz    = "<<tbz<<std::endl;
-                // Print()<<"SK: tbx_g1 = "<<tbx_g1<<", tby_g1 = "<<tby_g1<<", tbz_g1 = "<<tbz_g1<<std::endl;
-
-                ParallelFor(tbx_g1, tby_g1, tbz_g1,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(tbx, tby, tbz,
+                [=] AMREX_GPU_DEVICE(int i, int j, int k)
                 {
-                    if (u_vfrac(i,j,k) > 0.0) {
-                        // Print()<<"SK: tbx_g1/ i,j,k = "<<i<<" "<<j<<" "<<k<<" "<<std::endl;
-                        if (i == tbx_g1_ilo) {
-                            u_p_arr(i,j,k) = p_arr(i,j,k);
-                        } else if (i == tbx_g1_ihi) {
-                            u_p_arr(i,j,k) = p_arr(i-1,j,k);
+                    if (u_volfrac(i,j,k) > 0.0) {
+
+                        if (u_cellflg(i,j,k).isSingleValued()) {
+
+                            GpuArray<Real,AMREX_SPACEDIM> slopes;
+                            slopes = erf_calc_slopes_eb_staggered(Vars::xvel, Vars::cons, dx, dy, dz, i, j, k, p_arr, u_volcent, u_cellflg);
+
+                            gpx_arr(i,j,k) = slopes[0];
+
                         } else {
-                            u_p_arr(i,j,k) = 0.5 * ( p_arr(i-1,j,k) + p_arr(i,j,k) );
-                        }
-                    } else {
-                        u_p_arr(i,j,k) = 0.0;
-                    }
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    if (u_vfrac(i,j,k) > 0.0) {
-                        // Print()<<"SK: tby_g1/ i,j,k = "<<i<<" "<<j<<" "<<k<<" "<<std::endl;
-                        if (j == tby_g1_jlo) {
-                            v_p_arr(i,j,k) = p_arr(i,j,k);
-                        } else if (j == tby_g1_jhi) {
-                            v_p_arr(i,j,k) = p_arr(i,j-1,k);
-                        } else {
-                            v_p_arr(i,j,k) = 0.5 * ( p_arr(i,j-1,k) + p_arr(i,j,k) );
+                            gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
                         }
 
-                    } else {
-                        v_p_arr(i,j,k) = 0.0;
-                    }
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    if (w_vfrac(i,j,k) > 0.0) {
-                        if (k == tbz_g1_klo) {
-                            w_p_arr(i,j,k) = p_arr(i,j,k);
-                        } else if (k == tbz_g1_khi) {
-                            w_p_arr(i,j,k) = p_arr(i,j,k-1);
-                        } else {
-                            w_p_arr(i,j,k) = 0.5 * ( p_arr(i,j,k-1) + p_arr(i,j,k) );
-                        }
-                    } else {
-                        w_p_arr(i,j,k) = 0.0;
-                    }
-                });
-
-                // STEP 2: Compute Least-Squares slopes
-
-                ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                {
-                    if (u_vfrac(i,j,k) > 0.0) {
-                        GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
-
-                        slopes_eb = amrex_calc_slopes_extdir_eb(
-                            i, j, k, n, u_p_arr, u_vcent, u_vfrac,
-                            AMREX_D_DECL(u_fcx,u_fcy,u_fcz),u_cflag,
-                            AMREX_D_DECL(extdir_ilo, extdir_jlo, extdir_klo),
-                            AMREX_D_DECL(extdir_ihi, extdir_jhi, extdir_khi),
-                            AMREX_D_DECL(domain_ilo, domain_jlo, domain_klo),
-                            AMREX_D_DECL(domain_ihi, domain_jhi, domain_khi),
-                            2);
-
-                        gpx_arr(i,j,k) = slopes_eb[0];
                     } else {
                         gpx_arr(i,j,k) = 0.0;
                     }
-                });
-
-                ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                },
+                [=] AMREX_GPU_DEVICE(int i, int j, int k)
                 {
-                    // Need to interpolate pressure from CC to FC grid here.
+                    if (v_volfrac(i,j,k) > 0.0) {
 
-                    if (v_vfrac(i,j,k) > 0.0) {
-                        GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
+                        if (v_cellflg(i,j,k).isSingleValued()) {
 
-                        slopes_eb = amrex_calc_slopes_extdir_eb(
-                            i, j, k, n, v_p_arr, v_vcent, v_vfrac,
-                            AMREX_D_DECL(v_fcx,v_fcy,v_fcz),v_cflag,
-                            AMREX_D_DECL(extdir_ilo, extdir_jlo, extdir_klo),
-                            AMREX_D_DECL(extdir_ihi, extdir_jhi, extdir_khi),
-                            AMREX_D_DECL(domain_ilo, domain_jlo, domain_klo),
-                            AMREX_D_DECL(domain_ihi, domain_jhi, domain_khi),
-                            2);
+                            GpuArray<Real,AMREX_SPACEDIM> slopes;
+                            slopes = erf_calc_slopes_eb_staggered(Vars::yvel, Vars::cons, dx, dy, dz, i, j, k, p_arr, v_volcent, v_cellflg);
 
-                        gpy_arr(i,j,k) = slopes_eb[1];
+                            gpy_arr(i,j,k) = slopes[1];
+
+                        } else {
+                            gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
+                        }
                     } else {
                         gpy_arr(i,j,k) = 0.0;
                     }
-                });
-
-                ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                },
+                [=] AMREX_GPU_DEVICE(int i, int j, int k)
                 {
-                    // Need to interpolate pressure from CC to FC grid here.
+                    if (w_volfrac(i,j,k) > 0.0) {
 
-                    if (w_vfrac(i,j,k) > 0.0) {
-                        GpuArray<Real,AMREX_SPACEDIM> slopes_eb;
+                        if (w_cellflg(i,j,k).isSingleValued()) {
 
-                        slopes_eb = amrex_calc_slopes_extdir_eb(
-                            i, j, k, n, w_p_arr, w_vcent, w_vfrac,
-                            AMREX_D_DECL(w_fcx,w_fcy,w_fcz),w_cflag,
-                            AMREX_D_DECL(extdir_ilo, extdir_jlo, extdir_klo),
-                            AMREX_D_DECL(extdir_ihi, extdir_jhi, extdir_khi),
-                            AMREX_D_DECL(domain_ilo, domain_jlo, domain_klo),
-                            AMREX_D_DECL(domain_ihi, domain_jhi, domain_khi),
-                            2);
+                            GpuArray<Real,AMREX_SPACEDIM> slopes;
+                            slopes = erf_calc_slopes_eb_staggered(Vars::zvel, Vars::cons, dx, dy, dz, i, j, k, p_arr, w_volcent, w_cellflg);
 
-                        gpz_arr(i,j,k) = slopes_eb[2];
+                            gpz_arr(i,j,k) = slopes[2];
+
+                        } else {
+                            gpz_arr(i,j,k) = dxInv[2] * (p_arr(i,j,k) - p_arr(i,j,k-1));
+                        }
                     } else {
                         gpz_arr(i,j,k) = 0.0;
                     }
@@ -377,8 +281,16 @@ compute_gradp (const MultiFab& p,
 
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    if (u_vfrac(i,j,k) > 0.0) {
-                        gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
+                    if (u_volfrac(i,j,k) > 0.0) {
+                        if (!cellflg(i-1,j,k).isCovered()) {
+                            gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
+                        } else {
+                            if (!cellflg(i+1,j,k).isCovered()) {
+                                gpx_arr(i,j,k) = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
+                            } else {
+                                Abort("MakeGradP: both neighbors in x-direction are covered");
+                            }
+                        }
                     } else {
                         gpx_arr(i,j,k) = 0.0;
                     }
@@ -386,8 +298,16 @@ compute_gradp (const MultiFab& p,
 
                 ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    if (v_vfrac(i,j,k) > 0.0) {
-                        gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
+                    if (v_volfrac(i,j,k) > 0.0) {
+                        if (!cellflg(i,j-1,k).isCovered()) {
+                            gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
+                        } else {
+                            if (!cellflg(i,j+1,k).isCovered()) {
+                                gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
+                            } else {
+                                Abort("MakeGradP: both neighbors in y-direction are covered");
+                            }
+                        }
                     } else {
                         gpy_arr(i,j,k) = 0.0;
                     }
@@ -395,8 +315,16 @@ compute_gradp (const MultiFab& p,
 
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    if (w_vfrac(i,j,k) > 0.0) {
-                        gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) )  ;
+                    if (w_volfrac(i,j,k) > 0.0) {
+                        if (!cellflg(i,j,k-1).isCovered()) {
+                            gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) );
+                        } else {
+                            if (!cellflg(i,j,k+1).isCovered()) {
+                                gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k+1)-p_arr(i,j,k) );
+                            } else {
+                                Abort("MakeGradP: both neighbors in z-direction are covered");
+                            }
+                        }
                     } else {
                         gpz_arr(i,j,k) = 0.0;
                     }
