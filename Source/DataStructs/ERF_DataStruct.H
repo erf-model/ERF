@@ -586,7 +586,9 @@ struct SolverChoice {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
         for (int lev = 0; lev <= max_level; lev++) {
-            amrex::Print() << "anelastic      at level : " << lev << " is " <<     anelastic[lev] << std::endl;
+            if (anelastic[lev]) {
+                amrex::Print() << "Level " << lev << " is anelastic" << std::endl;
+            }
             if (substepping_type[lev] == SubsteppingType::None) {
                 amrex::Print() << "No substepping at level " << lev << std::endl;
             } else if (substepping_type[lev] == SubsteppingType::Explicit) {
