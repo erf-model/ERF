@@ -201,8 +201,7 @@ public:
         amrex::Error("Need to specify Cs for Smagorsinky LES");
       }
       if (smag2d && mix_isotropic) {
-        amrex::Print() << "Turning off mix_isotropic for 2-D Smagorinsky"
-                       << std::endl;
+        amrex::Print() << "Turning off mix_isotropic for 2-D Smagorinsky" << std::endl;
         mix_isotropic = false;
       }
     }
@@ -218,25 +217,22 @@ public:
       amrex::Print() << "    Using DNS model at level " << lev << std::endl;
     } else if (les_type == LESType::Smagorinsky) {
       if (smag2d) {
-        amrex::Print() << "    Using 2D Smagorinsky LES model at level " << lev
-                       << std::endl;
+        amrex::Print() << "    Using 2D Smagorinsky LES model at level " << lev << std::endl;
       } else {
-        amrex::Print() << "    Using Smagorinsky LES model at level " << lev
-                       << std::endl;
+        amrex::Print() << "    Using Smagorinsky LES model at level " << lev << std::endl;
+      }
+      if (use_smag_stratification) {
+        amrex::Print() << "    Smagorinsky accounts for moist stratification" << std::endl;
       }
     } else if (les_type == LESType::Deardorff) {
-      amrex::Print() << "    Using Deardorff LES model at level " << lev
-                     << std::endl;
+      amrex::Print() << "    Using Deardorff LES model at level " << lev << std::endl;
     } else if (rans_type == RANSType::kEqn) {
       amrex::Print()
-        << "    Using Axell & Liungman one-equation RANS k model at level "
-        << lev << std::endl;
+        << "    Using Axell & Liungman one-equation RANS k model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MYNN25) {
-      amrex::Print() << "    Using MYNN2.5 PBL model at level " << lev
-                     << std::endl;
+      amrex::Print() << "    Using MYNN2.5 PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MYNNEDMF) {
-      amrex::Print() << "    Using MYNNEDMF PBL model at level " << lev
-                     << std::endl;
+      amrex::Print() << "    Using MYNNEDMF PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::YSU) {
       amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MRF) {
@@ -247,56 +243,47 @@ public:
 
     if (les_type != LESType::None) {
       if (les_type == LESType::Smagorinsky) {
-        amrex::Print() << "Cs                          : " << Cs << std::endl;
+        amrex::Print() << "    Cs                      : " << Cs << std::endl;
       }
       if (les_type == LESType::Deardorff) {
-        amrex::Print() << "Ce                          : " << Ce << std::endl;
-        amrex::Print() << "Ce at wall                  : " << Ce_wall
-                       << std::endl;
-        amrex::Print() << "Ck                          : " << Ck << std::endl;
-        amrex::Print() << "sigma_k                     : " << sigma_k
-                       << std::endl;
-        if (theta_ref > 0) {
-            amrex::Print() << "reference theta             : " << theta_ref
-                           << std::endl;
-        } else {
-            amrex::Print() << "reference theta             : n/a"
-                           << std::endl;
-        }
+        amrex::Print() << "    Ce                      : " << Ce      << std::endl;
+        amrex::Print() << "    Ce at wall              : " << Ce_wall << std::endl;
+        amrex::Print() << "    Ck                      : " << Ck      << std::endl;
+        amrex::Print() << "    sigma_k                 : " << sigma_k << std::endl;
+
         // Sullivan et al 1994, Eqn 14
         amrex::Real Cs_equiv = std::sqrt(Ck * std::sqrt(Ck / Ce));
-        amrex::Print() << "equivalent Cs               : " << Cs_equiv
+        amrex::Print() << "    equivalent Cs           : " << Cs_equiv
                        << std::endl;
       }
-      amrex::Print() << "isotropic mixing            : " << mix_isotropic
+      amrex::Print() << "    isotropic mixing        : " << mix_isotropic
                      << std::endl;
     }
 
     if (rans_type != RANSType::None) {
       if (rans_type == RANSType::kEqn) {
         amrex::Print() << "Cmu0                        : " << Cmu0 << std::endl;
-        amrex::Print() << "sigma_k                     : " << sigma_k
-                       << std::endl;
+        amrex::Print() << "sigma_k                     : " << sigma_k << std::endl;
         amrex::Print() << "Cb                          : " << Cb << std::endl;
-        amrex::Print() << "Rt_crit                     : " << Rt_crit
-                       << std::endl;
-        amrex::Print() << "Rt_min                      : " << Rt_min
-                       << std::endl;
-        amrex::Print() << "max_geom_lscale             : " << l_g_max
-                       << std::endl;
-        if (theta_ref > 0) {
-            amrex::Print() << "reference theta             : " << theta_ref
-                           << std::endl;
-        } else {
-            amrex::Print() << "reference theta             : n/a"
-                           << std::endl;
-        }
+        amrex::Print() << "Rt_crit                     : " << Rt_crit << std::endl;
+        amrex::Print() << "Rt_min                      : " << Rt_min << std::endl;
+        amrex::Print() << "max_geom_lscale             : " << l_g_max << std::endl;
+      }
+    }
+
+    if ((les_type  == LESType::Deardorff)                              ||
+        (les_type  == LESType::Smagorinsky && use_smag_stratification) ||
+        (rans_type == RANSType::kEqn)) {
+      if (theta_ref > 0) {
+        amrex::Print() << "    reference theta         : " << theta_ref << std::endl;
+      } else {
+        amrex::Print() << "    reference theta         : n/a" << std::endl;
       }
     }
 
     if ((les_type != LESType::None) || (rans_type != RANSType::None)) {
-      amrex::Print() << "Pr_t                        : " << Pr_t << std::endl;
-      amrex::Print() << "Sc_t                        : " << Sc_t << std::endl;
+      amrex::Print() << "    Pr_t                    : " << Pr_t << std::endl;
+      amrex::Print() << "    Sc_t                    : " << Sc_t << std::endl;
     }
 
     if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
