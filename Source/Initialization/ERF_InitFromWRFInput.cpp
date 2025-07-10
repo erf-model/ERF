@@ -160,80 +160,95 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                 }
             }
 
-            // Initialize other vars (NOT rho)
+            if ( var_name == "THM") {
+                const Real wrf_theta_ref = 300.0;
+                var_fab.template plus<RunOn::Device>(wrf_theta_ref);
+            }
+
+            // Initialize velocities
             if ( var_name == "U"      ||
                  var_name == "V"      ||
-                 var_name == "W"      ||
-                 var_name == "THM"    ||
+                 var_name == "W")
+            {
+                for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+                {
+                    FArrayBox& cons_fab = lev_new[Vars::cons][mfi];
+                    FArrayBox* cur_fab;
+                    if (var_name == "U") {
+                      cur_fab  = &lev_new[Vars::xvel][mfi];
+                    } else if (var_name == "V") {
+                      cur_fab  = &lev_new[Vars::yvel][mfi];
+                    } else if (var_name == "W") {
+                      cur_fab  = &lev_new[Vars::zvel][mfi];
+                    }
+
+                    if (success) {
+                        cur_fab->template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                    } else {
+                        amrex::Print() << "Setting " << var_name << " to 0 since we couldn't read it in ... DONE" << std::endl;
+                        cur_fab->template setVal<RunOn::Device>(0.0,cur_fab->box(),0,1);
+                    }
+                } // mfi
+            }
+
+            // Initialize cell-centered variables that need to be density-weighted
+            if ( var_name == "THM"    ||
                  var_name == "QVAPOR" ||
                  var_name == "QCLOUD" ||
-                 var_name == "QRAIN" ) {
+                 var_name == "QRAIN" )
+            {
+                int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+                AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
 
-              int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-              AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-              // INITIAL DATA common for "ideal" as well as "real" simulation
-              // Don't tile this since we are operating on full FABs in this routine
-              for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
-              {
-                  // Define fabs for holding the initial data
-                  int icomp = 0;
-                  bool mult_rho = false;
-                  FArrayBox& cons_fab = lev_new[Vars::cons][mfi];
-                  FArrayBox* cur_fab;
-                  if (var_name == "U") {
-                    cur_fab  = &lev_new[Vars::xvel][mfi];
-                  } else if (var_name == "V") {
-                    cur_fab  = &lev_new[Vars::yvel][mfi];
-                  } else if (var_name == "W") {
-                    cur_fab  = &lev_new[Vars::zvel][mfi];
-                  } else if (var_name == "THM") {
-                    const Real wrf_theta_ref = 300.0;
-                    cur_fab  = &lev_new[Vars::cons][mfi];
-                    Box vbx = cur_fab->box() & var_fab.box();
-                    var_fab.template plus<RunOn::Device>(wrf_theta_ref,vbx);
-                    mult_rho = true;
+                int icomp = -1;
+                if (var_name == "THM") {
                     icomp    = RhoTheta_comp;
-                  } else if (var_name == "QVAPOR") {
-                    cur_fab  = &lev_new[Vars::cons][mfi];
-                    mult_rho = true;
+                } else if (var_name == "QVAPOR") {
                     icomp    = RhoQ1_comp;
-                  } else if (var_name == "QCLOUD") {
-                    cur_fab  = &lev_new[Vars::cons][mfi];
-                    mult_rho = true;
+                } else if (var_name == "QCLOUD") {
                     icomp    = RhoQ2_comp;
-                  } else if (var_name == "QRAIN") {
-                    cur_fab  = &lev_new[Vars::cons][mfi];
-                    mult_rho = true;
+                } else if (var_name == "QRAIN") {
                     icomp    = RhoQ3_comp;
                     if (n_qstate_moist > 3) { icomp = RhoQ4_comp; }
                     if (n_qstate_moist < 3) { success = 0; }
-                  }
+                }
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                // INITIAL DATA common for "ideal" as well as "real" simulation
+                // Don't tile this since we are operating on full FABs in this routine
+                if (success)
+                {
+                    for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+                    {
+                        lev_new[Vars::cons][mfi].template copy<RunOn::Device>(var_fab, 0, icomp, 1);
+                    } // mfi
 
-                  if (success) {
-                      cur_fab->template copy<RunOn::Device>(var_fab, 0, icomp, 1);
-                      if (mult_rho) { cur_fab->template mult<RunOn::Device>(cons_fab, Rho_comp, icomp, 1); }
-                      if (use_theta_m && (var_name == "QVAPOR")) {
-                          // Now, we can calculate theta = thm / (1 + R_v/R_d * Qv)
-                          var_fab.template mult<RunOn::Device>(R_v/R_d);
-                          var_fab.template plus<RunOn::Device>(1.0);
-                          var_fab.template invert<RunOn::Device>(1.0);
-                          cur_fab->template mult<RunOn::Device>(var_fab, 0, RhoTheta_comp, 1);
-                      }
-                  } else {
-                      if (icomp < cur_fab->nComp()) {
-                          amrex::Print() << "Setting " << var_name << " to 0 since we couldn't read it in ... DONE" << std::endl;
-                          cur_fab->template setVal<RunOn::Device>(0.0,cur_fab->box(),icomp,1);
-                          if (mult_rho) { cur_fab->template mult<RunOn::Device>(cons_fab, Rho_comp, icomp, 1); }
-                      } else {
-                          amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
-                      }
-                  }
-              } // mfi
-              var_fab.clear();
-          } // valid var (not rho)
+                } else {
+                    if (icomp < lev_new[Vars::cons].nComp()) {
+                        amrex::Print() << "Setting " << var_name << " to 0 since we couldn't read it in ... DONE" << std::endl;
+                        lev_new[Vars::cons].setVal(0.0,icomp,1);
+                    } else {
+                        amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
+                    }
+                }
+
+                // Multiply each of these by density
+                MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, icomp, 1, lev_new[Vars::cons].nGrowVect());
+
+                if (use_theta_m && (var_name == "QVAPOR")) {
+                    // Now, we can calculate theta = thm / (1 + R_v/R_d * Qv)
+                    var_fab.template mult<RunOn::Device>(R_v/R_d);
+                    var_fab.template plus<RunOn::Device>(1.0);
+                    var_fab.template invert<RunOn::Device>(1.0);
+                    for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+                    {
+                        lev_new[Vars::cons][mfi].template mult<RunOn::Device>(var_fab, 0, RhoTheta_comp, 1);
+                    }
+                } // use_theta_m
+
+                var_fab.clear();
+            } // valid var (not rho)
 
           if ( var_name == "PH" ) {
               if (success) {
