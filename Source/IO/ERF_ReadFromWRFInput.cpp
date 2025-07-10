@@ -39,7 +39,7 @@ read_subdomain_from_wrfinput(int lev, const std::string& fname, int& ratio)
 
 void
 read_from_wrfinput (int lev,
-                    const Box& domain,
+                    const Box& subdomain,
                     const std::string& fname,
                     FArrayBox& NC_fab,
                     const std::string& NC_name,
@@ -118,7 +118,7 @@ read_from_wrfinput (int lev,
     }
 
     // Read the netcdf file and fill these FABs
-    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_names, NC_dim_types, NC_fabs, successes);
+    BuildFABsFromNetCDFFile<FArrayBox,Real>(subdomain, fname, NC_names, NC_dim_types, NC_fabs, successes);
 
     // Success was already broadcast in ERF_NCWpsFile.H
     success = successes[0];

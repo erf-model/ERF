@@ -653,6 +653,9 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_ylo;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
 
+    // Maximum value of terrain read in from wrfinput at level 0
+    amrex::Real z_top = 0.;
+
     amrex::Vector<amrex::FArrayBox> low_data_zlo;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;       // Latitude and Longitude on the grid

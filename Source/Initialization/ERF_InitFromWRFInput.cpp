@@ -17,7 +17,7 @@ using namespace amrex;
 
 void
 read_from_wrfinput (int lev,
-                    const Box& domain,
+                    const Box& subdomain,
                     const std::string& fname,
                     FArrayBox& NC_fab,
                     const std::string& NC_name,
@@ -37,13 +37,13 @@ compute_terrain_top_and_bottom (Real& terrain_bottom_min,
 void
 init_terrain_from_wrfinput (int lev,
                             const Real& z_top,
-                            const Box& domain,
+                            const Box& subdomain,
                             MultiFab* z_phys,
                             const MultiFab& NC_PH_fab,
                             const MultiFab& NC_PHB_fab);
 
 void
-init_base_state_from_wrfinput (const Box& domain,
+init_base_state_from_wrfinput (const Box& subdomain,
                                Real l_rdOcp,
                                MoistureType moisture_type,
                                const int& n_qstate_moist,
@@ -65,8 +65,6 @@ init_base_state_from_wrfinput (const Box& domain,
 void
 ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, MultiFab& mf_MUB_lev)
 {
-    const Box& domain = geom[lev].Domain();
-
     if (nc_init_file.empty()) {
         amrex::Error("NetCDF initialization file name must be provided via input");
     }
@@ -336,9 +334,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
               var_fab.clear();
           }
 
-
-          int i_lo = geom[lev].Domain().smallEnd(0); int i_hi = geom[lev].Domain().bigEnd(0);
-          int j_lo = geom[lev].Domain().smallEnd(1); int j_hi = geom[lev].Domain().bigEnd(1);
+          int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
+          int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
 
           // Initialize Latitude & Coriolis factors
           if ( var_name == "XLAT_V" ) {
@@ -524,25 +521,38 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
         });
     }
 
+    // **************************************************************************
+    // Compute min and max of terrain
+    // **************************************************************************
     if (compute_terrain_here) {
-        Real terrain_bottom_min, terrain_bottom_max;
-        Real terrain_top_min, terrain_top_max;
-        compute_terrain_top_and_bottom(terrain_bottom_min, terrain_bottom_max,
-                                       terrain_top_min, terrain_top_max,
-                                       mf_PH, mf_PHB, domain);
+        if (lev == 0) {
+            AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
+            Real terrain_bottom_min, terrain_bottom_max;
+            Real terrain_top_min, terrain_top_max;
+            compute_terrain_top_and_bottom(terrain_bottom_min, terrain_bottom_max,
+                                           terrain_top_min, terrain_top_max,
+                                           mf_PH, mf_PHB, geom[lev].Domain());
+
+            z_top = 0.5 * (terrain_top_min + terrain_top_max);
+            amrex::Print() << "Warning: ProbHi(2) will be ignored; we are setting top of domain to " << z_top << std::endl;
+        } else {
+            amrex::Print() << "Warning: using top of domain set at level 0 which is " << z_top << std::endl;
+        }
 
         // **************************************************************************
-        // Initialize the terrain itself and the metric quantities
-        // **************************************************************************
-        AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-
         // FillBoundary to populate the internal ghost cells (for averaging)
+        // **************************************************************************
          mf_PH.FillBoundary(geom[lev].periodicity());
         mf_PHB.FillBoundary(geom[lev].periodicity());
-        Real z_top = 0.5 * (terrain_top_min + terrain_top_max);
-        amrex::Print() << "Warning: ProbHi(2) will be ignored; we are setting top of domain to " << z_top << std::endl;
-        init_terrain_from_wrfinput(lev, z_top, domain, z_phys_nd[lev].get(), mf_PH, mf_PHB);
 
+        // **************************************************************************
+        // Initialize the terrain itself
+        // **************************************************************************
+        init_terrain_from_wrfinput(lev, z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(), mf_PH, mf_PHB);
+
+        // **************************************************************************
+        // Initialize the metric quantities
+        // **************************************************************************
         make_J  (geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
@@ -671,7 +681,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
 
     bool use_P_eos = (solverChoice.rebalance_wrfinput);
 
-    init_base_state_from_wrfinput(domain, l_rdOcp, solverChoice.moisture_type, n_qstate_moist,
+    init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp, solverChoice.moisture_type, n_qstate_moist,
                                   lev_new[Vars::cons], p_hse, pi_hse, th_hse, qv_hse, r_hse,
                                   mf_PB, mf_P, use_P_eos);
 
@@ -717,7 +727,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                         << " and relaxation width: " << real_width - real_set_width << std::endl;
             }
 
-            convert_all_wrfbdy_data(itime, domain, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+            convert_all_wrfbdy_data(itime, geom[lev].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                     mf_MUB_lev, mf_C1H_lev, mf_C2H_lev,
                                     lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                     geom[lev], use_moist);
@@ -750,8 +760,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
         low_time_interval = read_from_wrflow(nc_low_file,geom[0].Domain(),
                                              low_data_zlo, start_low_time);
 
-        int i_lo = geom[lev].Domain().smallEnd(0); int i_hi = geom[lev].Domain().bigEnd(0);
-        int j_lo = geom[lev].Domain().smallEnd(1); int j_hi = geom[lev].Domain().bigEnd(1);
+        int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
+        int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
 
         int ntimes = low_data_zlo.size();
 
@@ -800,7 +810,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
  * @param NC_PB_fab Vector of FArrayBox objects containing WRF data specifying pressure
  */
 void
-init_base_state_from_wrfinput (const Box& domain,
+init_base_state_from_wrfinput (const Box& subdomain,
                                const Real l_rdOcp,
                                MoistureType moisture_type,
                                const int& n_qstate_moist,
@@ -814,8 +824,8 @@ init_base_state_from_wrfinput (const Box& domain,
                                const MultiFab& mf_P,
                                const bool& use_P_eos)
 {
-    const auto& dom_lo = lbound(domain);
-    const auto& dom_hi = ubound(domain);
+    const auto& dom_lo = lbound(subdomain);
+    const auto& dom_hi = ubound(subdomain);
 
     for ( MFIter mfi(p_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
 
@@ -1017,7 +1027,7 @@ compute_terrain_top_and_bottom (Real& terrain_bottom_min,
 void
 init_terrain_from_wrfinput (int /*lev*/,
                             const Real& z_top,
-                            const Box& domain,
+                            const Box& subdomain,
                             MultiFab* z_phys,
                             const MultiFab& mf_PH,
                             const MultiFab& mf_PHB)
@@ -1035,16 +1045,15 @@ init_terrain_from_wrfinput (int /*lev*/,
         const Array4<Real const>& nc_ph_arr  = mf_PH.const_array(mfi);
 
         // PHB and PH are on z-faces (0.5 dx/y ahead of zphys)
-        Box z_face_box = convert(domain,IntVect(0,0,1));
+        Box z_face_box = convert(subdomain,IntVect(0,0,1));
 
         // Prevent averaging from going into domain ghost cells
         int ilo = z_face_box.smallEnd()[0] + 1;
         int ihi = z_face_box.bigEnd()[0];
         int jlo = z_face_box.smallEnd()[1] + 1;
         int jhi = z_face_box.bigEnd()[1];
-
-        int klo = domain.smallEnd()[2];
-        int khi = domain.bigEnd()[2]+1;
+        int klo = z_face_box.smallEnd()[2];
+        int khi = z_face_box.bigEnd()[2];
 
         ParallelFor(gnbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
