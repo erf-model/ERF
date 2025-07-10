@@ -367,7 +367,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         int j = n / (ns2 * ns3);
                         int k = (n - j * (ns2 * ns3)) / ns3;
                         int i =  n - j * (ns2 * ns3) - k * ns3;
-                        fab_arr(i, joff+j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
+                        fab_arr(i, joff-j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } // bdyType
 

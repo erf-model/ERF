@@ -1252,7 +1252,7 @@ ERF::InitData_post ()
                 MultiFab::Copy(  *Qv_prim[lev], vars_new[lev][Vars::cons], RhoQ1_comp, 0, 1, ng);
                 MultiFab::Divide(*Qv_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
 
-                int rhoqr_comp = solverChoice.RhoQr_comp;
+                int rhoqr_comp = solverChoice.moisture_indices.qr;
                 if (rhoqr_comp > -1) {
                     MultiFab::Copy(  *Qr_prim[lev], vars_new[lev][Vars::cons], rhoqr_comp, 0, 1, ng);
                     MultiFab::Divide(*Qr_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
@@ -1267,9 +1267,7 @@ ERF::InitData_post ()
                 // we don't want to call update_fluxes multiple times because
                 // it will change u* and theta* from their previous values
                 m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
-                                            solverChoice.RhoQv_comp,
-                                            solverChoice.RhoQc_comp,
-                                            solverChoice.RhoQr_comp);
+                                            solverChoice.moisture_indices);
                 m_SurfaceLayer->update_fluxes(lev, time);
             }
         }

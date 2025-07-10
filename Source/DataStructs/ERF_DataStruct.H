@@ -96,6 +96,26 @@ enum Sponge {
     ubar_sponge, vbar_sponge, nvars_sponge
 };
 
+struct MoistureComponentIndices {
+    int qv = -1;  // Water vapor
+    int qc = -1;  // Cloud liquid water
+    int qi = -1;  // Cloud ice
+    int qr = -1;  // Rain
+    int qs = -1;  // Snow
+    int qg = -1;  // Graupel
+
+    // Constructor for easy initialization
+    MoistureComponentIndices (int qv_comp, int qc_comp,
+                              int qi_comp=-1,
+                              int qr_comp=-1,
+                              int qs_comp=-1,
+                              int qg_comp=-1)
+        : qv(qv_comp), qc(qc_comp), qi(qi_comp), qr(qr_comp), qs(qs_comp), qg(qg_comp) {}
+
+    // Default constructor
+    MoistureComponentIndices() = default;
+};
+
 /**
  * Container holding many of the algorithmic options and parameters
  */
@@ -141,22 +161,37 @@ struct SolverChoice {
             amrex::Abort("The input moisture_type is deprecated.  Set moisture_model instead.");
         }
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
-        if ( (moisture_type == MoistureType::Morrison      ) ||
-             (moisture_type == MoistureType::SAM           ) ||
-             (moisture_type == MoistureType::Morrison_NoIce) ||
-             (moisture_type == MoistureType::SAM_NoIce     ) ) {
-            RhoQv_comp = RhoQ1_comp;
-            RhoQc_comp = RhoQ2_comp;
-            RhoQr_comp = RhoQ4_comp;
+        if ( (moisture_type == MoistureType::Morrison) ||
+             (moisture_type == MoistureType::SAM) ) {
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor
+                RhoQ2_comp,  // cloud water
+                RhoQ3_comp,  // cloud ice
+                RhoQ4_comp,  // rain
+                RhoQ5_comp,  // snow
+                RhoQ6_comp   // graupel
+            );
+        } else if ( (moisture_type == MoistureType::Morrison_NoIce) ||
+                    (moisture_type == MoistureType::SAM_NoIce) ) {
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor
+                RhoQ2_comp,  // cloud water
+                -1,          // cloud ice
+                RhoQ4_comp   // rain
+            );
         } else if ( (moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
                     (moisture_type == MoistureType::Kessler_NoRain) ||
                     (moisture_type == MoistureType::SatAdj) ) {
-            RhoQv_comp = RhoQ1_comp;
-            RhoQc_comp = RhoQ2_comp;
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor
+                RhoQ2_comp   // cloud water
+            );
         } else if (moisture_type == MoistureType::Kessler) {
-            RhoQv_comp = RhoQ1_comp;
-            RhoQc_comp = RhoQ2_comp;
-            RhoQr_comp = RhoQ3_comp;
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor
+                RhoQ2_comp,  // cloud water
+                RhoQ3_comp   // rain
+            );
         }
 
         // TODO: should we set default for dry??
@@ -827,14 +862,7 @@ struct SolverChoice {
 
     // Microphysics params
     bool use_moist_background {false};
-    int RhoQv_comp {-1};
-    int RhoQc_comp {-1};
-
-    // This component will be model-dependent:
-    // if a model with no rain, this will stay -1
-    // if Kessler, then it will be set to RhoQ3
-    // if     SAM, then it will be set to RhoQ4
-    int RhoQr_comp {-1};
+    MoistureComponentIndices moisture_indices;
 
     bool moisture_tight_coupling {false};
 

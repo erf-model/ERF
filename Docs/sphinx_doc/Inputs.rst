@@ -976,6 +976,12 @@ List of Parameters
 | **erf.Cs**                       | Constant           | Real                | 0.0          |
 |                                  | Smagorinsky coeff. |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
+| **erf.use_smag_stratification**  | Enable             | Boolean             | true         |
+|                                  | stratification     |                     |              |
+|                                  | effects (dry and   |                     |              |
+|                                  | moist) in          |                     |              |
+|                                  | Smagorinsky model  |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
 | **erf.Ck**                       | Constant           | Real                | 0.1          |
 |                                  | Deardorff k coeff. |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
@@ -994,11 +1000,15 @@ List of Parameters
 |                                  | downgradient       |                     |              |
 |                                  | diffusion term     |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.theta_ref**                | Reference potential| Real                | 300.0        |
+| **erf.theta_ref**                | Reference potential| Real                | 0.0          |
 |                                  | temperature used   |                     |              |
 |                                  | to characterize    |                     |              |
 |                                  | stable             |                     |              |
-|                                  | stratficiation     |                     |              |
+|                                  | stratficiation;    |                     |              |
+|                                  | constant if > 0,   |                     |              |
+|                                  | otherwise the      |                     |              |
+|                                  | instantaneous local|                     |              |
+|                                  | value is used      |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.Pr_t**                     | Turbulent Prandtl  | Real                | 1.0          |
 |                                  | Number             |                     |              |

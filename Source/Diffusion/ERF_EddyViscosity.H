@@ -4,9 +4,11 @@
 #define ERF_EDDY_VISCOSITY_H_
 
 #include "AMReX_BCRec.H"
-
 #include "ERF_SurfaceLayer.H"
 #include "ERF_DataStruct.H"
+#include "ERF_IndexDefines.H"
+#include "ERF_Constants.H"
+#include "ERF_EOS.H"
 
 void
 ComputeTurbulentViscosity (const amrex::MultiFab& xvel ,

@@ -183,6 +183,7 @@ public:
     query_one_or_per_level(pp, "theta_ref", theta_ref, lev, max_level);
 
     query_one_or_per_level(pp, "mix_isotropic", mix_isotropic, lev, max_level);
+    query_one_or_per_level(pp, "use_smag_stratification", use_smag_stratification, lev, max_level);
 
     // Set common flags
     use_kturb =
@@ -371,6 +372,9 @@ public:
 
   // Anistropic length scales
   bool mix_isotropic = true;
+
+  // Use the stratification adjustment for the Smagorinsky Scheme
+  bool use_smag_stratification = true;
 
   // RANS type
   RANSType rans_type;
