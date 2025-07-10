@@ -405,9 +405,10 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
         const Real Rt_crit    = turbChoice.Rt_crit;
         const Real Rt_min     = turbChoice.Rt_min;
         const Real l_g_max    = turbChoice.l_g_max;
-
         const Real abs_g      = const_grav;
-        const Real inv_theta0 = 1.0 / turbChoice.theta_ref;
+
+        const bool use_ref_theta = (turbChoice.theta_ref > 0);
+        const Real inv_theta0  = (use_ref_theta) ? 1.0 / turbChoice.theta_ref : 1.0;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -443,6 +444,11 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                 Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                        - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 Real N2 = abs_g * inv_theta0 * dtheta_dz; // Brunt–Väisälä frequency squared
+                if (!use_ref_theta) {
+                    // inv_theta0 == 1, divide by actual theta
+                    N2 *= cell_data(i,j,k,Rho_comp) /
+                          cell_data(i,j,k,RhoTheta_comp);
+                }
 
                 // Geometric length scale (AL01, Eqn. 22)
                 Real l_g = (z0_arr) ? KAPPA * (d_arr(i, j, k) + z0_arr(i, j, 0))
