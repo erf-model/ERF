@@ -82,7 +82,7 @@ redistribute_term ( int ncomp,
                                  apx, apy, apz, vfrac,
                                  fcx, fcy, fcz, ccc,
                                  bc, geom, local_dt, redistribution_type,
-                                 false, 2, 0.75_rt, {});
+                                 false, 2, 0.5_rt, {});
             // ApplyRedistribution( bx, ncomp, out, in, state_arr,
             //                      scratch, flag,
             //                      apx, apy, apz, vfrac,
@@ -182,7 +182,7 @@ redistribute_term ( int ncomp,
                                  apx, apy, apz, vfrac,
                                  fcx, fcy, fcz, ccc,
                                  bc, geom_new, local_dt, redistribution_type,
-                                 false, 2, 0.75_rt, {});
+                                 false, 2, 0.5_rt, {});
             // ApplyRedistribution( bx_cc, ncomp, out, in, state_arr,
             //                      scratch, flag,
             //                      apx, apy, apz, vfrac,
