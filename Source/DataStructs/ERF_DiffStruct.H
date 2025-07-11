@@ -39,6 +39,7 @@ struct DiffChoice {
             pp.query("alpha_T", alpha_T);
             pp.query("alpha_C", alpha_C);
             pp.query("dynamic_viscosity", dynamic_viscosity);
+            pp.query("rho0_trans", rho0_trans);
             pp.query("eb_diff_constraint_x", eb_diff_constraint_x);
             pp.query("eb_diff_constraint_y", eb_diff_constraint_y);
             pp.query("eb_diff_constraint_z", eb_diff_constraint_z);
