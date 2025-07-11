@@ -474,15 +474,15 @@ Radiation::mf_to_yakl_buffers ()
             qv_lay(icol,ilay) = qv;
             qc_lay(icol,ilay) = qc;
             qi_lay(icol,ilay) = qi;
-            cldfrac_tot(icol,ilay) = ((qc+qi)>1.0e-5) ? 1. : 0.;
+            cldfrac_tot(icol,ilay) = ((qc+qi)>0.0) ? 1. : 0.;
 
             // NOTE: These are populated in 'mixing_ratio_to_cloud_mass'
             lwp(icol,ilay) = 0.0;
             iwp(icol,ilay) = 0.0;
 
             // NOTE: These would be populated from P3 (we use the constants in p3_main_impl.hpp)
-            eff_radius_qc(icol,ilay) = (qc>1.0e-12) ? 10.0e-6 : 0.0;
-            eff_radius_qi(icol,ilay) = (qi>1.0e-12) ? 25.0e-6 : 0.0;
+            eff_radius_qc(icol,ilay) = (qc>0.0) ? 10.0e-6 : 0.0;
+            eff_radius_qi(icol,ilay) = (qi>0.0) ? 25.0e-6 : 0.0;
 
             // Buffers on z-faces (nlay+1)
             p_lev(icol,ilay) = getPgivenRTh(rt_avg, qv_avg);
@@ -518,7 +518,6 @@ Radiation::mf_to_yakl_buffers ()
         p_del(icol,ilay)  = std::abs(p_lev(icol,ilay+1) - p_lev(icol,ilay));
     });
 
-    // TODO: Fill properly
     // No LSM, so follow EAMXX dummy atmos and set constants
     if (!lsm) {
         yakl::memset(mu0, 0.86);
@@ -528,7 +527,7 @@ Radiation::mf_to_yakl_buffers ()
         yakl::memset(sfc_alb_dif_nir, 0.06);
     }
 
-    // TODO: Fill properly
+    // Initialize
     yakl::memset(aero_tau_sw, 0.0);
     yakl::memset(aero_ssa_sw, 0.0);
     yakl::memset(aero_g_sw  , 0.0);
@@ -561,19 +560,6 @@ Radiation::yakl_buffers_to_mf ()
             Real exner = getExnergivenP(Real(p_lay(icol,ilay)), R_d/Cp_d);
             q_arr(i,j,k,0) *= exner;
             q_arr(i,j,k,1) *= exner;
-
-            /*
-            if (i==0 && j==0) {
-                AllPrint() << "Qsrcs: " << IntVect(i,j,k) << ' '
-                           << IntVect(icol,0,ilay) << ' '
-                           << q_arr(i,j,k,0) << ' '
-                           << q_arr(i,j,k,1) << ' '
-                           << sw_heating(icol,ilay) << ' '
-                           << lw_heating(icol,ilay) << ' '
-                           << exner << "\n";
-            }
-            */
-
         });
         if (m_lsm_fluxes) {
             const Array4<Real>& lsm_arr =  m_lsm_fluxes->array(mfi);
@@ -645,7 +631,7 @@ Radiation::write_rrtmgp_fluxes ()
    WriteSingleLevelPlotfile(plotfilename, mf_flux, flux_names, m_geom, m_time, m_step);
 }
 
-void Radiation::populateDatalogMF()
+void Radiation::populateDatalogMF ()
 {
     for (MFIter mfi(datalog_mf); mfi.isValid(); ++mfi) {
         const auto& vbx      = mfi.validbox();
@@ -705,7 +691,7 @@ void Radiation::populateDatalogMF()
    }
 }
 
-void Radiation::WriteDataLog(const amrex::Real &time)
+void Radiation::WriteDataLog (const amrex::Real &time)
 {
     constexpr int datwidth = 14;
     constexpr int datprecision = 9;
@@ -965,9 +951,11 @@ Radiation::run_impl ()
     }
     h_mu0.deep_copy_to(mu0);
 
+    // NOTE: p_del uses std::abs() and is always positive
+    //
     // Compute layer cloud mass (per unit area), populates lwp/iwp
-    rrtmgp::mixing_ratio_to_cloud_mass(qc_lay, cldfrac_tot, p_del, lwp);
-    rrtmgp::mixing_ratio_to_cloud_mass(qi_lay, cldfrac_tot, p_del, iwp);
+    rrtmgp::mixing_ratio_to_cloud_mass(qc_lay, cldfrac_tot, r_lay, z_del, lwp);
+    rrtmgp::mixing_ratio_to_cloud_mass(qi_lay, cldfrac_tot, r_lay, z_del, iwp);
 
     // Convert to g/m2 (needed by RRTMGP)
     parallel_for(SimpleBounds<2>(ncol, nlay), YAKL_LAMBDA (int icol, int ilay)
@@ -993,14 +981,16 @@ Radiation::run_impl ()
                         aero_tau_sw, aero_ssa_sw, aero_g_sw, aero_tau_lw,
                         cld_tau_sw_bnd, cld_tau_lw_bnd,
                         cld_tau_sw_gpt, cld_tau_lw_gpt,
-                        sw_flux_up, sw_flux_dn, sw_flux_dn_dir, lw_flux_up, lw_flux_dn,
+                        sw_flux_up, sw_flux_dn, sw_flux_dn_dir,
+                        lw_flux_up, lw_flux_dn,
                         sw_clnclrsky_flux_up, sw_clnclrsky_flux_dn, sw_clnclrsky_flux_dn_dir,
                         sw_clrsky_flux_up, sw_clrsky_flux_dn, sw_clrsky_flux_dn_dir,
                         sw_clnsky_flux_up, sw_clnsky_flux_dn, sw_clnsky_flux_dn_dir,
                         lw_clnclrsky_flux_up, lw_clnclrsky_flux_dn,
                         lw_clrsky_flux_up, lw_clrsky_flux_dn,
                         lw_clnsky_flux_up, lw_clnsky_flux_dn,
-                        sw_bnd_flux_up, sw_bnd_flux_dn, sw_bnd_flux_dir, lw_bnd_flux_up, lw_bnd_flux_dn,
+                        sw_bnd_flux_up, sw_bnd_flux_dn, sw_bnd_flux_dir,
+                        lw_bnd_flux_up, lw_bnd_flux_dn,
                         eccf, m_extra_clnclrsky_diag, m_extra_clnsky_diag);
 
 #if 0
@@ -1053,15 +1043,17 @@ Radiation::run_impl ()
                         aero_tau_sw, aero_ssa_sw, aero_g_sw, aero_tau_lw,
                         cld_tau_sw_bnd, cld_tau_lw_bnd,
                         cld_tau_sw_gpt, cld_tau_lw_gpt,
-                        sw_flux_up, sw_flux_dn, sw_flux_dn_dir, lw_flux_up, lw_flux_dn,
+                        sw_flux_up, sw_flux_dn, sw_flux_dn_dir,
+                        lw_flux_up, lw_flux_dn,
                         sw_clnclrsky_flux_up, sw_clnclrsky_flux_dn, sw_clnclrsky_flux_dn_dir,
                         sw_clrsky_flux_up, sw_clrsky_flux_dn, sw_clrsky_flux_dn_dir,
                         sw_clnsky_flux_up, sw_clnsky_flux_dn, sw_clnsky_flux_dn_dir,
                         lw_clnclrsky_flux_up, lw_clnclrsky_flux_dn,
                         lw_clrsky_flux_up, lw_clrsky_flux_dn,
                         lw_clnsky_flux_up, lw_clnsky_flux_dn,
-                        sw_bnd_flux_up, sw_bnd_flux_dn, sw_bnd_flux_dir, lw_bnd_flux_up, lw_bnd_flux_dn,
-                        1.0);
+                        sw_bnd_flux_up, sw_bnd_flux_dn, sw_bnd_flux_dir,
+                        lw_bnd_flux_up, lw_bnd_flux_dn,
+                        1.0, true, true);
     //================================================================================
 #endif
 
