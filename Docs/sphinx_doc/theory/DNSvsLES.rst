@@ -92,10 +92,13 @@ in the equation of state is weak for :math:`\gamma = 1.4`, so the subfilter cont
 ERF offers two LES options: Smagorinsky and Deardorff models, which differ in how :math:`\mu_{t}` is computed.
 
 .. _SmagorinskyModel:
+
 Smagorinsky Model
 ~~~~~~~~~~~~~~~~~~
+
 .. math::
    \mu_{t} = (C_s \Delta)^2 (\sqrt{2 \tilde{S} \tilde{S}}) \overline{\rho}
+
 :math:`C_s` is the Smagorinsky constant and :math:`\Delta` is the cube root of cell volume, the representative mesh spacing.
 
 .. math::
@@ -106,19 +109,98 @@ where :math:`K = 2\mu_{t}`
 In the Smagorinsky model, modeling of :math:`\mu_{t}` does not account for the turbulent kinetic energy (TKE) corresponding to
 unresolved scales and no extra equation for TKE is solved.
 
+Enhanced Smagorinsky Model with Moist Stratification
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The standard Smagorinsky model uses a fixed relationship between mixing length and grid scale (:math:`\ell = \Delta`).
+For atmospheric applications involving moisture, this can be inappropriate in stably stratified regions where buoyancy effects
+significantly suppress turbulent mixing. ERF includes an enhanced Smagorinsky formulation that accounts for moist atmospheric
+stratification effects while maintaining computational efficiency.
+
+The enhanced model modifies the mixing length based on local atmospheric stability:
+
+.. math::
+   \ell_m = \begin{cases}
+   \Delta & \text{if } N^2_{eff} \leq 0 \\
+   \min\left(\Delta, \sqrt{\frac{u_c^2}{N^2_{eff}}}\right) & \text{if } N^2_{eff} > 0
+   \end{cases}
+
+where :math:`u_c = |\tilde{S}| \Delta` is a characteristic velocity scale based on the local strain rate magnitude,
+and :math:`N^2_{eff}` is the effective moist Brunt-Väisälä frequency.
+
+**Moist Stratification Parameter**
+
+The moist stratification parameter accounts for three key atmospheric effects:
+
+1. **Virtual potential temperature effects**: Water vapor decreases air density (enhancing buoyancy) while condensate increases density (reducing buoyancy):
+
+.. math::
+   \theta_v = \theta \left(1 + 0.61 q_v - q_c - q_i\right)
+
+where :math:`q_v`, :math:`q_c`, and :math:`q_i` are mixing ratios of water vapor, liquid water, and ice, respectively.
+
+2. **Moist Brunt-Väisälä frequency**: The stratification parameter uses virtual potential temperature instead of dry potential temperature:
+
+.. math::
+   N^2_m = \frac{g}{\theta_0} \frac{\partial \theta_v}{\partial z}
+
+3. **Conditional instability correction**: In saturated regions with condensate present, the effective stratification is reduced due to latent heat release:
+
+.. math::
+   N^2_{eff} = N^2_m \cdot \frac{1 + \frac{L_{eff} q_{s,eff}}{R_d T}}{1 + \frac{L_{eff}^2 q_{s,eff}}{c_p R_v T^2}}
+
+where :math:`L_{eff}` and :math:`q_{s,eff}` are phase-weighted effective latent heat and saturation mixing ratio, accounting for the presence of both liquid and ice phases:
+
+.. math::
+   L_{eff} &= f_l L_v + f_i (L_v + L_i) \\
+   q_{s,eff} &= f_l q_{s,w} + f_i q_{s,i} \\
+   f_l &= \frac{q_c}{q_c + q_i + \epsilon}, \quad f_i = 1 - f_l
+
+The enhanced turbulent viscosity becomes:
+
+.. math::
+   \mu_{t} = (C_s \ell_m)^2 (\sqrt{2 \tilde{S} \tilde{S}}) \overline{\rho}
+
+with mixing length bounds applied to prevent numerical issues:
+
+.. math::
+   \ell_m \geq 0.001 \Delta
+
+**Physical Interpretation**
+
+This formulation creates an effective Richardson number criterion where turbulent length scales respond to atmospheric stability:
+
+.. math::
+   Ri_{eff} = \frac{N^2_{eff}}{|\tilde{S}|^2}
+
+When :math:`Ri_{eff} > 1`, stratification dominates and mixing is suppressed.
+When :math:`0 < Ri_{eff} < 1`, shear dominates and mixing approaches standard Smagorinsky behavior.
+When :math:`Ri_{eff} \leq 0`, stratification is unstable and the standard Smagorinsky behavior is exactly recovered, regardless of moisture.
+
+**Implementation Control**
+
+The enhanced moist Smagorinsky formulation can be controlled via the input parameter:
+
+.. code-block:: none
+
+    erf.use_smag_stratification = true   # Enhanced moist Smagorinsky (default)
+    erf.use_smag_stratification = false  # Standard Smagorinsky
+
+When disabled, the model reverts to the standard Smagorinsky formulation with :math:`\ell_m = \Delta`,
+providing backwards compatibility and enabling direct comparison between approaches.
+
 Deardorff Model
 ~~~~~~~~~~~~~~~
+
 Unlike the Smagorinsky model, the Deardorff model accounts for the contribution of TKE in modeling :math:`\mu_{t}` and a prognostic equation
 for TKE is solved.  The turbulent viscosity is computed as:
 
 .. math::
-
    \mu_t = \overline{\rho} C_k \ell (e^{sfs})^{1/2},
 
 where the mixing length :math:`\ell = \Delta` for unstable (or neutral) stratification, otherwise the mixing length is reduced as per Deardorff 1980:
 
 .. math::
-
    \ell = \frac{0.76 (e^{sfs})^{1/2}}{\left(\frac{g}{\theta_0}\frac{\partial\theta}{\partial z}\right)^{1/2}}.
 
 The potential temperature gradient in the denominator dictates the stratification, which is scaled by a reference virtual potential temperature :math:`\theta_0`.
@@ -127,7 +209,6 @@ The mixing length is set to a maximum of :math:`\Delta` to prevent unbounded beh
 Then the equation solved to determine :math:`e^{sfs}`, the subfilter contribution to TKE, is:
 
 .. math::
-
    \frac{\partial \overline{\rho} e^{sfs}}{\partial t} = - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{e}^{sfs})
                                                          - \tau_{ij} \frac{\partial \tilde{u}_i}{\partial x_j}
                                                          + \frac{g}{\theta_0} \tau_{\theta w}
@@ -138,20 +219,17 @@ where :math:`\sigma_k` is a constant model coefficient representing the ratio of
 of TKE that should be order unity (e.g., Moeng 1984 uses TKE diffusivity of :math:`2 \mu_t`), we have used the downgradient diffusion assumption
 
 .. math::
-
    \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} =
            -\nabla \cdot \left( \frac{\mu_t}{\sigma_k} \nabla e^{sfs}  \right),
 
 the eddy diffusivity of heat is
 
 .. math::
-
    K_H = \left(1 + \frac{2\ell}{\Delta}\right) \mu_t,
 
 and the SFS heat flux is
 
 .. math::
-
    \tau_{\theta i} = -K_H \frac{\partial\theta}{\partial x_i}.
 
 The RHS terms of the TKE transport equation correspond to advection, shear production, buoyant production, diffusion, and dissipation.

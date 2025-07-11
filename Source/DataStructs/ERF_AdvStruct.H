@@ -225,9 +225,9 @@ struct AdvChoice {
         pp.query("moistscal_vert_adv_type" , moistscal_vert_adv_string);
 
         if (dycore_horiz_adv_string != "") {
-            amrex::Print() << "    dycore_horiz_adv_type       : " << dycore_horiz_adv_string;
+            amrex::Print() << "    dycore_horiz_adv_type   : " << dycore_horiz_adv_string;
         } else {
-            amrex::Print() << "    dycore_horiz_adv_type       : " << adv_type_convert_int_to_string(dycore_horiz_adv_type);
+            amrex::Print() << "    dycore_horiz_adv_type   : " << adv_type_convert_int_to_string(dycore_horiz_adv_type);
         }
         if ( (dycore_horiz_adv_string == "Blended_3rd4th") ||
              (dycore_horiz_adv_string == "Blended_5th6th") ) {
@@ -236,9 +236,9 @@ struct AdvChoice {
         amrex::Print() << std::endl;
 
         if (dycore_vert_adv_string != "") {
-            amrex::Print() << "    dycore_vert_adv_type        : " << dycore_vert_adv_string;
+            amrex::Print() << "    dycore_vert_adv_type    : " << dycore_vert_adv_string;
         } else {
-            amrex::Print() << "    dycore_vert_adv_type        : " << adv_type_convert_int_to_string(dycore_vert_adv_type);
+            amrex::Print() << "    dycore_vert_adv_type    : " << adv_type_convert_int_to_string(dycore_vert_adv_type);
         }
         if ( (dycore_vert_adv_string == "Blended_3rd4th") ||
              (dycore_vert_adv_string == "Blended_5th6th") ) {
@@ -247,9 +247,9 @@ struct AdvChoice {
         amrex::Print() << std::endl;
 
         if (dryscal_horiz_adv_string != "") {
-            amrex::Print() << "   dryscal_horiz_adv_type       : " << dryscal_horiz_adv_string;
+            amrex::Print() << "   dryscal_horiz_adv_type   : " << dryscal_horiz_adv_string;
         } else {
-            amrex::Print() << "   dryscal_horiz_adv_type       : " << adv_type_convert_int_to_string(dryscal_horiz_adv_type);
+            amrex::Print() << "   dryscal_horiz_adv_type   : " << adv_type_convert_int_to_string(dryscal_horiz_adv_type);
         }
         if ( (dryscal_horiz_adv_string == "Blended_3rd4th") ||
              (dryscal_horiz_adv_string == "Blended_5th6th") ) {
@@ -258,9 +258,9 @@ struct AdvChoice {
         amrex::Print() << std::endl;
 
         if (dryscal_vert_adv_string != "") {
-            amrex::Print() << "   dryscal_vert_adv_type        : " << dryscal_vert_adv_string;
+            amrex::Print() << "   dryscal_vert_adv_type    : " << dryscal_vert_adv_string;
         } else {
-            amrex::Print() << "   dryscal_vert_adv_type        : " << adv_type_convert_int_to_string(dryscal_vert_adv_type);
+            amrex::Print() << "   dryscal_vert_adv_type    : " << adv_type_convert_int_to_string(dryscal_vert_adv_type);
         }
         if ( (dryscal_vert_adv_string == "Blended_3rd4th") ||
              (dryscal_vert_adv_string == "Blended_5th6th") ) {
@@ -269,9 +269,9 @@ struct AdvChoice {
         amrex::Print() << std::endl;
 
         if (moistscal_horiz_adv_string != "") {
-            amrex::Print() << " moistscal_horiz_adv_type       : " << moistscal_horiz_adv_string;
+            amrex::Print() << " moistscal_horiz_adv_type   : " << moistscal_horiz_adv_string;
         } else {
-            amrex::Print() << " moistscal_horiz_adv_type       : " << adv_type_convert_int_to_string(moistscal_horiz_adv_type);
+            amrex::Print() << " moistscal_horiz_adv_type   : " << adv_type_convert_int_to_string(moistscal_horiz_adv_type);
         }
         if ( (moistscal_horiz_adv_string == "Blended_3rd4th") ||
              (moistscal_horiz_adv_string == "Blended_5th6th") ) {
@@ -280,9 +280,9 @@ struct AdvChoice {
         amrex::Print() << std::endl;
 
         if (moistscal_vert_adv_string != "") {
-            amrex::Print() << " moistscal_vert_adv_type        : " << moistscal_vert_adv_string;
+            amrex::Print() << " moistscal_vert_adv_type    : " << moistscal_vert_adv_string;
         } else {
-            amrex::Print() << " moistscal_vert_adv_type        : " << adv_type_convert_int_to_string(moistscal_vert_adv_type);
+            amrex::Print() << " moistscal_vert_adv_type    : " << adv_type_convert_int_to_string(moistscal_vert_adv_type);
         }
         if ( (moistscal_vert_adv_string == "Blended_3rd4th") ||
              (moistscal_vert_adv_string == "Blended_5th6th") ) {

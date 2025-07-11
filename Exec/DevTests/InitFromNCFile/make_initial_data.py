@@ -1,6 +1,24 @@
+###################################################
+#
+# A demonstration of initial condition generation
+# for export to a netCDF file, and processing by
+# ERF.
+#
+# This file and method of data generation are based
+# on the original python notebook written by
+# Timothy Sliwinski at CIRA/CSU/NOAA GSL.
+#
+###################################################
+
+
 import numpy as np
 import netCDF4 as nc
 import math
+
+###################################################
+# Constants used in calculations.
+# Cf. ERF/Source/ERF_Constants.H.
+###################################################
 
 # Constants
 PI           = 3.14159265358979323846264338327950288
@@ -39,31 +57,72 @@ a_inf = np.sqrt(gamma * R_d * T_inf)
 # Derived constants
 rdOcp = R_d / Cp_d
 
-# Function(s) for computed values
+###################################################
+# Problem-specific function for calculating
+# certain space-dependent values in the
+# isentropic vortex
+###################################################
+
 def erf_vortex_Gaussian(x, y, xc, yc, R, beta, sigma):
     r2 = ((x-xc) * (x-xc) + (y-yc) * (y-yc)) / (R * R)
     return beta * np.exp(-r2 / (2. * sigma * sigma))
+
+
+###################################################
+# Problem-independent calculation of density given
+# potential temperature and pressure.
+# Cf. ERF/Source/Utils/ERF_EOS.H
+###################################################
 
 def getRhoThetagivenP(p, qv=0.0):
     return np.pow(p * np.pow(p_0, Gamma - 1), iGamma) * iR_d / (1.0 + R_v / R_d * qv)
 
 
+###################################################
+# Data for setting up the grid. These values are
+# specific to the problem grid size defined in
+# inputs file; cf. the field `amr.n_cell` in
+# the local file `inputs`.
+###################################################
+
 # Grid shape
+
+# Number of cells in each direction. These are associated with
+# cell-centered, conserved quantities.
 Nx_cell = 48
 Ny_cell = 48
 Nz_cell = 4
 
+# The number of faces required for staggered grids in each
+# direction. These are used for the velocity components.
 Nx_face = Nx_cell + 1
 Ny_face = Ny_cell + 1
 Nz_face = Nz_cell + 1
 
+# Problem geometry data. Cf. `geometry.prob_lo` and
+# `geometry.prob_hi` in `inputs`.
 prob_lo = np.array([-12, -12, -1])
 prob_hi = np.array([12, 12, 1])
+
+# Problem grid data.
 n_cell = np.array([Nx_cell, Ny_cell, Nz_cell])
 
+# Cell size in each direction
 dx = (prob_hi - prob_lo) / n_cell
 
-# Cell center quantities
+
+###################################################
+# Populate data. Here we use numpy arrays to
+# represent our discretized domain and store
+# point-wise values. Note that, for clarity,
+# we will calculate and store these values for
+# time t = 0 in the order x, y, z.
+# These will have to rearranged before export
+# to netCDF, as ERF is expecting the format z, y, x
+# for the spatial grid.
+###################################################
+
+# Cell centered, conserved quantities
 Rho = np.ndarray(n_cell, np.float64)
 RhoTheta = np.ndarray(n_cell, np.float64)
 RhoScalar = np.ndarray(n_cell, np.float64)
@@ -82,7 +141,6 @@ for i in range(Rho.shape[0]):
             p = rho_norm**Gamma / Gamma * rho_0 * a_inf * a_inf
             RhoTheta[i, j, k] = T * (p_0 / p)**rdOcp
 
-
             r2d_xy = math.sqrt((x - xc) * (x - xc) + (y - yc) * (y - yc))
             RhoScalar[i, j, k] = 0.25 * (
                 1.0 + math.cos(math.pi * min(r2d_xy, R) / R)
@@ -91,6 +149,7 @@ for i in range(Rho.shape[0]):
 # Staggered quantities
 # x-velocity
 x_vel = np.ndarray((Nx_face, Ny_cell, Nz_cell), np.float64)
+
 for i in range(x_vel.shape[0]):
     for j in range(x_vel.shape[1]):
         for k in range(x_vel.shape[2]):
@@ -101,6 +160,7 @@ for i in range(x_vel.shape[0]):
 
 # y-velocity
 y_vel = np.ndarray((Nx_cell, Ny_face, Nz_cell), np.float64)
+
 for i in range(y_vel.shape[0]):
     for j in range(y_vel.shape[1]):
         for k in range(y_vel.shape[2]):
@@ -113,10 +173,16 @@ for i in range(y_vel.shape[0]):
 z_vel = np.zeros((Nx_cell, Ny_cell, Nz_face), np.float64)
 
 
-# NCFile output
+###################################################
+# Populate netCDF file with the quantities
+# calculated above. See documentation for the
+# python packages netCDF4.
+###################################################
+
+# Init file variable
 outfile = nc.Dataset("initial_data.nc", "w")
 
-
+# Set up array dimensions for exported file
 time_dim = outfile.createDimension("time", None)
 dateStrLen_dim = outfile.createDimension("DateStrLen", 19)
 bottom_top_dim = outfile.createDimension("BottomTop", Nz_cell)
@@ -150,14 +216,18 @@ outfile.setncattr("SOUTH-NORTH_GRID_DIMENSION", int(Ny_face))  # based on stagge
 # Times variable (1 single time for initialization)
 times_var = outfile.createVariable("Times", "S1", ("time", "DateStrLen"))
 
+# Follow the naming conventions for the variables that
+# ERF is expecting.
 Rho_var = outfile.createVariable("RHO", np.float64, dims4d)
 RhoTheta_var = outfile.createVariable("T", np.float64, dims4d)
 RhoScalar_var = outfile.createVariable("SCAL", np.float64, dims4d)
 
+# Change order from (x, y, z) to (z, y, x).
 Rho = np.swapaxes(Rho, 0, 2)
 RhoTheta = np.swapaxes(RhoTheta, 0, 2)
 RhoScalar = np.swapaxes(RhoScalar, 0, 2)
 
+# Populate NetCDF variables for time-step 0.
 Rho_var[0, :, :, :] = Rho
 RhoTheta_var[0, :, :, :] = RhoTheta
 RhoScalar_var[0, :, :, :] = RhoScalar
@@ -166,10 +236,12 @@ uwind_var = outfile.createVariable("U", np.float64, dims4d_ustag)
 vwind_var = outfile.createVariable("V", np.float64, dims4d_vstag)
 wwind_var = outfile.createVariable("W", np.float64, dims4d_wstag)
 
+# Change order from (x, y, z) to (z, y, x).
 x_vel = np.swapaxes(x_vel, 0, 2)
 y_vel = np.swapaxes(y_vel, 0, 2)
 z_vel = np.swapaxes(z_vel, 0, 2)
 
+# Populate NetCDF variables for time-step 0.
 uwind_var[0, :, :, :] = x_vel
 vwind_var[0, :, :, :] = y_vel
 wwind_var[0, :, :, :] = z_vel

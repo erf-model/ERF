@@ -174,7 +174,13 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
             // this will calculate the hydrostatically balanced density and pressure
             // profiles following WRF ideal.exe
-            if (init_sounding_ideal) input_sounding_data.calc_rho_p(0);
+            if (solverChoice.sounding_type == SoundingType::Ideal) {
+                input_sounding_data.calc_rho_p(0);
+            } else if (solverChoice.sounding_type == SoundingType::Isentropic ||
+                       solverChoice.sounding_type == SoundingType::DryIsentropic) {
+                input_sounding_data.assume_dry = (solverChoice.sounding_type == SoundingType::DryIsentropic);
+                input_sounding_data.calc_rho_p_isentropic(0);
+            }
         }
 
         // We re-create terrain_blanking on restart rather than storing it in the checkpoint

@@ -976,6 +976,12 @@ List of Parameters
 | **erf.Cs**                       | Constant           | Real                | 0.0          |
 |                                  | Smagorinsky coeff. |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
+| **erf.use_smag_stratification**  | Enable             | Boolean             | true         |
+|                                  | stratification     |                     |              |
+|                                  | effects (dry and   |                     |              |
+|                                  | moist) in          |                     |              |
+|                                  | Smagorinsky model  |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
 | **erf.Ck**                       | Constant           | Real                | 0.1          |
 |                                  | Deardorff k coeff. |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
@@ -994,11 +1000,15 @@ List of Parameters
 |                                  | downgradient       |                     |              |
 |                                  | diffusion term     |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.theta_ref**                | Reference potential| Real                | 300.0        |
+| **erf.theta_ref**                | Reference potential| Real                | 0.0          |
 |                                  | temperature used   |                     |              |
 |                                  | to characterize    |                     |              |
 |                                  | stable             |                     |              |
-|                                  | stratficiation     |                     |              |
+|                                  | stratficiation;    |                     |              |
+|                                  | constant if > 0,   |                     |              |
+|                                  | otherwise the      |                     |              |
+|                                  | instantaneous local|                     |              |
+|                                  | value is used      |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.Pr_t**                     | Turbulent Prandtl  | Real                | 1.0          |
 |                                  | Number             |                     |              |
@@ -1353,10 +1363,11 @@ List of Parameters
 |                                  | input sounding      |                    |                       |
 |                                  | file                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.init_sounding_ideal**      | Perform             |  true or false     | false                 |
-|                                  | initialization      |                    |                       |
-|                                  | like WRF's          |                    |                       |
-|                                  | ideal.exe           |                    |                       |
+| **erf.sounding_type**            | How to interpret    | "Ideal",           | Ideal                 |
+|                                  | the sounding        | "Isentropic",      |                       |
+|                                  | provided with       | "DryIsentropic",   |                       |
+|                                  | init_type =         | "ConstantDensity"  |                       |
+|                                  | "input_sounding"    |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.use_real_bcs**             | If init_type is     | true or false      | true if               |
 |                                  | WRFInput or Metgrid |                    | if init_type          |
@@ -1590,18 +1601,25 @@ The following run-time options control how the full moisture model is used.
 List of Parameters
 ------------------
 
-+-----------------------------+--------------------------+-----------------------+------------+
-| Parameter                   | Definition               | Acceptable            | Default    |
-|                             |                          | Values                |            |
-+=============================+==========================+=======================+============+
-| **erf.moisture_model**      | Name of moisture model   |  "None", "SAM",       | "None"     |
-|                             |                          |  "Kessler", "SatAdj"  |            |
-|                             |                          |  "Kessler_NoRain",    |            |
-|                             |                          |  "Morrison",          |            |
-|                             |                          |  "Morrison_NoIce",    |            |
-|                             |                          |  "SAM_NoPrecip_NoIce",|            |
-|                             |                          |  "SAM_NoIce"          |            |
-+-----------------------------+--------------------------+-----------------------+------------+
++---------------------------------+--------------------------+-----------------------+------------+
+| Parameter                       | Definition               | Acceptable            | Default    |
+|                                 |                          | Values                |            |
++=================================+==========================+=======================+============+
+| **erf.moisture_model**          | Name of moisture model   |  "None", "SAM",       | "None"     |
+|                                 |                          |  "Kessler", "SatAdj"  |            |
+|                                 |                          |  "Kessler_NoRain",    |            |
+|                                 |                          |  "Morrison",          |            |
+|                                 |                          |  "Morrison_NoIce",    |            |
+|                                 |                          |  "SAM_NoPrecip_NoIce",|            |
+|                                 |                          |  "SAM_NoIce"          |            |
++---------------------------------+--------------------------+-----------------------+------------+
+| **erf.moisture_tight_coupling** | If true, advance         |  Bool                 | false      |
+|                                 | microphysics after every |                       |            |
+|                                 | slow step in the dycore; |                       |            |
+|                                 | otherwise, update after  |                       |            |
+|                                 | the dycore has been      |                       |            |
+|                                 | advanced at each timestep|                       |            |
++---------------------------------+--------------------------+-----------------------+------------+
 
 Radiation
 =========
