@@ -61,33 +61,16 @@ redistribute_term ( int ncomp,
             Array4<Real> scratch = scratch_fab.array();
             Elixir eli_scratch = scratch_fab.elixir();
 
-            // This is scratch space if calling StateRedistribute
-            // ParallelFor(Box(scratch), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            // {
-            //     scratch(i,j,k) = 1.;
-            // });
-
             std::string redistribution_type = "StateRedist";
 
             // State redist acts on the state.
             Array4<Real const> state_arr = state.const_array(mfi);
-            // ApplyRedistribution( bx, ncomp, out, in, state_arr,
-            //                      scratch, flag,
-            //                      apx, apy, apz, vfrac,
-            //                      fcx, fcy, fcz, ccc,
-            //                      bc, geom, local_dt, redistribution_type,
-            //                      false, 2, 0.25_rt, {});
             ApplyRedistribution( bx, ncomp, out, in, state_arr,
                                  scratch, flag,
                                  apx, apy, apz, vfrac,
                                  fcx, fcy, fcz, ccc,
                                  bc, geom, local_dt, redistribution_type,
                                  false, 2, 0.5_rt, {});
-            // ApplyRedistribution( bx, ncomp, out, in, state_arr,
-            //                      scratch, flag,
-            //                      apx, apy, apz, vfrac,
-            //                      fcx, fcy, fcz, ccc,
-            //                      bc, geom, local_dt, redistribution_type);
         }
         else
         {
@@ -171,24 +154,12 @@ redistribute_term ( int ncomp,
 
             // State redist acts on the state.
             Array4<Real const> state_arr = state.const_array(mfi);
-            // ApplyRedistribution( bx_cc, ncomp, out, in, state_arr,
-            //                      scratch, flag,
-            //                      apx, apy, apz, vfrac,
-            //                      fcx, fcy, fcz, ccc,
-            //                      bc, geom, local_dt, redistribution_type,
-            //                      false, 2, 0.25_rt, {});
             ApplyRedistribution( bx_cc, ncomp, out, in, state_arr,
                                  scratch, flag,
                                  apx, apy, apz, vfrac,
                                  fcx, fcy, fcz, ccc,
                                  bc, geom_new, local_dt, redistribution_type,
                                  false, 2, 0.5_rt, {});
-            // ApplyRedistribution( bx_cc, ncomp, out, in, state_arr,
-            //                      scratch, flag,
-            //                      apx, apy, apz, vfrac,
-            //                      fcx, fcy, fcz, ccc,
-            //                      bc, geom, local_dt, redistribution_type);
-
         }
         else
         {
