@@ -22,13 +22,13 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     const int clearval = TagBox::CLEAR;
     const int   tagval = TagBox::SET;
 
-    Box subdomain;
 
 #ifdef ERF_USE_NETCDF
     if (solverChoice.init_type == InitType::WRFInput) {
         int ratio;
+        Box subdomain;
         if (!nc_init_file[levc+1].empty()) {
-             amrex::Print() << "WRFIinput file to read: " << nc_init_file[levc+1][0] << std::endl;
+            amrex::Print() << "WRFIinput file to read: " << nc_init_file[levc+1][0] << std::endl;
             subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][0], ratio);
             amrex::Print() << " WRFInput subdomain at level " << levc+1 << " is " << subdomain << std::endl;
         }
