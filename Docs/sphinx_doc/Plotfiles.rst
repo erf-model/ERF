@@ -90,7 +90,15 @@ List of Parameters
 |                             | variables to     |                       |            |
 |                             | include in       |                       |            |
 |                             | plotfiles        |                       |            |
-|                             | at seoncd freq.  |                       |            |
+|                             | at second freq.  |                       |            |
++-----------------------------+------------------+-----------------------+------------+
+| **erf.plot_face_vels**      | output plotfiles | Boolean               | false      |
+|                             | "{prefix}U",     |                       |            |
+|                             | "{prefix}V", and |                       |            |
+|                             | "{prefix}W"      |                       |            |
+|                             | with velocity    |                       |            |
+|                             | components on the|                       |            |
+|                             | staggered grid.  |                       |            |
 +-----------------------------+------------------+-----------------------+------------+
 
 The analogous list for subvolumes contains the following options:
