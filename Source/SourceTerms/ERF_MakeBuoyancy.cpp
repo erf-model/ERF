@@ -79,7 +79,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
         const Array4<const Real>& qv0_arr = qv0.const_array(mfi);
 
         if (solverChoice.terrain_type != TerrainType::EB) {
-            
+
             if ( anelastic && (solverChoice.moisture_type == MoistureType::None) )
             {
                 // ******************************************************************************************
