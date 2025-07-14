@@ -30,7 +30,8 @@ of the cost of a single timestep.
 
 If NetCDF output is preferred, one suggestion is to write the plotfiles in the native AMReX
 format for efficient I/O performance, then to convert the plotfiles to NetCDF files using
-the executable you can build in Exec/Tools.
+the executable you can build in Exec/Tools (using gmake, or with the ``ERF_ENABLE_TOOLS`` flag
+if using cmake).
 
 The following options in the inputs file control the generation of plotfiles.
 Note that plotfiles can be written at two different frequencies; the names,
