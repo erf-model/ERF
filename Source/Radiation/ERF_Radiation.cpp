@@ -209,7 +209,8 @@ Radiation::alloc_buffers ()
 
     // 1d size (1 or nlay)
     m_o3_size = m_o3vmr.size();
-    AMREX_ASSERT_WITH_MESSAGE(((m_o3_size==1) || (m_o3_size==m_nlay)), "O3 VMR array must be length 1 or nlay");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(((m_o3_size==1) || (m_o3_size==m_nlay)),
+                                     "O3 VMR array must be length 1 or nlay");
     o3_lay = real1d("o3_lay", m_o3_size);
     realHost1d o3_lay_h("o3_lay_h", m_o3_size);
     parallel_for(m_o3_size, YAKL_LAMBDA (int io3)
@@ -864,7 +865,7 @@ Radiation::run_impl ()
     // Want day + fraction; calday 1 == Jan 1 0Z
     static constexpr real dpy[] = {0.0, 31.0, 59.0, 90.0, 120.0, 151.0, 181.0, 212.0, 243.0, 273.0, 304.0, 334.0};
     bool leap = (m_orbital_year % 4 == 0 && (!(m_orbital_year % 100 == 0) || (m_orbital_year % 400 == 0))) ? true : false;
-    real calday = dpy[m_orbital_mon] + m_orbital_day + m_orbital_sec/86400.0;
+    real calday = dpy[m_orbital_mon-1] + (m_orbital_day-1.0) + m_orbital_sec/86400.0;
     // add extra day if leap year
     if (leap) {
         calday += 1.0;
@@ -951,8 +952,6 @@ Radiation::run_impl ()
     }
     h_mu0.deep_copy_to(mu0);
 
-    // NOTE: p_del uses std::abs() and is always positive
-    //
     // Compute layer cloud mass (per unit area), populates lwp/iwp
     rrtmgp::mixing_ratio_to_cloud_mass(qc_lay, cldfrac_tot, r_lay, z_del, lwp);
     rrtmgp::mixing_ratio_to_cloud_mass(qi_lay, cldfrac_tot, r_lay, z_del, iwp);
@@ -1061,8 +1060,21 @@ Radiation::run_impl ()
     rrtmgp::compute_heating_rate(sw_flux_up, sw_flux_dn, r_lay, z_del, sw_heating);
     rrtmgp::compute_heating_rate(lw_flux_up, lw_flux_dn, r_lay, z_del, lw_heating);
 
+    /*
+    // AML DEBUG
+    parallel_for(nlay+1, YAKL_LAMBDA (int ilay)
+    {
+        printf("Fluxes: %i %e %e %e %e %e\n",ilay,
+                                             sw_flux_up(1,ilay), sw_flux_dn(1,ilay), sw_flux_dn_dir(1,ilay),
+                                             lw_flux_up(1,ilay), lw_flux_dn(1,ilay));
+    });
+    parallel_for(nlay, YAKL_LAMBDA (int ilay)
+    {
+        printf("Heating Rate: %i %e %e\n",ilay,sw_heating(1,ilay),lw_heating(1,ilay));
+    });
+    */
+
     // Compute surface fluxes
-    //const int kbot = nlay + 1; // Should this be 1 for our layout?
     const int kbot = 1;
     parallel_for(SimpleBounds<3>(ncol, nlay+1, nswbands), YAKL_LAMBDA (int icol, int ilay, int ibnd)
     {
