@@ -270,7 +270,7 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_KOKKOS)
       #Link our executable to the Kokkos library
-      target_link_libraries(${erf_lib_name} PUBLIC ${KOKKO_LINK_LIBRARIES})
+      target_link_libraries(${erf_lib_name} PUBLIC ${KOKKOS_LINK_LIBRARIES})
       target_include_directories(${erf_lib_name} PUBLIC ${KOKKOS_INCLUDE_DIRS})
   endif()
 

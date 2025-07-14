@@ -24,11 +24,13 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
-USE_RADIATION = TRUE
+USE_RRTMGP = TRUE
+USE_NETCDF = TRUE
+USE_KOKKOS = TRUE
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/Radiation
+ERF_HOME := ../../..
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DevTests/Radiation
 include $(ERF_HOME)/Exec/Make.ERF

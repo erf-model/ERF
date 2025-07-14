@@ -19,6 +19,7 @@ option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_REGRESSION_TESTS_ONLY "Enable only regression tests" OFF)
 option(ERF_USE_INTERNAL_AMREX "Add AMReX as subproject" ON)
 option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
+option(ERF_ENABLE_KOKKOS "Enable Kokkos " OFF)
 option(ERF_ENABLE_HDF5 "Enable HDF5 IO" ${ERF_ENABLE_NETCDF})
 option(ERF_ENABLE_PARTICLES "Enable Lagrangian particles" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
@@ -128,6 +129,14 @@ else()
       set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare
         CACHE STRING "Path to fcompare executable for regression tests")
     endif()
+endif()
+
+########################## KOKKOS ##################################
+
+if(ERF_ENABLE_KOKKOS)
+  set(Kokkos_ROOT /home/almgren/bin/kokkos)
+  find_package (Kokkos REQUIRED)
+  target_link_libraries(${erf_exe_name} PRIVATE Kokkos::kokkos)
 endif()
 
 ########################## NETCDF ##################################
