@@ -108,7 +108,7 @@ Problem::init_custom_terrain (
     // Note that these factors must match those in Source/ERF_MakeNewArrays.cpp
     //
     ParmParse pp("erf");
-    bool test_mapfactor;
+    bool test_mapfactor = false;
     pp.query("test_mapfactor",test_mapfactor);
 
     Real mf_x;
@@ -131,6 +131,11 @@ Problem::init_custom_terrain (
     Real a    = 0.5;
     Real num  = 8. * a * a * a;
     Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]) / mf_x;
+    // SK *****************************************************************
+    Print()<<"SK:Problem::init_custom_terrain: test_mapfactor = "<< test_mapfactor << std::endl;
+    Print()<<"SK:Problem::init_custom_terrain: ProbLoArr[0] = "<< ProbLoArr[0] 
+    <<", ProbHiArr[0] = "<< ProbHiArr[0] <<", mf_x = "<< mf_x <<", xcen = "<< xcen << std::endl;
+    // SK *****************************************************************
 
     // if hm is nonzero, then use alternate hill definition
     Real hm = parms.hmax;
@@ -188,6 +193,16 @@ Problem::init_custom_terrain (
             } else {
                 Real x_L = x / L;
                 z_arr(i,j,k0) = hm / (1 + x_L*x_L);
+                // SK *****************************************************************
+                if (i==4 && j==0) {
+                    Print()<<"SK:Problem::init_custom_terrain: i,j,k0 = "<<i<<","<<j<<","<<k0
+                    <<", z_arr(i,j,k0) = "<< z_arr(i,j,k0) << std::endl;
+                    Print()<<"SK:Problem::init_custom_terrain: hm = "<<hm 
+                    <<", x = "<<x<<", L = "<<L<<", x_L = "<<x_L<<std::endl;
+                    Print()<<"SK:Problem::init_custom_terrain: ProbLoArr[0] = "<<ProbLoArr[0] 
+                    <<", ii = "<<ii<<", dx[0] = "<<dx[0]<<", xcen = "<<xcen<< std::endl;
+                }
+                // SK *****************************************************************
             }
         });
 #endif
