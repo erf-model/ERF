@@ -52,25 +52,27 @@ public:
     // Destructor
     ~Radiation () = default;
 
-    virtual void Init(const amrex::Geometry& geom,
-                    const amrex::BoxArray& ba,
-                    amrex::MultiFab* cons_in) override {};
+    virtual void Init (const amrex::Geometry& geom,
+                       const amrex::BoxArray& ba,
+                       amrex::MultiFab* cons_in) override {};
 
-    virtual void Run(int& level,
-                     int& step,
-                     amrex::Real& time,
-                     const amrex::Real& dt,
-                     const amrex::BoxArray& ba,
-                     amrex::Geometry& geom,
-                     amrex::MultiFab* cons_in,
-                     amrex::MultiFab* lsm_fluxes,
-                     amrex::MultiFab* lsm_zenith,
-                     amrex::MultiFab* qheating_rates,
-                     amrex::MultiFab* z_phys,
-                     amrex::MultiFab* lat,
-                     amrex::MultiFab* lon) override
+    virtual void Run (int& level,
+                      int& step,
+                      amrex::Real& time,
+                      const amrex::Real& dt,
+                      const amrex::BoxArray& ba,
+                      amrex::Geometry& geom,
+                      amrex::MultiFab* cons_in,
+                      amrex::MultiFab* lsm_fluxes,
+                      amrex::MultiFab* lsm_zenith,
+                      amrex::MultiFab* qheating_rates,
+                      amrex::MultiFab* z_phys,
+                      amrex::MultiFab* lat,
+                      amrex::MultiFab* lon) override
     {
-        set_grids(level, step, time, dt, ba, geom, cons_in, lsm_fluxes, lsm_zenith, qheating_rates, z_phys, lat, lon);
+        set_grids(level, step, time, dt, ba, geom,
+                  cons_in, lsm_fluxes, lsm_zenith,
+                  qheating_rates, z_phys, lat, lon);
         rad_run_impl();
     }
 
@@ -91,7 +93,7 @@ public:
                amrex::MultiFab* lon);
 
     template<typename LandSurfaceModelType>
-    void set_lsm_inputs(LandSurfaceModelType *model)
+    void set_lsm_inputs (LandSurfaceModelType *model)
     {
         if constexpr(std::is_same_v<LandSurfaceModelType, SLM>)
         {
@@ -197,9 +199,9 @@ public:
         }
     }
 
-    void populateDatalogMF();
+    void populateDatalogMF ();
 
-    virtual void WriteDataLog(const amrex::Real &time) override;
+    virtual void WriteDataLog (const amrex::Real &time) override;
 
 private:
 
