@@ -4,12 +4,18 @@ void init_kls ()
 {
   // Initialize yakl
   if(!yakl::isInitialized()) { yakl::init(); }
+
+  // Initialize kokkos
+  if(!Kokkos::is_initialized()) { Kokkos::initialize(); }
 }
 
 void finalize_kls()
 {
   // Finalize YAKL
   yakl::finalize();
+
+  // Finalize kokkos
+  Kokkos::finalize();
 }
 
 namespace rrtmgp {
@@ -25,6 +31,8 @@ using yakl::intrinsics::merge;
  */
 GasOpticsRRTMGP k_dist_sw;
 GasOpticsRRTMGP k_dist_lw;
+std::unique_ptr<gas_optics_t> k_dist_sw_k;
+std::unique_ptr<gas_optics_t> k_dist_lw_k;
 
 /*
  * Objects containing cloud optical property look-up table information.
@@ -33,6 +41,8 @@ GasOpticsRRTMGP k_dist_lw;
  */
 CloudOptics cloud_optics_sw;
 CloudOptics cloud_optics_lw;
+std::unique_ptr<cloud_optics_t> cloud_optics_sw_k;
+std::unique_ptr<cloud_optics_t> cloud_optics_lw_k;
 
 bool initialized   = false;
 bool initialized_k = false;
@@ -232,6 +242,7 @@ get_subsampled_clouds (const int ncol,
  */
 void
 rrtmgp_initialize (GasConcs& gas_concs,
+                   gas_concs_t& gas_concs_k,
                    const std::string& coefficients_file_sw,
                    const std::string& coefficients_file_lw,
                    const std::string& cloud_optics_file_sw,
@@ -250,6 +261,27 @@ rrtmgp_initialize (GasConcs& gas_concs,
 
     // We are now initialized!
     initialized = true;
+
+
+    // Initialize Kokkos
+    if (!Kokkos::is_initialized()) {  Kokkos::initialize(); }
+
+    // Create objects for static ptrs
+    k_dist_sw_k = std::make_unique<gas_optics_t>();
+    k_dist_lw_k = std::make_unique<gas_optics_t>();
+    cloud_optics_sw_k = std::make_unique<cloud_optics_t>();
+    cloud_optics_lw_k = std::make_unique<cloud_optics_t>();
+
+    // Load and initialize absorption coefficient data
+    load_and_init(*k_dist_sw_k, coefficients_file_sw, gas_concs_k);
+    load_and_init(*k_dist_lw_k, coefficients_file_lw, gas_concs_k);
+
+    // Load and initialize cloud optical property look-up table information
+    load_cld_lutcoeff(*cloud_optics_sw_k, cloud_optics_file_sw);
+    load_cld_lutcoeff(*cloud_optics_lw_k, cloud_optics_file_lw);
+
+    // We are now initialized!
+    initialized_k = true;
 }
 
 
@@ -259,8 +291,18 @@ rrtmgp_finalize ()
     initialized = false;
     k_dist_sw.finalize();
     k_dist_lw.finalize();
-    cloud_optics_sw.finalize(); //~CloudOptics();
-    cloud_optics_lw.finalize(); //~CloudOptics();
+    cloud_optics_sw.finalize();
+    cloud_optics_lw.finalize();
+
+    initialized_k = false;
+    k_dist_sw_k->finalize();
+    k_dist_lw_k->finalize();
+    cloud_optics_sw_k->finalize();
+    cloud_optics_lw_k->finalize();
+    k_dist_sw_k = nullptr;
+    k_dist_lw_k = nullptr;
+    cloud_optics_sw_k = nullptr;
+    cloud_optics_lw_k = nullptr;
 }
 
 

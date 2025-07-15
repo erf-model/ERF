@@ -26,6 +26,9 @@ Radiation::Radiation (const int& lev,
     // Initialize YAKL
     if (!yakl::isInitialized()) { yakl::init(); }
 
+    // Initialize kokkos
+    if (!Kokkos::is_initialized()) { Kokkos::initialize(); }
+
     // Check if we have a valid moisture model
     if (sc.moisture_type != MoistureType::None) { m_moist = true; }
 
@@ -118,17 +121,17 @@ Radiation::Radiation (const int& lev,
 void
 Radiation::set_grids (int& level,
                       int& step,
-                      amrex::Real& time,
-                      const amrex::Real& dt,
-                      const amrex::BoxArray& ba,
-                      amrex::Geometry& geom,
-                      amrex::MultiFab* cons_in,
-                      amrex::MultiFab* lsm_fluxes,
-                      amrex::MultiFab* lsm_zenith,
-                      amrex::MultiFab* qheating_rates,
-                      amrex::MultiFab* z_phys,
-                      amrex::MultiFab* lat,
-                      amrex::MultiFab* lon)
+                      Real& time,
+                      const Real& dt,
+                      const BoxArray& ba,
+                      Geometry& geom,
+                      MultiFab* cons_in,
+                      MultiFab* lsm_fluxes,
+                      MultiFab* lsm_zenith,
+                      MultiFab* qheating_rates,
+                      MultiFab* z_phys,
+                      MultiFab* lat,
+                      MultiFab* lon)
 
 {
     // Set data members that may change
@@ -207,6 +210,19 @@ Radiation::alloc_buffers ()
     });
     m_gas_mol_weights_h.deep_copy_to(m_gas_mol_weights);
 
+
+    m_gas_mol_weights_k = real1d_k("m_gas_mol_weights", m_ngas);
+    realHost1d_k m_gas_mol_weights_h_k("m_gas_mol_weights_h", m_ngas);
+    gas_names_offset.clear();
+    Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, m_ngas),
+                         KOKKOS_LAMBDA (int igas)
+    {
+        m_gas_mol_weights_h_k(igas) = m_mol_weight_gas[igas];
+        gas_names_offset.push_back(m_gas_names[igas]);
+    });
+    Kokkos::deep_copy(m_gas_mol_weights_k, m_gas_mol_weights_h_k);
+
+
     // 1d size (1 or nlay)
     m_o3_size = m_o3vmr.size();
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(((m_o3_size==1) || (m_o3_size==m_nlay)),
@@ -218,6 +234,17 @@ Radiation::alloc_buffers ()
         o3_lay_h(io3) = m_o3vmr[io3-1];
     });
     o3_lay_h.deep_copy_to(o3_lay);
+
+
+    o3_lay_k = real1d_k("o3_lay", m_o3_size);
+    realHost1d_k o3_lay_h_k("o3_lay_h", m_o3_size);
+    Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, m_o3_size),
+                         KOKKOS_LAMBDA (int io3)
+    {
+        o3_lay_h_k(io3) = m_o3vmr[io3];
+    });
+    Kokkos::deep_copy(o3_lay_k, o3_lay_h_k);
+
 
     // 1d size (ncol)
     cosine_zenith    = real1d("cosine_zenith"   , m_ncol);
@@ -231,10 +258,28 @@ Radiation::alloc_buffers ()
     sfc_flux_dif_vis = real1d("sfc_flux_dif_vis", m_ncol);
     sfc_flux_dif_nir = real1d("sfc_flux_dif_nir", m_ncol);
     lat              = real1d("lat"             , m_ncol);
-    lon              = real1d("lon"             , m_ncol);;
+    lon              = real1d("lon"             , m_ncol);
     sfc_emis         = real1d("sfc_emis"        , m_ncol);
     t_sfc            = real1d("t_sfc"           , m_ncol);
     lw_src           = real1d("lw_src"          , m_ncol);
+
+
+    cosine_zenith_k    = real1d_k("cosine_zenith"   , m_ncol);
+    mu0_k              = real1d_k("mu0"             , m_ncol);
+    sfc_alb_dir_vis_k  = real1d_k("sfc_alb_dir_vis" , m_ncol);
+    sfc_alb_dir_nir_k  = real1d_k("sfc_alb_dir_nir" , m_ncol);
+    sfc_alb_dif_vis_k  = real1d_k("sfc_alb_dif_vis" , m_ncol);
+    sfc_alb_dif_nir_k  = real1d_k("sfc_alb_dif_nir" , m_ncol);
+    sfc_flux_dir_vis_k = real1d_k("sfc_flux_dir_vis", m_ncol);
+    sfc_flux_dir_nir_k = real1d_k("sfc_flux_dir_nir", m_ncol);
+    sfc_flux_dif_vis_k = real1d_k("sfc_flux_dif_vis", m_ncol);
+    sfc_flux_dif_nir_k = real1d_k("sfc_flux_dif_nir", m_ncol);
+    lat_k              = real1d_k("lat"             , m_ncol);
+    lon_k              = real1d_k("lon"             , m_ncol);
+    sfc_emis_k         = real1d_k("sfc_emis"        , m_ncol);
+    t_sfc_k            = real1d_k("t_sfc"           , m_ncol);
+    lw_src_k           = real1d_k("lw_src"          , m_ncol);
+
 
     // 2d size (ncol, nlay)
     r_lay         = real2d("r_lay"        , m_ncol, m_nlay);
@@ -255,6 +300,27 @@ Radiation::alloc_buffers ()
     lw_heating    = real2d("lw_heating"   , m_ncol, m_nlay);
     sw_clrsky_heating = real2d("sw_clrsky_heating", m_ncol, m_nlay);
     lw_clrsky_heating = real2d("lw_clrsky_heating", m_ncol, m_nlay);
+
+
+    r_lay_k         = real2d_k("r_lay"        , m_ncol, m_nlay);
+    p_lay_k         = real2d_k("p_lay"        , m_ncol, m_nlay);
+    t_lay_k         = real2d_k("t_lay"        , m_ncol, m_nlay);
+    z_del_k         = real2d_k("z_del"        , m_ncol, m_nlay);
+    p_del_k         = real2d_k("p_del"        , m_ncol, m_nlay);
+    qv_lay_k        = real2d_k("qv"           , m_ncol, m_nlay);
+    qc_lay_k        = real2d_k("qc"           , m_ncol, m_nlay);
+    qi_lay_k        = real2d_k("qi"           , m_ncol, m_nlay);
+    cldfrac_tot_k   = real2d_k("cldfrac_tot"  , m_ncol, m_nlay);
+    eff_radius_qc_k = real2d_k("eff_radius_qc", m_ncol, m_nlay);
+    eff_radius_qi_k = real2d_k("eff_radius_qi", m_ncol, m_nlay);
+    tmp2d_k         = real2d_k("tmp2d"        , m_ncol, m_nlay);
+    lwp_k           = real2d_k("lwp"          , m_ncol, m_nlay);
+    iwp_k           = real2d_k("iwp"          , m_ncol, m_nlay);
+    sw_heating_k    = real2d_k("sw_heating"   , m_ncol, m_nlay);
+    lw_heating_k    = real2d_k("lw_heating"   , m_ncol, m_nlay);
+    sw_clrsky_heating_k = real2d_k("sw_clrsky_heating", m_ncol, m_nlay);
+    lw_clrsky_heating_k = real2d_k("lw_clrsky_heating", m_ncol, m_nlay);
+
 
     // 2d size (ncol, nlay+1)
     d_tint                   = real2d("d_tint"                  , m_ncol, m_nlay+1);
@@ -281,22 +347,61 @@ Radiation::alloc_buffers ()
     lw_clnsky_flux_up        = real2d("lw_clnsky_flux_up"       , m_ncol, m_nlay+1);
     lw_clnsky_flux_dn        = real2d("lw_clnsky_flux_dn"       , m_ncol, m_nlay+1);
 
+
+    d_tint_k                   = real2d_k("d_tint"                  , m_ncol, m_nlay+1);
+    p_lev_k                    = real2d_k("p_lev"                   , m_ncol, m_nlay+1);
+    t_lev_k                    = real2d_k("t_lev"                   , m_ncol, m_nlay+1);
+    sw_flux_up_k               = real2d_k("sw_flux_up"              , m_ncol, m_nlay+1);
+    sw_flux_dn_k               = real2d_k("sw_flux_dn"              , m_ncol, m_nlay+1);
+    sw_flux_dn_dir_k           = real2d_k("sw_flux_dn_dir"          , m_ncol, m_nlay+1);
+    lw_flux_up_k               = real2d_k("sw_flux_up"              , m_ncol, m_nlay+1);
+    lw_flux_dn_k               = real2d_k("sw_flux_dn"              , m_ncol, m_nlay+1);
+    sw_clnclrsky_flux_up_k     = real2d_k("sw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
+    sw_clnclrsky_flux_dn_k     = real2d_k("sw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
+    sw_clnclrsky_flux_dn_dir_k = real2d_k("sw_clnclrsky_flux_dn_dir", m_ncol, m_nlay+1);
+    sw_clrsky_flux_up_k        = real2d_k("sw_clrsky_flux_up"       , m_ncol, m_nlay+1);
+    sw_clrsky_flux_dn_k        = real2d_k("sw_clrsky_flux_dn"       , m_ncol, m_nlay+1);
+    sw_clrsky_flux_dn_dir_k    = real2d_k("sw_clrsky_flux_dn_dir"   , m_ncol, m_nlay+1);
+    sw_clnsky_flux_up_k        = real2d_k("sw_clnsky_flux_up"       , m_ncol, m_nlay+1);
+    sw_clnsky_flux_dn_k        = real2d_k("sw_clnsky_flux_dn"       , m_ncol, m_nlay+1);
+    sw_clnsky_flux_dn_dir_k    = real2d_k("sw_clnsky_flux_dn_dir"   , m_ncol, m_nlay+1);
+    lw_clnclrsky_flux_up_k     = real2d_k("lw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
+    lw_clnclrsky_flux_dn_k     = real2d_k("lw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
+    lw_clrsky_flux_up_k        = real2d_k("lw_clrsky_flux_up"       , m_ncol, m_nlay+1);
+    lw_clrsky_flux_dn_k        = real2d_k("lw_clrsky_flux_dn"       , m_ncol, m_nlay+1);
+    lw_clnsky_flux_up_k        = real2d_k("lw_clnsky_flux_up"       , m_ncol, m_nlay+1);
+    lw_clnsky_flux_dn_k        = real2d_k("lw_clnsky_flux_dn"       , m_ncol, m_nlay+1);
+
+
     // 3d size (ncol, nlay+1, nswbands)
     sw_bnd_flux_up  = real3d("sw_bnd_flux_up" , m_ncol, m_nlay+1, m_nswbands);
     sw_bnd_flux_dn  = real3d("sw_bnd_flux_dn" , m_ncol, m_nlay+1, m_nswbands);
     sw_bnd_flux_dir = real3d("sw_bnd_flux_dir", m_ncol, m_nlay+1, m_nswbands);
     sw_bnd_flux_dif = real3d("sw_bnd_flux_dif", m_ncol, m_nlay+1, m_nswbands);
 
+    sw_bnd_flux_up_k  = real3d_k("sw_bnd_flux_up" , m_ncol, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dn_k  = real3d_k("sw_bnd_flux_dn" , m_ncol, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dir_k = real3d_k("sw_bnd_flux_dir", m_ncol, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dif_k = real3d_k("sw_bnd_flux_dif", m_ncol, m_nlay+1, m_nswbands);
+
     // 3d size (ncol, nlay+1, nlwbands)
     lw_bnd_flux_up = real3d("lw_bnd_flux_up" , m_ncol, m_nlay+1, m_nlwbands);
     lw_bnd_flux_dn = real3d("lw_bnd_flux_up" , m_ncol, m_nlay+1, m_nlwbands);
+
+    lw_bnd_flux_up_k = real3d_k("lw_bnd_flux_up" , m_ncol, m_nlay+1, m_nlwbands);
+    lw_bnd_flux_dn_k = real3d_k("lw_bnd_flux_up" , m_ncol, m_nlay+1, m_nlwbands);
 
     // 2d size (ncol, nswbands)
     sfc_alb_dir = real2d("sfc_alb_dir", m_ncol, m_nswbands);
     sfc_alb_dif = real2d("sfc_alb_dif", m_ncol, m_nswbands);
 
+    sfc_alb_dir_k = real2d_k("sfc_alb_dir", m_ncol, m_nswbands);
+    sfc_alb_dif_k = real2d_k("sfc_alb_dif", m_ncol, m_nswbands);
+
     // 2d size (ncol, nlwbands)
     emis_sfc    = real2d("emis_sfc", m_ncol, m_nlwbands);
+
+    emis_sfc_k    = real2d_k("emis_sfc", m_ncol, m_nlwbands);
 
     // 3d size (ncol, nlay, n[sw,lw]bands)
     aero_tau_sw = real3d("aero_tau_sw", m_ncol, m_nlay, m_nswbands);
@@ -304,13 +409,24 @@ Radiation::alloc_buffers ()
     aero_g_sw   = real3d("aero_g_sw"  , m_ncol, m_nlay, m_nswbands);
     aero_tau_lw = real3d("aero_tau_lw", m_ncol, m_nlay, m_nlwbands);
 
+    aero_tau_sw_k = real3d_k("aero_tau_sw", m_ncol, m_nlay, m_nswbands);
+    aero_ssa_sw_k = real3d_k("aero_ssa_sw", m_ncol, m_nlay, m_nswbands);
+    aero_g_sw_k   = real3d_k("aero_g_sw"  , m_ncol, m_nlay, m_nswbands);
+    aero_tau_lw_k = real3d_k("aero_tau_lw", m_ncol, m_nlay, m_nlwbands);
+
     // 3d size (ncol, nlay, n[sw,lw]bnds)
     cld_tau_sw_bnd = real3d("cld_tau_sw_bnd", m_ncol, m_nlay, m_nswbands);
     cld_tau_lw_bnd = real3d("cld_tau_lw_bnd", m_ncol, m_nlay, m_nlwbands);
 
+    cld_tau_sw_bnd_k = real3d_k("cld_tau_sw_bnd", m_ncol, m_nlay, m_nswbands);
+    cld_tau_lw_bnd_k = real3d_k("cld_tau_lw_bnd", m_ncol, m_nlay, m_nlwbands);
+
     // 3d size (ncol, nlay, n[sw,lw]gpts)
     cld_tau_sw_gpt = real3d("cld_tau_sw_gpt", m_ncol, m_nlay, m_nswgpts);
     cld_tau_lw_gpt = real3d("cld_tau_lw_gpt", m_ncol, m_nlay, m_nlwgpts);
+
+    cld_tau_sw_gpt_k = real3d_k("cld_tau_sw_gpt", m_ncol, m_nlay, m_nswgpts);
+    cld_tau_lw_gpt_k = real3d_k("cld_tau_lw_gpt", m_ncol, m_nlay, m_nlwgpts);
 }
 
 void
@@ -319,8 +435,12 @@ Radiation::dealloc_buffers ()
     // 1d size (m_ngas)
     m_gas_mol_weights.deallocate();
 
+    m_gas_mol_weights_k = real1d_k();
+
     // 1d size (1 or nlay)
     o3_lay.deallocate();
+
+    o3_lay_k = real1d_k();
 
     // 1d size (ncol)
     cosine_zenith.deallocate();
@@ -339,6 +459,24 @@ Radiation::dealloc_buffers ()
     t_sfc.deallocate();
     lw_src.deallocate();
 
+
+    cosine_zenith_k    = real1d_k();
+    mu0_k              = real1d_k();
+    sfc_alb_dir_vis_k  = real1d_k();
+    sfc_alb_dir_nir_k  = real1d_k();
+    sfc_alb_dif_vis_k  = real1d_k();
+    sfc_alb_dif_nir_k  = real1d_k();
+    sfc_flux_dir_vis_k = real1d_k();
+    sfc_flux_dir_nir_k = real1d_k();
+    sfc_flux_dif_vis_k = real1d_k();
+    sfc_flux_dif_nir_k = real1d_k();
+    lat_k              = real1d_k();
+    lon_k              = real1d_k();
+    sfc_emis_k         = real1d_k();
+    t_sfc_k            = real1d_k();
+    lw_src_k           = real1d_k();
+
+
     // 2d size (ncol, nlay)
     r_lay.deallocate();
     p_lay.deallocate();
@@ -354,17 +492,40 @@ Radiation::dealloc_buffers ()
     tmp2d.deallocate();
     lwp.deallocate();
     iwp.deallocate();
-
     sw_heating.deallocate();
     lw_heating.deallocate();
     sw_clrsky_heating.deallocate();
     lw_clrsky_heating.deallocate();
 
+
+    r_lay_k             = real2d_k();
+    p_lay_k             = real2d_k();
+    t_lay_k             = real2d_k();
+    z_del_k             = real2d_k();
+    p_del_k             = real2d_k();
+    qv_lay_k            = real2d_k();
+    qc_lay_k            = real2d_k();
+    qi_lay_k            = real2d_k();
+    cldfrac_tot_k       = real2d_k();
+    eff_radius_qc_k     = real2d_k();
+    eff_radius_qi_k     = real2d_k();
+    tmp2d_k             = real2d_k();
+    lwp_k               = real2d_k();
+    iwp_k               = real2d_k();
+    sw_heating_k        = real2d_k();
+    lw_heating_k        = real2d_k();
+    sw_clrsky_heating_k = real2d_k();
+    lw_clrsky_heating_k = real2d_k();
+    sw_heating_k        = real2d_k();
+    lw_heating_k        = real2d_k();
+    sw_clrsky_heating_k = real2d_k();
+    lw_clrsky_heating_k = real2d_k();
+
+
     // 2d size (ncol, nlay+1)
     d_tint.deallocate();
     p_lev.deallocate();
     t_lev.deallocate();
-
     sw_flux_up.deallocate();
     sw_flux_dn.deallocate();
     sw_flux_dn_dir.deallocate();
@@ -386,22 +547,61 @@ Radiation::dealloc_buffers ()
     lw_clnsky_flux_up.deallocate();
     lw_clnsky_flux_dn.deallocate();
 
+
+    d_tint_k                   = real2d_k();
+    p_lev_k                    = real2d_k();
+    t_lev_k                    = real2d_k();
+    sw_flux_up_k               = real2d_k();
+    sw_flux_dn_k               = real2d_k();
+    sw_flux_dn_dir_k           = real2d_k();
+    lw_flux_up_k               = real2d_k();
+    lw_flux_dn_k               = real2d_k();
+    sw_clnclrsky_flux_up_k     = real2d_k();
+    sw_clnclrsky_flux_dn_k     = real2d_k();
+    sw_clnclrsky_flux_dn_dir_k = real2d_k();
+    sw_clrsky_flux_up_k        = real2d_k();
+    sw_clrsky_flux_dn_k        = real2d_k();
+    sw_clrsky_flux_dn_dir_k    = real2d_k();
+    sw_clnsky_flux_up_k        = real2d_k();
+    sw_clnsky_flux_dn_k        = real2d_k();
+    sw_clnsky_flux_dn_dir_k    = real2d_k();
+    lw_clnclrsky_flux_up_k     = real2d_k();
+    lw_clnclrsky_flux_dn_k     = real2d_k();
+    lw_clrsky_flux_up_k        = real2d_k();
+    lw_clrsky_flux_dn_k        = real2d_k();
+    lw_clnsky_flux_up_k        = real2d_k();
+    lw_clnsky_flux_dn_k        = real2d_k();
+
+
     // 3d size (ncol, nlay+1, nswbands)
     sw_bnd_flux_up.deallocate();
     sw_bnd_flux_dn.deallocate();
     sw_bnd_flux_dir.deallocate();
     sw_bnd_flux_dif.deallocate();
 
+    sw_bnd_flux_up_k  = real3d_k();
+    sw_bnd_flux_dn_k  = real3d_k();
+    sw_bnd_flux_dir_k = real3d_k();
+    sw_bnd_flux_dif_k = real3d_k();
+
     // 3d size (ncol, nlay+1, nlwbands)
     lw_bnd_flux_up.deallocate();
     lw_bnd_flux_dn.deallocate();
+
+    lw_bnd_flux_up_k = real3d_k();
+    lw_bnd_flux_dn_k = real3d_k();
 
     // 2d size (ncol, nswbands)
     sfc_alb_dir.deallocate();
     sfc_alb_dif.deallocate();
 
+    sfc_alb_dir_k = real2d_k();
+    sfc_alb_dif_k = real2d_k();
+
     // 2d size (ncol, nlwbands)
     emis_sfc.deallocate();
+
+    emis_sfc_k = real2d_k();
 
     // 3d size (ncol, nlay, n[sw,lw]bands)
     aero_tau_sw.deallocate();
@@ -409,13 +609,24 @@ Radiation::dealloc_buffers ()
     aero_g_sw.deallocate();
     aero_tau_lw.deallocate();
 
+    aero_tau_sw_k = real3d_k();
+    aero_ssa_sw_k = real3d_k();
+    aero_g_sw_k   = real3d_k();
+    aero_tau_lw_k = real3d_k();
+
     // 3d size (ncol, nlay, n[sw,lw]bnds)
     cld_tau_sw_bnd.deallocate();
     cld_tau_lw_bnd.deallocate();
 
+    cld_tau_sw_bnd_k = real3d_k();
+    cld_tau_lw_bnd_k = real3d_k();
+
     // 3d size (ncol, nlay, n[sw,lw]gpts)
     cld_tau_sw_gpt.deallocate();
     cld_tau_lw_gpt.deallocate();
+
+    cld_tau_sw_gpt_k = real3d_k();
+    cld_tau_lw_gpt_k = real3d_k();
 }
 
 
@@ -446,8 +657,9 @@ Radiation::mf_to_yakl_buffers ()
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // map [i,j,k] 0-based to [icol, ilay] 1-based
-            const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
-            const int ilay = k+1;
+            const int icol   = (j-jmin)*nx + (i-imin) + 1 + offset;
+            const int ilay   = k+1;
+            const int ilay_k = k;
 
             // EOS input (at CC)
             Real r  = cons_arr(i,j,k,Rho_comp);
@@ -477,13 +689,33 @@ Radiation::mf_to_yakl_buffers ()
             qi_lay(icol,ilay) = qi;
             cldfrac_tot(icol,ilay) = ((qc+qi)>0.0) ? 1. : 0.;
 
+
+            r_lay_k(icol,ilay_k) = r;
+            p_lay_k(icol,ilay_k) = getPgivenRTh(rt, qv);
+            t_lay_k(icol,ilay_k) = getTgivenRandRTh(r, rt, qv);
+            z_del_k(icol,ilay_k) = (z_arr) ? 0.25 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
+                                                  + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
+                                                  + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
+                                                  + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k)) ) : dz;
+            qv_lay_k(icol,ilay_k) = qv;
+            qc_lay_k(icol,ilay_k) = qc;
+            qi_lay_k(icol,ilay_k) = qi;
+            cldfrac_tot_k(icol,ilay_k) = ((qc+qi)>0.0) ? 1. : 0.;
+
+
             // NOTE: These are populated in 'mixing_ratio_to_cloud_mass'
             lwp(icol,ilay) = 0.0;
             iwp(icol,ilay) = 0.0;
 
+            lwp_k(icol,ilay_k) = 0.0;
+            iwp_k(icol,ilay_k) = 0.0;
+
             // NOTE: These would be populated from P3 (we use the constants in p3_main_impl.hpp)
             eff_radius_qc(icol,ilay) = (qc>0.0) ? 10.0e-6 : 0.0;
             eff_radius_qi(icol,ilay) = (qi>0.0) ? 25.0e-6 : 0.0;
+
+            eff_radius_qc_k(icol,ilay_k) = (qc>0.0) ? 10.0e-6 : 0.0;
+            eff_radius_qi_k(icol,ilay_k) = (qi>0.0) ? 25.0e-6 : 0.0;
 
             // Buffers on z-faces (nlay+1)
             p_lev(icol,ilay) = getPgivenRTh(rt_avg, qv_avg);
@@ -499,14 +731,34 @@ Radiation::mf_to_yakl_buffers ()
                 t_lev(icol,ilay+1) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
             }
 
+
+            p_lev_k(icol,ilay_k) = getPgivenRTh(rt_avg, qv_avg);
+            t_lev_k(icol,ilay_k) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
+            if (ilay_k==(nlay-1)) {
+                Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
+                Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
+                Real qv_hi = (moist) ? cons_arr(i,j,k+1,RhoQ1_comp)/r_hi : 0.0;
+                r_avg  = 0.5 * (r  + r_hi);
+                rt_avg = 0.5 * (rt + rt_hi);
+                qv_avg = 0.5 * (qv + qv_hi);
+                p_lev_k(icol,ilay_k+1) = getPgivenRTh(rt_avg, qv_avg);
+                t_lev_k(icol,ilay_k+1) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
+            }
+
+
             // 1D data structures
             if (k==0) {
                 lat(icol) = (m_lat) ? lat_arr(i,j,0) : cons_lat;
                 lon(icol) = (m_lon) ? lon_arr(i,j,0) : cons_lon;
 
+                lat_k(icol) = (m_lat) ? lat_arr(i,j,0) : cons_lat;
+                lon_k(icol) = (m_lon) ? lon_arr(i,j,0) : cons_lon;
+
                 if (!lsm) {
                     // if no LSM, then set surface temperature as temperature at k=0
                     t_sfc(icol) = t_lev(icol, 1);
+
+                    t_sfc_k(icol) = t_lev_k(icol, 0);
                 }
             }
 
@@ -518,6 +770,14 @@ Radiation::mf_to_yakl_buffers ()
     {
         p_del(icol,ilay)  = std::abs(p_lev(icol,ilay+1) - p_lev(icol,ilay));
     });
+
+
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
+                         KOKKOS_LAMBDA (int icol, int ilay)
+    {
+        p_del_k(icol,ilay)  = std::abs(p_lev_k(icol,ilay+1) - p_lev_k(icol,ilay));
+    });
+
 
     // No LSM, so follow EAMXX dummy atmos and set constants
     if (!lsm) {
@@ -533,6 +793,7 @@ Radiation::mf_to_yakl_buffers ()
     yakl::memset(aero_ssa_sw, 0.0);
     yakl::memset(aero_g_sw  , 0.0);
     yakl::memset(aero_tau_lw, 0.0);
+
 }
 
 
@@ -557,8 +818,12 @@ Radiation::yakl_buffers_to_mf ()
             q_arr(i,j,k,0) = sw_heating(icol,ilay);
             q_arr(i,j,k,1) = lw_heating(icol,ilay);
 
+            //q_arr(i,j,k,0) = sw_heating_k(icol,ilay);
+            //q_arr(i,j,k,1) = lw_heating_k(icol,ilay);
+
             // Convert the rates for theta_d
             Real exner = getExnergivenP(Real(p_lay(icol,ilay)), R_d/Cp_d);
+            //Real exner = getExnergivenP(Real(p_lay_k(icol,ilay)), R_d/Cp_d);
             q_arr(i,j,k,0) *= exner;
             q_arr(i,j,k,1) *= exner;
         });
@@ -581,6 +846,21 @@ Radiation::yakl_buffers_to_mf ()
 
                 // LW flux for LSM (at bottom surface)
                 lsm_arr(i,j,k,5) = lw_flux_dn(icol,1);
+
+                /*
+                // SW fluxes for LSM
+                lsm_arr(i,j,k,0) = sfc_flux_dir_vis_k(icol);
+                lsm_arr(i,j,k,1) = sfc_flux_dir_nir_k(icol);
+                lsm_arr(i,j,k,2) = sfc_flux_dif_vis_k(icol);
+                lsm_arr(i,j,k,3) = sfc_flux_dif_nir_k(icol);
+
+                // Net SW flux for LSM
+                lsm_arr(i,j,k,4) = sfc_flux_dir_vis_k(icol) + sfc_flux_dir_nir_k(icol)
+                                 + sfc_flux_dif_vis_k(icol) + sfc_flux_dif_nir_k(icol);
+
+                // LW flux for LSM (at bottom surface)
+                lsm_arr(i,j,k,5) = lw_flux_dn_k(icol,1);
+                */
             });
         }
         if (m_lsm_zenith) {
@@ -592,6 +872,9 @@ Radiation::yakl_buffers_to_mf ()
 
                 // export cosine zenith angle for LSM
                 lsm_zenith_arr(i,j,k) = mu0(icol);
+
+                // export cosine zenith angle for LSM
+                //lsm_zenith_arr(i,j,k) = mu0-k(icol);
             });
         }
     }
@@ -692,7 +975,7 @@ void Radiation::populateDatalogMF ()
    }
 }
 
-void Radiation::WriteDataLog (const amrex::Real &time)
+void Radiation::WriteDataLog (const Real &time)
 {
     constexpr int datwidth = 14;
     constexpr int datprecision = 9;
@@ -831,7 +1114,8 @@ Radiation::initialize_impl ()
 {
     // Call API to initialize
     m_gas_concs.init(gas_names_yakl_offset, m_ncol, m_nlay);
-    rrtmgp::rrtmgp_initialize(m_gas_concs,
+    m_gas_concs_k.init(gas_names_offset, m_ncol, m_nlay);
+    rrtmgp::rrtmgp_initialize(m_gas_concs, m_gas_concs_k,
                               rrtmgp_coeffs_file_sw      , rrtmgp_coeffs_file_lw      ,
                               rrtmgp_cloud_optics_file_sw, rrtmgp_cloud_optics_file_lw);
 }
@@ -848,11 +1132,11 @@ Radiation::run_impl ()
     // Compute orbital parameters; these are used both for computing
     // the solar zenith angle and also for computing total solar
     // irradiance scaling (tsi_scaling).
-    real obliqr, lambm0, mvelpp;
+    double obliqr, lambm0, mvelpp;
     int  orbital_year = m_orbital_year;
-    real eccen        = m_orbital_eccen;
-    real obliq        = m_orbital_obliq;
-    real mvelp        = m_orbital_mvelp;
+    double eccen      = m_orbital_eccen;
+    double obliq      = m_orbital_obliq;
+    double mvelp      = m_orbital_mvelp;
     if (eccen >= 0 && obliq >= 0 && mvelp >= 0) {
       // fixed orbital parameters forced with orbital_year == ORB_UNDEF_INT
       orbital_year = ORB_UNDEF_INT;
@@ -860,12 +1144,13 @@ Radiation::run_impl ()
     orbital_params(orbital_year, eccen, obliq,
                    mvelp, obliqr, lambm0, mvelpp);
 
+
     // Use the orbital parameters to calculate the solar declination and eccentricity factor
-    real delta, eccf;
+    double delta, eccf;
     // Want day + fraction; calday 1 == Jan 1 0Z
     static constexpr real dpy[] = {0.0, 31.0, 59.0, 90.0, 120.0, 151.0, 181.0, 212.0, 243.0, 273.0, 304.0, 334.0};
     bool leap = (m_orbital_year % 4 == 0 && (!(m_orbital_year % 100 == 0) || (m_orbital_year % 400 == 0))) ? true : false;
-    real calday = dpy[m_orbital_mon-1] + (m_orbital_day-1.0) + m_orbital_sec/86400.0;
+    double calday = dpy[m_orbital_mon-1] + (m_orbital_day-1.0) + m_orbital_sec/86400.0;
     // add extra day if leap year
     if (leap) {
         calday += 1.0;
@@ -942,12 +1227,12 @@ Radiation::run_impl ()
         parallel_for(ncol, YAKL_LAMBDA (int icol)
         {
             // Convert lat/lon to radians
-            real dt      = real(m_dt);
-            real lat_col = h_lat(icol)*PI/180.0;
-            real lon_col = h_lon(icol)*PI/180.0;
-            real lcalday = calday;
-            real ldelta  = delta;
-            h_mu0(icol)  = orbital_cos_zenith(lcalday, lat_col, lon_col, ldelta, m_rad_freq_in_steps * dt);
+            double dt      = real(m_dt);
+            double lat_col = h_lat(icol)*PI/180.0;
+            double lon_col = h_lon(icol)*PI/180.0;
+            double lcalday = calday;
+            double ldelta  = delta;
+            h_mu0(icol)    = Real(orbital_cos_zenith(lcalday, lat_col, lon_col, ldelta, m_rad_freq_in_steps * dt));
         });
     }
     h_mu0.deep_copy_to(mu0);
@@ -969,6 +1254,7 @@ Radiation::run_impl ()
                                                  sfc_alb_dir_vis, sfc_alb_dir_nir,
                                                  sfc_alb_dif_vis, sfc_alb_dif_nir,
                                                  sfc_alb_dir    , sfc_alb_dif);
+
 
     // Run RRTMGP driver
     rrtmgp::rrtmgp_main(ncol, m_nlay,

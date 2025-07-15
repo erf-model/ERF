@@ -1,6 +1,10 @@
 #ifndef ERF_RRTMGP_INTERFACE_H
 #define ERF_RRTMGP_INTERFACE_H
 
+#include <Kokkos_Core.hpp>
+
+#include <AMReX_REAL.H>
+
 #include <rrtmgp_const.h>
 #include <mo_gas_optics_rrtmgp.h>
 #include <mo_cloud_optics.h>
@@ -16,6 +20,30 @@
 #include <ERF_RRTMGP_Utils.H>
 #include <ERF_Constants.H>
 
+using RadHostDevice    = Kokkos::HostSpace;
+using RadDefaultDevice = Kokkos::DefaultExecutionSpace;
+using layout_t         = Kokkos::LayoutLeft;
+
+using realHost1d_k     = Kokkos::View<amrex::Real*, RadHostDevice>;
+
+using real1d_k         = Kokkos::View<amrex::Real*, RadDefaultDevice>;
+using real2d_k         = Kokkos::View<amrex::Real** , layout_t, RadDefaultDevice>;
+using real3d_k         = Kokkos::View<amrex::Real***, layout_t, RadDefaultDevice>;
+
+using int1d_k          = Kokkos::View<int*, RadDefaultDevice>;
+using int2d_k          = Kokkos::View<int** , layout_t, RadDefaultDevice>;
+using int3d_k          = Kokkos::View<int***, layout_t, RadDefaultDevice>;
+
+using gas_optics_t       =  GasOpticsRRTMGPK<amrex::Real, layout_t, RadDefaultDevice>;
+using cloud_optics_t     =      CloudOpticsK<amrex::Real, layout_t, RadDefaultDevice>;
+using gas_concs_t        =         GasConcsK<amrex::Real, layout_t, RadDefaultDevice>;
+using fluxes_t           =     FluxesBybandK<amrex::Real, layout_t, RadDefaultDevice>;
+using fluxes_broadband_t =  FluxesBroadbandK<amrex::Real, layout_t, RadDefaultDevice>;
+using optical_props_t    =     OpticalPropsK<amrex::Real, layout_t, RadDefaultDevice>;
+using optical_props1_t   = OpticalProps1sclK<amrex::Real, layout_t, RadDefaultDevice>;
+using optical_props2_t   = OpticalProps2strK<amrex::Real, layout_t, RadDefaultDevice>;
+using source_func_t      =     SourceFuncLWK<amrex::Real, layout_t, RadDefaultDevice>;
+
 void init_kls ();
 void finalize_kls ();
 
@@ -27,10 +55,16 @@ extern GasOpticsRRTMGP k_dist_lw;
 extern CloudOptics cloud_optics_sw;
 extern CloudOptics cloud_optics_lw;
 
+extern std::unique_ptr<gas_optics_t> k_dist_sw_k;
+extern std::unique_ptr<gas_optics_t> k_dist_lw_k;
+
+extern std::unique_ptr<cloud_optics_t> cloud_optics_sw_k;
+extern std::unique_ptr<cloud_optics_t> cloud_optics_lw_k;
+
 extern bool initialized;
 
 void
-rrtmgp_initialize (GasConcs &gas_concs,
+rrtmgp_initialize (GasConcs &gas_concs, gas_concs_t& gas_concs_k,
                    const std::string& coefficients_file_sw, const std::string& coefficients_file_lw,
                    const std::string& cloud_optics_file_sw, const std::string& cloud_optics_file_lw);
 

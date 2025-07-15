@@ -104,6 +104,7 @@ function(build_erf_lib erf_lib_name)
                   )
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_RRTMGP)
     target_compile_definitions(${erf_lib_name} PUBLIC RRTMGP_ENABLE_YAKL)
+    target_compile_definitions(${erf_lib_name} PUBLIC RRTMGP_ENABLE_KOKKOS)
     target_link_libraries(${erf_lib_name} PUBLIC yakl)
   endif()
 

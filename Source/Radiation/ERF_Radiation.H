@@ -23,6 +23,7 @@
 #include <mo_gas_concentrations.h>
 
 #include <YAKL.h>
+#include <Kokkos_Core.hpp>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_FArrayBox.H>
@@ -44,6 +45,16 @@
 
 class Radiation : public IRadiation {
 public:
+
+    using RadHostDevice    = Kokkos::HostSpace;
+    using RadDefaultDevice = Kokkos::DefaultExecutionSpace;
+    using layout_t         = Kokkos::LayoutLeft;
+
+    using realHost1d_k     = Kokkos::View<amrex::Real*, RadHostDevice>;
+
+    using real1d_k         = Kokkos::View<amrex::Real*, RadDefaultDevice>;
+    using real2d_k         = Kokkos::View<amrex::Real** , layout_t, RadDefaultDevice>;
+    using real3d_k         = Kokkos::View<amrex::Real***, layout_t, RadDefaultDevice>;
 
     // Constructor
     Radiation (const int& lev,
@@ -297,7 +308,12 @@ private:
     int m_o3_size;
     real1d    m_gas_mol_weights;
     string1dv gas_names_yakl_offset;
+
+    real1d_k  m_gas_mol_weights_k;
+    std::vector<std::string> gas_names_offset;
+
     GasConcs  m_gas_concs;
+    GasConcsK<amrex::Real, layout_t, RadDefaultDevice> m_gas_concs_k;
 
     // Process interface vars modeled after EAMXX
     //===================================================================================
@@ -357,6 +373,8 @@ private:
     // 1d size (1 or nlay)
     real1d o3_lay;
 
+    real1d_k o3_lay_k;
+
     // 1d size (ncol)
     real1d cosine_zenith;
     real1d mu0;
@@ -373,6 +391,24 @@ private:
     real1d sfc_emis;
     real1d t_sfc;
     real1d lw_src;
+
+
+    real1d_k cosine_zenith_k;
+    real1d_k mu0_k;
+    real1d_k sfc_alb_dir_vis_k;
+    real1d_k sfc_alb_dir_nir_k;
+    real1d_k sfc_alb_dif_vis_k;
+    real1d_k sfc_alb_dif_nir_k;
+    real1d_k sfc_flux_dir_vis_k;
+    real1d_k sfc_flux_dir_nir_k;
+    real1d_k sfc_flux_dif_vis_k;
+    real1d_k sfc_flux_dif_nir_k;
+    real1d_k lat_k;
+    real1d_k lon_k;
+    real1d_k sfc_emis_k;
+    real1d_k t_sfc_k;
+    real1d_k lw_src_k;
+
 
     // 2d size (ncol, nlay)
     real2d r_lay;
@@ -393,6 +429,27 @@ private:
     real2d lw_heating;
     real2d sw_clrsky_heating;
     real2d lw_clrsky_heating;
+
+
+    real2d_k r_lay_k;
+    real2d_k p_lay_k;
+    real2d_k t_lay_k;
+    real2d_k z_del_k;
+    real2d_k p_del_k;
+    real2d_k qv_lay_k;
+    real2d_k qc_lay_k;
+    real2d_k qi_lay_k;
+    real2d_k cldfrac_tot_k;
+    real2d_k eff_radius_qc_k;
+    real2d_k eff_radius_qi_k;
+    real2d_k tmp2d_k;
+    real2d_k lwp_k;
+    real2d_k iwp_k;
+    real2d_k sw_heating_k;
+    real2d_k lw_heating_k;
+    real2d_k sw_clrsky_heating_k;
+    real2d_k lw_clrsky_heating_k;
+
 
     // 2d size (ncol, nlay+1)
     real2d d_tint;
@@ -419,22 +476,61 @@ private:
     real2d lw_clnsky_flux_up;
     real2d lw_clnsky_flux_dn;
 
+
+    real2d_k d_tint_k;
+    real2d_k p_lev_k;
+    real2d_k t_lev_k;
+    real2d_k sw_flux_up_k;
+    real2d_k sw_flux_dn_k;
+    real2d_k sw_flux_dn_dir_k;
+    real2d_k lw_flux_up_k;
+    real2d_k lw_flux_dn_k;
+    real2d_k sw_clnclrsky_flux_up_k;
+    real2d_k sw_clnclrsky_flux_dn_k;
+    real2d_k sw_clnclrsky_flux_dn_dir_k;
+    real2d_k sw_clrsky_flux_up_k;
+    real2d_k sw_clrsky_flux_dn_k;
+    real2d_k sw_clrsky_flux_dn_dir_k;
+    real2d_k sw_clnsky_flux_up_k;
+    real2d_k sw_clnsky_flux_dn_k;
+    real2d_k sw_clnsky_flux_dn_dir_k;
+    real2d_k lw_clnclrsky_flux_up_k;
+    real2d_k lw_clnclrsky_flux_dn_k;
+    real2d_k lw_clrsky_flux_up_k;
+    real2d_k lw_clrsky_flux_dn_k;
+    real2d_k lw_clnsky_flux_up_k;
+    real2d_k lw_clnsky_flux_dn_k;
+
+
     // 3d size (ncol, nlay+1, nswbands)
     real3d sw_bnd_flux_up;
     real3d sw_bnd_flux_dn;
     real3d sw_bnd_flux_dir;
     real3d sw_bnd_flux_dif;
 
+    real3d_k sw_bnd_flux_up_k;
+    real3d_k sw_bnd_flux_dn_k;
+    real3d_k sw_bnd_flux_dir_k;
+    real3d_k sw_bnd_flux_dif_k;
+
     // 3d size (ncol, nlay+1, nlwbands)
     real3d lw_bnd_flux_up;
     real3d lw_bnd_flux_dn;
+
+    real3d_k lw_bnd_flux_up_k;
+    real3d_k lw_bnd_flux_dn_k;
 
     // 2d size (ncol, nswbands)
     real2d sfc_alb_dir;
     real2d sfc_alb_dif;
 
+    real2d_k sfc_alb_dir_k;
+    real2d_k sfc_alb_dif_k;
+
     // 2d size (ncol, nlwbands)
     real2d emis_sfc;
+
+    real2d_k emis_sfc_k;
 
     // 3d size (ncol, nlay, n[sw,lw]bands)
     real3d aero_tau_sw;
@@ -442,12 +538,23 @@ private:
     real3d aero_g_sw;
     real3d aero_tau_lw;
 
+    real3d_k aero_tau_sw_k;
+    real3d_k aero_ssa_sw_k;
+    real3d_k aero_g_sw_k;
+    real3d_k aero_tau_lw_k;
+
     // 3d size (ncol, nlay, n[sw,lw]bnds)
     real3d cld_tau_sw_bnd;
     real3d cld_tau_lw_bnd;
 
+    real3d_k cld_tau_sw_bnd_k;
+    real3d_k cld_tau_lw_bnd_k;
+
     // 3d size (ncol, nlay, n[sw,lw]gpts)
     real3d cld_tau_sw_gpt;
     real3d cld_tau_lw_gpt;
+
+    real3d_k cld_tau_sw_gpt_k;
+    real3d_k cld_tau_lw_gpt_k;
 };
 #endif
