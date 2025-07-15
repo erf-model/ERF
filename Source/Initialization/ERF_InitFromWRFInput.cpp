@@ -136,6 +136,15 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
             auto var_name = NC_names[ivar];
             auto& var_fab = NC_fab_var_file[idx][ivar];
 
+            if (lev > 1) {
+                Box shift_by_box(subdomains[lev][0].minimalBox());
+                IntVect shift_by(shift_by_box.smallEnd());
+                for (int i = 0; i < AMREX_SPACEDIM; i++) {
+                    shift_by[i] -= var_fab.box().smallEnd(i);
+                }
+                var_fab.shift(shift_by);
+            }
+
             // Initialize rho =  1/(ALB + AL)
             if ( var_name == "ALB" ) {
 #ifdef _OPENMP
