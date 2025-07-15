@@ -44,6 +44,9 @@ jobs:
       with:
         submodules: true
 
+    - name: Free up disk space
+      uses: ./.github/actions/free-space-ubuntu
+
     - name: Dependencies
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_hip.sh
 
@@ -69,6 +72,7 @@ jobs:
         hipcc --version
         which clang
         which clang++
+        which flang
 
         cmake \
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
@@ -87,6 +91,7 @@ jobs:
           -DCODECOV:BOOL=ON \
           -DCMAKE_C_COMPILER=$(which clang)             \
           -DCMAKE_CXX_COMPILER=$(which clang++)         \
+          -DCMAKE_Fortran_COMPILER=$(which flang)       \
           -DCMAKE_CXX_STANDARD=17 \
           ${{github.workspace}};
         # ${{matrix.mpipreflags}} \

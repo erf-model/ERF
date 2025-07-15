@@ -392,6 +392,7 @@ rrtmgp_main (const int ncol, const int nlay,
              real2d &p_lay, real2d &t_lay, real2d &p_lev, real2d &t_lev,
              GasConcs &gas_concs,
              real2d &sfc_alb_dir, real2d &sfc_alb_dif, real1d &mu0,
+             real1d& t_sfc, real2d& emis_sfc, real1d& lw_src,
              real2d &lwp, real2d &iwp, real2d &rel, real2d &rei, real2d &cldfrac,
              real3d &aer_tau_sw, real3d &aer_ssa_sw, real3d &aer_asm_sw, real3d &aer_tau_lw,
              real3d &cld_tau_sw_bnd, real3d &cld_tau_lw_bnd,
@@ -509,7 +510,7 @@ rrtmgp_main (const int ncol, const int nlay,
 
   // Do longwave
   rrtmgp_lw(ncol, nlay,
-            k_dist_lw, p_lay, t_lay, p_lev, t_lev, gas_concs,
+            k_dist_lw, p_lay, t_lay, p_lev, t_lev, t_sfc, emis_sfc, lw_src, gas_concs,
             aerosol_lw, clouds_lw_gpt,
             fluxes_lw, clnclrsky_fluxes_lw, clrsky_fluxes_lw, clnsky_fluxes_lw,
             extra_clnclrsky_diag, extra_clnsky_diag);
@@ -877,6 +878,9 @@ rrtmgp_lw (const int ncol,
            real2d& t_lay,
            real2d& p_lev,
            real2d& t_lev,
+           real1d& t_sfc,
+           real2d& emis_sfc,
+           real1d& lw_src,
            GasConcs& gas_concs,
            OpticalProps1scl& aerosol,
            OpticalProps1scl& clouds,
@@ -932,17 +936,28 @@ rrtmgp_lw (const int ncol,
     // Boundary conditions
     SourceFuncLW lw_sources;
     lw_sources.alloc(ncol, nlay, k_dist);
-    real1d t_sfc   ("t_sfc"        ,ncol);
-    real2d emis_sfc("emis_sfc",nbnd,ncol);
+    // set the LW source
+    //   TODO: figure out how to do this correctly?
+    YAKL_SCOPE(d_lw_src, lw_sources.sfc_source);
+    //parallel_for(SimpleBounds<2>(ncol,m_nlwgpts), YAKL_LAMBDA(int icol, int igpt)
+    parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA(int icol)
+    {
+        d_lw_src(icol, 1) = lw_src(icol);
+    });
+    //real1d t_sfc   ("t_sfc"        ,ncol);
 
     // Surface temperature
     auto p_lay_host = p_lay.createHostCopy();
     bool top_at_1 = p_lay_host(1, 1) < p_lay_host(1, nlay);
-    parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA(int icol)
+    real2d emis_sfc_T("emis_sfc",nbnd,ncol);
+    //memset(emis_sfc , amrex::Real(0.98));
+    // RRTMGP assumes surface albedos have a screwy dimension ordering
+    // for some strange reason, so we need to transpose these; also do
+    // daytime subsetting in the same kernel
+    parallel_for(SimpleBounds<2>(nbnd,ncol), YAKL_LAMBDA(int ibnd, int icol)
     {
-        t_sfc(icol) = t_lev(icol, merge(nlay+1, 1, top_at_1));
+        emis_sfc_T(ibnd,icol) = emis_sfc(icol,ibnd);
     });
-    memset(emis_sfc , amrex::Real(0.98));
 
     // Get Gaussian quadrature weights
     // TODO: move this crap out of userland!
@@ -981,26 +996,26 @@ rrtmgp_lw (const int ncol,
 
     if (extra_clnclrsky_diag) {
         // Compute clean-clear-sky fluxes before we add in aerosols and clouds
-        rte_lw(max_gauss_pts, gauss_Ds, gauss_wts, optics, top_at_1, lw_sources, emis_sfc, clnclrsky_fluxes);
+        rte_lw(max_gauss_pts, gauss_Ds, gauss_wts, optics, top_at_1, lw_sources, emis_sfc_T, clnclrsky_fluxes);
     }
 
     // Combine gas and aerosol optics
     aerosol.increment(optics);
 
     // Compute clear-sky fluxes before we add in clouds
-    rte_lw(max_gauss_pts, gauss_Ds, gauss_wts, optics, top_at_1, lw_sources, emis_sfc, clrsky_fluxes);
+    rte_lw(max_gauss_pts, gauss_Ds, gauss_wts, optics, top_at_1, lw_sources, emis_sfc_T, clrsky_fluxes);
 
     // Combine gas and cloud optics
     clouds.increment(optics);
 
     // Compute allsky fluxes
-    rte_lw(max_gauss_pts, gauss_Ds, gauss_wts, optics, top_at_1, lw_sources, emis_sfc, fluxes);
+    rte_lw(max_gauss_pts, gauss_Ds, gauss_wts, optics, top_at_1, lw_sources, emis_sfc_T, fluxes);
 
     if (extra_clnsky_diag) {
         // First increment clouds in optics_no_aerosols
         clouds.increment(optics_no_aerosols);
         // Compute clean-sky fluxes
-        rte_lw(max_gauss_pts, gauss_Ds, gauss_wts, optics_no_aerosols, top_at_1, lw_sources, emis_sfc, clnsky_fluxes);
+        rte_lw(max_gauss_pts, gauss_Ds, gauss_wts, optics_no_aerosols, top_at_1, lw_sources, emis_sfc_T, clnsky_fluxes);
     }
 }
 

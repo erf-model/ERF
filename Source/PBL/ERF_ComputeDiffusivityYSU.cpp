@@ -1,4 +1,4 @@
-#include "ERF_ABLMost.H"
+#include "ERF_SurfaceLayer.H"
 #include "ERF_DirectionSelector.H"
 #include "ERF_Diffusion.H"
 #include "ERF_Constants.H"
@@ -14,13 +14,14 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                        MultiFab& eddyViscosity,
                        const Geometry& geom,
                        const TurbChoice& turbChoice,
-                       std::unique_ptr<ABLMost>& most,
+                       std::unique_ptr<SurfaceLayer>& SurfLayer,
                        bool use_terrain_fitted_coords,
                        bool /*use_moisture*/,
                        int level,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
-                       const std::unique_ptr<MultiFab>& z_phys_nd)
+                       const std::unique_ptr<MultiFab>& z_phys_nd,
+                       const MoistureComponentIndices& moisture_indices)
 {
     {
         /*
@@ -48,13 +49,14 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             const auto& uvel = xvel.const_array(mfi);
             const auto& vvel = yvel.const_array(mfi);
 
-            const auto& z0_arr = most->get_z0(level)->const_array();
-            const auto& ws10av_arr = most->get_mac_avg(level,5)->const_array(mfi);
-            const auto& t10av_arr  = most->get_mac_avg(level,2)->const_array(mfi);
-            const auto& t_surf_arr = most->get_t_surf(level)->const_array(mfi);
-            const auto& over_land_arr = (most->get_lmask(level)) ? most->get_lmask(level)->const_array(mfi) : Array4<int> {};
+            const auto& z0_arr        = SurfLayer->get_z0(level)->const_array();
+            const auto& ws10av_arr    = SurfLayer->get_mac_avg(level,5)->const_array(mfi);
+            const auto& t10av_arr     = SurfLayer->get_mac_avg(level,2)->const_array(mfi);
+            const auto& t_surf_arr    = SurfLayer->get_t_surf(level)->const_array(mfi);
+            const auto& over_land_arr = (SurfLayer->get_lmask(level)) ? SurfLayer->get_lmask(level)->const_array(mfi) :
+                                                                      Array4<int> {};
             const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
-            const Real most_zref = most->get_zref();
+            const Real most_zref = SurfLayer->get_zref();
 
             // Require that MOST zref is 10 m so we get the wind speed at 10 m from most
             bool invalid_zref = false;
@@ -162,8 +164,8 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
 
             // -- Compute diffusion coefficients --
 
-            const auto& u_star_arr = most->get_u_star(level)->const_array(mfi);
-            const auto& l_obuk_arr = most->get_olen(level)->const_array(mfi);
+            const auto& u_star_arr = SurfLayer->get_u_star(level)->const_array(mfi);
+            const auto& l_obuk_arr = SurfLayer->get_olen(level)->const_array(mfi);
             const Array4<Real      > &K_turb = eddyViscosity.array(mfi);
 
             // Dirichlet flags to switch derivative stencil
@@ -208,15 +210,12 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                     constexpr Real min_richardson = -100.0;
                     constexpr Real prandtl_max = 4.0;
                     Real dthetadz, dudz, dvdz;
-                    const int RhoQv_comp = -1;
-                    const int RhoQc_comp = -1;
-                    const int RhoQr_comp = -1;
                     ComputeVerticalDerivativesPBL(i, j, k,
                                                   uvel, vvel, cell_data, izmin, izmax, 1.0/dz_terrain,
                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,
-                                                  dthetadz, dudz, dvdz, RhoQv_comp, RhoQc_comp, RhoQr_comp);
+                                                  dthetadz, dudz, dvdz, moisture_indices);
                     const Real shear_squared = dudz*dudz + dvdz*dvdz + 1.0e-9; // 1.0e-9 from WRF to avoid divide by zero
                     const Real theta = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
                     Real richardson = CONST_GRAV / theta * dthetadz / shear_squared;

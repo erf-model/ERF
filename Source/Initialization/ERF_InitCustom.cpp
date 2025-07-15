@@ -61,9 +61,10 @@ ERF::init_custom (int lev)
         Array4<Real const> z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
 
-        Array4<Real const> mf_m     = mapfac_m[lev]->array(mfi);
-        Array4<Real const> mf_u     = mapfac_m[lev]->array(mfi);
-        Array4<Real const> mf_v     = mapfac_m[lev]->array(mfi);
+        // Here we arbitrarily choose the x-oriented map factor -- this should be generalized
+        Array4<Real const> mf_m     = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+        Array4<Real const> mf_u     = mapfac[lev][MapFacType::u_x]->const_array(mfi);
+        Array4<Real const> mf_v     = mapfac[lev][MapFacType::v_y]->const_array(mfi);
 
         Array4<Real> r_hse_arr = r_hse.array(mfi);
         Array4<Real> p_hse_arr = p_hse.array(mfi);
@@ -83,18 +84,13 @@ ERF::init_custom (int lev)
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,NSCALARS, cons_pert.nGrow());
 
     // RhoKE is relevant if using Deardorff with LES, k-equation for RANS, or MYNN with PBL
-    if ((solverChoice.turbChoice[lev].les_type  == LESType::Deardorff) ||
-        (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn) ||
-        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNN25) ||
-        (solverChoice.turbChoice[lev].pbl_type  == PBLType::MYNNEDMF) ) {
+    if (solverChoice.turbChoice[lev].use_tke) {
         MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoKE_comp,    RhoKE_comp,    1, cons_pert.nGrow());
     }
 
     if (solverChoice.moisture_type != MoistureType::None) {
         int qstate_size = micro->Get_Qstate_Size();
-        MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQ1_comp,    RhoQ1_comp,    1, cons_pert.nGrow());
-        MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQ2_comp,    RhoQ2_comp,    1, cons_pert.nGrow());
-        for (int q_offset(2); q_offset<qstate_size; ++q_offset) {
+        for (int q_offset(0); q_offset<qstate_size; ++q_offset) {
             int q_idx = RhoQ1_comp+q_offset;
             MultiFab::Add(lev_new[Vars::cons], cons_pert, q_idx, q_idx, 1, cons_pert.nGrow());
         }

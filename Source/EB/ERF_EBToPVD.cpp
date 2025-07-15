@@ -222,9 +222,10 @@ void eb_::EBToPVD::WriteEBVTP(const int myID, const int level) const
    }
 }
 
-void eb_::EBToPVD::WritePVTP(const int nProcs)
+void eb_::EBToPVD::WritePVTP(const int nProcs, const int level)
 {
-   std::ofstream myfile("eb.pvtp");
+   std::string cID = "eb_level_" + std::to_string(level) + ".pvtp";
+   std::ofstream myfile(cID);
 
    if(myfile.is_open()) {
       myfile << "<?xml version=\"1.0\"?>\n";
@@ -238,7 +239,7 @@ void eb_::EBToPVD::WritePVTP(const int nProcs)
 
       for(int lc1 = 0; lc1 < nProcs; ++lc1) {
          std::stringstream ss;
-         ss << std::setw(8) << std::setfill('0') << lc1;
+         ss << std::setw(8) << std::setfill('0') << lc1 << "_level_"<< level;
          std::string clc1 = "eb_" + ss.str() + ".vtp";
          myfile << "<Piece Source=\"" << clc1 << "\"/>\n";
       }
@@ -338,15 +339,19 @@ void eb_::EBToPVD::calc_hesse(Real& distance, std::array<Real,3>& n0, Real& p,
    // here D := distance
    distance = -dot_product(normal, centroid);
 
-   // Get the sign of the distance
-   sign_of_dist = -distance / std::abs(distance);
+   if (std::abs(distance) > 0.) {
+       // Get the sign of the distance
+       sign_of_dist = -distance / std::abs(distance);
 
-   // Get the Hessian form
-   Real fac = sign_of_dist/dot_product(normal, normal);
-   for(int idim = 0; idim < 3; ++idim) {
-      n0[idim] = fac*normal[idim];
+       // Get the Hessian form
+       Real fac = sign_of_dist/dot_product(normal, normal);
+       for(int idim = 0; idim < 3; ++idim) {
+          n0[idim] = fac*normal[idim];
+       }
+       p = sign_of_dist*(-distance);
+   } else {
+       p = 0.0;
    }
-   p = sign_of_dist*(-distance);
 }
 
 void eb_::EBToPVD::calc_alpha(std::array<Real,12>& alpha,

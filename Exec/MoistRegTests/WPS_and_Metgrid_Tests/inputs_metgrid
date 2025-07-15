@@ -1,0 +1,63 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 100
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent =  28000 16000 8000
+amr.n_cell           =   140     80  100
+
+geometry.is_periodic = 0 0 0
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+#zlo.type = "NoSlipWall"
+zhi.type = "SlipWall"
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 40.0
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.5  # fixed time step depending on grid resolution
+
+erf.terrain_type = StaticFittedMesh
+erf.terrain_smoothing = 2
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = -1       # timesteps between computing mass
+#erf.data_log      = my_data my_1d_data
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 100        # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt        # prefix of plotfile name
+erf.plot_int_1      = 10          # number of timesteps between plotfiles
+erf.plot_vars_1     = density dens_hse rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta z_phys mapfac pres_hse pert_pres 
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.1
+
+erf.moisture_model = "None"
+
+#erf.terrain_z_levels = 0 130 354 583 816 1054 1549 2068 2615 3193 3803 4450 5142 5892 6709 7603 8591 9702 10967 12442 14230 16610 18711 20752 22133 23960 26579 28493 31236 33699 36068 40000
+
+# INITIALIZATION WITH ATM DATA
+erf.real_width     = 7
+erf.real_set_width = 1
+erf.init_type      = "metgrid"
+erf.nc_init_file_0 = "met_em.d01.2022-06-18_00_00_00.nc" "met_em.d01.2022-06-18_06_00_00.nc"
+
+#There will be no OpenMP tiling
+fabarray.mfiter_tile_size = 1024 1024 1024

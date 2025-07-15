@@ -4,13 +4,13 @@
 using namespace amrex;
 
 void
-ApplySpongeZoneBCsForCC (
-  const SpongeChoice& spongeChoice,
-  const Geometry geom,
-  const Box& bx,
-  const Array4<Real>& cell_rhs,
-  const Array4<const Real>& cell_data,
-  const Array4<const Real>& z_phys_cc)
+ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
+                         const Geometry geom,
+                         const Box& bx,
+                         const Array4<Real>& cell_rhs,
+                         const Array4<const Real>& cell_data,
+                         const Array4<const Real>& r0,
+                         const Array4<const Real>& z_phys_cc)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();
@@ -39,7 +39,8 @@ ApplySpongeZoneBCsForCC (
     const Real zlo_sponge_end   = spongeChoice.zlo_sponge_end;
     const Real zhi_sponge_start = spongeChoice.zhi_sponge_start;
 
-    const Real sponge_density = spongeChoice.sponge_density;
+    const Real sponge_density_tmp = spongeChoice.sponge_density;
+    const bool use_base = (sponge_density_tmp < 0.);
 
     // Domain valid box
     const Box& domain = geom.Domain();
@@ -63,6 +64,8 @@ ApplySpongeZoneBCsForCC (
         Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
         Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
         Real z = z_phys_cc(i,j,k);
+
+        Real sponge_density = (use_base) ? r0(i,j,k) : sponge_density_tmp;
 
         // x left sponge
         if(use_xlo_sponge_damping){
@@ -112,20 +115,20 @@ ApplySpongeZoneBCsForCC (
 }
 
 void
-ApplySpongeZoneBCsForMom (
-  const SpongeChoice& spongeChoice,
-  const Geometry geom,
-  const Box& tbx,
-  const Box& tby,
-  const Box& tbz,
-  const Array4<Real>& rho_u_rhs,
-  const Array4<Real>& rho_v_rhs,
-  const Array4<Real>& rho_w_rhs,
-  const Array4<const Real>& rho_u,
-  const Array4<const Real>& rho_v,
-  const Array4<const Real>& rho_w,
-  const Array4<const Real>& z_phys_nd,
-  const Array4<const Real>& z_phys_cc)
+ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
+                          const Geometry geom,
+                          const Box& tbx,
+                          const Box& tby,
+                          const Box& tbz,
+                          const Array4<Real>& rho_u_rhs,
+                          const Array4<Real>& rho_v_rhs,
+                          const Array4<Real>& rho_w_rhs,
+                          const Array4<const Real>& rho_u,
+                          const Array4<const Real>& rho_v,
+                          const Array4<const Real>& rho_w,
+                          const Array4<const Real>& r0,
+                          const Array4<const Real>& z_phys_nd,
+                          const Array4<const Real>& z_phys_cc)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();
@@ -154,10 +157,12 @@ ApplySpongeZoneBCsForMom (
     const Real zlo_sponge_end   = spongeChoice.zlo_sponge_end;
     const Real zhi_sponge_start = spongeChoice.zhi_sponge_start;
 
-    const Real sponge_density = spongeChoice.sponge_density;
     const Real sponge_x_velocity = spongeChoice.sponge_x_velocity;
     const Real sponge_y_velocity = spongeChoice.sponge_y_velocity;
     const Real sponge_z_velocity = spongeChoice.sponge_z_velocity;
+
+    const Real sponge_density_tmp = spongeChoice.sponge_density;
+    const bool use_base = (sponge_density_tmp < 0.);
 
     // Domain valid box
     const Box& domain = geom.Domain();
@@ -181,6 +186,8 @@ ApplySpongeZoneBCsForMom (
         Real x = ProbLoArr[0] + ii * dx[0];
         Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
         Real z = z_phys_cc(i,j,k);
+
+        Real sponge_density = (use_base) ? 0.5 * (r0(i,j,k) + r0(i-1,j,k)) : sponge_density_tmp;
 
         // x lo sponge
         if(use_xlo_sponge_damping){
@@ -240,6 +247,8 @@ ApplySpongeZoneBCsForMom (
         Real y = ProbLoArr[1] + jj * dx[1];
         Real z = z_phys_cc(i,j,k);
 
+        Real sponge_density = (use_base) ?  0.5 * (r0(i,j,k) + r0(i,j-1,k)) : sponge_density_tmp;
+
         // x lo sponge
         if(use_xlo_sponge_damping){
             if (x < xlo_sponge_end) {
@@ -297,6 +306,8 @@ ApplySpongeZoneBCsForMom (
         Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
         Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
         Real z = z_phys_nd(i,j,k);
+
+        Real sponge_density = (use_base) ? 0.5 * (r0(i,j,k) + r0(i,j,k-1)) : sponge_density_tmp;
 
         // x left sponge
         if(use_xlo_sponge_damping){

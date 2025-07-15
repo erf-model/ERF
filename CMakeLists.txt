@@ -1,7 +1,11 @@
 ############################ BASE ######################################
 
 cmake_minimum_required (VERSION 3.14 FATAL_ERROR)
-project(ERF CXX C)
+if(ERF_ENABLE_MORR_FORT)
+  project(ERF CXX C Fortran)
+else()
+  project(ERF CXX C)
+endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
 include(CMakePackageConfigHelpers)
 
@@ -21,7 +25,6 @@ option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
 option(ERF_ENABLE_MOISTURE "Enable Full Moisture" ON)
-option(ERF_ENABLE_WARM_NO_PRECIP "Enable Warm Moisture" OFF)
 option(ERF_ENABLE_RRTMGP "Enable RTE-RRTMGP Radiation" OFF)
 
 #Options for performance
@@ -33,6 +36,9 @@ option(ERF_ENABLE_SYCL "Enable SYCL" OFF)
 
 #Options for NOAH-MP
 option(ERF_ENABLE_NOAH "Enable Noah-MP" OFF)
+
+#Option to build tools
+option(ERF_ENABLE_TOOLS "Enable building of additional tools" OFF)
 
 #Options for C++
 set(CMAKE_CXX_STANDARD 14)
@@ -126,7 +132,7 @@ endif()
 
 ########################## NETCDF ##################################
 
-if(ERF_ENABLE_NETCDF)
+if(ERF_ENABLE_NETCDF OR ERF_ENABLE_TOOLS)
   set(CMAKE_PREFIX_PATH ${NETCDF_DIR} ${CMAKE_PREFIX_PATH})
 ##  set(NETCDF_CXX "YES")
   find_package (NetCDF REQUIRED)
@@ -237,9 +243,7 @@ target_link_libraries(erf_api PUBLIC erf_srclib)
 add_library(${PROJECT_NAME}::erf_api ALIAS erf_srclib)
 
 # Collect all headers and make them installable with the target
-
-set(ERF_INCLUDES "Source/ERF.H;Source/ERF_Constants.H;Source/WindFarmParametrization/SimpleActuatorDisk/ERF_SimpleAD.H;Source/WindFarmParametrization/EWP/ERF_EWP.H;Source/WindFarmParametrization/Null/ERF_NullWindFarm.H;Source/WindFarmParametrization/ERF_WindFarm.H;Source/WindFarmParametrization/Fitch/ERF_Fitch.H;Source/BoundaryConditions/ERF_PhysBCFunct.H;Source/BoundaryConditions/ERF_MOSTAverage.H;Source/BoundaryConditions/ERF_MOSTRoughness.H;Source/BoundaryConditions/ERF_ABLMost.H;Source/BoundaryConditions/ERF_FillPatcher.H;Source/BoundaryConditions/ERF_MOSTStress.H;Source/BoundaryConditions/ERF_TimeInterpolatedData.H;Source/Utils/ERF_Interpolation.H;Source/Utils/ERF_TileNoZ.H;Source/Utils/ERF_PlaneAverage.H;Source/Utils/ERF_Interpolation_WENO.H;Source/Utils/ERF_DirectionSelector.H;Source/Utils/ERF_ParFunctions.H;Source/Utils/ERF_Wstar.H;Source/Utils/ERF_MicrophysicsUtils.H;Source/Utils/ERF_SatMethods.H;Source/Utils/ERF_Interpolation_1D.H;Source/Utils/ERF_Interpolation_UPW.H;Source/Utils/ERF_TerrainMetrics.H;Source/Utils/ERF_Interpolation_WENO_Z.H;Source/Utils/ERF_Thetav.H;Source/Utils/ERF_WaterVaporSaturation.H;Source/Utils/ERF_Utils.H;Source/Utils/ERF_Orbit.H;Source/Utils/ERF_EOS.H;Source/Utils/ERF_HSEUtils.H;Source/Utils/ERF_Container.H;Source/EB/ERF_EB.H;Source/EB/ERF_EBAdvection.H;Source/EB/ERF_EBAdvectionSrcForScalars.H;Source/EB/ERF_EBAux.H;Source/EB/ERF_EBCutCell.H;Source/EB/ERF_EBIF.H;Source/EB/ERF_EBIFTerrain.H;Source/EB/ERF_EBPolygon.H;Source/EB/ERF_EBRedistribute.H;Source/EB/ERF_EBToPVD.H;Source/EB/ERF_EBUtils.H;Source/Particles/ERFPC.H;Source/Particles/ERF_ParticleData.H;Source/Prob/ERF_InitDensityHSEDry.H;Source/Prob/ERF_InitRayleighDamping.H;Source/Prob/ERF_InitConstantDensityHSE.H;Source/ERF_ProbCommon.H;Source/ERF_Derive.H;Source/Radiation/ERF_RRTMGP_Interface.H;Source/Radiation/ERF_RRTMGP_Utils.H;Source/Radiation/ERF_Radiation.H;Source/Radiation/ERF_OrbCosZenith.H;Source/SourceTerms/ERF_NumericalDiffusion.H;Source/SourceTerms/ERF_SrcHeaders.H;Source/SourceTerms/ERF_ForestDrag.H;Source/IO/ERF_SampleData.H;Source/IO/ERF_NCInterface.H;Source/IO/ERF_NCWpsFile.H;Source/IO/ERF_NCPlotFile.H;Source/IO/ERF_ReadBndryPlanes.H;Source/IO/ERF_WriteBndryPlanes.H;Source/PBL/ERF_MYNNStruct.H;Source/PBL/ERF_PBLModels.H;Source/PBL/ERF_PBLHeight.H;Source/TimeIntegration/ERF_TI_substep_fun.H;Source/TimeIntegration/ERF_TI_slow_headers.H;Source/TimeIntegration/ERF_TI_slow_rhs_fun.H;Source/TimeIntegration/ERF_TI_fast_headers.H;Source/TimeIntegration/ERF_TI_utils.H;Source/TimeIntegration/ERF_MRI.H;Source/TimeIntegration/ERF_TI_no_substep_fun.H;Source/LandSurfaceModel/Null/ERF_NullSurf.H;Source/LandSurfaceModel/ERF_LandSurface.H;Source/LandSurfaceModel/MM5/ERF_MM5.H;Source/LandSurfaceModel/SLM/ERF_SLM.H;Source/ERF_IndexDefines.H;Source/Advection/ERF_AdvectionSrcForMom_N.H;Source/Advection/ERF_AdvectionSrcForScalars.H;Source/Advection/ERF_AdvectionSrcForMom_T.H;Source/Advection/ERF_Advection.H;Source/Initialization/ERF_MetgridUtils.H;Source/Diffusion/ERF_EddyViscosity.H;Source/Diffusion/ERF_Diffusion.H;Source/Microphysics/Null/ERF_NullMoistLagrangian.H;Source/Microphysics/Null/ERF_NullMoist.H;Source/Microphysics/ERF_Microphysics.H;Source/Microphysics/ERF_LagrangianMicrophysics.H;Source/Microphysics/ERF_EulerianMicrophysics.H;Source/Microphysics/Kessler/ERF_Kessler.H;Source/Microphysics/Morrison/ERF_Morrison.H;Source/Microphysics/SAM/ERF_SAM.H;Source/Microphysics/SatAdj/ERF_SatAdj.H;Source/DataStructs/ERF_InputSpongeData.H;Source/DataStructs/ERF_TurbPertStruct.H;Source/DataStructs/ERF_SpongeStruct.H;Source/DataStructs/ERF_AdvStruct.H;Source/DataStructs/ERF_DataStruct.H;Source/DataStructs/ERF_InputSoundingData.H;Source/DataStructs/ERF_DiffStruct.H;Source/DataStructs/ERF_TurbStruct.H;Source/LinearSolvers/ERF_TerrainPoisson.H;Source/LinearSolvers/ERF_FFTUtils.H")
-
+file(GLOB_RECURSE ERF_INCLUDES "${CMAKE_SOURCE_DIR}/Source/*.H")
 
 set_target_properties(
   erf_srclib PROPERTIES PUBLIC_HEADER "${ERF_INCLUDES}")

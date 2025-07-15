@@ -29,8 +29,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
                             const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                             const Vector<MultiFab*>& mfs_mom,     // This includes cc quantities and MOMENTA
                             int ng_cons, int ng_vel, bool cons_only,
-                            int icomp_cons, int ncomp_cons,
-                            bool allow_most_bcs)
+                            int icomp_cons, int ncomp_cons)
 {
     BL_PROFILE_VAR("FillIntermediatePatch()",FillIntermediatePatch);
     Interpolater* mapper;
@@ -326,24 +325,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
     }
     // ***************************************************************************
 
-    // MOST boundary conditions
-    if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs) {
-        m_most->impose_most_bcs(lev,mfs_vel,
-                                Tau11_lev[lev].get(),
-                                Tau22_lev[lev].get(),
-                                Tau33_lev[lev].get(),
-                                Tau12_lev[lev].get(), Tau21_lev[lev].get(),
-                                Tau13_lev[lev].get(), Tau31_lev[lev].get(),
-                                Tau23_lev[lev].get(), Tau32_lev[lev].get(),
-                                SFS_hfx1_lev[lev].get(),
-                                SFS_hfx2_lev[lev].get(),
-                                SFS_hfx3_lev[lev].get(),
-                                SFS_q1fx1_lev[lev].get(),
-                                SFS_q1fx2_lev[lev].get(),
-                                SFS_q1fx3_lev[lev].get(),
-                                z_phys_nd[lev].get());
-    }
-
     // We always come in to this call with momenta so we need to leave with momenta!
     // We need to make sure we convert back on all ghost cells/faces because this is
     // how velocity from fine-fine copies (as well as physical and interpolated bcs) will be filled
@@ -362,8 +343,15 @@ ERF::FillIntermediatePatch (int lev, Real time,
                            domain_bcs_type);
     }
 
-    mfs_mom[IntVars::cons]->FillBoundary(geom[lev].periodicity());
-    mfs_mom[IntVars::xmom]->FillBoundary(geom[lev].periodicity());
-    mfs_mom[IntVars::ymom]->FillBoundary(geom[lev].periodicity());
-    mfs_mom[IntVars::zmom]->FillBoundary(geom[lev].periodicity());
+    // NOTE: There are not FillBoundary calls here for the following reasons:
+    // Removal of the FillBoundary (FB) calls has bee completed for the following reasons:
+    //
+    // 1. physbc_cons is called before VelocityToMomentum and a FB is completed in that functor.
+    //    Therefore, the conserved CC vars have their inter-rank ghost cells filled and then their
+    //    domain ghost cells filled from the BC operations. We should not call FB on this MF again.
+    //
+    // 2. physbc_u/v/w is also called before VelocityToMomentum and a FB is completed those functors.
+    //    Furthermore, VelocityToMomentum operates on a growntilebox so we exit that routine with momentum
+    //    filled everywhere---i.e., physbc_u/v/w fills velocity ghost cells (inter-rank and domain)
+    //    and then V2M does the conversion to momenta everywhere; so there is again no need to do a FB on momenta.
 }

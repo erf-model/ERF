@@ -20,13 +20,12 @@ CEXE_headers += ERF_SampleData.H
 ifeq ($(USE_NETCDF), TRUE)
   CEXE_sources += ERF_ReadFromWRFBdy.cpp
   CEXE_sources += ERF_ReadFromWRFInput.cpp
+  CEXE_sources += ERF_ReadFromWRFLow.cpp
   CEXE_sources += ERF_ReadFromMetgrid.cpp
   CEXE_sources += ERF_NCInterface.cpp
   CEXE_sources += ERF_NCPlotFile.cpp
   CEXE_sources += ERF_NCColumnFile.cpp
-  CEXE_sources += ERF_NCCheckpoint.cpp
-  CEXE_sources += ERF_NCMultiFabFile.cpp
   CEXE_headers += ERF_NCWpsFile.H
   CEXE_headers += ERF_NCInterface.H
-  CEXE_headers += ERF_NCPlotFile.H
+  CEXE_headers += ERF_ReadFromWRFBdy.H
 endif

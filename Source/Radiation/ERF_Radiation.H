@@ -31,6 +31,7 @@
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_PlotFileUtil.H>
 
+#include <ERF_RadiationInterface.H>
 #include <ERF_RRTMGP_Interface.H>
 #include <ERF_RRTMGP_Utils.H>
 #include <ERF_OrbCosZenith.H>
@@ -39,7 +40,9 @@
 #include <ERF_DataStruct.H>
 #include <ERF_EOS.H>
 
-class Radiation {
+#include <ERF_LandSurface.H>
+
+class Radiation : public IRadiation {
 public:
 
     // Constructor
@@ -48,6 +51,28 @@ public:
 
     // Destructor
     ~Radiation () = default;
+
+    virtual void Init(const amrex::Geometry& geom,
+                    const amrex::BoxArray& ba,
+                    amrex::MultiFab* cons_in) override {};
+
+    virtual void Run(int& level,
+                     int& step,
+                     amrex::Real& time,
+                     const amrex::Real& dt,
+                     const amrex::BoxArray& ba,
+                     amrex::Geometry& geom,
+                     amrex::MultiFab* cons_in,
+                     amrex::MultiFab* lsm_fluxes,
+                     amrex::MultiFab* lsm_zenith,
+                     amrex::MultiFab* qheating_rates,
+                     amrex::MultiFab* z_phys,
+                     amrex::MultiFab* lat,
+                     amrex::MultiFab* lon) override
+    {
+        set_grids(level, step, time, dt, ba, geom, cons_in, lsm_fluxes, lsm_zenith, qheating_rates, z_phys, lat, lon);
+        rad_run_impl();
+    }
 
     // Set the grid info for columnar data in YAKL
     void
@@ -64,6 +89,68 @@ public:
                amrex::MultiFab* z_phys,
                amrex::MultiFab* lat,
                amrex::MultiFab* lon);
+
+    template<typename LandSurfaceModelType>
+    void set_lsm_inputs(LandSurfaceModelType *model)
+    {
+        if constexpr(std::is_same_v<LandSurfaceModelType, SLM>)
+        {
+            if (!m_update_rad)
+            {
+                // skip getting LSM inputs if radiation not updating this timestep
+                return;
+            }
+
+            // get surface temperature, LW flux, and emissivities from SLM
+            /*
+            auto slm_to_rad_vars = model->export_to_RRTMGP();
+
+            for (amrex::MFIter mfi(*slm_to_rad_vars[0]); mfi.isValid(); ++mfi) {
+                const auto& vbx  = mfi.validbox();
+                const auto& sbx  = amrex::makeSlab(vbx, 2, 0);
+
+                const int nx     = vbx.length(0);
+                const int imin   = vbx.smallEnd(0);
+                const int jmin   = vbx.smallEnd(1);
+                const int offset = m_col_offsets[mfi.index()];
+
+                const auto &slm_tsurf           = slm_to_rad_vars[0]->const_array(mfi);
+                const auto &slm_alb_dir_vis_arr = slm_to_rad_vars[2]->const_array(mfi);
+                const auto &slm_alb_dir_nir_arr = slm_to_rad_vars[4]->const_array(mfi);
+                const auto &slm_IR_emis_arr     = slm_to_rad_vars[5]->const_array(mfi);
+                const auto &slm_net_rad_arr     = slm_to_rad_vars[6]->const_array(mfi);
+                amrex::ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    // map [i,j,k] 0-based to [icol, ilay] 1-based
+                    const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
+                    const int ilay = 1;
+
+                    t_sfc(icol) = slm_tsurf(i, j, k);
+
+                    sfc_alb_dir_vis(icol) = slm_alb_dir_vis_arr(i, j, k);
+                    sfc_alb_dir_nir(icol) = slm_alb_dir_nir_arr(i, j, k);
+                    sfc_alb_dif_vis(icol) = slm_alb_dir_vis_arr(i, j, k);
+                    sfc_alb_dif_nir(icol) = slm_alb_dir_nir_arr(i, j, k);
+
+                    sfc_emis(icol) = slm_IR_emis_arr(i, j, k);
+
+                    //lw_src(icol) = slm_net_rad_arr(i, j, k, SLM_NetRad::net_lwup1);
+                    lw_src(icol) = 0.0; // TODO
+                });
+            }
+
+            // expand sfc_emis and lw_src over nlwbands
+            // TODO: check if this is correct - should emissivity vary based on band?
+            yakl::fortran::parallel_for(yakl::fortran::SimpleBounds<2>(m_nlwbands, m_ncol), YAKL_LAMBDA(const int ibnd, const int icol)
+            {
+                emis_sfc(icol, ibnd) = sfc_emis(icol);
+            });
+            */
+
+            yakl::memset(emis_sfc, 0.95);
+            yakl::memset(lw_src, 0.0);
+        }
+    }
 
     // Initialize the temporary variables
     void
@@ -110,6 +197,10 @@ public:
         }
     }
 
+    void populateDatalogMF();
+
+    virtual void WriteDataLog(const amrex::Real &time) override;
+
 private:
 
     // Process interface vars from ERF/AMReX
@@ -139,9 +230,14 @@ private:
     // Are we writing out the fluxes?
     bool m_rad_write_fluxes = false;
 
+    bool m_first_step = true;
+
     // Do we have moisture and cold comps?
     bool m_moist = false;
     bool m_ice   = false;
+
+    // Do we have a land surface model?
+    bool m_lsm   = false;
 
     // Pointer to the CC conserved vars
     amrex::MultiFab* m_cons_in = nullptr;
@@ -163,6 +259,9 @@ private:
     // Pointer to output data for LSM
     amrex::MultiFab* m_lsm_fluxes = nullptr;
     amrex::MultiFab* m_lsm_zenith = nullptr;
+
+    // Holds output from YAKL arrays used in the datalog
+    amrex::MultiFab datalog_mf;
 
     // Path, data file, and coefficient file for K-distribution
     std::string rrtmgp_file_path       = ".";
@@ -269,6 +368,9 @@ private:
     real1d sfc_flux_dif_nir;
     real1d lat;
     real1d lon;
+    real1d sfc_emis;
+    real1d t_sfc;
+    real1d lw_src;
 
     // 2d size (ncol, nlay)
     real2d r_lay;
@@ -287,6 +389,8 @@ private:
     real2d iwp;
     real2d sw_heating;
     real2d lw_heating;
+    real2d sw_clrsky_heating;
+    real2d lw_clrsky_heating;
 
     // 2d size (ncol, nlay+1)
     real2d d_tint;
@@ -326,6 +430,9 @@ private:
     // 2d size (ncol, nswbands)
     real2d sfc_alb_dir;
     real2d sfc_alb_dif;
+
+    // 2d size (ncol, nlwbands)
+    real2d emis_sfc;
 
     // 3d size (ncol, nlay, n[sw,lw]bands)
     real3d aero_tau_sw;

@@ -1,6 +1,7 @@
 #include "AMReX_PhysBCFunct.H"
-#include <ERF_PhysBCFunct.H>
-#include <ERF_Constants.H>
+#include "ERF_PhysBCFunct.H"
+#include "ERF_Constants.H"
+#include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
 
@@ -166,7 +167,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                     dest_arr(i,j,k,dest_comp) =  dest_arr(iflip,j,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
-                } else if (l_bc_type == ERFBCType::hoextrapcc) {
+                } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_i = (dom_lo.x - i);
                     dest_arr(i,j,k,dest_comp) = (1.0 + delta_i)*dest_arr(dom_lo.x,j,k,dest_comp) - delta_i*dest_arr(dom_lo.x+1,j,k,dest_comp) ;
                 }
@@ -184,7 +185,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                     dest_arr(i,j,k,dest_comp) =  dest_arr(iflip,j,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
-                } else if (h_bc_type == ERFBCType::hoextrapcc) {
+                } else if (h_bc_type == ERFBCType::hoextrap) {
                     Real delta_i = (i - dom_hi.x);
                     dest_arr(i,j,k,dest_comp) = (1.0 + delta_i)*dest_arr(dom_hi.x,j,k,dest_comp) - delta_i*dest_arr(dom_hi.x-1,j,k,dest_comp) ;
                 }
@@ -215,7 +216,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,jflip,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
-                } else if (l_bc_type == ERFBCType::hoextrapcc) {
+                } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_j = (dom_lo.y - j);
                     dest_arr(i,j,k,dest_comp) = (1.0 + delta_j)*dest_arr(i,dom_lo.y,k,dest_comp) - delta_j*dest_arr(i,dom_lo.y+1,k,dest_comp) ;
                 }
@@ -234,7 +235,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,jflip,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
-                } else if (h_bc_type == ERFBCType::hoextrapcc) {
+                } else if (h_bc_type == ERFBCType::hoextrap) {
                     Real delta_j = (j - dom_hi.y);
                     dest_arr(i,j,k,dest_comp) = (1.0 + delta_j)*dest_arr(i,dom_hi.y,k,dest_comp) - delta_j*dest_arr(i,dom_hi.y-1,k,dest_comp);
                 }
@@ -244,23 +245,24 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
     Gpu::streamSynchronize();
 }
 
-void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
-                                                         int ncomp, const IntVect& /*nghost*/)
+void ERFPhysBCFunct_base::impose_vertical_basestate_bcs (const Array4<Real>& dest_arr,
+                                                         const Array4<Real const>& /*z_phys_nd*/,
+                                                         const Box& bx,
+                                                         const Box& domain,
+                                                         int ncomp,
+                                                         const IntVect& /*nghost*/)
 {
     BL_PROFILE_VAR("impose_vertical_base_bcs()",impose_vertical_base_bcs);
 
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
-    const Real hz = Real(0.5) * m_geom.CellSize(2);
-
     Box bx_zlo1(bx); bx_zlo1.setBig(2,dom_lo.z-1); if (bx_zlo1.ok()) bx_zlo1.setSmall(2,dom_lo.z-1);
     ParallelFor(
         bx_zlo1, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            dest_arr(i,j,k,BaseState::r0_comp) = dest_arr(i,j,dom_lo.z,BaseState::r0_comp);
-            dest_arr(i,j,k,BaseState::p0_comp) = p_0 -
-               dest_arr(i,j,k,BaseState::r0_comp) * hz * CONST_GRAV;
+            dest_arr(i,j,k,BaseState::r0_comp)  = dest_arr(i,j,dom_lo.z,BaseState::r0_comp);
+            dest_arr(i,j,k,BaseState::p0_comp)  = dest_arr(i,j,dom_lo.z,BaseState::p0_comp);
             dest_arr(i,j,k,BaseState::pi0_comp) = dest_arr(i,j,dom_lo.z,BaseState::pi0_comp);
             dest_arr(i,j,k,BaseState::th0_comp) = dest_arr(i,j,dom_lo.z,BaseState::th0_comp);
         }

@@ -1,0 +1,46 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 100  #12000
+max_step = 0
+amrex.fpe_trap_invalid = 1
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     = -12  -12  -1
+geometry.prob_hi     =  12   12   1
+amr.n_cell           = 48 48 4
+geometry.is_periodic = 1 1 0  # periodic for all boundaries
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+# TIME STEP CONTROL
+erf.fixed_dt           = 1e-3    # fixed time step = 0.001 seconds
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = 100     # number of timesteps between checkpoints
+# PLOTFILES
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 10      # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity theta rhotheta pressure temp pres_hse dens_hse
+erf.plotfile_type = netcdf
+erf.plotfile_type = amrex
+# SOLVER CHOICE
+erf.use_gravity = false
+erf.use_coriolis = false
+erf.use_pdvwork = true
+erf.les_type          = "None"
+erf.molec_diff_type   = "ConstantAlpha"
+erf.dynamic_viscosity = 4e-3
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
+erf.Pr_t = 1e25         #1e6
+# INITIALIZATION
+erf.init_type = NCFile
+erf.nc_init_file_0 = "initial_data.nc"
+erf.terrain_type = None
+erf.moisture_model = None
+# PROBLEM PARAMETERS
+prob.rho_0 = 1.0
+prob.T_0   = 1.0

@@ -19,10 +19,12 @@ A weak scaling test was performed on CPUs with a mesh size of :math:`(512,512,25
 
 A weak scaling test was also performed on GPUs with a mesh size of :math:`(256,256,512)` on 1 GPU node, and the number of cells was progressively scaled to :math:`(2048,1024,512)` on 32 nodes. The total elapsed time for 100 iterations with and without GPU-aware-MPI is shown in figure below. The nearly constant timings show excellent weak scaling and the benefits of GPU-aware-MPI are clearly observed with the 25-35% speed-up.
 
+Weak scaling comparison on GPUs was performed on Perlmutter (NVIDIA A100), Frontier (AMD MI350X (1 GCD)) and Aurora (Intel Data Center GPU Max Series (Ponte Vecchio GPU)). The results are shown in the figure below. Good weak scaling is observed upto 2.1 billion mesh cells with ~0.3 seconds per time step.
+
 .. figure:: figures/StrongScaling_CPU.png
    :alt: Strong scaling on CPUs
    :name: strong_CPU
-   :figwidth: 45%
+   :figwidth: 44%
    :align: left
 
    **Strong scaling on CPUs. The number of mesh cells per rank is shown in blue.**
@@ -30,7 +32,7 @@ A weak scaling test was also performed on GPUs with a mesh size of :math:`(256,2
 .. figure:: figures/ParEff.png
    :alt: Parallelization efficiency for strong scaling
    :name: strong_pareff
-   :figwidth: 45%
+   :figwidth: 44%
    :align: left
 
    **Parallelization efficiency for strong scaling.**
@@ -38,7 +40,7 @@ A weak scaling test was also performed on GPUs with a mesh size of :math:`(256,2
 .. figure:: figures/WeakScaling_CPU.png
    :alt: Weak scaling on CPUs
    :name: weak_CPU
-   :figwidth: 45%
+   :figwidth: 44%
    :align: left
 
    **Weak scaling on CPUs. The total number of mesh cells is shown in blue.**
@@ -46,7 +48,7 @@ A weak scaling test was also performed on GPUs with a mesh size of :math:`(256,2
 .. figure:: figures/CPUvsGPU.png
    :alt: Comparison of timings on CPU and GPU showing the speed-up factor
    :name: CPUvsGPU
-   :figwidth: 45%
+   :figwidth: 44%
    :align: left
 
    **Comparison of timings on CPU and GPU showing the speed-up factor. We compare a CPU node with 128 ranks to a GPU node with 4 ranks, so there are 32x more points per GPU than per CPU core. Points on the same vertical line represent the same number of nodes.**
@@ -54,7 +56,15 @@ A weak scaling test was also performed on GPUs with a mesh size of :math:`(256,2
 .. figure:: figures/WeakScaling_GPU.png
    :alt: Weak scaling on GPUs
    :name: weak_GPU
-   :figwidth: 45%
+   :figwidth: 44%
    :align: left
 
-   **Weak scaling on GPUs with and without GPU-aware MPI.**
+   **Weak scaling on GPUs with and without GPU-aware MPI on Perlmutter (NVIDIA A100)**
+
+.. figure:: figures/WeakScaling_GPU_All.png
+   :alt: Weak scaling on GPUs
+   :name: weak_GPU_All
+   :figwidth: 44%
+   :align: left
+
+   **Weak scaling on GPUs: Perlmutter (NVIDIA A100), Frontier (AMD MI250X (1 GCD)) and Aurora (Intel Data Center GPU Max Series (PVC))**

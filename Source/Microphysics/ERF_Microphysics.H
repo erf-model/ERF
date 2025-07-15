@@ -55,8 +55,17 @@ public:
     /*! \brief get the number of moisture model variables */
     virtual int Get_Qmoist_Size (const int&) = 0;
 
-    /*! \brief get the number of moisture-model-related conserved state variables */
-    virtual int Get_Qstate_Size () = 0;
+    /*! \brief get the number of  microphysics conserved moist (water-related) state variables */
+    virtual int Get_Qstate_Moist_Size () = 0;
+
+    /*! \brief get the number of  microphysics conserved non-moist (non-water, i.e., other vapor/condensed species) state variables */
+    virtual int Get_Qstate_NonMoist_Size () = 0;
+
+    /*! \brief get total number of conserved state variables */
+    inline int Get_Qstate_Size()
+    {
+        return Get_Qstate_Moist_Size() + Get_Qstate_NonMoist_Size();
+    }
 
     /*! \brief get the indices and names of moisture model variables for restart
                at a given level */
@@ -65,6 +74,14 @@ public:
                                           std::vector<int>&,
                                           std::vector<std::string>& ) const = 0;
 
+    /*! \brief Returns a list of additional plot variable names */
+    virtual void GetPlotVarNames (amrex::Vector<std::string>& a_vec) const = 0;
+
+    /*! \brief Fills in a MultiFab for plotting */
+    virtual void GetPlotVar (const std::string& a_name,
+                             amrex::MultiFab& a_mf,
+                             const int a_lev) const = 0;
+
     /*! \brief query if a specified moisture model is Eulerian or Lagrangian */
     static MoistureModelType modelType (const MoistureType a_moisture_type)
     {
@@ -72,6 +89,7 @@ public:
              || (a_moisture_type == MoistureType::SAM_NoIce)
              || (a_moisture_type == MoistureType::SAM_NoPrecip_NoIce)
              || (a_moisture_type == MoistureType::Morrison)
+             || (a_moisture_type == MoistureType::Morrison_NoIce)
              || (a_moisture_type == MoistureType::Kessler)
              || (a_moisture_type == MoistureType::Kessler_NoRain)
              || (a_moisture_type == MoistureType::SatAdj)
@@ -82,7 +100,6 @@ public:
             return MoistureModelType::Undefined;
         }
     }
-
 private:
 
 };

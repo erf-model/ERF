@@ -5,18 +5,17 @@
 using namespace amrex;
 
 void
-ApplySpongeZoneBCsForMom_ReadFromFile (
-  const SpongeChoice& spongeChoice,
-  const Geometry geom,
-  const Box& tbx,
-  const Box& tby,
-  const Array4<const Real>& cell_data,
-  const Array4<const Real>& z_phys_cc,
-  const Array4<Real>& rho_u_rhs,
-  const Array4<Real>& rho_v_rhs,
-  const Array4<const Real>& rho_u,
-  const Array4<const Real>& rho_v,
-  const Vector<Real*> d_sponge_ptrs_at_lev)
+ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
+                                       const Geometry geom,
+                                       const Box& tbx,
+                                       const Box& tby,
+                                       const Array4<const Real>& cell_data,
+                                       const Array4<const Real>& z_phys_cc,
+                                       const Array4<Real>& rho_u_rhs,
+                                       const Array4<Real>& rho_v_rhs,
+                                       const Array4<const Real>& rho_u,
+                                       const Array4<const Real>& rho_v,
+                                       const Vector<Real*> d_sponge_ptrs_at_lev)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();

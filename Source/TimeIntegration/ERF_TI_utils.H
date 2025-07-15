@@ -45,6 +45,27 @@
     };
 
 /**
+ *  Define the total water content in each cell
+ */
+    auto make_qt = [&](const MultiFab& cons_state, MultiFab& qt)
+    {
+        BL_PROFILE("make_qt()");
+
+        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
+
+        // All moisture models are guaranteed to have RhoQ1_comp
+        MultiFab::Copy(qt, cons_state, RhoQ1_comp, 0, 1, 1);
+
+        // Sum up each component
+        for (int n(1); n<n_qstate_moist; ++n) {
+            MultiFab::Add(qt, cons_state, RhoQ1_comp+n, 0, 1, 1);
+        }
+
+        // Divide out the dry density
+        MultiFab::Divide(qt, cons_state, Rho_comp, 0, 1, 1);
+    };
+
+/**
  *  This routine is called after the scalars are updated for each RK stage
  */
     auto apply_bcs = [&](Vector<MultiFab>& S_data,
@@ -126,13 +147,6 @@
             ng_cons_to_use = ng_cons;
         }
 
-        bool allow_most_bcs = true;
-        if (fast_only) {
-            allow_most_bcs = false;
-        } else {
-            allow_most_bcs = true;
-        }
-
         // **********************************************************************************
         // NOTE: FillIntermediatePatch takes momenta at the new time, and returns
         //       BOTH updated velocities and momenta
@@ -142,6 +156,138 @@
                               {&S_data[IntVars::cons], &xvel_new, &yvel_new, &zvel_new},
                               {&S_data[IntVars::cons], &S_data[IntVars::xmom],
                                &S_data[IntVars::ymom], &S_data[IntVars::zmom]},
-                              ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons,
-                              allow_most_bcs);
+                              ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons);
+    };
+
+    auto update_terrain_stage = [&](int lev, Real old_step_time, Real old_stage_time, Real new_stage_time, Real slow_dt)
+    {
+            // Note that the "old" and "new" metric terms correspond to
+            // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
+            // will be used to advance to
+
+            // The "src" metric terms correspond to the time at which we are evaluating the source here,
+            // aka old_stage_time
+
+            if (verbose) Print() << "Re-making old geometry at old time   : " << old_step_time << std::endl;
+
+            //
+            // Make a temporary MF to fill the terrain
+            //
+            Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[lev]->nGrow());
+            FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1);
+            FArrayBox terrain_fab_src(makeSlab(terrain_bx,2,0),1);
+            FArrayBox terrain_fab_new(makeSlab(terrain_bx,2,0),1);
+
+            prob->init_terrain_surface(fine_geom,terrain_fab_old,old_step_time);
+            prob->init_terrain_surface(fine_geom,terrain_fab_src,old_stage_time);
+            prob->init_terrain_surface(fine_geom,terrain_fab_new,new_stage_time);
+
+            // Copy on intersection
+            for (MFIter mfi(*z_phys_nd[lev],false); mfi.isValid(); ++mfi)
+            {
+                Box isect = terrain_fab_old.box() & (*z_phys_nd[lev])[mfi].box();
+                (    *z_phys_nd[lev])[mfi].template copy<RunOn::Device>(terrain_fab_old,isect,0,isect,0,1);
+                (*z_phys_nd_src[lev])[mfi].template copy<RunOn::Device>(terrain_fab_src,isect,0,isect,0,1);
+                (*z_phys_nd_new[lev])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
+            }
+
+            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
+            make_J             (fine_geom, *z_phys_nd[lev], *detJ_cc[lev]);
+            make_areas         (fine_geom, *z_phys_nd[lev], *ax[lev], *ay[lev], *az[lev]);
+
+            if (verbose) Print() << "Making src geometry at old_stage_time:  "
+                                 << std::setprecision(timeprecision) << old_stage_time << std::endl;
+            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_src[lev], zlevels_stag[lev], phys_bc_type);
+            make_J             (fine_geom, *z_phys_nd_src[lev], *detJ_cc_src[lev]);
+            make_areas         (fine_geom, *z_phys_nd_src[lev], *ax_src[lev], *ay_src[lev], *az_src[lev]);
+            make_zcc           (fine_geom, *z_phys_nd_src[lev], *z_phys_cc_src[lev]);
+
+            if (verbose) Print() << "Making new geometry at new_stage_time: "
+                                 << std::setprecision(timeprecision) << new_stage_time << std::endl;
+            make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
+            make_J             (fine_geom, *z_phys_nd_new[lev], *detJ_cc_new[lev]);
+
+            Real inv_dt  = 1./slow_dt;
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for (MFIter mfi(*z_t_rk[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                Box gbx = mfi.growntilebox(IntVect(1,1,0));
+
+                const Array4<Real      >& z_t_arr      =  z_t_rk[lev]->array(mfi);
+                const Array4<Real const>& z_nd_new_arr =  z_phys_nd_new[lev]->const_array(mfi);
+                const Array4<Real const>& z_nd_old_arr =  z_phys_nd[lev]->const_array(mfi);
+
+                // Loop over horizontal plane
+                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // Evaluate between RK stages assuming the geometry is linear between old and new time
+                    z_t_arr(i,j,k) = 0.25 * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
+                                                     +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
+                                                     +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
+                                                     +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));
+                });
+
+            } // mfi
+    };
+
+    auto update_terrain_substep = [&](int lev, Real old_substep_time, Real new_substep_time, Real dtau,
+                                      Vector<MultiFab>& S_data, std::unique_ptr<MultiFab>& z_t_pert)
+    {
+        // Make "old" fast geom -- store in z_phys_nd for convenience
+        Box terrain_bx(surroundingNodes(Geom(0).Domain())); terrain_bx.grow(z_phys_nd[lev]->nGrow());
+
+        if (verbose) Print() << "Making geometry at start of substep time: "
+                             << std::setprecision(timeprecision) << old_substep_time << std::endl;
+        FArrayBox terrain_fab_old(makeSlab(terrain_bx,2,0),1);
+        prob->init_terrain_surface(fine_geom,terrain_fab_old,old_substep_time);
+
+        // Make "new" fast geom
+        if (verbose) Print() << "Making geometry for end of substep time :"
+                             << std::setprecision(timeprecision) << new_substep_time << std::endl;
+        FArrayBox terrain_fab_new(makeSlab(terrain_bx,2,0),1);
+        prob->init_terrain_surface(fine_geom,terrain_fab_new,new_substep_time);
+
+        // Copy on intersection
+        for (MFIter mfi(*z_phys_nd[lev],false); mfi.isValid(); ++mfi)
+        {
+            Box isect = terrain_fab_old.box() & (*z_phys_nd[lev])[mfi].box();
+            (    *z_phys_nd[lev])[mfi].template copy<RunOn::Device>(terrain_fab_old,isect,0,isect,0,1);
+            (*z_phys_nd_new[lev])[mfi].template copy<RunOn::Device>(terrain_fab_new,isect,0,isect,0,1);
+        }
+
+        make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
+        make_J             (fine_geom,*z_phys_nd[lev], *detJ_cc[lev]);
+
+        make_terrain_fitted_coords(lev,fine_geom,*z_phys_nd_new[lev], zlevels_stag[lev], phys_bc_type);
+        make_J             (fine_geom,*z_phys_nd_new[lev], *detJ_cc_new[lev]);
+
+        Real inv_dt   = 1./dtau;
+
+        z_t_pert = std::make_unique<MultiFab>(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 1);
+
+        for (MFIter mfi(*z_t_rk[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            Box gbx = mfi.growntilebox(IntVect(1,1,0));
+
+            const Array4<Real      >& z_t_arr      =  z_t_rk[lev]->array(mfi);
+            const Array4<Real      >& zp_t_arr     =  z_t_pert->array(mfi);
+
+            const Array4<Real const>& z_nd_new_arr =  z_phys_nd_new[lev]->const_array(mfi);
+            const Array4<Real const>& z_nd_old_arr =  z_phys_nd[lev]->const_array(mfi);
+
+            // Loop over horizontal plane
+            amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                // Evaluate between RK stages assuming the geometry is linear between old and new time
+                zp_t_arr(i,j,k) = 0.25 * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
+                                                  +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
+                                                  +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
+                                                  +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));
+                // Convert to perturbation: z"_t(t) = z_t(t) - z_t^{RK}
+                zp_t_arr(i,j,k) -= z_t_arr(i,j,k);
+            });
+        } // mfi
     };

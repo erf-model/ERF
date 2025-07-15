@@ -1,10 +1,11 @@
-#include <ERF.H>
-#include "AMReX_PlotFileUtil.H"
 
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
+
+#include "ERF.H"
+#include "AMReX_PlotFileUtil.H"
 
 using namespace amrex;
 
@@ -196,50 +197,139 @@ ERF::WriteCheckpointFile () const
             }
         }
 
-        // Note that we also write the ghost cells of the mapfactors (2D)
-        BoxList bl2d = grids[lev].boxList();
-        for (auto& b : bl2d) {
-            b.setRange(2,0);
+        IntVect ng = mapfac[lev][MapFacType::m_x]->nGrowVect();
+        MultiFab mf_m(ba2d[lev],dmap[lev],1,ng);
+        MultiFab::Copy(mf_m,*mapfac[lev][MapFacType::m_x],0,0,1,ng);
+        VisMF::Write(mf_m, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_mx"));
+
+#if 0
+        if (MapFacType::m_x != MapFacType::m_y) {
+            MultiFab::Copy(mf_m,*mapfac[lev][MapFacType::m_y],0,0,1,ng);
+            VisMF::Write(mf_m, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_my"));
         }
-        BoxArray ba2d(std::move(bl2d));
+#endif
 
-        IntVect ng = mapfac_m[lev]->nGrowVect();
-        MultiFab mf_m(ba2d,dmap[lev],1,ng);
-        MultiFab::Copy(mf_m,*mapfac_m[lev],0,0,1,ng);
-        VisMF::Write(mf_m, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_m"));
+        ng = mapfac[lev][MapFacType::u_x]->nGrowVect();
+        MultiFab mf_u(convert(ba2d[lev],IntVect(1,0,0)),dmap[lev],1,ng);
+        MultiFab::Copy(mf_u,*mapfac[lev][MapFacType::u_x],0,0,1,ng);
+        VisMF::Write(mf_u, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_ux"));
 
-        ng = mapfac_u[lev]->nGrowVect();
-        MultiFab mf_u(convert(ba2d,IntVect(1,0,0)),dmap[lev],1,ng);
-        MultiFab::Copy(mf_u,*mapfac_u[lev],0,0,1,ng);
-        VisMF::Write(mf_u, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_u"));
+#if 0
+        if (MapFacType::m_x != MapFacType::m_y) {
+            MultiFab::Copy(mf_u,*mapfac[lev][MapFacType::u_y],0,0,1,ng);
+            VisMF::Write(mf_u, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_uy"));
+        }
+#endif
 
-        ng = mapfac_v[lev]->nGrowVect();
-        MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ng);
-        MultiFab::Copy(mf_v,*mapfac_v[lev],0,0,1,ng);
-        VisMF::Write(mf_v, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_v"));
+        ng = mapfac[lev][MapFacType::v_x]->nGrowVect();
+        MultiFab mf_v(convert(ba2d[lev],IntVect(0,1,0)),dmap[lev],1,ng);
+        MultiFab::Copy(mf_v,*mapfac[lev][MapFacType::v_x],0,0,1,ng);
+        VisMF::Write(mf_v, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_vx"));
 
-        if (m_most && m_most->have_variable_sea_roughness())  {
-            amrex::Print() << "Writing variable surface roughness" << std::endl;
+#if 0
+        if (MapFacType::m_x != MapFacType::m_y) {
+            MultiFab::Copy(mf_v,*mapfac[lev][MapFacType::v_y],0,0,1,ng);
+            VisMF::Write(mf_v, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_vy"));
+        }
+#endif
+
+        if (m_SurfaceLayer)  {
+            amrex::Print() << "Writing SurfaceLayer variables" << std::endl;
             ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
-            MultiFab z0(ba2d,dmap[lev],1,ng);
-            for (amrex::MFIter mfi(z0); mfi.isValid(); ++mfi) {
+            MultiFab   m_var(ba2d[lev],dmap[lev],1,ng);
+            MultiFab* src = nullptr;
+
+            // U*
+            src = m_SurfaceLayer->get_u_star(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Ustar"));
+
+            // W*
+            src = m_SurfaceLayer->get_w_star(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Wstar"));
+
+            // T*
+            src = m_SurfaceLayer->get_t_star(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Tstar"));
+
+            // Q*
+            src = m_SurfaceLayer->get_q_star(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qstar"));
+
+            // Olen
+            src = m_SurfaceLayer->get_olen(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Olen"));
+
+            // PBLH
+            src = m_SurfaceLayer->get_pblh(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PBLH"));
+
+            // Z0
+            for (MFIter mfi(m_var); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.growntilebox();
-                Array4<const Real> const& fab_arr = m_most->get_z0(lev)->const_array();
-                Array4<      Real> const&  z0_arr = z0.array(mfi);
+                Array4<const Real> const& fab_arr = m_SurfaceLayer->get_z0(lev)->const_array();
+                Array4<      Real> const&  mv_arr = m_var.array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    z0_arr(i,j,k) = fab_arr(i,j,k);
+                    mv_arr(i,j,k) = fab_arr(i,j,k);
                 });
             }
-            VisMF::Write(z0, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
+        }
+
+        if (sst_lev[lev][0]) {
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab sst_at_t(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                MultiFab::Copy(sst_at_t,*sst_lev[lev][nt],0,0,1,ng);
+                VisMF::Write(sst_at_t, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
+                                                             "SST_" + std::to_string(nt)));
+            }
+        }
+
+        if (tsk_lev[lev][0]) {
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab tsk_at_t(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                MultiFab::Copy(tsk_at_t,*tsk_lev[lev][nt],0,0,1,ng);
+                VisMF::Write(tsk_at_t, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
+                                                             "TSK_" + std::to_string(nt)));
+            }
+        }
+
+        {
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab lmask_at_t(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                for (MFIter mfi(lmask_at_t); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.growntilebox();
+                    Array4<int>  const& src_arr = lmask_lev[lev][nt]->array(mfi);
+                    Array4<Real> const& dst_arr = lmask_at_t.array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        dst_arr(i,j,k) = Real(src_arr(i,j,k));
+                    });
+                }
+                VisMF::Write(lmask_at_t, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
+                                                              "LMASK_" + std::to_string(nt)));
+            }
         }
 
 #ifdef ERF_USE_NETCDF
-         // Write lat/lon if it exists
+        IntVect ngv = ng; ngv[2] = 0;
+
+        // Write lat/lon if it exists
         if (lat_m[lev] && lon_m[lev] && solverChoice.has_lat_lon) {
             amrex::Print() << "Writing Lat/Lon variables" << std::endl;
-            IntVect ngv = ng; ngv[2] = 0;
-            MultiFab lat(ba2d,dmap[lev],1,ngv);
-            MultiFab lon(ba2d,dmap[lev],1,ngv);
+            MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
+            MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
             MultiFab::Copy(lat,*lat_m[lev],0,0,1,ngv);
             MultiFab::Copy(lon,*lon_m[lev],0,0,1,ngv);
             VisMF::Write(lat, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LAT"));
@@ -249,13 +339,26 @@ ERF::WriteCheckpointFile () const
         // Write sinPhi and cosPhi if it exists
         if (cosPhi_m[lev] && sinPhi_m[lev] && solverChoice.variable_coriolis) {
             amrex::Print() << "Writing Coriolis factors" << std::endl;
-            IntVect ngv = ng; ngv[2] = 0;
-            MultiFab sphi(ba2d,dmap[lev],1,ngv);
-            MultiFab cphi(ba2d,dmap[lev],1,ngv);
+            MultiFab sphi(ba2d[lev],dmap[lev],1,ngv);
+            MultiFab cphi(ba2d[lev],dmap[lev],1,ngv);
             MultiFab::Copy(sphi,*sinPhi_m[lev],0,0,1,ngv);
             MultiFab::Copy(cphi,*cosPhi_m[lev],0,0,1,ngv);
             VisMF::Write(sphi, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SinPhi"));
             VisMF::Write(cphi, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "CosPhi"));
+        }
+
+        if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
+            MultiFab tmp1d(ba1d[lev],dmap[lev],1,ngv);
+            MultiFab tmp2d(ba2d[lev],dmap[lev],1,ngv);
+
+            MultiFab::Copy(tmp1d,*mf_C1H[lev],0,0,1,ngv);
+            VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C1H"));
+
+            MultiFab::Copy(tmp1d,*mf_C2H[lev],0,0,1,ngv);
+            VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
+
+            MultiFab::Copy(tmp2d,*mf_MUB[lev],0,0,1,ngv);
+            VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
         }
 #endif
 
@@ -265,11 +368,12 @@ ERF::WriteCheckpointFile () const
    particleData.Checkpoint(checkpointname);
 #endif
 
+#if 0
 #ifdef ERF_USE_NETCDF
    // Write bdy_data files
    if ( ParallelDescriptor::IOProcessor() &&
         ((solverChoice.init_type==InitType::WRFInput) || (solverChoice.init_type==InitType::Metgrid)) &&
-        solverChoice.use_real_bcs )
+         solverChoice.use_real_bcs )
    {
        // Vector dimensions
        int num_time = bdy_data_xlo.size();
@@ -293,14 +397,17 @@ ERF::WriteCheckpointFile () const
        // Open data file and write to it
        std::ofstream bdy_d_file(MultiFabFileFullPrefix(0, checkpointname, "Level_", "bdy_D"));
        for (int itime(0); itime<num_time; ++itime) {
-           for (int ivar(0); ivar<num_var; ++ivar) {
-               bdy_data_xlo[itime][ivar].writeOn(bdy_d_file,0,1);
-               bdy_data_xhi[itime][ivar].writeOn(bdy_d_file,0,1);
-               bdy_data_ylo[itime][ivar].writeOn(bdy_d_file,0,1);
-               bdy_data_yhi[itime][ivar].writeOn(bdy_d_file,0,1);
+           if (bdy_data_xlo[itime].size() > 0) {
+               for (int ivar(0); ivar<num_var; ++ivar) {
+                   bdy_data_xlo[itime][ivar].writeOn(bdy_d_file,0,1);
+                   bdy_data_xhi[itime][ivar].writeOn(bdy_d_file,0,1);
+                   bdy_data_ylo[itime][ivar].writeOn(bdy_d_file,0,1);
+                   bdy_data_yhi[itime][ivar].writeOn(bdy_d_file,0,1);
+               }
            }
        }
    }
+#endif
 #endif
 
 }
@@ -556,51 +663,148 @@ ERF::ReadCheckpointFile ()
             }
         }
 
-        // Note that we read the ghost cells of the mapfactors
-        BoxList bl2d = grids[lev].boxList();
-        for (auto& b : bl2d) {
-            b.setRange(2,0);
+
+        IntVect ng = mapfac[lev][MapFacType::m_x]->nGrowVect();
+        MultiFab mf_m(ba2d[lev],dmap[lev],1,ng);
+
+        std::string MapFacMFileName(restart_chkfile + "/Level_0/MapFactor_mx_H");
+        if (amrex::FileExists(MapFacMFileName)) {
+            VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_mx"));
+        } else {
+            VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_m"));
         }
-        BoxArray ba2d(std::move(bl2d));
+        MultiFab::Copy(*mapfac[lev][MapFacType::m_x],mf_m,0,0,1,ng);
 
-        IntVect ng = mapfac_m[lev]->nGrowVect();
-        MultiFab mf_m(ba2d,dmap[lev],1,ng);
-        VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_m"));
-        MultiFab::Copy(*mapfac_m[lev],mf_m,0,0,1,ng);
+#if 0
+        if (MapFacType::m_x != MapFacType::m_y) {
+            VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_my"));
+            MultiFab::Copy(*mapfac[lev][MapFacType::m_y],mf_m,0,0,1,ng);
+        }
+#endif
 
-        ng = mapfac_u[lev]->nGrowVect();
-        MultiFab mf_u(convert(ba2d,IntVect(1,0,0)),dmap[lev],1,ng);
-        VisMF::Read(mf_u, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_u"));
-        MultiFab::Copy(*mapfac_u[lev],mf_u,0,0,1,ng);
+        ng = mapfac[lev][MapFacType::u_x]->nGrowVect();
+        MultiFab mf_u(convert(ba2d[lev],IntVect(1,0,0)),dmap[lev],1,ng);
 
-        ng = mapfac_v[lev]->nGrowVect();
-        MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ng);
-        VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_v"));
-        MultiFab::Copy(*mapfac_v[lev],mf_v,0,0,1,ng);
+        std::string MapFacUFileName(restart_chkfile + "/Level_0/MapFactor_ux_H");
+        if (amrex::FileExists(MapFacUFileName)) {
+            VisMF::Read(mf_u, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_ux"));
+        } else {
+            VisMF::Read(mf_u, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_u"));
+        }
+        MultiFab::Copy(*mapfac[lev][MapFacType::u_x],mf_u,0,0,1,ng);
 
-        if (m_most && m_most->have_variable_sea_roughness())  {
-            amrex::Print() << "Reading variable surface roughness" << std::endl;
+#if 0
+        if (MapFacType::u_x != MapFacType::u_y) {
+            VisMF::Read(mf_u, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_uy"));
+            MultiFab::Copy(*mapfac[lev][MapFacType::u_y],mf_u,0,0,1,ng);
+        }
+#endif
+
+        ng = mapfac[lev][MapFacType::v_x]->nGrowVect();
+        MultiFab mf_v(convert(ba2d[lev],IntVect(0,1,0)),dmap[lev],1,ng);
+
+        std::string MapFacVFileName(restart_chkfile + "/Level_0/MapFactor_vx_H");
+        if (amrex::FileExists(MapFacVFileName)) {
+            VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_vx"));
+        } else {
+            VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_v"));
+        }
+        MultiFab::Copy(*mapfac[lev][MapFacType::v_x],mf_v,0,0,1,ng);
+
+#if 0
+        if (MapFacType::v_x != MapFacType::v_y) {
+            VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_vy"));
+            MultiFab::Copy(*mapfac[lev][MapFacType::v_y],mf_v,0,0,1,ng);
+        }
+#endif
+
+
+        // NOTE: We read MOST data in ReadCheckpointFileMOST (see below)!
+
+        // See if we wrote out SST data
+        std::string FirstSSTFileName(restart_chkfile + "/Level_0/SST_0_H");
+        if (amrex::FileExists(FirstSSTFileName))
+        {
+            amrex::Print() << "Reading SST data" << std::endl;
+            int ntimes = 1;
             ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
-            MultiFab z0(ba2d,dmap[lev],1,ng);
-            VisMF::Read(z0, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
-            for (amrex::MFIter mfi(z0); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.growntilebox();
-                FArrayBox* most_z0 = (m_most->get_z0(lev));
-                most_z0->copy<RunOn::Host>(z0[mfi], bx);
+            MultiFab sst_at_t(ba2d[lev],dmap[lev],1,ng);
+            sst_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                VisMF::Read(sst_at_t, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                             "SST_" + std::to_string(nt)));
+                MultiFab::Copy(*sst_lev[lev][nt],sst_at_t,0,0,1,ng);
             }
         }
 
+        // See if we wrote out TSK data
+        std::string FirstTSKFileName(restart_chkfile + "/Level_0/TSK_0_H");
+        if (amrex::FileExists(FirstTSKFileName))
+        {
+            amrex::Print() << "Reading TSK data" << std::endl;
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab tsk_at_t(ba2d[lev],dmap[lev],1,ng);
+            tsk_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                VisMF::Read(tsk_at_t, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                             "TSK_" + std::to_string(nt)));
+                MultiFab::Copy(*tsk_lev[lev][nt],tsk_at_t,0,0,1,ng);
+            }
+        }
+
+        std::string LMaskFileName(restart_chkfile + "/Level_0/LMASK_0_H");
+        if (amrex::FileExists(LMaskFileName))
+        {
+            amrex::Print() << "Reading LMASK data" << std::endl;
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab lmask_at_t(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                VisMF::Read(lmask_at_t, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                              "LMASK_" + std::to_string(nt)));
+                for (MFIter mfi(lmask_at_t); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.growntilebox();
+                    Array4<int>  const& dst_arr = lmask_lev[lev][nt]->array(mfi);
+                    Array4<Real> const& src_arr = lmask_at_t.array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        dst_arr(i,j,k) = int(src_arr(i,j,k));
+                    });
+                }
+            }
+        } else {
+            // Allow idealized cases over water, used to set lmask
+            ParmParse pp("erf");
+            int is_land;
+            if (pp.query("is_land", is_land, lev)) {
+                if (is_land == 1) {
+                    amrex::Print() << "Level " << lev << " is land" << std::endl;
+                } else if (is_land == 0) {
+                    amrex::Print() << "Level " << lev << " is water" << std::endl;
+                } else {
+                    Error("is_land should be 0 or 1");
+                }
+                lmask_lev[lev][0]->setVal(is_land);
+            } else {
+                // Default to land everywhere if not specified
+                lmask_lev[lev][0]->setVal(1);
+            }
+            lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+        }
+
 #ifdef ERF_USE_NETCDF
+        IntVect ngv = ng; ngv[2] = 0;
+
         // Read lat/lon if it exists
         if (solverChoice.has_lat_lon) {
             amrex::Print() << "Reading Lat/Lon variables" << std::endl;
-            IntVect ngv = ng; ngv[2] = 0;
-            MultiFab lat(ba2d,dmap[lev],1,ngv);
-            MultiFab lon(ba2d,dmap[lev],1,ngv);
+            MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
+            MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
             VisMF::Read(lat, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LAT"));
             VisMF::Read(lon, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LON"));
-            lat_m[lev] = std::make_unique<MultiFab>(ba2d,dmap[lev],1,ngv);
-            lon_m[lev] = std::make_unique<MultiFab>(ba2d,dmap[lev],1,ngv);
+            lat_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ngv);
+            lon_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ngv);
             MultiFab::Copy(*lat_m[lev],lat,0,0,1,ngv);
             MultiFab::Copy(*lon_m[lev],lon,0,0,1,ngv);
         }
@@ -608,15 +812,28 @@ ERF::ReadCheckpointFile ()
         // Read sinPhi and cosPhi if it exists
         if (solverChoice.variable_coriolis) {
             amrex::Print() << "Reading Coriolis factors" << std::endl;
-            IntVect ngv = ng; ngv[2] = 0;
-            MultiFab sphi(ba2d,dmap[lev],1,ngv);
-            MultiFab cphi(ba2d,dmap[lev],1,ngv);
+            MultiFab sphi(ba2d[lev],dmap[lev],1,ngv);
+            MultiFab cphi(ba2d[lev],dmap[lev],1,ngv);
             VisMF::Read(sphi, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SinPhi"));
             VisMF::Read(cphi, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "CosPhi"));
-            sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d,dmap[lev],1,ngv);
-            cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d,dmap[lev],1,ngv);
+            sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ngv);
+            cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ngv);
             MultiFab::Copy(*sinPhi_m[lev],sphi,0,0,1,ngv);
             MultiFab::Copy(*cosPhi_m[lev],cphi,0,0,1,ngv);
+        }
+
+        if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
+            MultiFab tmp1d(ba1d[lev],dmap[lev],1,ngv);
+            MultiFab tmp2d(ba2d[lev],dmap[lev],1,ngv);
+
+            VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C1H"));
+            MultiFab::Copy(*mf_C1H[lev],tmp1d,0,0,1,ngv);
+
+            VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C2H"));
+            MultiFab::Copy(*mf_C2H[lev],tmp1d,0,0,1,ngv);
+
+            VisMF::Read(tmp2d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MUB"));
+            MultiFab::Copy(*mf_MUB[lev],tmp2d,0,0,1,ngv);
         }
 #endif
 
@@ -629,9 +846,10 @@ ERF::ReadCheckpointFile ()
     }
 #endif
 
+#if 0
 #ifdef ERF_USE_NETCDF
     // Read bdy_data files
-    if ( (solverChoice.init_type==InitType::WRFInput) || (solverChoice.init_type==InitType::Metgrid) &&
+    if ( ((solverChoice.init_type==InitType::WRFInput) || (solverChoice.init_type==InitType::Metgrid)) &&
          solverChoice.use_real_bcs )
     {
         int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
@@ -727,6 +945,7 @@ ERF::ReadCheckpointFile ()
         }
     } // init_type == WRFInput or Metgrid
 #endif
+#endif
 }
 
 /**
@@ -735,26 +954,72 @@ ERF::ReadCheckpointFile ()
  * This is called after the ABLMost object is instantiated.
  */
 void
-ERF::ReadCheckpointFileMOST ()
+ERF::ReadCheckpointFileSurfaceLayer ()
 {
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-        // Note that we read the ghost cells
-        BoxList bl2d = grids[lev].boxList();
-        for (auto& b : bl2d) {
-            b.setRange(2,0);
-        }
-        BoxArray ba2d(std::move(bl2d));
+        amrex::Print() << "Reading MOST variables" << std::endl;
 
-        if (m_most->have_variable_sea_roughness())  {
-            amrex::Print() << "Reading variable surface roughness" << std::endl;
-            IntVect ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
-            MultiFab z0_in(ba2d,dmap[lev],1,ng);
-            VisMF::Read(z0_in, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
-            auto z0 = const_cast<FArrayBox*>(m_most->get_z0(lev));
-            for (amrex::MFIter mfi(z0_in); mfi.isValid(); ++mfi) {
+        IntVect ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+        MultiFab  m_var(ba2d[lev],dmap[lev],1,ng);
+        MultiFab* dst = nullptr;
+
+        // U*
+        std::string UstarFileName(restart_chkfile + "/Level_0/Ustar_H");
+        if (amrex::FileExists(UstarFileName)) {
+            dst = m_SurfaceLayer->get_u_star(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Ustar"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+
+        // W*
+        std::string WstarFileName(restart_chkfile + "/Level_0/Wstar_H");
+        if (amrex::FileExists(WstarFileName)) {
+            dst = m_SurfaceLayer->get_w_star(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Wstar"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+
+        // T*
+        std::string TstarFileName(restart_chkfile + "/Level_0/Tstar_H");
+        if (amrex::FileExists(TstarFileName)) {
+            dst = m_SurfaceLayer->get_t_star(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Tstar"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+
+        // Q*
+        std::string QstarFileName(restart_chkfile + "/Level_0/Qstar_H");
+        if (amrex::FileExists(QstarFileName)) {
+            dst = m_SurfaceLayer->get_q_star(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qstar"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+
+        // Olen
+        std::string OlenFileName(restart_chkfile + "/Level_0/Olen_H");
+        if (amrex::FileExists(OlenFileName)) {
+            dst = m_SurfaceLayer->get_olen(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Olen"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+
+        // PBLH
+        std::string PBLHFileName(restart_chkfile + "/Level_0/PBLH_H");
+        if (amrex::FileExists(PBLHFileName)) {
+            dst = m_SurfaceLayer->get_pblh(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PBLH"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+
+        // Z0
+        std::string Z0FileName(restart_chkfile + "/Level_0/Z0_H");
+        if (amrex::FileExists(Z0FileName)) {
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
+            for (amrex::MFIter mfi(m_var); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.growntilebox();
-                z0->copy<RunOn::Host>(z0_in[mfi], bx);
+                FArrayBox* most_z0 = (m_SurfaceLayer->get_z0(lev));
+                most_z0->copy<RunOn::Device>(m_var[mfi], bx);
             }
         }
     }

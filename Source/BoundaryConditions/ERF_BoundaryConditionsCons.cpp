@@ -1,5 +1,6 @@
 #include "AMReX_PhysBCFunct.H"
-#include <ERF_PhysBCFunct.H>
+#include "ERF_PhysBCFunct.H"
+#include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
 
@@ -18,7 +19,8 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                                    const Array4<Real const>& xvel_arr,
                                                    const Array4<Real const>& yvel_arr,
                                                    const Box& bx, const Box& domain,
-                                                   int icomp, int ncomp, IntVect ng)
+                                                   int icomp, int ncomp, IntVect ng,
+                                                   const Real /*time*/)
 {
     BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = lbound(domain);
@@ -223,9 +225,9 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,dest_comp) =  dest_arr(iflip,j,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
-                } else if (l_bc_type == ERFBCType::hoextrapcc) {
+                } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_i = (dom_lo.x - i);
-                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_i)*dest_arr(dom_lo.x,j,k,dest_comp) - delta_i*dest_arr(dom_lo.x+1,j,k,dest_comp) ;
+                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_i)*dest_arr(dom_lo.x,j,k,dest_comp) - delta_i*dest_arr(dom_lo.x+1,j,k,dest_comp);
                 }
             },
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
@@ -241,9 +243,9 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,dest_comp) =  dest_arr(iflip,j,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(iflip,j,k,dest_comp);
-                } else if (h_bc_type == ERFBCType::hoextrapcc) {
+                } else if (h_bc_type == ERFBCType::hoextrap) {
                     Real delta_i = (i - dom_hi.x);
-                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_i)*dest_arr(dom_hi.x,j,k,dest_comp) - delta_i*dest_arr(dom_hi.x-1,j,k,dest_comp) ;
+                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_i)*dest_arr(dom_hi.x,j,k,dest_comp) - delta_i*dest_arr(dom_hi.x-1,j,k,dest_comp);
                 }
             }
         );
@@ -272,9 +274,9 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,jflip,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
-                } else if (l_bc_type == ERFBCType::hoextrapcc) {
+                } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_j = (dom_lo.y - j);
-                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_j)*dest_arr(i,dom_lo.y,k,dest_comp) - delta_j*dest_arr(i,dom_lo.y+1,k,dest_comp) ;
+                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_j)*dest_arr(i,dom_lo.y,k,dest_comp) - delta_j*dest_arr(i,dom_lo.y+1,k,dest_comp);
                 }
 
             },
@@ -291,7 +293,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,jflip,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,jflip,k,dest_comp);
-                } else if (h_bc_type == ERFBCType::hoextrapcc) {
+                } else if (h_bc_type == ERFBCType::hoextrap) {
                     Real delta_j = (j - dom_hi.y);
                     dest_arr(i,j,k,dest_comp) = (1.0 + delta_j)*dest_arr(i,dom_hi.y,k,dest_comp) - delta_j*dest_arr(i,dom_hi.y-1,k,dest_comp);
                 }
@@ -317,7 +319,9 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
 void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
                                                     const Array4<Real const>& z_phys_nd,
                                                     const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                                    int icomp, int ncomp, bool do_terrain_adjustment)
+                                                    int icomp, int ncomp,
+                                                    const Real /*time*/,
+                                                    bool do_terrain_adjustment)
 {
     BL_PROFILE_VAR("impose_vertical_cons_bcs()",impose_vertical_cons_bcs);
     const auto& dom_lo = lbound(domain);
@@ -431,10 +435,10 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 } else if (l_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,j,kflip,dest_comp);
                 } else if (l_bc_type == ERFBCType::neumann) {
-                    Real delta_z = (dom_lo.z - k) / dxInv[2];
+                    Real delta_z = Compute_Zrel_AtCellCenter(i,j,k,z_phys_nd);
                     dest_arr(i,j,k,dest_comp) = dest_arr(i,j,dom_lo.z,dest_comp) -
                         delta_z*l_bc_neumann_vals_d[bc_comp][2]*dest_arr(i,j,dom_lo.z,Rho_comp);
-                } else if (l_bc_type == ERFBCType::hoextrapcc) {
+                } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_k = (dom_lo.z - k);
                     dest_arr(i,j,k,dest_comp) = (1.0 + delta_k)*dest_arr(i,j,dom_lo.z,dest_comp) - delta_k*dest_arr(i,j,dom_lo.z+1,dest_comp);
                 }
@@ -456,7 +460,8 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 } else if (h_bc_type == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,dest_comp) = -dest_arr(i,j,kflip,dest_comp);
                 } else if (h_bc_type == ERFBCType::neumann) {
-                    Real delta_z = (k - dom_hi.z) / dxInv[2];
+                    Real delta_z = Compute_Z_AtCellCenter(i,j,k       ,z_phys_nd)
+                                 - Compute_Z_AtCellCenter(i,j,dom_hi.z,z_phys_nd);
                     if( (icomp+n) == Rho_comp ) {
                         dest_arr(i,j,k,dest_comp) = dest_arr(i,j,dom_hi.z,dest_comp) +
                             delta_z*l_bc_neumann_vals_d[bc_comp][5];
@@ -464,7 +469,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                         dest_arr(i,j,k,dest_comp) = dest_arr(i,j,dom_hi.z,dest_comp) +
                             delta_z*l_bc_neumann_vals_d[bc_comp][5]*dest_arr(i,j,dom_hi.z,Rho_comp);
                     }
-                } else if (h_bc_type == ERFBCType::hoextrapcc){
+                } else if (h_bc_type == ERFBCType::hoextrap){
                     Real delta_k = (k - dom_hi.z);
                     dest_arr(i,j,k,dest_comp) = (1.0 + delta_k)*dest_arr(i,j,dom_hi.z,dest_comp) - delta_k*dest_arr(i,j,dom_hi.z-1,dest_comp);
                 }

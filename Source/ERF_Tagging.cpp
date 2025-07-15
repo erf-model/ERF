@@ -11,11 +11,69 @@ using namespace amrex;
  * @param[in] time current time
 */
 
+#ifdef ERF_USE_NETCDF
+Box
+read_subdomain_from_wrfinput (int lev, const std::string& fname, int& ratio);
+#endif
+
 void
 ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 {
     const int clearval = TagBox::CLEAR;
     const int   tagval = TagBox::SET;
+
+
+#ifdef ERF_USE_NETCDF
+    if (solverChoice.init_type == InitType::WRFInput) {
+        int ratio;
+        Box subdomain;
+        if (!nc_init_file[levc+1].empty()) {
+            amrex::Print() << "WRFIinput file to read: " << nc_init_file[levc+1][0] << std::endl;
+            subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][0], ratio);
+            amrex::Print() << " WRFInput subdomain at level " << levc+1 << " is " << subdomain << std::endl;
+        }
+
+        if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
+            amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
+            amrex::Print() << "The inputs file has refinement ratio = " << ref_ratio[levc] << std::endl;
+            amrex::Abort("These must be the same -- please edit your inputs file and try again.");
+        }
+
+        subdomain.coarsen(IntVect(ratio,ratio,1));
+
+        // We assume there is only one subdomain at levc; otherwise we don't know
+        //     which one is the parent of the fine region we are trying to create
+        AMREX_ALWAYS_ASSERT(subdomains[levc].size() == 1);
+
+        // We assume there is only one box in the first subdomain at levc; otherwise we don't know
+        //    how to compute the offset
+        AMREX_ALWAYS_ASSERT(subdomains[levc][0].size() == 1);
+
+        Box coarser_level(subdomains[levc][0].minimalBox());
+        subdomain.shift(coarser_level.smallEnd());
+
+        if (verbose > 0) {
+            amrex::Print() << " Crse subdomain to be tagged is" << subdomain << std::endl;
+        }
+
+        Box new_fine(subdomain); new_fine.refine(IntVect(ratio,ratio,1));
+        num_boxes_at_level[levc+1] = 1;
+        boxes_at_level[levc+1].push_back(new_fine);
+
+        for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
+            auto tag_arr = tags.array(mfi);  // Get device-accessible array
+
+            Box bx = mfi.validbox(); bx &= subdomain;
+
+            if (!bx.isEmpty()) {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    tag_arr(i,j,k) = TagBox::SET;
+                });
+            }
+        }
+        return;
+    }
+#endif
 
     //
     // Make sure the ghost cells of the level we are tagging at are filled
@@ -98,7 +156,22 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     (ref_tags[j].Field() == "terrain_blanking") )
         {
             MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,1);
-
+        } else if (ref_tags[j].Field() == "velmag") {
+            mf->setVal(0.0);
+            ParmParse pp(pp_prefix);
+            Vector<std::string> refinement_indicators;
+            pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
+            Real velmag_threshold = 1e10;
+            for (int i=0; i<refinement_indicators.size(); ++i)
+            {
+                if(refinement_indicators[i]=="hurricane_tracker"){
+                    std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
+                    ParmParse ppr(ref_prefix);
+                    ppr.get("value_greater",velmag_threshold);
+                    break;
+                }
+            }
+            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, false, &tags);
 #ifdef ERF_USE_PARTICLES
         } else {
             //
@@ -277,6 +350,7 @@ ERF::refinement_criteria_setup ()
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
+
                 if (solverChoice.init_type == InitType::WRFInput) {
                     if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
                         amrex::Error("Number of boxes doesn't match number of input files");
@@ -315,6 +389,7 @@ ERF::refinement_criteria_setup ()
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
+
                 if (solverChoice.init_type == InitType::WRFInput) {
                     if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
                         amrex::Error("Number of boxes doesn't match number of input files");
@@ -370,4 +445,113 @@ ERF::refinement_criteria_setup ()
             }
         } // loop over criteria
     } // if max_level > 0
+}
+
+void
+ERF::HurricaneTracker(int levc,
+                      const MultiFab& U_new,
+                      const MultiFab& V_new,
+                      const MultiFab& W_new,
+                      const Real velmag_threshold,
+                      const bool is_track_io,
+                      TagBoxArray* tags)
+{
+    const auto dx = geom[levc].CellSizeArray();
+    const auto prob_lo = geom[levc].ProbLoArray();
+
+    const int ncomp = AMREX_SPACEDIM; // Number of components (3 for 3D)
+
+    Gpu::DeviceVector<Real> d_coords(3, 0.0); // Initialize to -1
+    Real* d_coords_ptr = d_coords.data(); // Get pointer to device vector
+    Gpu::DeviceVector<int> d_found(1,0);
+    int* d_found_ptr = d_found.data();
+
+    MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
+    average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
+
+    // Loop through MultiFab using MFIter
+    for (MFIter mfi(mf_cc_vel); mfi.isValid(); ++mfi) {
+        const Box& box = mfi.validbox(); // Get the valid box for the current MFIter
+        const Array4<const Real>& vel_arr = mf_cc_vel.const_array(mfi); // Get the array for this MFIter
+
+        // ParallelFor loop to check velocity magnitudes on the GPU
+        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+            // Access velocity components using ncomp
+            Real magnitude = 0.0; // Initialize magnitude
+
+            for (int comp = 0; comp < ncomp; ++comp) {
+                Real vel = vel_arr(i, j, k, comp); // Access the component for each (i, j, k)
+                magnitude += vel * vel; // Sum the square of the components
+            }
+
+            magnitude = std::sqrt(magnitude)*3.6; // Calculate magnitude
+            Real x = prob_lo[0] + (i + 0.5) * dx[0];
+            Real y = prob_lo[1] + (j + 0.5) * dx[1];
+            Real z = prob_lo[2] + (k + 0.5) * dx[2];
+
+            // Check if magnitude exceeds threshold
+            if (z < 2.0e3 && magnitude > velmag_threshold) {
+                // Use atomic operations to set found flag and store coordinates
+                Gpu::Atomic::Add(&d_found_ptr[0], 1); // Mark as found
+
+                // Store coordinates
+                Gpu::Atomic::Add(&d_coords_ptr[0],x); // Store x index
+                Gpu::Atomic::Add(&d_coords_ptr[1],y); // Store x index
+                Gpu::Atomic::Add(&d_coords_ptr[2],z); // Store x index
+            }
+        });
+    }
+
+    // Synchronize to ensure all threads complete their execution
+    amrex::Gpu::streamSynchronize(); // Wait for all GPU threads to finish
+
+    Vector<int> h_found(1,0);
+    Gpu::copy(Gpu::deviceToHost, d_found.begin(), d_found.end(), h_found.begin());
+    ParallelAllReduce::Sum(h_found.data(),
+                           h_found.size(),
+                           ParallelContext::CommunicatorAll());
+
+    Real eye_x, eye_y;
+    // Broadcast coordinates if found
+    if (h_found[0] > 0) {
+        Vector<Real> h_coords(3,-1e10);
+        Gpu::copy(Gpu::deviceToHost, d_coords.begin(), d_coords.end(), h_coords.begin());
+
+        ParallelAllReduce::Sum(h_coords.data(),
+                               h_coords.size(),
+                               ParallelContext::CommunicatorAll());
+
+        eye_x = h_coords[0]/h_found[0];
+        eye_y = h_coords[1]/h_found[0];
+
+        // Data structure to hold the hurricane track for I/O
+        if (amrex::ParallelDescriptor::IOProcessor() and is_track_io) {
+            hurricane_track_xy.push_back({eye_x, eye_y});
+        }
+
+        if(is_track_io) {
+            return;
+        }
+
+        Real rad_tag = 3e5*std::pow(2, max_level-1-levc);
+
+        for (MFIter mfi(*tags); mfi.isValid(); ++mfi) {
+            TagBox& tag = (*tags)[mfi];
+            auto tag_arr = tag.array();  // Get device-accessible array
+
+            const Box& tile_box = mfi.tilebox(); // The box for this tile
+
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                // Compute cell center coordinates
+                Real x = prob_lo[0] + (i + 0.5) * dx[0];
+                Real y = prob_lo[1] + (j + 0.5) * dx[1];
+
+                Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
+
+                if (dist < rad_tag) {
+                    tag_arr(i,j,k) = TagBox::SET;
+                }
+            });
+        }
+    }
 }

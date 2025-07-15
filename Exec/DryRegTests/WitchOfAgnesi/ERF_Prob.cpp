@@ -44,8 +44,8 @@ Problem::init_custom_pert (
     Array4<Real const> const& /*z_cc*/,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
-    Array4<Real const> const& /*mf_u*/,
-    Array4<Real const> const& /*mf_v*/,
+    Array4<Real const> const& mf_u,
+    Array4<Real const> const& mf_v,
     const SolverChoice& sc)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
@@ -83,7 +83,9 @@ Problem::init_custom_pert (
     if (sc.terrain_type == TerrainType::StaticFittedMesh) {
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            z_vel_pert(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel_pert, y_vel_pert, z_nd, dxInv);
+            z_vel_pert(i, j, k) = WFromOmega(i, j, k, 0.0,
+                                             x_vel_pert, y_vel_pert,
+                                             mf_u, mf_v, z_nd, dxInv);
         });
     } else {
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -101,6 +103,21 @@ Problem::init_custom_terrain (
     FArrayBox& terrain_fab,
     const Real& /*time*/)
 {
+    //
+    // We put this here as a convenience for testing the map factor implementation
+    // Note that these factors must match those in Source/ERF_MakeNewArrays.cpp
+    //
+    ParmParse pp("erf");
+    bool test_mapfactor;
+    pp.query("test_mapfactor",test_mapfactor);
+
+    Real mf_x;
+    if (test_mapfactor) {
+        mf_x = 0.5;
+    } else {
+        mf_x = 1.;
+    }
+
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();
     auto ProbLoArr = geom.ProbLoArray();
@@ -108,14 +125,12 @@ Problem::init_custom_terrain (
 
     const amrex::Box& domain = geom.Domain();
     int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-    // int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
     int domlo_z = domain.smallEnd(2);
 
     // User function parameters
     Real a    = 0.5;
-    Real num  = 8 * a * a * a;
-    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
-    // Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
+    Real num  = 8. * a * a * a;
+    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]) / mf_x;
 
     // if hm is nonzero, then use alternate hill definition
     Real hm = parms.hmax;
@@ -129,6 +144,34 @@ Problem::init_custom_terrain (
     {
         amrex::Array4<Real> const& z_arr = terrain_fab.array();
 
+#if 0
+        Real mf_y;
+        if (test_mapfactor) {
+            mf_y = 0.25;
+        } else {
+            mf_y = 1.;
+        }
+
+        // This is a 3D hill with variation in both the x- and y-directions
+        int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
+        Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]) / mf_y;
+        num  = 8000. * a * a * a;
+
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        {
+            // Clip indices for ghost-cells
+            int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
+            int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
+
+            // Location of nodes
+            Real x = (ProbLoArr[0] + ii * dx[0]) / mf_x - xcen;
+            Real y = (ProbLoArr[1] + jj * dx[1]) / mf_y - ycen;
+
+            // WoA Hill in x-direction
+            z_arr(i,j,k0) = num / (x*x + y*y + 4 * a * a);
+        });
+#else
+        // This is a 2D hill with variation in only the x-direction
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // Clip indices for ghost-cells
@@ -136,8 +179,8 @@ Problem::init_custom_terrain (
             // int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
 
             // Location of nodes
-            Real x = (ProbLoArr[0] + ii * dx[0] - xcen);
-            // Real y = (jj  * dx[1] - ycen);
+            Real x = (ProbLoArr[0] + ii * dx[0] - xcen) * mf_x;
+            // Real y = (ProbLoArr[1] + jj * dx[1] - ycen) * mf_y;
 
             // WoA Hill in x-direction
             if (hm==0) {
@@ -147,5 +190,6 @@ Problem::init_custom_terrain (
                 z_arr(i,j,k0) = hm / (1 + x_L*x_L);
             }
         });
+#endif
     }
 }

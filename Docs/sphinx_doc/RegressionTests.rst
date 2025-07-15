@@ -118,13 +118,13 @@ while the following tests are run nightly:
 | ABL-Deardorff-OMP             | 64 64 64    | Periodic | Periodic | NoSlipWall | None  | LES                             |
 |                               |             |          |          | SlipWall   |       | uses OpenMP                     |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ABL-MOST                      | 64 64 64    | Periodic | Periodic | NoSlipWall | None  | LES with MOST bc                |
+| ABL-MOST                      | 64 64 64    | Periodic | Periodic | SurfLay    | None  | LES with MOST bc                |
 |                               |             |          |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ABL-MOST-OMP                  | 64 64 64    | Periodic | Periodic | MOST       | None  | LES with MOST bc                |
+| ABL-MOST-OMP                  | 64 64 64    | Periodic | Periodic | SurfLay    | None  | LES with MOST bc                |
 |                               |             |          |          | SlipWall   |       | uses OpenMP                     |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ABL-MYNN                      | 2  2  64    | Periodic | Periodic | MOST       | None  | MYNN2.5 Model                   |
+| ABL-MYNN                      | 2  2  64    | Periodic | Periodic | SurfLay    | None  | MYNN2.5 Model                   |
 |                               |             |          |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
 | ABL-Smag                      | 64 64 64    | Periodic | Periodic | NoSlipWall | None  | LES                             |
@@ -133,7 +133,7 @@ while the following tests are run nightly:
 | ABL-Smag-OMP                  | 64 64 64    | Periodic | Periodic | NoSlipWall | None  | LES                             |
 |                               |             |          |          | SlipWall   |       | uses OpenMP                     |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| Bomex                         | 32 32 100   | Periodic | Periodic | MOST       | None  | Kessler_NoRain                  |
+| Bomex                         | 32 32 100   | Periodic | Periodic | SurfLay    | None  | Kessler_NoRain                  |
 |                               |             |          |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
 | Bubble_Kessler                | 100 4 100   | SlipWall | Periodic | SlipWall   | None  | Kessler                         |
@@ -179,7 +179,7 @@ while the following tests are run nightly:
 | IsentropicVortexStationary    | 48 48  4    | Periodic | Periodic | SlipWall   | None  |                                 |
 |                               |             |          |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| MetGrid                       | 140 80 100  | Outflow  | Outflow  | MOST       | None  | init from                       |
+| MetGrid                       | 140 80 100  | Outflow  | Outflow  | SurfLay    | None  | init from                       |
 |                               |             |          |          | SlipWall   |       | metgrid file                    |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
 | MovingTerrain_nosub           | 40  8  79   | Periodic | Periodic | SlipWall   | None  | terrain_type = MovingFittedMesh |
@@ -218,10 +218,10 @@ while the following tests are run nightly:
 | TaylorGreenAdvDiffDoubleDen   | 64 64 64    | Periodic | Periodic | SlipWall   | None  | Density = 2                     |
 |                               |             |          |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| TurbulentInflow               | 64 16 32    | Inflow   | Periodic | MOST       | None  | LES                             |
+| TurbulentInflow               | 64 16 32    | Inflow   | Periodic | SurfLay    | None  | LES                             |
 |                               |             | Outflow  |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| TurbulentInflow_anelastic     | 64 16 32    | Inflow   | Periodic | MOST       | None  | LES                             |
+| TurbulentInflow_anelastic     | 64 16 32    | Inflow   | Periodic | SurfLay    | None  | LES                             |
 |                               |             | Outflow  |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
 | WPS_Test_Terrain              | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from                       |

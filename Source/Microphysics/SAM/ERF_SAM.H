@@ -142,7 +142,7 @@ public:
     Qmoist_Size () override { return SAM::m_qmoist_size; }
 
     int
-    Qstate_Size () override { return SAM::m_qstate_size; }
+    Qstate_Moist_Size () override { return SAM::n_qstate_moist_size; }
 
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
@@ -278,7 +278,7 @@ private:
     int m_qmoist_size = 3;
 
     // Number of qstate variables
-    int m_qstate_size = 6;
+    int n_qstate_moist_size = 6;
 
     // CFL MAX for vertical advection
     static constexpr amrex::Real CFL_MAX = 0.5;

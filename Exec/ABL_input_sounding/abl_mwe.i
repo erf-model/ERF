@@ -22,7 +22,7 @@ zhi.type = "SlipWall"
 zhi.theta_grad   = 0.003    # for case N02
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-#zlo.type                = "Most"
+#zlo.type = "surface_layer"
 #erf.most.z0             = 0.01
 #erf.most.zref           = 5.21 # >=dz/2
 #erf.most.surf_temp_flux = 0.0 # [K-m/s] for case N02
@@ -76,9 +76,10 @@ erf.Ck       = 0.1
 erf.sigma_k  = 1.0
 erf.Ce       = 0.1
 erf.RhoKE_0  = 0.1
+erf.theta_ref = 300.0 # don't specify for variable theta when diagnosing stability
 
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
+erf.sounding_type = Ideal
 
 # PROBLEM PARAMETERS
 # these are zeroed because we are using an input_sounding

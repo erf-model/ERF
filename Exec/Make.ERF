@@ -1,6 +1,10 @@
 AMREX_HOME      ?= $(ERF_HOME)/Submodules/AMReX
-
+ifeq ($(USE_MORR_FORT), TRUE)
+DEFINES += -DERF_USE_MORR_FORT
+BL_NO_FORT = FALSE
+else
 BL_NO_FORT = TRUE
+endif
 
 USE_EB = TRUE
 
@@ -199,6 +203,11 @@ ifeq ($(USE_NOAH), TRUE)
   endif
 endif
 
+
+ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
+include $(ERF_RAD_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_RAD_DIR)
+INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
 
 # If using RRTMGP Radiation, compile relevant source and headers
 #ifeq ($(USE_RRTMGP), TRUE)

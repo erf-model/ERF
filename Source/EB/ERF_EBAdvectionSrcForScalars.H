@@ -36,9 +36,9 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
     CENTERED2 interp_prim_CEN2(cell_prim, 0);
     UPWIND3   interp_prim_UPW3(cell_prim, horiz_upw_frac);
 
-    const amrex::Box xbx = amrex::surroundingNodes(bx,0);
-    const amrex::Box ybx = amrex::surroundingNodes(bx,1);
-    const amrex::Box zbx = amrex::surroundingNodes(bx,2);
+    const amrex::Box xbx = amrex::surroundingNodes(bx,0).grow(amrex::IntVect(0, 1, 1));
+    const amrex::Box ybx = amrex::surroundingNodes(bx,1).grow(amrex::IntVect(1, 0, 1));
+    const amrex::Box zbx = amrex::surroundingNodes(bx,2).grow(amrex::IntVect(1, 1, 0));
 
     amrex::ParallelFor(xbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -52,18 +52,20 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
 
             if (avg_xmom(i,j,k)>0.)
             {
-                for (icell=0; icell<ncells_h; ++icell) {
-                    if (cellflag(i-icell-1,j,k).isCovered()) {
+                for (int ii=0; ii<ncells_h; ++ii) {
+                    if (cellflag(i-ii-1,j,k).isCovered()) {
                         break;
                     }
+                    icell++;
                 }
             }
             else if (avg_xmom(i,j,k)<0.)
             {
-                for (icell=0; icell<ncells_h; ++icell) {
-                    if (cellflag(i+icell,j,k).isCovered()) {
+                for (int ii=0; ii<ncells_h; ++ii) {
+                    if (cellflag(i+ii,j,k).isCovered()) {
                         break;
                     }
+                    icell++;
                 }
             }
 
@@ -72,7 +74,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
             const int prim_index = cons_index - 1;
             amrex::Real interpx(0.);
 
-            if (icell==ncells_h-1) {
+            if (icell==ncells_h) {
                 interp_prim_h.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i,j,k));
             } else {
                 if (icell==1) {
@@ -101,18 +103,20 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
 
             if (avg_ymom(i,j,k)>0.)
             {
-                for (jcell=0; jcell<ncells_h; ++jcell) {
-                    if (cellflag(i,j-jcell-1,k).isCovered()) {
+                for (int jj=0; jj<ncells_h; ++jj) {
+                    if (cellflag(i,j-jj-1,k).isCovered()) {
                         break;
                     }
+                    jcell++;
                 }
             }
             else if (avg_ymom(i,j,k)<0.)
             {
-                for (jcell=0; jcell<ncells_h; ++jcell) {
-                    if (cellflag(i,j+jcell,k).isCovered()) {
+                for (int jj=0; jj<ncells_h; ++jj) {
+                    if (cellflag(i,j+jj,k).isCovered()) {
                         break;
                     }
+                    jcell++;
                 }
             }
 
@@ -121,7 +125,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
             const int prim_index = cons_index - 1;
             amrex::Real interpy(0.);
 
-            if (jcell==ncells_h-1) {
+            if (jcell==ncells_h) {
                 interp_prim_h.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i,j,k));
             } else {
                 if (jcell==1) {
@@ -152,18 +156,20 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
 
             if (avg_zmom(i,j,k)>0.)
             {
-                for (kcell=0; kcell<ncells_v; ++kcell) {
-                    if (cellflag(i,j,k-kcell-1).isCovered()) {
+                for (int kk=0; kk<ncells_v; ++kk) {
+                    if (cellflag(i,j,k-kk-1).isCovered()) {
                         break;
                     }
+                    kcell++;
                 }
             }
             else if (avg_zmom(i,j,k)<0.)
             {
-                for (kcell=0; kcell<ncells_v; ++kcell) {
-                    if (cellflag(i,j,k+kcell).isCovered()) {
+                for (int kk=0; kk<ncells_v; ++kk) {
+                    if (cellflag(i,j,k+kk).isCovered()) {
                         break;
                     }
+                    kcell++;
                 }
             }
 
@@ -172,7 +178,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
             const int prim_index = cons_index - 1;
             amrex::Real interpz(0.);
 
-            if (kcell==ncells_v-1) {
+            if (kcell==ncells_v) {
                 interp_prim_v.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i,j,k));
             } else {
                 if (kcell==1) {

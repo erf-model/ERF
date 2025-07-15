@@ -5,9 +5,41 @@
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
+Box
+read_subdomain_from_wrfinput(int lev, const std::string& fname, int& ratio)
+{
+    int  is, js;
+    int  nx, ny, nz;
+    if (ParallelDescriptor::IOProcessor()) {
+        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+        { // Global Attributes (int)
+            std::vector<int> attr;
+            ncf.get_attr("WEST-EAST_GRID_DIMENSION"  , attr); nx = attr[0]-1;
+            ncf.get_attr("SOUTH-NORTH_GRID_DIMENSION", attr); ny = attr[0]-1;
+            ncf.get_attr("BOTTOM-TOP_GRID_DIMENSION" , attr); nz = attr[0]-1;
+            amrex::Print() << "Have read (nx,ny,nz) = " << nx << " " << ny << " " << nz << std::endl;
+            ncf.get_attr("I_PARENT_START", attr)   ; is    = attr[0]-1;
+            ncf.get_attr("J_PARENT_START", attr)   ; js    = attr[0]-1;
+            ncf.get_attr("PARENT_GRID_RATIO", attr); ratio = attr[0];
+        }
+        ncf.close();
+        amrex::Print() << "Have read (parent_ilo,parent_jlo) = " << is << " " << js << std::endl;
+        amrex::Print() << "Have read refinement ratio        = " << ratio << std::endl;
+    }
+
+    amrex::ParallelDescriptor::Bcast(&is   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&js   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&nx   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&ny   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&nz   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&ratio,1,amrex::ParallelDescriptor::IOProcessorNumber());
+
+    return Box( IntVect(ratio*is,ratio*js,0), IntVect(ratio*is+nx-1, ratio*js+ny-1, nz-1) );
+}
+
 void
 read_from_wrfinput (int lev,
-                    const Box& domain,
+                    const Box& subdomain,
                     const std::string& fname,
                     FArrayBox& NC_fab,
                     const std::string& NC_name,
@@ -42,22 +74,24 @@ read_from_wrfinput (int lev,
         amrex::ignore_unused(NC_dateTime); amrex::ignore_unused(NC_epochTime);
 
         // Verify the inputs geometry matches what the NETCDF file has
-        Real rtol   = 1.0e-7;
-        Real Len_x = NC_dx * Real(NC_nx-1);
-        Real Len_y = NC_dy * Real(NC_ny-1);
-        if (std::fabs((Len_x - (geom.ProbHi(0) - geom.ProbLo(0))) / Len_x) > rtol) {
-            Print() << "X problem extent " << (geom.ProbHi(0) - geom.ProbLo(0)) << " does not match NETCDF file "
-                    << Len_x << "!\n";
-            Print() << "dx: " << NC_dx << ' ' << "Nx: " << NC_nx-1 << "\n";
-            Abort("Domain specification error");
-        }
-        if (std::fabs((Len_y - (geom.ProbHi(1) - geom.ProbLo(1))) / Len_y) > rtol) {
-            Print() << "Y problem extent " << (geom.ProbHi(1) - geom.ProbLo(1)) << " does not match NETCDF file "
-                    << Len_y << "!\n";
-            Print() << "dy: " << NC_dy << ' ' << "Ny: " << NC_ny-1 << "\n";
-            Abort("Domain specification error");
-        }
-    }
+        if (lev == 0) {
+            Real rtol   = 1.0e-7;
+            Real Len_x = NC_dx * Real(NC_nx-1);
+            Real Len_y = NC_dy * Real(NC_ny-1);
+            if (std::fabs((Len_x - (geom.ProbHi(0) - geom.ProbLo(0))) / Len_x) > rtol) {
+                Print() << "X problem extent " << (geom.ProbHi(0) - geom.ProbLo(0)) << " does not match NETCDF file "
+                            << Len_x << "!\n";
+                Print() << "dx: " << NC_dx << ' ' << "Nx: " << NC_nx-1 << "\n";
+                Abort("Domain specification error");
+            }
+            if (std::fabs((Len_y - (geom.ProbHi(1) - geom.ProbLo(1))) / Len_y) > rtol) {
+                Print() << "Y problem extent " << (geom.ProbHi(1) - geom.ProbLo(1)) << " does not match NETCDF file "
+                        << Len_y << "!\n";
+                Print() << "dy: " << NC_dy << ' ' << "Ny: " << NC_ny-1 << "\n";
+                Abort("Domain specification error");
+            }
+        } // lev == 0
+    } // IOProc
 
     Vector<FArrayBox*> NC_fabs; NC_fabs.push_back(&NC_fab);
     Vector<std::string> NC_names; NC_names.push_back(NC_name);
@@ -73,7 +107,7 @@ read_from_wrfinput (int lev,
     }
     else if (NC_name == "MAPFAC_U" || NC_name == "MAPFAC_V" || NC_name == "MAPFAC_M" ||
              NC_name == "MUB"      || NC_name == "SST"      || NC_name == "LANDMASK"  ||
-             NC_name == "XLAT_V"   || NC_name == "XLONG_U")
+             NC_name == "XLAT_V"   || NC_name == "XLONG_U"  || NC_name == "TSK")
     {
         // Note: staggering is handled in `fill_fab_from_arrays`
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
@@ -84,7 +118,7 @@ read_from_wrfinput (int lev,
     }
 
     // Read the netcdf file and fill these FABs
-    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_names, NC_dim_types, NC_fabs, successes);
+    BuildFABsFromNetCDFFile<FArrayBox,Real>(subdomain, fname, NC_names, NC_dim_types, NC_fabs, successes);
 
     // Success was already broadcast in ERF_NCWpsFile.H
     success = successes[0];

@@ -17,7 +17,7 @@ xhi.type = "Outflow"
 ylo.type = "Outflow"
 yhi.type = "Outflow"
 
-zlo.type      = "Most"
+zlo.type = "surface_layer"
 erf.most.z0   =  0.1
 erf.most.zref = 120.0
 zhi.type = "SlipWall"

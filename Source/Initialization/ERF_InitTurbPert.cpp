@@ -20,15 +20,6 @@ ERF::turbPert_update (const int lev, const Real local_dt)
     MultiFab xvel_data(lev_new[Vars::xvel], make_alias, 0, 1);
     MultiFab yvel_data(lev_new[Vars::yvel], make_alias, 0, 1);
 
-    // This logic is done once then stored within ERF_TurbPertStruct.H
-    turbPert.pt_type = -1;
-    if (solverChoice.pert_type == PerturbationType::Source) {
-        turbPert.pt_type = 0;
-    } else if (solverChoice.pert_type == PerturbationType::Direct) {
-        turbPert.pt_type = 1;
-    }
-    AMREX_ALWAYS_ASSERT(turbPert.pt_type >= 0);
-
     // Computing perturbation update time
     turbPert.calc_tpi_update(lev, local_dt, xvel_data, yvel_data, cons_data);
 

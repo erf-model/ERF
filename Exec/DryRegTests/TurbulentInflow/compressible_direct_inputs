@@ -21,8 +21,8 @@ xhi.type = "Outflow"
 zhi.type = "SlipWall"
 #zlo.type = "NoSlipWall"
 
-zlo.type = "Most"
-erf.most.flux_type = "custom"
+zlo.type = "surface_layer"
+erf.surface_layer.flux_type = "custom"
 erf.most.ustar  = 0.0395   # z=10.
 erf.most.tstar  = 0. # theta flux
 erf.most.qstar  = 0. # qv    flux

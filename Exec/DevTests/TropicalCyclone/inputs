@@ -26,7 +26,7 @@ ylo.type = "Outflow"
 xhi.type = "Outflow"
 yhi.type = "Outflow"
 
-zlo.type = "Most"
+zlo.type = "surface_layer"
 erf.use_explicit_most   = 1
 erf.most.surf_temp      = 301.14
 erf.most.zref           = 10.
@@ -62,7 +62,7 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta KE
 # SOLVER CHOICE
 erf.use_gravity = true
 erf.pbl_type = "MYNN25"
-erf.advect_KE = false
+erf.advect_tke = false
 erf.les_type = "None"
 erf.molec_diff_type = "None"
 #erf.molec_diff_type = "Constant"
@@ -95,5 +95,5 @@ prob.KE_0  = 0.5
 
 # INITIALIZATION WITH ATM DATA
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = 1
+erf.sounding_type = Ideal
 erf.input_sounding_file = "input_sounding_meso"

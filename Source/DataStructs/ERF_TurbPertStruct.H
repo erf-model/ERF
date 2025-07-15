@@ -15,11 +15,27 @@
     the angle of the inflow into consideration.
 */
 
+AMREX_ENUM(PerturbationType,
+    Source, Direct, CPM, None
+);
+
 struct TurbulentPerturbation {
 
   public:
 
     ~TurbulentPerturbation () {}
+
+    void init_tpi_type (const PerturbationType& pert_type)
+    {
+        if (pert_type == PerturbationType::Source) {
+            pt_type = 0;
+        } else if (pert_type == PerturbationType::Direct) {
+            pt_type = 1;
+        } else if (pert_type == PerturbationType::CPM) {
+            pt_type = 2;
+        }
+        AMREX_ALWAYS_ASSERT(pt_type >= 0);
+    }
 
     // Initializing Perturbation Region
     // Currently only support perturbation in the x and y direction
@@ -55,6 +71,7 @@ struct TurbulentPerturbation {
         pp.query("perturbation_nondimensional",tpi_nonDim);
         pp.query("perturbation_T_infinity",tpi_Tinf);
         pp.query("perturbation_T_intensity",tpi_Ti);
+        pp.query("perturbation_Ug",input_Ug);
 
         // Check variables message
         if (tpi_layers < 0) { amrex::Abort("Please provide a valid perturbation layer value (ie. 3-5)"); }
@@ -63,6 +80,7 @@ struct TurbulentPerturbation {
             if (tpi_boxDim[i] == 0) { amrex::Abort("Please provide valid dimensions for perturbation boxes."); }
         }
         if (tpi_nonDim < 0.) { amrex::Abort("Please provide a valid nondimensional number (ie. Ri = 0.042)"); }
+        if (input_Ug < 0.) { amrex::Abort("Please provide a valid geostrophic wind speed (ie. Ug = 10.0 m/s)"); }
         if (tpi_Tinf < 0.) { amrex::Abort("Please provide a valid ambient temperature value (ie. T_0 = T_infty)"); }
         if (tpi_Ti < 0.) { amrex::Abort("Please provide a valid temperature intensity value (ie. 0-1.0)"); }
 
@@ -141,15 +159,21 @@ struct TurbulentPerturbation {
 
         if (lev == 0) {
             pb_mag.resize(max_level+1);
+            pb_dir.resize(max_level+1);
             pb_netZero.resize(max_level+1);
             pb_interval.resize(max_level+1);
             pb_local_etime.resize(max_level+1);
             pb_amp.resize(max_level+1);
             pb_cell.resize(max_level+1);
+            tpi_Lpb.resize(max_level+1);
+            tpi_Wpb.resize(max_level+1);
+            tpi_Hpb.resize(max_level+1);
+            tpi_lref.resize(max_level+1);
         }
 
-        // Initializing mean magnitude vector
+        // Initializing mean magnitude and direction vectors
         pb_mag[lev].resize(pb_ba[lev].size(), 0.);
+        pb_dir[lev].resize(pb_ba[lev].size(), 0.);
         pb_netZero[lev].resize(pb_ba[lev].size(), 0.);
 
         // Set size of vector and initialize
@@ -162,12 +186,10 @@ struct TurbulentPerturbation {
         pb_cell[lev].setVal(0.);
 
         // Computing perturbation reference length
-        tpi_Lpb = tpi_boxDim[0]*dx[0];
-        tpi_Wpb = tpi_boxDim[1]*dx[1];
-        tpi_Hpb = tpi_boxDim[2]*dx[2];
-        if (lev == 0) { // only need to define reference length scale for coarses level
-            tpi_lref = sqrt(tpi_Lpb*tpi_Lpb + tpi_Wpb*tpi_Wpb);
-        }
+        tpi_Lpb[lev] = tpi_boxDim[0]*dx[0];
+        tpi_Wpb[lev] = tpi_boxDim[1]*dx[1];
+        tpi_Hpb[lev] = tpi_boxDim[2]*dx[2];
+        tpi_lref[lev] = sqrt(tpi_Lpb[lev]*tpi_Lpb[lev] + tpi_Wpb[lev]*tpi_Wpb[lev]);
 
         tpi_pert_adjust = 0.;
         tpi_net_buoyant = 0.;
@@ -187,7 +209,7 @@ struct TurbulentPerturbation {
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_nondimensional: " << tpi_nonDim << "\n";
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_T_infinity: " << tpi_Tinf << "\n";
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_T_intensity: " << tpi_Ti << "\n";
-        amrex::PrintToFile("BoxPerturbationOutput") << "Reference length per box = " << tpi_lref << "\n\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << "Reference length per box = " << tpi_lref[lev] << "\n\n";
         amrex::PrintToFile("BoxPerturbationOutput") << "Turbulent perturbation BoxArray:\n" << pb_ba[lev] << "\n";
         */
     }
@@ -212,10 +234,29 @@ struct TurbulentPerturbation {
 
         auto m_ixtype = mf_cons.boxArray().ixType(); // safety step
 
+        // Seed the random generator at 1024UL for regression testing
+        int fix_random_seed = 0;
+        amrex::ParmParse pp("erf");
+        pp.query("fix_random_seed", fix_random_seed);
+        if (fix_random_seed) {
+            // We need this one for the ParalleForRNG used in calc_tpi
+            amrex::InitRandom(1024UL);
+
+            // We need this one for the RandomReal below
+            srand(1024UL);
+        }
+
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
 
-            // Check if the local elapsed time is greater than the update interval
-            if ( pb_interval[lev][boxIdx] <= pb_local_etime[lev][boxIdx] ) {
+            bool update_box = true; // initialize flag
+            // Check if the local elapsed time is greater than the update interval and don't go into boxes the rank doesn't own
+            if (pt_type == 2) {
+                // for CPM, perturbation boxes/cells refresh after boxes have advected box width/length * num_layers (advective time scale)
+                update_box = ((pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx]*tpi_layers) && pb_local_etime[lev][boxIdx] != -1.0);
+            } else {
+                update_box = ( pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx] && pb_local_etime[lev][boxIdx] != -1.0 );
+            }
+            if ( update_box ) {
 
                 // Compute mean velocity of each perturbation box
                 calc_tpi_meanMag_perBox(boxIdx, lev, mf_cons, mf_xvel, mf_yvel);
@@ -223,8 +264,24 @@ struct TurbulentPerturbation {
                 // Only the rank owning the box will be able to access the storage location
                 // Done for parallelism to avoid Inf being stored in array
                 if (pb_mag[lev][boxIdx] !=0.) {
-                    amrex::Real interval = tpi_lref / pb_mag[lev][boxIdx];
+                    amrex::Real interval = 0.0;
+                    if (pt_type == 2) {
+                        //  Wind direction correction for angled wind
+                        amrex::Real wind_direction = pb_dir[lev][boxIdx];
+                        if (wind_direction > PI / 4) { wind_direction = PI / 2 - wind_direction; }
+                        // CPM only cares about the side length of a box, min call maintains flexibility.
+                        interval = 1.0 / std::cos(wind_direction) * std::min(tpi_Lpb[lev], tpi_Wpb[lev]) / pb_mag[lev][boxIdx];
+                    } else {
+                        interval = tpi_lref[lev] / pb_mag[lev][boxIdx];
+                    }
                     pb_interval[lev][boxIdx] = RandomReal(0.9*interval,1.1*interval); // 10% variation
+
+                    // Reset local elapsed time
+                    pb_local_etime[lev][boxIdx] = 0.;
+                } else {
+                    // this box is not on this rank, we shouldn't enter it again.
+                    // Technically, all boxes are looped through on the very first step of a simulation and this is when this is set
+                    pb_local_etime[lev][boxIdx] = -1.0;
                 }
 
                 // Trigger amplitude calculation per perturbation box
@@ -233,26 +290,31 @@ struct TurbulentPerturbation {
                 // Trigger random amplitude storage per cell within perturbation box
                 pseudoRandomPert(boxIdx, lev, m_ixtype);
 
-                // Reset local elapsed time
-                pb_local_etime[lev][boxIdx] = 0.;
             } else {
-                // Increase by timestep of level 0
-                pb_local_etime[lev][boxIdx] += dt;
+                // set perturbation amplitudes to 0 for CPM. A little inefficient but leverages as much as existing code as possible.
+                if (pt_type == 2) { zero_amp(boxIdx, lev, m_ixtype); }
+
+                // Increase by timestep of level 0 (but only if the box is owned by this rank)
+                if (pb_local_etime[lev][boxIdx] != -1.0) { pb_local_etime[lev][boxIdx] += dt; }
             } // if
 
-            // Per iteration operation of net-zero buoyant force check
-            if (pb_mag[lev][boxIdx] !=0.) netZeroBuoyantAdd(boxIdx, lev);
-            tpi_net_buoyant += pb_netZero[lev][boxIdx];
+            if (pt_type < 2) { // box perturbation method only
+                // Per iteration operation of net-zero buoyant force check
+                if (pb_mag[lev][boxIdx] !=0.) netZeroBuoyantAdd(boxIdx, lev);
+                tpi_net_buoyant += pb_netZero[lev][boxIdx];
+            }
         } // for
 
-        // Normalizing the adjustment based on how many boxes there are
-        // the values within the array is already normalized by the number
-        // of cells within each box
-        tpi_pert_adjust = tpi_net_buoyant / (amrex::Real) pb_ba[lev].size();
+        if (pt_type < 2) { // box perturbation method only
+            // Normalizing the adjustment based on how many boxes there are
+            // the values within the array is already normalized by the number
+            // of cells within each box
+            tpi_pert_adjust = tpi_net_buoyant / (amrex::Real) pb_ba[lev].size();
 
-        // Per iteration operation of net-zero buoyant force adjustment
-        for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
-            if (pb_mag[lev][boxIdx] !=0.) netZeroBuoyantAdjust(boxIdx, lev);
+            // Per iteration operation of net-zero buoyant force adjustment
+            for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
+                if (pb_mag[lev][boxIdx] !=0.) netZeroBuoyantAdjust(boxIdx, lev);
+            }
         }
     }
 
@@ -287,29 +349,34 @@ struct TurbulentPerturbation {
                        const int& boxIdx,
                        const amrex::Real& interval)
     {
-        amrex::Real Um = pb_mag[lev][boxIdx];
         pb_amp[lev][boxIdx] = 0.; // Safety step
+        if (pt_type == 2) { // CPM
+            amrex::Real cp = 1004; // specific heat of air [J/(kg K)]
+            amrex::Real Ec = 0.2; // Eckert number
+            pb_amp[lev][boxIdx] = (input_Ug * input_Ug) / (Ec * cp);
+        } else { // box perturbation
+            amrex::Real Um = pb_mag[lev][boxIdx];
+            amrex::Real beta = 1./tpi_Tinf; // Thermal expansion coefficient
 
-        amrex::Real beta = 1./tpi_Tinf; // Thermal expansion coefficient
+            // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
+            amrex::Real g = CONST_GRAV;
+            // get total refinement ratio on each level
+            int total_ref_ratio = 1;
+            for (int level = lev; level >= 1; level--) {
+                total_ref_ratio *= ref_ratio[level-1][2];
+            }
+            // calculation needs to be scale-aware since the formulation relies on the physical size of the box
+            if (tpi_Ti > 0.) g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb[lev]) * 1 / total_ref_ratio;
 
-        // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
-        amrex::Real g = CONST_GRAV;
-        // get total refinement ratio on each level
-        int total_ref_ratio = 1;
-        for (int level = lev; level >= 1; level--) {
-            total_ref_ratio *= ref_ratio[level-1][2];
-        }
-        // calculation needs to be scale-aware since the formulation relies on the physical size of the box
-        if (tpi_Ti > 0.) g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb) * 1 / total_ref_ratio;
+            // Ma and Senocak (2023) Eq. 8, solving for delta phi
+            pb_amp[lev][boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb[lev]) * 1 / total_ref_ratio;
 
-        // Ma and Senocak (2023) Eq. 8, solving for delta phi
-        pb_amp[lev][boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb) * 1 / total_ref_ratio;
-
-        if (pt_type == 0) {
-            // Performing this step converts the perturbation proportionality into
-            // the forcing term
-            // Ma & Senocak (2023) Eq. 7
-            pb_amp[lev][boxIdx] /= interval;
+            if (pt_type == 0) {
+                // Performing this step converts the perturbation proportionality into
+                // the forcing term
+                // Ma & Senocak (2023) Eq. 7
+                pb_amp[lev][boxIdx] /= interval;
+            }
         }
     }
 
@@ -320,13 +387,6 @@ struct TurbulentPerturbation {
                            const int& lev,
                            const amrex::IndexType& m_ixtype)
     {
-        // Seed the random generator at 1024UL for regression testing
-        int fix_random_seed = 0;
-        amrex::ParmParse pp("erf"); pp.query("fix_random_seed", fix_random_seed);
-        if (fix_random_seed) {
-            amrex::InitRandom(1024UL);
-        }
-
         for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box vbx = mfi.validbox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
@@ -334,9 +394,37 @@ struct TurbulentPerturbation {
             if (ubx.ok()) {
                 amrex::Real amp_copy = pb_amp[lev][boxIdx];
                 const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
-                ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-                    amrex::Real rand_double = amrex::Random(engine);
-                    pert_cell(i,j,k) = (rand_double*2.0 - 1.0) * amp_copy;
+
+                if (pt_type == 2) { // CPM
+                    amrex::Real rand_number_const = RandomReal(-1.0, 1.0);
+                    ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        pert_cell(i,j,k) = rand_number_const * amp_copy;
+                    });
+                } else {
+                    ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+                        amrex::Real rand_double = amrex::Random(engine);
+                        pert_cell(i,j,k) = (rand_double*2.0 - 1.0) * amp_copy;
+                    });
+                }
+
+            }
+        }
+    }
+
+    // convert pert_cell value to be 0 so that perturbation amplitudes do not compound for CPM
+    void zero_amp (const int& boxIdx,
+                   const int& lev,
+                   const amrex::IndexType& m_ixtype)
+    {
+
+        for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
+            amrex::Box vbx = mfi.validbox();
+            amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
+            amrex::Box ubx = pbx & vbx;
+            if (ubx.ok()) {
+                const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
+                ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    pert_cell(i,j,k) = 0.0;
                 });
             }
         }
@@ -411,7 +499,9 @@ struct TurbulentPerturbation {
         // Creating local copy of PB box array and magnitude
         const amrex::BoxArray m_pb_ba = pb_ba[lev];
         amrex::Real* m_pb_mag = pb_mag[lev].data();
+        amrex::Real* m_pb_dir = pb_dir[lev].data();
         m_pb_mag[boxIdx] = 0.; // Safety step
+        m_pb_dir[boxIdx] = 0.; // Safety step
 
         // Storage of averages per PB
         // Index: 0=u (vol/slab_lo), 1=v (vol/slab_lo)
@@ -516,11 +606,13 @@ struct TurbulentPerturbation {
         // Computing the average magnitude within PB
         #ifdef USE_VOLUME_AVERAGE
         m_pb_mag[boxIdx] = sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1]);
+        m_pb_dir[boxIdx] = std::atan(std::abs(avg_h[0]) / std::abs(avg_h[1]+std::numeric_limits<amrex::Real>::epsilon()));
         #endif
 
         #ifdef USE_SLAB_AVERAGE
         m_pb_mag[boxIdx] = 0.5*( sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1])
                                + sqrt(avg_h[2]*avg_h[2] + avg_h[3]*avg_h[3]));
+        m_pb_dir[boxIdx] = std::atan(std::abs(0.5*(avg_h[0]+avg_h[2])) / std::abs(0.5*(avg_h[1]+avg_h[3])+std::numeric_limits<amrex::Real>::epsilon()));
         #endif
     }
 
@@ -543,11 +635,12 @@ struct TurbulentPerturbation {
         */
     }
 
-    int pt_type; // TODO: May need to pass in solverChoice to replace this
+    int pt_type = -1;
 
     // Public data members
     amrex::Vector<amrex::BoxArray>                 pb_ba;  // PB box array
     amrex::Vector<amrex::Vector<amrex::Real>>      pb_mag; // BP mean magnitude [m/s]
+    amrex::Vector<amrex::Vector<amrex::Real>>      pb_dir; // BP mean direction [deg]
 
     // Perturbation amplitude cell storage
     // This is after random assignment of equation (10) in Ma and Senocak 2023
@@ -568,15 +661,16 @@ struct TurbulentPerturbation {
     amrex::Real tpi_Tinf;             // Reference temperature [K]
 
     // Physical dimensions
-    amrex::Real tpi_Hpb;              // PB height [m]
-    amrex::Real tpi_Lpb;              // PB length [m]
-    amrex::Real tpi_Wpb;              // PB width  [m]
-    amrex::Real tpi_lref;             // PB reference length [m]
+    amrex::Vector<amrex::Real> tpi_Hpb;              // PB height [m]
+    amrex::Vector<amrex::Real> tpi_Lpb;              // PB length [m]
+    amrex::Vector<amrex::Real> tpi_Wpb;              // PB width  [m]
+    amrex::Vector<amrex::Real> tpi_lref;             // PB reference length [m]
 
     amrex::Real tpi_net_buoyant;      // Perturbation net-zero calculation storage
     amrex::Real tpi_pert_adjust;      // Perturbation adjust for net-zero per cell adjustment
 
     amrex::Vector<amrex::IntVect> ref_ratio;  // ref_ratio for multilevel run
+    amrex::Real input_Ug;                     // input geostrophic wind speed to scale perturbations when using CPM
 
     // Perturbation data arrays
     amrex::Vector<amrex::Vector<amrex::Real>> pb_interval;    // PB update time [s]

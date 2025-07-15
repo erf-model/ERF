@@ -12,7 +12,7 @@ amr.n_cell           =    64       64      64
 geometry.is_periodic = 1 1 0
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-zlo.type      = "Most"
+zlo.type = "surface_layer"
 erf.most.z0   = 0.1
 erf.most.zref = 8.0
 
@@ -44,11 +44,12 @@ erf.alpha_C = 1.0
 erf.use_gravity = false
 
 erf.molec_diff_type = "None"
-erf.les_type = "Deardorff"
-erf.Ck       = 0.1
-erf.sigma_k  = 1.0
-erf.Ce       = 0.1
-erf.KE_0     = 0.1
+erf.les_type  = "Deardorff"
+erf.Ck        = 0.1
+erf.sigma_k   = 1.0
+erf.Ce        = 0.1
+erf.KE_0      = 0.1
+erf.theta_ref = 300.0
 
 erf.init_type = "uniform"
 

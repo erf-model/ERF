@@ -1,0 +1,59 @@
+#ifndef ERF_PROB_H_
+#define ERF_PROB_H_
+
+#include <string>
+
+#include "AMReX_REAL.H"
+
+#include "ERF_ProbCommon.H"
+
+struct ProbParm : ProbParmDefaults {
+  // perturbations to initial conditions
+  amrex::Real rho_0 = 0.0;
+  amrex::Real T_0 = 0.0;
+  amrex::Real U_0 = 0.0; // Needed for Rayleigh damping
+  amrex::Real V_0 = 0.0; // Needed for Rayleigh damping
+  amrex::Real W_0 = 0.0; // Needed for Rayleigh damping
+}; // namespace ProbParm
+
+class Problem : public ProblemBase
+{
+public:
+    Problem();
+
+#include "Prob/ERF_InitConstantDensityHSE.H"
+#include "Prob/ERF_InitRayleighDamping.H"
+
+    void init_custom_pert (
+        const amrex::Box&  bx,
+        const amrex::Box& xbx,
+        const amrex::Box& ybx,
+        const amrex::Box& zbx,
+        amrex::Array4<amrex::Real const> const& state,
+        amrex::Array4<amrex::Real      > const& state_pert,
+        amrex::Array4<amrex::Real      > const& x_vel_pert,
+        amrex::Array4<amrex::Real      > const& y_vel_pert,
+        amrex::Array4<amrex::Real      > const& z_vel_pert,
+        amrex::Array4<amrex::Real      > const& r_hse,
+        amrex::Array4<amrex::Real      > const& p_hse,
+        amrex::Array4<amrex::Real const> const& z_nd,
+        amrex::Array4<amrex::Real const> const& z_cc,
+        amrex::GeometryData const& geomdata,
+        amrex::Array4<amrex::Real const> const& mf_m,
+        amrex::Array4<amrex::Real const> const& mf_u,
+        amrex::Array4<amrex::Real const> const& mf_v,
+        const SolverChoice& sc) override;
+
+    void init_custom_terrain (
+        const amrex::Geometry& geom,
+        amrex::FArrayBox& terrain_fab,
+        const amrex::Real& time) override;
+
+protected:
+    std::string name() override { return "Schar Terrain Test"; }
+
+private:
+    ProbParm parms;
+};
+
+#endif

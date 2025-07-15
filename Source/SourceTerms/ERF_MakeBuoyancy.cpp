@@ -5,9 +5,9 @@
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
-#include <ERF_PlaneAverage.H>
 #include <ERF_SrcHeaders.H>
 #include <ERF_BuoyancyUtils.H>
+#include <ERF_EB.H>
 
 using namespace amrex;
 
@@ -29,13 +29,15 @@ using namespace amrex;
  * @param[in]  n_qstate      Number of moist variables used by the current model
  */
 
-void make_buoyancy (Vector<MultiFab>& S_data,
+void make_buoyancy (const Vector<MultiFab>& S_data,
                     const MultiFab& S_prim,
+                    const MultiFab& qt,
                           MultiFab& buoyancy,
-                    const amrex::Geometry geom,
+                    const Geometry geom,
                     const SolverChoice& solverChoice,
                     const MultiFab& base_state,
                     const int n_qstate,
+                    const eb_& ebfact,
                     const int anelastic)
 {
     BL_PROFILE("make_buoyancy()");
@@ -47,7 +49,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
     const int khi = geom.Domain().bigEnd()[2] + 1;
 
     Real rd_over_cp = solverChoice.rdOcp;
-    Real rv_over_rd = R_v/R_d;
+    //Real rv_over_rd = R_v/R_d;
 
     MultiFab r0 (base_state, make_alias, BaseState::r0_comp , 1);
     MultiFab p0 (base_state, make_alias, BaseState::p0_comp , 1);
@@ -67,6 +69,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
         const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
+        const Array4<const Real> &    qt_arr  = qt.array(mfi);
         const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
         // Base state density and pressure
@@ -75,113 +78,132 @@ void make_buoyancy (Vector<MultiFab>& S_data,
         const Array4<const Real>& th0_arr = th0.const_array(mfi);
         const Array4<const Real>& qv0_arr = qv0.const_array(mfi);
 
-        if ( anelastic && (solverChoice.moisture_type == MoistureType::None) )
-        {
-            // ******************************************************************************************
-            // Dry anelastic
-            // ******************************************************************************************
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                //
-                // Return -rho0 g (thetaprime / theta0)
-                //
-                buoyancy_fab(i, j, k) = buoyancy_dry_anelastic(i,j,k,grav_gpu[2],
-                                                               r0_arr,th0_arr,cell_data);
-            });
-        }
-        else if ( anelastic && (solverChoice.moisture_type != MoistureType::None) )
-        {
-            // ******************************************************************************************
-            // Moist anelastic
-            // ******************************************************************************************
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                //
-                // Return -rho0 g (thetaprime / theta0)
-                //
-                buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu[2],rv_over_rd,
-                                                                 r0_arr,th0_arr,qv0_arr,cell_data);
-            });
-        }
-        else if ( !anelastic && (solverChoice.moisture_type == MoistureType::None) )
-        {
-            // ******************************************************************************************
-            // Dry compressible
-            // ******************************************************************************************
-            int n_q_dry = 0;
-            if (solverChoice.buoyancy_type == 1) {
+        if (solverChoice.terrain_type != TerrainType::EB) {
 
+            if ( anelastic && (solverChoice.moisture_type == MoistureType::None) )
+            {
+                // ******************************************************************************************
+                // Dry anelastic
+                // ******************************************************************************************
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     //
                     // Return -rho0 g (thetaprime / theta0)
                     //
-                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,n_q_dry,grav_gpu[2],
-                                                             r0_arr,cell_data);
-                });
-            }
-            else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3)
-            {
-                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    //
-                    // Return -rho0 g (Tprime / T0)
-                    //
-                    buoyancy_fab(i, j, k) = buoyancy_dry_Tpert(i,j,k,grav_gpu[2],rd_over_cp,
-                                                               r0_arr,p0_arr,th0_arr,cell_data);
-                });
-            }
-            else if (solverChoice.buoyancy_type == 4)
-            {
-                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    //
-                    // Return -rho0 g (Theta_prime / Theta_0)
-                    //
-                    buoyancy_fab(i, j, k) = buoyancy_dry_Thpert(i,j,k,grav_gpu[2],
+                    buoyancy_fab(i, j, k) = buoyancy_dry_anelastic(i,j,k,grav_gpu[2],
                                                                 r0_arr,th0_arr,cell_data);
                 });
-            } // buoyancy_type for dry compressible
-        }
-        else // if ( !anelastic && (solverChoice.moisture_type != MoistureType::None) )
-        {
-            // ******************************************************************************************
-            // Moist compressible
-            // ******************************************************************************************
-
-            if ( (solverChoice.moisture_type == MoistureType::Kessler_NoRain) ||
-                 (solverChoice.moisture_type == MoistureType::SAM)            ||
-                 (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) )
-            {
-                AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
             }
-
-            if (solverChoice.buoyancy_type == 1)
+            else if ( anelastic && (solverChoice.moisture_type != MoistureType::None) )
             {
+                // ******************************************************************************************
+                // Moist anelastic
+                // ******************************************************************************************
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,n_qstate,grav_gpu[2],
-                                                             r0_arr,cell_data);
-                });
-            }
-            else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3)
-            {
+                    //
+                    // Return -rho0 g (thetaprime / theta0)
+                    //
+                    //buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu[2],rv_over_rd,
+                    //                                                 r0_arr,th0_arr,qv0_arr,cell_data,qt_arr);
 
-                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu[2],rd_over_cp,
-                                                                 r0_arr,th0_arr,qv0_arr,p0_arr,
-                                                                 cell_prim,cell_data);
-                });
-            }
-            else if (solverChoice.buoyancy_type == 4)
-            {
-                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
+                    // NOTE: Using the type 4, which we formally derived.
+                    //       The above has errors and needs rederiving.
                     buoyancy_fab(i, j, k) = buoyancy_moist_Thpert(i,j,k,n_qstate,grav_gpu[2],
-                                                                  r0_arr,th0_arr,qv0_arr,cell_prim);
+                                                                    r0_arr,th0_arr,qv0_arr,cell_prim,qt_arr);
                 });
             }
-        } // moist compressible
+            else if ( !anelastic && (solverChoice.moisture_type == MoistureType::None) )
+            {
+                // ******************************************************************************************
+                // Dry compressible
+                // ******************************************************************************************
+                if (solverChoice.buoyancy_type == 1) {
+
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        //
+                        // Return -rho0 g (thetaprime / theta0)
+                        //
+                        buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,grav_gpu[2],
+                                                                r0_arr,cell_data,qt_arr);
+                    });
+                }
+                else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3)
+                {
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        //
+                        // Return -rho0 g (Tprime / T0)
+                        //
+                        buoyancy_fab(i, j, k) = buoyancy_dry_Tpert(i,j,k,grav_gpu[2],rd_over_cp,
+                                                                r0_arr,p0_arr,th0_arr,cell_data);
+                    });
+                }
+                else if (solverChoice.buoyancy_type == 4)
+                {
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        //
+                        // Return -rho0 g (Theta_prime / Theta_0)
+                        //
+                        buoyancy_fab(i, j, k) = buoyancy_dry_Thpert(i,j,k,grav_gpu[2],
+                                                                    r0_arr,th0_arr,cell_data);
+                    });
+                } // buoyancy_type for dry compressible
+            }
+            else // if ( !anelastic && (solverChoice.moisture_type != MoistureType::None) )
+            {
+                // ******************************************************************************************
+                // Moist compressible
+                // ******************************************************************************************
+
+                if ( (solverChoice.moisture_type == MoistureType::Kessler_NoRain) ||
+                    (solverChoice.moisture_type == MoistureType::SAM)            ||
+                    (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) )
+                {
+                    AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
+                }
+
+                if (solverChoice.buoyancy_type == 1)
+                {
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,grav_gpu[2],
+                                                                r0_arr,cell_data,qt_arr);
+                    });
+                }
+                else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3)
+                {
+
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu[2],rd_over_cp,
+                                                                    r0_arr,th0_arr,qv0_arr,p0_arr,
+                                                                    cell_prim,cell_data,qt_arr);
+                    });
+                }
+                else if (solverChoice.buoyancy_type == 4)
+                {
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        buoyancy_fab(i, j, k) = buoyancy_moist_Thpert(i,j,k,n_qstate,grav_gpu[2],
+                                                                    r0_arr,th0_arr,qv0_arr,cell_prim,qt_arr);
+                    });
+                }
+            } // moist compressible
+
+        } else {
+
+            // Currently, only dry compressible is supported
+            AMREX_ASSERT( !anelastic && (solverChoice.moisture_type == MoistureType::None) && solverChoice.buoyancy_type == 1 );
+
+            Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                buoyancy_fab(i, j, k) = buoyancy_rhopert_eb(i,j,k,grav_gpu[2],r0_arr,cell_data,qt_arr,cellflg);
+            });
+        } // TerrainType::EB
     } // mfi
 }

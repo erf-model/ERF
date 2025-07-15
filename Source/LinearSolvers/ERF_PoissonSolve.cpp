@@ -4,15 +4,43 @@
 using namespace amrex;
 
 /**
- * Project the single-level velocity field to enforce incompressibility
+ * Project the single-level velocity field to enforce the anelastic constraint
  * Note that the level may or may not be level 0.
  */
-void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, MultiFab& pmf)
+void ERF::project_velocity (int lev, Real l_dt)
 {
-    BL_PROFILE("ERF::project_velocities()");
+    BL_PROFILE("ERF::project_velocity()");
+    VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect{0},
+                       vars_new[lev][Vars::yvel], IntVect{0},
+                       vars_new[lev][Vars::zvel], IntVect{0},
+                       vars_new[lev][Vars::cons],
+                       rU_new[lev], rV_new[lev], rW_new[lev],
+                       Geom(lev).Domain(), domain_bcs_type);
 
-    auto const dom_lo = lbound(geom[lev].Domain());
-    auto const dom_hi = ubound(geom[lev].Domain());
+    Vector<MultiFab> tmp_mom;
+
+    tmp_mom.push_back(MultiFab(vars_new[lev][Vars::cons],make_alias,0,1));
+    tmp_mom.push_back(MultiFab(rU_new[lev],make_alias,0,1));
+    tmp_mom.push_back(MultiFab(rV_new[lev],make_alias,0,1));
+    tmp_mom.push_back(MultiFab(rW_new[lev],make_alias,0,1));
+
+    project_momenta(lev, l_dt, tmp_mom);
+
+    MomentumToVelocity(vars_new[lev][Vars::xvel],
+                       vars_new[lev][Vars::yvel],
+                       vars_new[lev][Vars::zvel],
+                       vars_new[lev][Vars::cons],
+                       rU_new[lev], rV_new[lev], rW_new[lev],
+                       Geom(lev).Domain(), domain_bcs_type);
+ }
+
+/**
+ * Project the single-level momenta to enforce the anelastic constraint
+ * Note that the level may or may not be level 0.
+ */
+void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
+{
+    BL_PROFILE("ERF::project_momenta()");
 
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(mom_mf[Vars::cons].boxArray());
@@ -33,7 +61,34 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
         phi.resize(1); phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1);
     }
 
+    MultiFab rhs_lev(rhs[0], make_alias, 0, 1);
+
     auto dxInv = geom[lev].InvCellSizeArray();
+
+    // Inflow on an x-face -- note only the normal velocity is used in the projection
+    if (domain_bc_type[0] == "Inflow" || domain_bc_type[3] == "Inflow") {
+            (*physbcs_u[lev])(vars_new[lev][Vars::xvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
+                            IntVect{1,0,0},t_new[lev],BCVars::xvel_bc,false);
+        }
+
+    // Inflow on a  y-face -- note only the normal velocity is used in the projection
+    if (domain_bc_type[1] == "Inflow" || domain_bc_type[4] == "Inflow") {
+        (*physbcs_v[lev])(vars_new[lev][Vars::yvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
+                          IntVect{0,1,0},t_new[lev],BCVars::yvel_bc,false);
+    }
+
+    if (domain_bc_type[0] == "Inflow" || domain_bc_type[3] == "Inflow" ||
+        domain_bc_type[1] == "Inflow" || domain_bc_type[4] == "Inflow") {
+            VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect{0},
+                               vars_new[lev][Vars::yvel], IntVect{0},
+                               vars_new[lev][Vars::zvel], IntVect{0},
+                               vars_new[lev][Vars::cons],
+                               mom_mf[IntVars::xmom],
+                               mom_mf[IntVars::ymom],
+                               mom_mf[IntVars::zmom],
+                               Geom(lev).Domain(),
+                               domain_bcs_type);
+    }
 
     // If !fixed_density, we must convert (rho u) which came in
     // to (rho0 u) which is what we will project
@@ -53,23 +108,28 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     //
     if (solverChoice.mesh_type == MeshType::VariableDz)
     {
-        for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(rhs_lev,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Array4<Real const>& rho0u_arr = mom_mf[IntVars::xmom].const_array(mfi);
             const Array4<Real const>& rho0v_arr = mom_mf[IntVars::ymom].const_array(mfi);
             const Array4<Real      >& rho0w_arr = mom_mf[IntVars::zmom].array(mfi);
 
             const Array4<Real const>&     z_nd = z_phys_nd[lev]->const_array(mfi);
+            const Array4<Real const>&     mf_u =  mapfac[lev][MapFacType::u_x]->const_array(mfi);
+            const Array4<Real const>&     mf_v =  mapfac[lev][MapFacType::v_y]->const_array(mfi);
+
             //
             // Define Omega from (rho0 W) but store it in the same array
             //
             Box tbz = mfi.nodaltilebox(2);
             ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                if (k > dom_lo.z && k <= dom_hi.z) {
-                    Real rho0w = rho0w_arr(i,j,k);
-                    rho0w_arr(i,j,k) = OmegaFromW(i,j,k,rho0w,rho0u_arr,rho0v_arr,z_nd,dxInv);
-                } else {
+                if (k == 0) {
                     rho0w_arr(i,j,k) = Real(0.0);
+                } else {
+                    Real rho0w = rho0w_arr(i,j,k);
+                    rho0w_arr(i,j,k) = OmegaFromW(i,j,k,rho0w,
+                                                  rho0u_arr,rho0v_arr,
+                                                  mf_u,mf_v,z_nd,dxInv);
                 }
             });
         } // mfi
@@ -84,12 +144,53 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     rho0_u_const[1] = &mom_mf[IntVars::ymom];
     rho0_u_const[2] = &mom_mf[IntVars::zmom];
 
-    compute_divergence(lev, rhs[0], rho0_u_const, geom_tmp[0]);
+    compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
 
-    Real rhsnorm = rhs[0].norm0();
+    if (solverChoice.mesh_type == MeshType::VariableDz) {
+        MultiFab::Multiply(rhs_lev, *detJ_cc[lev], 0, 0, 1, 0);
+    }
+
+    // Max norm over the entire MultiFab
+    Real rhsnorm = rhs_lev.norm0();
 
     if (mg_verbose > 0) {
-        Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " << rhs[0].norm2() << std::endl;
+        Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " <<
+                    rhs_lev.norm2() << " and sum " << rhs_lev.sum() << std::endl;
+    }
+
+    amrex::Print() << " There are " << subdomains[lev].size() << " bins " << std::endl;
+
+    if (lev > 0)
+    {
+        Vector<Real> sum; sum.resize(subdomains[lev].size(),Real(0.));
+
+        for (MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
+        {
+            Box bx = mfi.validbox();
+            for (int i = 0; i < subdomains[lev].size(); ++i) {
+                if (subdomains[lev][i].intersects(bx)) {
+                    sum[i] += rhs_lev[mfi.index()].template sum<RunOn::Device>(0);
+                }
+            }
+        }
+        ParallelDescriptor::ReduceRealSum(sum.data(), sum.size());
+
+        for (int i = 0; i < subdomains[lev].size(); ++i) {
+            sum[i] /= static_cast<Real>(subdomains[lev][i].numPts());
+        }
+
+        for ( MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
+        {
+            Box bx = mfi.validbox();
+            for (int i = 0; i < subdomains[lev].size(); ++i) {
+                if (subdomains[lev][i].intersects(bx)) {
+                    rhs_lev[mfi.index()].template minus<RunOn::Device>(sum[i]);
+                    if (mg_verbose > 0) {
+                        amrex::Print() << " Subtracting " << sum[i] << " in BoxArray " << subdomains[lev][i] << std::endl;
+                    }
+                }
+            }
+        }
     }
 
     // ****************************************************************************
@@ -144,7 +245,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
 #ifdef ERF_USE_FFT
         if (use_fft) {
             if (boxes_make_rectangle) {
-                solve_with_fft(lev, rhs[0], phi[0], fluxes[0]);
+                solve_with_fft(lev, rhs_lev, phi[0], fluxes[0]);
             } else {
                 amrex::Warning("FFT won't work unless the union of boxes is rectangular: defaulting to MLMG");
                 solve_with_mlmg(lev, rhs, phi, fluxes);
@@ -173,7 +274,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
             if (!use_fft) {
                 amrex::Warning("Using FFT even though you didn't set use_fft to true; it's the best choice");
             }
-            solve_with_fft(lev, rhs[0], phi[0], fluxes[0]);
+            solve_with_fft(lev, rhs_lev, phi[0], fluxes[0]);
         }
 #endif
     } // grid stretching
@@ -183,10 +284,6 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // ****************************************************************************
     else if (solverChoice.mesh_type == MeshType::VariableDz) {
 #ifdef ERF_USE_FFT
-        if (use_fft)
-        {
-            amrex::Warning("FFT solver does not work for general terrain: switching to FFT-preconditioned GMRES");
-        }
         if (!boxes_make_rectangle) {
             amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
         } else {
@@ -214,6 +311,17 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     MultiFab::Add(mom_mf[IntVars::ymom],fluxes[0][1],0,0,1,0);
     MultiFab::Add(mom_mf[IntVars::zmom],fluxes[0][2],0,0,1,0);
 
+    // ****************************************************************************
+    // Define gradp from fluxes -- note that fluxes is dt * change in Gp
+    // ****************************************************************************
+    MultiFab::Saxpy(gradp[lev][GpVars::gpx],-1.0/l_dt,fluxes[0][0],0,0,1,0);
+    MultiFab::Saxpy(gradp[lev][GpVars::gpy],-1.0/l_dt,fluxes[0][1],0,0,1,0);
+    MultiFab::Saxpy(gradp[lev][GpVars::gpz],-1.0/l_dt,fluxes[0][2],0,0,1,0);
+
+    gradp[lev][GpVars::gpx].FillBoundary(geom_tmp[0].periodicity());
+    gradp[lev][GpVars::gpy].FillBoundary(geom_tmp[0].periodicity());
+    gradp[lev][GpVars::gpz].FillBoundary(geom_tmp[0].periodicity());
+
     //
     // This call is only to verify the divergence after the solve
     // It is important we do this before computing the rho0w_arr from Omega back to rho0w
@@ -224,15 +332,20 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     //
     if (mg_verbose > 0)
     {
-        compute_divergence(lev, rhs[0], rho0_u_const, geom_tmp[0]);
+        compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
 
-        Print() << "Max/L2 norm of divergence  after solve at level " << lev << " : " << rhs[0].norm0() << " " << rhs[0].norm2() << std::endl;
+        if (solverChoice.mesh_type == MeshType::VariableDz) {
+            MultiFab::Multiply(rhs_lev, *detJ_cc[lev], 0, 0, 1, 0);
+        }
+
+        Print() << "Max/L2 norm of divergence  after solve at level " << lev << " : " << rhs_lev.norm0() << " " <<
+                    rhs_lev.norm2() << " and sum " << rhs_lev.sum() << std::endl;
 
 #if 0
          // FOR DEBUGGING ONLY
-         for ( MFIter mfi(rhs[0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+         for ( MFIter mfi(rhs_lev,TilingIfNotGPU()); mfi.isValid(); ++mfi)
          {
-            const Array4<Real const>& rhs_arr = rhs[0].const_array(mfi);
+            const Array4<Real const>& rhs_arr = rhs_lev.const_array(mfi);
             Box bx = mfi.validbox();
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 if (std::abs(rhs_arr(i,j,k)) > 1.e-10) {
@@ -259,9 +372,13 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
              const Array4<Real      >& rho0v_arr = mom_mf[IntVars::ymom].array(mfi);
              const Array4<Real      >& rho0w_arr = mom_mf[IntVars::zmom].array(mfi);
              const Array4<Real const>&      z_nd = z_phys_nd[lev]->const_array(mfi);
+             const Array4<Real const>&      mf_u =  mapfac[lev][MapFacType::u_x]->const_array(mfi);
+             const Array4<Real const>&      mf_v =  mapfac[lev][MapFacType::v_y]->const_array(mfi);
              ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                  Real omega = rho0w_arr(i,j,k);
-                 rho0w_arr(i,j,k) = WFromOmega(i,j,k,omega,rho0u_arr,rho0v_arr,z_nd,dxInv);
+                 rho0w_arr(i,j,k) = WFromOmega(i,j,k,omega,
+                                               rho0u_arr,rho0v_arr,
+                                               mf_u,mf_v,z_nd,dxInv);
              });
         } // mfi
     }
@@ -280,6 +397,5 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& mom_mf, Mult
     // ****************************************************************************
     // Update pressure variable with phi -- note that phi is dt * change in pressure
     // ****************************************************************************
-    MultiFab::Saxpy(pmf, 1.0/l_dt, phi[0],0,0,1,1);
-    pmf.FillBoundary(geom[lev].periodicity());
+    MultiFab::Saxpy(pp_inc[lev], 1.0/l_dt, phi[0],0,0,1,1);
 }

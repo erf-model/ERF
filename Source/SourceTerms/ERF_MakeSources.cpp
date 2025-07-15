@@ -21,8 +21,7 @@ using namespace amrex;
  * @param[in] source source terms for conserved variables
  * @param[in]  geom   Container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
- * @param[in] mapfac_u map factor at x-faces
- * @param[in] mapfac_v map factor at y-faces
+ * @param[in] mapfac map factors
  * @param[in] dptr_rhotheta_src  custom temperature source term
  * @param[in] dptr_rhoqt_src  custom moisture source term
  * @param[in] dptr_wbar_sub  subsidence source term
@@ -31,98 +30,112 @@ using namespace amrex;
 
 void make_sources (int level,
                    int /*nrk*/, Real dt, Real time,
-                   Vector<MultiFab>& S_data,
+                   const Vector<MultiFab>& S_data,
                    const  MultiFab & S_prim,
                           MultiFab & source,
-                   std::unique_ptr<MultiFab>& z_phys_cc,
-#ifdef ERF_USE_RRTMGP
+                   const  MultiFab & base_state,
+                   const  MultiFab*  z_phys_cc,
                    const MultiFab* qheating_rates,
-#endif
                           MultiFab* terrain_blank,
                    const Geometry geom,
                    const SolverChoice& solverChoice,
-                   std::unique_ptr<MultiFab>& /*mapfac_u*/,
-                   std::unique_ptr<MultiFab>& /*mapfac_v*/,
-                   std::unique_ptr<MultiFab>& mapfac_m,
+                   Vector<std::unique_ptr<MultiFab>>& mapfac,
                    const Real* dptr_rhotheta_src,
                    const Real* dptr_rhoqt_src,
                    const Real* dptr_wbar_sub,
                    const Vector<Real*> d_rayleigh_ptrs_at_lev,
                    InputSoundingData& input_sounding_data,
-                   TurbulentPerturbation& turbPert)
+                   TurbulentPerturbation& turbPert,
+                   bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_sources()");
 
     // *****************************************************************************
     // Initialize source to zero since we re-compute it every RK stage
     // *****************************************************************************
-    source.setVal(0.0);
+    if (is_slow_step) {
+        source.setVal(0.);
+    } else {
+        source.setVal(0.0,Rho_comp,2);
+    }
 
     const bool l_use_ndiff      = solverChoice.use_num_diff;
 
     TurbChoice tc = solverChoice.turbChoice[level];
-    const bool l_use_KE  =  ( (tc.les_type  == LESType::Deardorff) ||
-                              (tc.rans_type == RANSType::kEqn) ||
-                              (tc.pbl_type  == PBLType::MYNN25) ||
-                              (tc.pbl_type  == PBLType::MYNNEDMF) );
-    const bool l_diff_KE = tc.diffuse_KE_3D;
+    const bool l_use_KE  = tc.use_tke;
+    const bool l_diff_KE = tc.diffuse_tke_3D;
 
     const Box& domain = geom.Domain();
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
+    MultiFab r_hse (base_state, make_alias, BaseState::r0_comp , 1);
+
     Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
+
+    // flags to apply certain source terms in substep call only
+    bool use_Rayleigh_fast = solverChoice.rayleigh_damp_substep;
+    bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
 
     // *****************************************************************************
     // Planar averages for subsidence terms
     // *****************************************************************************
     Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
     TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
-    if (dptr_wbar_sub || solverChoice.nudging_from_input_sounding || solverChoice.terrain_type == TerrainType::ImmersedForcing)
-    {
-        // Rho
-        PlaneAverage r_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
-        r_ave.compute_averages(ZDir(), r_ave.field());
+    bool compute_averages = false;
+    compute_averages = compute_averages ||
+        ( (solverChoice.terrain_type == TerrainType::ImmersedForcing) &&
+          ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)));
+    compute_averages = compute_averages ||
+        ( is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding) );
 
-        int ncell = r_ave.ncell_line();
+    if (compute_averages)
+    {
+        //
+        // The call to "compute_averages" currently does all the components in one call
+        // We can then extract each component separately with the "line_average" call
+        //
+        // We need just one ghost cell in the vertical
+        //
+        IntVect ng_c(S_data[IntVars::cons].nGrowVect()); ng_c[2] = 1;
+        //
+        // With no moisture we only (rho) and (rho theta); with moisture we also do qv and qc
+        // We use the alias here to control ncomp inside the PlaneAverage
+        //
+        int ncomp = (solverChoice.moisture_type == MoistureType::None) ? 2 : RhoQ2_comp+1;
+        MultiFab cons(S_data[IntVars::cons], make_alias, 0, ncomp);
+
+        PlaneAverage cons_ave(&cons, geom, solverChoice.ave_plane, ng_c);
+        cons_ave.compute_averages(ZDir(), cons_ave.field());
+
+        int ncell = cons_ave.ncell_line();
+
         Gpu::HostVector<    Real> r_plane_h(ncell);
         Gpu::DeviceVector<  Real> r_plane_d(ncell);
-
-        r_ave.line_average(Rho_comp, r_plane_h);
-
-        Gpu::copyAsync(Gpu::hostToDevice, r_plane_h.begin(), r_plane_h.end(), r_plane_d.begin());
-
-        Real* dptr_r = r_plane_d.data();
-
-        IntVect ng_c = S_data[IntVars::cons].nGrowVect();
-        Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
-        r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
-
-        int offset = ng_c[2];
-        dptr_r_plane = r_plane_tab.table();
-        ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
-        {
-            dptr_r_plane(k-offset) = dptr_r[k];
-        });
-
-        // Rho * Theta
-        PlaneAverage t_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
-        t_ave.compute_averages(ZDir(), t_ave.field());
 
         Gpu::HostVector<    Real> t_plane_h(ncell);
         Gpu::DeviceVector<  Real> t_plane_d(ncell);
 
-        t_ave.line_average(RhoTheta_comp, t_plane_h);
+        cons_ave.line_average(Rho_comp     , r_plane_h);
+        cons_ave.line_average(RhoTheta_comp, t_plane_h);
 
+        Gpu::copyAsync(Gpu::hostToDevice, r_plane_h.begin(), r_plane_h.end(), r_plane_d.begin());
         Gpu::copyAsync(Gpu::hostToDevice, t_plane_h.begin(), t_plane_h.end(), t_plane_d.begin());
 
+        Real* dptr_r = r_plane_d.data();
         Real* dptr_t = t_plane_d.data();
 
+        Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
+        r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
         t_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
 
+        int offset = ng_c[2];
+
+        dptr_r_plane = r_plane_tab.table();
         dptr_t_plane = t_plane_tab.table();
         ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
         {
+            dptr_r_plane(k-offset) = dptr_r[k];
             dptr_t_plane(k-offset) = dptr_t[k];
         });
 
@@ -132,15 +145,11 @@ void make_sources (int level,
             Gpu::DeviceVector<Real> qv_plane_d(ncell), qc_plane_d(ncell);
 
             // Water vapor
-            PlaneAverage qv_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
-            qv_ave.compute_averages(ZDir(), qv_ave.field());
-            qv_ave.line_average(RhoQ1_comp, qv_plane_h);
+            cons_ave.line_average(RhoQ1_comp, qv_plane_h);
             Gpu::copyAsync(Gpu::hostToDevice, qv_plane_h.begin(), qv_plane_h.end(), qv_plane_d.begin());
 
             // Cloud water
-            PlaneAverage qc_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
-            qc_ave.compute_averages(ZDir(), qc_ave.field());
-            qc_ave.line_average(RhoQ2_comp, qc_plane_h);
+            cons_ave.line_average(RhoQ2_comp, qc_plane_h);
             Gpu::copyAsync(Gpu::hostToDevice, qc_plane_h.begin(), qc_plane_h.end(), qc_plane_d.begin());
 
             Real* dptr_qv = qv_plane_d.data();
@@ -184,20 +193,21 @@ void make_sources (int level,
     {
         Box bx  = mfi.tilebox();
 
-        const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
-        const Array4<const Real> & cell_prim  = S_prim.array(mfi);
-        const Array4<Real>       & cell_src   = source.array(mfi);
+        const Array4<const Real>& cell_data  = S_data[IntVars::cons].array(mfi);
+        const Array4<const Real>& cell_prim  = S_prim.array(mfi);
+        const Array4<Real>      & cell_src   = source.array(mfi);
+
+        const Array4<const Real>& r0 = r_hse.const_array(mfi);
 
         const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
 
         const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
                                                                Array4<const Real>{};
 
-#ifdef ERF_USE_RRTMGP
         // *************************************************************************************
         // 2. Add radiation source terms to (rho theta)
         // *************************************************************************************
-        {
+        if (solverChoice.rad_type != RadiationType::None && is_slow_step) {
             auto const& qheating_arr = qheating_rates->const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -206,7 +216,6 @@ void make_sources (int level,
             });
         }
 
-#endif
 
         // *************************************************************************************
         // 3. Add Rayleigh damping for (rho theta)
@@ -215,26 +224,28 @@ void make_sources (int level,
         Real zdamp    = solverChoice.rayleigh_zdamp;
         Real dampcoef = solverChoice.rayleigh_dampcoef;
 
-        if (solverChoice.rayleigh_damp_T) {
-            int n  = RhoTheta_comp;
-            int nr = Rho_comp;
-            int np = PrimTheta_comp;
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real zcc = z_cc_arr(i,j,k);
-                Real zfrac = 1 - (ztop - zcc) / zdamp;
-                if (zfrac > 0) {
-                    Real theta = cell_prim(i,j,k,np);
-                    Real sinefac = std::sin(PIoTwo*zfrac);
-                    cell_src(i, j, k, n) -= dampcoef*sinefac*sinefac * (theta - thetabar[k]) * cell_data(i,j,k,nr);
-                }
-            });
+        if ((is_slow_step && !use_Rayleigh_fast) || (!is_slow_step && use_Rayleigh_fast)) {
+            if (solverChoice.rayleigh_damp_T) {
+                int n  = RhoTheta_comp;
+                int nr = Rho_comp;
+                int np = PrimTheta_comp;
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real zcc = z_cc_arr(i,j,k);
+                    Real zfrac = 1 - (ztop - zcc) / zdamp;
+                    if (zfrac > 0) {
+                        Real theta = cell_prim(i,j,k,np);
+                        Real sinefac = std::sin(PIoTwo*zfrac);
+                        cell_src(i, j, k, n) -= dampcoef*sinefac*sinefac * (theta - thetabar[k]) * cell_data(i,j,k,nr);
+                    }
+                });
+            }
         }
 
         // *************************************************************************************
         // 4. Add custom forcing for (rho theta)
         // *************************************************************************************
-        if (solverChoice.custom_rhotheta_forcing) {
+        if (solverChoice.custom_rhotheta_forcing && is_slow_step) {
             const int n = RhoTheta_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
@@ -253,7 +264,7 @@ void make_sources (int level,
         // *************************************************************************************
         // 4. Add custom forcing for RhoQ1
         // *************************************************************************************
-        if (solverChoice.custom_moisture_forcing) {
+        if (solverChoice.custom_moisture_forcing && is_slow_step) {
             const int n = RhoQ1_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
@@ -272,7 +283,7 @@ void make_sources (int level,
         // *************************************************************************************
         // 5. Add custom subsidence for (rho theta)
         // *************************************************************************************
-        if (solverChoice.custom_w_subsidence) {
+        if (solverChoice.custom_w_subsidence && is_slow_step) {
             const int n = RhoTheta_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
@@ -299,7 +310,7 @@ void make_sources (int level,
         // *************************************************************************************
         // 5. Add custom subsidence for RhoQ1 and RhoQ2
         // *************************************************************************************
-        if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None)) {
+        if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None) && is_slow_step) {
             const int nv = RhoQ1_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
@@ -332,41 +343,42 @@ void make_sources (int level,
         // *************************************************************************************
         // 6. Add numerical diffuion for rho and (rho theta)
         // *************************************************************************************
-        if (l_use_ndiff) {
+        if (l_use_ndiff && is_slow_step) {
             int sc;
             int nc;
 
-            const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
+            const Array4<const Real>& mf_mx   = mapfac[MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real>& mf_my   = mapfac[MapFacType::m_y]->const_array(mfi);
 
             // Rho is a special case
             NumericalDiffusion_Scal(bx, sc=0, nc=1, dt, solverChoice.num_diff_coeff,
-                                    cell_data, cell_data, cell_src, mf_m);
+                                    cell_data, cell_data, cell_src, mf_mx, mf_my);
 
             // Other scalars proceed as normal
             NumericalDiffusion_Scal(bx, sc=1, nc=1, dt, solverChoice.num_diff_coeff,
-                                    cell_prim, cell_data, cell_src, mf_m);
+                                    cell_prim, cell_data, cell_src, mf_mx, mf_my);
 
 
             if (l_use_KE && l_diff_KE) {
                 NumericalDiffusion_Scal(bx, sc=RhoKE_comp, nc=1, dt, solverChoice.num_diff_coeff,
-                                        cell_prim, cell_data, cell_src, mf_m);
+                                        cell_prim, cell_data, cell_src, mf_mx, mf_my);
             }
 
             NumericalDiffusion_Scal(bx, sc=RhoScalar_comp, nc=NSCALARS, dt, solverChoice.num_diff_coeff,
-                                    cell_prim, cell_data, cell_src, mf_m);
+                                    cell_prim, cell_data, cell_src, mf_mx, mf_my);
         }
 
         // *************************************************************************************
         // 7. Add sponging
         // *************************************************************************************
-        if(!(solverChoice.spongeChoice.sponge_type == "input_sponge")){
-            ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, z_cc_arr);
+        if(!(solverChoice.spongeChoice.sponge_type == "input_sponge") && is_slow_step){
+            ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, r0, z_cc_arr);
         }
 
         // *************************************************************************************
         // 8. Add perturbation
         // *************************************************************************************
-        if (solverChoice.pert_type == PerturbationType::Source) {
+        if (solverChoice.pert_type == PerturbationType::Source && is_slow_step) {
             auto m_ixtype = S_data[IntVars::cons].boxArray().ixType(); // Conserved term
             const amrex::Array4<const amrex::Real>& pert_cell = turbPert.pb_cell[level].const_array(mfi);
             turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src, pert_cell); // Applied as source term
@@ -375,7 +387,7 @@ void make_sources (int level,
         // *************************************************************************************
         // 9. Add nudging towards value specified in input sounding
         // *************************************************************************************
-        if (solverChoice.nudging_from_input_sounding)
+        if (solverChoice.nudging_from_input_sounding && is_slow_step)
         {
             int itime_n    = 0;
             int itime_np1  = 0;
@@ -415,7 +427,8 @@ void make_sources (int level,
         // *************************************************************************************
         // 10. Add Immersed source terms
         // *************************************************************************************
-        if (solverChoice.terrain_type == TerrainType::ImmersedForcing)
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
         {
             Real dz                     = geom.CellSize(2);
             const Real drag_coefficient = 10.0/dz;

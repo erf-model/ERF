@@ -29,8 +29,8 @@ amr.v              = 1       # verbosity in Amr.cpp
 amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
-amr.check_file      = chk        # root name of checkpoint file
-amr.check_int       = 10000       # number of timesteps between checkpoints
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 10000       # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt        # root name of plotfile
@@ -47,9 +47,12 @@ erf.alpha_T = 0.0 # [m^2/s]
 erf.alpha_C = 0.0 # [m^2/s]
 erf.init_type = "input_sounding"
 erf.input_sounding_file = "input_sounding_moist"
-erf.init_sounding_ideal = true
+erf.sounding_type = Ideal
     
 # RADIATION INPUTS
+erf.radiation_model        = "RRTMGP"
+erf.rad.datalog            = "radiation"
+erf.profile_rad_int        = 1
 erf.rad_freq_in_steps      = 1
 erf.rad_do_subcol_sampling = true
 erf.rad_write_fluxes       = false

@@ -1,0 +1,83 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+stop_time = 18000. # 5h
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     = -72000. 0.     0. 
+geometry.prob_hi     =  72000. 1. 30000. # zhi not used with grid stretching
+amr.n_cell           =   576  1   362
+
+geometry.prob_lo     = -72000. 0.     0. 
+geometry.prob_hi     =  72000. 1. 30000. # zhi not used with grid stretching
+amr.n_cell           =   720  1   150
+
+geometry.is_periodic = 0 1 0
+
+#erf.initial_dz = 0.1
+#erf.grid_stretching_ratio = 1.025
+
+xlo.type = "Inflow"
+xhi.type = "Outflow"
+xlo.velocity = 10. 0. 0.
+#xlo.density  = 1.0
+#xlo.theta    = 300.
+#xlo.scalar   = 0.
+    
+zlo.type = "SlipWall"
+zhi.type = "Outflow"
+
+# TIME STEP CONTROL
+erf.fixed_dt           = 1.0
+erf.substepping_cfl    = 0.5
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1        # timesteps between computing mass
+erf.v              = 1        # verbosity in ERF.cpp
+amr.v              = 1        # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = 6000    # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 600     # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pert_pres pert_dens
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.use_coriolis = false
+erf.les_type = "None"
+
+erf.molec_diff_type = "None"
+
+erf.rayleigh_damp_W = true
+erf.rayleigh_zdamp = 6000.0 # ~ vertical wavelength
+erf.rayleigh_dampcoef = 0.008
+
+erf.sponge_type = "input_sponge"
+erf.input_sponge_file = "sponge_WoA.txt"
+erf.sponge_strength = 0.008
+erf.use_xlo_sponge_damping = true
+erf.use_xhi_sponge_damping = true
+erf.xlo_sponge_end   = 6000.0 # ~ horizontal wavelength
+erf.xhi_sponge_start = 6000.0
+
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+
+# TERRRAIN GRID TYPE
+erf.terrain_type = StaticFittedMesh
+#erf.terrain_smoothing = 1 # Smoothed Terrain Following coords (Klemp 2011)
+#erf.terrain_gamma_m = 0.5
+erf.terrain_smoothing = 2 # Sullivan TF
+
+# PROBLEM PARAMETERS
+prob.hmax  = 1.0  # full hill height
+prob.L     = 1000.0 # hill length at half-height

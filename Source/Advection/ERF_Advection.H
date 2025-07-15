@@ -1,15 +1,16 @@
 #ifndef ERF_ADVECTION_H_
 #define ERF_ADVECTION_H_
 
-#include <AMReX.H>
-#include <AMReX_MultiFab.H>
-#include <AMReX_BCRec.H>
-#include <AMReX_YAFluxRegister.H>
+#include "AMReX.H"
+#include "AMReX_MultiFab.H"
+#include "AMReX_iMultiFab.H"
+#include "AMReX_BCRec.H"
+#include "AMReX_YAFluxRegister.H"
 
-#include <ERF_DataStruct.H>
-#include <ERF_IndexDefines.H>
-#include <ERF_ABLMost.H>
-
+#include "ERF_DataStruct.H"
+#include "ERF_IndexDefines.H"
+#include "ERF_SurfaceLayer.H"
+#include "ERF_EB.H"
 
 /** Compute advection tendency for density and potential temperature */
 void AdvectionSrcForRho (const amrex::Box& bx,
@@ -25,38 +26,38 @@ void AdvectionSrcForRho (const amrex::Box& bx,
                          const amrex::Array4<const amrex::Real>& az_arr,
                          const amrex::Array4<const amrex::Real>& detJ,
                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                         const amrex::Array4<const amrex::Real>& mf_m,
-                         const amrex::Array4<const amrex::Real>& mf_u,
-                         const amrex::Array4<const amrex::Real>& mf_v,
+                         const amrex::Array4<const amrex::Real>& mf_mx,
+                         const amrex::Array4<const amrex::Real>& mf_my,
+                         const amrex::Array4<const amrex::Real>& mf_uy,
+                         const amrex::Array4<const amrex::Real>& mf_vx,
                          const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr,
                          const bool fixed_rho);
 
 /** Compute advection tendency for all scalars other than density and potential temperature */
-void AdvectionSrcForScalars (const amrex::Real& dt,
-                             const amrex::Box& bx,
+void AdvectionSrcForScalars (const amrex::Box& bx,
                              const int icomp, const int ncomp,
                              const amrex::Array4<const amrex::Real>& avg_xmom,
                              const amrex::Array4<const amrex::Real>& avg_ymom,
                              const amrex::Array4<const amrex::Real>& avg_zmom,
-                             const amrex::Array4<const amrex::Real>& cur_cons,
                              const amrex::Array4<const amrex::Real>& cell_prim,
                              const amrex::Array4<amrex::Real>& src,
-                             const bool& use_mono_adv,
-                             amrex::Real* max_s_ptr,
-                             amrex::Real* min_s_ptr,
                              const amrex::Array4<const amrex::Real>& vf_arr,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                             const amrex::Array4<const amrex::Real>& mf_m,
+                             const amrex::Array4<const amrex::Real>& mf_mx,
+                             const amrex::Array4<const amrex::Real>& mf_my,
                              const AdvType horiz_adv_type, const AdvType vert_adv_type,
                              const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
                              const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr,
-                             const amrex::GpuArray<      amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_tmp_arr,
                              const amrex::Box& domain,
                              const amrex::BCRec* bc_ptr_h);
 
 /** Compute advection tendencies for all components of momentum */
-void AdvectionSrcForMom (const amrex::Box& bx,
+void AdvectionSrcForMom (const amrex::MFIter& mfi,
+                         const amrex::Box& bx,
                          const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
+                         const amrex::Vector<amrex::Box>& bxx_grown,
+                         const amrex::Vector<amrex::Box>& bxy_grown,
+                         const amrex::Vector<amrex::Box>& bxz_grown,
                          const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
                          const amrex::Array4<      amrex::Real>& rho_w_rhs,
                          const amrex::Array4<const amrex::Real>& rho,
@@ -71,12 +72,21 @@ void AdvectionSrcForMom (const amrex::Box& bx,
                          const amrex::Array4<const amrex::Real>& detJ,
                                amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                         const amrex::Array4<const amrex::Real>& mf_m,
-                         const amrex::Array4<const amrex::Real>& mf_u,
-                         const amrex::Array4<const amrex::Real>& mf_v,
+                         const amrex::Array4<const amrex::Real>& mf_mx,
+                         const amrex::Array4<const amrex::Real>& mf_ux,
+                         const amrex::Array4<const amrex::Real>& mf_vx,
+                         const amrex::Array4<const amrex::Real>& mf_my,
+                         const amrex::Array4<const amrex::Real>& mf_uy,
+                         const amrex::Array4<const amrex::Real>& mf_vy,
                          const AdvType horiz_adv_type, const AdvType vert_adv_type,
                          const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
                          MeshType& mesh_type, TerrainType& terrain_type,
+                         const eb_& ebfact,
+                               amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_u_arr,
+                               amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_v_arr,
+                               amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_w_arr,
+                         const amrex::Vector<amrex::iMultiFab>& physbnd_mask,
+                         const bool already_on_centroids,
                          const int lo_z_face, const int hi_z_face,
                          const amrex::Box& domain,
                          const amrex::BCRec* bc_ptr_h);
@@ -92,9 +102,12 @@ void AdvectionSrcForMom_ConstantDz (
                             const amrex::Array4<const amrex::Real>& Omega    ,
                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                             const amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
-                            const amrex::Array4<const amrex::Real>& mf_m,
-                            const amrex::Array4<const amrex::Real>& mf_u,
-                            const amrex::Array4<const amrex::Real>& mf_v,
+                            const amrex::Array4<const amrex::Real>& mf_mx,
+                            const amrex::Array4<const amrex::Real>& mf_ux,
+                            const amrex::Array4<const amrex::Real>& mf_vx,
+                            const amrex::Array4<const amrex::Real>& mf_my,
+                            const amrex::Array4<const amrex::Real>& mf_uy,
+                            const amrex::Array4<const amrex::Real>& mf_vy,
                             const AdvType horiz_adv_type, const AdvType vert_adv_type,
                             const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
                             TerrainType& terrain_type,
@@ -111,9 +124,12 @@ void AdvectionSrcForMom_StretchedDz (
                             const amrex::Array4<const amrex::Real>& Omega    ,
                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                             const amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
-                            const amrex::Array4<const amrex::Real>& mf_m,
-                            const amrex::Array4<const amrex::Real>& mf_u,
-                            const amrex::Array4<const amrex::Real>& mf_v,
+                            const amrex::Array4<const amrex::Real>& mf_mx,
+                            const amrex::Array4<const amrex::Real>& mf_ux,
+                            const amrex::Array4<const amrex::Real>& mf_vx,
+                            const amrex::Array4<const amrex::Real>& mf_my,
+                            const amrex::Array4<const amrex::Real>& mf_uy,
+                            const amrex::Array4<const amrex::Real>& mf_vy,
                             const AdvType horiz_adv_type, const AdvType vert_adv_type,
                             const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
                             const int lo_z_face, const int hi_z_face);
@@ -133,32 +149,43 @@ void AdvectionSrcForMom_TF (
                             const amrex::Array4<const amrex::Real>& az,
                             const amrex::Array4<const amrex::Real>& detJ,
                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                            const amrex::Array4<const amrex::Real>& mf_m,
-                            const amrex::Array4<const amrex::Real>& mf_u,
-                            const amrex::Array4<const amrex::Real>& mf_v,
+                            const amrex::Array4<const amrex::Real>& mf_mx,
+                            const amrex::Array4<const amrex::Real>& mf_ux,
+                            const amrex::Array4<const amrex::Real>& mf_vx,
+                            const amrex::Array4<const amrex::Real>& mf_my,
+                            const amrex::Array4<const amrex::Real>& mf_uy,
+                            const amrex::Array4<const amrex::Real>& mf_vy,
                             const AdvType horiz_adv_type, const AdvType vert_adv_type,
                             const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
                             const int lo_z_face, const int hi_z_face);
 
 /** Compute advection tendencies for all components of momentum when using EB for terrain */
-void AdvectionSrcForMom_EB (
+void AdvectionSrcForMom_EB (const amrex::MFIter& mfi,
                             const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
+                            const amrex::Vector<amrex::Box>& bxx_grown,
+                            const amrex::Vector<amrex::Box>& bxy_grown,
+                            const amrex::Vector<amrex::Box>& bxz_grown,
                             const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
                             const amrex::Array4<      amrex::Real>& rho_w_rhs,
                             const amrex::Array4<const amrex::Real>& u        , const amrex::Array4<const amrex::Real>& v,
                             const amrex::Array4<const amrex::Real>& w        ,
                             const amrex::Array4<const amrex::Real>& rho_u    , const amrex::Array4<const amrex::Real>& rho_v,
                             const amrex::Array4<const amrex::Real>& Omega    ,
-                            const amrex::Array4<const amrex::Real>& ax,
-                            const amrex::Array4<const amrex::Real>& ay,
-                            const amrex::Array4<const amrex::Real>& az,
-                            const amrex::Array4<const amrex::Real>& detJ,
                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                            const amrex::Array4<const amrex::Real>& mf_m,
-                            const amrex::Array4<const amrex::Real>& mf_u,
-                            const amrex::Array4<const amrex::Real>& mf_v,
+                            const amrex::Array4<const amrex::Real>& mf_mx,
+                            const amrex::Array4<const amrex::Real>& mf_ux,
+                            const amrex::Array4<const amrex::Real>& mf_vx,
+                            const amrex::Array4<const amrex::Real>& mf_my,
+                            const amrex::Array4<const amrex::Real>& mf_uy,
+                            const amrex::Array4<const amrex::Real>& mf_vy,
                             const AdvType horiz_adv_type, const AdvType vert_adv_type,
                             const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
+                            const eb_& ebfact,
+                                  amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_u_arr,
+                                  amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_v_arr,
+                                  amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_w_arr,
+                            const amrex::Vector<amrex::iMultiFab>& physbnd_mask,
+                            const bool already_on_centroids,
                             const int lo_z_face, const int hi_z_face,
                             const amrex::Box& domain);
 

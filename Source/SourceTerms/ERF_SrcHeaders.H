@@ -7,52 +7,70 @@
 #include "ERF_DataStruct.H"
 #include "ERF_InputSoundingData.H"
 #include "ERF_TurbPertStruct.H"
+#include "ERF_EB.H"
 
 /**
  * Function for computing the buoyancy term to be used in the evolution
  * equation for the z-component of momentum in the slow integrator.  There
  * are three options for how buoyancy is computed (two are the same in the absence of moisture).
  */
-void make_buoyancy (amrex::Vector<  amrex::MultiFab>& S_data,
-                    const           amrex::MultiFab & S_prim,
+void make_buoyancy (const amrex::Vector<amrex::MultiFab>& S_data,
+                    const               amrex::MultiFab & S_prim,
+                    const               amrex::MultiFab & qt,
                     amrex::MultiFab& buoyancy,
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
                     const amrex::MultiFab& base_state,
                     const int n_qstate,
+                    const eb_& ebfact,
                     const int anelastic);
+
+void make_gradp_pert (int level,
+                      const SolverChoice& solverChoice,
+                      const amrex::Geometry& geom,
+                      amrex::Vector<amrex::MultiFab>& S_data,
+                      amrex::MultiFab& p0,
+                      amrex::MultiFab& z_phys_nd,
+                      amrex::MultiFab& z_phys_cc,
+                      const eb_& ebfact,
+                      amrex::Vector<amrex::MultiFab>& gradp);
+
+void compute_gradp (const amrex::MultiFab& p,
+                    const amrex::Geometry& geom,
+                    amrex::MultiFab& z_phys_nd,
+                    amrex::MultiFab& z_phys_cc,
+                    const eb_& ebfact,
+                    amrex::Vector<amrex::MultiFab>& gradp,
+                    const SolverChoice& solverChoice);
 
 void make_sources (int level, int nrk,
                    amrex::Real dt, amrex::Real time,
-                   amrex::Vector<amrex::MultiFab>& S_data,
+                   const amrex::Vector<amrex::MultiFab>& S_data,
                    const amrex::MultiFab& S_prim,
                          amrex::MultiFab& cc_source,
-                   std::unique_ptr<amrex::MultiFab>& z_phys_cc,
-#if defined(ERF_USE_RRTMGP)
+                   const amrex::MultiFab& base_state,
+                   const amrex::MultiFab* z_phys_cc,
                    const amrex::MultiFab* qheating_rates,
-#endif
                    amrex::MultiFab* terrain_blank,
                    const amrex::Geometry geom,
                    const SolverChoice& solverChoice,
-                   std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                   std::unique_ptr<amrex::MultiFab>& mapfac_v,
-                   std::unique_ptr<amrex::MultiFab>& mapfac_m,
+                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                    const amrex::Real* dptr_rhotheta_src,
                    const amrex::Real* dptr_rhoqt_src,
                    const amrex::Real* dptr_wbar_sub,
                    const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                    InputSoundingData& input_sounding_data,
-                   TurbulentPerturbation& turbPert);
+                   TurbulentPerturbation& turbPert,
+                   bool is_slow_step);
 
-void make_mom_sources (int level, int nrk,
-                       amrex::Real dt, amrex::Real time,
-                       amrex::Vector<amrex::MultiFab>& S_data,
-                       const amrex::MultiFab& S_prim,
-                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                       std::unique_ptr<amrex::MultiFab>& z_phys_cc,
+void make_mom_sources (amrex::Real time,
+                       const amrex::Vector<amrex::MultiFab>& S_data,
+                             amrex::MultiFab& z_phys_nd,
+                             amrex::MultiFab& z_phys_cc,
+                             amrex::Vector<amrex::Real>& stretched_dz_h,
                        const amrex::MultiFab& xvel,
                        const amrex::MultiFab& yvel,
-                       const amrex::MultiFab& wvel,
+                       const amrex::MultiFab& zvel,
                              amrex::MultiFab& xmom_source,
                              amrex::MultiFab& ymom_source,
                              amrex::MultiFab& zmom_source,
@@ -63,16 +81,14 @@ void make_mom_sources (int level, int nrk,
                              amrex::MultiFab* sinPhi_mf,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                        const amrex::Real* dptr_rhotheta_src,
                        const amrex::Real* dptr_rhoqt_src,
                        const amrex::Real* dptr_wbar_sub,
                        const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                        const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev,
-                       InputSoundingData& input_sounding_data,
-                       const int n_qstate);
+                             InputSoundingData& input_sounding_data,
+                             bool is_slow_step);
 
 void add_thin_body_sources (amrex::MultiFab& xmom_source,
                             amrex::MultiFab& ymom_source,
@@ -107,6 +123,7 @@ void ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
                               const amrex::Box& bx,
                               const amrex::Array4<amrex::Real>& cell_rhs,
                               const amrex::Array4<const amrex::Real>& cell_data,
+                              const amrex::Array4<const amrex::Real>& r0,
                               const amrex::Array4<const amrex::Real>& z_phys_cc);
 
 void ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
@@ -120,6 +137,7 @@ void ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
                                const amrex::Array4<const amrex::Real>& rho_u,
                                const amrex::Array4<const amrex::Real>& rho_v,
                                const amrex::Array4<const amrex::Real>& rho_w,
+                               const amrex::Array4<const amrex::Real>& r0,
                                const amrex::Array4<const amrex::Real>& z_phys_nd,
                                const amrex::Array4<const amrex::Real>& z_phys_cc);
 
