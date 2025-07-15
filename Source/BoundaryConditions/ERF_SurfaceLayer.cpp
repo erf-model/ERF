@@ -229,11 +229,13 @@ SurfaceLayer::compute_fluxes (const int& lev,
             if (vbx.smallEnd(dir) != sm_index) {
                 continue;
             }
+            gtbx.grow(2, 3);
             gtbx.setBig(dir, sm_index);
         } else {
             if (vbx.bigEnd(dir) != sm_index) {
                 continue;
             }
+            gtbx.grow(2, 3);
             gtbx.setSmall(dir, sm_index);
         }
 
@@ -373,7 +375,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
     } else {
         sm_index = m_geom[lev].Domain().bigEnd(dir);
         // pick up extra cell at horizontal edges
-        if (dir != 2) sm_index +=1;
+        //if (dir != 2) sm_index +=1;
+        sm_index += 1;
     }
 
     //const int klo = m_geom[lev].Domain().smallEnd(dir);
@@ -392,6 +395,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // X-faces: hfx1   qfx1   t31   t21
         // Y-faces: hfx2   qfx2   t12   t32
         // Z-faces: hfx3   qfx3   t13   t23
+
+        // Output stresses nodal locations:
+        //            T     Q         
+        // X-faces: hfx1   qfx1(1,0,0)   t31(W)(1,0,1)   t21(V)(1,1,0)
+        // Y-faces: hfx2   qfx2(0,1,0)   t12(U)(1,1,0)   t32(W)(0,1,1)
+        // Z-faces: hfx3   qfx3(0,0,1)   t13(U)(1,0,1)   t23(V)(0,1,1)
+
 
         // Diffusive stress vars
         auto t13_arr =  Tau_lev[TauType::tau13]->array(mfi);
@@ -459,10 +469,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // Rho*Theta flux
         //============================================================================
         IntVect nd(0,0,0);
-        if (dir < 2) {
+        //if (dir < 2) {
             // hfx and qfx are not cc
             nd[dir] = 1;
-        }
+        //}
         Box bx = mfi.tilebox(nd);
         if (m_face.isLow()) {
             // skip if this rank doesn't work on this box
@@ -571,6 +581,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // Rho*u flux
         //============================================================================
         Box bxx = surroundingNodes(bx,0);
+        if (dir == 0) {
+            // pick up extra nodes in Z direction
+            bxx = surroundingNodes(bxx, 2);
+        }
         if (m_face.isLow()) {
             bxx.setBig(dir, klo);
         } else {
@@ -628,6 +642,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // Rho*v flux
         //============================================================================
         Box bxy = surroundingNodes(bx,1);
+        if (dir == 1) {
+            // pick up extra nodes in Z direction
+            bxy = surroundingNodes(bxy, 2);
+        }
         if (m_face.isLow()) {
             bxy.setBig(dir, klo);
         } else {

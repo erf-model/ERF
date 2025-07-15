@@ -115,7 +115,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const MultiFab*  t_mean_mf = nullptr;
     // TODO: t_mean_mf is only used in PBL, so it is hardcoded to use zlo surface layer for now - generalize?
-    if (SurfLayer[Orientation(Direction::z, Orientation::low)]) { t_mean_mf = SurfLayer[Orientation(Direction::z, Orientation::low)]->get_mac_avg(level,2); }
+    if (SurfLayer[Orientation(Direction::z, Orientation::low)]) { t_mean_mf = SurfLayer[Orientation(Direction::z, Orientation::low)]->get_mac_avg(level,3); }
 
     const Box& domain = geom.Domain();
     int klo = domain.smallEnd(2);

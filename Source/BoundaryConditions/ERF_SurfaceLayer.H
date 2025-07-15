@@ -346,7 +346,7 @@ public:
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
       amrex::IntVect ng = mf.nGrowVect();
-      ng[2] = 0;
+      ng[2] = ng[0];
 
       // Z0 heights FAB
       //--------------------------------------------------------

@@ -65,7 +65,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const auto& u_star_arr = SurfLayer->get_u_star(level)->const_array(mfi);
         const auto& t_star_arr = SurfLayer->get_t_star(level)->const_array(mfi);
         const auto& l_obuk_arr = SurfLayer->get_olen(level)->const_array(mfi);
-        const auto& t10av_arr  = SurfLayer->get_mac_avg(level, 2)->const_array(mfi);
+        const auto& t10av_arr  = SurfLayer->get_mac_avg(level, 3)->const_array(mfi);
         const auto& t_surf_arr = SurfLayer->get_t_surf(level)->const_array(mfi);
         const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
 

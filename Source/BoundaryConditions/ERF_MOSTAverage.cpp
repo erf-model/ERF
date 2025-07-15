@@ -104,7 +104,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         BoxArray ba2d(std::move(bl2d));
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp = 1;
-        IntVect ng = mf.nGrowVect(); ng[2]=0;
+        IntVect ng = mf.nGrowVect(); ng[2]=ng[0];
 
         m_fields[lev][0] = vars_old[Vars::xvel];
         m_averages[lev][0] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -134,7 +134,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         BoxArray ba2d(std::move(bl2d));
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp = 1;
-        IntVect ng = mf.nGrowVect(); ng[2]=0;
+        IntVect ng = mf.nGrowVect(); ng[2]=ng[1];
 
         m_fields[lev][1] = vars_old[Vars::yvel];
         m_averages[lev][1] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -164,7 +164,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         BoxArray ba2d(std::move(bl2d));
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp = 1;
-        IntVect ng = mf.nGrowVect(); ng[2]=0;
+        IntVect ng = mf.nGrowVect(); //ng[2]=1;
 
         m_fields[lev][2] = vars_old[Vars::zvel];
         m_averages[lev][2] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -193,7 +193,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp  = 1;
         const int incomp = 1;
-        IntVect ng = mf.nGrowVect(); ng[2]=0;
+        IntVect ng = mf.nGrowVect(); ng[2]=ng[0];
 
         // Get field pointers
         m_fields[lev][3] = Theta_prim.get();
@@ -625,9 +625,9 @@ MOSTAverage::set_k_indices_T (const int& lev)
                     });
                 }
             } else {
-                int kmax = m_geom[lev].Domain().bigEnd(2);
+                int kmax = m_geom[lev].Domain().bigEnd(2) + 1;
                 for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-                    Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+                    Box npbx = mfi.tilebox(IntVect(1,1,1),IntVect(1,1,0));
                     const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
                     auto k_arr = m_k_indx[lev]->array(mfi);
                     ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -944,7 +944,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
             sm_index = m_geom[lev].Domain().smallEnd(dir);
         } else {
             sm_index = m_geom[lev].Domain().bigEnd(dir);
-            if (imf < 2 && imf == dir) {
+            if (imf < 3 && imf == dir) {
                 sm_index += 1;
             }
         }
@@ -970,6 +970,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 if (vbx.bigEnd(dir) != sm_index) {
                     continue;
                 }
+                if (dir != imf) sm_index += 1;
             }
 
             //pbx.setSmall(2,0); pbx.setBig(2,0);
@@ -1061,6 +1062,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 if (pbx.bigEnd(dir) != sm_index) {
                     continue;
                 }
+                sm_index += 1;
             }
 
             pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
@@ -1170,6 +1172,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 if (pbx.bigEnd(dir) != sm_index) {
                     continue;
                 }
+                sm_index += 1;
             }
 
             pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);

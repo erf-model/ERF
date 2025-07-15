@@ -279,13 +279,13 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 xflux(i,j,k) = qfx1_x(i,j,k);
             }
             // /*
-            else if ((SurfLayer_on_ylo || SurfLayer_on_yhi || SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoTheta_comp || qty_index == RhoQ1_comp)) {
+            else if (!rotate && (SurfLayer_on_ylo || SurfLayer_on_yhi || SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoTheta_comp || qty_index == RhoQ1_comp)) {
                 xflux(i,j,k) = 0.0;
             }
             // */
-            else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
+            else if (rotate && SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 xflux(i,j,k) = hfx_x(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
+            } else if (rotate && SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 xflux(i,j,k) = qfx1_x(i,j,0);
             } else {
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) *  GradCx;
@@ -332,13 +332,13 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 yflux(i,j,k) = qfx1_y(i,j,k);
             }
             // /*
-            else if ((SurfLayer_on_xlo || SurfLayer_on_xhi || SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoTheta_comp || qty_index == RhoQ1_comp)) {
+            else if (!rotate && (SurfLayer_on_xlo || SurfLayer_on_xhi || SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoTheta_comp || qty_index == RhoQ1_comp)) {
                 yflux(i,j,k) = 0.0;
             }
             // */
-            else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
+            else if (rotate && SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 yflux(i,j,k) = hfx_y(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
+            } else if (rotate && SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 yflux(i,j,k) = qfx1_y(i,j,0);
             } else {
                 yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
@@ -376,7 +376,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                                      (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z);
+            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
 
             bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
             bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x);

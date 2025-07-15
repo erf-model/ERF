@@ -1605,20 +1605,16 @@ struct moeng_flux
         amrex::Real velx, vely;
         if (dir == 0) {
             // X-face: y/z velocity, velx = vely, vely = velz here
-            velx  = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                           + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
-            vely  = 0.25 * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
-                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+            velx  = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
+            vely  = 0.5 * ( velz_arr(i,j,k) + velz_arr(i  ,j  ,k+1) );
         } else if (dir == 1) {
             // Y-face: x/z velocity, vely = velz here
-            velx  = velx_arr(i,j,k);
-            vely  = 0.25 * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
-                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+            velx  = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
+            vely  = 0.5 * ( velz_arr(i,j,k) + velz_arr(i  ,j  ,k+1) );
         } else {
             // Z face: x/y velocity
-            velx = velx_arr(i,j,k);
-            vely = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                          + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+            velx = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
+            vely = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
         }
 
         amrex::Real qv_mean  = qvm_arr(i,j,k);
@@ -1665,20 +1661,16 @@ struct moeng_flux
         amrex::Real velx, vely;
         if (dir == 0) {
             // X-face: y/z velocity, velx = vely, vely = velz here
-            velx  = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                           + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
-            vely  = 0.25 * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
-                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+            velx  = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
+            vely  = 0.5 * ( velz_arr(i,j,k) + velz_arr(i  ,j  ,k+1) );
         } else if (dir == 1) {
             // Y-face: x/z velocity, vely = velz here
-            velx  = velx_arr(i,j,k);
-            vely  = 0.25 * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
-                           + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
+            velx  = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
+            vely  = 0.5 * ( velz_arr(i,j,k) + velz_arr(i  ,j  ,k+1) );
         } else {
             // Z face: x/y velocity
-            velx = velx_arr(i,j,k);
-            vely = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                          + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+            velx = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
+            vely = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
         }
 
         amrex::Real theta_mean  = tm_arr(i,j,k);
