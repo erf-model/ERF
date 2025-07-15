@@ -221,9 +221,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                     if (n_qstate_moist > 3) { icomp = RhoQ4_comp; }
                     if (n_qstate_moist < 3) { success = 0; }
                 }
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
+
                 // INITIAL DATA common for "ideal" as well as "real" simulation
                 // Don't tile this since we are operating on full FABs in this routine
                 if (success)
@@ -241,6 +239,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                         var_fab.template mult<RunOn::Device>(R_v/R_d);
                         var_fab.template plus<RunOn::Device>(1.0);
                         var_fab.template invert<RunOn::Device>(1.0);
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
                         for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
                         {
                             lev_new[Vars::cons][mfi].template mult<RunOn::Device>(var_fab, 0, RhoTheta_comp, 1);
