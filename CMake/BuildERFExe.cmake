@@ -71,6 +71,10 @@ function(build_erf_lib erf_lib_name)
   endif()
 
   if(ERF_ENABLE_RRTMGP)
+    if(NOT ERF_ENABLE_KOKKOS)
+        message(FATAL_ERROR "CMake Error: kokkos must be enabled if rrtmgp is enabled.")
+    endif()
+    
     target_include_directories(${erf_lib_name} PUBLIC
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Radiation>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp>
