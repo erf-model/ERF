@@ -12,7 +12,8 @@ using namespace amrex;
 
 /* Initialize lsm data structures */
 void
-NOAH::Init (const MultiFab& cons_in,
+NOAH::Init (const int& lev,
+            const MultiFab& cons_in,
             const Geometry& geom,
             const Real& dt)
 {
@@ -77,7 +78,7 @@ NOAH::Init (const MultiFab& cons_in,
     amrex::Print() << "Noah-MP initialization started" << std::endl;
 
     // Set noahmpio_vect to the size of local blocks (boxes)
-    noahmpio_vect.resize(cons_in.local_size());
+    noahmpio_vect.resize(cons_in.local_size(), lev);
 
     // Iterate over multifab and noahmpio object together. Multifabs is
     // used to extract size of blocks and set bounds for noahmpio objects.
@@ -95,6 +96,9 @@ NOAH::Init (const MultiFab& cons_in,
 
             // Pass idb context to noahmpio
             noahmpio->blkid = idb;
+
+            // Pass level context to noahmpio
+            noahmpio->level = lev;
 
             // Initialize scalar values
             noahmpio->ScalarInitDefault();
