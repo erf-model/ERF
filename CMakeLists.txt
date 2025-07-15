@@ -134,9 +134,8 @@ endif()
 ########################## KOKKOS ##################################
 
 if(ERF_ENABLE_KOKKOS)
-  set(Kokkos_ROOT /home/almgren/bin/kokkos)
-  find_package (Kokkos REQUIRED)
-  target_link_libraries(${erf_exe_name} PRIVATE Kokkos::kokkos)
+  set(CMAKE_CXX_STANDARD 17)
+  add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/kokkos)
 endif()
 
 ########################## NETCDF ##################################

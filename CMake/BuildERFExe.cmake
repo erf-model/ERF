@@ -269,9 +269,7 @@ function(build_erf_lib erf_lib_name)
   endif()
 
   if(ERF_ENABLE_KOKKOS)
-      #Link our executable to the Kokkos library
-      target_link_libraries(${erf_lib_name} PUBLIC ${KOKKOS_LINK_LIBRARIES})
-      target_include_directories(${erf_lib_name} PUBLIC ${KOKKOS_INCLUDE_DIRS})
+      target_link_libraries(${erf_lib_name} PUBLIC Kokkos::kokkos)
   endif()
 
   if(ERF_ENABLE_MPI)
