@@ -836,7 +836,7 @@ define( int const& a_idim,
         EB2::build_cellflag_from_ap (i, j, k, aux_flag, aux_afrac_x, aux_afrac_y, aux_afrac_z);
       });
 
-      // Set disconnected non-periodicfaces 
+      // Set disconnected non-periodicfaces
 
       bool l_periodic_x = a_geom.isPeriodic(0);
       bool l_periodic_y = a_geom.isPeriodic(1);
