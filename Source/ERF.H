@@ -142,6 +142,7 @@ public:
 
     // Hurricane track line output as VTKPolyline
     amrex::Vector<std::array<amrex::Real, 2>> hurricane_track_xy;
+    amrex::Vector<amrex::Vector<amrex::MultiFab>> initial_state;
     std::string MakeVTKFilename(int nstep);
     void WriteVTKPolyline(const std::string& filename,
                           amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
@@ -404,6 +405,10 @@ public:
     void init_from_hse (int lev);
 
     void init_thin_body (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+
+    void init_coarse_weather_data();
+
+    void interp_weather_data_onto_mesh();
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -873,6 +878,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_xforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
+
+    amrex::Vector<amrex::MultiFab> weather_forecast_data;
+    amrex::Geometry geom_weather;
 
     int last_plot_file_step_1;
     int last_plot_file_step_2;

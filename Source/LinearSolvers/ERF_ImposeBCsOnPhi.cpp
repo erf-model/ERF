@@ -75,6 +75,7 @@ void ERF::ImposeBCsOnPhi (int lev, MultiFab& phi)
                 });
             }
         }
+
         if (bx_hi.y == dom_hi.y) {
             auto bc_type = domain_bc_type[Orientation(1,Orientation::high)];
             Box ybx(bx); ybx.grow(0,1); // Grow in x-dir because we have filled that above
@@ -98,11 +99,20 @@ void ERF::ImposeBCsOnPhi (int lev, MultiFab& phi)
                 pp_arr(i,j,k-1) = pp_arr(i,j,k);
             });
         }
+
+        auto zbc_type = domain_bc_type[Orientation(2,Orientation::high)];
         if (bx_hi.z == dom_hi.z) {
-            ParallelFor(makeSlab(zbx,2,dom_hi.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                pp_arr(i,j,k+1) = pp_arr(i,j,k);
-            });
+            if (zbc_type == "Outflow" || zbc_type == "Open") {
+                ParallelFor(makeSlab(zbx,2,dom_hi.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    pp_arr(i,j,k+1) = -pp_arr(i,j,k);
+                });
+            } else {
+                ParallelFor(makeSlab(zbx,2,dom_hi.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    pp_arr(i,j,k+1) = pp_arr(i,j,k);
+                });
+            }
         }
     } // mfi
 

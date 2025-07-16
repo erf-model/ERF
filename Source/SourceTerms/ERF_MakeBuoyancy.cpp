@@ -47,7 +47,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
     const int khi = geom.Domain().bigEnd()[2] + 1;
 
     Real rd_over_cp = solverChoice.rdOcp;
-    Real rv_over_rd = R_v/R_d;
+    //Real rv_over_rd = R_v/R_d;
 
     MultiFab r0 (base_state, make_alias, BaseState::r0_comp , 1);
     MultiFab p0 (base_state, make_alias, BaseState::p0_comp , 1);
@@ -100,8 +100,13 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
                 //
                 // Return -rho0 g (thetaprime / theta0)
                 //
-                buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu[2],rv_over_rd,
-                                                                 r0_arr,th0_arr,qv0_arr,cell_data,qt_arr);
+                //buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu[2],rv_over_rd,
+                //                                                 r0_arr,th0_arr,qv0_arr,cell_data,qt_arr);
+
+                // NOTE: Using the type 4, which we formally derived.
+                //       The above has errors and needs rederiving.
+                buoyancy_fab(i, j, k) = buoyancy_moist_Thpert(i,j,k,n_qstate,grav_gpu[2],
+                                                                  r0_arr,th0_arr,qv0_arr,cell_prim,qt_arr);
             });
         }
         else if ( !anelastic && (solverChoice.moisture_type == MoistureType::None) )
