@@ -20,9 +20,10 @@ using yakl::intrinsics::sum;
 
 template<class T, int myMem, int myStyle>
 void
-mixing_ratio_to_cloud_mass (yakl::Array<T,2,myMem,myStyle> const &mixing_ratio,
+mixing_ratio_to_cloud_mass (yakl::Array<T,2,myMem,myStyle> const &mixing_ratio  ,
                             yakl::Array<T,2,myMem,myStyle> const &cloud_fraction,
-                            yakl::Array<T,2,myMem,myStyle> const &dp,
+                            yakl::Array<T,2,myMem,myStyle> const &rho           ,
+                            yakl::Array<T,2,myMem,myStyle> const &dz            ,
                             yakl::Array<T,2,myMem,myStyle>       &cloud_mass)
 {
     int ncol = mixing_ratio.dimension[0];
@@ -36,7 +37,7 @@ mixing_ratio_to_cloud_mass (yakl::Array<T,2,myMem,myStyle> const &mixing_ratio,
         if (cloud_fraction(icol,ilay) > 0) {
             // Compute layer-integrated cloud mass (per unit area)
             auto incloud_mixing_ratio = std::min(mixing_ratio(icol,ilay) / std::max(0.0001, cloud_fraction(icol,ilay)), 0.005);
-            cloud_mass(icol,ilay) = incloud_mixing_ratio * dp(icol,ilay) / CONST_GRAV;
+            cloud_mass(icol,ilay) = incloud_mixing_ratio * rho(icol,ilay) * dz(icol,ilay);
         } else {
             cloud_mass(icol,ilay) = 0;
         }
@@ -47,8 +48,8 @@ mixing_ratio_to_cloud_mass (yakl::Array<T,2,myMem,myStyle> const &mixing_ratio,
 template<class S, class T>
 void
 limit_to_bounds (S const &arr_in,
-                 T const lower,
-                 T const upper,
+                 T const lower  ,
+                 T const upper  ,
                  S &arr_out)
 {
     yakl::c::parallel_for(arr_in.totElems(), YAKL_LAMBDA(int i)
@@ -73,25 +74,16 @@ void
 compute_heating_rate (yakl::Array<T,2,myMem,myStyle> const &flux_up,
                       yakl::Array<T,2,myMem,myStyle> const &flux_dn,
                       yakl::Array<T,2,myMem,myStyle> const &rho    ,
-                      yakl::Array<T,2,myMem,myStyle> const &dz    ,
+                      yakl::Array<T,2,myMem,myStyle> const &dz     ,
                       yakl::Array<T,2,myMem,myStyle> &heating_rate)
 {
     auto ncol = flux_up.dimension[0];
     auto nlay = flux_up.dimension[1]-1;
     yakl::fortran::parallel_for(yakl::fortran::SimpleBounds<2>(nlay,ncol), YAKL_LAMBDA(int ilay, int icol)
     {
-        heating_rate(icol,ilay) = -1.0 * ( flux_up(icol,ilay+1) - flux_up(icol,ilay)
-                                         - flux_dn(icol,ilay+1) + flux_dn(icol,ilay) )
-                                         / (Cp_d * rho(icol,ilay) * dz(icol,ilay));
-
-        /*
-        if (icol == 1) {
-            printf("Heating Rate %i %e %e %e %e %e %e\n",ilay,
-                   flux_up(icol,ilay+1), flux_up(icol,ilay),
-                   flux_dn(icol,ilay+1), flux_dn(icol,ilay),
-                   rho(icol,ilay), dz(icol,ilay));
-        }
-        */
+        heating_rate(icol,ilay) = ( flux_up(icol,ilay+1) - flux_up(icol,ilay)
+                                  - flux_dn(icol,ilay+1) + flux_dn(icol,ilay) )
+                                  / ( -rho(icol,ilay) * dz(icol,ilay) * Cp_d );
     });
 }
 

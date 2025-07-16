@@ -136,6 +136,15 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
             auto var_name = NC_names[ivar];
             auto& var_fab = NC_fab_var_file[idx][ivar];
 
+            if (lev > 1) {
+                Box shift_by_box(subdomains[lev][0].minimalBox());
+                IntVect shift_by(shift_by_box.smallEnd());
+                for (int i = 0; i < AMREX_SPACEDIM; i++) {
+                    shift_by[i] -= var_fab.box().smallEnd(i);
+                }
+                var_fab.shift(shift_by);
+            }
+
             // Initialize rho =  1/(ALB + AL)
             if ( var_name == "ALB" ) {
 #ifdef _OPENMP
@@ -212,9 +221,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                     if (n_qstate_moist > 3) { icomp = RhoQ4_comp; }
                     if (n_qstate_moist < 3) { success = 0; }
                 }
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
+
                 // INITIAL DATA common for "ideal" as well as "real" simulation
                 // Don't tile this since we are operating on full FABs in this routine
                 if (success)
@@ -222,7 +229,24 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                     for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
                     {
                         lev_new[Vars::cons][mfi].template copy<RunOn::Device>(var_fab, 0, icomp, 1);
-                    } // mfi
+                    }
+
+                    // Multiply by density
+                    MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, icomp, 1, lev_new[Vars::cons].nGrowVect());
+
+                    if (use_theta_m && (var_name == "QVAPOR")) {
+                        // Now, we can calculate theta = thm / (1 + R_v/R_d * Qv)
+                        var_fab.template mult<RunOn::Device>(R_v/R_d);
+                        var_fab.template plus<RunOn::Device>(1.0);
+                        var_fab.template invert<RunOn::Device>(1.0);
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                        for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+                        {
+                            lev_new[Vars::cons][mfi].template mult<RunOn::Device>(var_fab, 0, RhoTheta_comp, 1);
+                        }
+                    } // use_theta_m
 
                 } else {
                     if (icomp < lev_new[Vars::cons].nComp()) {
@@ -232,20 +256,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                         amrex::Print() << "Ignoring " << var_name << " since we aren't using it ... DONE" << std::endl;
                     }
                 }
-
-                // Multiply each of these by density
-                MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, icomp, 1, lev_new[Vars::cons].nGrowVect());
-
-                if (use_theta_m && (var_name == "QVAPOR")) {
-                    // Now, we can calculate theta = thm / (1 + R_v/R_d * Qv)
-                    var_fab.template mult<RunOn::Device>(R_v/R_d);
-                    var_fab.template plus<RunOn::Device>(1.0);
-                    var_fab.template invert<RunOn::Device>(1.0);
-                    for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
-                    {
-                        lev_new[Vars::cons][mfi].template mult<RunOn::Device>(var_fab, 0, RhoTheta_comp, 1);
-                    }
-                } // use_theta_m
 
                 var_fab.clear();
             } // valid var (not rho)
