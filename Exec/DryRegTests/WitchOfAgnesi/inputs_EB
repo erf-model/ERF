@@ -74,7 +74,7 @@ erf.eb_diff_constraint_y = true
 
 erf.abl_driver_type = "PressureGradient"
 #erf.abl_driver_type = "None"
-erf.abl_pressure_grad = -1.0 0. 0.
+erf.abl_pressure_grad = -0.02 0. 0.
 
 erf.project_initial_velocity = false
 
