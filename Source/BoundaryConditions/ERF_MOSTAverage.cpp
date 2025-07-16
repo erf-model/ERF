@@ -1151,7 +1151,11 @@ MOSTAverage::compute_plane_averages (const int& lev)
         const int iavg_xz = m_navg - 2;
         const int iavg_yz = m_navg - 1;
         denom[iavg]   = 1.0 / (Real)ncell_plane[iavg];
+        denom[iavg_xz]   = 1.0 / (Real)ncell_plane[iavg_xz];
+        denom[iavg_yz]   = 1.0 / (Real)ncell_plane[iavg_yz];
         val_old[iavg] = plane_average[iavg]*d_fact_old;
+        val_old[iavg_xz] = plane_average[iavg_xz]*d_fact_old;
+        val_old[iavg_yz] = plane_average[iavg_yz]*d_fact_old;
 
         const Real Vsg = m_Vsg[lev];
 
