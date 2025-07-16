@@ -249,7 +249,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             } else if (bdyVarType == WRFBdyVars::T) {
                 bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
-                  bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // QV
+                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // QV
             } else if (bdyVarType == WRFBdyVars::MU ||
                        bdyVarType == WRFBdyVars::PC) {
                 bdy_data_xhi[itime].push_back(FArrayBox(xhi_line, 1, Arena_Used)); // MU
@@ -323,11 +323,15 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             // Print() << "SHAPE3 " << tslice[iv].get_vshape()[3] << std::endl;
 
             Array4<Real> fab_arr;
+
             if (bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V ||
                 bdyVarType == WRFBdyVars::T || bdyVarType == WRFBdyVars::QV)
             {
-                int ns2 = tslice[iv].get_vshape()[2];
-                int ns3 = tslice[iv].get_vshape()[3];
+                // xlo,xhi dims: (bdy_width, bottom_top, south_north)
+                // ylo,yhi dims: (bdy_width, bottom_top, west_east)
+
+                int ns2 = tslice[iv].get_vshape()[2]; // vertical size
+                int ns3 = tslice[iv].get_vshape()[3]; // lateral size, may be staggered
 
                 if (bdyType == WRFBdyTypes::x_lo) {
                     num_pts  = bdy_data_xlo[itime][bdyVarType].box().numPts();
@@ -372,6 +376,8 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                 } // bdyType
 
             } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
+                // xlo,xhi dims: (bdy_width, south_north)
+                // ylo,yhi dims: (bdy_width, west_east)
 
                 if (bdyType == WRFBdyTypes::x_lo) {
                     num_pts  = bdy_data_xlo[itime][bdyVarType].box().numPts();
@@ -590,7 +596,7 @@ convert_all_wrfbdy_data (const int itime,
     convert_wrfbdy_data(itime, domain, bdy_data_xlo,
                         mf_MUB, mf_C1H, mf_C2H,
                         xvel, yvel, cons, geom, use_moist);
-    convert_wrfbdy_data(itime, domain ,bdy_data_xhi,
+    convert_wrfbdy_data(itime, domain, bdy_data_xhi,
                         mf_MUB, mf_C1H, mf_C2H,
                         xvel, yvel, cons, geom, use_moist);
     convert_wrfbdy_data(itime, domain, bdy_data_ylo,
