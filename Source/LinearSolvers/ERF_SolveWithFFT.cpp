@@ -61,8 +61,8 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
         }
         if (m_3D_poisson.size() <= lev) {
             m_3D_poisson.resize(lev+1);
-            m_3D_poisson[lev] = std::make_unique<FFT::Poisson<MultiFab>>(my_geom,bc_fft);
         }
+        m_3D_poisson[lev] = std::make_unique<FFT::Poisson<MultiFab>>(my_geom,bc_fft);
         m_3D_poisson[lev]->solve(phi, rhs);
 
     //
@@ -79,8 +79,8 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
         }
         if (m_2D_poisson.size() <= lev) {
             m_2D_poisson.resize(lev+1);
-            m_2D_poisson[lev] = std::make_unique<FFT::PoissonHybrid<MultiFab>>(my_geom,bc_fft);
         }
+        m_2D_poisson[lev] = std::make_unique<FFT::PoissonHybrid<MultiFab>>(my_geom,bc_fft);
         m_2D_poisson[lev]->solve(phi, rhs, stretched_dz_d[lev]);
 
     } else {
