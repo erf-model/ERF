@@ -143,6 +143,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
 
                 // Update pressure and temperature
                 const auto& gvec = (*m_mic_fab_vars[MicVar_SD::temperature]).nGrowVect();
+                auto* qvw_ptr = m_mic_fab_vars[MicVar_SD::q_v].get(); // qv for water
                 for (MFIter mfi(*m_mic_fab_vars[MicVar_SD::temperature], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
                     Box bx = mfi.tilebox();
@@ -153,7 +154,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
 
                     const Array4<Real const>& rho_arr = m_mic_fab_vars[MicVar_SD::rho]->const_array(mfi);
                     const Array4<Real const>& theta_arr = m_mic_fab_vars[MicVar_SD::theta]->const_array(mfi);
-                    const Array4<Real const>& qv_arr = qv_ptr->const_array(mfi);
+                    const Array4<Real const>& qv_arr = qvw_ptr->const_array(mfi);
 
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
