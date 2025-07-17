@@ -41,5 +41,5 @@ void ERF::solve_with_gmres (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& ph
     // ****************************************************************************
     // Impose bc's on pprime
     // ****************************************************************************
-    ImposeBCsOnPhi(lev, phi[0]);
+    ImposeBCsOnPhi(lev, phi[0], geom[lev].Domain());
 }
