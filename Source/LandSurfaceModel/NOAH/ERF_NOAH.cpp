@@ -185,146 +185,47 @@ NOAH::Advance_With_State (const int& lev,
 
     amrex::Print () << "Noah-MP driver started at time step: " << nstep+1 << std::endl;
 
+    // Loop over blocks to copy forcing data to Noahmp, drive the land model,
+    // and copy data back to ERF Multifabs.
     int idb = 0;
-    for (amrex::MFIter mfi(xvel_in, false); mfi.isValid(); ++mfi, ++idb)
-    {
+    for (amrex::MFIter mfi(xvel_in, false); mfi.isValid(); ++mfi, ++idb) {
+
         const amrex::Box& bx = mfi.tilebox();
 
-        // Fix vertical level: work on 2D slice at bottom vertical level (usually 0)
-        int klev = domain.smallEnd(2);
-        // Construct a 2D box with vertical thickness 1 at klev = 0
-        amrex::Box bx_2d({bx.smallEnd(0), bx.smallEnd(1), 0},
-                         {bx.bigEnd(0), bx.bigEnd(1), 0});
-
+        // Check if tile is at the lower boundary in lower z direction
         if (bx.smallEnd(2) == domain.smallEnd(2)) {
 
             NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
 
-            // Choose pinned arena on GPU builds, default arena on CPU
-            amrex::Arena* pinned_arena = nullptr;
-#ifdef AMREX_USE_GPU
-            pinned_arena = amrex::The_Pinned_Arena();
-#else
-            pinned_arena = amrex::The_Arena();
-#endif
+            const amrex::Array4<const amrex::Real>& U_PHY = xvel_in.const_array(mfi);
+            const amrex::Array4<const amrex::Real>& V_PHY = yvel_in.const_array(mfi);
+            const amrex::Array4<const amrex::Real>& QV_TH = cons_in.const_array(mfi);
 
-            // Allocate pinned host FABs for velocities (1 comp each)
-            FArrayBox U_host(bx_2d, 1, pinned_arena);
-            FArrayBox V_host(bx_2d, 1, pinned_arena);
-
-            // Number of cons_in components used in calculation (adjust to your actual comps)
-            constexpr int ncons = 3; // e.g., RhoTheta, RhoQ1, Rho
-            FArrayBox cons_host(bx_2d, ncons, pinned_arena);
-
-            // Copy velocity slices (klev fixed) from device to pinned host
-#ifdef AMREX_USE_GPU
-            {
-                // Copy xvel_in comp 0, slice at klev
-                auto const& xvel_arr = xvel_in.const_array(mfi);
-                auto const& yvel_arr = yvel_in.const_array(mfi);
-                auto& U_arr = U_host.array();
-                auto& V_arr = V_host.array();
-
-                // Loop on CPU to copy slice at klev, since no direct 2D copy in AMReX API
-                // This is host code; amrex::Gpu::copy cannot copy a slice directly, so do manual copy:
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
-                {
-                   U_arr(i,j,0) = xvel_arr(i,j,klev);
-                   V_arr(i,j,0) = yvel_arr(i,j,klev);
-                }
-            }
-
-            // Copy cons_in components slice at klev
-            {
-                auto const& cons_arr = cons_in.const_array(mfi);
-                auto& c_arr = cons_host.array();
-
-                // For each component copy slice at klev
-                for (int comp = 0; comp < ncons; ++comp) {
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
-                    {
-                       c_arr(i,j,0,comp) = cons_arr(i,j,klev,comp);
-                    }
-                }
-            }
-#else
-            // CPU only: just copy boxes directly (all comps, 1 k level)
-            U_host.copy(xvel_in[mfi], 0, 0, 1);
-            V_host.copy(yvel_in[mfi], 0, 0, 1);
-            cons_host.copy(cons_in[mfi], 0, 0, ncons);
-#endif
-
-            // Create array accessors for CPU computations
-            const auto& U_arr = U_host.array();
-            const auto& V_arr = V_host.array();
-            const auto& cons_arr = cons_host.array();
-
-            // Aliases for noahmpio CPU arrays (assumed allocated)
-            auto& T_cpu  = noahmpio->T_PHY;
-            auto& QV_cpu = noahmpio->QV_CURR;
-            auto& U_cpu  = noahmpio->U_PHY;
-            auto& V_cpu  = noahmpio->V_PHY;
-
-            // Loop over 2D slice and compute temperature and mixing ratio
-            for (int j = bx_2d.smallEnd(1); j <= bx_2d.bigEnd(1); ++j) {
-                for (int i = bx_2d.smallEnd(0); i <= bx_2d.bigEnd(0); ++i) {
-                    U_cpu(i,1,j) = U_arr(i,j,0);
-                    V_cpu(i,1,j) = V_arr(i,j,0);
-
-                    amrex::Real rho_theta = cons_arr(i,j,0,RhoTheta_comp);
-                    amrex::Real rho_q1 = cons_arr(i,j,0,RhoQ1_comp);
-                    amrex::Real rho = cons_arr(i,j,0,Rho_comp);
-
-                    T_cpu(i,1,j) = rho_theta / rho;
-                    QV_cpu(i,1,j) = rho_q1 / rho;
-                }
-            }
-
-            // Run land surface model timestep
-            noahmpio->itimestep = nstep + 1;
-            noahmpio->DriverMain();
-
-            // Copy land surface outputs back to MultiFabs
-#ifdef AMREX_USE_GPU
-            // Create pinned FABs for SHBXY and EVBXY output on CPU host
-            FArrayBox SHBXY_host(bx_2d, 1, pinned_arena);
-            FArrayBox EVBXY_host(bx_2d, 1, pinned_arena);
-            auto& SHB_arr = SHBXY_host.array();
-            auto& EVB_arr = EVBXY_host.array();
             amrex::Array4<amrex::Real> SHBXY = hfx3_out->array(mfi);
             amrex::Array4<amrex::Real> EVBXY = qfx3_out->array(mfi);
 
-            // Copy from noahmpio CPU arrays into pinned host FABs
-            for (int j = bx_2d.smallEnd(1); j <= bx_2d.bigEnd(1); ++j) {
-                for (int i = bx_2d.smallEnd(0); i <= bx_2d.bigEnd(0); ++i) {
-                    SHB_arr(i,j,0) = noahmpio->SHBXY(i,j);
-                    EVB_arr(i,j,0) = noahmpio->EVBXY(i,j);
-                }
-            }
-
-            // Copy from pinned host FABs back to device MultiFabs
+            // Copy forcing data from ERF to Noahmp.
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
             {
-                SHBXY(i,j,0) = SHB_arr(i,j);
-                EVBXY(i,j,0) = EVB_arr(i,j); 
-            } 
+                noahmpio->U_PHY(i,1,j) = U_PHY(i,j,0);
+                noahmpio->V_PHY(i,1,j) = V_PHY(i,j,0);
+                noahmpio->T_PHY(i,1,j) = QV_TH(i,j,0,RhoTheta_comp)/QV_TH(i,j,0,Rho_comp);
+                noahmpio->QV_CURR(i,1,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
 
-#else
-            // CPU only: copy arrays directly
-            amrex::Array4<amrex::Real> SHBXY = hfx3_out->array(mfi);
-            amrex::Array4<amrex::Real> EVBXY = qfx3_out->array(mfi);
+            });
 
-            for (int j = bx_2d.smallEnd(1); j <= bx_2d.bigEnd(1); ++j) {
-                for (int i = bx_2d.smallEnd(0); i <= bx_2d.bigEnd(0); ++i) {
-                    SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
-                    EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
-                }
-            }
-#endif
+            // Call the noahmpio driver code. This runs the land model forcing for
+            // each object in noahmpio_vect that represent a block in the domain.
+            noahmpio->itimestep = nstep+1;
+            noahmpio->DriverMain();
 
-        } // if vertical slice
-
-    } // MFIter
-
-    amrex::Print() << "Noah-MP driver completed" << std::endl;
+            // Copy forcing data from Noahmp to ERF
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
+            {
+                SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
+                EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
+            });
+        }
+    }
+    amrex::Print () << "Noah-MP driver completed" << std::endl;
 };
