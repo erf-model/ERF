@@ -216,7 +216,7 @@ get_subsampled_clouds (const int ncol,
         seeds(icol) = 1e9 * (p_lay(icol,nlay-1) - int(p_lay(icol,nlay-1)));
     });
     auto cldmask = get_subcolumn_mask(ncol, nlay, ngpt, cldfrac_rad, overlap, seeds);
-    
+
     // Assign optical properties to subcolumns (note this implements MCICA)
     auto gpoint_bands = kdist.get_gpoint_bands();
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, ngpt}),
@@ -418,7 +418,7 @@ rrtmgp_main (const int ncol, const int nlay,
              real3d_k& lw_bnd_flux_up      , real3d_k& lw_bnd_flux_dn      ,
              const RealT tsi_scaling,
              const bool extra_clnclrsky_diag, const bool extra_clnsky_diag)
-{ 
+{
     // Setup pointers to RRTMGP SW fluxes
     fluxes_t fluxes_sw;
     fluxes_sw.flux_up = sw_flux_up;
@@ -442,7 +442,7 @@ rrtmgp_main (const int ncol, const int nlay,
     clnsky_fluxes_sw.flux_up = sw_clnsky_flux_up;
     clnsky_fluxes_sw.flux_dn = sw_clnsky_flux_dn;
     clnsky_fluxes_sw.flux_dn_dir = sw_clnsky_flux_dn_dir;
-    
+
     // Setup pointers to RRTMGP LW fluxes
     fluxes_t fluxes_lw;
     fluxes_lw.flux_up = lw_flux_up;
@@ -461,10 +461,10 @@ rrtmgp_main (const int ncol, const int nlay,
     fluxes_broadband_t clnsky_fluxes_lw;
     clnsky_fluxes_lw.flux_up = lw_clnsky_flux_up;
     clnsky_fluxes_lw.flux_dn = lw_clnsky_flux_dn;
-    
+
     auto nswbands = k_dist_sw_k->get_nband();
     auto nlwbands = k_dist_lw_k->get_nband();
-    
+
     // Setup aerosol optical properties
     optical_props2_t aerosol_sw;
     optical_props1_t aerosol_lw;
@@ -573,7 +573,7 @@ get_subcolumn_mask (const int ncol,
             conv::Random rand(seeds(icol) + ilay*ngpt + igpt);
             cldx(icol,ilay,igpt) = rand.genFP<RealT>();
         });
-        
+
         // Step down columns and apply algorithm from eq (14)
         Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, ngpt}),
                              KOKKOS_LAMBDA (int icol, int igpt)
@@ -587,7 +587,7 @@ get_subcolumn_mask (const int ncol,
                 } else {
                     // Cloud-less above, use new random number so that clouds are distributed
                     // randomly in this layer. Need to scale new random number to range
-                    // [0, 1.0 - cldf(ilay-1)] because we have artifically changed the distribution
+                    // [0, 1.0 - cldf(ilay-1)] because we have artificially changed the distribution
                     // of random numbers in this layer with the above branch of the conditional,
                     // which would otherwise inflate cloud fraction in this layer.
                     cldx(icol,ilay,igpt) = cldx(icol,ilay  ,igpt) * (1.0 - cldf(icol,ilay-1));
@@ -959,7 +959,7 @@ rrtmgp_lw (const int ncol,
     // Allocate space for optical properties
     optical_props1_t optics;
     optics.alloc_1scl(ncol, nlay, k_dist);
-    
+
     optical_props1_t optics_no_aerosols;
     if (extra_clnsky_diag) {
         // Allocate space for optical properties (no aerosols)
@@ -990,7 +990,7 @@ rrtmgp_lw (const int ncol,
     // Surface temperature
     // AML NOTE: We already populate this when initializing data
 
-    
+
     // Surface emissivity (transposed in RRTMGP)
     // AML NOTE: This transfer was removed in EAMXX, LSM doesn't transfer its emis_sfc?
     real2d_k emis_sfc_T("emis_sfc",nbnd,ncol);
@@ -1013,7 +1013,7 @@ rrtmgp_lw (const int ncol,
                                                               {0.  , 0.        , 4.70941630, 2.40148179},
                                                               {0.  , 0.        , 0.        , 7.15513024} };
     realHost2d_k gauss_Ds_host(&gauss_Ds_host_raw[0][0], max_gauss_pts, max_gauss_pts);
-    
+
     RealT gauss_wts_host_raw[max_gauss_pts][max_gauss_pts] = { {0.5, 0.3180413817, 0.2009319137, 0.1355069134},
                                                                {0. , 0.1819586183, 0.2292411064, 0.2034645680},
                                                                {0. , 0.          , 0.0698269799, 0.1298475476},

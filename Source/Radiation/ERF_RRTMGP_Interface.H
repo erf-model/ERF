@@ -89,7 +89,7 @@ get_subsampled_clouds (const int ncol,
                        gas_optics_t& kdist,
                        real2d_k& cld,
                        real2d_k& p_lay);
-        
+
 void
 rrtmgp_initialize (gas_concs_t& gas_concs,
                    const std::string& coefficients_file_sw, const std::string& coefficients_file_lw,

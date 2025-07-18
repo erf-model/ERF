@@ -950,7 +950,7 @@ Radiation::run_impl ()
             double dt      = double(m_dt);
             double lat_col = h_lat(icol)*PI/180.0;
             double lon_col = h_lon(icol)*PI/180.0;
-            double lcalday = 1.25; //calday;
+            double lcalday = calday;
             double ldelta  = delta;
             h_mu0(icol)    = Real(orbital_cos_zenith(lcalday, lat_col, lon_col, ldelta, m_rad_freq_in_steps * dt));
         });
@@ -975,7 +975,7 @@ Radiation::run_impl ()
                                                  sfc_alb_dir_vis, sfc_alb_dir_nir,
                                                  sfc_alb_dif_vis, sfc_alb_dif_nir,
                                                  sfc_alb_dir    , sfc_alb_dif);
-    
+
     // Run RRTMGP driver
     rrtmgp::rrtmgp_main(ncol, m_nlay,
                         p_lay, t_lay,
@@ -1041,7 +1041,7 @@ Radiation::run_impl ()
                                                  sfc_alb_dir_vis, sfc_alb_dir_nir,
                                                  sfc_alb_dif_vis, sfc_alb_dif_nir,
                                                  sfc_alb_dir    , sfc_alb_dif);
-    
+
     rrtmgp::rrtmgp_main(ncol, m_nlay,
                         p_lay, t_lay,
                         p_lev, t_lev,

@@ -44,7 +44,7 @@
 
 class Radiation : public IRadiation {
 public:
-    
+
     #include <ERF_Kokkos_Radiation.H>
 
     // Constructor

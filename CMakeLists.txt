@@ -171,7 +171,7 @@ if(ERF_ENABLE_RRTMGP)
     if(NOT ERF_ENABLE_NETCDF)
         message(FATAL_ERROR "CMake Error: netcdf must be enabled if rrtmgp is enabled.")
     endif()
-    
+
     message(STATUS "Building RRTMGP/KOKKOS...")
 
     # Build the static rrtmgp library
