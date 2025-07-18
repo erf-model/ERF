@@ -71,6 +71,15 @@ function(build_erf_lib erf_lib_name)
   endif()
 
   if(ERF_ENABLE_RRTMGP)
+    if(ERF_ENABLE_CUDA)
+        target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_CUDA)
+    endif()
+    if(ERF_ENABLE_HIP)
+        target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_HIP)
+    endif()
+    if(ERF_ENABLE_SYCL)
+        target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_SYCL)
+    endif()
     target_include_directories(${erf_lib_name} PUBLIC
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Radiation>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp>

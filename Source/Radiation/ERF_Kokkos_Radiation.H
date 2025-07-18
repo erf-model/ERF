@@ -1,8 +1,15 @@
 #ifndef ERF_KOKKOS_RADIATION_H
 #define ERF_KOKKOS_RADIATION_H
-using RadHostDevice    = Kokkos::HostSpace;
-// AML NOTE: Add macros for types of devices
-using RadDefaultDevice = Kokkos::Device<Kokkos::Serial, Kokkos::HostSpace>;
+using RadHostDevice    = Kokkos::Device<Kokkos::Serial, Kokkos::HostSpace>;
+#if defined(ERF_USE_CUDA)
+using RadDefaultDevice = Kokkos::Device<Kokkos::Cudal, Kokkos::CudaSpace>;
+#elif defined(ERF_USE_HIP)
+using RadDefaultDevice = Kokkos::Device<Kokkos::HIP, Kokkos::HIPSpace>;
+#elif defined(ERF_USE_SYCL)
+using RadDefaultDevice = Kokkos::Device<Kokkos::Experimental::SYCL, Kokkos::Experimental::SYCLDeviceUSMSpace>;
+#else
+using RadDefaultDevice = RadHostDevice;
+#endif
 using layout_t         = Kokkos::LayoutRight;
 using RealT            = amrex::Real;
 using realHost1d_k     = Kokkos::View<RealT* , RadHostDevice>;

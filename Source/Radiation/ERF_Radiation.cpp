@@ -180,8 +180,8 @@ Radiation::set_grids (int& level,
         // Fill the KOKKOS Views from AMReX MFs
         mf_to_kokkos_buffers();
 
+        // Initialize datalog MF on first step
         if (m_first_step) {
-            // Initialize datalog MF on first step
             m_first_step = false;
             datalog_mf.define(cons_in->boxArray(), cons_in->DistributionMap(), 25, 0);
             datalog_mf.setVal(0.0);
@@ -469,9 +469,9 @@ Radiation::mf_to_kokkos_buffers ()
             p_lay(icol,ilay) = getPgivenRTh(rt, qv);
             t_lay(icol,ilay) = getTgivenRandRTh(r, rt, qv);
             z_del(icol,ilay) = (z_arr) ? 0.25 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
-                                                  + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
-                                                  + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
-                                                  + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k)) ) : dz;
+                                                + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
+                                                + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
+                                                + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k)) ) : dz;
             qv_lay(icol,ilay) = qv;
             qc_lay(icol,ilay) = qc;
             qi_lay(icol,ilay) = qi;
@@ -499,14 +499,13 @@ Radiation::mf_to_kokkos_buffers ()
                 t_lev(icol,ilay+1) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
             }
 
-
             // 1D data structures
             if (k==0) {
                 lat(icol) = (m_lat) ? lat_arr(i,j,0) : cons_lat;
                 lon(icol) = (m_lon) ? lon_arr(i,j,0) : cons_lon;
 
                 if (!lsm) {
-                    // if no LSM, then set surface temperature as temperature at k=0
+                    // No LSM, use temperature at bottom w-face
                     t_sfc(icol) = t_lev(icol, 0);
                 }
             }
@@ -514,29 +513,28 @@ Radiation::mf_to_kokkos_buffers ()
         });
     }
 
-    // Separate KOKKOS kernel for derived quantities
+    // EAMXX delP is positive
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
                          KOKKOS_LAMBDA (int icol, int ilay)
     {
         p_del(icol,ilay)  = std::abs(p_lev(icol,ilay+1) - p_lev(icol,ilay));
     });
 
-
-    // No LSM, so follow EAMXX dummy atmos and set constants
+    // Populate vars LSM would provide
     if (!lsm) {
-        Kokkos::deep_copy(mu0, 0.86);
+        // EAMXX dummy atmos constants
         Kokkos::deep_copy(sfc_alb_dir_vis, 0.06);
         Kokkos::deep_copy(sfc_alb_dir_nir, 0.06);
         Kokkos::deep_copy(sfc_alb_dif_vis, 0.06);
         Kokkos::deep_copy(sfc_alb_dif_nir, 0.06);
+
+        // AML NOTE: These are not used in current EAMXX, I've left
+        //           the code to plug into these if we need it.
+        //
+        // Current EAMXX constants
+        Kokkos::deep_copy(emis_sfc, 0.98);
+        Kokkos::deep_copy(lw_src, 0.0);
     }
-
-    // Initialize
-    Kokkos::deep_copy(aero_tau_sw, 0.0);
-    Kokkos::deep_copy(aero_ssa_sw, 0.0);
-    Kokkos::deep_copy(aero_g_sw  , 0.0);
-    Kokkos::deep_copy(aero_tau_lw, 0.0);
-
 }
 
 
@@ -886,6 +884,7 @@ Radiation::run_impl ()
     // Precompute volume mixing ratio (VMR) for all gases
     //
     // H2O is obtained from qv.
+    // O3 may be a constant or a 1D vector
     // All other comps are set to constants for now
     for (int igas(0); igas < m_ngas; ++igas) {
       auto name = m_gas_names[igas];
@@ -926,16 +925,7 @@ Radiation::run_impl ()
       m_gas_concs.set_vmr(name, tmp2d);
     }
 
-    // TODO: No LSM so leaving comment for code
-    // Calculate T_int from longwave flux up from the surface, assuming
-    // blackbody emission with emissivity of 1.
-    if (!m_lsm) {
-        // If no LSM, set default values for surface emissivity and LW src
-        Kokkos::deep_copy(emis_sfc, 0.98);
-        Kokkos::deep_copy(lw_src, 0.0);
-    }
-
-    // Determine the cosine zenith angle.
+    // Populate mu0 1D array
     // This must be done on HOST and copied to device.
     auto h_mu0 = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), mu0);
     if (m_fixed_solar_zenith_angle > 0) {
@@ -957,7 +947,7 @@ Radiation::run_impl ()
     }
     Kokkos::deep_copy(mu0, h_mu0);
 
-    // Compute layer cloud mass (per unit area), populates lwp/iwp
+    // Compute layer cloud mass per unit area (populates lwp/iwp)
     rrtmgp::mixing_ratio_to_cloud_mass(qc_lay, cldfrac_tot, r_lay, z_del, lwp);
     rrtmgp::mixing_ratio_to_cloud_mass(qi_lay, cldfrac_tot, r_lay, z_del, iwp);
 
@@ -969,8 +959,8 @@ Radiation::run_impl ()
         iwp(icol,ilay) *= 1.e3;
     });
 
-    // Compute band-by-band surface_albedos. This is needed since
-    // the AD passes broadband albedos, but rrtmgp require band-by-band.
+    // Expand surface_albedos along nswbands.
+    // This is needed since rrtmgp require band-by-band.
     rrtmgp::compute_band_by_band_surface_albedos(ncol, nswbands,
                                                  sfc_alb_dir_vis, sfc_alb_dir_nir,
                                                  sfc_alb_dif_vis, sfc_alb_dif_nir,
@@ -1015,10 +1005,10 @@ Radiation::run_impl ()
 
     // Generate some fake liquid and ice water data. We pick values to be midway between
     // the min and max of the valid lookup table values for effective radii
-    real rel_val = 0.5 * (rrtmgp::cloud_optics_sw.get_min_radius_liq()
-                        + rrtmgp::cloud_optics_sw.get_max_radius_liq());
-    real rei_val = 0.5 * (rrtmgp::cloud_optics_sw.get_min_radius_ice()
-                        + rrtmgp::cloud_optics_sw.get_max_radius_ice());
+    real rel_val = 0.5 * (rrtmgp::cloud_optics_sw_k->get_min_radius_liq()
+                        + rrtmgp::cloud_optics_sw_k->get_max_radius_liq());
+    real rei_val = 0.5 * (rrtmgp::cloud_optics_sw_k->get_min_radius_ice()
+                        + rrtmgp::cloud_optics_sw_k->get_max_radius_ice());
 
     // Restrict clouds to troposphere (> 100 hPa = 100*100 Pa) and not very close to the ground (< 900 hPa), and
     // put them in 2/3 of the columns since that's roughly the total cloudiness of earth.
@@ -1027,14 +1017,14 @@ Radiation::run_impl ()
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
                          KOKKOS_LAMBDA (int icol, int ilay)
     {
-        cldfrac_tot(icol,ilay) = (p_lay(icol,ilay) > 100._wp * 100._wp) &&
-                                 (p_lay(icol,ilay) < 900._wp * 100._wp) &&
+        cldfrac_tot(icol,ilay) = (p_lay(icol,ilay) > 100. * 100.) &&
+                                 (p_lay(icol,ilay) < 900. * 100.) &&
                                  (icol%3 != 0);
         // Ice and liquid will overlap in a few layers
-        lwp(icol,ilay) = (cldfrac_tot(icol,ilay) && t_lay(icol,ilay) > 263._wp) ? 10._wp : 0._wp;
-        iwp(icol,ilay) = (cldfrac_tot(icol,ilay) && t_lay(icol,ilay) < 273._wp) ? 10._wp : 0._wp;
-        eff_radius_qc(icol,ilay) = (lwp(icol,ilay) > 0._wp) ? rel_val : 0._wp;
-        eff_radius_qi(icol,ilay) = (iwp(icol,ilay) > 0._wp) ? rei_val : 0._wp;
+        lwp(icol,ilay) = (cldfrac_tot(icol,ilay) && t_lay(icol,ilay) > 263.) ? 10. : 0.;
+        iwp(icol,ilay) = (cldfrac_tot(icol,ilay) && t_lay(icol,ilay) < 273.) ? 10. : 0.;
+        eff_radius_qc(icol,ilay) = (lwp(icol,ilay) > 0.) ? rel_val : 0.;
+        eff_radius_qi(icol,ilay) = (iwp(icol,ilay) > 0.) ? rei_val : 0.;
     });
 
     rrtmgp::compute_band_by_band_surface_albedos(ncol, nswbands,
