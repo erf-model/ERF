@@ -60,7 +60,6 @@ Problem::init_custom_pert(
     const Real rdOcp = sc.rdOcp;
 
     if (z_cc) {
-#if 0
       ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
         // Geometry (note we must include these here to get the data on device)
@@ -98,81 +97,6 @@ Problem::init_custom_pert(
             state_pert(i, j, k, RhoQ2_comp) = 0.0;
         }
       });
-#else
-      ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-      {
-        // Geometry (note we must include these here to get the data on device)
-        const auto prob_lo = geomdata.ProbLo();
-        const auto dx      = geomdata.CellSize();
-
-        const Real x = ( prob_lo[0] + (i + 0.5) * dx[0] ) / mf_m(i,j,0);
-        const Real z = z_cc(i,j,k);
-
-        Real l_x_c1 = l_x_c - 6400.;
-
-        Real L = std::sqrt(
-            std::pow((x - l_x_c1)/l_x_r, 2) +
-            std::pow((z - l_z_c )/l_z_r, 2));
-
-        if (L <= 1.0)
-        {
-            Real dT = l_Tpt * (std::cos(PI*L) + 1.0)/2.0;
-            Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
-
-            // Note: dT is a perturbation in temperature, theta_perturbed is base state + perturbation
-            Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), rdOcp);
-            Real theta_0         = (Tbar_hse   )*std::pow(p_0/p_hse(i,j,k), rdOcp);
-
-            if (const_rho) {
-                state_pert(i, j, k, RhoTheta_comp) = r_hse(i,j,k) * (theta_perturbed  - theta_0);
-            } else {
-                state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
-            }
-        }
-
-        // Set scalar = 0 everywhere
-        state_pert(i, j, k, RhoScalar_comp) = 0.0;
-
-        if (use_moisture) {
-            state_pert(i, j, k, RhoQ1_comp) = 0.0;
-            state_pert(i, j, k, RhoQ2_comp) = 0.0;
-        }
-      });
-
-      ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-      {
-        // Geometry (note we must include these here to get the data on device)
-        const auto prob_lo = geomdata.ProbLo();
-        const auto dx      = geomdata.CellSize();
-
-        const Real x = ( prob_lo[0] + (i + 0.5) * dx[0] ) / mf_m(i,j,0);
-        const Real z = z_cc(i,j,k);
-
-        Real l_x_c2 = l_x_c + 6400.;
-
-        Real L = std::sqrt(
-            std::pow((x - l_x_c2)/l_x_r, 2) +
-            std::pow((z - l_z_c )/l_z_r, 2));
-
-        if (L <= 1.0)
-        {
-            Real dT = l_Tpt * (std::cos(PI*L) + 1.0)/2.0;
-            Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
-
-            // Note: dT is a perturbation in temperature, theta_perturbed is base state + perturbation
-            Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), rdOcp);
-            Real theta_0         = (Tbar_hse   )*std::pow(p_0/p_hse(i,j,k), rdOcp);
-
-            if (const_rho) {
-                state_pert(i, j, k, RhoTheta_comp) = r_hse(i,j,k) * (theta_perturbed  - theta_0);
-            } else {
-                state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
-            }
-        }
-      });
-#endif
-
-        // Set scalar = 0 everywhere
   } else {
       ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
