@@ -1660,17 +1660,20 @@ ERF::ReadParameters ()
 
         std::string start_datetime, stop_datetime;
         if (pp.query("start_datetime", start_datetime)) {
+            if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
+                start_datetime += ":00"; // add seconds
+            }
             start_time = getEpochTime(start_datetime, datetime_format);
-            if (start_time == -1.0) {
-               amrex::Abort("Invalid start_datetime string!");
-            }
+
             if (pp.query("stop_datetime", stop_datetime)) {
-                stop_time = getEpochTime(stop_datetime, datetime_format);
-                if (stop_time == -1.0) {
-                    amrex::Abort("Invalid stop_datetime string!");
+                if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
+                    stop_datetime += ":00"; // add seconds
                 }
+                stop_time = getEpochTime(stop_datetime, datetime_format);
             }
+
             use_datetime = true;
+
         } else {
             pp.query("stop_time", stop_time);
             pp.query("start_time", start_time); // This is optional, it defaults to 0

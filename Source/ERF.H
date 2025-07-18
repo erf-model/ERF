@@ -909,7 +909,7 @@ private:
     amrex::Real  stop_time = std::numeric_limits<amrex::Real>::max();
 
     bool use_datetime = false;
-    const std::string datetime_format = "%Y-%m-%d %H:%M:%S";
+    const std::string datetime_format = "%Y-%m-%d %H:%M:%S"; // ISO 8601 standard
 
     // if >= 0 we restart from a checkpoint
     std::string restart_chkfile = "";

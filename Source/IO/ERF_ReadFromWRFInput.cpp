@@ -65,8 +65,8 @@ read_from_wrfinput (int lev,
             ncf.get_attr("DY", attr); NC_dy = attr[0];
         }
         { // Global Attributes (string)
-            NC_dateTime = ncf.get_attr("SIMULATION_START_DATE")+"UTC";
-            const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S%Z";
+            NC_dateTime = ncf.get_attr("SIMULATION_START_DATE");
+            const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
             NC_epochTime = getEpochTime(NC_dateTime, dateTimeFormat);
         }
         int west_east_stag   = static_cast<int>(ncf.dim("west_east_stag").len());
