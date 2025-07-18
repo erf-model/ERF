@@ -220,18 +220,28 @@ void SDInitialization::printParameters ( const MatVec& a_species_mat,
                 << " (Initial distribution: " << m_species_init_type[i];
         if (m_species_init_type[i] == SupDropInit::attrib_init_const) {
             Print() << ", value=" << m_mass_species_mean[i];
+            AMREX_ALWAYS_ASSERT(m_mass_species_mean[i] > 0.0);
         } else if (m_species_init_type[i] == SupDropInit::attrib_init_exp) {
             Print() << ", min=" << m_mass_species_min[i]
                     << ", mean=" << m_mass_species_mean[i]
                     << ", max=" << m_mass_species_max[i];
+            AMREX_ALWAYS_ASSERT(m_mass_species_min[i] > 0.0);
+            AMREX_ALWAYS_ASSERT(m_mass_species_max[i] >= m_mass_species_min[i]);
+            AMREX_ALWAYS_ASSERT(    (m_mass_species_mean[i] >= m_mass_species_min[i])
+                                 && (m_mass_species_mean[i] <= m_mass_species_max[i]) );
         } else if (m_species_init_type[i] == SupDropInit::attrib_init_lnr) {
             Print() << ", min=" << m_radius_species_min[i]
                     << ", max=" << m_radius_species_max[i]
                     << ", mean=" << m_radius_species_mean[i]
                     << ", std=" << m_radius_species_geom_std[i];
+            AMREX_ALWAYS_ASSERT(m_radius_species_min[i] > 0.0);
+            AMREX_ALWAYS_ASSERT(m_radius_species_max[i] >= m_radius_species_min[i]);
+            AMREX_ALWAYS_ASSERT(    (m_radius_species_mean[i] >= m_radius_species_min[i])
+                                 && (m_radius_species_mean[i] <= m_radius_species_max[i]) );
         } else if (m_species_init_type[i] == SupDropInit::attrib_init_lnr_auto) {
             Print() << ", mean=" << m_radius_species_mean[i]
                     << ", std=" << m_radius_species_geom_std[i];
+            AMREX_ALWAYS_ASSERT(m_radius_species_mean[i] > 0.0);
         }
         Print() << ")" << "\n";
     }
@@ -244,18 +254,28 @@ void SDInitialization::printParameters ( const MatVec& a_species_mat,
                     << " (Initial distribution: " << m_aerosol_init_type[i];
             if (m_aerosol_init_type[i] == SupDropInit::attrib_init_const) {
                 Print() << ", value=" << m_mass_aerosol_mean[i];
+                AMREX_ALWAYS_ASSERT(m_mass_aerosol_mean[i] > 0.0);
             } else if (m_aerosol_init_type[i] == SupDropInit::attrib_init_exp) {
                 Print() << ", min=" << m_mass_aerosol_min[i]
                         << ", mean=" << m_mass_aerosol_mean[i]
                         << ", max=" << m_mass_aerosol_max[i];
+                AMREX_ALWAYS_ASSERT(m_mass_aerosol_min[i] > 0.0);
+                AMREX_ALWAYS_ASSERT(m_mass_aerosol_max[i] >= m_mass_aerosol_min[i]);
+                AMREX_ALWAYS_ASSERT(    (m_mass_aerosol_mean[i] >= m_mass_aerosol_min[i])
+                                     && (m_mass_aerosol_mean[i] <= m_mass_aerosol_max[i]) );
             } else if (m_aerosol_init_type[i] == SupDropInit::attrib_init_lnr) {
                 Print() << ", min=" << m_radius_aerosol_min[i]
                         << ", max=" << m_radius_aerosol_max[i]
                         << ", mean=" << m_radius_aerosol_mean[i]
                         << ", std=" << m_radius_aerosol_geom_std[i];
+                AMREX_ALWAYS_ASSERT(m_radius_aerosol_min[i] > 0.0);
+                AMREX_ALWAYS_ASSERT(m_radius_aerosol_max[i] >= m_radius_aerosol_min[i]);
+                AMREX_ALWAYS_ASSERT(    (m_radius_aerosol_mean[i] >= m_radius_aerosol_min[i])
+                                     && (m_radius_aerosol_mean[i] <= m_radius_aerosol_max[i]) );
             } else if (m_aerosol_init_type[i] == SupDropInit::attrib_init_lnr_auto) {
                 Print() << ", mean=" << m_radius_aerosol_mean[i]
                         << ", std=" << m_radius_aerosol_geom_std[i];
+                AMREX_ALWAYS_ASSERT(m_radius_aerosol_mean[i] > 0.0);
             }
             Print() << ")" << "\n";
         }
