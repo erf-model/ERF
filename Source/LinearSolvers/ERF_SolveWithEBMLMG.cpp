@@ -81,7 +81,7 @@ void ERF::solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& 
 
     mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
 
-    ImposeBCsOnPhi(lev,phi[0]);
+    ImposeBCsOnPhi(lev,phi[0], geom[lev].Domain());
 
     //
     // This arises because we solve MINUS del dot beta grad phi = div (rho u)

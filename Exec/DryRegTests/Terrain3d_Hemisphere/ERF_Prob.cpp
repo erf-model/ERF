@@ -176,7 +176,7 @@ Problem::init_custom_terrain (
     // Note that these factors must match those in Source/ERF_MakeNewArrays.cpp
     //
     ParmParse pp("erf");
-    bool test_mapfactor;
+    bool test_mapfactor = false;
     pp.query("test_mapfactor",test_mapfactor);
 
     Real mf_x, mf_y;
@@ -205,7 +205,7 @@ Problem::init_custom_terrain (
             Real y = (jj  * dx[1] - ycen) * mf_y;
 
             if(std::pow(x*x + y*y, 0.5) < a){
-                z_arr(i,j,k0) = std::pow(a*a - x*x - y*y , 0.5);
+                z_arr(i,j,k0) = std::pow(amrex::max(a*a - x*x - y*y, 0.0) , 0.5);
             }
             else{
                 z_arr(i,j,k0) = 0.0;
