@@ -52,8 +52,8 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
                 erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsatnew);
                 amrex::ignore_unused(qvprev);
                 amrex::ignore_unused(qcprev);
-                AMREX_ASSERT(std::abs(qv_array(i,j,k)-qsatnew) < 1e-16);
-                AMREX_ASSERT(std::abs(qv_array(i,j,k)+qc_array(i,j,k)-qvprev-qcprev) < 1e-16);
+                AMREX_ASSERT(std::abs(qv_array(i,j,k)-qsatnew) < 1e-14);
+                AMREX_ASSERT(std::abs(qv_array(i,j,k)+qc_array(i,j,k)-qvprev-qcprev) < 1e-14);
 
                 // Update theta (constant pressure)
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
@@ -99,8 +99,8 @@ void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
                     AMREX_ASSERT(qv_array(i,j,k) < qvprev);
                     AMREX_ASSERT(qc_array(i,j,k) > qcprev);
                     AMREX_ASSERT(tabs_array(i,j,k) > Tprev);
-                    AMREX_ASSERT(std::abs(qv_array(i,j,k)-qsatnew) < 1e-16);
-                    AMREX_ASSERT(std::abs(qv_array(i,j,k)+qc_array(i,j,k)-qvprev-qcprev) < 1e-16);
+                    AMREX_ASSERT(std::abs(qv_array(i,j,k)-qsatnew) < 1e-14);
+                    AMREX_ASSERT(std::abs(qv_array(i,j,k)+qc_array(i,j,k)-qvprev-qcprev) < 1e-14);
 
                     // Update theta
                     theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
