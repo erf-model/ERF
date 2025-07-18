@@ -217,7 +217,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                      (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim) )
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z);
+            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -255,10 +255,6 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 zflux(i,j,k) = hfx_z(i,j,k);
             } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k) = qfx1_z(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -395,7 +391,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                      (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z);
+            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -433,10 +429,6 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 zflux(i,j,k) = hfx_z(i,j,k);
             } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k) = qfx1_z(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -569,7 +561,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                      (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z);
+            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -607,10 +599,6 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 zflux(i,j,k) = hfx_z(i,j,k);
             } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k) = qfx1_z(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }
@@ -741,7 +729,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                      (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z);
+            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -779,10 +767,6 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 zflux(i,j,k) = hfx_z(i,j,k);
             } else if ((SurfLayer_on_zlo || SurfLayer_on_zhi) && (qty_index == RhoQ1_comp)) {
                 zflux(i,j,k) = qfx1_z(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                zflux(i,j,k) = qfx1_z(i,j,0);
             } else {
                 zflux(i,j,k) = -rhoAlpha * GradCz;
             }

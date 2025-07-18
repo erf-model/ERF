@@ -215,7 +215,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z);
+            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -373,7 +373,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z);
+            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -526,7 +526,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z);
+            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
@@ -677,7 +677,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
             bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z);
+            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
