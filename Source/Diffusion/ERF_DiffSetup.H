@@ -9,8 +9,8 @@
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
-    Real l_inv_theta0    = 1.0 / turbChoice.theta_ref;
-    Real l_abs_g         = std::abs(grav_gpu[2]);
+    Real l_inv_theta0 = 1.0 / turbChoice.theta_ref;
+    Real l_abs_g      = std::abs(grav_gpu[2]);
 
     bool l_use_keqn = turbChoice.use_keqn;
     bool l_use_mynn = turbChoice.use_pbl_tke;
