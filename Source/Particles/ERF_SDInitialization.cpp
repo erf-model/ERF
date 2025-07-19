@@ -1,10 +1,19 @@
 #include <cmath>
 #include "ERF_SDInitialization.H"
 
-void SDInitialization::setDefaults ( const MatVec& a_species_mat,
+void SDInitialization::setDefaults ( const amrex::Geometry& a_geom,
+                                     const MatVec& a_species_mat,
                                      const MatVec& a_aerosol_mat )
 {
     BL_PROFILE("SDInitialization::setDefaults");
+
+    // Default
+    m_init_particle_p1.resize(AMREX_SPACEDIM);
+    m_init_particle_p2.resize(AMREX_SPACEDIM);
+    for (int i = 0; i < AMREX_SPACEDIM; i++) {
+        m_init_particle_p1[i] = a_geom.ProbLo(i);
+        m_init_particle_p2[i] = a_geom.ProbHi(i);
+    }
 
     m_num_species = a_species_mat.size();
     m_mass_species_min.resize(m_num_species);
@@ -71,41 +80,25 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
     pp.query("multiplicity_type", m_mult_type);
 
     if (m_type == SupDropInit::init_uniform) {
-        amrex::Vector<amrex::Real> particle_box_lo(AMREX_SPACEDIM);
-        amrex::Vector<amrex::Real> particle_box_hi(AMREX_SPACEDIM);
 
-        // Defaults
-        for (int i = 0; i < AMREX_SPACEDIM; i++) {
-            particle_box_lo[i] = a_geom.ProbLo(i);
-            particle_box_hi[i] = a_geom.ProbHi(i);
-        }
+        pp.queryAdd("particle_box_lo", m_init_particle_p1, AMREX_SPACEDIM);
+        AMREX_ASSERT(m_init_particle_p1.size() == AMREX_SPACEDIM);
 
-        pp.queryAdd("particle_box_lo", particle_box_lo, AMREX_SPACEDIM);
-        AMREX_ASSERT(particle_box_lo.size() == AMREX_SPACEDIM);
+        pp.queryAdd("particle_box_hi", m_init_particle_p2, AMREX_SPACEDIM);
+        AMREX_ASSERT(m_init_particle_p2.size() == AMREX_SPACEDIM);
 
-        pp.queryAdd("particle_box_hi", particle_box_hi, AMREX_SPACEDIM);
-        AMREX_ASSERT(particle_box_hi.size() == AMREX_SPACEDIM);
-
-        m_init_particle_box.setLo(particle_box_lo);
-        m_init_particle_box.setHi(particle_box_hi);
+        m_init_particle_box.setLo(m_init_particle_p1);
+        m_init_particle_box.setHi(m_init_particle_p2);
     } else if (m_type == SupDropInit::init_bubble){
-        amrex::Vector<amrex::Real> particle_bubble_center(AMREX_SPACEDIM);
-        amrex::Vector<amrex::Real> particle_bubble_radius(AMREX_SPACEDIM);
 
-        // Defaults
-        for (int i = 0; i < AMREX_SPACEDIM; i++) {
-            particle_bubble_center[i] = a_geom.ProbHi(i)/2;
-            particle_bubble_radius[i] = a_geom.ProbHi(i)/2;
-        }
+        pp.queryAdd("particle_bubble_center", m_init_particle_p1, AMREX_SPACEDIM);
+        AMREX_ASSERT(m_init_particle_p1.size() == AMREX_SPACEDIM);
 
-        pp.queryAdd("particle_bubble_center", particle_bubble_center, AMREX_SPACEDIM);
-        AMREX_ASSERT(particle_bubble_center.size() == AMREX_SPACEDIM);
+        pp.queryAdd("particle_bubble_radius", m_init_particle_p2, AMREX_SPACEDIM);
+        AMREX_ASSERT(m_init_particle_p2.size() == AMREX_SPACEDIM);
 
-        pp.queryAdd("particle_bubble_radius", particle_bubble_radius, AMREX_SPACEDIM);
-        AMREX_ASSERT(particle_bubble_radius.size() == AMREX_SPACEDIM);
-
-        m_init_particle_box.setLo(particle_bubble_radius);
-        m_init_particle_box.setHi(particle_bubble_center);
+        m_init_particle_box.setLo(m_init_particle_p1);
+        m_init_particle_box.setHi(m_init_particle_p2);
     }
 
     // Backward compatibility

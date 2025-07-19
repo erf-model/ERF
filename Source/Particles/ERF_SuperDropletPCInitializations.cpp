@@ -147,8 +147,10 @@ void SuperDropletPC::readInputs ()
 
         char i_str[12]; sprintf(i_str, "%d", i);
         std::string prefix = m_name + "." + std::string(i_str);
-        m_initializations[i]->setDefaults(m_species_mat,m_aerosol_mat);
+        m_initializations[i]->setDefaults(Geom(0), m_species_mat,m_aerosol_mat);
+        Print() << "Querying inputs file using the string: '" << m_name << "'!\n";
         m_initializations[i]->readInputs(m_name, Geom(0), m_species_mat, m_aerosol_mat);
+        Print() << "Querying inputs file using the string: '" << prefix << "'!\n";
         m_initializations[i]->readInputs(prefix, Geom(0), m_species_mat, m_aerosol_mat);
     }
 
@@ -337,8 +339,8 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                                   height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
 
                 // Extract bubble params from box parameters
-                const auto& x_r = a_box.lo();       // radius
-                const auto& x_c = a_box.hi();       // center
+                const auto& x_c = a_box.lo();       // center
+                const auto& x_r = a_box.hi();       // radius
 
                 Real rad = 0.0;
                 if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
@@ -358,8 +360,8 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                 Real z = plo[2] + (k + 0.5)*dx[2];
 
                 // Extract bubble params from box parameters
-                const auto& x_r = a_box.lo();       // radius
-                const auto& x_c = a_box.hi();       // center
+                const auto& x_c = a_box.lo();       // center
+                const auto& x_r = a_box.hi();       // radius
 
                 Real rad = 0.0;
                 if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
@@ -428,6 +430,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                                  a_height_ptr,
                                  a_init.m_init_particle_box );
     } else if (a_init.m_type == SupDropInit::init_bubble) {
+        Print() << "Initializing as bubble distribution!";
         setNumSDBubbleDistribution( num_superdroplets,
                                     num_sd_per_cell,
                                     a_height_ptr,
