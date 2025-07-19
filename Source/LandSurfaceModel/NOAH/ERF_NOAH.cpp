@@ -106,6 +106,9 @@ NOAH::Init (const int& lev,
             // Store the rank of process for noahmp
             noahmpio->rank = amrex::ParallelDescriptor::MyProc();
 
+            // Store parallel communicator for noahmp
+            noahmpio->comm = MPI_Comm_c2f(amrex::ParallelDescriptor::Communicator());
+
             // Read namelist.erf file. This file contains
             // noahmpio specific parameters and is read by
             // the Fortran side of the implementation.
