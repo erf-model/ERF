@@ -167,6 +167,10 @@ NOAH::Init (const int& lev,
             // Compute additional initial values that were not supplied
             // by the NetCDF land file.
             noahmpio->InitMain();
+
+            // Write initial plotfile for land with the tag 0
+            amrex::Print() << "Noah-MP writing lnd.nc file at lev: " << lev << std::endl;
+            noahmpio->WriteLand(0);
         }
   }
 
@@ -228,6 +232,7 @@ NOAH::Advance_With_State (const int& lev,
                 SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
                 EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
             });
+
         }
     }
     amrex::Print () << "Noah-MP driver completed" << std::endl;
