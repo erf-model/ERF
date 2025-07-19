@@ -71,6 +71,15 @@ function(build_erf_lib erf_lib_name)
   endif()
 
   if(ERF_ENABLE_RRTMGP)
+    if(ERF_ENABLE_CUDA)
+        target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_CUDA)
+    endif()
+    if(ERF_ENABLE_HIP)
+        target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_HIP)
+    endif()
+    if(ERF_ENABLE_SYCL)
+        target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_SYCL)
+    endif()
     target_include_directories(${erf_lib_name} PUBLIC
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Radiation>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp>
@@ -99,8 +108,7 @@ function(build_erf_lib erf_lib_name)
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband/mo_fluxes_byband_kernels.cpp
                   )
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_RRTMGP)
-    target_compile_definitions(${erf_lib_name} PUBLIC RRTMGP_ENABLE_YAKL)
-    target_link_libraries(${erf_lib_name} PUBLIC yakl)
+    target_compile_definitions(${erf_lib_name} PUBLIC RRTMGP_ENABLE_KOKKOS)
   endif()
 
   if(ERF_ENABLE_MORR_FORT)
@@ -262,16 +270,13 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_NETCDF)
     if(NETCDF_FOUND)
-      #Link our executable to the NETCDF libraries, etc
       target_link_libraries(${erf_lib_name} PUBLIC ${NETCDF_LINK_LIBRARIES})
       target_include_directories(${erf_lib_name} PUBLIC ${NETCDF_INCLUDE_DIRS})
     endif()
   endif()
 
   if(ERF_ENABLE_KOKKOS)
-      #Link our executable to the Kokkos library
-      target_link_libraries(${erf_lib_name} PUBLIC ${KOKKO_LINK_LIBRARIES})
-      target_include_directories(${erf_lib_name} PUBLIC ${KOKKOS_INCLUDE_DIRS})
+      target_link_libraries(${erf_lib_name} PUBLIC Kokkos::kokkos)
   endif()
 
   if(ERF_ENABLE_MPI)

@@ -12,6 +12,8 @@ void fill_weather_data_multifab(MultiFab& mf,
      const int nx,
      const int ny,
      const int nz,
+     const Vector<Real>& latvec_h,
+     const Vector<Real>& lonvec_h,
      const Vector<Real>& zvec_h,
      const Vector<Real>& rho_h,
      const Vector<Real>& uvel_h,
@@ -27,10 +29,13 @@ void fill_weather_data_multifab(MultiFab& mf,
     const int nz_d = nz;
     const int tot_size = nx*ny*nz;
 
-    amrex::Gpu::DeviceVector<Real> zvec_d(nz), rho_d(tot_size), uvel_d(tot_size),
-        vvel_d(tot_size), wvel_d(tot_size), theta_d(tot_size),
-        qv_d(tot_size), qc_d(tot_size), qr_d(tot_size);
+    amrex::Gpu::DeviceVector<Real> latvec_d(nx*ny), lonvec_d(nx*ny), zvec_d(nz);
+    amrex::Gpu::DeviceVector<Real> rho_d(tot_size), uvel_d(tot_size),
+                                   vvel_d(tot_size), wvel_d(tot_size), theta_d(tot_size),
+                                   qv_d(tot_size), qc_d(tot_size), qr_d(tot_size);
 
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, latvec_h.begin(), latvec_h.end(), latvec_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, lonvec_h.begin(), lonvec_h.end(), lonvec_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zvec_h.begin(), zvec_h.end(), zvec_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
@@ -41,6 +46,8 @@ void fill_weather_data_multifab(MultiFab& mf,
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qr_h.begin(), qr_h.end(), qr_d.begin());
 
+    Real* latvec_d_ptr  = latvec_d.data();
+    Real* lonvec_d_ptr  = lonvec_d.data();
     Real* zvec_d_ptr  = zvec_d.data();
     Real* rho_d_ptr   = rho_d.data();
     Real* uvel_d_ptr  = uvel_d.data();
@@ -82,6 +89,9 @@ void fill_weather_data_multifab(MultiFab& mf,
             arr(i,j,k,5) = qv_d_ptr[idx1]    + fac*(qv_d_ptr[idx2]-qv_d_ptr[idx1]);
             arr(i,j,k,6) = qc_d_ptr[idx1]    + fac*(qc_d_ptr[idx2]-qc_d_ptr[idx1]);
             arr(i,j,k,7) = qr_d_ptr[idx1]    + fac*(qr_d_ptr[idx2]-qr_d_ptr[idx1]);
+            idx1 = get_single_index(i,j,0,nx_d,ny_d);
+            arr(i,j,k,8) = latvec_d_ptr[idx1];
+            arr(i,j,k,9) = lonvec_d_ptr[idx1];
         });
     }
 }
@@ -97,7 +107,7 @@ void PlotMultiFab(const MultiFab& mf,
 {
 
     Vector<std::string> varnames = {
-    "rho", "uvel", "vvel", "wvel", "theta", "qv", "qc", "qr"
+    "rho", "uvel", "vvel", "wvel", "theta", "qv", "qc", "qr", "latitude", "longitude"
     }; // Customize variable names
 
     const Real time = 0.0;
@@ -137,7 +147,8 @@ void PlotMultiFab(const MultiFab& mf,
 void
 ERF::init_coarse_weather_data()
 {
-    Vector<Real> xvec_h, yvec_h, zvec_h, rho_h, uvel_h, vvel_h, wvel_h, theta_h, qv_h, qc_h, qr_h;
+    Vector<Real> latvec_h, lonvec_h, xvec_h, yvec_h, zvec_h;
+    Vector<Real> rho_h, uvel_h, vvel_h, wvel_h, theta_h, qv_h, qc_h, qr_h;
 
     std::string filename;
     ParmParse pp("erf");
@@ -147,9 +158,10 @@ ERF::init_coarse_weather_data()
         amrex::Abort("Error: IC_file is not specified in the input file.");
     }
 
-    ReadCustomBinaryIC(filename, xvec_h, yvec_h, zvec_h, rho_h,
-                        uvel_h, vvel_h, wvel_h,
-                        theta_h, qv_h, qc_h, qr_h);
+    ReadCustomBinaryIC(filename, latvec_h, lonvec_h,
+                       xvec_h, yvec_h, zvec_h, rho_h,
+                       uvel_h, vvel_h, wvel_h,
+                       theta_h, qv_h, qc_h, qr_h);
 
     const auto prob_lo_erf  = geom[0].ProbLoArray();
     const auto prob_hi_erf  = geom[0].ProbHiArray();
@@ -198,7 +210,7 @@ ERF::init_coarse_weather_data()
     // Create DistributionMapping
     DistributionMapping dm(nba);
 
-    int ncomp = 8;
+    int ncomp = 10;
     int ngrow = 0;
 
     int n_time = 1;      // or however many time slices you want
@@ -207,9 +219,9 @@ ERF::init_coarse_weather_data()
     weather_mf.define(nba, dm, ncomp, ngrow);
 
     fill_weather_data_multifab(weather_mf, geom_weather, nx_cells+1, ny_cells+1, nz_cells+1,
-                               zvec_h, rho_h,uvel_h, vvel_h, wvel_h,
+                               latvec_h, lonvec_h, zvec_h,
+                               rho_h,uvel_h, vvel_h, wvel_h,
                                theta_h, qv_h, qc_h, qr_h);
-
 
     PlotMultiFab(weather_mf, geom_weather, "plt_coarse_weather", MultiFabType::NC);
 
@@ -258,26 +270,31 @@ ERF::interp_weather_data_onto_mesh ()
     if (pp_erf.query("is_lateral_sponges_hurricanes", is_lateral_sponges_hurricanes)) {
         initial_state.resize(max_level+1);
         for (int lev = 0; lev < max_level+1; ++lev) {
-            initial_state[lev].resize(vars_new[lev].size());
+            initial_state[lev].resize(vars_new[lev].size()+1);
             for (int comp = 0; comp < vars_new[lev].size(); ++comp) {
                 const MultiFab& src = vars_new[lev][comp];
                 initial_state[lev][comp].define(src.boxArray(), src.DistributionMap(),
                                         src.nComp(), src.nGrow());
             }
+            int comp = vars_new[lev].size();
+            const MultiFab& src = vars_new[lev][0];
+            initial_state[lev][comp].define(src.boxArray(), src.DistributionMap(),
+                                        2, src.nGrow());
         }
     }
 
-
-    MultiFab& weather_mf  = weather_forecast_data[0];
-    MultiFab& erf_mf_cons = initial_state[0][Vars::cons];
-    MultiFab& erf_mf_xvel = initial_state[0][Vars::xvel];
-    MultiFab& erf_mf_yvel = initial_state[0][Vars::yvel];
-    MultiFab& erf_mf_zvel = initial_state[0][Vars::zvel];
+    MultiFab& weather_mf    = weather_forecast_data[0];
+    MultiFab& erf_mf_cons   = initial_state[0][Vars::cons];
+    MultiFab& erf_mf_xvel   = initial_state[0][Vars::xvel];
+    MultiFab& erf_mf_yvel   = initial_state[0][Vars::yvel];
+    MultiFab& erf_mf_zvel   = initial_state[0][Vars::zvel];
+    MultiFab& erf_mf_latlon = initial_state[0][4];
 
     erf_mf_cons.setVal(0.0);
     erf_mf_xvel.setVal(0.0);
     erf_mf_yvel.setVal(0.0);
     erf_mf_zvel.setVal(0.0);
+    erf_mf_latlon.setVal(0.0);
 
     BoxList bl_erf     = erf_mf_cons.boxArray().boxList();
     BoxList bl_weather = weather_mf.boxArray().boxList();
@@ -328,10 +345,11 @@ ERF::interp_weather_data_onto_mesh ()
         const Array4<Real> &fine_xvel_arr = erf_mf_xvel.array(mfi);
         const Array4<Real> &fine_yvel_arr = erf_mf_yvel.array(mfi);
         const Array4<Real> &fine_zvel_arr = erf_mf_zvel.array(mfi);
+        const Array4<Real> &fine_latlon_arr = erf_mf_latlon.array(mfi);
 
         const Array4<Real> &crse_arr = tmp_coarse_data.array(mfi);
 
-         const Box& gbx = mfi.growntilebox(); // validbox + ghost cells
+        const Box& gbx = mfi.growntilebox(); // validbox + ghost cells
 
         const Box &gtbx = mfi.tilebox(IntVect(1,0,0));
         const Box &gtby = mfi.tilebox(IntVect(0,1,0));
@@ -343,17 +361,22 @@ ERF::interp_weather_data_onto_mesh ()
             Real y = prob_lo_erf[1] + (j+0.5) * dx_erf[1];
             Real z = prob_lo_erf[2] + (k+0.5) * dx_erf[2];
 
-            Real rho   = interpolate_from_coarse(crse_arr, 0, x, y, z, prob_lo_weather.data(), dx_weather.data());
-            Real theta = interpolate_from_coarse(crse_arr, 4, x, y, z, prob_lo_weather.data(), dx_weather.data());
-            Real qv    = interpolate_from_coarse(crse_arr, 5, x, y, z, prob_lo_weather.data(), dx_weather.data());
-            Real qc    = interpolate_from_coarse(crse_arr, 6, x, y, z, prob_lo_weather.data(), dx_weather.data());
-            Real qr    = interpolate_from_coarse(crse_arr, 7, x, y, z, prob_lo_weather.data(), dx_weather.data());
+            Real rho    = interpolate_from_coarse(crse_arr, 0, x, y, z, prob_lo_weather.data(), dx_weather.data());
+            Real theta  = interpolate_from_coarse(crse_arr, 4, x, y, z, prob_lo_weather.data(), dx_weather.data());
+            Real qv     = interpolate_from_coarse(crse_arr, 5, x, y, z, prob_lo_weather.data(), dx_weather.data());
+            Real qc     = interpolate_from_coarse(crse_arr, 6, x, y, z, prob_lo_weather.data(), dx_weather.data());
+            Real qr     = interpolate_from_coarse(crse_arr, 7, x, y, z, prob_lo_weather.data(), dx_weather.data());
+            Real lat    = interpolate_from_coarse(crse_arr, 8, x, y, z, prob_lo_weather.data(), dx_weather.data());
+            Real lon    = interpolate_from_coarse(crse_arr, 9, x, y, z, prob_lo_weather.data(), dx_weather.data());
 
             fine_cons_arr(i,j,k,Rho_comp) = rho;
             fine_cons_arr(i,j,k,RhoTheta_comp) = rho*theta;
             fine_cons_arr(i,j,k,RhoQ1_comp) = rho*qv;
             fine_cons_arr(i,j,k,RhoQ2_comp) = rho*qc;
             fine_cons_arr(i,j,k,RhoQ3_comp) = rho*qr;
+
+            fine_latlon_arr(i,j,k,0) = lat;
+            fine_latlon_arr(i,j,k,1) = lon;
         });
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
@@ -390,7 +413,7 @@ ERF::interp_weather_data_onto_mesh ()
     }; // Customize variable names
 
     Vector<std::string> varnames_plot_mf = {
-    "rho", "rhotheta", "rhoqv", "rhoqc", "rhoqr", "xvel", "yvel", "zvel"
+    "rho", "rhotheta", "rhoqv", "rhoqc", "rhoqr", "xvel", "yvel", "zvel", "latitude", "longitude"
     }; // Customize variable names
 
 
@@ -399,7 +422,7 @@ ERF::interp_weather_data_onto_mesh ()
     std::string pltname = "plt_interp";
 
     MultiFab plot_mf(erf_mf_cons.boxArray(), erf_mf_cons.DistributionMap(),
-                     8, 0);
+                     10, 0);
 
     plot_mf.setVal(0.0);
 
@@ -409,6 +432,7 @@ ERF::interp_weather_data_onto_mesh ()
         const Array4<Real> &erf_mf_xvel_arr = erf_mf_xvel.array(mfi);
         const Array4<Real> &erf_mf_yvel_arr = erf_mf_yvel.array(mfi);
         const Array4<Real> &erf_mf_zvel_arr = erf_mf_zvel.array(mfi);
+        const Array4<Real> &erf_mf_latlon_arr = erf_mf_latlon.array(mfi);
 
         const Box& bx = mfi.validbox();
 
@@ -422,6 +446,9 @@ ERF::interp_weather_data_onto_mesh ()
             plot_mf_arr(i,j,k,5) = (erf_mf_xvel_arr(i,j,k,0) + erf_mf_xvel_arr(i+1,j,k,0))/2.0;
             plot_mf_arr(i,j,k,6) = (erf_mf_yvel_arr(i,j,k,0) + erf_mf_yvel_arr(i,j+1,k,0))/2.0;
             plot_mf_arr(i,j,k,7) = (erf_mf_zvel_arr(i,j,k,0) + erf_mf_zvel_arr(i,j,k+1,0))/2.0;
+
+            plot_mf_arr(i,j,k,8) = erf_mf_latlon_arr(i,j,k,0);
+            plot_mf_arr(i,j,k,9) = erf_mf_latlon_arr(i,j,k,1);
         });
     }
 

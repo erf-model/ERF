@@ -5,7 +5,7 @@
  * Please reference to the following paper,
  *                        https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2019MS001621
  * NOTE: we use the C++ version of RTE-RRTMGP, which is reimplemented the original Fortran
- * code using C++ YAKL for CUDA, HiP and SYCL application by E3SM ECP team, the C++ version
+ * code using C++ KOKKOS for CUDA, HiP and SYCL application by E3SM ECP team, the C++ version
  * of the rte-rrtmgp code is located at:
  *                       https://github.com/E3SM-Project/rte-rrtmgp
  * The RTE-RRTMGP uses BSD-3-Clause Open Source License, if you want to make changes,
@@ -15,16 +15,12 @@
 #include <ERF_Radiation.H>
 
 using namespace amrex;
-using yakl::intrinsics::size;
-using yakl::fortran::parallel_for;
-using yakl::fortran::SimpleBounds;
-
 
 Radiation::Radiation (const int& lev,
                       SolverChoice& sc)
 {
-    // Initialize YAKL
-    if (!yakl::isInitialized()) { yakl::init(); }
+    // Initialize kokkos
+    if (!Kokkos::is_initialized()) { Kokkos::initialize(); }
 
     // Check if we have a valid moisture model
     if (sc.moisture_type != MoistureType::None) { m_moist = true; }
@@ -118,17 +114,17 @@ Radiation::Radiation (const int& lev,
 void
 Radiation::set_grids (int& level,
                       int& step,
-                      amrex::Real& time,
-                      const amrex::Real& dt,
-                      const amrex::BoxArray& ba,
-                      amrex::Geometry& geom,
-                      amrex::MultiFab* cons_in,
-                      amrex::MultiFab* lsm_fluxes,
-                      amrex::MultiFab* lsm_zenith,
-                      amrex::MultiFab* qheating_rates,
-                      amrex::MultiFab* z_phys,
-                      amrex::MultiFab* lat,
-                      amrex::MultiFab* lon)
+                      Real& time,
+                      const Real& dt,
+                      const BoxArray& ba,
+                      Geometry& geom,
+                      MultiFab* cons_in,
+                      MultiFab* lsm_fluxes,
+                      MultiFab* lsm_zenith,
+                      MultiFab* qheating_rates,
+                      MultiFab* z_phys,
+                      MultiFab* lat,
+                      MultiFab* lon)
 
 {
     // Set data members that may change
@@ -181,11 +177,11 @@ Radiation::set_grids (int& level,
         // Allocate the buffer arrays
         alloc_buffers();
 
-        // Fill the YAKL Arrays from AMReX MFs
-        mf_to_yakl_buffers();
+        // Fill the KOKKOS Views from AMReX MFs
+        mf_to_kokkos_buffers();
 
+        // Initialize datalog MF on first step
         if (m_first_step) {
-            // Initialize datalog MF on first step
             m_first_step = false;
             datalog_mf.define(cons_in->boxArray(), cons_in->DistributionMap(), 25, 0);
             datalog_mf.setVal(0.0);
@@ -197,229 +193,234 @@ void
 Radiation::alloc_buffers ()
 {
     // 1d size (m_ngas)
-    m_gas_mol_weights = real1d("m_gas_mol_weights", m_ngas);
-    realHost1d m_gas_mol_weights_h("m_gas_mol_weights_h", m_ngas);
-    gas_names_yakl_offset.clear();
-    parallel_for(m_ngas, YAKL_LAMBDA (int igas)
+    m_gas_mol_weights = real1d_k("m_gas_mol_weights", m_ngas);
+    realHost1d_k m_gas_mol_weights_h("m_gas_mol_weights_h", m_ngas);
+    gas_names_offset.clear();
+    Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, m_ngas),
+                         KOKKOS_LAMBDA (int igas)
     {
-        m_gas_mol_weights_h(igas)   = m_mol_weight_gas[igas-1];
-        gas_names_yakl_offset.push_back(m_gas_names[igas-1]);
+        m_gas_mol_weights_h(igas) = m_mol_weight_gas[igas];
+        gas_names_offset.push_back(m_gas_names[igas]);
     });
-    m_gas_mol_weights_h.deep_copy_to(m_gas_mol_weights);
+    Kokkos::deep_copy(m_gas_mol_weights, m_gas_mol_weights_h);
 
     // 1d size (1 or nlay)
     m_o3_size = m_o3vmr.size();
-    AMREX_ASSERT_WITH_MESSAGE(((m_o3_size==1) || (m_o3_size==m_nlay)), "O3 VMR array must be length 1 or nlay");
-    o3_lay = real1d("o3_lay", m_o3_size);
-    realHost1d o3_lay_h("o3_lay_h", m_o3_size);
-    parallel_for(m_o3_size, YAKL_LAMBDA (int io3)
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(((m_o3_size==1) || (m_o3_size==m_nlay)),
+                                     "O3 VMR array must be length 1 or nlay");
+    o3_lay = real1d_k("o3_lay", m_o3_size);
+    realHost1d_k o3_lay_h("o3_lay_h", m_o3_size);
+    Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, m_o3_size),
+                         KOKKOS_LAMBDA (int io3)
     {
-        o3_lay_h(io3) = m_o3vmr[io3-1];
+        o3_lay_h(io3) = m_o3vmr[io3];
     });
-    o3_lay_h.deep_copy_to(o3_lay);
+    Kokkos::deep_copy(o3_lay, o3_lay_h);
 
     // 1d size (ncol)
-    cosine_zenith    = real1d("cosine_zenith"   , m_ncol);
-    mu0              = real1d("mu0"             , m_ncol);
-    sfc_alb_dir_vis  = real1d("sfc_alb_dir_vis" , m_ncol);
-    sfc_alb_dir_nir  = real1d("sfc_alb_dir_nir" , m_ncol);
-    sfc_alb_dif_vis  = real1d("sfc_alb_dif_vis" , m_ncol);
-    sfc_alb_dif_nir  = real1d("sfc_alb_dif_nir" , m_ncol);
-    sfc_flux_dir_vis = real1d("sfc_flux_dir_vis", m_ncol);
-    sfc_flux_dir_nir = real1d("sfc_flux_dir_nir", m_ncol);
-    sfc_flux_dif_vis = real1d("sfc_flux_dif_vis", m_ncol);
-    sfc_flux_dif_nir = real1d("sfc_flux_dif_nir", m_ncol);
-    lat              = real1d("lat"             , m_ncol);
-    lon              = real1d("lon"             , m_ncol);;
-    sfc_emis         = real1d("sfc_emis"        , m_ncol);
-    t_sfc            = real1d("t_sfc"           , m_ncol);
-    lw_src           = real1d("lw_src"          , m_ncol);
+    cosine_zenith    = real1d_k("cosine_zenith"   , m_ncol);
+    mu0              = real1d_k("mu0"             , m_ncol);
+    sfc_alb_dir_vis  = real1d_k("sfc_alb_dir_vis" , m_ncol);
+    sfc_alb_dir_nir  = real1d_k("sfc_alb_dir_nir" , m_ncol);
+    sfc_alb_dif_vis  = real1d_k("sfc_alb_dif_vis" , m_ncol);
+    sfc_alb_dif_nir  = real1d_k("sfc_alb_dif_nir" , m_ncol);
+    sfc_flux_dir_vis = real1d_k("sfc_flux_dir_vis", m_ncol);
+    sfc_flux_dir_nir = real1d_k("sfc_flux_dir_nir", m_ncol);
+    sfc_flux_dif_vis = real1d_k("sfc_flux_dif_vis", m_ncol);
+    sfc_flux_dif_nir = real1d_k("sfc_flux_dif_nir", m_ncol);
+    lat              = real1d_k("lat"             , m_ncol);
+    lon              = real1d_k("lon"             , m_ncol);
+    sfc_emis         = real1d_k("sfc_emis"        , m_ncol);
+    t_sfc            = real1d_k("t_sfc"           , m_ncol);
+    lw_src           = real1d_k("lw_src"          , m_ncol);
 
     // 2d size (ncol, nlay)
-    r_lay         = real2d("r_lay"        , m_ncol, m_nlay);
-    p_lay         = real2d("p_lay"        , m_ncol, m_nlay);
-    t_lay         = real2d("t_lay"        , m_ncol, m_nlay);
-    z_del         = real2d("z_del"        , m_ncol, m_nlay);
-    p_del         = real2d("p_del"        , m_ncol, m_nlay);
-    qv_lay        = real2d("qv"           , m_ncol, m_nlay);
-    qc_lay        = real2d("qc"           , m_ncol, m_nlay);
-    qi_lay        = real2d("qi"           , m_ncol, m_nlay);
-    cldfrac_tot   = real2d("cldfrac_tot"  , m_ncol, m_nlay);
-    eff_radius_qc = real2d("eff_radius_qc", m_ncol, m_nlay);
-    eff_radius_qi = real2d("eff_radius_qi", m_ncol, m_nlay);
-    tmp2d         = real2d("tmp2d"        , m_ncol, m_nlay);
-    lwp           = real2d("lwp"          , m_ncol, m_nlay);
-    iwp           = real2d("iwp"          , m_ncol, m_nlay);
-    sw_heating    = real2d("sw_heating"   , m_ncol, m_nlay);
-    lw_heating    = real2d("lw_heating"   , m_ncol, m_nlay);
-    sw_clrsky_heating = real2d("sw_clrsky_heating", m_ncol, m_nlay);
-    lw_clrsky_heating = real2d("lw_clrsky_heating", m_ncol, m_nlay);
+    r_lay         = real2d_k("r_lay"        , m_ncol, m_nlay);
+    p_lay         = real2d_k("p_lay"        , m_ncol, m_nlay);
+    t_lay         = real2d_k("t_lay"        , m_ncol, m_nlay);
+    z_del         = real2d_k("z_del"        , m_ncol, m_nlay);
+    p_del         = real2d_k("p_del"        , m_ncol, m_nlay);
+    qv_lay        = real2d_k("qv"           , m_ncol, m_nlay);
+    qc_lay        = real2d_k("qc"           , m_ncol, m_nlay);
+    qi_lay        = real2d_k("qi"           , m_ncol, m_nlay);
+    cldfrac_tot   = real2d_k("cldfrac_tot"  , m_ncol, m_nlay);
+    eff_radius_qc = real2d_k("eff_radius_qc", m_ncol, m_nlay);
+    eff_radius_qi = real2d_k("eff_radius_qi", m_ncol, m_nlay);
+    tmp2d         = real2d_k("tmp2d"        , m_ncol, m_nlay);
+    lwp           = real2d_k("lwp"          , m_ncol, m_nlay);
+    iwp           = real2d_k("iwp"          , m_ncol, m_nlay);
+    sw_heating    = real2d_k("sw_heating"   , m_ncol, m_nlay);
+    lw_heating    = real2d_k("lw_heating"   , m_ncol, m_nlay);
+    sw_clrsky_heating = real2d_k("sw_clrsky_heating", m_ncol, m_nlay);
+    lw_clrsky_heating = real2d_k("lw_clrsky_heating", m_ncol, m_nlay);
 
     // 2d size (ncol, nlay+1)
-    d_tint                   = real2d("d_tint"                  , m_ncol, m_nlay+1);
-    p_lev                    = real2d("p_lev"                   , m_ncol, m_nlay+1);
-    t_lev                    = real2d("t_lev"                   , m_ncol, m_nlay+1);
-    sw_flux_up               = real2d("sw_flux_up"              , m_ncol, m_nlay+1);
-    sw_flux_dn               = real2d("sw_flux_dn"              , m_ncol, m_nlay+1);
-    sw_flux_dn_dir           = real2d("sw_flux_dn_dir"          , m_ncol, m_nlay+1);
-    lw_flux_up               = real2d("sw_flux_up"              , m_ncol, m_nlay+1);
-    lw_flux_dn               = real2d("sw_flux_dn"              , m_ncol, m_nlay+1);
-    sw_clnclrsky_flux_up     = real2d("sw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
-    sw_clnclrsky_flux_dn     = real2d("sw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
-    sw_clnclrsky_flux_dn_dir = real2d("sw_clnclrsky_flux_dn_dir", m_ncol, m_nlay+1);
-    sw_clrsky_flux_up        = real2d("sw_clrsky_flux_up"       , m_ncol, m_nlay+1);
-    sw_clrsky_flux_dn        = real2d("sw_clrsky_flux_dn"       , m_ncol, m_nlay+1);
-    sw_clrsky_flux_dn_dir    = real2d("sw_clrsky_flux_dn_dir"   , m_ncol, m_nlay+1);
-    sw_clnsky_flux_up        = real2d("sw_clnsky_flux_up"       , m_ncol, m_nlay+1);
-    sw_clnsky_flux_dn        = real2d("sw_clnsky_flux_dn"       , m_ncol, m_nlay+1);
-    sw_clnsky_flux_dn_dir    = real2d("sw_clnsky_flux_dn_dir"   , m_ncol, m_nlay+1);
-    lw_clnclrsky_flux_up     = real2d("lw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
-    lw_clnclrsky_flux_dn     = real2d("lw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
-    lw_clrsky_flux_up        = real2d("lw_clrsky_flux_up"       , m_ncol, m_nlay+1);
-    lw_clrsky_flux_dn        = real2d("lw_clrsky_flux_dn"       , m_ncol, m_nlay+1);
-    lw_clnsky_flux_up        = real2d("lw_clnsky_flux_up"       , m_ncol, m_nlay+1);
-    lw_clnsky_flux_dn        = real2d("lw_clnsky_flux_dn"       , m_ncol, m_nlay+1);
+    d_tint                   = real2d_k("d_tint"                  , m_ncol, m_nlay+1);
+    p_lev                    = real2d_k("p_lev"                   , m_ncol, m_nlay+1);
+    t_lev                    = real2d_k("t_lev"                   , m_ncol, m_nlay+1);
+    sw_flux_up               = real2d_k("sw_flux_up"              , m_ncol, m_nlay+1);
+    sw_flux_dn               = real2d_k("sw_flux_dn"              , m_ncol, m_nlay+1);
+    sw_flux_dn_dir           = real2d_k("sw_flux_dn_dir"          , m_ncol, m_nlay+1);
+    lw_flux_up               = real2d_k("sw_flux_up"              , m_ncol, m_nlay+1);
+    lw_flux_dn               = real2d_k("sw_flux_dn"              , m_ncol, m_nlay+1);
+    sw_clnclrsky_flux_up     = real2d_k("sw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
+    sw_clnclrsky_flux_dn     = real2d_k("sw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
+    sw_clnclrsky_flux_dn_dir = real2d_k("sw_clnclrsky_flux_dn_dir", m_ncol, m_nlay+1);
+    sw_clrsky_flux_up        = real2d_k("sw_clrsky_flux_up"       , m_ncol, m_nlay+1);
+    sw_clrsky_flux_dn        = real2d_k("sw_clrsky_flux_dn"       , m_ncol, m_nlay+1);
+    sw_clrsky_flux_dn_dir    = real2d_k("sw_clrsky_flux_dn_dir"   , m_ncol, m_nlay+1);
+    sw_clnsky_flux_up        = real2d_k("sw_clnsky_flux_up"       , m_ncol, m_nlay+1);
+    sw_clnsky_flux_dn        = real2d_k("sw_clnsky_flux_dn"       , m_ncol, m_nlay+1);
+    sw_clnsky_flux_dn_dir    = real2d_k("sw_clnsky_flux_dn_dir"   , m_ncol, m_nlay+1);
+    lw_clnclrsky_flux_up     = real2d_k("lw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
+    lw_clnclrsky_flux_dn     = real2d_k("lw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
+    lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"       , m_ncol, m_nlay+1);
+    lw_clrsky_flux_dn        = real2d_k("lw_clrsky_flux_dn"       , m_ncol, m_nlay+1);
+    lw_clnsky_flux_up        = real2d_k("lw_clnsky_flux_up"       , m_ncol, m_nlay+1);
+    lw_clnsky_flux_dn        = real2d_k("lw_clnsky_flux_dn"       , m_ncol, m_nlay+1);
 
     // 3d size (ncol, nlay+1, nswbands)
-    sw_bnd_flux_up  = real3d("sw_bnd_flux_up" , m_ncol, m_nlay+1, m_nswbands);
-    sw_bnd_flux_dn  = real3d("sw_bnd_flux_dn" , m_ncol, m_nlay+1, m_nswbands);
-    sw_bnd_flux_dir = real3d("sw_bnd_flux_dir", m_ncol, m_nlay+1, m_nswbands);
-    sw_bnd_flux_dif = real3d("sw_bnd_flux_dif", m_ncol, m_nlay+1, m_nswbands);
+    sw_bnd_flux_up  = real3d_k("sw_bnd_flux_up" , m_ncol, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dn  = real3d_k("sw_bnd_flux_dn" , m_ncol, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dir = real3d_k("sw_bnd_flux_dir", m_ncol, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dif = real3d_k("sw_bnd_flux_dif", m_ncol, m_nlay+1, m_nswbands);
 
     // 3d size (ncol, nlay+1, nlwbands)
-    lw_bnd_flux_up = real3d("lw_bnd_flux_up" , m_ncol, m_nlay+1, m_nlwbands);
-    lw_bnd_flux_dn = real3d("lw_bnd_flux_up" , m_ncol, m_nlay+1, m_nlwbands);
+    lw_bnd_flux_up = real3d_k("lw_bnd_flux_up" , m_ncol, m_nlay+1, m_nlwbands);
+    lw_bnd_flux_dn = real3d_k("lw_bnd_flux_up" , m_ncol, m_nlay+1, m_nlwbands);
 
     // 2d size (ncol, nswbands)
-    sfc_alb_dir = real2d("sfc_alb_dir", m_ncol, m_nswbands);
-    sfc_alb_dif = real2d("sfc_alb_dif", m_ncol, m_nswbands);
+    sfc_alb_dir = real2d_k("sfc_alb_dir", m_ncol, m_nswbands);
+    sfc_alb_dif = real2d_k("sfc_alb_dif", m_ncol, m_nswbands);
 
     // 2d size (ncol, nlwbands)
-    emis_sfc    = real2d("emis_sfc", m_ncol, m_nlwbands);
+    emis_sfc    = real2d_k("emis_sfc", m_ncol, m_nlwbands);
 
     // 3d size (ncol, nlay, n[sw,lw]bands)
-    aero_tau_sw = real3d("aero_tau_sw", m_ncol, m_nlay, m_nswbands);
-    aero_ssa_sw = real3d("aero_ssa_sw", m_ncol, m_nlay, m_nswbands);
-    aero_g_sw   = real3d("aero_g_sw"  , m_ncol, m_nlay, m_nswbands);
-    aero_tau_lw = real3d("aero_tau_lw", m_ncol, m_nlay, m_nlwbands);
+    aero_tau_sw = real3d_k("aero_tau_sw", m_ncol, m_nlay, m_nswbands);
+    aero_ssa_sw = real3d_k("aero_ssa_sw", m_ncol, m_nlay, m_nswbands);
+    aero_g_sw   = real3d_k("aero_g_sw"  , m_ncol, m_nlay, m_nswbands);
+    aero_tau_lw = real3d_k("aero_tau_lw", m_ncol, m_nlay, m_nlwbands);
 
     // 3d size (ncol, nlay, n[sw,lw]bnds)
-    cld_tau_sw_bnd = real3d("cld_tau_sw_bnd", m_ncol, m_nlay, m_nswbands);
-    cld_tau_lw_bnd = real3d("cld_tau_lw_bnd", m_ncol, m_nlay, m_nlwbands);
+    cld_tau_sw_bnd = real3d_k("cld_tau_sw_bnd", m_ncol, m_nlay, m_nswbands);
+    cld_tau_lw_bnd = real3d_k("cld_tau_lw_bnd", m_ncol, m_nlay, m_nlwbands);
 
     // 3d size (ncol, nlay, n[sw,lw]gpts)
-    cld_tau_sw_gpt = real3d("cld_tau_sw_gpt", m_ncol, m_nlay, m_nswgpts);
-    cld_tau_lw_gpt = real3d("cld_tau_lw_gpt", m_ncol, m_nlay, m_nlwgpts);
+    cld_tau_sw_gpt = real3d_k("cld_tau_sw_gpt", m_ncol, m_nlay, m_nswgpts);
+    cld_tau_lw_gpt = real3d_k("cld_tau_lw_gpt", m_ncol, m_nlay, m_nlwgpts);
 }
 
 void
 Radiation::dealloc_buffers ()
 {
     // 1d size (m_ngas)
-    m_gas_mol_weights.deallocate();
+    m_gas_mol_weights = real1d_k();
 
     // 1d size (1 or nlay)
-    o3_lay.deallocate();
+    o3_lay = real1d_k();
 
     // 1d size (ncol)
-    cosine_zenith.deallocate();
-    mu0.deallocate();
-    sfc_alb_dir_vis.deallocate();
-    sfc_alb_dir_nir.deallocate();
-    sfc_alb_dif_vis.deallocate();
-    sfc_alb_dif_nir.deallocate();
-    sfc_flux_dir_vis.deallocate();
-    sfc_flux_dir_nir.deallocate();
-    sfc_flux_dif_vis.deallocate();
-    sfc_flux_dif_nir.deallocate();
-    lat.deallocate();
-    lon.deallocate();
-    sfc_emis.deallocate();
-    t_sfc.deallocate();
-    lw_src.deallocate();
+    cosine_zenith    = real1d_k();
+    mu0              = real1d_k();
+    sfc_alb_dir_vis  = real1d_k();
+    sfc_alb_dir_nir  = real1d_k();
+    sfc_alb_dif_vis  = real1d_k();
+    sfc_alb_dif_nir  = real1d_k();
+    sfc_flux_dir_vis = real1d_k();
+    sfc_flux_dir_nir = real1d_k();
+    sfc_flux_dif_vis = real1d_k();
+    sfc_flux_dif_nir = real1d_k();
+    lat              = real1d_k();
+    lon              = real1d_k();
+    sfc_emis         = real1d_k();
+    t_sfc            = real1d_k();
+    lw_src           = real1d_k();
 
     // 2d size (ncol, nlay)
-    r_lay.deallocate();
-    p_lay.deallocate();
-    t_lay.deallocate();
-    z_del.deallocate();
-    p_del.deallocate();
-    qv_lay.deallocate();
-    qc_lay.deallocate();
-    qi_lay.deallocate();
-    cldfrac_tot.deallocate();
-    eff_radius_qc.deallocate();
-    eff_radius_qi.deallocate();
-    tmp2d.deallocate();
-    lwp.deallocate();
-    iwp.deallocate();
-
-    sw_heating.deallocate();
-    lw_heating.deallocate();
-    sw_clrsky_heating.deallocate();
-    lw_clrsky_heating.deallocate();
+    r_lay             = real2d_k();
+    p_lay             = real2d_k();
+    t_lay             = real2d_k();
+    z_del             = real2d_k();
+    p_del             = real2d_k();
+    qv_lay            = real2d_k();
+    qc_lay            = real2d_k();
+    qi_lay            = real2d_k();
+    cldfrac_tot       = real2d_k();
+    eff_radius_qc     = real2d_k();
+    eff_radius_qi     = real2d_k();
+    tmp2d             = real2d_k();
+    lwp               = real2d_k();
+    iwp               = real2d_k();
+    sw_heating        = real2d_k();
+    lw_heating        = real2d_k();
+    sw_clrsky_heating = real2d_k();
+    lw_clrsky_heating = real2d_k();
+    sw_heating        = real2d_k();
+    lw_heating        = real2d_k();
+    sw_clrsky_heating = real2d_k();
+    lw_clrsky_heating = real2d_k();
 
     // 2d size (ncol, nlay+1)
-    d_tint.deallocate();
-    p_lev.deallocate();
-    t_lev.deallocate();
-
-    sw_flux_up.deallocate();
-    sw_flux_dn.deallocate();
-    sw_flux_dn_dir.deallocate();
-    lw_flux_up.deallocate();
-    lw_flux_dn.deallocate();
-    sw_clnclrsky_flux_up.deallocate();
-    sw_clnclrsky_flux_dn.deallocate();
-    sw_clnclrsky_flux_dn_dir.deallocate();
-    sw_clrsky_flux_up.deallocate();
-    sw_clrsky_flux_dn.deallocate();
-    sw_clrsky_flux_dn_dir.deallocate();
-    sw_clnsky_flux_up.deallocate();
-    sw_clnsky_flux_dn.deallocate();
-    sw_clnsky_flux_dn_dir.deallocate();
-    lw_clnclrsky_flux_up.deallocate();
-    lw_clnclrsky_flux_dn.deallocate();
-    lw_clrsky_flux_up.deallocate();
-    lw_clrsky_flux_dn.deallocate();
-    lw_clnsky_flux_up.deallocate();
-    lw_clnsky_flux_dn.deallocate();
+    d_tint                   = real2d_k();
+    p_lev                    = real2d_k();
+    t_lev                    = real2d_k();
+    sw_flux_up               = real2d_k();
+    sw_flux_dn               = real2d_k();
+    sw_flux_dn_dir           = real2d_k();
+    lw_flux_up               = real2d_k();
+    lw_flux_dn               = real2d_k();
+    sw_clnclrsky_flux_up     = real2d_k();
+    sw_clnclrsky_flux_dn     = real2d_k();
+    sw_clnclrsky_flux_dn_dir = real2d_k();
+    sw_clrsky_flux_up        = real2d_k();
+    sw_clrsky_flux_dn        = real2d_k();
+    sw_clrsky_flux_dn_dir    = real2d_k();
+    sw_clnsky_flux_up        = real2d_k();
+    sw_clnsky_flux_dn        = real2d_k();
+    sw_clnsky_flux_dn_dir    = real2d_k();
+    lw_clnclrsky_flux_up     = real2d_k();
+    lw_clnclrsky_flux_dn     = real2d_k();
+    lw_clrsky_flux_up        = real2d_k();
+    lw_clrsky_flux_dn        = real2d_k();
+    lw_clnsky_flux_up        = real2d_k();
+    lw_clnsky_flux_dn        = real2d_k();
 
     // 3d size (ncol, nlay+1, nswbands)
-    sw_bnd_flux_up.deallocate();
-    sw_bnd_flux_dn.deallocate();
-    sw_bnd_flux_dir.deallocate();
-    sw_bnd_flux_dif.deallocate();
+    sw_bnd_flux_up  = real3d_k();
+    sw_bnd_flux_dn  = real3d_k();
+    sw_bnd_flux_dir = real3d_k();
+    sw_bnd_flux_dif = real3d_k();
 
     // 3d size (ncol, nlay+1, nlwbands)
-    lw_bnd_flux_up.deallocate();
-    lw_bnd_flux_dn.deallocate();
+    lw_bnd_flux_up = real3d_k();
+    lw_bnd_flux_dn = real3d_k();
 
     // 2d size (ncol, nswbands)
-    sfc_alb_dir.deallocate();
-    sfc_alb_dif.deallocate();
+    sfc_alb_dir = real2d_k();
+    sfc_alb_dif = real2d_k();
 
     // 2d size (ncol, nlwbands)
-    emis_sfc.deallocate();
+    emis_sfc = real2d_k();
 
     // 3d size (ncol, nlay, n[sw,lw]bands)
-    aero_tau_sw.deallocate();
-    aero_ssa_sw.deallocate();
-    aero_g_sw.deallocate();
-    aero_tau_lw.deallocate();
+    aero_tau_sw = real3d_k();
+    aero_ssa_sw = real3d_k();
+    aero_g_sw   = real3d_k();
+    aero_tau_lw = real3d_k();
 
     // 3d size (ncol, nlay, n[sw,lw]bnds)
-    cld_tau_sw_bnd.deallocate();
-    cld_tau_lw_bnd.deallocate();
+    cld_tau_sw_bnd = real3d_k();
+    cld_tau_lw_bnd = real3d_k();
 
     // 3d size (ncol, nlay, n[sw,lw]gpts)
-    cld_tau_sw_gpt.deallocate();
-    cld_tau_lw_gpt.deallocate();
+    cld_tau_sw_gpt = real3d_k();
+    cld_tau_lw_gpt = real3d_k();
 }
 
 
 void
-Radiation::mf_to_yakl_buffers ()
+Radiation::mf_to_kokkos_buffers ()
 {
     bool moist = m_moist;
     bool ice   = m_ice;
@@ -444,9 +445,9 @@ Radiation::mf_to_yakl_buffers ()
                                                           Array4<const Real>{};
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            // map [i,j,k] 0-based to [icol, ilay] 1-based
-            const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
-            const int ilay = k+1;
+            // map [i,j,k] 0-based to [icol, ilay] 0-based
+            const int icol   = (j-jmin)*nx + (i-imin) + offset;
+            const int ilay   = k;
 
             // EOS input (at CC)
             Real r  = cons_arr(i,j,k,Rho_comp);
@@ -463,7 +464,7 @@ Radiation::mf_to_yakl_buffers ()
             Real rt_avg = 0.5 * (rt + rt_lo);
             Real qv_avg = 0.5 * (qv + qv_lo);
 
-            // Buffers at CC
+            // Views at CC
             r_lay(icol,ilay) = r;
             p_lay(icol,ilay) = getPgivenRTh(rt, qv);
             t_lay(icol,ilay) = getTgivenRandRTh(r, rt, qv);
@@ -474,20 +475,20 @@ Radiation::mf_to_yakl_buffers ()
             qv_lay(icol,ilay) = qv;
             qc_lay(icol,ilay) = qc;
             qi_lay(icol,ilay) = qi;
-            cldfrac_tot(icol,ilay) = ((qc+qi)>1.0e-5) ? 1. : 0.;
+            cldfrac_tot(icol,ilay) = ((qc+qi)>0.0) ? 1. : 0.;
 
             // NOTE: These are populated in 'mixing_ratio_to_cloud_mass'
             lwp(icol,ilay) = 0.0;
             iwp(icol,ilay) = 0.0;
 
             // NOTE: These would be populated from P3 (we use the constants in p3_main_impl.hpp)
-            eff_radius_qc(icol,ilay) = (qc>1.0e-12) ? 10.0e-6 : 0.0;
-            eff_radius_qi(icol,ilay) = (qi>1.0e-12) ? 25.0e-6 : 0.0;
+            eff_radius_qc(icol,ilay) = (qc>0.0) ? 10.0e-6 : 0.0;
+            eff_radius_qi(icol,ilay) = (qi>0.0) ? 25.0e-6 : 0.0;
 
             // Buffers on z-faces (nlay+1)
             p_lev(icol,ilay) = getPgivenRTh(rt_avg, qv_avg);
             t_lev(icol,ilay) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
-            if (ilay==nlay) {
+            if (ilay==(nlay-1)) {
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
                 Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
                 Real qv_hi = (moist) ? cons_arr(i,j,k+1,RhoQ1_comp)/r_hi : 0.0;
@@ -504,40 +505,41 @@ Radiation::mf_to_yakl_buffers ()
                 lon(icol) = (m_lon) ? lon_arr(i,j,0) : cons_lon;
 
                 if (!lsm) {
-                    // if no LSM, then set surface temperature as temperature at k=0
-                    t_sfc(icol) = t_lev(icol, 1);
+                    // No LSM, use temperature at bottom w-face
+                    t_sfc(icol) = t_lev(icol, 0);
                 }
             }
 
         });
     }
 
-    // Separate YAKL kernel for derived quantities
-    parallel_for(SimpleBounds<2>(ncol, nlay), YAKL_LAMBDA (int icol, int ilay)
+    // EAMXX delP is positive
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
+                         KOKKOS_LAMBDA (int icol, int ilay)
     {
         p_del(icol,ilay)  = std::abs(p_lev(icol,ilay+1) - p_lev(icol,ilay));
     });
 
-    // TODO: Fill properly
-    // No LSM, so follow EAMXX dummy atmos and set constants
+    // Populate vars LSM would provide
     if (!lsm) {
-        yakl::memset(mu0, 0.86);
-        yakl::memset(sfc_alb_dir_vis, 0.06);
-        yakl::memset(sfc_alb_dir_nir, 0.06);
-        yakl::memset(sfc_alb_dif_vis, 0.06);
-        yakl::memset(sfc_alb_dif_nir, 0.06);
-    }
+        // EAMXX dummy atmos constants
+        Kokkos::deep_copy(sfc_alb_dir_vis, 0.06);
+        Kokkos::deep_copy(sfc_alb_dir_nir, 0.06);
+        Kokkos::deep_copy(sfc_alb_dif_vis, 0.06);
+        Kokkos::deep_copy(sfc_alb_dif_nir, 0.06);
 
-    // TODO: Fill properly
-    yakl::memset(aero_tau_sw, 0.0);
-    yakl::memset(aero_ssa_sw, 0.0);
-    yakl::memset(aero_g_sw  , 0.0);
-    yakl::memset(aero_tau_lw, 0.0);
+        // AML NOTE: These are not used in current EAMXX, I've left
+        //           the code to plug into these if we need it.
+        //
+        // Current EAMXX constants
+        Kokkos::deep_copy(emis_sfc, 0.98);
+        Kokkos::deep_copy(lw_src, 0.0);
+    }
 }
 
 
 void
-Radiation::yakl_buffers_to_mf ()
+Radiation::kokkos_buffers_to_mf ()
 {
     for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
         const auto& vbx      = mfi.validbox();
@@ -549,9 +551,9 @@ Radiation::yakl_buffers_to_mf ()
         const Array4<Real>& q_arr = m_qheating_rates->array(mfi);
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            // map [i,j,k] 0-based to [icol, ilay] 1-based
-            const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
-            const int ilay = k+1;
+            // map [i,j,k] 0-based to [icol, ilay] 0-based
+            const int icol = (j-jmin)*nx + (i-imin) + offset;
+            const int ilay = k;
 
             // Temperature heating rate for SW and LW
             q_arr(i,j,k,0) = sw_heating(icol,ilay);
@@ -561,19 +563,6 @@ Radiation::yakl_buffers_to_mf ()
             Real exner = getExnergivenP(Real(p_lay(icol,ilay)), R_d/Cp_d);
             q_arr(i,j,k,0) *= exner;
             q_arr(i,j,k,1) *= exner;
-
-            /*
-            if (i==0 && j==0) {
-                AllPrint() << "Qsrcs: " << IntVect(i,j,k) << ' '
-                           << IntVect(icol,0,ilay) << ' '
-                           << q_arr(i,j,k,0) << ' '
-                           << q_arr(i,j,k,1) << ' '
-                           << sw_heating(icol,ilay) << ' '
-                           << lw_heating(icol,ilay) << ' '
-                           << exner << "\n";
-            }
-            */
-
         });
         if (m_lsm_fluxes) {
             const Array4<Real>& lsm_arr =  m_lsm_fluxes->array(mfi);
@@ -594,6 +583,7 @@ Radiation::yakl_buffers_to_mf ()
 
                 // LW flux for LSM (at bottom surface)
                 lsm_arr(i,j,k,5) = lw_flux_dn(icol,1);
+
             });
         }
         if (m_lsm_zenith) {
@@ -625,9 +615,9 @@ Radiation::write_rrtmgp_fluxes ()
         const Array4<Real>& dst_arr = mf_flux.array(mfi);
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            // map [i,j,k] 0-based to [icol, ilay] 1-based
-            const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
-            const int ilay = k+1;
+            // map [i,j,k] 0-based to [icol, ilay] 0-based
+            const int icol = (j-jmin)*nx + (i-imin) + offset;
+            const int ilay = k;
 
             // SW and LW fluxes
             dst_arr(i,j,k,0) = sw_flux_up(icol,ilay);
@@ -645,7 +635,7 @@ Radiation::write_rrtmgp_fluxes ()
    WriteSingleLevelPlotfile(plotfilename, mf_flux, flux_names, m_geom, m_time, m_step);
 }
 
-void Radiation::populateDatalogMF()
+void Radiation::populateDatalogMF ()
 {
     for (MFIter mfi(datalog_mf); mfi.isValid(); ++mfi) {
         const auto& vbx      = mfi.validbox();
@@ -654,12 +644,12 @@ void Radiation::populateDatalogMF()
         const int jmin       = vbx.smallEnd(1);
         const int offset     = m_col_offsets[mfi.index()];
         const Array4<Real>& dst_arr = datalog_mf.array(mfi);
-        const Array4<Real>& q_arr = m_qheating_rates->array(mfi);
+        const Array4<Real>&   q_arr = m_qheating_rates->array(mfi);
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            // map [i,j,k] 0-based to [icol, ilay] 1-based
-            const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
-            const int ilay = k+1;
+            // map [i,j,k] 0-based to [icol, ilay] 0-based
+            const int icol = (j-jmin)*nx + (i-imin) + offset;
+            const int ilay = k;
 
             dst_arr(i,j,k,0) = q_arr(i, j, k, 0);
             dst_arr(i,j,k,1) = q_arr(i, j, k, 1);
@@ -705,7 +695,7 @@ void Radiation::populateDatalogMF()
    }
 }
 
-void Radiation::WriteDataLog(const amrex::Real &time)
+void Radiation::WriteDataLog (const Real &time)
 {
     constexpr int datwidth = 14;
     constexpr int datprecision = 9;
@@ -843,7 +833,7 @@ void
 Radiation::initialize_impl ()
 {
     // Call API to initialize
-    m_gas_concs.init(gas_names_yakl_offset, m_ncol, m_nlay);
+    m_gas_concs.init(gas_names_offset, m_ncol, m_nlay);
     rrtmgp::rrtmgp_initialize(m_gas_concs,
                               rrtmgp_coeffs_file_sw      , rrtmgp_coeffs_file_lw      ,
                               rrtmgp_cloud_optics_file_sw, rrtmgp_cloud_optics_file_lw);
@@ -861,11 +851,11 @@ Radiation::run_impl ()
     // Compute orbital parameters; these are used both for computing
     // the solar zenith angle and also for computing total solar
     // irradiance scaling (tsi_scaling).
-    real obliqr, lambm0, mvelpp;
+    double obliqr, lambm0, mvelpp;
     int  orbital_year = m_orbital_year;
-    real eccen        = m_orbital_eccen;
-    real obliq        = m_orbital_obliq;
-    real mvelp        = m_orbital_mvelp;
+    double eccen      = m_orbital_eccen;
+    double obliq      = m_orbital_obliq;
+    double mvelp      = m_orbital_mvelp;
     if (eccen >= 0 && obliq >= 0 && mvelp >= 0) {
       // fixed orbital parameters forced with orbital_year == ORB_UNDEF_INT
       orbital_year = ORB_UNDEF_INT;
@@ -873,16 +863,16 @@ Radiation::run_impl ()
     orbital_params(orbital_year, eccen, obliq,
                    mvelp, obliqr, lambm0, mvelpp);
 
+
     // Use the orbital parameters to calculate the solar declination and eccentricity factor
-    real delta, eccf;
+    double delta, eccf;
     // Want day + fraction; calday 1 == Jan 1 0Z
-    static constexpr real dpy[] = {0.0, 31.0, 59.0, 90.0, 120.0, 151.0, 181.0, 212.0, 243.0, 273.0, 304.0, 334.0};
+    static constexpr double dpy[] = {0.0  ,  31.0,  59.0,  90.0, 120.0, 151.0,
+                                     181.0, 212.0, 243.0, 273.0, 304.0, 334.0};
     bool leap = (m_orbital_year % 4 == 0 && (!(m_orbital_year % 100 == 0) || (m_orbital_year % 400 == 0))) ? true : false;
-    real calday = dpy[m_orbital_mon] + m_orbital_day + m_orbital_sec/86400.0;
+    double calday = dpy[m_orbital_mon-1] + (m_orbital_day-1.0) + m_orbital_sec/86400.0;
     // add extra day if leap year
-    if (leap) {
-        calday += 1.0;
-    }
+    if (leap) { calday += 1.0; }
     orbital_decl(calday, eccen, mvelpp, lambm0, obliqr, delta, eccf);
 
     // Overwrite eccf if using a fixed solar constant.
@@ -894,36 +884,39 @@ Radiation::run_impl ()
     // Precompute volume mixing ratio (VMR) for all gases
     //
     // H2O is obtained from qv.
+    // O3 may be a constant or a 1D vector
     // All other comps are set to constants for now
     for (int igas(0); igas < m_ngas; ++igas) {
       auto name = m_gas_names[igas];
       auto gas_mol_weight = m_mol_weight_gas[igas];
       if (name == "H2O") {
-          parallel_for(SimpleBounds<2>(ncol, nlay), YAKL_LAMBDA (int icol, int ilay)
+          Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
+                               KOKKOS_LAMBDA (int icol, int ilay)
           {
               tmp2d(icol,ilay) = qv_lay(icol,ilay) * mwdair/ gas_mol_weight;
           });
       } else if (name == "CO2") {
-          yakl::memset(tmp2d, m_co2vmr);
+          Kokkos::deep_copy(tmp2d, m_co2vmr);
       } else if (name == "O3")  {
           if (m_o3_size==1) {
-              yakl::memset(tmp2d, m_o3vmr[0] );
+              Kokkos::deep_copy(tmp2d, m_o3vmr[0] );
           } else {
-              parallel_for(SimpleBounds<2>(ncol, nlay), YAKL_LAMBDA (int icol, int ilay)
+              Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
+                                   KOKKOS_LAMBDA (int icol, int ilay)
               {
                   tmp2d(icol,ilay) = o3_lay(ilay);
               });
           }
       } else if (name == "N2O") {
-          yakl::memset(tmp2d, m_n2ovmr);
+          Kokkos::deep_copy(tmp2d, m_n2ovmr);
       } else if (name == "CO")  {
-          yakl::memset(tmp2d, m_covmr );
+          Kokkos::deep_copy(tmp2d, m_covmr );
       } else if (name == "CH4") {
-          yakl::memset(tmp2d, m_ch4vmr);
+          Kokkos::deep_copy(tmp2d, m_ch4vmr);
       } else if (name == "O2") {
-          yakl::memset(tmp2d, m_o2vmr );
+          Kokkos::deep_copy(tmp2d, m_o2vmr );
       } else if (name == "N2") {
-          yakl::memset(tmp2d, m_n2vmr );
+          Kokkos::deep_copy(tmp2d, m_n2vmr );
       } else {
           Abort("Radiation: Unknown gas component.");
       }
@@ -932,52 +925,42 @@ Radiation::run_impl ()
       m_gas_concs.set_vmr(name, tmp2d);
     }
 
-
-    // TODO: No LSM so leaving comment for code
-    // Calculate T_int from longwave flux up from the surface, assuming
-    // blackbody emission with emissivity of 1.
-    if (!m_lsm) {
-        // If no LSM, set default values for surface emissivity and LW src
-        yakl::memset(emis_sfc, 0.98);
-        yakl::memset(lw_src, 0.0);
-    }
-
-    // Determine the cosine zenith angle.
+    // Populate mu0 1D array
     // This must be done on HOST and copied to device.
-    realHost1d h_mu0("h_mu0", ncol);
+    auto h_mu0 = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), mu0);
     if (m_fixed_solar_zenith_angle > 0) {
-        yakl::memset(h_mu0, m_fixed_solar_zenith_angle);
+        Kokkos::deep_copy(h_mu0, m_fixed_solar_zenith_angle);
     } else {
-        realHost1d h_lat("h_lat", ncol);
-        realHost1d h_lon("h_lon", ncol);
-        lat.deep_copy_to(h_lat);
-        lon.deep_copy_to(h_lon);
-        parallel_for(ncol, YAKL_LAMBDA (int icol)
+        auto h_lat = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), lat);
+        auto h_lon = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), lon);
+        Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, ncol),
+                             KOKKOS_LAMBDA (int icol)
         {
             // Convert lat/lon to radians
-            real dt      = real(m_dt);
-            real lat_col = h_lat(icol)*PI/180.0;
-            real lon_col = h_lon(icol)*PI/180.0;
-            real lcalday = calday;
-            real ldelta  = delta;
-            h_mu0(icol)  = orbital_cos_zenith(lcalday, lat_col, lon_col, ldelta, m_rad_freq_in_steps * dt);
+            double dt      = double(m_dt);
+            double lat_col = h_lat(icol)*PI/180.0;
+            double lon_col = h_lon(icol)*PI/180.0;
+            double lcalday = calday;
+            double ldelta  = delta;
+            h_mu0(icol)    = Real(orbital_cos_zenith(lcalday, lat_col, lon_col, ldelta, m_rad_freq_in_steps * dt));
         });
     }
-    h_mu0.deep_copy_to(mu0);
+    Kokkos::deep_copy(mu0, h_mu0);
 
-    // Compute layer cloud mass (per unit area), populates lwp/iwp
-    rrtmgp::mixing_ratio_to_cloud_mass(qc_lay, cldfrac_tot, p_del, lwp);
-    rrtmgp::mixing_ratio_to_cloud_mass(qi_lay, cldfrac_tot, p_del, iwp);
+    // Compute layer cloud mass per unit area (populates lwp/iwp)
+    rrtmgp::mixing_ratio_to_cloud_mass(qc_lay, cldfrac_tot, r_lay, z_del, lwp);
+    rrtmgp::mixing_ratio_to_cloud_mass(qi_lay, cldfrac_tot, r_lay, z_del, iwp);
 
     // Convert to g/m2 (needed by RRTMGP)
-    parallel_for(SimpleBounds<2>(ncol, nlay), YAKL_LAMBDA (int icol, int ilay)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
+                         KOKKOS_LAMBDA (int icol, int ilay)
     {
         lwp(icol,ilay) *= 1.e3;
         iwp(icol,ilay) *= 1.e3;
     });
 
-    // Compute band-by-band surface_albedos. This is needed since
-    // the AD passes broadband albedos, but rrtmgp require band-by-band.
+    // Expand surface_albedos along nswbands.
+    // This is needed since rrtmgp require band-by-band.
     rrtmgp::compute_band_by_band_surface_albedos(ncol, nswbands,
                                                  sfc_alb_dir_vis, sfc_alb_dir_nir,
                                                  sfc_alb_dif_vis, sfc_alb_dif_nir,
@@ -985,7 +968,8 @@ Radiation::run_impl ()
 
     // Run RRTMGP driver
     rrtmgp::rrtmgp_main(ncol, m_nlay,
-                        p_lay, t_lay, p_lev, t_lev,
+                        p_lay, t_lay,
+                        p_lev, t_lev,
                         m_gas_concs,
                         sfc_alb_dir, sfc_alb_dif, mu0,
                         t_sfc, emis_sfc, lw_src,
@@ -993,46 +977,54 @@ Radiation::run_impl ()
                         aero_tau_sw, aero_ssa_sw, aero_g_sw, aero_tau_lw,
                         cld_tau_sw_bnd, cld_tau_lw_bnd,
                         cld_tau_sw_gpt, cld_tau_lw_gpt,
-                        sw_flux_up, sw_flux_dn, sw_flux_dn_dir, lw_flux_up, lw_flux_dn,
+                        sw_flux_up, sw_flux_dn, sw_flux_dn_dir,
+                        lw_flux_up, lw_flux_dn,
                         sw_clnclrsky_flux_up, sw_clnclrsky_flux_dn, sw_clnclrsky_flux_dn_dir,
                         sw_clrsky_flux_up, sw_clrsky_flux_dn, sw_clrsky_flux_dn_dir,
                         sw_clnsky_flux_up, sw_clnsky_flux_dn, sw_clnsky_flux_dn_dir,
                         lw_clnclrsky_flux_up, lw_clnclrsky_flux_dn,
                         lw_clrsky_flux_up, lw_clrsky_flux_dn,
                         lw_clnsky_flux_up, lw_clnsky_flux_dn,
-                        sw_bnd_flux_up, sw_bnd_flux_dn, sw_bnd_flux_dir, lw_bnd_flux_up, lw_bnd_flux_dn,
+                        sw_bnd_flux_up, sw_bnd_flux_dn, sw_bnd_flux_dir,
+                        lw_bnd_flux_up, lw_bnd_flux_dn,
                         eccf, m_extra_clnclrsky_diag, m_extra_clnsky_diag);
 
 #if 0
     // UNIT TEST
     //================================================================================
-    yakl::memset(mu0, 0.86);
-    yakl::memset(sfc_alb_dir_vis, 0.06);
-    yakl::memset(sfc_alb_dir_nir, 0.06);
-    yakl::memset(sfc_alb_dif_vis, 0.06);
-    yakl::memset(sfc_alb_dif_nir, 0.06);
+    Kokkos::deep_copy(mu0, 0.86);
+    Kokkos::deep_copy(sfc_alb_dir_vis, 0.06);
+    Kokkos::deep_copy(sfc_alb_dir_nir, 0.06);
+    Kokkos::deep_copy(sfc_alb_dif_vis, 0.06);
+    Kokkos::deep_copy(sfc_alb_dif_nir, 0.06);
+
+    Kokkos::deep_copy(aero_tau_sw, 0.0);
+    Kokkos::deep_copy(aero_ssa_sw, 0.0);
+    Kokkos::deep_copy(aero_g_sw  , 0.0);
+    Kokkos::deep_copy(aero_tau_lw, 0.0);
 
     // Generate some fake liquid and ice water data. We pick values to be midway between
     // the min and max of the valid lookup table values for effective radii
-    real rel_val = 0.5 * (rrtmgp::cloud_optics_sw.get_min_radius_liq()
-                        + rrtmgp::cloud_optics_sw.get_max_radius_liq());
-    real rei_val = 0.5 * (rrtmgp::cloud_optics_sw.get_min_radius_ice()
-                        + rrtmgp::cloud_optics_sw.get_max_radius_ice());
+    real rel_val = 0.5 * (rrtmgp::cloud_optics_sw_k->get_min_radius_liq()
+                        + rrtmgp::cloud_optics_sw_k->get_max_radius_liq());
+    real rei_val = 0.5 * (rrtmgp::cloud_optics_sw_k->get_min_radius_ice()
+                        + rrtmgp::cloud_optics_sw_k->get_max_radius_ice());
 
     // Restrict clouds to troposphere (> 100 hPa = 100*100 Pa) and not very close to the ground (< 900 hPa), and
     // put them in 2/3 of the columns since that's roughly the total cloudiness of earth.
     // Set sane values for liquid and ice water path.
     // NOTE: these "sane" values are in g/m2!
-    parallel_for( SimpleBounds<2>(nlay,ncol) , YAKL_LAMBDA (int ilay, int icol)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
+                         KOKKOS_LAMBDA (int icol, int ilay)
     {
-        cldfrac_tot(icol,ilay) = (p_lay(icol,ilay) > 100._wp * 100._wp) &&
-                                 (p_lay(icol,ilay) < 900._wp * 100._wp) &&
+        cldfrac_tot(icol,ilay) = (p_lay(icol,ilay) > 100. * 100.) &&
+                                 (p_lay(icol,ilay) < 900. * 100.) &&
                                  (icol%3 != 0);
         // Ice and liquid will overlap in a few layers
-        lwp(icol,ilay) = (cldfrac_tot(icol,ilay) && t_lay(icol,ilay) > 263._wp) ? 10._wp : 0._wp;
-        iwp(icol,ilay) = (cldfrac_tot(icol,ilay) && t_lay(icol,ilay) < 273._wp) ? 10._wp : 0._wp;
-        eff_radius_qc(icol,ilay) = (lwp(icol,ilay) > 0._wp) ? rel_val : 0._wp;
-        eff_radius_qi(icol,ilay) = (iwp(icol,ilay) > 0._wp) ? rei_val : 0._wp;
+        lwp(icol,ilay) = (cldfrac_tot(icol,ilay) && t_lay(icol,ilay) > 263.) ? 10. : 0.;
+        iwp(icol,ilay) = (cldfrac_tot(icol,ilay) && t_lay(icol,ilay) < 273.) ? 10. : 0.;
+        eff_radius_qc(icol,ilay) = (lwp(icol,ilay) > 0.) ? rel_val : 0.;
+        eff_radius_qi(icol,ilay) = (iwp(icol,ilay) > 0.) ? rei_val : 0.;
     });
 
     rrtmgp::compute_band_by_band_surface_albedos(ncol, nswbands,
@@ -1040,28 +1032,27 @@ Radiation::run_impl ()
                                                  sfc_alb_dif_vis, sfc_alb_dif_nir,
                                                  sfc_alb_dir    , sfc_alb_dif);
 
-    yakl::memset(aero_tau_sw, 0.0);
-    yakl::memset(aero_ssa_sw, 0.0);
-    yakl::memset(aero_g_sw  , 0.0);
-    yakl::memset(aero_tau_lw, 0.0);
-
     rrtmgp::rrtmgp_main(ncol, m_nlay,
-                        p_lay, t_lay, p_lev, t_lev,
+                        p_lay, t_lay,
+                        p_lev, t_lev,
                         m_gas_concs,
                         sfc_alb_dir, sfc_alb_dif, mu0,
+                        t_sfc, emis_sfc, lw_src,
                         lwp, iwp, eff_radius_qc, eff_radius_qi, cldfrac_tot,
                         aero_tau_sw, aero_ssa_sw, aero_g_sw, aero_tau_lw,
                         cld_tau_sw_bnd, cld_tau_lw_bnd,
                         cld_tau_sw_gpt, cld_tau_lw_gpt,
-                        sw_flux_up, sw_flux_dn, sw_flux_dn_dir, lw_flux_up, lw_flux_dn,
+                        sw_flux_up, sw_flux_dn, sw_flux_dn_dir,
+                        lw_flux_up, lw_flux_dn,
                         sw_clnclrsky_flux_up, sw_clnclrsky_flux_dn, sw_clnclrsky_flux_dn_dir,
                         sw_clrsky_flux_up, sw_clrsky_flux_dn, sw_clrsky_flux_dn_dir,
                         sw_clnsky_flux_up, sw_clnsky_flux_dn, sw_clnsky_flux_dn_dir,
                         lw_clnclrsky_flux_up, lw_clnclrsky_flux_dn,
                         lw_clrsky_flux_up, lw_clrsky_flux_dn,
                         lw_clnsky_flux_up, lw_clnsky_flux_dn,
-                        sw_bnd_flux_up, sw_bnd_flux_dn, sw_bnd_flux_dir, lw_bnd_flux_up, lw_bnd_flux_dn,
-                        1.0);
+                        sw_bnd_flux_up, sw_bnd_flux_dn, sw_bnd_flux_dir,
+                        lw_bnd_flux_up, lw_bnd_flux_dn,
+                        1.0, false, false);
     //================================================================================
 #endif
 
@@ -1069,10 +1060,24 @@ Radiation::run_impl ()
     rrtmgp::compute_heating_rate(sw_flux_up, sw_flux_dn, r_lay, z_del, sw_heating);
     rrtmgp::compute_heating_rate(lw_flux_up, lw_flux_dn, r_lay, z_del, lw_heating);
 
+    /*
+    // AML DEBUG
+    Kokkos::parallel_for(nlay+1, KOKKOS_LAMBDA (int ilay)
+    {
+        printf("Fluxes: %i %e %e %e %e %e\n",ilay,
+                                             sw_flux_up(5,ilay), sw_flux_dn(5,ilay), sw_flux_dn_dir(5,ilay),
+                                             lw_flux_up(5,ilay), lw_flux_dn(5,ilay));
+    });
+    Kokkos::parallel_for(nlay, KOKKOS_LAMBDA (int ilay)
+    {
+        printf("Heating Rate: %i %e %e\n",ilay,sw_heating(5,ilay),lw_heating(5,ilay));
+    });
+    */
+
     // Compute surface fluxes
-    //const int kbot = nlay + 1; // Should this be 1 for our layout?
-    const int kbot = 1;
-    parallel_for(SimpleBounds<3>(ncol, nlay+1, nswbands), YAKL_LAMBDA (int icol, int ilay, int ibnd)
+    const int kbot = 0;
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay+1, nswbands}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int ibnd)
     {
         sw_bnd_flux_dif(icol,ilay,ibnd) = sw_bnd_flux_dn(icol,ilay,ibnd) - sw_bnd_flux_dir(icol,ilay,ibnd);
     });
@@ -1090,8 +1095,8 @@ Radiation::finalize_impl ()
     m_gas_concs.reset();
     rrtmgp::rrtmgp_finalize();
 
-    // Fill the AMReX MFs from YAKL Arrays
-    yakl_buffers_to_mf();
+    // Fill the AMReX MFs from Kokkos Views
+    kokkos_buffers_to_mf();
 
     // Write fluxes if requested
     if (m_rad_write_fluxes) { write_rrtmgp_fluxes(); }

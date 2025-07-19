@@ -108,7 +108,7 @@ Problem::init_custom_terrain (
     // Note that these factors must match those in Source/ERF_MakeNewArrays.cpp
     //
     ParmParse pp("erf");
-    bool test_mapfactor;
+    bool test_mapfactor = false;
     pp.query("test_mapfactor",test_mapfactor);
 
     Real mf_x;

@@ -113,7 +113,6 @@ define( int const& a_idim,
       bool l_periodic   = a_geom.isPeriodic(a_idim);
 
       // Initialization
-      // This is an ad-hoc; ideally, eb_aux should be defined in bx_grown.
 
       // Extended domain in the direction of periodicity
       Box dom_grown = domain;
@@ -823,6 +822,7 @@ define( int const& a_idim,
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
 
     const Box& bx = mfi.validbox();
+    const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
 
     if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
 
@@ -835,13 +835,106 @@ define( int const& a_idim,
       {
         EB2::build_cellflag_from_ap (i, j, k, aux_flag, aux_afrac_x, aux_afrac_y, aux_afrac_z);
       });
-    } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued )
-  } // MFIter
+
+      // Set disconnected non-periodicfaces
+
+      bool l_periodic_x = a_geom.isPeriodic(0);
+      bool l_periodic_y = a_geom.isPeriodic(1);
+      bool l_periodic_z = a_geom.isPeriodic(2);
+
+      if (!l_periodic_x) {
+        Box dom_grown = grow(grow(domain,1,1),2,1);
+        Box dom_face_x_lo = dom_grown;
+        Box dom_face_x_hi = dom_grown;
+        dom_face_x_lo.setSmall(0, bx.smallEnd(0));
+        dom_face_x_lo.setBig(  0, bx.smallEnd(0));
+        dom_face_x_hi.setSmall(0, bx.bigEnd(0));
+        dom_face_x_hi.setBig(  0, bx.bigEnd(0));
+
+        const Box bx_grown  = grow(grow(bx,1,1),2,1);
+        const Box bx_face_x_lo = bx_grown & dom_face_x_lo;
+        const Box bx_face_x_hi = bx_grown & dom_face_x_hi;
+
+        ParallelFor(bx_face_x_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          for(int kk(-1); kk<=1; kk++) {
+          for(int jj(-1); jj<=1; jj++) {
+            aux_flag(i,j,k).setDisconnected(-1,jj,kk);
+          }}
+        });
+        ParallelFor(bx_face_x_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          for(int kk(-1); kk<=1; kk++) {
+          for(int jj(-1); jj<=1; jj++) {
+            aux_flag(i,j,k).setDisconnected( 1,jj,kk);
+          }}
+        });
+      }
+
+      if (!l_periodic_y) {
+        Box dom_grown = grow(grow(domain,0,1),2,1);
+        Box dom_face_y_lo = dom_grown;
+        Box dom_face_y_hi = dom_grown;
+        dom_face_y_lo.setSmall(1, bx.smallEnd(1));
+        dom_face_y_lo.setBig(  1, bx.smallEnd(1));
+        dom_face_y_hi.setSmall(1, bx.bigEnd(1));
+        dom_face_y_hi.setBig(  1, bx.bigEnd(1));
+
+        const Box bx_grown  = grow(grow(bx,0,1),2,1);
+        const Box bx_face_y_lo = bx_grown & dom_face_y_lo;
+        const Box bx_face_y_hi = bx_grown & dom_face_y_hi;
+
+        ParallelFor(bx_face_y_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          for(int kk(-1); kk<=1; kk++) {
+          for(int ii(-1); ii<=1; ii++) {
+            aux_flag(i,j,k).setDisconnected(ii,-1,kk);
+          }}
+        });
+        ParallelFor(bx_face_y_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          for(int kk(-1); kk<=1; kk++) {
+          for(int ii(-1); ii<=1; ii++) {
+            aux_flag(i,j,k).setDisconnected(ii, 1,kk);
+          }}
+        });
+      }
+
+      if (!l_periodic_z) {
+        Box dom_grown = grow(grow(domain,0,1),1,1);
+        Box dom_face_z_lo = dom_grown;
+        Box dom_face_z_hi = dom_grown;
+        dom_face_z_lo.setSmall(2, bx.smallEnd(2));
+        dom_face_z_lo.setBig(  2, bx.smallEnd(2));
+        dom_face_z_hi.setSmall(2, bx.bigEnd(2));
+        dom_face_z_hi.setBig(  2, bx.bigEnd(2));
+
+        const Box bx_grown  = grow(grow(bx,0,1),1,1);
+        const Box bx_face_z_lo = bx_grown & dom_face_z_lo;
+        const Box bx_face_z_hi = bx_grown & dom_face_z_hi;
+
+        ParallelFor(bx_face_z_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          for(int jj(-1); jj<=1; jj++) {
+          for(int ii(-1); ii<=1; ii++) {
+            aux_flag(i,j,k).setDisconnected(ii,jj,-1);
+          }}
+        });
+        ParallelFor(bx_face_z_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          for(int jj(-1); jj<=1; jj++) {
+          for(int ii(-1); ii<=1; ii++) {
+            aux_flag(i,j,k).setDisconnected(ii,jj, 1);
+          }}
+        });
+      }
+    }
+
+  }
 
   // Fill Boundary
 
   m_cellflags->FillBoundary(a_geom.periodicity());
-
 
 }
 

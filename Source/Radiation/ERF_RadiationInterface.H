@@ -15,27 +15,27 @@ class IRadiation
 public:
     virtual ~IRadiation () = default;
 
-    virtual void Init(const amrex::Geometry& geom,
+    virtual void Init (const amrex::Geometry& geom,
+                       const amrex::BoxArray& ba,
+                       amrex::MultiFab* cons_in) = 0;
+
+    virtual void Run (int& level,
+                      int& step,
+                      amrex::Real& time,
+                      const amrex::Real& dt,
                       const amrex::BoxArray& ba,
-                      amrex::MultiFab* cons_in) = 0;
+                      amrex::Geometry& geom,
+                      amrex::MultiFab* cons_in,
+                      amrex::MultiFab* lsm_fluxes,
+                      amrex::MultiFab* lsm_zenith,
+                      amrex::MultiFab* qheating_rates,
+                      amrex::MultiFab* z_phys,
+                      amrex::MultiFab* lat,
+                      amrex::MultiFab* lon) = 0;
 
-    virtual void Run(int& level,
-                     int& step,
-                     amrex::Real& time,
-                     const amrex::Real& dt,
-                     const amrex::BoxArray& ba,
-                     amrex::Geometry& geom,
-                     amrex::MultiFab* cons_in,
-                     amrex::MultiFab* lsm_fluxes,
-                     amrex::MultiFab* lsm_zenith,
-                     amrex::MultiFab* qheating_rates,
-                     amrex::MultiFab* z_phys,
-                     amrex::MultiFab* lat,
-                     amrex::MultiFab* lon) = 0;
+    virtual void WriteDataLog (const amrex::Real &time) = 0;
 
-    virtual void WriteDataLog(const amrex::Real &time) = 0;
-
-    void setupDataLog()
+    void setupDataLog ()
     {
         amrex::ParmParse pp("erf.rad");
         if (pp.contains("datalog")) {
@@ -45,11 +45,11 @@ public:
         }
     }
 
-    void setDataLogFrequency(const int nstep) {
+    void setDataLogFrequency (const int nstep) {
         datalog_int = nstep;
     }
 
-    bool hasDatalog() { return (datalog != nullptr && datalog->good()); }
+    bool hasDatalog () { return (datalog != nullptr && datalog->good()); }
 
 protected:
     std::unique_ptr<std::fstream> datalog = nullptr;

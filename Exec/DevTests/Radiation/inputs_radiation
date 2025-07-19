@@ -7,7 +7,7 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_lo     =      0.   0.    0.
+geometry.prob_lo     =      0.   0.     0.
 geometry.prob_hi     =  15000. 400. 50000.
 amr.n_cell           =     42    4     42
 
@@ -50,13 +50,14 @@ erf.input_sounding_file = "input_sounding_moist"
 erf.sounding_type = Ideal
     
 # RADIATION INPUTS
+start_datetime             = "2010-01-01_18:00:00UTC" # UTC is 6 hrs ahead of MT time
 erf.radiation_model        = "RRTMGP"
 erf.rad.datalog            = "radiation"
 erf.profile_rad_int        = 1
 erf.rad_freq_in_steps      = 1
 erf.rad_do_subcol_sampling = true
 erf.rad_write_fluxes       = false
-erf.rad_orbital_year       = 2018
+erf.rad_orbital_year       = 2010
 erf.rad_cons_lat           =  40.0
 erf.rad_cons_lon           = -99.0
 erf.co2vmr                 = 0.00036
