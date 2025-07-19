@@ -99,12 +99,19 @@ struct SDInitialization
 
     /*! box within which to place particles*/
     amrex::RealBox m_init_particle_box;
+    /*! Particle distribution shape parameters
+    Box shape, p1 -> lo end, p2 -> hi end
+    Bubble shape, p1 -> center, p2 -> radius */
+    amrex::Vector<amrex::Real> m_init_particle_p1;
+    amrex::Vector<amrex::Real> m_init_particle_p2;
 
     /*! multiplicity type */
     SDMultiplicityType m_mult_type;
 
     /*! set default values */
-    void setDefaults ( const MatVec&, const MatVec& );
+    void setDefaults ( const amrex::Geometry&,
+                       const MatVec&,
+                       const MatVec& );
 
     /*! read super-droplets initialization parameters */
     void readInputs ( const std::string&,
