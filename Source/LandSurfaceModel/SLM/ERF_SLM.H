@@ -45,7 +45,7 @@ public:
 
     // Initialize data structures
     void
-    Init (const int& lev,
+    Init (const int& /*lev*/,
           const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
           const amrex::Real& dt) override;
