@@ -281,6 +281,9 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
+    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAH)
+      target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_Fortran>)
+    endif()
   endif()
 
   # Workaround for gcc-8 where std::filesystem is in libstdc++fs. Starting with

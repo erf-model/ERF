@@ -1,7 +1,7 @@
 ############################ BASE ######################################
 
 cmake_minimum_required (VERSION 3.14 FATAL_ERROR)
-if(ERF_ENABLE_MORR_FORT)
+if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAH)
   project(ERF CXX C Fortran)
 else()
   project(ERF CXX C)
@@ -187,7 +187,11 @@ endif()
 ########################### ERF #####################################
 
 if(ERF_ENABLE_MPI)
-  find_package(MPI REQUIRED)
+  if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAH)
+    find_package(MPI COMPONENTS Fortran REQUIRED)
+  else()
+    find_package(MPI REQUIRED)
+  endif()
 endif()
 
 # General information about machine, compiler, and build type
