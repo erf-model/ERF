@@ -27,7 +27,7 @@ read_from_wrfbdy (const int itime,
                   amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                   amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                   amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                  int& width);
+                  int real_width);
 
 amrex::Real
 read_from_wrflow (const std::string& nc_low_file,

@@ -107,7 +107,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                   Vector<Vector<FArrayBox>>& bdy_data_xhi,
                   Vector<Vector<FArrayBox>>& bdy_data_ylo,
                   Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                  int& width)
+                  int real_width)
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
 
@@ -139,6 +139,8 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
     using RARRAY = NDArray<float>;
     Vector<RARRAY> tslice(nc_var_names.size());
 
+    int width; // size of bdy_width from wrfbdy
+
     if (ParallelDescriptor::IOProcessor())
     {
         Vector<int> success(nc_var_names.size());
@@ -151,6 +153,12 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
 
         // Width of the boundary region
         width = tslice[0].get_vshape()[1];
+
+        if (width != real_width) {
+            AMREX_ALWAYS_ASSERT(real_width < width);
+            Print() << "Note: Requested boundary width is " << real_width
+                << " < " << width << " (bdy_width size in file)" << std::endl;
+        }
     }
     ParallelDescriptor::Bcast(&width,1,ioproc);
 
@@ -204,15 +212,15 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             // *******************************************************************************
             // xlo bdy
             // *******************************************************************************
-            plo[0] = lo[0]        ; plo[1] = lo[1]; plo[2] = lo[2];
-            phi[0] = lo[0]+width-1; phi[1] = hi[1]; phi[2] = hi[2];
+            plo[0] = lo[0]             ; plo[1] = lo[1]; plo[2] = lo[2];
+            phi[0] = lo[0]+real_width-1; phi[1] = hi[1]; phi[2] = hi[2];
             const Box pbx_xlo(plo, phi);
 
             Box xlo_plane_no_stag(pbx_xlo);
             Box xlo_plane_x_stag = pbx_xlo; xlo_plane_x_stag.shiftHalf(0,-1);
             Box xlo_plane_y_stag = convert(pbx_xlo, {0, 1, 0});
 
-            Box xlo_line(IntVect(lo[0], lo[1], 0), IntVect(lo[0]+width-1, hi[1], 0));
+            Box xlo_line(IntVect(lo[0], lo[1], 0), IntVect(lo[0]+real_width-1, hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
                 bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_x_stag, 1, Arena_Used)); // U
@@ -232,15 +240,15 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             // *******************************************************************************
             // xhi bdy
             // *******************************************************************************
-            plo[0] = hi[0]-width+1; plo[1] = lo[1]; plo[2] = lo[2];
-            phi[0] = hi[0]        ; phi[1] = hi[1]; phi[2] = hi[2];
+            plo[0] = hi[0]-real_width+1; plo[1] = lo[1]; plo[2] = lo[2];
+            phi[0] = hi[0]             ; phi[1] = hi[1]; phi[2] = hi[2];
             const Box pbx_xhi(plo, phi);
 
             Box xhi_plane_no_stag(pbx_xhi);
             Box xhi_plane_x_stag = pbx_xhi; xhi_plane_x_stag.shiftHalf(0,1);
             Box xhi_plane_y_stag = convert(pbx_xhi, {0, 1, 0});
 
-            Box xhi_line(IntVect(hi[0]-width+1, lo[1], 0), IntVect(hi[0], hi[1], 0));
+            Box xhi_line(IntVect(hi[0]-real_width+1, lo[1], 0), IntVect(hi[0], hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
                 bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_x_stag, 1, Arena_Used)); // U
@@ -260,15 +268,15 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             // *******************************************************************************
             // ylo bdy
             // *******************************************************************************
-            plo[1] = lo[1]        ; plo[0] = lo[0]; plo[2] = lo[2];
-            phi[1] = lo[1]+width-1; phi[0] = hi[0]; phi[2] = hi[2];
+            plo[1] = lo[1]             ; plo[0] = lo[0]; plo[2] = lo[2];
+            phi[1] = lo[1]+real_width-1; phi[0] = hi[0]; phi[2] = hi[2];
             const Box pbx_ylo(plo, phi);
 
             Box ylo_plane_no_stag(pbx_ylo);
             Box ylo_plane_x_stag = convert(pbx_ylo, {1, 0, 0});
             Box ylo_plane_y_stag = pbx_ylo; ylo_plane_y_stag.shiftHalf(1,-1);
 
-            Box ylo_line(IntVect(lo[0], lo[1], 0), IntVect(hi[0], lo[1]+width-1, 0));
+            Box ylo_line(IntVect(lo[0], lo[1], 0), IntVect(hi[0], lo[1]+real_width-1, 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
                 bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_x_stag , 1, Arena_Used)); // U
@@ -288,15 +296,15 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             // *******************************************************************************
             // yhi bdy
             // *******************************************************************************
-            plo[1] = hi[1]-width+1; plo[0] = lo[0]; plo[2] = lo[2];
-            phi[1] = hi[1]        ; phi[0] = hi[0]; phi[2] = hi[2];
+            plo[1] = hi[1]-real_width+1; plo[0] = lo[0]; plo[2] = lo[2];
+            phi[1] = hi[1]             ; phi[0] = hi[0]; phi[2] = hi[2];
             const Box pbx_yhi(plo, phi);
 
             Box yhi_plane_no_stag(pbx_yhi);
             Box yhi_plane_x_stag = convert(pbx_yhi, {1, 0, 0});
             Box yhi_plane_y_stag = pbx_yhi; yhi_plane_y_stag.shiftHalf(1,1);
 
-            Box yhi_line(IntVect(lo[0], hi[1]-width+1, 0), IntVect(hi[0], hi[1], 0));
+            Box yhi_line(IntVect(lo[0], hi[1]-real_width+1, 0), IntVect(hi[0], hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
                 bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_x_stag , 1, Arena_Used)); // U
@@ -339,6 +347,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                     fab_arr  = bdy_data_xlo[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int i = n / (ns2 * ns3);
+                        if (i >= real_width) continue;
                         int k = (n - i * (ns2 * ns3)) / ns3;
                         int j =  n - i * (ns2 * ns3) - k * ns3;
                         fab_arr(ioff+i, j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
@@ -349,6 +358,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                     fab_arr  = bdy_data_xhi[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int i = n / (ns2 * ns3);
+                        if (i >= real_width) continue;
                         int k = (n - i * (ns2 * ns3)) / ns3;
                         int j =  n - i * (ns2 * ns3) - k * ns3;
                         fab_arr(ioff-i, j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
@@ -359,6 +369,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                     fab_arr  = bdy_data_ylo[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int j = n / (ns2 * ns3);
+                        if (j >= real_width) continue;
                         int k = (n - j * (ns2 * ns3)) / ns3;
                         int i =  n - j * (ns2 * ns3) - k * ns3;
                         fab_arr(i, joff+j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
@@ -369,6 +380,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                     fab_arr  = bdy_data_yhi[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int j = n / (ns2 * ns3);
+                        if (j >= real_width) continue;
                         int k = (n - j * (ns2 * ns3)) / ns3;
                         int i =  n - j * (ns2 * ns3) - k * ns3;
                         fab_arr(i, joff-j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
@@ -386,6 +398,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                     fab_arr  = bdy_data_xlo[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int i = n / ns2;
+                        if (i >= real_width) continue;
                         int j = n - i * ns2;
                         fab_arr(ioff+i, j, 0, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
@@ -396,6 +409,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                     fab_arr  = bdy_data_xhi[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int i = n / ns2;
+                        if (i >= real_width) continue;
                         int j = n - i * ns2;
                         fab_arr(ioff-i, j, 0, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
@@ -406,6 +420,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                     fab_arr  = bdy_data_ylo[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int j = n / ns2;
+                        if (j >= real_width) continue;
                         int i = n - j * ns2;
                         fab_arr(i, joff+j, 0, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
@@ -416,6 +431,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                     fab_arr  = bdy_data_yhi[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int j = n / ns2;
+                        if (j >= real_width) continue;
                         int i = n - j * ns2;
                         fab_arr(i, joff-j, 0, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
