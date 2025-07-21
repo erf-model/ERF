@@ -158,7 +158,6 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                     rhs_lev.norm2() << " and sum " << rhs_lev.sum() << std::endl;
     }
 
-    amrex::Print() << " There are " << subdomains[lev].size() << " bins " << std::endl;
 
     if (lev > 0)
     {
@@ -185,8 +184,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             for (int i = 0; i < subdomains[lev].size(); ++i) {
                 if (subdomains[lev][i].intersects(bx)) {
                     rhs_lev[mfi.index()].template minus<RunOn::Device>(sum[i]);
-                    if (mg_verbose > 0) {
-                        amrex::Print() << " Subtracting " << sum[i] << " in BoxArray " << subdomains[lev][i] << std::endl;
+                    if (mg_verbose > 1) {
+                        amrex::Print() << " Subtracting " << sum[i] << " in " << rhs_lev[mfi.index()].box() << std::endl;
                     }
                 }
             }
@@ -226,30 +225,90 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     // Choose the solver and solve
     // ****************************************************************************
 
-    // ****************************************************************************
-    // EB
-    // ****************************************************************************
-    if (solverChoice.terrain_type == TerrainType::EB) {
-        solve_with_EB_mlmg(lev, rhs, phi, fluxes);
-    } else {
+    std::map<int,int> index_map;
 
-#ifdef ERF_USE_FFT
-        Box my_region(ba_tmp[0].minimalBox());
-        bool boxes_make_rectangle = (my_region.numPts() == ba_tmp[0].numPts());
-#endif
+    BoxArray ba(grids[lev]);
 
-    // ****************************************************************************
-    // No terrain or grid stretching
-    // ****************************************************************************
-    if (solverChoice.mesh_type == MeshType::ConstantDz) {
+    Vector<MultiFab> rhs_sub; rhs_sub.resize(1);
+    Vector<MultiFab> phi_sub; phi_sub.resize(1);
+    Vector<Array<MultiFab,AMREX_SPACEDIM> > fluxes_sub; fluxes_sub.resize(1);
+
+    for (int i = 0; i < subdomains[lev].size(); ++i)
+    {
+        if (mg_verbose > 0) {
+            amrex::Print() << " Solving in subdomain " << i << " of " << subdomains[lev].size() << " bins at level " << lev << std::endl;
+        }
+
+        BoxList bl_sub;
+        Vector<int> dm_sub;
+
+        for (int j = 0; j < ba.size(); j++)
+        {
+            if (subdomains[lev][i].intersects(ba[j]))
+            {
+                // amrex::Print() <<" INTERSECTS I " << i << " " << j << " " << grids[lev][j] << std::endl;
+                //
+                // Note that bl_sub.size() is effectively a counter which is
+                // incremented above
+                //
+                // if (ParallelDescriptor::MyProc() == j) {
+                // }
+                index_map[bl_sub.size()] = j;
+
+                // amrex::Print() <<" PUSHING BACK " << j << " " << index_map[bl_sub.size()] << std::endl;
+                bl_sub.push_back(grids[lev][j]);
+                dm_sub.push_back(dmap[lev][j]);
+            } // intersects
+
+        } // loop over ba (j)
+
+        BoxArray ba_sub(bl_sub);
+
+        // Define MultiFabs that hold only the data in this particular subdomain
+        rhs_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, rhs[0].nGrowVect(), MFInfo{}.SetAlloc(false));
+        phi_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, phi[0].nGrowVect(), MFInfo{}.SetAlloc(false));
+
+        for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+            fluxes_sub[0][idim].define(convert(ba_sub, IntVect::TheDimensionVector(idim)), DistributionMapping(dm_sub), 1,
+                                               IntVect::TheZeroVector(), MFInfo{}.SetAlloc(false));
+        }
+
+        // Link the new MultiFabs to the FABs in the original MultiFabs (no copy required)
+        for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
+            int orig_index = index_map[mfi.index()];
+            amrex::Print() << " INDEX        " << orig_index << " TO " << mfi.index() << std::endl;
+            rhs_sub[0].setFab(mfi, FArrayBox(rhs[0][orig_index], amrex::make_alias, 0, 1));
+            phi_sub[0].setFab(mfi, FArrayBox(phi[0][orig_index], amrex::make_alias, 0, 1));
+            fluxes_sub[0][0].setFab(mfi,FArrayBox(fluxes[0][0][orig_index], amrex::make_alias, 0, 1));
+            fluxes_sub[0][1].setFab(mfi,FArrayBox(fluxes[0][1][orig_index], amrex::make_alias, 0, 1));
+            fluxes_sub[0][2].setFab(mfi,FArrayBox(fluxes[0][2][orig_index], amrex::make_alias, 0, 1));
+        }
+
+        if (lev > 0) {
+           amrex::Print() << "RHSSUB BA " << rhs_sub[0].boxArray() << std::endl;
+        }
+
+        // ****************************************************************************
+        // EB
+        // ****************************************************************************
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            solve_with_EB_mlmg(lev, rhs_sub, phi_sub, fluxes_sub);
+        } else {
+
+        // ****************************************************************************
+        // No terrain or grid stretching
+        // ****************************************************************************
+        if (solverChoice.mesh_type == MeshType::ConstantDz) {
 #ifdef ERF_USE_FFT
-        if (use_fft) {
-            if (boxes_make_rectangle) {
-                solve_with_fft(lev, rhs_lev, phi[0], fluxes[0]);
-            } else {
-                amrex::Warning("FFT won't work unless the union of boxes is rectangular: defaulting to MLMG");
-                solve_with_mlmg(lev, rhs, phi, fluxes);
-            }
+            if (use_fft) {
+                Box my_region(subdomains[lev][i].minimalBox());
+                bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][i].numPts());
+                if (boxes_make_rectangle) {
+                    solve_with_fft(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
+                } else {
+                    amrex::Warning("FFT won't work unless the union of boxes is rectangular: defaulting to MLMG");
+                    solve_with_mlmg(lev, rhs_sub, phi_sub, fluxes_sub);
+                }
         } else {
             solve_with_mlmg(lev, rhs, phi, fluxes);
         }
@@ -257,7 +316,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         if (use_fft) {
             amrex::Warning("You set use_fft=true but didn't build with USE_FFT = TRUE; defaulting to MLMG");
         }
-        solve_with_mlmg(lev, rhs, phi, fluxes);
+        solve_with_mlmg(lev, rhs_sub, phi_sub, fluxes_sub);
 #endif
     } // No terrain or grid stretching
 
@@ -268,13 +327,15 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 #ifndef ERF_USE_FFT
         amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT solver");
 #else
+        Box my_region(ba_tmp[0].minimalBox());
+        bool boxes_make_rectangle = (my_region.numPts() == ba_tmp[0].numPts());
         if (!boxes_make_rectangle) {
             amrex::Abort("FFT won't work unless the union of boxes is rectangular");
         } else {
             if (!use_fft) {
                 amrex::Warning("Using FFT even though you didn't set use_fft to true; it's the best choice");
             }
-            solve_with_fft(lev, rhs_lev, phi[0], fluxes[0]);
+            solve_with_fft(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
         }
 #endif
     } // grid stretching
@@ -284,6 +345,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     // ****************************************************************************
     else if (solverChoice.mesh_type == MeshType::VariableDz) {
 #ifdef ERF_USE_FFT
+        Box my_region(ba_tmp[0].minimalBox());
+        bool boxes_make_rectangle = (my_region.numPts() == ba_tmp[0].numPts());
         if (!boxes_make_rectangle) {
             amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
         } else {
@@ -292,9 +355,11 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 #else
         amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT preconditioner for GMRES");
 #endif
-    } // general terrain
+        } // general terrain
 
-    } // not EB
+        } // not EB
+
+    } // loop over subdomains (i)
 
     // ****************************************************************************
     // Print time in solve

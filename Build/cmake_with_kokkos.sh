@@ -1,4 +1,3 @@
-#!/bin/bash
 
 # Example CMake config script for an OSX laptop with OpenMPI
 
@@ -11,11 +10,8 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
       -DERF_DIM:STRING=3 \
       -DERF_ENABLE_MPI:BOOL=ON \
       -DERF_ENABLE_TESTS:BOOL=ON \
-      -DERF_ENABLE_KOKKOS:BOOL=ON \
-      -DERF_ENABLE_RRTMGP:BOOL=ON \
-      -DERF_ENABLE_NETCDF:BOOL=ON \
-      -DERF_ENABLE_HDF5:BOOL=ON \
       -DERF_ENABLE_FCOMPARE:BOOL=ON \
       -DERF_ENABLE_DOCUMENTATION:BOOL=OFF \
+      -DERF_ENABLE_KOKKOS:BOOL=ON \
       -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
       .. && make -j8

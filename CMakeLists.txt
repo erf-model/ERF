@@ -19,6 +19,7 @@ option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_REGRESSION_TESTS_ONLY "Enable only regression tests" OFF)
 option(ERF_USE_INTERNAL_AMREX "Add AMReX as subproject" ON)
 option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
+option(ERF_ENABLE_KOKKOS "Enable Kokkos " OFF)
 option(ERF_ENABLE_HDF5 "Enable HDF5 IO" ${ERF_ENABLE_NETCDF})
 option(ERF_ENABLE_PARTICLES "Enable Lagrangian particles" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
@@ -130,6 +131,13 @@ else()
     endif()
 endif()
 
+########################## KOKKOS ##################################
+
+if(ERF_ENABLE_KOKKOS)
+  set(CMAKE_CXX_STANDARD 17)
+  add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/kokkos)
+endif()
+
 ########################## NETCDF ##################################
 
 if(ERF_ENABLE_NETCDF OR ERF_ENABLE_TOOLS)
@@ -156,47 +164,24 @@ endif()
 ########################### RRTMGP #################################
 
 if(ERF_ENABLE_RRTMGP)
-   message(STATUS "Building RRTMGP/YAKL...")
+    if(NOT ERF_ENABLE_KOKKOS)
+        message(FATAL_ERROR "CMake Error: kokkos must be enabled if rrtmgp is enabled.")
+    endif()
 
-   # YAKL_ARCH can be CUDA, HIP, SYCL, OPENMP45, or empty
-   if(ERF_ENABLE_CUDA)
-      set(YAKL_ARCH "CUDA")
-      # CUDA_FLAGS is set the same as ERF_CUDA_FLAGS
-      string(APPEND YAKL_CUDA_FLAGS " -arch sm_70")
-      if(ENABLE_CUDA_FASTMATH)
-        string(APPEND YAKL_CUDA_FLAGS " --use_fast_math")
-      endif()
-      set_cuda_architectures(AMReX_CUDA_ARCH)
-   elseif(ERF_ENABLE_SYCL)
-      set(YAKL_ARCH "SYCL")
-      # SYCL_FLAGS is set through Macros.cmake / config_compilers.xml
-      string(APPEND YAKL_SYCL_FLAGS " -fsycl")
-   elseif(ERF_ENABLE_HIP)
-      set(YAKL_ARCH "HIP")
-      # SYCL_FLAGS is set through Macros.cmake / config_compilers.xml
-      string(APPEND YAKL_HIP_FLAGS " -D__HIP_ROCclr__ -D__HIP_ARCH_GFX90A__=1 --rocm-path=${ROCM_PATH} --offload-arch=gfx90a -x hip")
-   else()
-      # For CPU C++ compilers duplicate flags are fine, the last ones win typically
-      set(YAKL_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-      set(YAKL_ARCH "")
-   endif()
+    if(NOT ERF_ENABLE_NETCDF)
+        message(FATAL_ERROR "CMake Error: netcdf must be enabled if rrtmgp is enabled.")
+    endif()
 
-   # Build YAKL as a static library
-   set(YAKL_HOME ${CMAKE_SOURCE_DIR}/Submodules/YAKL)
-   set(YAKL_BIN  ${CMAKE_BINARY_DIR}/yakl)
-   add_subdirectory(${YAKL_HOME} ${YAKL_BIN})
+    message(STATUS "Building RRTMGP/KOKKOS...")
 
-   # Build the static rrtmgp library
-   set(RRTMGP_BIN ${CMAKE_BINARY_DIR}/rrtmgp)
-   add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp ${RRTMGP_BIN})
+    # Build the static rrtmgp library
+    set(RRTMGP_BIN ${CMAKE_BINARY_DIR}/rrtmgp)
+    add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp ${RRTMGP_BIN})
 
-   # Set up libraries and definitions
-   set(RRTMGP_ENABLE_YAKL TRUE)
-   include(${YAKL_HOME}/yakl_utils.cmake)
-   yakl_process_target(rrtmgp)
-   target_compile_definitions(rrtmgp PUBLIC RRTMGP_ENABLE_YAKL)
-   target_include_directories(rrtmgp PUBLIC ${YAKL_HOME})
-   message(STATUS "YAKL Flags: ${YAKL_COMPILER_FLAGS}")
+    # Set up kokkos library and definitions
+    set(RRTMGP_ENABLE_KOKKOS TRUE)
+    target_compile_definitions(rrtmgp PUBLIC RRTMGP_ENABLE_KOKKOS)
+    target_link_libraries(rrtmgp Kokkos::kokkos)
 endif()
 
 ########################### ERF #####################################

@@ -59,7 +59,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     }
 
     subdomains.resize(lev+1);
-    if ( (lev == 0) || (solverChoice.anelastic[lev] == 0 && !solverChoice.project_initial_velocity) ) {
+    if ( (lev == 0) || (
+         (solverChoice.anelastic[lev] == 0) && (!solverChoice.project_initial_velocity) &&
+         (solverChoice.init_type != InitType::WRFInput) && (solverChoice.init_type != InitType::Metgrid) ) ) {
         BoxArray dom(geom[lev].Domain());
         subdomains[lev].push_back(dom);
     } else {

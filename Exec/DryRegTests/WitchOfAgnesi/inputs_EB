@@ -69,11 +69,12 @@ erf.terrain_smoothing = 0
 erf.molec_diff_type   = "Constant"
 erf.dynamic_viscosity = 60.0 # [kg/(m-s)]
 erf.alpha_T           = 0.0 # [m^2/s]
+erf.theta_ref = 300.0
 erf.eb_diff_constraint_y = true
 
 erf.abl_driver_type = "PressureGradient"
 #erf.abl_driver_type = "None"
-erf.abl_pressure_grad = -1.0 0. 0.
+erf.abl_pressure_grad = -0.02 0. 0.
 
 erf.project_initial_velocity = false
 

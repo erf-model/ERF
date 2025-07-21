@@ -2,54 +2,53 @@
 
 void init_kls ()
 {
-  // Initialize yakl
-  if(!yakl::isInitialized()) { yakl::init(); }
+  // Initialize kokkos
+  if(!Kokkos::is_initialized()) { Kokkos::initialize(); }
 }
 
 void finalize_kls()
 {
-  // Finalize YAKL
-  yakl::finalize();
+  // Finalize kokkos
+  Kokkos::finalize();
 }
 
-namespace rrtmgp {
 
-using yakl::fortran::parallel_for;
-using yakl::fortran::SimpleBounds;
-using yakl::intrinsics::merge;
+namespace rrtmgp {
 
 /*
  * Objects containing k-distribution information need to be initialized
  * once and then persist throughout the life of the program, so we
  * declare them here within the rrtmgp namespace.
  */
-GasOpticsRRTMGP k_dist_sw;
-GasOpticsRRTMGP k_dist_lw;
+std::unique_ptr<gas_optics_t> k_dist_sw_k;
+std::unique_ptr<gas_optics_t> k_dist_lw_k;
 
 /*
  * Objects containing cloud optical property look-up table information.
  * We want to initialize these once and use throughout the life of the
  * program, so declare here and read data in during rrtmgp_initialize().
  */
-CloudOptics cloud_optics_sw;
-CloudOptics cloud_optics_lw;
-
-bool initialized   = false;
-bool initialized_k = false;
+std::unique_ptr<cloud_optics_t> cloud_optics_sw_k;
+std::unique_ptr<cloud_optics_t> cloud_optics_lw_k;
 
 
-OpticalProps2str
+pool_t kokkos_mem_pool;
+
+bool initialized = false;
+
+
+optical_props2_t
 get_cloud_optics_sw (const int ncol,
                      const int nlay,
-                     CloudOptics &cloud_optics,
-                     GasOpticsRRTMGP &kdist,
-                     real2d &lwp,
-                     real2d &iwp,
-                     real2d &rel,
-                     real2d &rei)
+                     cloud_optics_t& cloud_optics,
+                     gas_optics_t& kdist,
+                     real2d_k& lwp,
+                     real2d_k& iwp,
+                     real2d_k& rel,
+                     real2d_k& rei)
 {
     // Initialize optics
-    OpticalProps2str clouds;
+    optical_props2_t clouds;
     clouds.init(kdist.get_band_lims_wavenumber());
     clouds.alloc_2str(ncol, nlay);
 
@@ -57,10 +56,12 @@ get_cloud_optics_sw (const int ncol,
     cloud_optics.set_ice_roughness(2);
 
     // Limit effective radii to be within bounds of lookup table
-    auto rel_limited = real2d("rel_limited", ncol, nlay);
-    auto rei_limited = real2d("rei_limited", ncol, nlay);
-    limit_to_bounds(rel, cloud_optics.radliq_lwr, cloud_optics.radliq_upr, rel_limited);
-    limit_to_bounds(rei, cloud_optics.radice_lwr, cloud_optics.radice_upr, rei_limited);
+    real2d_k rel_limited("rel_limited", ncol, nlay);
+    real2d_k rei_limited("rei_limited", ncol, nlay);
+    limit_to_bounds_2d(rel, cloud_optics.radliq_lwr,
+                       cloud_optics.radliq_upr, rel_limited);
+    limit_to_bounds_2d(rei, cloud_optics.radice_lwr,
+                       cloud_optics.radice_upr, rei_limited);
 
     // Calculate cloud optics
     cloud_optics.cloud_optics(ncol, nlay, lwp, iwp, rel_limited, rei_limited, clouds);
@@ -70,29 +71,31 @@ get_cloud_optics_sw (const int ncol,
 }
 
 
-OpticalProps1scl
+optical_props1_t
 get_cloud_optics_lw (const int ncol,
                      const int nlay,
-                     CloudOptics &cloud_optics,
-                     GasOpticsRRTMGP &kdist,
-                     real2d &lwp,
-                     real2d &iwp,
-                     real2d &rel,
-                     real2d &rei)
+                     cloud_optics_t& cloud_optics,
+                     gas_optics_t& kdist,
+                     real2d_k& lwp,
+                     real2d_k& iwp,
+                     real2d_k& rel,
+                     real2d_k& rei)
 {
     // Initialize optics
-    OpticalProps1scl clouds;
+    optical_props1_t clouds;
     clouds.init(kdist.get_band_lims_wavenumber());
-    clouds.alloc_1scl(ncol, nlay);  // this is dumb, why do we need to init and alloc separately?!
+    clouds.alloc_1scl(ncol, nlay);
 
     // Needed for consistency with all-sky example problem?
     cloud_optics.set_ice_roughness(2);
 
     // Limit effective radii to be within bounds of lookup table
-    auto rel_limited = real2d("rel_limited", ncol, nlay);
-    auto rei_limited = real2d("rei_limited", ncol, nlay);
-    limit_to_bounds(rel, cloud_optics.radliq_lwr, cloud_optics.radliq_upr, rel_limited);
-    limit_to_bounds(rei, cloud_optics.radice_lwr, cloud_optics.radice_upr, rei_limited);
+    real2d_k rel_limited("rel_limited", ncol, nlay);
+    real2d_k rei_limited("rei_limited", ncol, nlay);
+    limit_to_bounds_2d(rel, cloud_optics.radliq_lwr,
+                       cloud_optics.radliq_upr, rel_limited);
+    limit_to_bounds_2d(rei, cloud_optics.radice_lwr,
+                       cloud_optics.radice_upr, rei_limited);
 
     // Calculate cloud optics
     cloud_optics.cloud_optics(ncol, nlay, lwp, iwp, rel_limited, rei_limited, clouds);
@@ -102,18 +105,18 @@ get_cloud_optics_lw (const int ncol,
 }
 
 
-OpticalProps2str
+optical_props2_t
 get_subsampled_clouds (const int ncol,
                        const int nlay,
                        const int nbnd,
                        const int ngpt,
-                       OpticalProps2str &cloud_optics,
-                       GasOpticsRRTMGP &kdist,
-                       real2d &cld,
-                       real2d &p_lay)
+                       optical_props2_t& cloud_optics,
+                       gas_optics_t& kdist,
+                       real2d_k& cld,
+                       real2d_k& p_lay)
 {
     // Initialized subsampled optics
-    OpticalProps2str subsampled_optics;
+    optical_props2_t subsampled_optics;
     subsampled_optics.init(kdist.get_band_lims_wavenumber(), kdist.get_band_lims_gpoint(), "subsampled_optics");
     subsampled_optics.alloc_2str(ncol, nlay);
 
@@ -124,9 +127,10 @@ get_subsampled_clouds (const int ncol,
     // the vertical correlation of cloudy layers. I.e., cloudy layers might look maximally overlapped
     // even when separated by layers with no cloud properties, when in fact those layers should be
     // randomly overlapped.
-    auto cldfrac_rad = real2d("cldfrac_rad", ncol, nlay);
-    memset(cldfrac_rad, 0.0);  // Start with all zeros
-    parallel_for(SimpleBounds<3>(nbnd,nlay,ncol), YAKL_LAMBDA (int ibnd, int ilay, int icol)
+    real2d_k cldfrac_rad("cldfrac_rad", ncol, nlay);
+    Kokkos::deep_copy(cldfrac_rad, 0.0);
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, nbnd}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int ibnd)
     {
         if (cloud_optics.tau(icol,ilay,ibnd) > 0) {
             cldfrac_rad(icol,ilay) = cld(icol,ilay);
@@ -142,8 +146,8 @@ get_subsampled_clouds (const int ncol,
 
     // Get unique seeds for each column that are reproducible across different MPI rank layouts;
     // use decimal part of pressure for this, consistent with the implementation in EAM
-    auto seeds = int1d("seeds", ncol);
-    parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA(int icol)
+    int1d_k seeds("seeds", ncol);
+    Kokkos::parallel_for(ncol, KOKKOS_LAMBDA(int icol)
     {
         seeds(icol) = 1.0e9 * (p_lay(icol,nlay) - int(p_lay(icol,nlay)));
     });
@@ -151,7 +155,8 @@ get_subsampled_clouds (const int ncol,
 
     // Assign optical properties to subcolumns (note this implements MCICA)
     auto gpoint_bands = kdist.get_gpoint_bands();
-    parallel_for(SimpleBounds<3>(ngpt,nlay,ncol), YAKL_LAMBDA(int igpt, int ilay, int icol)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, ngpt}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int igpt)
     {
         auto ibnd = gpoint_bands(igpt);
         if (cldmask(icol,ilay,igpt) == 1) {
@@ -168,18 +173,18 @@ get_subsampled_clouds (const int ncol,
 }
 
 
-OpticalProps1scl
+optical_props1_t
 get_subsampled_clouds (const int ncol,
                        const int nlay,
                        const int nbnd,
                        const int ngpt,
-                       OpticalProps1scl &cloud_optics,
-                       GasOpticsRRTMGP &kdist,
-                       real2d &cld,
-                       real2d &p_lay)
+                       optical_props1_t& cloud_optics,
+                       gas_optics_t& kdist,
+                       real2d_k& cld,
+                       real2d_k& p_lay)
 {
     // Initialized subsampled optics
-    OpticalProps1scl subsampled_optics;
+    optical_props1_t subsampled_optics;
     subsampled_optics.init(kdist.get_band_lims_wavenumber(), kdist.get_band_lims_gpoint(), "subsampled_optics");
     subsampled_optics.alloc_1scl(ncol, nlay);
 
@@ -190,9 +195,10 @@ get_subsampled_clouds (const int ncol,
     // the vertical correlation of cloudy layers. I.e., cloudy layers might look maximally overlapped
     // even when separated by layers with no cloud properties, when in fact those layers should be
     // randomly overlapped.
-    auto cldfrac_rad = real2d("cldfrac_rad", ncol, nlay);
-    memset(cldfrac_rad, 0.0);  // Start with all zeros
-    parallel_for(SimpleBounds<3>(nbnd,nlay,ncol), YAKL_LAMBDA (int ibnd, int ilay, int icol)
+    real2d_k cldfrac_rad("cldfrac_rad", ncol, nlay);
+    Kokkos::deep_copy(cldfrac_rad, 0.0);
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, nbnd}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int ibnd)
     {
         if (cloud_optics.tau(icol,ilay,ibnd) > 0) {
             cldfrac_rad(icol,ilay) = cld(icol,ilay);
@@ -204,15 +210,17 @@ get_subsampled_clouds (const int ncol,
     // Get unique seeds for each column that are reproducible across different MPI rank layouts;
     // use decimal part of pressure for this, consistent with the implementation in EAM; use different
     // seed values for longwave and shortwave
-    auto seeds = int1d("seeds", ncol);
-    parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA(int icol)
+    int1d_k seeds("seeds", ncol);
+    Kokkos::parallel_for(ncol, KOKKOS_LAMBDA(int icol)
     {
         seeds(icol) = 1e9 * (p_lay(icol,nlay-1) - int(p_lay(icol,nlay-1)));
     });
     auto cldmask = get_subcolumn_mask(ncol, nlay, ngpt, cldfrac_rad, overlap, seeds);
+
     // Assign optical properties to subcolumns (note this implements MCICA)
     auto gpoint_bands = kdist.get_gpoint_bands();
-    parallel_for(SimpleBounds<3>(ngpt,nlay,ncol), YAKL_LAMBDA(int igpt, int ilay, int icol)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, ngpt}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int igpt)
     {
         auto ibnd = gpoint_bands(igpt);
         if (cldmask(icol,ilay,igpt) == 1) {
@@ -231,22 +239,36 @@ get_subsampled_clouds (const int ncol,
  * interface to radiation.
  */
 void
-rrtmgp_initialize (GasConcs& gas_concs,
+rrtmgp_initialize (gas_concs_t& gas_concs_k,
                    const std::string& coefficients_file_sw,
                    const std::string& coefficients_file_lw,
                    const std::string& cloud_optics_file_sw,
                    const std::string& cloud_optics_file_lw)
 {
-    // Initialize YAKL
-    if (!yakl::isInitialized()) {  yakl::init(); }
+    // Initialize Kokkos
+    if (!Kokkos::is_initialized()) {  Kokkos::initialize(); }
+
+    // Create objects for static ptrs
+    k_dist_sw_k = std::make_unique<gas_optics_t>();
+    k_dist_lw_k = std::make_unique<gas_optics_t>();
+    cloud_optics_sw_k = std::make_unique<cloud_optics_t>();
+    cloud_optics_lw_k = std::make_unique<cloud_optics_t>();
 
     // Load and initialize absorption coefficient data
-    load_and_init(k_dist_sw, coefficients_file_sw, gas_concs);
-    load_and_init(k_dist_lw, coefficients_file_lw, gas_concs);
+    load_and_init(*k_dist_sw_k, coefficients_file_sw, gas_concs_k);
+    load_and_init(*k_dist_lw_k, coefficients_file_lw, gas_concs_k);
 
     // Load and initialize cloud optical property look-up table information
-    load_cld_lutcoeff(cloud_optics_sw, cloud_optics_file_sw);
-    load_cld_lutcoeff(cloud_optics_lw, cloud_optics_file_lw);
+    load_cld_lutcoeff(*cloud_optics_sw_k, cloud_optics_file_sw);
+    load_cld_lutcoeff(*cloud_optics_lw_k, cloud_optics_file_lw);
+
+    // initialize kokkos rrtmgp pool allocator
+    const size_t nvar = 300;
+    const size_t nbnd = std::max(k_dist_sw_k->get_nband(),k_dist_sw_k->get_nband());
+    const size_t ncol = gas_concs_k.ncol;
+    const size_t nlay = gas_concs_k.nlay;
+    auto my_size_ref = static_cast<unsigned long>(nvar * ncol * nlay * nbnd);
+    pool_t::init(my_size_ref);
 
     // We are now initialized!
     initialized = true;
@@ -257,68 +279,57 @@ void
 rrtmgp_finalize ()
 {
     initialized = false;
-    k_dist_sw.finalize();
-    k_dist_lw.finalize();
-    cloud_optics_sw.finalize(); //~CloudOptics();
-    cloud_optics_lw.finalize(); //~CloudOptics();
+    k_dist_sw_k->finalize();
+    k_dist_lw_k->finalize();
+    cloud_optics_sw_k->finalize();
+    cloud_optics_lw_k->finalize();
+    k_dist_sw_k = nullptr;
+    k_dist_lw_k = nullptr;
+    cloud_optics_sw_k = nullptr;
+    cloud_optics_lw_k = nullptr;
+    pool_t::finalize();
 }
 
 
 void
 compute_band_by_band_surface_albedos (const int ncol,
                                       const int nswbands,
-                                      real1d& sfc_alb_dir_vis,
-                                      real1d& sfc_alb_dir_nir,
-                                      real1d& sfc_alb_dif_vis,
-                                      real1d& sfc_alb_dif_nir,
-                                      real2d& sfc_alb_dir,
-                                      real2d& sfc_alb_dif)
+                                      real1d_k& sfc_alb_dir_vis,
+                                      real1d_k& sfc_alb_dir_nir,
+                                      real1d_k& sfc_alb_dif_vis,
+                                      real1d_k& sfc_alb_dif_nir,
+                                      real2d_k& sfc_alb_dir,
+                                      real2d_k& sfc_alb_dif)
 {
-    /*
-    AMREX_ASSERT_WITH_MESSAGE(initialized, "ERROR: rrtmgp_initialize must be called before GasOpticsRRTMGP object can be used.");
-    */
-
-    auto wavenumber_limits = k_dist_sw.get_band_lims_wavenumber();
-
-    /*
-    AMREX_ASSERT_WITH_MESSAGE(yakl::intrinsics::size(wavenumber_limits, 1) == 2,
-                              "Error! 1st dimension for wavenumber_limits should be 2.");
-    AMREX_ASSERT_WITH_MESSAGE(yakl::intrinsics::size(wavenumber_limits, 2) == nswbands,
-                              "Error! 2nd dimension for wavenumber_limits should be " + std::to_string(nswbands) + " (nswbands).");
-    */
+    auto wavenumber_limits = k_dist_sw_k->get_band_lims_wavenumber();
 
     // Loop over bands, and determine for each band whether it is broadly in the
     // visible or infrared part of the spectrum (visible or "not visible")
-    parallel_for(SimpleBounds<2>(nswbands, ncol), YAKL_LAMBDA(const int ibnd, const int icol)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nswbands}),
+                         KOKKOS_LAMBDA (int icol, int ibnd)
     {
         // Threshold between visible and infrared is 0.7 micron, or 14286 cm^-1.
-        const real visible_wavenumber_threshold = 14286;
+        const RealT visible_wavenumber_threshold = 14286.0;
 
         // Wavenumber is in the visible if it is above the visible wavenumber
         // threshold, and in the infrared if it is below the threshold
-        const bool is_visible_wave1 = (wavenumber_limits(1, ibnd) > visible_wavenumber_threshold ? true : false);
-        const bool is_visible_wave2 = (wavenumber_limits(2, ibnd) > visible_wavenumber_threshold ? true : false);
+        const bool is_visible_wave1 = (wavenumber_limits(0, ibnd) > visible_wavenumber_threshold ? true : false);
+        const bool is_visible_wave2 = (wavenumber_limits(1, ibnd) > visible_wavenumber_threshold ? true : false);
 
         if (is_visible_wave1 && is_visible_wave2) {
-
             // Entire band is in the visible
             sfc_alb_dir(icol,ibnd) = sfc_alb_dir_vis(icol);
             sfc_alb_dif(icol,ibnd) = sfc_alb_dif_vis(icol);
-
         } else if (!is_visible_wave1 && !is_visible_wave2) {
-
             // Entire band is in the longwave (near-infrared)
             sfc_alb_dir(icol,ibnd) = sfc_alb_dir_nir(icol);
             sfc_alb_dif(icol,ibnd) = sfc_alb_dif_nir(icol);
-
         } else {
-
             // Band straddles the visible to near-infrared transition, so we take
             // the albedo to be the average of the visible and near-infrared
             // broadband albedos
             sfc_alb_dir(icol,ibnd) = 0.5*(sfc_alb_dir_vis(icol) + sfc_alb_dir_nir(icol));
             sfc_alb_dif(icol,ibnd) = 0.5*(sfc_alb_dif_vis(icol) + sfc_alb_dif_nir(icol));
-
         }
     });
 }
@@ -326,14 +337,14 @@ compute_band_by_band_surface_albedos (const int ncol,
 
 void
 compute_broadband_surface_fluxes (const int ncol,
-                                  const int ktop,
+                                  const int kbot,
                                   const int nswbands,
-                                  real3d& sw_bnd_flux_dir ,
-                                  real3d& sw_bnd_flux_dif ,
-                                  real1d& sfc_flux_dir_vis,
-                                  real1d& sfc_flux_dir_nir,
-                                  real1d& sfc_flux_dif_vis,
-                                  real1d& sfc_flux_dif_nir)
+                                  real3d_k& sw_bnd_flux_dir ,
+                                  real3d_k& sw_bnd_flux_dif ,
+                                  real1d_k& sfc_flux_dir_vis,
+                                  real1d_k& sfc_flux_dir_nir,
+                                  real1d_k& sfc_flux_dif_vis,
+                                  real1d_k& sfc_flux_dif_nir)
 {
     // Band 10 straddles the near-IR and visible, so divide contributions from band 10 between both broadband sums
     // TODO: Hard-coding these band indices is really bad practice. If the bands ever were to change (like when
@@ -345,42 +356,37 @@ compute_broadband_surface_fluxes (const int ncol,
     //sfc_flux_dif_vis(i) = sum(sw_bnd_flux_dif(i+1,kbot,11:14)) + 0.5 * sw_bnd_flux_dif(i+1,kbot,10);
 
     // Initialize sums over bands
-    memset(sfc_flux_dir_nir, 0);
-    memset(sfc_flux_dir_vis, 0);
-    memset(sfc_flux_dif_nir, 0);
-    memset(sfc_flux_dif_vis, 0);
+    Kokkos::deep_copy(sfc_flux_dir_nir, 0);
+    Kokkos::deep_copy(sfc_flux_dir_vis, 0);
+    Kokkos::deep_copy(sfc_flux_dif_nir, 0);
+    Kokkos::deep_copy(sfc_flux_dif_vis, 0);
 
     // Threshold between visible and infrared is 0.7 micron, or 14286 cm^-1.
-    const real visible_wavenumber_threshold = 14286;
-    auto wavenumber_limits = k_dist_sw.get_band_lims_wavenumber();
-    parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA(const int icol)
+    const RealT visible_wavenumber_threshold = 14286.0;
+    auto wavenumber_limits = k_dist_sw_k->get_band_lims_wavenumber();
+    Kokkos::parallel_for(ncol, KOKKOS_LAMBDA(const int icol)
     {
-        for (int ibnd = 1; ibnd <= nswbands; ++ibnd) {
+        for (int ibnd = 0; ibnd < nswbands; ++ibnd) {
             // Wavenumber is in the visible if it is above the visible wavenumber
             // threshold, and in the infrared if it is below the threshold
-            const bool is_visible_wave1 = (wavenumber_limits(1, ibnd) > visible_wavenumber_threshold ? true : false);
-            const bool is_visible_wave2 = (wavenumber_limits(2, ibnd) > visible_wavenumber_threshold ? true : false);
+            const bool is_visible_wave1 = (wavenumber_limits(0, ibnd) > visible_wavenumber_threshold ? true : false);
+            const bool is_visible_wave2 = (wavenumber_limits(1, ibnd) > visible_wavenumber_threshold ? true : false);
 
             if (is_visible_wave1 && is_visible_wave2) {
-
                 // Entire band is in the visible
-                sfc_flux_dir_vis(icol) += sw_bnd_flux_dir(icol,ktop,ibnd);
-                sfc_flux_dif_vis(icol) += sw_bnd_flux_dif(icol,ktop,ibnd);
-
+                sfc_flux_dir_vis(icol) += sw_bnd_flux_dir(icol,kbot,ibnd);
+                sfc_flux_dif_vis(icol) += sw_bnd_flux_dif(icol,kbot,ibnd);
             } else if (!is_visible_wave1 && !is_visible_wave2) {
-
                 // Entire band is in the longwave (near-infrared)
-                sfc_flux_dir_nir(icol) += sw_bnd_flux_dir(icol,ktop,ibnd);
-                sfc_flux_dif_nir(icol) += sw_bnd_flux_dif(icol,ktop,ibnd);
-
+                sfc_flux_dir_nir(icol) += sw_bnd_flux_dir(icol,kbot,ibnd);
+                sfc_flux_dif_nir(icol) += sw_bnd_flux_dif(icol,kbot,ibnd);
             } else {
-
                 // Band straddles the visible to near-infrared transition, so put half
                 // the flux in visible and half in near-infrared fluxes
-                sfc_flux_dir_vis(icol) += 0.5 * sw_bnd_flux_dir(icol,ktop,ibnd);
-                sfc_flux_dif_vis(icol) += 0.5 * sw_bnd_flux_dif(icol,ktop,ibnd);
-                sfc_flux_dir_nir(icol) += 0.5 * sw_bnd_flux_dir(icol,ktop,ibnd);
-                sfc_flux_dif_nir(icol) += 0.5 * sw_bnd_flux_dif(icol,ktop,ibnd);
+                sfc_flux_dir_vis(icol) += 0.5 * sw_bnd_flux_dir(icol,kbot,ibnd);
+                sfc_flux_dif_vis(icol) += 0.5 * sw_bnd_flux_dif(icol,kbot,ibnd);
+                sfc_flux_dir_nir(icol) += 0.5 * sw_bnd_flux_dir(icol,kbot,ibnd);
+                sfc_flux_dif_nir(icol) += 0.5 * sw_bnd_flux_dif(icol,kbot,ibnd);
             }
         }
     });
@@ -389,30 +395,32 @@ compute_broadband_surface_fluxes (const int ncol,
 
 void
 rrtmgp_main (const int ncol, const int nlay,
-             real2d &p_lay, real2d &t_lay, real2d &p_lev, real2d &t_lev,
-             GasConcs &gas_concs,
-             real2d &sfc_alb_dir, real2d &sfc_alb_dif, real1d &mu0,
-             real1d& t_sfc, real2d& emis_sfc, real1d& lw_src,
-             real2d &lwp, real2d &iwp, real2d &rel, real2d &rei, real2d &cldfrac,
-             real3d &aer_tau_sw, real3d &aer_ssa_sw, real3d &aer_asm_sw, real3d &aer_tau_lw,
-             real3d &cld_tau_sw_bnd, real3d &cld_tau_lw_bnd,
-             real3d &cld_tau_sw_gpt,
-             real3d &cld_tau_lw_gpt,
-             real2d &sw_flux_up, real2d &sw_flux_dn, real2d &sw_flux_dn_dir,
-             real2d &lw_flux_up, real2d &lw_flux_dn,
-             real2d &sw_clnclrsky_flux_up, real2d &sw_clnclrsky_flux_dn, real2d &sw_clnclrsky_flux_dn_dir,
-             real2d &sw_clrsky_flux_up, real2d &sw_clrsky_flux_dn, real2d &sw_clrsky_flux_dn_dir,
-             real2d &sw_clnsky_flux_up, real2d &sw_clnsky_flux_dn, real2d &sw_clnsky_flux_dn_dir,
-             real2d &lw_clnclrsky_flux_up, real2d &lw_clnclrsky_flux_dn,
-             real2d &lw_clrsky_flux_up, real2d &lw_clrsky_flux_dn,
-             real2d &lw_clnsky_flux_up, real2d &lw_clnsky_flux_dn,
-             real3d &sw_bnd_flux_up, real3d &sw_bnd_flux_dn, real3d &sw_bnd_flux_dn_dir,
-             real3d &lw_bnd_flux_up, real3d &lw_bnd_flux_dn,
-             const real tsi_scaling,
+             real2d_k& p_lay, real2d_k& t_lay,
+             real2d_k& p_lev, real2d_k& t_lev,
+             gas_concs_t& gas_concs,
+             real2d_k& sfc_alb_dir, real2d_k& sfc_alb_dif, real1d_k& mu0,
+             real1d_k& t_sfc      , real2d_k& emis_sfc   , real1d_k& lw_src,
+             real2d_k& lwp, real2d_k& iwp,
+             real2d_k& rel, real2d_k& rei, real2d_k& cldfrac,
+             real3d_k& aer_tau_sw, real3d_k& aer_ssa_sw, real3d_k& aer_asm_sw,
+             real3d_k& aer_tau_lw,
+             real3d_k& cld_tau_sw_bnd, real3d_k& cld_tau_lw_bnd,
+             real3d_k& cld_tau_sw_gpt, real3d_k& cld_tau_lw_gpt,
+             real2d_k& sw_flux_up, real2d_k& sw_flux_dn, real2d_k& sw_flux_dn_dir,
+             real2d_k& lw_flux_up, real2d_k& lw_flux_dn,
+             real2d_k& sw_clnclrsky_flux_up, real2d_k& sw_clnclrsky_flux_dn, real2d_k& sw_clnclrsky_flux_dn_dir,
+             real2d_k& sw_clrsky_flux_up   , real2d_k& sw_clrsky_flux_dn   , real2d_k& sw_clrsky_flux_dn_dir,
+             real2d_k& sw_clnsky_flux_up   , real2d_k& sw_clnsky_flux_dn   , real2d_k& sw_clnsky_flux_dn_dir,
+             real2d_k& lw_clnclrsky_flux_up, real2d_k& lw_clnclrsky_flux_dn,
+             real2d_k& lw_clrsky_flux_up   , real2d_k& lw_clrsky_flux_dn   ,
+             real2d_k& lw_clnsky_flux_up   , real2d_k& lw_clnsky_flux_dn   ,
+             real3d_k& sw_bnd_flux_up      , real3d_k& sw_bnd_flux_dn      , real3d_k& sw_bnd_flux_dn_dir,
+             real3d_k& lw_bnd_flux_up      , real3d_k& lw_bnd_flux_dn      ,
+             const RealT tsi_scaling,
              const bool extra_clnclrsky_diag, const bool extra_clnsky_diag)
 {
     // Setup pointers to RRTMGP SW fluxes
-    FluxesByband fluxes_sw;
+    fluxes_t fluxes_sw;
     fluxes_sw.flux_up = sw_flux_up;
     fluxes_sw.flux_dn = sw_flux_dn;
     fluxes_sw.flux_dn_dir = sw_flux_dn_dir;
@@ -420,114 +428,125 @@ rrtmgp_main (const int ncol, const int nlay,
     fluxes_sw.bnd_flux_dn = sw_bnd_flux_dn;
     fluxes_sw.bnd_flux_dn_dir = sw_bnd_flux_dn_dir;
     // Clean-clear-sky
-    FluxesBroadband clnclrsky_fluxes_sw;
+    fluxes_broadband_t clnclrsky_fluxes_sw;
     clnclrsky_fluxes_sw.flux_up = sw_clnclrsky_flux_up;
     clnclrsky_fluxes_sw.flux_dn = sw_clnclrsky_flux_dn;
     clnclrsky_fluxes_sw.flux_dn_dir = sw_clnclrsky_flux_dn_dir;
     // Clear-sky
-    FluxesBroadband clrsky_fluxes_sw;
+    fluxes_broadband_t clrsky_fluxes_sw;
     clrsky_fluxes_sw.flux_up = sw_clrsky_flux_up;
     clrsky_fluxes_sw.flux_dn = sw_clrsky_flux_dn;
     clrsky_fluxes_sw.flux_dn_dir = sw_clrsky_flux_dn_dir;
     // Clean-sky
-    FluxesBroadband clnsky_fluxes_sw;
+    fluxes_broadband_t clnsky_fluxes_sw;
     clnsky_fluxes_sw.flux_up = sw_clnsky_flux_up;
     clnsky_fluxes_sw.flux_dn = sw_clnsky_flux_dn;
     clnsky_fluxes_sw.flux_dn_dir = sw_clnsky_flux_dn_dir;
 
     // Setup pointers to RRTMGP LW fluxes
-    FluxesByband fluxes_lw;
+    fluxes_t fluxes_lw;
     fluxes_lw.flux_up = lw_flux_up;
     fluxes_lw.flux_dn = lw_flux_dn;
     fluxes_lw.bnd_flux_up = lw_bnd_flux_up;
     fluxes_lw.bnd_flux_dn = lw_bnd_flux_dn;
     // Clean-clear-sky
-    FluxesBroadband clnclrsky_fluxes_lw;
+    fluxes_broadband_t clnclrsky_fluxes_lw;
     clnclrsky_fluxes_lw.flux_up = lw_clnclrsky_flux_up;
     clnclrsky_fluxes_lw.flux_dn = lw_clnclrsky_flux_dn;
     // Clear-sky
-    FluxesBroadband clrsky_fluxes_lw;
+    fluxes_broadband_t clrsky_fluxes_lw;
     clrsky_fluxes_lw.flux_up = lw_clrsky_flux_up;
     clrsky_fluxes_lw.flux_dn = lw_clrsky_flux_dn;
     // Clean-sky
-    FluxesBroadband clnsky_fluxes_lw;
+    fluxes_broadband_t clnsky_fluxes_lw;
     clnsky_fluxes_lw.flux_up = lw_clnsky_flux_up;
     clnsky_fluxes_lw.flux_dn = lw_clnsky_flux_dn;
 
-    auto nswbands = k_dist_sw.get_nband();
-    auto nlwbands = k_dist_lw.get_nband();
+    auto nswbands = k_dist_sw_k->get_nband();
+    auto nlwbands = k_dist_lw_k->get_nband();
 
     // Setup aerosol optical properties
-    OpticalProps2str aerosol_sw;
-    OpticalProps1scl aerosol_lw;
-    aerosol_sw.init(k_dist_sw.get_band_lims_wavenumber());
+    optical_props2_t aerosol_sw;
+    optical_props1_t aerosol_lw;
+    aerosol_sw.init(k_dist_sw_k->get_band_lims_wavenumber());
     aerosol_sw.alloc_2str(ncol, nlay);
-    parallel_for(SimpleBounds<3>(nswbands,nlay,ncol) , YAKL_LAMBDA (int ibnd, int ilay, int icol)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, nswbands}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int ibnd)
     {
         aerosol_sw.tau(icol,ilay,ibnd) = aer_tau_sw(icol,ilay,ibnd);
         aerosol_sw.ssa(icol,ilay,ibnd) = aer_ssa_sw(icol,ilay,ibnd);
         aerosol_sw.g  (icol,ilay,ibnd) = aer_asm_sw(icol,ilay,ibnd);
     });
-    aerosol_lw.init(k_dist_lw.get_band_lims_wavenumber());
+    aerosol_lw.init(k_dist_lw_k->get_band_lims_wavenumber());
     aerosol_lw.alloc_1scl(ncol, nlay);
-    parallel_for(SimpleBounds<3>(nlwbands,nlay,ncol) , YAKL_LAMBDA (int ibnd, int ilay, int icol)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, nlwbands}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int ibnd)
     {
         aerosol_lw.tau(icol,ilay,ibnd) = aer_tau_lw(icol,ilay,ibnd);
     });
 
     // Convert cloud physical properties to optical properties for input to RRTMGP
-    OpticalProps2str clouds_sw = get_cloud_optics_sw(ncol, nlay, cloud_optics_sw, k_dist_sw, lwp, iwp, rel, rei);
-    OpticalProps1scl clouds_lw = get_cloud_optics_lw(ncol, nlay, cloud_optics_lw, k_dist_lw, lwp, iwp, rel, rei);
-    clouds_sw.tau.deep_copy_to(cld_tau_sw_bnd);
-    clouds_lw.tau.deep_copy_to(cld_tau_lw_bnd);
+    optical_props2_t clouds_sw = get_cloud_optics_sw(ncol, nlay,
+                                                     *cloud_optics_sw_k, *k_dist_sw_k,
+                                                     lwp, iwp, rel, rei);
+    optical_props1_t clouds_lw = get_cloud_optics_lw(ncol, nlay,
+                                                     *cloud_optics_lw_k, *k_dist_lw_k,
+                                                     lwp, iwp, rel, rei);
+    Kokkos::deep_copy(cld_tau_sw_bnd, clouds_sw.tau);
+    Kokkos::deep_copy(cld_tau_lw_bnd, clouds_lw.tau);
 
     // Do subcolumn sampling to map bands -> gpoints based on cloud fraction and overlap assumption;
     // This implements the Monte Carlo Independing Column Approximation by mapping only a single
     // subcolumn (cloud state) to each gpoint.
-    auto nswgpts = k_dist_sw.get_ngpt();
-    auto clouds_sw_gpt = get_subsampled_clouds(ncol, nlay, nswbands, nswgpts, clouds_sw, k_dist_sw, cldfrac, p_lay);
+    auto nswgpts = k_dist_sw_k->get_ngpt();
+    auto clouds_sw_gpt = get_subsampled_clouds(ncol, nlay, nswbands, nswgpts,
+                                               clouds_sw, *k_dist_sw_k, cldfrac, p_lay);
     // Longwave
-    auto nlwgpts = k_dist_lw.get_ngpt();
-    auto clouds_lw_gpt = get_subsampled_clouds(ncol, nlay, nlwbands, nlwgpts, clouds_lw, k_dist_lw, cldfrac, p_lay);
+    auto nlwgpts = k_dist_lw_k->get_ngpt();
+    auto clouds_lw_gpt = get_subsampled_clouds(ncol, nlay, nlwbands, nlwgpts,
+                                               clouds_lw, *k_dist_lw_k, cldfrac, p_lay);
 
     // Copy cloud properties to outputs (is this needed, or can we just use pointers?)
     // Alternatively, just compute and output a subcolumn cloud mask
-    parallel_for(SimpleBounds<3>(nswgpts, nlay, ncol), YAKL_LAMBDA (int igpt, int ilay, int icol)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, nswgpts}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int igpt)
     {
         cld_tau_sw_gpt(icol,ilay,igpt) = clouds_sw_gpt.tau(icol,ilay,igpt);
     });
-    parallel_for(SimpleBounds<3>(nlwgpts, nlay, ncol), YAKL_LAMBDA (int igpt, int ilay, int icol)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, nlwgpts}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int igpt)
     {
         cld_tau_lw_gpt(icol,ilay,igpt) = clouds_lw_gpt.tau(icol,ilay,igpt);
     });
 
   // Do shortwave
   rrtmgp_sw(ncol, nlay,
-            k_dist_sw, p_lay, t_lay, p_lev, t_lev, gas_concs,
+            *k_dist_sw_k, p_lay, t_lay, p_lev, t_lev, gas_concs,
             sfc_alb_dir, sfc_alb_dif, mu0, aerosol_sw, clouds_sw_gpt,
             fluxes_sw, clnclrsky_fluxes_sw, clrsky_fluxes_sw, clnsky_fluxes_sw,
             tsi_scaling, extra_clnclrsky_diag, extra_clnsky_diag);
 
   // Do longwave
   rrtmgp_lw(ncol, nlay,
-            k_dist_lw, p_lay, t_lay, p_lev, t_lev, t_sfc, emis_sfc, lw_src, gas_concs,
-            aerosol_lw, clouds_lw_gpt,
+            *k_dist_lw_k, p_lay, t_lay, p_lev, t_lev,
+            t_sfc, emis_sfc, lw_src,
+            gas_concs, aerosol_lw, clouds_lw_gpt,
             fluxes_lw, clnclrsky_fluxes_lw, clrsky_fluxes_lw, clnsky_fluxes_lw,
             extra_clnclrsky_diag, extra_clnsky_diag);
 
 }
 
 
-int3d
+int3d_k
 get_subcolumn_mask (const int ncol,
                     const int nlay,
                     const int ngpt,
-                    real2d& cldf,
+                    real2d_k& cldf,
                     const int overlap_option,
-                    int1d& seeds)
+                    int1d_k& seeds)
 {
     // Routine will return subcolumn mask with values of 0 indicating no cloud, 1 indicating cloud
-    auto subcolumn_mask = int3d("subcolumn_mask", ncol, nlay, ngpt);
+    int3d_k subcolumn_mask("subcolumn_mask", ncol, nlay, ngpt);
 
     // Subcolumn generators are a means for producing a variable x(i,j,k), where
     //
@@ -535,11 +554,11 @@ get_subcolumn_mask (const int ncol,
     //     c(i,j,k) = 0 for x(i,j,k) <= 1 - cldf(i,j)
     //
     // I am going to call this "cldx" to be just slightly less ambiguous
-    auto cldx = real3d("cldx", ncol, nlay, ngpt);
+    real3d_k cldx("cldx", ncol, nlay, ngpt);
 
     // Apply overlap assumption to set cldx
     if (overlap_option == 0) {  // Dummy mask, always cloudy
-        memset(cldx, 1);
+        Kokkos::deep_copy(cldx, 1);
     } else {  // Default case, maximum-random overlap
         // Maximum-random overlap:
         // Uses essentially the algorithm described in eq (14) in Raisanen et al. 2004,
@@ -547,20 +566,19 @@ get_subcolumn_mask (const int ncol,
         // algorithm used in RRTMG implementation of maximum-random overlap (see
         // https://github.com/AER-RC/RRTMG_SW/blob/master/src/mcica_subcol_gen_sw.f90)
         //
-        // First, fill cldx with random numbers. Need to use a unique seed for each column!
-        parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA(int icol)
+        // First, fill cldx with random numbers.
+        Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, ngpt}),
+                             KOKKOS_LAMBDA (int icol, int ilay, int igpt)
         {
-            yakl::Random rand(seeds(icol));
-            for (int igpt = 1; igpt <= ngpt; igpt++) {
-                for (int ilay = 1; ilay <= nlay; ilay++) {
-                    cldx(icol,ilay,igpt) = rand.genFP<real>();
-                }
-            }
+            conv::Random rand(seeds(icol) + ilay*ngpt + igpt);
+            cldx(icol,ilay,igpt) = rand.genFP<RealT>();
         });
+
         // Step down columns and apply algorithm from eq (14)
-        parallel_for(SimpleBounds<2>(ngpt,ncol), YAKL_LAMBDA(int igpt, int icol)
+        Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, ngpt}),
+                             KOKKOS_LAMBDA (int icol, int igpt)
         {
-            for (int ilay = 2; ilay <= nlay; ilay++) {
+            for (int ilay = 1; ilay < nlay; ilay++) {
                 // Check cldx in level above and see if it satisfies conditions to create a cloudy subcolumn
                 if (cldx(icol,ilay-1,igpt) > 1.0 - cldf(icol,ilay-1)) {
                     // Cloudy subcolumn above, use same random number here so that clouds in these two adjacent
@@ -579,7 +597,8 @@ get_subcolumn_mask (const int ncol,
     }
 
     // Use cldx array to create subcolumn mask
-    parallel_for(SimpleBounds<3>(ngpt,nlay,ncol), YAKL_LAMBDA(int igpt, int ilay, int icol)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, ngpt}),
+                             KOKKOS_LAMBDA (int icol, int ilay, int igpt)
     {
         if (cldx(icol,ilay,igpt) > 1.0 - cldf(icol,ilay)) {
             subcolumn_mask(icol,ilay,igpt) = 1;
@@ -594,22 +613,19 @@ get_subcolumn_mask (const int ncol,
 void
 rrtmgp_sw (const int ncol,
            const int nlay,
-           GasOpticsRRTMGP& k_dist,
-           real2d& p_lay,
-           real2d& t_lay,
-           real2d& p_lev,
-           real2d& t_lev,
-           GasConcs& gas_concs,
-           real2d& sfc_alb_dir,
-           real2d& sfc_alb_dif,
-           real1d& mu0,
-           OpticalProps2str& aerosol,
-           OpticalProps2str& clouds,
-           FluxesByband& fluxes,
-           FluxesBroadband& clnclrsky_fluxes,
-           FluxesBroadband& clrsky_fluxes,
-           FluxesBroadband& clnsky_fluxes,
-           const real tsi_scaling,
+           gas_optics_t& k_dist,
+           real2d_k& p_lay, real2d_k& t_lay,
+           real2d_k& p_lev, real2d_k& t_lev,
+           gas_concs_t& gas_concs,
+           real2d_k& sfc_alb_dir, real2d_k& sfc_alb_dif,
+           real1d_k& mu0,
+           optical_props2_t& aerosol,
+           optical_props2_t& clouds,
+           fluxes_t& fluxes,
+           fluxes_broadband_t& clnclrsky_fluxes,
+           fluxes_broadband_t& clrsky_fluxes,
+           fluxes_broadband_t& clnsky_fluxes,
+           const RealT tsi_scaling,
            const bool extra_clnclrsky_diag,
            const bool extra_clnsky_diag)
 {
@@ -636,7 +652,8 @@ rrtmgp_sw (const int ncol,
     auto& clnsky_flux_dn_dir = clnsky_fluxes.flux_dn_dir;
 
     // Reset fluxes to zero
-    parallel_for(SimpleBounds<2>(nlay+1,ncol), YAKL_LAMBDA(int ilev, int icol)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay+1}),
+                             KOKKOS_LAMBDA (int icol, int ilev)
     {
         flux_up    (icol,ilev) = 0;
         flux_dn    (icol,ilev) = 0;
@@ -651,7 +668,8 @@ rrtmgp_sw (const int ncol,
         clnsky_flux_dn    (icol,ilev) = 0;
         clnsky_flux_dn_dir(icol,ilev) = 0;
     });
-    parallel_for(SimpleBounds<3>(nbnd,nlay+1,ncol), YAKL_LAMBDA(int ibnd, int ilev, int icol)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay+1, nbnd}),
+                         KOKKOS_LAMBDA (int icol, int ilev, int ibnd)
     {
         bnd_flux_up    (icol,ilev,ibnd) = 0;
         bnd_flux_dn    (icol,ilev,ibnd) = 0;
@@ -659,59 +677,61 @@ rrtmgp_sw (const int ncol,
     });
 
     // Get daytime indices
-    auto dayIndices = int1d("dayIndices", ncol);
-    memset(dayIndices, -1);
-    // Loop below has to be done on host, so create host copies
-    // TODO: there is probably a way to do this on the device
-    auto dayIndices_h = dayIndices.createHostCopy();
-    auto mu0_h = mu0.createHostCopy();
+    int1d_k dayIndices("dayIndices", ncol);
+    Kokkos::deep_copy(dayIndices, -1);
+
+    // Serialized for now.
     int nday = 0;
-    for (int icol = 1; icol <= ncol; icol++) {
-        if (mu0_h(icol) > 0) {
-            nday++;
-            dayIndices_h(nday) = icol;
+    Kokkos::parallel_reduce(1, KOKKOS_LAMBDA(int, int& nday_inner)
+    {
+        for (int icol = 0; icol < ncol; ++icol) {
+            if (mu0(icol) > 0) {
+                dayIndices(nday_inner++) = icol;
+            }
         }
-    }
+    }, Kokkos::Sum<int>(nday));
 
     // Copy data back to the device
-    dayIndices_h.deep_copy_to(dayIndices);
     if (nday == 0) {
         // No daytime columns in this chunk, skip the rest of this routine
         return;
     }
 
     // Subset mu0
-    auto mu0_day = real1d("mu0_day", nday);
-    parallel_for(SimpleBounds<1>(nday), YAKL_LAMBDA(int iday)
+    real1d_k mu0_day("mu0_day", nday);
+    Kokkos::parallel_for(nday, KOKKOS_LAMBDA(int iday)
     {
         mu0_day(iday) = mu0(dayIndices(iday));
     });
 
     // subset state variables
-    auto p_lay_day = real2d("p_lay_day", nday, nlay);
-    auto t_lay_day = real2d("t_lay_day", nday, nlay);
-    parallel_for(SimpleBounds<2>(nlay,nday), YAKL_LAMBDA(int ilay, int iday)
+    real2d_k p_lay_day("p_lay_day", nday, nlay);
+    real2d_k t_lay_day("t_lay_day", nday, nlay);
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nday, nlay}),
+                         KOKKOS_LAMBDA (int iday, int ilay)
     {
         p_lay_day(iday,ilay) = p_lay(dayIndices(iday),ilay);
         t_lay_day(iday,ilay) = t_lay(dayIndices(iday),ilay);
     });
-    auto p_lev_day = real2d("p_lev_day", nday, nlay+1);
-    auto t_lev_day = real2d("t_lev_day", nday, nlay+1);
-    parallel_for(SimpleBounds<2>(nlay+1,nday), YAKL_LAMBDA(int ilev, int iday)
+    real2d_k p_lev_day("p_lev_day", nday, nlay+1);
+    real2d_k t_lev_day("t_lev_day", nday, nlay+1);
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nday, nlay+1}),
+                         KOKKOS_LAMBDA (int iday, int ilay)
     {
-        p_lev_day(iday,ilev) = p_lev(dayIndices(iday),ilev);
-        t_lev_day(iday,ilev) = t_lev(dayIndices(iday),ilev);
+        p_lev_day(iday,ilay) = p_lev(dayIndices(iday),ilay);
+        t_lev_day(iday,ilay) = t_lev(dayIndices(iday),ilay);
     });
 
     // Subset gases
     auto gas_names = gas_concs.get_gas_names();
-    GasConcs gas_concs_day;
+    gas_concs_t gas_concs_day;
     gas_concs_day.init(gas_names, nday, nlay);
     for (int igas = 0; igas < ngas; igas++) {
-        auto vmr_day = real2d("vmr_day", nday, nlay);
-        auto vmr     = real2d("vmr"    , ncol, nlay);
+        real2d_k vmr_day("vmr_day", nday, nlay);
+        real2d_k vmr("vmr"    , ncol, nlay);
         gas_concs.get_vmr(gas_names[igas], vmr);
-        parallel_for(SimpleBounds<2>(nlay,nday), YAKL_LAMBDA(int ilay, int iday)
+        Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nday, nlay}),
+                         KOKKOS_LAMBDA (int iday, int ilay)
         {
             vmr_day(iday,ilay) = vmr(dayIndices(iday),ilay);
         });
@@ -719,10 +739,11 @@ rrtmgp_sw (const int ncol,
     }
 
     // Subset aerosol optics
-    OpticalProps2str aerosol_day;
+    optical_props2_t aerosol_day;
     aerosol_day.init(k_dist.get_band_lims_wavenumber());
     aerosol_day.alloc_2str(nday, nlay);
-    parallel_for(SimpleBounds<3>(nbnd,nlay,nday), YAKL_LAMBDA(int ibnd, int ilay, int iday)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {nday, nlay, nbnd}),
+                         KOKKOS_LAMBDA (int iday, int ilay, int ibnd)
     {
         aerosol_day.tau(iday,ilay,ibnd) = aerosol.tau(dayIndices(iday),ilay,ibnd);
         aerosol_day.ssa(iday,ilay,ibnd) = aerosol.ssa(dayIndices(iday),ilay,ibnd);
@@ -731,10 +752,11 @@ rrtmgp_sw (const int ncol,
 
     // Subset cloud optics
     // TODO: nbnd -> ngpt once we pass sub-sampled cloud state
-    OpticalProps2str clouds_day;
+    optical_props2_t clouds_day;
     clouds_day.init(k_dist.get_band_lims_wavenumber(), k_dist.get_band_lims_gpoint());
     clouds_day.alloc_2str(nday, nlay);
-    parallel_for(SimpleBounds<3>(ngpt,nlay,nday), YAKL_LAMBDA(int igpt, int ilay, int iday)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {nday, nlay, ngpt}),
+                         KOKKOS_LAMBDA (int iday, int ilay, int igpt)
     {
         clouds_day.tau(iday,ilay,igpt) = clouds.tau(dayIndices(iday),ilay,igpt);
         clouds_day.ssa(iday,ilay,igpt) = clouds.ssa(dayIndices(iday),ilay,igpt);
@@ -744,22 +766,23 @@ rrtmgp_sw (const int ncol,
     // RRTMGP assumes surface albedos have a screwy dimension ordering
     // for some strange reason, so we need to transpose these; also do
     // daytime subsetting in the same kernel
-    real2d sfc_alb_dir_T("sfc_alb_dir", nbnd, nday);
-    real2d sfc_alb_dif_T("sfc_alb_dif", nbnd, nday);
-    parallel_for(SimpleBounds<2>(nbnd,nday), YAKL_LAMBDA(int ibnd, int icol)
+    real2d_k sfc_alb_dir_T("sfc_alb_dir", nbnd, nday);
+    real2d_k sfc_alb_dif_T("sfc_alb_dif", nbnd, nday);
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nbnd, nday}),
+                         KOKKOS_LAMBDA (int ibnd, int icol)
     {
         sfc_alb_dir_T(ibnd,icol) = sfc_alb_dir(dayIndices(icol),ibnd);
         sfc_alb_dif_T(ibnd,icol) = sfc_alb_dif(dayIndices(icol),ibnd);
     });
 
     // Temporaries we need for daytime-only fluxes
-    auto flux_up_day = real2d("flux_up_day", nday, nlay+1);
-    auto flux_dn_day = real2d("flux_dn_day", nday, nlay+1);
-    auto flux_dn_dir_day = real2d("flux_dn_dir_day", nday, nlay+1);
-    auto bnd_flux_up_day = real3d("bnd_flux_up_day", nday, nlay+1, nbnd);
-    auto bnd_flux_dn_day = real3d("bnd_flux_dn_day", nday, nlay+1, nbnd);
-    auto bnd_flux_dn_dir_day = real3d("bnd_flux_dn_dir_day", nday, nlay+1, nbnd);
-    FluxesByband fluxes_day;
+    real2d_k flux_up_day("flux_up_day", nday, nlay+1);
+    real2d_k flux_dn_day("flux_dn_day", nday, nlay+1);
+    real2d_k flux_dn_dir_day("flux_dn_dir_day", nday, nlay+1);
+    real3d_k bnd_flux_up_day("bnd_flux_up_day", nday, nlay+1, nbnd);
+    real3d_k bnd_flux_dn_day("bnd_flux_dn_day", nday, nlay+1, nbnd);
+    real3d_k bnd_flux_dn_dir_day("bnd_flux_dn_dir_day", nday, nlay+1, nbnd);
+    fluxes_t fluxes_day;
     fluxes_day.flux_up         = flux_up_day;
     fluxes_day.flux_dn         = flux_dn_day;
     fluxes_day.flux_dn_dir     = flux_dn_dir_day;
@@ -768,33 +791,39 @@ rrtmgp_sw (const int ncol,
     fluxes_day.bnd_flux_dn_dir = bnd_flux_dn_dir_day;
 
     // Allocate space for optical properties
-    OpticalProps2str optics;
+    optical_props2_t optics;
     optics.alloc_2str(nday, nlay, k_dist);
 
-    OpticalProps2str optics_no_aerosols;
+    optical_props2_t optics_no_aerosols;
     if (extra_clnsky_diag) {
         // Allocate space for optical properties (no aerosols)
         optics_no_aerosols.alloc_2str(nday, nlay, k_dist);
     }
 
     // Limit temperatures for gas optics look-up tables
-    auto t_lay_limited = real2d("t_lay_limited", nday, nlay);
-    limit_to_bounds(t_lay_day, k_dist_sw.get_temp_min(), k_dist_sw.get_temp_max(), t_lay_limited);
+    real2d_k t_lay_limited("t_lay_limited", nday, nlay);
+    limit_to_bounds_2d(t_lay_day, k_dist_sw_k->get_temp_min(),
+                       k_dist_sw_k->get_temp_max(), t_lay_limited);
 
     // Do gas optics
-    real2d toa_flux("toa_flux", nday, ngpt);
-    auto p_lay_host = p_lay.createHostCopy();
-    bool top_at_1   = p_lay_host(1, 1) < p_lay_host(1, nlay);
+    real2d_k toa_flux("toa_flux", nday, ngpt);
+    real3d_k col_gas("col_gas", ncol, nlay, k_dist.get_ngas()+1);
+    bool top_at_1 = false;
+    Kokkos::parallel_reduce(1, KOKKOS_LAMBDA(int, bool& val)
+    {
+        val |= p_lay(0, 0) < p_lay(0, nlay-1);
+    }, Kokkos::LOr<bool>(top_at_1));
 
     k_dist.gas_optics(nday, nlay, top_at_1, p_lay_day, p_lev_day,
-                      t_lay_limited, gas_concs_day, optics, toa_flux);
+                      t_lay_limited, gas_concs_day, col_gas, optics, toa_flux);
     if (extra_clnsky_diag) {
         k_dist.gas_optics(nday, nlay, top_at_1, p_lay_day, p_lev_day,
-                          t_lay_limited, gas_concs_day, optics_no_aerosols, toa_flux);
+                          t_lay_limited, gas_concs_day, col_gas, optics_no_aerosols, toa_flux);
     }
 
     // Apply tsi_scaling
-    parallel_for(SimpleBounds<2>(ngpt,nday), YAKL_LAMBDA(int igpt, int iday)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nday, ngpt}),
+                         KOKKOS_LAMBDA (int iday, int igpt)
     {
         toa_flux(iday,igpt) = tsi_scaling * toa_flux(iday,igpt);
     });
@@ -803,7 +832,8 @@ rrtmgp_sw (const int ncol,
         // Compute clear-clean-sky (just gas) fluxes on daytime columns
         rte_sw(optics, top_at_1, mu0_day, toa_flux, sfc_alb_dir_T, sfc_alb_dif_T, fluxes_day);
         // Expand daytime fluxes to all columns
-        parallel_for(SimpleBounds<2>(nlay+1,nday), YAKL_LAMBDA(int ilev, int iday)
+        Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nday, nlay+1}),
+                         KOKKOS_LAMBDA (int iday, int ilev)
         {
             int icol = dayIndices(iday);
             clnclrsky_flux_up    (icol,ilev) = flux_up_day    (iday,ilev);
@@ -820,7 +850,8 @@ rrtmgp_sw (const int ncol,
     rte_sw(optics, top_at_1, mu0_day, toa_flux, sfc_alb_dir_T, sfc_alb_dif_T, fluxes_day);
 
     // Expand daytime fluxes to all columns
-    parallel_for(SimpleBounds<2>(nlay+1,nday), YAKL_LAMBDA(int ilev, int iday)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nday, nlay+1}),
+                         KOKKOS_LAMBDA (int iday, int ilev)
     {
         int icol = dayIndices(iday);
         clrsky_flux_up    (icol,ilev) = flux_up_day    (iday,ilev);
@@ -838,14 +869,16 @@ rrtmgp_sw (const int ncol,
     rte_sw(optics, top_at_1, mu0_day, toa_flux, sfc_alb_dir_T, sfc_alb_dif_T, fluxes_day);
 
     // Expand daytime fluxes to all columns
-    parallel_for(SimpleBounds<2>(nlay+1,nday), YAKL_LAMBDA(int ilev, int iday)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nday, nlay+1}),
+                         KOKKOS_LAMBDA (int iday, int ilev)
     {
         int icol = dayIndices(iday);
         flux_up    (icol,ilev) = flux_up_day    (iday,ilev);
         flux_dn    (icol,ilev) = flux_dn_day    (iday,ilev);
         flux_dn_dir(icol,ilev) = flux_dn_dir_day(iday,ilev);
     });
-    parallel_for(SimpleBounds<3>(nbnd,nlay+1,nday), YAKL_LAMBDA(int ibnd, int ilev, int iday)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {nday, nlay+1, nbnd}),
+                         KOKKOS_LAMBDA (int iday, int ilev, int ibnd)
     {
         int icol = dayIndices(iday);
         bnd_flux_up    (icol,ilev,ibnd) = bnd_flux_up_day    (iday,ilev,ibnd);
@@ -859,7 +892,8 @@ rrtmgp_sw (const int ncol,
         // Compute cleansky (gas + clouds) fluxes on daytime columns
         rte_sw(optics_no_aerosols, top_at_1, mu0_day, toa_flux, sfc_alb_dir_T, sfc_alb_dif_T, fluxes_day);
         // Expand daytime fluxes to all columns
-        parallel_for(SimpleBounds<2>(nlay+1,nday), YAKL_LAMBDA(int ilev, int iday)
+        Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {nday, nlay+1}),
+                         KOKKOS_LAMBDA (int iday, int ilev)
         {
             int icol = dayIndices(iday);
             clnsky_flux_up    (icol,ilev) = flux_up_day    (iday,ilev);
@@ -873,21 +907,17 @@ rrtmgp_sw (const int ncol,
 void
 rrtmgp_lw (const int ncol,
            const int nlay,
-           GasOpticsRRTMGP& k_dist,
-           real2d& p_lay,
-           real2d& t_lay,
-           real2d& p_lev,
-           real2d& t_lev,
-           real1d& t_sfc,
-           real2d& emis_sfc,
-           real1d& lw_src,
-           GasConcs& gas_concs,
-           OpticalProps1scl& aerosol,
-           OpticalProps1scl& clouds,
-           FluxesByband& fluxes,
-           FluxesBroadband& clnclrsky_fluxes,
-           FluxesBroadband& clrsky_fluxes,
-           FluxesBroadband& clnsky_fluxes,
+           gas_optics_t& k_dist,
+           real2d_k& p_lay, real2d_k& t_lay,
+           real2d_k& p_lev, real2d_k& t_lev,
+           real1d_k& t_sfc, real2d_k& emis_sfc, real1d_k& lw_src,
+           gas_concs_t& gas_concs,
+           optical_props1_t& aerosol,
+           optical_props1_t& clouds,
+           fluxes_t& fluxes,
+           fluxes_broadband_t& clnclrsky_fluxes,
+           fluxes_broadband_t& clrsky_fluxes,
+           fluxes_broadband_t& clnsky_fluxes,
            const bool extra_clnclrsky_diag,
            const bool extra_clnsky_diag)
 {
@@ -907,7 +937,8 @@ rrtmgp_lw (const int ncol,
     auto& clnsky_flux_dn    = clnsky_fluxes.flux_dn;
 
     // Reset fluxes to zero
-    parallel_for(SimpleBounds<2>(nlay + 1, ncol), YAKL_LAMBDA(int ilev, int icol)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay+1}),
+                         KOKKOS_LAMBDA (int icol, int ilev)
     {
         flux_up(icol, ilev)           = 0;
         flux_dn(icol, ilev)           = 0;
@@ -918,80 +949,97 @@ rrtmgp_lw (const int ncol,
         clnsky_flux_up(icol, ilev)    = 0;
         clnsky_flux_dn(icol, ilev)    = 0;
     });
-    parallel_for(SimpleBounds<3>(nbnd, nlay + 1, ncol), YAKL_LAMBDA(int ibnd, int ilev, int icol)
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay+1, nbnd}),
+                         KOKKOS_LAMBDA (int icol, int ilev, int ibnd)
     {
         bnd_flux_up(icol, ilev, ibnd) = 0;
         bnd_flux_dn(icol, ilev, ibnd) = 0;
     });
 
     // Allocate space for optical properties
-    OpticalProps1scl optics;
+    optical_props1_t optics;
     optics.alloc_1scl(ncol, nlay, k_dist);
-    OpticalProps1scl optics_no_aerosols;
+
+    optical_props1_t optics_no_aerosols;
     if (extra_clnsky_diag) {
         // Allocate space for optical properties (no aerosols)
         optics_no_aerosols.alloc_1scl(ncol, nlay, k_dist);
     }
 
-    // Boundary conditions
-    SourceFuncLW lw_sources;
-    lw_sources.alloc(ncol, nlay, k_dist);
-    // set the LW source
-    //   TODO: figure out how to do this correctly?
-    YAKL_SCOPE(d_lw_src, lw_sources.sfc_source);
-    //parallel_for(SimpleBounds<2>(ncol,m_nlwgpts), YAKL_LAMBDA(int icol, int igpt)
-    parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA(int icol)
+    bool top_at_1 = false;
+    Kokkos::parallel_reduce(1, KOKKOS_LAMBDA(int, bool& val)
     {
-        d_lw_src(icol, 1) = lw_src(icol);
+        val |= p_lay(0, 0) < p_lay(0, nlay-1);
+    }, Kokkos::LOr<bool>(top_at_1));
+
+    // Boundary conditions
+    //=====================================================================
+    source_func_t lw_sources;
+    lw_sources.alloc(ncol, nlay, k_dist);
+
+    /*
+    // Surface LW source
+    // AML NOTE: This is removed in EAMXX, LSM doesn't transfer its lw_src?
+    auto d_lw_src = lw_sources.sfc_source;
+    Kokkos::parallel_for(ncol, KOKKOS_LAMBDA (int icol)
+    {
+        d_lw_src(icol, 0) = lw_src(icol);
     });
-    //real1d t_sfc   ("t_sfc"        ,ncol);
+    */
 
     // Surface temperature
-    auto p_lay_host = p_lay.createHostCopy();
-    bool top_at_1 = p_lay_host(1, 1) < p_lay_host(1, nlay);
-    real2d emis_sfc_T("emis_sfc",nbnd,ncol);
-    //memset(emis_sfc , amrex::Real(0.98));
-    // RRTMGP assumes surface albedos have a screwy dimension ordering
-    // for some strange reason, so we need to transpose these; also do
-    // daytime subsetting in the same kernel
-    parallel_for(SimpleBounds<2>(nbnd,ncol), YAKL_LAMBDA(int ibnd, int icol)
+    // AML NOTE: We already populate this when initializing data
+
+
+    // Surface emissivity (transposed in RRTMGP)
+    // AML NOTE: This transfer was removed in EAMXX, LSM doesn't transfer its emis_sfc?
+    real2d_k emis_sfc_T("emis_sfc",nbnd,ncol);
+    /*
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nbnd}),
+                         KOKKOS_LAMBDA (int icol, int ibnd)
     {
         emis_sfc_T(ibnd,icol) = emis_sfc(icol,ibnd);
     });
+    */
+    Kokkos::deep_copy(emis_sfc_T, 0.98);
 
     // Get Gaussian quadrature weights
-    // TODO: move this crap out of userland!
     // Weights and angle secants for first order (k=1) Gaussian quadrature.
     //   Values from Table 2, Clough et al, 1992, doi:10.1029/92JD01419
     //   after Abramowitz & Stegun 1972, page 921
     int constexpr max_gauss_pts = 4;
-    realHost2d gauss_Ds_host ("gauss_Ds" ,max_gauss_pts,max_gauss_pts);
-    gauss_Ds_host(1,1) = 1.66_wp      ; gauss_Ds_host(2,1) =         0._wp; gauss_Ds_host(3,1) =         0._wp; gauss_Ds_host(4,1) =         0._wp;
-    gauss_Ds_host(1,2) = 1.18350343_wp; gauss_Ds_host(2,2) = 2.81649655_wp; gauss_Ds_host(3,2) =         0._wp; gauss_Ds_host(4,2) =         0._wp;
-    gauss_Ds_host(1,3) = 1.09719858_wp; gauss_Ds_host(2,3) = 1.69338507_wp; gauss_Ds_host(3,3) = 4.70941630_wp; gauss_Ds_host(4,3) =         0._wp;
-    gauss_Ds_host(1,4) = 1.06056257_wp; gauss_Ds_host(2,4) = 1.38282560_wp; gauss_Ds_host(3,4) = 2.40148179_wp; gauss_Ds_host(4,4) = 7.15513024_wp;
+    RealT gauss_Ds_host_raw[max_gauss_pts][max_gauss_pts] = { {1.66, 1.18350343, 1.09719858, 1.06056257},
+                                                              {0.  , 2.81649655, 1.69338507, 1.38282560},
+                                                              {0.  , 0.        , 4.70941630, 2.40148179},
+                                                              {0.  , 0.        , 0.        , 7.15513024} };
+    realHost2d_k gauss_Ds_host(&gauss_Ds_host_raw[0][0], max_gauss_pts, max_gauss_pts);
 
-    realHost2d gauss_wts_host("gauss_wts",max_gauss_pts,max_gauss_pts);
-    gauss_wts_host(1,1) = 0.5_wp         ; gauss_wts_host(2,1) = 0._wp          ; gauss_wts_host(3,1) = 0._wp          ; gauss_wts_host(4,1) = 0._wp          ;
-    gauss_wts_host(1,2) = 0.3180413817_wp; gauss_wts_host(2,2) = 0.1819586183_wp; gauss_wts_host(3,2) = 0._wp          ; gauss_wts_host(4,2) = 0._wp          ;
-    gauss_wts_host(1,3) = 0.2009319137_wp; gauss_wts_host(2,3) = 0.2292411064_wp; gauss_wts_host(3,3) = 0.0698269799_wp; gauss_wts_host(4,3) = 0._wp          ;
-    gauss_wts_host(1,4) = 0.1355069134_wp; gauss_wts_host(2,4) = 0.2034645680_wp; gauss_wts_host(3,4) = 0.1298475476_wp; gauss_wts_host(4,4) = 0.0311809710_wp;
+    RealT gauss_wts_host_raw[max_gauss_pts][max_gauss_pts] = { {0.5, 0.3180413817, 0.2009319137, 0.1355069134},
+                                                               {0. , 0.1819586183, 0.2292411064, 0.2034645680},
+                                                               {0. , 0.          , 0.0698269799, 0.1298475476},
+                                                               {0. , 0.          , 0.          , 0.0311809710} };
+    realHost2d_k gauss_wts_host(&gauss_wts_host_raw[0][0],max_gauss_pts,max_gauss_pts);
 
-    real2d gauss_Ds ("gauss_Ds" ,max_gauss_pts,max_gauss_pts);
-    real2d gauss_wts("gauss_wts",max_gauss_pts,max_gauss_pts);
-    gauss_Ds_host .deep_copy_to(gauss_Ds );
-    gauss_wts_host.deep_copy_to(gauss_wts);
+    real2d_k gauss_Ds ("gauss_Ds" ,max_gauss_pts,max_gauss_pts);
+    real2d_k gauss_wts("gauss_wts",max_gauss_pts,max_gauss_pts);
+    Kokkos::deep_copy(gauss_Ds,  gauss_Ds_host);
+    Kokkos::deep_copy(gauss_wts, gauss_wts_host);
 
     // Limit temperatures for gas optics look-up tables
-    auto t_lay_limited = real2d("t_lay_limited", ncol, nlay);
-    auto t_lev_limited = real2d("t_lev_limited", ncol, nlay+1);
-    limit_to_bounds(t_lay, k_dist_lw.get_temp_min(), k_dist_lw.get_temp_max(), t_lay_limited);
-    limit_to_bounds(t_lev, k_dist_lw.get_temp_min(), k_dist_lw.get_temp_max(), t_lev_limited);
+    real2d_k t_lay_limited("t_lay_limited", ncol, nlay  );
+    real2d_k t_lev_limited("t_lev_limited", ncol, nlay+1);
+    limit_to_bounds_2d(t_lay, k_dist.get_temp_min(),
+                       k_dist.get_temp_max(), t_lay_limited);
+    limit_to_bounds_2d(t_lev, k_dist.get_temp_min(),
+                       k_dist.get_temp_max(), t_lev_limited);
 
     // Do gas optics
-    k_dist.gas_optics(ncol, nlay, top_at_1, p_lay, p_lev, t_lay_limited, t_sfc, gas_concs, optics, lw_sources, real2d(), t_lev_limited);
+    real3d_k col_gas("col_gas", ncol, nlay, k_dist.get_ngas()+1);
+    k_dist.gas_optics(ncol, nlay, top_at_1, p_lay, p_lev, t_lay_limited,
+                      t_sfc, gas_concs, col_gas, optics, lw_sources, view_t<RealT**>(), t_lev_limited);
     if (extra_clnsky_diag) {
-        k_dist.gas_optics(ncol, nlay, top_at_1, p_lay, p_lev, t_lay_limited, t_sfc, gas_concs, optics_no_aerosols, lw_sources, real2d(), t_lev_limited);
+        k_dist.gas_optics(ncol, nlay, top_at_1, p_lay, p_lev, t_lay_limited,
+                          t_sfc, gas_concs, col_gas, optics_no_aerosols, lw_sources, view_t<RealT**>(), t_lev_limited);
     }
 
     if (extra_clnclrsky_diag) {
@@ -1024,31 +1072,33 @@ void
 compute_cloud_area (int ncol,
                     int nlay,
                     int ngpt,
-                    const real pmin,
-                    const real pmax,
-                    const real2d& pmid,
-                    const real3d& cld_tau_gpt,
-                    real1d& cld_area)
+                    const RealT pmin,
+                    const RealT pmax,
+                    const real2d_k& pmid,
+                    const real3d_k& cld_tau_gpt,
+                    real1d_k& cld_area)
 {
     // Subcolumn binary cld mask; if any layers with pressure between pmin and pmax are cloudy
     // then 2d subcol mask is 1, otherwise it is 0
-    auto subcol_mask = real2d("subcol_mask", ncol, ngpt);
-    memset(subcol_mask, 0);
-    parallel_for(SimpleBounds<3>(ngpt, nlay, ncol), YAKL_LAMBDA(int igpt, int ilay, int icol)
+    real2d_k subcol_mask("subcol_mask", ncol, ngpt);
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, ngpt}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int igpt)
     {
         // NOTE: using plev would need to assume level ordering (top to bottom or bottom to top), but
         // using play/pmid does not
         if (cld_tau_gpt(icol,ilay,igpt) > 0 && pmid(icol,ilay) >= pmin && pmid(icol,ilay) < pmax) {
-            subcol_mask(icol,igpt) = 1;
+            subcol_mask(icol,igpt) = 1.0;
+        } else {
+            subcol_mask(icol,igpt) = 0.0;
         }
     });
     // Compute average over subcols to get cloud area
     auto ngpt_inv = 1.0 / ngpt;
-    memset(cld_area, 0);
-    parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA(int icol)
+    Kokkos::deep_copy(cld_area, 0);
+    Kokkos::parallel_for(ncol, KOKKOS_LAMBDA(int icol)
     {
         // This loop needs to be serial because of the atomic reduction
-        for (int igpt = 1; igpt <= ngpt; ++igpt) {
+        for (int igpt = 0; igpt < ngpt; ++igpt) {
             cld_area(icol) += subcol_mask(icol,igpt) * ngpt_inv;
         }
     });
@@ -1056,50 +1106,53 @@ compute_cloud_area (int ncol,
 
 
 int
-get_wavelength_index_sw (double wavelength) { return get_wavelength_index(k_dist_sw, wavelength); }
+get_wavelength_index_sw (RealT wavelength) { return get_wavelength_index(*k_dist_sw_k, wavelength); }
 
 
 int
-get_wavelength_index_lw (double wavelength) { return get_wavelength_index(k_dist_lw, wavelength); }
+get_wavelength_index_lw (RealT wavelength) { return get_wavelength_index(*k_dist_lw_k, wavelength); }
 
 
 int
-get_wavelength_index (OpticalProps& kdist,
-                      double wavelength)
+get_wavelength_index (optical_props_t& kdist,
+                      RealT wavelength)
 {
     // Get wavelength bounds for all wavelength bands
-    auto wavelength_bounds = kdist.get_band_lims_wavelength();
+    auto band_lims_wvn = kdist.get_band_lims_wavenumber();
+    real2d_k wavelength_bounds("wavelength_bounds",band_lims_wvn.extent(0), band_lims_wvn.extent(1));
+    wavelength_bounds = kdist.get_band_lims_wavelength();
 
     // Find the band index for the specified wavelength
     // Note that bands are stored in wavenumber space, units of cm-1, so if we are passed wavelength
     // in units of meters, we need a conversion factor of 10^2
     int nbnds = kdist.get_nband();
-    yakl::ScalarLiveOut<int> band_index(-1);
-    parallel_for(SimpleBounds<1>(nbnds), YAKL_LAMBDA(int ibnd)
+    int band_index = -1;
+    Kokkos::parallel_reduce(nbnds, KOKKOS_LAMBDA(int ibnd, int& band_index_inner)
     {
-        if (wavelength_bounds(1,ibnd) < wavelength_bounds(2,ibnd)) {
-            if (wavelength_bounds(1,ibnd) <= wavelength * 1e2 && wavelength * 1e2 <= wavelength_bounds(2,ibnd)) {
-                band_index = ibnd;
+        if (wavelength_bounds(0,ibnd) < wavelength_bounds(1,ibnd)) {
+            if (wavelength_bounds(0,ibnd) <= wavelength * 1e2 && wavelength * 1e2 <= wavelength_bounds(1,ibnd)) {
+                band_index_inner = ibnd;
             }
         } else {
-            if (wavelength_bounds(1,ibnd) >= wavelength * 1e2 && wavelength * 1e2 >= wavelength_bounds(2,ibnd)) {
-                band_index = ibnd;
+            if (wavelength_bounds(0,ibnd) >= wavelength * 1e2 && wavelength * 1e2 >= wavelength_bounds(1,ibnd)) {
+                band_index_inner = ibnd;
             }
         }
-    });
-    return band_index.hostRead();
+    }, Kokkos::Max<int>(band_index));
+    return band_index;
 }
 
 
 void
-compute_aerocom_cloudtop (int ncol, int nlay, const real2d &tmid, const real2d &pmid,
-                          const real2d &p_del, const real2d &z_del, const real2d &qc,
-                          const real2d &qi, const real2d &rel, const real2d &rei,
-                          const real2d &cldfrac_tot, const real2d &nc,
-                          real1d &T_mid_at_cldtop, real1d &p_mid_at_cldtop,
-                          real1d &cldfrac_ice_at_cldtop, real1d &cldfrac_liq_at_cldtop,
-                          real1d &cldfrac_tot_at_cldtop, real1d &cdnc_at_cldtop,
-                          real1d &eff_radius_qc_at_cldtop, real1d &eff_radius_qi_at_cldtop)
+compute_aerocom_cloudtop (int ncol, int nlay ,
+                          const real2d_k& tmid , const real2d_k& pmid ,
+                          const real2d_k& p_del, const real2d_k& z_del, const real2d_k& qc,
+                          const real2d_k& qi   , const real2d_k& rel  , const real2d_k& rei,
+                          const real2d_k& cldfrac_tot      , const real2d_k& nc,
+                          real1d_k& T_mid_at_cldtop        , real1d_k& p_mid_at_cldtop,
+                          real1d_k& cldfrac_ice_at_cldtop  , real1d_k& cldfrac_liq_at_cldtop,
+                          real1d_k& cldfrac_tot_at_cldtop  , real1d_k& cdnc_at_cldtop,
+                          real1d_k& eff_radius_qc_at_cldtop, real1d_k& eff_radius_qi_at_cldtop)
 {
     /* The goal of this routine is to calculate properties at cloud top
      * based on the AeroCom recommendation. See reference for routine
@@ -1108,32 +1161,32 @@ compute_aerocom_cloudtop (int ncol, int nlay, const real2d &tmid, const real2d &
      * equation 13, the column counterpart.
      */
     // Set outputs to zero
-    memset(T_mid_at_cldtop, 0.0);
-    memset(p_mid_at_cldtop, 0.0);
-    memset(cldfrac_ice_at_cldtop, 0.0);
-    memset(cldfrac_liq_at_cldtop, 0.0);
-    memset(cldfrac_tot_at_cldtop, 0.0);
-    memset(cdnc_at_cldtop, 0.0);
-    memset(eff_radius_qc_at_cldtop, 0.0);
-    memset(eff_radius_qi_at_cldtop, 0.0);
+    Kokkos::deep_copy(T_mid_at_cldtop, 0.0);
+    Kokkos::deep_copy(p_mid_at_cldtop, 0.0);
+    Kokkos::deep_copy(cldfrac_ice_at_cldtop, 0.0);
+    Kokkos::deep_copy(cldfrac_liq_at_cldtop, 0.0);
+    Kokkos::deep_copy(cldfrac_tot_at_cldtop, 0.0);
+    Kokkos::deep_copy(cdnc_at_cldtop, 0.0);
+    Kokkos::deep_copy(eff_radius_qc_at_cldtop, 0.0);
+    Kokkos::deep_copy(eff_radius_qi_at_cldtop, 0.0);
 
     // Initialize the 1D "clear fraction" as 1 (totally clear)
-    auto aerocom_clr = real1d("aerocom_clr", ncol);
-    memset(aerocom_clr, 1.0);
+    real1d_k aerocom_clr("aerocom_clr", ncol);
+    Kokkos::deep_copy(aerocom_clr, 1.0);
 
     // TODO: move tunable constant to namelist
-    constexpr real q_threshold = 0.0;  // BAD_CONSTANT!
+    constexpr RealT q_threshold = 0.0;  // BAD_CONSTANT!
 
     // TODO: move tunable constant to namelist
-    constexpr real cldfrac_tot_threshold = 0.001;  // BAD_CONSTANT!
+    constexpr RealT cldfrac_tot_threshold = 0.001;  // BAD_CONSTANT!
 
     // Loop over all columns in parallel
-    parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA(int icol)
+    Kokkos::parallel_for(ncol, KOKKOS_LAMBDA(int icol)
     {
         // Loop over all layers in serial (due to accumulative
         // product), starting at 2 (second highest) layer because the
         // highest is assumed to have no clouds
-        for(int ilay = 2; ilay <= nlay; ++ilay) {
+        for(int ilay = 1; ilay < nlay; ++ilay) {
             // Only do the calculation if certain conditions are met
             if((qc(icol, ilay) + qi(icol, ilay)) > q_threshold &&
                (cldfrac_tot(icol, ilay) > cldfrac_tot_threshold)) {
@@ -1166,6 +1219,7 @@ compute_aerocom_cloudtop (int ncol, int nlay, const real2d &tmid, const real2d &
                 /* We need to convert nc from 1/mass to 1/volume first, and
                  * from grid-mean to in-cloud, but after that, the
                  * calculation follows the general logic */
+                // AML NOTE: p_del/z_del/g should be replaced with RHO for our dycore
                 auto cdnc = nc(icol, ilay) * p_del(icol, ilay) /
                             z_del(icol, ilay) / CONST_GRAV /
                             cldfrac_tot(icol, ilay);
