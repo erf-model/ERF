@@ -52,12 +52,6 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
             // If covered cells are accounted for in this loop, a FPE arises
             // since apnorm is zero.
 
-            // SK **********************************************************************
-            if(i==60 && j==67 && k==4) {
-               Print()<<"SK: EBToPolygon: flag(i,j,k).isSingleValued() = "<< flag(i,j,k).isSingleValued() <<std::endl;
-            }
-            // SK **********************************************************************
-
             if(flag(i,j,k).isSingleValued()) {
 
                // Boundary normal vector
@@ -98,16 +92,6 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
                vertex[5] = {problo[0] + static_cast<Real>(i+1)*dx[0], problo[1] + static_cast<Real>(j  )*dx[1], problo[2] + static_cast<Real>(k+1)*dx[2]};
                vertex[6] = {problo[0] + static_cast<Real>(i  )*dx[0], problo[1] + static_cast<Real>(j+1)*dx[1], problo[2] + static_cast<Real>(k+1)*dx[2]};
                vertex[7] = {problo[0] + static_cast<Real>(i+1)*dx[0], problo[1] + static_cast<Real>(j+1)*dx[1], problo[2] + static_cast<Real>(k+1)*dx[2]};
-
-               // SK **********************************************************************
-               if(i==60 && j==67 && k==4) {
-                  Print()<<"SK: EBToPolygon: normal    = "<< normal[0]<<" "<< normal[1]<<" "<< normal[2]<<std::endl;
-                  Print()<<"SK: EBToPolygon: centroid  = "<< centroid[0]<<" "<< centroid[1]<<" "<< centroid[2]<<std::endl;
-                  for (int ll=0; ll<8; ll++) {
-                     Print()<<"SK: EBToPolygon: vertex["<<ll<<"] = "<< vertex[ll][0]<<" "<< vertex[ll][1]<<" "<< vertex[ll][2]<<std::endl;  
-                  }                  
-               }
-               // SK **********************************************************************
 
                // NOTE: this seems to be unnecessary:
                // skip cells that have a tiny intersection and cells that have
@@ -171,12 +155,6 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
                // I know this was a bit of a hack, but it's the only way I prevent
                // missing facets...
 
-               // // SK **********************************************************************
-               // if(i==60 && j==67 && k==4) {
-               //    Print()<<"SK: EBToPolygon: count = "<< count<<std::endl;
-               // }
-               // // SK **********************************************************************
-
                if((count >=3) && (count <=6)) {
                   m_connectivity.push_back({0,0,0,0,0,0,0});
 
@@ -202,16 +180,6 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
                      a_points[11][idim] = vertex[4][idim] + jhat[idim]*dx[1]*alpha[11];
                   }
 
-                  // SK **********************************************************************
-                  if(i==60 && j==67 && k==4) {
-                     for (int ll=0; ll<12; ++ll) {
-                        // Print()<<"SK: EBToPolygon: alpha_intersect["<<ll<<"] = "<< alpha_intersect[ll]<<" alpha["<<ll<<"] = "<< alpha[ll]<<" a_points["<<ll<<"] = "<< a_points[ll][0]<<" "<<a_points[ll][1]<<" "<<a_points[ll][2]<<std::endl;
-                        Print()<<"SK: EBToPolygon: alpha_intersect["<<ll<<"] = "<< alpha_intersect[ll]<<" alpha["<<ll<<"] = "<< alpha[ll]<<std::endl;
-                     }
-                     // Abort("EBToPolygon");
-                  }
-                  // SK **********************************************************************
-
                   // store intersections with grid cell alpha in [0,1]
                   for(int lc1 = 0; lc1 < 12; ++lc1) {
                      if(alpha_intersect[lc1]) {
@@ -223,14 +191,6 @@ void eb_::EBToPVD::EBToPolygon(const Real* problo, const Real* dx,
                   }
 
                   reorder_polygon(m_points, m_connectivity.back(), n0);
-
-                  // SK **********************************************************************
-                  if(i==60 && j==67 && k==4) {
-                     for (int ll=0; ll<count; ++ll) {
-                        Print()<<"SK: EBToPolygon: m_points["<<ll<<"] = "<< m_points[ll][0]<<" "<<m_points[ll][1]<<" "<<m_points[ll][2]<<std::endl;  
-                     }                     
-                  }
-                  // SK **********************************************************************
                }
             }
          }
@@ -437,9 +397,6 @@ void eb_::EBToPVD::calc_intersects(int& int_count, std::array<bool,12>& intersec
    std::fill(intersects_flags.begin(), intersects_flags.end(), false);
 
    for(int lc1 = 0; lc1 < 12; ++lc1) {
-      // // SK ******************************************************************************
-      // Print()<<"SK: calc_intersects: lc1 = "<<lc1<<" alpha[lc1] = "<<alpha[lc1]<<" intersects(alpha[lc1]) = "<<intersects(alpha[lc1])<<std::endl;
-      // // SK ******************************************************************************
       if(intersects(alpha[lc1])) {
          ++int_count;
          intersects_flags[lc1] = true;
