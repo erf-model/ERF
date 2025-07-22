@@ -233,6 +233,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     Vector<MultiFab> phi_sub; phi_sub.resize(1);
     Vector<Array<MultiFab,AMREX_SPACEDIM> > fluxes_sub; fluxes_sub.resize(1);
 
+    MultiFab ax_sub, ay_sub, znd_sub;
+
     for (int i = 0; i < subdomains[lev].size(); ++i)
     {
         if (mg_verbose > 0) {
@@ -284,6 +286,22 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             fluxes_sub[0][2].setFab(mfi,FArrayBox(fluxes[0][2][orig_index], amrex::make_alias, 0, 1));
         }
 
+        if (solverChoice.mesh_type == MeshType::VariableDz) {
+           ax_sub.define(convert(ba_sub,IntVect(1,0,0)), DistributionMapping(dm_sub), 1,
+                         ax[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
+           ay_sub.define(convert(ba_sub,IntVect(0,1,0)), DistributionMapping(dm_sub), 1,
+                         ay[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
+           znd_sub.define(convert(ba_sub,IntVect(1,1,1)), DistributionMapping(dm_sub), 1,
+                          z_phys_nd[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
+
+           for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
+               int orig_index = index_map[mfi.index()];
+               ax_sub.setFab(mfi, FArrayBox((*ax[lev])[orig_index], amrex::make_alias, 0, 1));
+               ay_sub.setFab(mfi, FArrayBox((*ay[lev])[orig_index], amrex::make_alias, 0, 1));
+               znd_sub.setFab(mfi, FArrayBox((*z_phys_nd[lev])[orig_index], amrex::make_alias, 0, 1));
+           }
+        }
+
         if (lev > 0) {
            amrex::Print() << "RHSSUB BA " << rhs_sub[0].boxArray() << std::endl;
         }
@@ -327,8 +345,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 #ifndef ERF_USE_FFT
         amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT solver");
 #else
-        Box my_region(ba_tmp[0].minimalBox());
-        bool boxes_make_rectangle = (my_region.numPts() == ba_tmp[0].numPts());
+        Box my_region(subdomains[lev][i].minimalBox());
+        bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][i].numPts());
         if (!boxes_make_rectangle) {
             amrex::Abort("FFT won't work unless the union of boxes is rectangular");
         } else {
@@ -345,12 +363,12 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     // ****************************************************************************
     else if (solverChoice.mesh_type == MeshType::VariableDz) {
 #ifdef ERF_USE_FFT
-        Box my_region(ba_tmp[0].minimalBox());
-        bool boxes_make_rectangle = (my_region.numPts() == ba_tmp[0].numPts());
+        Box my_region(subdomains[lev][i].minimalBox());
+        bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][i].numPts());
         if (!boxes_make_rectangle) {
             amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
         } else {
-            solve_with_gmres(lev, rhs, phi, fluxes);
+            solve_with_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0], ax_sub, ay_sub, znd_sub);
         }
 #else
         amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT preconditioner for GMRES");
