@@ -8,7 +8,6 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent = 195000. 	143000. 	20500.
 amr.n_cell           = 195   	143   		69
-#amr.blocking_factor  = 1
 
 geometry.is_periodic = 0 0 0
 
@@ -21,7 +20,8 @@ zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt           = 3.0  # fixed time step depending on grid resolution
+erf.fixed_dt           = 1.0  # fixed time step depending on grid resolution
+erf.fixed_fast_dt      = 0.25
     
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -46,17 +46,17 @@ erf.plot_vars_1     = density rhoQ1 x_velocity y_velocity z_velocity pressure te
 #erf.plot_vars_2     = density rhoQ1 x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys qt qp qv qc
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
 
-erf.use_terrain = true
+erf.terrain_type = StaticFittedMesh
 
 erf.moisture_model = "Kessler"
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "Constant"
-erf.dynamicViscosity = 5.0
+erf.dynamic_viscosity = 5.0
+erf.alpha_T = 5.0
+erf.alpha_C = 5.0
 
 #erf.use_coriolis = true
 #erf.abl_driver_type = "GeostrophicWind"
