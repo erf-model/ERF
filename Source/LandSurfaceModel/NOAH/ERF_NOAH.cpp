@@ -195,7 +195,7 @@ NOAH::Advance_With_State (const int& lev,
     // Loop over blocks to copy forcing data to Noahmp, drive the land model,
     // and copy data back to ERF Multifabs.
     int idb = 0;
-    for (amrex::MFIter mfi(xvel_in, false); mfi.isValid(); ++mfi, ++idb) {
+    for (amrex::MFIter mfi(cons_in, false); mfi.isValid(); ++mfi, ++idb) {
 
         const amrex::Box& bx = mfi.tilebox();
 
@@ -214,8 +214,8 @@ NOAH::Advance_With_State (const int& lev,
             // Copy forcing data from ERF to Noahmp.
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
             {
-                noahmpio->U_PHY(i,1,j) = U_PHY(i,j,0);
-                noahmpio->V_PHY(i,1,j) = V_PHY(i,j,0);
+                noahmpio->U_PHY(i,1,j) = 0.5*(U_PHY(i,j,0)+U_PHY(i-1,j,0));
+                noahmpio->V_PHY(i,1,j) = 0.5*(V_PHY(i,j,0)+V_PHY(i,j-1,0));
                 noahmpio->T_PHY(i,1,j) = QV_TH(i,j,0,RhoTheta_comp)/QV_TH(i,j,0,Rho_comp);
                 noahmpio->QV_CURR(i,1,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
 
@@ -232,6 +232,7 @@ NOAH::Advance_With_State (const int& lev,
                 SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
                 EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
             });
+            noahmpio->WriteLand(nstep+1);
 
         }
     }
