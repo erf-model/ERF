@@ -34,6 +34,9 @@ Radiation::Radiation (const int& lev,
     // Construct parser object for following reads
     ParmParse pp("erf");
 
+    // Must specify a surface temp without a LSM
+    if (!m_lsm) { pp.get("rad_t_sfc",m_rad_t_sfc); }
+
     // Radiation timestep, as a number of atm steps
     pp.query("rad_freq_in_steps", m_rad_freq_in_steps);
 
@@ -121,6 +124,7 @@ Radiation::set_grids (int& level,
                       MultiFab* cons_in,
                       MultiFab* lsm_fluxes,
                       MultiFab* lsm_zenith,
+                      Vector<MultiFab*>& lsm_input_ptrs,
                       MultiFab* qheating_rates,
                       MultiFab* z_phys,
                       MultiFab* lat,
@@ -178,7 +182,7 @@ Radiation::set_grids (int& level,
         alloc_buffers();
 
         // Fill the KOKKOS Views from AMReX MFs
-        mf_to_kokkos_buffers();
+        mf_to_kokkos_buffers(lsm_input_ptrs);
 
         // Initialize datalog MF on first step
         if (m_first_step) {
@@ -420,7 +424,7 @@ Radiation::dealloc_buffers ()
 
 
 void
-Radiation::mf_to_kokkos_buffers ()
+Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
 {
     bool moist = m_moist;
     bool ice   = m_ice;
@@ -430,6 +434,7 @@ Radiation::mf_to_kokkos_buffers ()
     Real dz    = m_geom.CellSize(2);
     Real cons_lat = m_lat_cons;
     Real cons_lon = m_lon_cons;
+    Real rad_t_sfc = m_rad_t_sfc;
     for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
         const auto& vbx  = mfi.validbox();
         const int nx     = vbx.length(0);
@@ -503,15 +508,10 @@ Radiation::mf_to_kokkos_buffers ()
             if (k==0) {
                 lat(icol) = (m_lat) ? lat_arr(i,j,0) : cons_lat;
                 lon(icol) = (m_lon) ? lon_arr(i,j,0) : cons_lon;
-
-                if (!lsm) {
-                    // No LSM, use temperature at bottom w-face
-                    t_sfc(icol) = t_lev(icol, 0);
-                }
             }
 
         });
-    }
+    } // mfi
 
     // EAMXX delP is positive
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
@@ -520,8 +520,11 @@ Radiation::mf_to_kokkos_buffers ()
         p_del(icol,ilay)  = std::abs(p_lev(icol,ilay+1) - p_lev(icol,ilay));
     });
 
-    // Populate vars LSM would provide
+    // Populate vars from LSM
     if (!lsm) {
+        // Parsed surface temp
+        Kokkos::deep_copy(t_sfc, rad_t_sfc);
+
         // EAMXX dummy atmos constants
         Kokkos::deep_copy(sfc_alb_dir_vis, 0.06);
         Kokkos::deep_copy(sfc_alb_dir_nir, 0.06);
@@ -533,14 +536,48 @@ Radiation::mf_to_kokkos_buffers ()
         //
         // Current EAMXX constants
         Kokkos::deep_copy(emis_sfc, 0.98);
-        Kokkos::deep_copy(lw_src, 0.0);
-    }
+        Kokkos::deep_copy(lw_src  , 0.0 );
+    } else {
+        Vector<real1d_k> rrtmgp_in_vars = {t_sfc, sfc_emis,
+                                           sfc_alb_dir_vis, sfc_alb_dir_nir,
+                                           sfc_alb_dif_vis, sfc_alb_dif_nir};
+        Vector<Real> rrtmgp_default_vals = {rad_t_sfc, 0.98,
+                                            0.06, 0.06,
+                                            0.06, 0.06};
+        for (int ivar(0); ivar<lsm_input_ptrs.size(); ivar++) {
+            auto rrtmgp_to_fill = rrtmgp_in_vars[ivar];
+            if (!lsm_input_ptrs[ivar]) {
+                Kokkos::deep_copy(rrtmgp_to_fill, rrtmgp_default_vals[ivar]);
+            } else {
+                for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
+                    const auto& vbx  = mfi.validbox();
+                    const auto& sbx  = makeSlab(vbx,2,vbx.smallEnd(2));
+                    const int nx     = vbx.length(0);
+                    const int imin   = vbx.smallEnd(0);
+                    const int jmin   = vbx.smallEnd(1);
+                    const int offset = m_col_offsets[mfi.index()];
+                    const Array4<const Real>& lsm_in_arr = lsm_input_ptrs[ivar]->const_array(mfi);
+                    ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        // map [i,j,k] 0-based to [icol, ilay] 0-based
+                        const int icol   = (j-jmin)*nx + (i-imin) + offset;
+
+                        // 2D mf and 1D view
+                        rrtmgp_to_fill(icol) = lsm_in_arr(i,j,k);
+                    });
+                } //mfi
+            } // valid lsm ptr
+        } // ivar
+        Kokkos::deep_copy(lw_src, 0.0 );
+    } // have lsm
 }
 
 
 void
-Radiation::kokkos_buffers_to_mf ()
+Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
 {
+    // Heating rate, fluxes, zenith, lsm ptrs
+    Vector<real2d_k> rrtmgp_out_vars = {sw_flux_dn, lw_flux_dn};
     for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
         const auto& vbx      = mfi.validbox();
         const auto& sbx      = makeSlab(vbx,2,vbx.smallEnd(2));
@@ -568,8 +605,8 @@ Radiation::kokkos_buffers_to_mf ()
             const Array4<Real>& lsm_arr =  m_lsm_fluxes->array(mfi);
             ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                // map [i,j,k] 0-based to [icol, ilay] 1-based
-                const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
+                // map [i,j,k] 0-based to [icol, ilay] 0-based
+                const int icol = (j-jmin)*nx + (i-imin) + offset;
 
                 // SW fluxes for LSM
                 lsm_arr(i,j,k,0) = sfc_flux_dir_vis(icol);
@@ -582,7 +619,7 @@ Radiation::kokkos_buffers_to_mf ()
                                  + sfc_flux_dif_vis(icol) + sfc_flux_dif_nir(icol);
 
                 // LW flux for LSM (at bottom surface)
-                lsm_arr(i,j,k,5) = lw_flux_dn(icol,1);
+                lsm_arr(i,j,k,5) = lw_flux_dn(icol,0);
 
             });
         }
@@ -590,14 +627,28 @@ Radiation::kokkos_buffers_to_mf ()
             const Array4<Real>& lsm_zenith_arr =  m_lsm_zenith->array(mfi);
             ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                // map [i,j,k] 0-based to [icol, ilay] 1-based
-                const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
+                // map [i,j,k] 0-based to [icol, ilay] 0-based
+                const int icol = (j-jmin)*nx + (i-imin) + offset;
 
                 // export cosine zenith angle for LSM
                 lsm_zenith_arr(i,j,k) = mu0(icol);
             });
         }
-    }
+        for (int ivar(0); ivar<lsm_output_ptrs.size(); ivar++) {
+            auto rrtmgp_for_fill = rrtmgp_out_vars[ivar];
+            if (lsm_output_ptrs[ivar]) {
+                const Array4<Real>& lsm_out_arr = lsm_output_ptrs[ivar]->array(mfi);
+                ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    // map [i,j,k] 0-based to [icol, ilay] 0-based
+                    const int icol   = (j-jmin)*nx + (i-imin) + offset;
+
+                    // export the desired variable at surface
+                    lsm_out_arr(i,j,k) = rrtmgp_for_fill(icol,0);
+                });
+            } // valid ptr
+        } // ivar
+    }// mfi
 }
 
 void
@@ -1089,14 +1140,14 @@ Radiation::run_impl ()
 
 
 void
-Radiation::finalize_impl ()
+Radiation::finalize_impl (Vector<MultiFab*>& lsm_output_ptrs)
 {
     // Finish rrtmgp
     m_gas_concs.reset();
     rrtmgp::rrtmgp_finalize();
 
     // Fill the AMReX MFs from Kokkos Views
-    kokkos_buffers_to_mf();
+    kokkos_buffers_to_mf(lsm_output_ptrs);
 
     // Write fluxes if requested
     if (m_rad_write_fluxes) { write_rrtmgp_fluxes(); }
