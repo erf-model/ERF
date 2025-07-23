@@ -414,7 +414,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                   {
                       int li = amrex::min(amrex::max(i, i_lo), i_hi);
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                      dst_arr(i,j,0) = static_cast<int>(src_arr(li,lj,0));
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
                   });
               }
               (sst_lev[lev][0])->FillBoundary(geom[lev].periodicity());
@@ -431,7 +431,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                   {
                       int li = amrex::min(amrex::max(i, i_lo), i_hi);
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                      dst_arr(i,j,0) = static_cast<int>(src_arr(li,lj,0));
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
                   });
               }
               (tsk_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
