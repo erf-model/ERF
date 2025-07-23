@@ -1886,6 +1886,9 @@ ERF::ReadParameters ()
         pp.query("real_width", real_width);
         pp.query("real_set_width", real_set_width);
 
+        // If using real boundaries, do we extrapolate w (or set to 0)
+        pp.query("real_extrap_w", real_extrap_w);
+
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);
         pp.query("cf_set_width", cf_set_width);
