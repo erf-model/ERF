@@ -341,6 +341,7 @@ ERF::ERF_shared ()
     mf_C1H.resize(nlevs_max);
     mf_C2H.resize(nlevs_max);
     mf_MUB.resize(nlevs_max);
+    mf_PSFC.resize(nlevs_max);
 
     // Map factors
     mapfac.resize(nlevs_max);
@@ -1568,7 +1569,7 @@ ERF::init_only (int lev, Real time)
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
-        init_from_wrfinput(lev, *mf_C1H[lev], *mf_C2H[lev], *mf_MUB[lev]);
+        init_from_wrfinput(lev, *mf_C1H[lev], *mf_C2H[lev], *mf_MUB[lev], *mf_PSFC[lev]);
         if (lev==0) {
             if ((start_time > 0) && (start_time != t_new[lev])) {
                 Print() << "Ignoring specified start_time="

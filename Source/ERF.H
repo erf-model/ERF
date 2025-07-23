@@ -468,7 +468,11 @@ public:
 #endif
 
 #ifdef ERF_USE_NETCDF
-    void init_from_wrfinput (int lev, amrex::MultiFab& mu_C1H, amrex::MultiFab& mu_C2H, amrex::MultiFab& mu_MUB);
+    void init_from_wrfinput (int lev,
+                             amrex::MultiFab& mu_C1H,
+                             amrex::MultiFab& mu_C2H,
+                             amrex::MultiFab& mu_MUB,
+                             amrex::MultiFab& mu_PSFC);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
 #endif // ERF_USE_NETCDF
@@ -1097,6 +1101,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C1H;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C2H;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_MUB;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_PSFC;
 
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;
