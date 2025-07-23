@@ -1,18 +1,19 @@
 #ifndef ERF_WEATHERDATAINTERPOLATION_H_
 #define ERF_WEATHERDATAINTERPOLATION_H_
-
-#include "ERF.H"
-
 /**
  * Trilinear interpolation of weather forecast data onto the simulation mesh
  * The coarse weather forecast data is interpolated in time first to get the forecast
  * at the current time, and then spatially interpolated onto the simulation mesh
  */
 
+#include <filesystem>
+#include <stdexcept>
+#include "ERF.H"
 #include "ERF_ReadCustomBinaryIC.H"
 #include "ERF_Interpolation_Bilinear.H"
 
 using namespace amrex;
+namespace fs = std::filesystem;
 
 void fill_weather_data_multifab(MultiFab& mf,
      const Geometry& geom_weather,
@@ -262,7 +263,7 @@ find_bound_idx(const Real& x, const Real& y, const Real& z,
 
 void
 ERF::interp_weather_data_onto_mesh (const Geometry& geom_weather,
-                                       MultiFab& weather_forecast_data)
+                                    MultiFab& weather_forecast_interp)
 {
     ParmParse pp_erf("erf");
     bool is_lateral_sponges_hurricanes = false;
@@ -282,7 +283,7 @@ ERF::interp_weather_data_onto_mesh (const Geometry& geom_weather,
         }
     }
 
-    MultiFab& weather_mf    = weather_forecast_data;
+    MultiFab& weather_mf    = weather_forecast_interp;
     MultiFab& erf_mf_cons   = initial_state[0][Vars::cons];
     MultiFab& erf_mf_xvel   = initial_state[0][Vars::xvel];
     MultiFab& erf_mf_yvel   = initial_state[0][Vars::yvel];
@@ -473,11 +474,47 @@ ERF::WeatherDataInterpolation(const Real time)
     }
 
     if (time >= next_read_forecast_time) {
+
+        std::string folder = "WeatherData";
+
+        // Check if folder exists and is a directory
+        if (!fs::exists(folder) || !fs::is_directory(folder)) {
+            throw std::runtime_error("Error: Folder '" + folder + "' does not exist or is not a directory.");
+        }
+
+        std::vector<std::string> bin_files;
+
+        for (const auto& entry : fs::directory_iterator(folder)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".bin") {
+                bin_files.push_back(entry.path().string());
+            }
+        }
+
+    // Check if no .bin files were found
+        if (bin_files.empty()) {
+            throw std::runtime_error("Error: No .bin files found in folder '" + folder + "'.");
+        }
+
+        // Optional: print them
+        for (const auto& file : bin_files) {
+            std::cout << file << "\n";
+        }
+
         std::string filename1, filename2;
         Vector<MultiFab> weather_forecast_data_1, weather_forecast_data_2;
         amrex::Geometry geom_weather;
         BoxArray nba;
         DistributionMapping dm;
+
+        int idx1 = static_cast<int>(time / 10800.0);
+        int idx2 = static_cast<int>(time / 10800.0)+1;
+
+        if (idx2 >= static_cast<int>(bin_files.size())) {
+            throw std::runtime_error("Error: Not enough .bin files to cover time " + std::to_string(time));
+        }
+
+        filename1 = bin_files[idx1];
+        filename2 = bin_files[idx2];
 
         //Read in weather_forecast_1
         init_coarse_weather_data(filename1,
@@ -504,7 +541,6 @@ ERF::WeatherDataInterpolation(const Real time)
                           alpha1, weather_forecast_data_1[0], 0,
                           alpha2, weather_forecast_data_2[0], 0,
                              0, ncomp, 0);
-
 
         //Interpolate in space to get the erf_forecast_interp
         interp_weather_data_onto_mesh(geom_weather, weather_forecast_interp);
