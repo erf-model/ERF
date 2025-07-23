@@ -449,11 +449,11 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
                 const Array4<Real>& tau_fx   = mf_cc_fx[lev].array(mfi);
                 ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    tau_fx(i, j, k, 0) = 0.5 * (hfx1(i, j, k) + hfx1(i+1, j  , k));
-                    tau_fx(i, j, k, 1) = 0.5 * (hfx2(i, j, k) + hfx2(i  , j+1, k));
+                    tau_fx(i, j, k, 0) = (hfx1) ? 0.5 * (hfx1(i, j, k) + hfx1(i+1, j  , k)) : 0.0;
+                    tau_fx(i, j, k, 1) = (hfx2) ? 0.5 * (hfx2(i, j, k) + hfx2(i  , j+1, k)) : 0.0;
                     tau_fx(i, j, k, 2) = 0.5 * (hfx3(i, j, k) + hfx3(i  , j  , k+1));
-                    tau_fx(i, j, k, 3) = 0.5 * (q1fx1(i, j, k) + q1fx1(i+1, j  , k));
-                    tau_fx(i, j, k, 4) = 0.5 * (q1fx2(i, j, k) + q1fx2(i  , j+1, k));
+                    tau_fx(i, j, k, 3) = (q1fx1) ? 0.5 * (q1fx1(i, j, k) + q1fx1(i+1, j  , k)) : 0.0;
+                    tau_fx(i, j, k, 4) = (q1fx2) ? 0.5 * (q1fx2(i, j, k) + q1fx2(i  , j+1, k)) : 0.0;
                     tau_fx(i, j, k, 5) = 0.5 * (q1fx3(i, j, k) + q1fx3(i  , j  , k+1));
                     tau_fx(i, j, k, 6) = 0.5 * (q2fx3(i, j, k) + q2fx3(i  , j  , k+1));
                 }); 

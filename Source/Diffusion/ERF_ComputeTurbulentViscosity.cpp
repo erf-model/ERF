@@ -30,7 +30,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                    Vector<std::unique_ptr<MultiFab>>& mapfac,
                                    const std::unique_ptr<MultiFab>& z_phys_nd,
                                    const TurbChoice& turbChoice, const Real const_grav,
-                                   std::unique_ptr<SurfaceLayer>& /*SurfLayer*/)
+                                   std::unique_ptr<SurfaceLayer>& SurfLayer)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const Box& domain = geom.Domain();
@@ -74,6 +74,15 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
 
             Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
+
+            if (SurfLayer) {
+                // TODO: fix - this adjusts the box if using SurfLayer on all sides to avoid overwriting hfx,hfy,hfz on each sides
+                bxcc.growLo(0, -1);
+                bxcc.growHi(0, -1);
+                bxcc.growLo(1, -1);
+                bxcc.growHi(1, -1);
+                bxcc.growLo(2, -1);
+            }
 
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {

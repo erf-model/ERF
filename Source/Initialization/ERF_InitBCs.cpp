@@ -423,34 +423,34 @@ void ERF::init_bcs ()
                     if (dir == 0) {
                         // xlo
                         domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::ext_dir);
-                        domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::foextrap);
-                        domain_bcs_type[BCVars::xvel_bc+2].setLo(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::hoextrap);
+                        domain_bcs_type[BCVars::xvel_bc+2].setLo(dir, ERFBCType::hoextrap);
                     } else if (dir == 1) {
                         // ylo
-                        domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::hoextrap);
                         domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::ext_dir);
-                        domain_bcs_type[BCVars::xvel_bc+2].setLo(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+2].setLo(dir, ERFBCType::hoextrap);
                     } else {
                         // zlo
-                        domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::foextrap);
-                        domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::hoextrap);
+                        domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::hoextrap);
                         domain_bcs_type[BCVars::xvel_bc+2].setLo(dir, ERFBCType::ext_dir);
                     }
                 } else {
                     if (dir == 0) {
                         // xhi
                         domain_bcs_type[BCVars::xvel_bc+0].setHi(dir, ERFBCType::ext_dir);
-                        domain_bcs_type[BCVars::xvel_bc+1].setHi(dir, ERFBCType::foextrap);
-                        domain_bcs_type[BCVars::xvel_bc+2].setHi(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+1].setHi(dir, ERFBCType::hoextrap);
+                        domain_bcs_type[BCVars::xvel_bc+2].setHi(dir, ERFBCType::hoextrap);
                     } else if (dir == 1) {
                         // yhi
-                        domain_bcs_type[BCVars::xvel_bc+0].setHi(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+0].setHi(dir, ERFBCType::hoextrap);
                         domain_bcs_type[BCVars::xvel_bc+1].setHi(dir, ERFBCType::ext_dir);
-                        domain_bcs_type[BCVars::xvel_bc+2].setHi(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+2].setHi(dir, ERFBCType::hoextrap);
                     } else {
                         // zhi
-                        domain_bcs_type[BCVars::xvel_bc+0].setHi(dir, ERFBCType::foextrap);
-                        domain_bcs_type[BCVars::xvel_bc+1].setHi(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::xvel_bc+0].setHi(dir, ERFBCType::hoextrap);
+                        domain_bcs_type[BCVars::xvel_bc+1].setHi(dir, ERFBCType::hoextrap);
                         domain_bcs_type[BCVars::xvel_bc+2].setHi(dir, ERFBCType::ext_dir);
                     }
                 }
@@ -672,11 +672,11 @@ void ERF::init_bcs ()
                 //AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
                 if (side == Orientation::low) {
                     for (int i = 0; i < NBCVAR_max; i++) {
-                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::hoextrap);
                     }
                 } else {
                     for (int i = 0; i < NBCVAR_max; i++) {
-                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::hoextrap);
                     }
                 }
             }
