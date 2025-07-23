@@ -58,7 +58,7 @@ SurfaceLayer::update_fluxes (const int& lev,
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             update_surf_temp(time);
             if (rough_type_land == RoughCalcType::CONSTANT) {
-              surface_temp most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
+              surface_temp most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux, m_face.coordDir(), m_face.isLow());
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
@@ -317,7 +317,8 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                        const MultiFab* z_phys)
 {
     if (flux_type == FluxCalcType::MOENG) {
-        moeng_flux flux_comp;
+        amrex::Real wsmin = 0.1; // TODO: change for different faces
+        moeng_flux flux_comp(wsmin, m_face.isLow());
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,

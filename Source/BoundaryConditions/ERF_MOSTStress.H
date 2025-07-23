@@ -974,12 +974,16 @@ struct surface_temp
     surface_temp (amrex::Real zref,
                   amrex::Real Tflux,
                   amrex::Real Qvflux,
-                  bool cons_qflux)
+                  bool cons_qflux,
+                  int face_dir,
+                  bool face_is_low)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
         spec_qflux = cons_qflux;
+        dir = face_dir;
+        is_low = face_is_low;
     }
 
     AMREX_GPU_DEVICE
@@ -1016,6 +1020,21 @@ struct surface_temp
         amrex::Real psi_h = 0.0;
         amrex::Real Olen  = 0.0;
         amrex::Real Oleno = 0.0;
+        amrex::Real t_surf = t_surf_arr(i,j,k);
+        amrex::Real t_mean = tm_arr(i,j,k);
+        amrex::Real tvm    = tvm_arr(i,j,k);
+        amrex::Real q_surf = q_surf_arr(i,j,k);
+        amrex::Real q_mean = qvm_arr(i,j,k);
+
+        if (dir == 2 && !is_low) {
+            // On the hi-Z face, swap surf and mean values to force unstable condition
+            tvm = t_surf_arr(i,j,k) * (1.0 + 0.61*q_surf_arr(i,j,k));
+            t_mean = t_surf;
+            t_surf = tm_arr(i,j,k);
+            q_mean = q_surf;
+            q_surf = qvm_arr(i,j,k);
+        }
+
         // NOTE: umm here will be either mean x/y velocity if on a Z-face, x/z velocity if on a Y-face, or y/z velocity if on an X-face
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == 1.E34) {
@@ -1024,26 +1043,30 @@ struct surface_temp
             Olen  = olen_arr(i,j,k);
             Oleno = Olen;
             zeta  = mdata.zref / Olen;
+            if (dir != 2) {
+                // side faces: set zeta = 0.0 (neutral)
+                zeta = 0.0;
+            }
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
         }
         do {
             ustar = u_star_arr(i,j,k);
-            tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
+            tflux = -(t_mean - t_surf) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'T'>
-            tflux *= (1 + 0.61*qvm_arr(i,j,k));
+            tflux *= (1 + 0.61*q_surf);
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
-                                 -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                                 -(q_mean - q_surf) * ustar * mdata.kappa /
                                   (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
-            tflux += 0.61*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
+            tflux += 0.61*t_mean * qflux; // ~= <w'Tv'>
             if (w_star_arr) {
                 // update w* and Umagmean
-                w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+                w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm);
                 wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
                 umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
                 umm = std::max(umm, WSMIN);
             }
-            Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
+            Olen = -ustar * ustar * ustar * tvm / (mdata.kappa * mdata.gravity * tflux);
             if ( (((Olen >= 0.0) && (Oleno <= 0.0)) ||
                   ((Olen <= 0.0) && (Oleno >= 0.0))) &&
                  std::fabs(Olen) + std::fabs(Oleno) < 1.) {
@@ -1057,6 +1080,11 @@ struct surface_temp
             } else {  // Unstable
                 zeta = std::max(-100.0, std::min(zeta, -0.01));
             }
+            if (dir != 2) {
+                // side faces: set zeta = 0.0 (neutral)
+                zeta = 0.0;
+            }
+
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
             u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0_arr(i,j,k)) - psi_m);
@@ -1064,15 +1092,15 @@ struct surface_temp
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
         AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
-        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
+        t_star_arr(i,j,k) = mdata.kappa * (t_mean - t_surf) /
                             (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
           olen_arr(i,j,k) = Olen;
         if (spec_qflux) {
             q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
-                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
+                                (u_star_arr(i,j,k) * mdata.kappa) + q_mean;
             q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
         } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+            q_star_arr(i,j,k) = mdata.kappa * (q_mean - q_surf) /
                                 (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
         }
     }
@@ -1081,6 +1109,9 @@ private:
     most_data mdata;
     bool spec_qflux;
     similarity_funs sfuns;
+    int dir; // coordinate direction (X,Y,Z)
+    bool is_low = true; // whether this is on the low or hi side face
+
     const amrex::Real tol = 1.0e-5;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
@@ -1578,7 +1609,10 @@ private:
  */
 struct moeng_flux
 {
-    moeng_flux () {}
+    moeng_flux (const amrex::Real wsmin = 0.1, const bool face_is_low = true) {
+        WSMIN = wsmin;
+        is_low = face_is_low;
+    }
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -1623,6 +1657,11 @@ struct moeng_flux
         amrex::Real qv_surf  = q_surf_arr(i,j,k);
         amrex::Real wsp_mean = umm_arr(i,j,k);
         wsp_mean = std::max(wsp_mean, WSMIN);
+        if (dir == 2 && !is_low) {
+            // flip qv_mean and qv_surf for hi-z face
+            qv_mean = qv_surf;
+            qv_surf = qvm_arr(i, j, k);
+        }
 
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * (qv_mean-qv_surf);
@@ -1678,6 +1717,13 @@ struct moeng_flux
         amrex::Real tstar       = t_star_arr(i,j,k);
         amrex::Real theta_surf  = t_surf_arr(i,j,k);
         amrex::Real wsp_mean    = umm_arr(i,j,k);
+
+        if (dir == 2 && !is_low) {
+            // flip theta and surf for hi-z face
+            theta_mean = theta_surf;
+            theta_surf = tm_arr(i, j, k);
+        }
+
         wsp_mean = std::max(wsp_mean, WSMIN);
 
         amrex::Real wsp     = sqrt(velx*velx+vely*vely); // FIX ---
@@ -1820,7 +1866,8 @@ struct moeng_flux
 
 private:
     const amrex::Real     eps = 1e-15;
-    const amrex::Real   WSMIN = 0.1; // minimum wind speed
+    bool is_low = true; // whether this is on the low or hi side face
+    amrex::Real   WSMIN = 0.1; // minimum wind speed
 };
 
 
