@@ -413,9 +413,16 @@ public:
 
     void init_thin_body (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
-    void init_coarse_weather_data();
+    void init_coarse_weather_data(const std::string& filename,
+                                    amrex::Geometry& geom_weather,
+                                    amrex::BoxArray& nba,
+                                    amrex::DistributionMapping& dm,
+                                    amrex::Vector<amrex::MultiFab>& weather_forecast_data);
 
-    void interp_weather_data_onto_mesh();
+    void interp_weather_data_onto_mesh(const amrex::Geometry& geom_weather,
+                                       amrex::MultiFab& weather_forecast_interp);
+
+    void WeatherDataInterpolation(const amrex::Real time);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -888,9 +895,6 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_xforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
-
-    amrex::Vector<amrex::MultiFab> weather_forecast_data;
-    amrex::Geometry geom_weather;
 
     int last_plot_file_step_1;
     int last_plot_file_step_2;
