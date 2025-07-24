@@ -134,8 +134,21 @@ endif()
 ########################## KOKKOS ##################################
 
 if(ERF_ENABLE_KOKKOS)
+
+  if(ERF_ENABLE_CUDA)
+    set(Kokkos_ENABLE_CUDA TRUE)
+    set(Kokkos_ENABLE_CUDA_LAMBDA TRUE)
+    set(Kokkos_ENABLE_CUDA_RELOCATABLE_DEVICE_CODE TRUE)
+  endif()
+
+  if(ERF_ENABLE_HIP)
+    set(Kokkos_ENABLE_HIP TRUE)
+    set(Kokkos_ENABLE_HIP_LAMBDA TRUE)
+  endif()
+
   set(CMAKE_CXX_STANDARD 17)
   add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/kokkos)
+
 endif()
 
 ########################## NETCDF ##################################

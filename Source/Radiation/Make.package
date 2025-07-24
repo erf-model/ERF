@@ -11,7 +11,6 @@ ifeq ($(USE_RRTMGP), TRUE)
     CEXE_sources += ERF_RRTMGP_Interface.cpp
     CEXE_sources += ERF_RRTMGP_Utils.cpp 
     CEXE_sources += ERF_Radiation.cpp 
-    CEXE_sources += ERF_OrbCosZenith.cpp 
 
     # RRTMGP SUBMODULE FILES
     #CEXE_sources += mo_rrtmgp_util_reorder.cpp
