@@ -194,14 +194,16 @@ Radiation::alloc_buffers ()
 {
     // 1d size (m_ngas)
     const Real* mol_weight_gas_p = m_mol_weight_gas.data();
+    const std::string* gas_names_p = m_gas_names.data();
     m_gas_mol_weights = real1d_k("m_gas_mol_weights", m_ngas);
     realHost1d_k m_gas_mol_weights_h("m_gas_mol_weights_h", m_ngas);
     gas_names_offset.clear();
+    std::string gas_names_offset_p = gas_names_offset.data();
     Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, m_ngas),
                          KOKKOS_LAMBDA (int igas)
     {
         m_gas_mol_weights_h(igas) = mol_weight_gas_p[igas];
-        gas_names_offset.push_back(m_gas_names[igas]);
+        gas_names_offset_p->push_back(gas_names_p[igas]);
     });
     Kokkos::deep_copy(m_gas_mol_weights, m_gas_mol_weights_h);
 
@@ -530,7 +532,7 @@ Radiation::mf_to_kokkos_buffers ()
 
                 if (!has_lsm) {
                     // No LSM, use temperature at bottom w-face
-                    t_sfc_d(icol) = t_lev(icol, 0);
+                    t_sfc_d(icol) = t_lev_d(icol, 0);
                 }
             }
 
@@ -959,10 +961,11 @@ Radiation::run_impl ()
         auto name = m_gas_names[igas];
         auto gas_mol_weight = m_mol_weight_gas[igas];
         if (name == "H2O") {
+            auto qv_lay_d = qv_lay;
             Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
                                  KOKKOS_LAMBDA (int icol, int ilay)
             {
-                tmp2d_d(icol,ilay) = qv_lay(icol,ilay) * mwdair/ gas_mol_weight;
+                tmp2d_d(icol,ilay) = qv_lay_d(icol,ilay) * mwdair/ gas_mol_weight;
             });
         } else if (name == "CO2") {
             Kokkos::deep_copy(tmp2d, m_co2vmr);
@@ -970,10 +973,11 @@ Radiation::run_impl ()
             if (m_o3_size==1) {
                 Kokkos::deep_copy(tmp2d, m_o3vmr[0] );
             } else {
+                auto o3_lay_d = o3_lay;
                 Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
                                      KOKKOS_LAMBDA (int icol, int ilay)
                 {
-                    tmp2d_d(icol,ilay) = o3_lay(ilay);
+                    tmp2d_d(icol,ilay) = o3_lay_d(ilay);
                 });
             }
         } else if (name == "N2O") {
@@ -1003,6 +1007,7 @@ Radiation::run_impl ()
         auto h_lat = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), lat);
         auto h_lon = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), lon);
         double dt  = double(m_dt);
+        auto rad_freq_in_steps = m_rad_freq_in_steps;
         Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, ncol),
                              KOKKOS_LAMBDA (int icol)
         {
@@ -1011,7 +1016,7 @@ Radiation::run_impl ()
             double lon_col = h_lon(icol)*PI/180.0;
             double lcalday = calday;
             double ldelta  = delta;
-            h_mu0(icol)    = Real(orbital_cos_zenith(lcalday, lat_col, lon_col, ldelta, m_rad_freq_in_steps * dt));
+            h_mu0(icol)    = Real(orbital_cos_zenith(lcalday, lat_col, lon_col, ldelta, rad_freq_in_steps * dt));
         });
     }
     Kokkos::deep_copy(mu0, h_mu0);
