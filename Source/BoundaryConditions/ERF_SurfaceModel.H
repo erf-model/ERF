@@ -44,7 +44,7 @@ public:
 
             amrex::IntVect ng(1,1,0);
             // Create output arrays for surface boundary condition
-            u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap, 1, ng);
+            u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap, 2, ng);
             t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap, 1, ng);
             q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap, 1, ng);
             t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap, 1, ng);
@@ -96,10 +96,17 @@ public:
      *   ustar, tstar, qstar, tsurf
      * If a field is set to -1, then it is skipped in the weight average.
      */
-    void set_model_fields(SurfaceModelType type, const amrex::Vector<int> &fields)
+    void set_model_fields(SurfaceModelType type, const amrex::Vector<int> &fields, const bool use_fluxes = true)
     {
         int nfields = fields.size();
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nfields >= 4, "Must have at least four fields to average (ustar, tstar, qstar, tsurf)");
+        if (!use_fluxes) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nfields >= 4, "Must have at least four fields to average (ustar, tstar, qstar, tsurf)");
+        } else {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nfields >= 5, "Must have at least five fields to average (u-stress, v-stress, hfx, qfx, tsurf)");
+        }
+
+        // make sure both models are using fluxes, or u*,t*,q* directly
+        AMREX_ALWAYS_ASSERT(use_fluxes == m_export_fluxes);
 
         if (type == SurfaceModelType::LAND) {
             lsm_fields = amrex::Vector<int>(fields);
@@ -121,6 +128,7 @@ public:
      */
     void calculate_weight_average(int lev, amrex::MultiFab* const urban_frac);
 
+    bool are_fluxes() { return m_export_fluxes; }
 
     amrex::MultiFab* get_ustar(const int& lev) {
         return u_star[lev].get();
@@ -152,6 +160,8 @@ private:
     bool m_use_urban = false; // whether we have an urban model
     bool m_use_land = false; // whether we have a LSM
 
+    bool m_export_fluxes = true;
+
     // internal flag to indicate if the weight average has been calculated this time step
     bool m_weights_updated = false;
     
@@ -165,7 +175,8 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  urban_data_lev; // Urban data for each level
 
     // Output weighted averages passed to MOST
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
+    //  These can either be the u*, t*, q* for MOST, or fluxes computed directly from the model
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star; // up to 2 components: X-stress, Y-stress
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_surf;

@@ -102,6 +102,7 @@ public:
       if (m_surf_model) {
           use_surface_model = true;
           amrex::Print() << " Using fluxes from surface model!" << std::endl;
+          surf_model_fluxes = m_surf_model->are_fluxes();
       }
 
       // Get surface temperature
@@ -612,6 +613,7 @@ private:
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;
 
   bool use_surface_model;
+  bool surf_model_fluxes;
   SurfaceModel* m_surf_model;
 };
 
