@@ -5,10 +5,35 @@
 
 
 /**
+ * Modified to include water depth effects
+ * See Jimenez and Dudhia (2018) https://doi.org/10.1175/JAMC-D-17-0137.1
+ */
+struct modified_Charnock_roughness {
+    modified_Charnock_roughness(amrex::Real /*zref*/, amrex::Real depth)
+    : Cnk_b(Cnk_b1 * std::log(Cnk_b2 / depth))
+    {}
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    operator() (amrex::Real& z0,
+                amrex::Real /*umm*/,
+                amrex::Real ustar)
+    {
+        z0 = std::exp( (2.7*ustar - 1.8/Cnk_b) / (ustar + 0.17/Cnk_b) );
+    }
+
+    const amrex::Real Cnk_b;
+
+    static constexpr amrex::Real Cnk_b1{1.0/30.0};  ///< Modified Charnock constants, Eq (4)
+    static constexpr amrex::Real Cnk_b2{1260.0};    ///< Modified Charnock constants, Eq (4)
+};
+
+/**
  * COARE3.0, following WRF phys/module_sf_mynn.F
  */
 struct COARE3_roughness {
-    COARE3_roughness(amrex::Real _zref) : zref(_zref) {}
+    COARE3_roughness(amrex::Real _zref, amrex::Real /*depth*/) : zref(_zref) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -36,7 +61,7 @@ struct COARE3_roughness {
  * phys/module_sf_mynn.F
  */
 struct Donelan_roughness {
-    Donelan_roughness(amrex::Real /*zref*/) {}
+    Donelan_roughness(amrex::Real /*zref*/, amrex::Real /*depth*/) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE

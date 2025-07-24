@@ -97,7 +97,7 @@ struct adiabatic_charnock
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        COARE3_roughness update_roughness(mdata.zref);
+        COARE3_roughness update_roughness(mdata.zref, 0);
 
         int iter = 0;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
@@ -143,10 +143,9 @@ struct adiabatic_mod_charnock
                             amrex::Real depth)
     {
         mdata.zref = zref;
+        mdata.Cnk_d = depth;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
-        mdata.Cnk_d = depth;
-        mdata.Cnk_b = mdata.Cnk_b1 * std::log(mdata.Cnk_b2 / mdata.Cnk_d);
     }
 
     AMREX_GPU_DEVICE
@@ -173,22 +172,22 @@ struct adiabatic_mod_charnock
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
+        modified_Charnock_roughness update_roughness(mdata.zref, mdata.Cnk_d);
+
         int iter = 0;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         amrex::Real ustar = 0.0;
-        amrex::Real z0    = 0.0;
         u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
-            z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
-            u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0);
+            update_roughness(z0_arr(i,j,k), umm_arr(i,j,k), ustar);
+            u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
 
         t_star_arr(i,j,k) = 0.0;
         q_star_arr(i,j,k) = 0.0;
           olen_arr(i,j,k) = 1.0e16;
-            z0_arr(i,j,k) = z0;
     }
 
 private:
@@ -237,7 +236,7 @@ struct adiabatic_donelan
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        Donelan_roughness update_roughness(mdata.zref);
+        Donelan_roughness update_roughness(mdata.zref, 0);
 
         int iter = 0;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
@@ -483,7 +482,7 @@ struct surface_flux_charnock
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        COARE3_roughness update_roughness(mdata.zref);
+        COARE3_roughness update_roughness(mdata.zref, 0);
 
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -570,10 +569,9 @@ struct surface_flux_mod_charnock
                                bool cons_qflux)
     {
         mdata.zref = zref;
+        mdata.Cnk_d = depth;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
-        mdata.Cnk_d = depth;
-        mdata.Cnk_b = mdata.Cnk_b1 * std::log(mdata.Cnk_b2 / mdata.Cnk_d);
         spec_qflux  = cons_qflux;
     }
 
@@ -601,12 +599,13 @@ struct surface_flux_mod_charnock
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
+        modified_Charnock_roughness update_roughness(mdata.zref, mdata.Cnk_d);
+
         int iter = 0;
         amrex::Real ustar = 0.0;
         amrex::Real wstar = 0.0;
         amrex::Real tflux = 0.0;
         amrex::Real qflux = 0.0;
-        amrex::Real z0    = 0.0;
         amrex::Real zeta  = 0.0;
         amrex::Real psi_m = 0.0;
         amrex::Real psi_h = 0.0;
@@ -622,7 +621,7 @@ struct surface_flux_mod_charnock
         }
         do {
             ustar = u_star_arr(i,j,k);
-            z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
+            update_roughness(z0_arr(i,j,k), umm_arr(i,j,k), ustar);
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
                                   (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
@@ -638,16 +637,15 @@ struct surface_flux_mod_charnock
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
-            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0) - psi_m);
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0_arr(i,j,k)) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
         AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
-        t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0) - psi_h) /
+        t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
                             (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
         t_star_arr(i,j,k) = -mdata.surf_temp_flux / u_star_arr(i,j,k);
           olen_arr(i,j,k) = Olen;
-            z0_arr(i,j,k) = z0;
         if (spec_qflux) {
             q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
                                 (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
@@ -707,7 +705,7 @@ struct surface_flux_donelan
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        Donelan_roughness update_roughness(mdata.zref);
+        Donelan_roughness update_roughness(mdata.zref, 0);
 
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -1046,7 +1044,7 @@ struct surface_temp_charnock
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        COARE3_roughness update_roughness(mdata.zref);
+        COARE3_roughness update_roughness(mdata.zref, 0);
 
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -1143,10 +1141,9 @@ struct surface_temp_mod_charnock
                                bool cons_qflux)
     {
         mdata.zref = zref;
+        mdata.Cnk_d = depth;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
-        mdata.Cnk_d = depth;
-        mdata.Cnk_b = mdata.Cnk_b1 * std::log(mdata.Cnk_b2 / mdata.Cnk_d);
         spec_qflux  = cons_qflux;
     }
 
@@ -1174,10 +1171,11 @@ struct surface_temp_mod_charnock
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
+        modified_Charnock_roughness update_roughness(mdata.zref, mdata.Cnk_d);
+
         int iter = 0;
         amrex::Real ustar = 0.0;
         amrex::Real wstar = 0.0;
-        amrex::Real z0    = 0.0;
         amrex::Real tflux = 0.0;
         amrex::Real qflux = 0.0;
         amrex::Real zeta  = 0.0;
@@ -1197,9 +1195,9 @@ struct surface_temp_mod_charnock
         }
         do {
             ustar = u_star_arr(i,j,k);
-            z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
+            update_roughness(z0_arr(i,j,k), umm_arr(i,j,k), ustar);
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0) - psi_h); // <w'T'>
+                     (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'T'>
             tflux *= (1 + 0.61*qvm_arr(i,j,k));
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
@@ -1222,15 +1220,14 @@ struct surface_temp_mod_charnock
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
-            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0) - psi_m);
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0_arr(i,j,k)) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
         AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
         t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
-                            (std::log(mdata.zref / z0) - psi_h);
+                            (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
           olen_arr(i,j,k) = Olen;
-            z0_arr(i,j,k) = z0;
         if (spec_qflux) {
             q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
                                 (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
@@ -1290,7 +1287,7 @@ struct surface_temp_donelan
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        Donelan_roughness update_roughness(mdata.zref);
+        Donelan_roughness update_roughness(mdata.zref, 0);
 
         int iter = 0;
         amrex::Real ustar = 0.0;
