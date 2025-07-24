@@ -13,7 +13,6 @@ struct most_data
 {
 public:
     amrex::Real zref{10.0};           ///< Reference height (m)
-    amrex::Real z0_const{0.1};        ///< Roughness height -- default constant value(m)
     amrex::Real kappa{KAPPA};         ///< von Karman constant
     amrex::Real gravity{CONST_GRAV};  ///< Acceleration due to gravity (m/s^2)
     amrex::Real surf_temp_flux{0.0};  ///< Heat flux
