@@ -197,13 +197,13 @@ Radiation::alloc_buffers ()
     const std::string* gas_names_p = m_gas_names.data();
     m_gas_mol_weights = real1d_k("m_gas_mol_weights", m_ngas);
     realHost1d_k m_gas_mol_weights_h("m_gas_mol_weights_h", m_ngas);
-    gas_names_offset.clear();
-    std::string gas_names_offset_p = gas_names_offset.data();
+    gas_names_offset.clear(); gas_names_offset.resize(m_ngas);
+    std::string* gas_names_offset_p = gas_names_offset.data();
     Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, m_ngas),
                          KOKKOS_LAMBDA (int igas)
     {
         m_gas_mol_weights_h(igas) = mol_weight_gas_p[igas];
-        gas_names_offset_p->push_back(gas_names_p[igas]);
+        gas_names_offset_p[igas]  = gas_names_p[igas];
     });
     Kokkos::deep_copy(m_gas_mol_weights, m_gas_mol_weights_h);
 
@@ -707,6 +707,9 @@ void Radiation::populateDatalogMF ()
     auto lw_clnclrsky_flux_up_d = lw_clnclrsky_flux_up;
     auto lw_clnclrsky_flux_dn_d = lw_clnclrsky_flux_dn;
 
+    auto extra_clnsky_diag = m_extra_clnsky_diag;
+    auto extra_clnclrsky_diag = m_extra_clnclrsky_diag;
+
     for (MFIter mfi(datalog_mf); mfi.isValid(); ++mfi) {
         const auto& vbx      = mfi.validbox();
         const int nx         = vbx.length(0);
@@ -745,7 +748,7 @@ void Radiation::populateDatalogMF ()
             dst_arr(i,j,k,14) = lw_clrsky_flux_dn_d(icol,ilay);
 
             // Clean sky fluxes:
-            if (m_extra_clnsky_diag) {
+            if (extra_clnsky_diag) {
                 dst_arr(i,j,k,15) = sw_clnsky_flux_up_d(icol,ilay);
                 dst_arr(i,j,k,16) = sw_clnsky_flux_dn_d(icol,ilay);
                 dst_arr(i,j,k,17) = sw_clnsky_flux_dn_dir_d(icol,ilay);
