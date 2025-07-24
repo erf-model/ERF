@@ -757,7 +757,7 @@ void Radiation::populateDatalogMF ()
             }
 
             // Clean-clear sky fluxes:
-            if (m_extra_clnclrsky_diag) {
+            if (extra_clnclrsky_diag) {
                 dst_arr(i,j,k,20) = sw_clnclrsky_flux_up_d(icol,ilay);
                 dst_arr(i,j,k,21) = sw_clnclrsky_flux_dn_d(icol,ilay);
                 dst_arr(i,j,k,22) = sw_clnclrsky_flux_dn_dir_d(icol,ilay);
