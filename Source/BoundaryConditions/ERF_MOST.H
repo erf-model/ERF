@@ -2,6 +2,7 @@
 #define ERF_MOST_H
 
 #include <ERF_Constants.H>
+#include <ERF_MOSTRoughness.H>
 
 
 /**
