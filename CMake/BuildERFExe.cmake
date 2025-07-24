@@ -41,10 +41,6 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_FFT)
   endif()
 
-  if(ERF_ENABLE_KOKKOS)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_KOKKOS)
-  endif()
-
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Initialization/ERF_InitFromWRFInput.cpp
