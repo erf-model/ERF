@@ -9,7 +9,7 @@
 typedef double real;
 
 
-AMREX_GPU_HOST_DEVICE
+AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
 orbital_decl (real& calday,
@@ -75,7 +75,7 @@ orbital_decl (real& calday,
 }
 
 
-AMREX_GPU_HOST_DEVICE
+AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
 orbital_params (int& iyear_AD,
@@ -450,7 +450,7 @@ orbital_params (int& iyear_AD,
 }
 
 
-AMREX_GPU_HOST_DEVICE
+AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 real
 orbital_avg_cos_zenith (real& jday,
@@ -553,7 +553,7 @@ orbital_avg_cos_zenith (real& jday,
 }
 
 
-AMREX_GPU_HOST_DEVICE
+AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 real
 orbital_cos_zenith (real& jday,
