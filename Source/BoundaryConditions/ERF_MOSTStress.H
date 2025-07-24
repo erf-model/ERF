@@ -104,11 +104,11 @@ struct adiabatic_charnock
         do {
             ustar = u_star_arr(i,j,k);
             if (mdata.Cnk_a > 0) {
-                Charnock_roughness update_roughness(mdata.zref, 0);
+                CharnockRoughness update_roughness(mdata.zref, 0);
                 update_roughness.visc = mdata.visc;
                 update_roughness(z0_arr(i,j,k), ustar, umm, tm_arr(i,j,k));
             } else {
-                COARE3_roughness update_roughness(mdata.zref, 0);
+                COARE3Roughness update_roughness(mdata.zref, 0);
                 update_roughness(z0_arr(i,j,k), ustar, umm, tm_arr(i,j,k));
             }
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
@@ -168,7 +168,7 @@ struct adiabatic_mod_charnock
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        modified_Charnock_roughness update_roughness(mdata.zref, mdata.Cnk_d);
+        ModifiedCharnockRoughness update_roughness(mdata.zref, mdata.Cnk_d);
 
         int iter = 0;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
@@ -232,7 +232,7 @@ struct adiabatic_donelan
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        Donelan_roughness update_roughness(mdata.zref, 0);
+        DonelanRoughness update_roughness(mdata.zref, 0);
 
         int iter = 0;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
@@ -499,11 +499,11 @@ struct surface_flux_charnock
         do {
             ustar = u_star_arr(i,j,k);
             if (mdata.Cnk_a > 0) {
-                Charnock_roughness update_roughness(mdata.zref, 0);
+                CharnockRoughness update_roughness(mdata.zref, 0);
                 update_roughness.visc = mdata.visc;
                 update_roughness(z0_arr(i,j,k), ustar, umm, tm_arr(i,j,k));
             } else {
-                COARE3_roughness update_roughness(mdata.zref, 0);
+                COARE3Roughness update_roughness(mdata.zref, 0);
                 update_roughness(z0_arr(i,j,k), ustar, umm, tm_arr(i,j,k));
             }
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
@@ -591,7 +591,7 @@ struct surface_flux_mod_charnock
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        modified_Charnock_roughness update_roughness(mdata.zref, mdata.Cnk_d);
+        ModifiedCharnockRoughness update_roughness(mdata.zref, mdata.Cnk_d);
 
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -697,7 +697,7 @@ struct surface_flux_donelan
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        Donelan_roughness update_roughness(mdata.zref, 0);
+        DonelanRoughness update_roughness(mdata.zref, 0);
 
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -1059,11 +1059,11 @@ struct surface_temp_charnock
         do {
             ustar = u_star_arr(i,j,k);
             if (mdata.Cnk_a > 0) {
-                Charnock_roughness update_roughness(mdata.zref, 0);
+                CharnockRoughness update_roughness(mdata.zref, 0);
                 update_roughness.visc = mdata.visc;
                 update_roughness(z0_arr(i,j,k), ustar, umm, tm_arr(i,j,k));
             } else {
-                COARE3_roughness update_roughness(mdata.zref, 0);
+                COARE3Roughness update_roughness(mdata.zref, 0);
                 update_roughness(z0_arr(i,j,k), ustar, umm, tm_arr(i,j,k));
             }
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
@@ -1159,7 +1159,7 @@ struct surface_temp_mod_charnock
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        modified_Charnock_roughness update_roughness(mdata.zref, mdata.Cnk_d);
+        ModifiedCharnockRoughness update_roughness(mdata.zref, mdata.Cnk_d);
 
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -1275,7 +1275,7 @@ struct surface_temp_donelan
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        Donelan_roughness update_roughness(mdata.zref, 0);
+        DonelanRoughness update_roughness(mdata.zref, 0);
 
         int iter = 0;
         amrex::Real ustar = 0.0;
