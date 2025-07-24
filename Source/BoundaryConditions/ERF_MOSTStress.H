@@ -1054,7 +1054,7 @@ struct surface_temp
             ustar = u_star_arr(i,j,k);
             tflux = -(t_mean - t_surf) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'T'>
-            tflux *= (1 + 0.61*q_surf);
+            tflux *= (1 + 0.61*q_mean);
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -(q_mean - q_surf) * ustar * mdata.kappa /
                                   (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
