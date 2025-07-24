@@ -6,7 +6,7 @@
 
 struct ConstantRoughness {
 
-    ConstantRoughness(amrex::Real /*zref*/, amrex::Real /*depth*/) {}
+    ConstantRoughness(amrex::Real /*zref*/) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -14,14 +14,15 @@ struct ConstantRoughness {
     operator() (amrex::Real& /*z0*/,
                 amrex::Real /*ustar*/,
                 amrex::Real /*Umagmean*/,
-                amrex::Real /*Tmean*/) const
+                amrex::Real /*Tmean*/,
+                amrex::Real /*depth*/) const
     {}
 };
 
 struct CharnockRoughness : ConstantRoughness {
 
-    CharnockRoughness(amrex::Real zref, amrex::Real depth)
-        : ConstantRoughness(zref, depth) {}
+    CharnockRoughness(amrex::Real zref)
+        : ConstantRoughness(zref) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -29,7 +30,8 @@ struct CharnockRoughness : ConstantRoughness {
     operator() (amrex::Real& z0,
                 amrex::Real ustar,
                 amrex::Real /*Umagmean*/,
-                amrex::Real Tmean) const override
+                amrex::Real Tmean,
+                amrex::Real /*depth*/) const override
     {
         z0 = (Cnk_a / CONST_GRAV) * ustar * ustar;
         if (visc) {
@@ -48,9 +50,8 @@ struct CharnockRoughness : ConstantRoughness {
  */
 struct ModifiedCharnockRoughness : ConstantRoughness {
 
-    ModifiedCharnockRoughness(amrex::Real zref, amrex::Real depth)
-        : Cnk_b(Cnk_b1 * std::log(Cnk_b2 / depth))
-        , ConstantRoughness(zref, depth)
+    ModifiedCharnockRoughness(amrex::Real zref)
+        : ConstantRoughness(zref)
     {}
 
     AMREX_GPU_DEVICE
@@ -59,13 +60,14 @@ struct ModifiedCharnockRoughness : ConstantRoughness {
     operator() (amrex::Real& z0,
                 amrex::Real ustar,
                 amrex::Real /*Umagmean*/,
-                amrex::Real /*Tmean*/) const override
+                amrex::Real /*Tmean*/,
+                amrex::Real depth) const override
     {
+        const amrex::Real Cnk_b = Cnk_b1 * std::log(Cnk_b2 / depth);
         z0 = std::exp( (2.7*ustar - 1.8/Cnk_b) / (ustar + 0.17/Cnk_b) );
     }
 
-    const amrex::Real Cnk_b; // Modified Charnock constant (Eqn. 4)
-
+    // Modified Charnock constant (Eqn. 4)
     static constexpr amrex::Real Cnk_b1{1.0/30.0};
     static constexpr amrex::Real Cnk_b2{1260.0};
 };
@@ -75,9 +77,9 @@ struct ModifiedCharnockRoughness : ConstantRoughness {
  */
 struct COARE3Roughness : ConstantRoughness {
 
-    COARE3Roughness(amrex::Real _zref, amrex::Real depth)
+    COARE3Roughness(amrex::Real _zref)
         : zref(_zref)
-        , ConstantRoughness(_zref, depth)
+        , ConstantRoughness(_zref)
     {}
 
     AMREX_GPU_DEVICE
@@ -86,7 +88,8 @@ struct COARE3Roughness : ConstantRoughness {
     operator() (amrex::Real& z0,
                 amrex::Real ustar,
                 amrex::Real Umagmean,
-                amrex::Real /*Tmean*/) const override
+                amrex::Real /*Tmean*/,
+                amrex::Real /*depth*/) const override
     {
         amrex::Real ws10m = Umagmean * std::log(10./z0ref) / std::log(zref/z0ref);
         amrex::Real Czc = 0.011 + 0.007 * std::clamp((ws10m-10.)/8., 0., 1.0);
@@ -108,8 +111,8 @@ struct COARE3Roughness : ConstantRoughness {
  */
 struct DonelanRoughness : ConstantRoughness {
 
-    DonelanRoughness(amrex::Real zref, amrex::Real depth)
-        : ConstantRoughness(zref, depth) {}
+    DonelanRoughness(amrex::Real zref)
+        : ConstantRoughness(zref) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -117,7 +120,8 @@ struct DonelanRoughness : ConstantRoughness {
     operator() (amrex::Real& z0,
                 amrex::Real ustar,
                 amrex::Real /*Umagmean*/,
-                amrex::Real /*Tmean*/) const override
+                amrex::Real /*Tmean*/,
+                amrex::Real /*depth*/) const override
     {
         amrex::Real zw  = std::min(std::pow(ustar/1.06, 0.3), 1.0);
         amrex::Real zn1 = 0.011 * ustar * ustar / CONST_GRAV + ozo;
