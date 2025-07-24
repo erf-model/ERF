@@ -2,7 +2,29 @@
 #define ERF_MOSTRoughness_H
 
 #include <ERF_Constants.H>
+#include <ERF_EOS.H>
 
+struct Charnock_roughness {
+    Charnock_roughness(amrex::Real /*zref*/, amrex::Real /*depth*/) {}
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    operator() (amrex::Real& z0,
+                amrex::Real ustar,
+                amrex::Real /*Umagmean*/,
+                amrex::Real Tmean)
+    {
+        z0 = (Cnk_a / CONST_GRAV) * ustar * ustar;
+        if (visc) {
+            z0 += compute_air_viscosity(Tmean) / std::max(ustar, 0.05);
+        }
+    }
+
+    bool visc{false}; // use viscous Charnock formulation
+
+    static constexpr amrex::Real Cnk_a{0.0185}; // standard Charnock constant
+};
 
 /**
  * Modified to include water depth effects
@@ -17,16 +39,17 @@ struct modified_Charnock_roughness {
     AMREX_FORCE_INLINE
     void
     operator() (amrex::Real& z0,
-                amrex::Real /*umm*/,
-                amrex::Real ustar)
+                amrex::Real ustar,
+                amrex::Real /*Umagmean*/,
+                amrex::Real /*Tmean*/)
     {
         z0 = std::exp( (2.7*ustar - 1.8/Cnk_b) / (ustar + 0.17/Cnk_b) );
     }
 
-    const amrex::Real Cnk_b;
+    const amrex::Real Cnk_b; // Modified Charnock constant (Eqn. 4)
 
-    static constexpr amrex::Real Cnk_b1{1.0/30.0};  ///< Modified Charnock constants, Eq (4)
-    static constexpr amrex::Real Cnk_b2{1260.0};    ///< Modified Charnock constants, Eq (4)
+    static constexpr amrex::Real Cnk_b1{1.0/30.0};
+    static constexpr amrex::Real Cnk_b2{1260.0};
 };
 
 /**
@@ -39,10 +62,11 @@ struct COARE3_roughness {
     AMREX_FORCE_INLINE
     void
     operator() (amrex::Real& z0,
-                amrex::Real umm,
-                amrex::Real ustar)
+                amrex::Real ustar,
+                amrex::Real Umagmean,
+                amrex::Real /*Tmean*/)
     {
-        amrex::Real ws10m = umm * std::log(10./z0ref) / std::log(zref/z0ref);
+        amrex::Real ws10m = Umagmean * std::log(10./z0ref) / std::log(zref/z0ref);
         amrex::Real Czc = 0.011 + 0.007 * std::clamp((ws10m-10.)/8., 0., 1.0);
         z0 = (Czc / CONST_GRAV) * ustar * ustar;
         // From Davis et al 2008 MWR, but their lower limit is 0.125e-6 -- WRF typo?
@@ -67,8 +91,9 @@ struct Donelan_roughness {
     AMREX_FORCE_INLINE
     void
     operator() (amrex::Real& z0,
-                amrex::Real /*umm*/,
-                amrex::Real ustar)
+                amrex::Real ustar,
+                amrex::Real /*Umagmean*/,
+                amrex::Real /*Tmean*/)
     {
         amrex::Real zw  = std::min(std::pow(ustar/1.06, 0.3), 1.0);
         amrex::Real zn1 = 0.011 * ustar * ustar / CONST_GRAV + ozo;

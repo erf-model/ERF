@@ -63,20 +63,4 @@ private:
     amrex::Real gamma_m{16.0};
     amrex::Real gamma_h{16.0};
 };
-
-
-/**
- * Empirical kinematic viscosity [m2/s] formula from Andreas (1989) CRREL Rep.
- * 89-11, valid between -173 and 277 deg C.
- */
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-air_viscosity (amrex::Real T_degK)
-{
-    amrex::Real TC = T_degK - 273.15;
-    return 1.326e-5*(1. + 6.542e-3*TC + 8.301e-6*TC*TC - 4.84e-9*TC*TC*TC);
-}
-
-
 #endif
