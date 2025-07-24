@@ -12,7 +12,9 @@ struct adiabatic
 {
     adiabatic (amrex::Real zref,
                amrex::Real Tflux,
-               amrex::Real Qvflux)
+               amrex::Real Qvflux,
+               const DefaultRoughness& roughness_model)
+    : update_roughness(roughness_model)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
@@ -52,6 +54,7 @@ struct adiabatic
 private:
     most_data mdata;
     similarity_funs sfuns;
+    DefaultRoughness update_roughness;
 };
 
 
@@ -339,7 +342,9 @@ struct surface_flux
     surface_flux (amrex::Real zref,
                   amrex::Real Tflux,
                   amrex::Real Qvflux,
-                  bool cons_qflux)
+                  bool cons_qflux,
+                  const DefaultRoughness& roughness_model)
+    : update_roughness(roughness_model)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
@@ -354,7 +359,7 @@ struct surface_flux
                   const int& j,
                   const int& k,
                   const int& max_iters,
-                  const amrex::Array4<const amrex::Real>& z0_arr,
+                  const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
                   const amrex::Array4<const amrex::Real>& tvm_arr,
@@ -391,6 +396,7 @@ struct surface_flux
         }
         do {
             ustar = u_star_arr(i,j,k);
+            update_roughness(z0_arr(i,j,k), ustar, umm, tm_arr(i,j,k), 0);
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
                                   (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
@@ -429,8 +435,10 @@ private:
     most_data mdata;
     bool spec_qflux;
     similarity_funs sfuns;
-    const amrex::Real tol = 1.0e-5;
-    const amrex::Real WSMIN = 0.1; // minimum wind speed
+    DefaultRoughness update_roughness;
+
+    static constexpr amrex::Real tol{1.0e-5};
+    static constexpr amrex::Real WSMIN{0.1}; // minimum wind speed
 };
 
 
@@ -886,7 +894,9 @@ struct surface_temp
     surface_temp (amrex::Real zref,
                   amrex::Real Tflux,
                   amrex::Real Qvflux,
-                  bool cons_qflux)
+                  bool cons_qflux,
+                  const DefaultRoughness& roughness_model)
+    : update_roughness(roughness_model)
     {
         mdata.zref = zref;
         mdata.surf_temp_flux  = Tflux;
@@ -901,7 +911,7 @@ struct surface_temp
                   const int& j,
                   const int& k,
                   const int& max_iters,
-                  const amrex::Array4<const amrex::Real>& z0_arr,
+                  const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
                   const amrex::Array4<const amrex::Real>& tvm_arr,
@@ -940,6 +950,7 @@ struct surface_temp
         }
         do {
             ustar = u_star_arr(i,j,k);
+            update_roughness(z0_arr(i,j,k), ustar, umm, tm_arr(i,j,k), 0);
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'T'>
             tflux *= (1 + 0.61*qvm_arr(i,j,k));
@@ -987,8 +998,10 @@ private:
     most_data mdata;
     bool spec_qflux;
     similarity_funs sfuns;
-    const amrex::Real tol = 1.0e-5;
-    const amrex::Real WSMIN = 0.1; // minimum wind speed
+    DefaultRoughness update_roughness;
+
+    static constexpr amrex::Real tol{1.0e-5};
+    static constexpr amrex::Real WSMIN{0.1}; // minimum wind speed
 };
 
 

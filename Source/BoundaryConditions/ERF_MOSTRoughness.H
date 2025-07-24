@@ -4,9 +4,10 @@
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
 
-struct ConstantRoughness {
+// constant z0
+struct DefaultRoughness {
 
-    ConstantRoughness(amrex::Real /*zref*/) {}
+    DefaultRoughness(amrex::Real /*zref*/) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -19,10 +20,14 @@ struct ConstantRoughness {
     {}
 };
 
-struct CharnockRoughness : ConstantRoughness {
+/**
+ * See Fairall et al. 2003
+ * https://doi.org/10.1175/1520-0442(2003)016<0571:BPOASF>2.0.CO;2
+ */
+struct CharnockRoughness : DefaultRoughness {
 
     CharnockRoughness(amrex::Real zref)
-        : ConstantRoughness(zref) {}
+        : DefaultRoughness(zref) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -48,10 +53,10 @@ struct CharnockRoughness : ConstantRoughness {
  * Modified to include water depth effects
  * See Jimenez and Dudhia (2018) https://doi.org/10.1175/JAMC-D-17-0137.1
  */
-struct ModifiedCharnockRoughness : ConstantRoughness {
+struct ModifiedCharnockRoughness : DefaultRoughness {
 
     ModifiedCharnockRoughness(amrex::Real zref)
-        : ConstantRoughness(zref)
+        : DefaultRoughness(zref)
     {}
 
     AMREX_GPU_DEVICE
@@ -75,11 +80,11 @@ struct ModifiedCharnockRoughness : ConstantRoughness {
 /**
  * COARE3.0, following WRF phys/module_sf_mynn.F
  */
-struct COARE3Roughness : ConstantRoughness {
+struct COARE3Roughness : DefaultRoughness {
 
     COARE3Roughness(amrex::Real _zref)
         : zref(_zref)
-        , ConstantRoughness(_zref)
+        , DefaultRoughness(_zref)
     {}
 
     AMREX_GPU_DEVICE
@@ -109,10 +114,10 @@ struct COARE3Roughness : ConstantRoughness {
  * Matches implementations in WRF phys/physics_mmm/sf_sfclayrev.F90 and
  * phys/module_sf_mynn.F
  */
-struct DonelanRoughness : ConstantRoughness {
+struct DonelanRoughness : DefaultRoughness {
 
     DonelanRoughness(amrex::Real zref)
-        : ConstantRoughness(zref) {}
+        : DefaultRoughness(zref) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE

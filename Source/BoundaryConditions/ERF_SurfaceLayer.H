@@ -11,6 +11,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_Constants.H"
 #include "ERF_MOSTAverage.H"
+#include "ERF_MOSTRoughness.H"
 #include "ERF_MOSTStress.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
@@ -48,7 +49,7 @@ public:
       // We have a moisture model if Qv_prim is a valid pointer
       use_moisture = (Qv_prim[0].get());
 
-      // Get roughness
+      // Get constant roughness
       amrex::ParmParse pp("erf");
       pp.query("most.z0", z0_const);
 
@@ -175,6 +176,7 @@ public:
       }
       if (rough_land_string == "constant") {
           rough_type_land = RoughCalcType::CONSTANT;
+          roughness_land = std::make_unique<DefaultRoughness>(m_ma.get_zref());
       } else {
           amrex::Abort("Undefined MOST roughness type for land!");
       }
@@ -580,6 +582,9 @@ private:
   amrex::Real depth{30.0};
   amrex::Vector<amrex::FArrayBox> z_0;
   bool m_var_z0{false};
+
+  std::unique_ptr<DefaultRoughness> roughness_land;
+  std::unique_ptr<DefaultRoughness> roughness_sea;
 
   bool use_moisture;
 

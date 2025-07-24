@@ -4,7 +4,6 @@
 #include <ERF_Constants.H>
 #include <ERF_MOSTRoughness.H>
 
-
 /**
  * Structure of plain old data relevant to MOST BCs
  */

@@ -39,28 +39,16 @@ SurfaceLayer::update_fluxes (const int& lev,
         flux_type == FluxCalcType::ROTATE) {
         bool is_land = true;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
-            if (rough_type_land == RoughCalcType::CONSTANT) {
-              surface_flux most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
-            } else {
-                amrex::Abort("Unknown value for rough_type_land");
-            }
+            surface_flux most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux, *roughness_land);
+            compute_fluxes(lev, max_iters, most_flux, is_land);
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             update_surf_temp(time);
-            if (rough_type_land == RoughCalcType::CONSTANT) {
-              surface_temp most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
-            } else {
-                amrex::Abort("Unknown value for rough_type_land");
-            }
+            surface_temp most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux, *roughness_land);
+            compute_fluxes(lev, max_iters, most_flux, is_land);
         } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
                    (moist_type == MoistCalcType::ADIABATIC)) {
-            if (rough_type_land == RoughCalcType::CONSTANT) {
-                adiabatic most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
-            } else {
-                amrex::Abort("Unknown value for rough_type_land");
-            }
+            adiabatic most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, *roughness_land);
+            compute_fluxes(lev, max_iters, most_flux, is_land);
         } else {
             amrex::Abort("Unknown value for theta_type");
         }
