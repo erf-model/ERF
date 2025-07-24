@@ -193,7 +193,7 @@ void
 Radiation::alloc_buffers ()
 {
     // 1d size (m_ngas)
-    Real* mol_weight_gas_p = m_mol_weight_gas.data();
+    const Real* mol_weight_gas_p = m_mol_weight_gas.data();
     m_gas_mol_weights = real1d_k("m_gas_mol_weights", m_ngas);
     realHost1d_k m_gas_mol_weights_h("m_gas_mol_weights_h", m_ngas);
     gas_names_offset.clear();
@@ -446,7 +446,9 @@ Radiation::mf_to_kokkos_buffers ()
 
     bool moist = m_moist;
     bool ice   = m_ice;
-    const bool lsm = m_lsm;
+    const bool has_lsm = m_lsm;
+    const bool has_lat = m_lat;
+    const bool has_lon = m_lon;
     int  ncol  = m_ncol;
     int  nlay  = m_nlay;
     Real dz    = m_geom.CellSize(2);
@@ -523,10 +525,10 @@ Radiation::mf_to_kokkos_buffers ()
 
             // 1D data structures
             if (k==0) {
-                lat_d(icol) = (m_lat) ? lat_arr(i,j,0) : cons_lat;
-                lon_d(icol) = (m_lon) ? lon_arr(i,j,0) : cons_lon;
+                lat_d(icol) = (has_lat) ? lat_arr(i,j,0) : cons_lat;
+                lon_d(icol) = (has_lon) ? lon_arr(i,j,0) : cons_lon;
 
-                if (!lsm) {
+                if (!has_lsm) {
                     // No LSM, use temperature at bottom w-face
                     t_sfc_d(icol) = t_lev(icol, 0);
                 }
@@ -543,7 +545,7 @@ Radiation::mf_to_kokkos_buffers ()
     });
 
     // Populate vars LSM would provide
-    if (!lsm) {
+    if (!has_lsm) {
         // EAMXX dummy atmos constants
         Kokkos::deep_copy(sfc_alb_dir_vis, 0.06);
         Kokkos::deep_copy(sfc_alb_dir_nir, 0.06);
@@ -660,11 +662,11 @@ Radiation::write_rrtmgp_fluxes ()
             const int ilay = k;
 
             // SW and LW fluxes
-            dst_arr(i,j,k,0) = sw_flux_up(icol,ilay);
-            dst_arr(i,j,k,1) = sw_flux_dn(icol,ilay);
-            dst_arr(i,j,k,2) = sw_flux_dn_dir(icol,ilay);
-            dst_arr(i,j,k,3) = lw_flux_up(icol,ilay);
-            dst_arr(i,j,k,4) = lw_flux_dn(icol,ilay);
+            dst_arr(i,j,k,0) = sw_flux_up_d(icol,ilay);
+            dst_arr(i,j,k,1) = sw_flux_dn_d(icol,ilay);
+            dst_arr(i,j,k,2) = sw_flux_dn_dir_d(icol,ilay);
+            dst_arr(i,j,k,3) = lw_flux_up_d(icol,ilay);
+            dst_arr(i,j,k,4) = lw_flux_dn_d(icol,ilay);
         });
    }
 
@@ -687,7 +689,7 @@ void Radiation::populateDatalogMF ()
     auto sw_clrsky_heating_d = sw_clrsky_heating;
     auto lw_clrsky_heating_d = lw_clrsky_heating;
 
-    auto sw_clrsky_flux_up_d = sw_clrsky_flux_up_d;
+    auto sw_clrsky_flux_up_d = sw_clrsky_flux_up;
     auto sw_clrsky_flux_dn_d = sw_clrsky_flux_dn;
     auto sw_clrsky_flux_dn_dir_d = sw_clrsky_flux_dn_dir;
     auto lw_clrsky_flux_up_d = lw_clrsky_flux_up;
@@ -736,7 +738,7 @@ void Radiation::populateDatalogMF ()
 
             dst_arr(i,j,k,10) = sw_clrsky_flux_up_d(icol,ilay);
             dst_arr(i,j,k,11) = sw_clrsky_flux_dn_d(icol,ilay);
-            dst_arr(i,j,k,12) = sw_clrsky_flux_dn_dir(icol,ilay);
+            dst_arr(i,j,k,12) = sw_clrsky_flux_dn_dir_d(icol,ilay);
             dst_arr(i,j,k,13) = lw_clrsky_flux_up_d(icol,ilay);
             dst_arr(i,j,k,14) = lw_clrsky_flux_dn_d(icol,ilay);
 
@@ -971,7 +973,7 @@ Radiation::run_impl ()
                 Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
                                      KOKKOS_LAMBDA (int icol, int ilay)
                 {
-                    tmp2d(icol,ilay) = o3_lay(ilay);
+                    tmp2d_d(icol,ilay) = o3_lay(ilay);
                 });
             }
         } else if (name == "N2O") {
@@ -1000,11 +1002,11 @@ Radiation::run_impl ()
     } else {
         auto h_lat = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), lat);
         auto h_lon = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), lon);
+        double dt  = double(m_dt);
         Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, ncol),
                              KOKKOS_LAMBDA (int icol)
         {
             // Convert lat/lon to radians
-            double dt      = double(m_dt);
             double lat_col = h_lat(icol)*PI/180.0;
             double lon_col = h_lon(icol)*PI/180.0;
             double lcalday = calday;
