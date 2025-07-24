@@ -41,10 +41,6 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_FFT)
   endif()
 
-  if(ERF_ENABLE_KOKKOS)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_KOKKOS)
-  endif()
-
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Initialization/ERF_InitFromWRFInput.cpp
@@ -95,7 +91,6 @@ function(build_erf_lib erf_lib_name)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Radiation/ERF_RRTMGP_Interface.cpp
                    ${SRC_DIR}/Radiation/ERF_Radiation.cpp
-                   ${SRC_DIR}/Radiation/ERF_OrbCosZenith.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/mo_rrtmgp_util_reorder.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels/mo_gas_optics_kernels.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/expand_and_transpose.cpp

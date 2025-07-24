@@ -2,7 +2,7 @@
 #define ERF_KOKKOS_RADIATION_H
 using RadHostDevice    = Kokkos::Device<Kokkos::Serial, Kokkos::HostSpace>;
 #if defined(ERF_USE_CUDA)
-using RadDefaultDevice = Kokkos::Device<Kokkos::Cudal, Kokkos::CudaSpace>;
+using RadDefaultDevice = Kokkos::Device<Kokkos::Cuda, Kokkos::CudaSpace>;
 #elif defined(ERF_USE_HIP)
 using RadDefaultDevice = Kokkos::Device<Kokkos::HIP, Kokkos::HIPSpace>;
 #elif defined(ERF_USE_SYCL)
