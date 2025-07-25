@@ -176,5 +176,7 @@ private:
 
    // Vector to store NoahmpIO objects at a level
    NoahmpIO_vector noahmpio_vect;
+
+   int m_plot_int_1 = -1;
 };
 #endif
