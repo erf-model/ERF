@@ -25,9 +25,9 @@ NOAH::Init (const int& lev,
     khi_lsm    = domain.smallEnd(2) - 1;
 
     LsmVarMap.resize(m_lsm_size);
-    LsmVarMap = {LsmVar_NOAH::t_sfc, LsmVar_NOAH::emis_sfc,
-                 LsmVar_NOAH::alb_dir_vis, LsmVar_NOAH::alb_dir_nir,
-                 LsmVar_NOAH::alb_dif_vis, LsmVar_NOAH::alb_dif_nir,
+    LsmVarMap = {LsmVar_NOAH::t_sfc, LsmVar_NOAH::sfc_emis,
+                 LsmVar_NOAH::sfc_alb_dir_vis, LsmVar_NOAH::sfc_alb_dir_nir,
+                 LsmVar_NOAH::sfc_alb_dif_vis, LsmVar_NOAH::sfc_alb_dif_nir,
                  LsmVar_NOAH::sw_flux_dn , LsmVar_NOAH::lw_flux_dn };
 
     LsmVarName.resize(m_lsm_size);
@@ -51,7 +51,7 @@ NOAH::Init (const int& lev,
     DistributionMapping dm = cons_in.DistributionMap();
     BoxList bl_lsm = ba.boxList();
     for (auto& b : bl_lsm) {
-        b.setRange(2,0)
+        b.setRange(2,0);
     }
     BoxArray ba_lsm(std::move(bl_lsm));
 
@@ -199,7 +199,7 @@ NOAH::Advance_With_State (const int& lev,
     // Loop over blocks to copy forcing data to Noahmp, drive the land model,
     // and copy data back to ERF Multifabs.
     int idb = 0;
-    for (amrex::MFIter mfi(xvel_in, false); mfi.isValid(); ++mfi, ++idb) {
+    for (amrex::MFIter mfi(cons_in, false); mfi.isValid(); ++mfi, ++idb) {
 
         const amrex::Box& bx = mfi.tilebox();
 
@@ -218,8 +218,8 @@ NOAH::Advance_With_State (const int& lev,
             // Copy forcing data from ERF to Noahmp.
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
             {
-                noahmpio->U_PHY(i,1,j) = U_PHY(i,j,0);
-                noahmpio->V_PHY(i,1,j) = V_PHY(i,j,0);
+                noahmpio->U_PHY(i,1,j) = 0.5*(U_PHY(i,j,0)+U_PHY(i+1,j,0));
+                noahmpio->V_PHY(i,1,j) = 0.5*(V_PHY(i,j,0)+V_PHY(i,j+1,0));
                 noahmpio->T_PHY(i,1,j) = QV_TH(i,j,0,RhoTheta_comp)/QV_TH(i,j,0,Rho_comp);
                 noahmpio->QV_CURR(i,1,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
 
@@ -236,6 +236,7 @@ NOAH::Advance_With_State (const int& lev,
                 SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
                 EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
             });
+            noahmpio->WriteLand(nstep+1);
 
         }
     }
