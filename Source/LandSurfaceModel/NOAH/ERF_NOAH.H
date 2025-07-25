@@ -21,8 +21,15 @@
 
 namespace LsmVar_NOAH {
    enum {
-      // independent variables
-      theta = 0,
+      // 2D coupling variables
+      t_sfc = 0,
+      sfc_emis,
+      sfc_alb_dir_vis,
+      sfc_alb_dir_nir,
+      sfc_alb_dif_vis,
+      sfc_alb_dif_nir,
+      sw_flux_dn,
+      lw_flux_dn,
       NumVars
   };
 }
@@ -100,9 +107,22 @@ public:
         return LsmVarName[lsmIdx];
     }
 
+    int
+    Lsm_VarIndex (std::string varname) override
+    {
+        int varIdx = -1;
+        std::string lc_varname = amrex::toLower(varname);
+        for (int idx(0); idx<LsmVar_NOAH::NumVars; ++i) {
+            if (lc_varname == amrex::toLower(LsmVarName[idx])) {
+                varIdx = idx;
+            }
+        }
+        return varIdx;
+    }
+
 private:
     // number of lsm variables (theta)
-    int m_lsm_size = 1;
+    int m_lsm_size = LsmVar_NOAH::NumVars;
 
     // LsmVar map (state indices -> LsmVar enum)
     amrex::Vector<int> LsmVarMap;
