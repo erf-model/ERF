@@ -827,17 +827,43 @@ define( int const& a_idim,
             // Small cell
 
             if (aux_vfrac(i,j,k) < small_volfrac) {
-              aux_vfrac(i,j,k) = 0.0;
+              aux_vfrac(i,j,k)   = 0.0;
               aux_vcent(i,j,k,0) = 0.0;
               aux_vcent(i,j,k,1) = 0.0;
               aux_vcent(i,j,k,2) = 0.0;
+
+              aux_afrac_x(i  ,j  ,k  ) = 0.0;
+              aux_afrac_x(i+1,j  ,k  ) = 0.0;
+              aux_afrac_y(i  ,j  ,k  ) = 0.0;
+              aux_afrac_y(i  ,j+1,k  ) = 0.0;
+              aux_afrac_z(i  ,j  ,k+1) = 0.0;
+              aux_afrac_z(i  ,j  ,k  ) = 0.0;
+
+              aux_fcent_x(i  ,j  ,k  ,0) = 0.0;
+              aux_fcent_x(i  ,j  ,k  ,1) = 0.0;
+              aux_fcent_x(i+1,j  ,k  ,0) = 0.0;
+              aux_fcent_x(i+1,j  ,k  ,1) = 0.0;
+              
+              aux_fcent_y(i  ,j  ,k  ,0) = 0.0;
+              aux_fcent_y(i  ,j  ,k  ,1) = 0.0;
+              aux_fcent_y(i  ,j+1,k  ,0) = 0.0;
+              aux_fcent_y(i  ,j+1,k  ,1) = 0.0;
+
+              aux_fcent_z(i  ,j  ,k  ,0) = 0.0;
+              aux_fcent_z(i  ,j  ,k  ,1) = 0.0;
+              aux_fcent_z(i  ,j  ,k+1,0) = 0.0;
+              aux_fcent_z(i  ,j  ,k+1,1) = 0.0;
+
+              aux_barea(i,j,k) = 0.0;
+
               aux_bcent(i,j,k,0) = 0.0;
               aux_bcent(i,j,k,1) = 0.0;
               aux_bcent(i,j,k,2) = 0.0;
+
               aux_bnorm(i,j,k,0) = 0.0;
               aux_bnorm(i,j,k,1) = 0.0;
               aux_bnorm(i,j,k,2) = 0.0;
-              aux_barea(i,j,k) = 0.0;
+              
               aux_flag(i,j,k).setCovered();
             }
 
