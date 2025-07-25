@@ -550,7 +550,7 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
     if (!has_lsm) {
         // Parsed surface temp
         Kokkos::deep_copy(t_sfc, rad_t_sfc);
-      
+
         // EAMXX dummy atmos constants
         Kokkos::deep_copy(sfc_alb_dir_vis, 0.06);
         Kokkos::deep_copy(sfc_alb_dir_nir, 0.06);
