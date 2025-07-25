@@ -44,9 +44,8 @@ struct CharnockRoughness : DefaultRoughness {
         }
     }
 
-    bool visc{false}; // use viscous Charnock formulation
-
-    static constexpr amrex::Real Cnk_a{0.0185}; // standard Charnock constant
+    amrex::Real Cnk_a{0.0185};  // standard Charnock constant
+    bool visc{false};           // use viscous Charnock formulation
 };
 
 /**

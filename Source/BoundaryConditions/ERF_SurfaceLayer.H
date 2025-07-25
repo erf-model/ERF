@@ -196,11 +196,11 @@ public:
               amrex::Print() << "If there is water, Charnock relation with C_a="
                              << cnk_a << (cnk_visc ? " and viscosity" : "")
                              << " will be used" << std::endl;
-          } else {
-              amrex::Print() << "If there is water, Charnock relation with variable "
-                  "Charnock parameter (COARE3.0)"
-                             << (cnk_visc ? " and viscosity" : "") << " will be used"
-                             << std::endl;
+              roughness_sea = std::make_unique<CharnockRoughness>(m_ma.get_zref());
+
+              auto* charnock = dynamic_cast<CharnockRoughness*>(roughness_sea.get());
+              charnock->Cnk_a = cnk_a;
+              charnock->visc = cnk_visc;
           }
       } else if (rough_sea_string == "coare3.0") {
           rough_type_sea = RoughCalcType::CHARNOCK;
@@ -208,16 +208,20 @@ public:
               "Charnock parameter (COARE3.0)"
                          << (cnk_visc ? " and viscosity" : "") << " will be used"
                          << std::endl;
-          cnk_a = -1;
+          roughness_sea = std::make_unique<COARE3Roughness>(m_ma.get_zref());
       } else if (rough_sea_string == "donelan") {
           rough_type_sea = RoughCalcType::DONELAN;
+          roughness_sea = std::make_unique<DonelanRoughness>(m_ma.get_zref());
       } else if (rough_sea_string == "modified_charnock") {
           rough_type_sea = RoughCalcType::MODIFIED_CHARNOCK;
+          roughness_sea = std::make_unique<ModifiedCharnockRoughness>(m_ma.get_zref());
           pp.query("most.modified_charnock_depth", depth);
       } else if (rough_sea_string == "wave_coupled") {
           rough_type_sea = RoughCalcType::WAVE_COUPLED;
+          roughness_sea = std::make_unique<DefaultRoughness>(m_ma.get_zref()); // TODO
       } else if (rough_sea_string == "constant") {
           rough_type_sea = RoughCalcType::CONSTANT;
+          roughness_sea = std::make_unique<DefaultRoughness>(m_ma.get_zref());
       } else {
           amrex::Abort("Undefined MOST roughness type for sea!");
       }
