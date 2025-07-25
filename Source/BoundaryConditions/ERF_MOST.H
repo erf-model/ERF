@@ -16,11 +16,9 @@ public:
     amrex::Real surf_temp_flux{0.0};  ///< Heat flux
     amrex::Real surf_moist_flux{0.0}; ///< Moisture flux
 
-    amrex::Real Cnk_a{0.0185};        ///< Standard Charnock constant
     amrex::Real Cnk_d{30};            ///< Water depth
-    bool visc{false};                 ///< Use viscous Charnock formulation
 
-    const amrex::Real Bjr_beta = 1.2; // Empirical parameter from Beljaars 1995 QJRMS
+    static constexpr amrex::Real Bjr_beta = 1.2; // Empirical parameter from Beljaars 1995 QJRMS
 };
 
 

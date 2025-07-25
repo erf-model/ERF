@@ -4,10 +4,7 @@
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
 
-// constant z0
-struct DefaultRoughness {
-
-    DefaultRoughness(amrex::Real /*zref*/) {}
+struct ConstantRoughness {
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -24,38 +21,11 @@ struct DefaultRoughness {
  * See Fairall et al. 2003
  * https://doi.org/10.1175/1520-0442(2003)016<0571:BPOASF>2.0.CO;2
  */
-struct CharnockRoughness : DefaultRoughness {
+struct CharnockRoughness {
 
-    CharnockRoughness(amrex::Real zref)
-        : DefaultRoughness(zref) {}
-
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
-    void
-    operator() (amrex::Real& z0,
-                amrex::Real ustar,
-                amrex::Real /*Umagmean*/,
-                amrex::Real Tmean,
-                amrex::Real /*depth*/) const override
-    {
-        z0 = (Cnk_a / CONST_GRAV) * ustar * ustar;
-        if (visc) {
-            z0 += compute_air_viscosity(Tmean) / std::max(ustar, 0.05);
-        }
-    }
-
-    amrex::Real Cnk_a{0.0185};  // standard Charnock constant
-    bool visc{false};           // use viscous Charnock formulation
-};
-
-/**
- * Modified to include water depth effects
- * See Jimenez and Dudhia (2018) https://doi.org/10.1175/JAMC-D-17-0137.1
- */
-struct ModifiedCharnockRoughness : DefaultRoughness {
-
-    ModifiedCharnockRoughness(amrex::Real zref)
-        : DefaultRoughness(zref)
+    CharnockRoughness(amrex::Real _Cnk_a, bool _visc)
+    : Cnk_a(_Cnk_a)
+    , visc(_visc)
     {}
 
     AMREX_GPU_DEVICE
@@ -64,8 +34,33 @@ struct ModifiedCharnockRoughness : DefaultRoughness {
     operator() (amrex::Real& z0,
                 amrex::Real ustar,
                 amrex::Real /*Umagmean*/,
+                amrex::Real Tmean,
+                amrex::Real /*depth*/) const
+    {
+        z0 = (Cnk_a / CONST_GRAV) * ustar * ustar;
+        if (visc) {
+            z0 += compute_air_viscosity(Tmean) / std::max(ustar, 0.05);
+        }
+    }
+
+    const amrex::Real Cnk_a{0.0185}; // standard Charnock constant
+    const bool visc{false};          // use viscous Charnock formulation
+};
+
+/**
+ * Modified to include water depth effects
+ * See Jimenez and Dudhia (2018) https://doi.org/10.1175/JAMC-D-17-0137.1
+ */
+struct ModifiedCharnockRoughness {
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    operator() (amrex::Real& z0,
+                amrex::Real ustar,
+                amrex::Real /*Umagmean*/,
                 amrex::Real /*Tmean*/,
-                amrex::Real depth) const override
+                amrex::Real depth) const
     {
         const amrex::Real Cnk_b = Cnk_b1 * std::log(Cnk_b2 / depth);
         z0 = std::exp( (2.7*ustar - 1.8/Cnk_b) / (ustar + 0.17/Cnk_b) );
@@ -79,12 +74,9 @@ struct ModifiedCharnockRoughness : DefaultRoughness {
 /**
  * COARE3.0, following WRF phys/module_sf_mynn.F
  */
-struct COARE3Roughness : DefaultRoughness {
+struct COARE3Roughness {
 
-    COARE3Roughness(amrex::Real _zref)
-        : zref(_zref)
-        , DefaultRoughness(_zref)
-    {}
+    COARE3Roughness(amrex::Real _zref) : zref(_zref) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -93,7 +85,7 @@ struct COARE3Roughness : DefaultRoughness {
                 amrex::Real ustar,
                 amrex::Real Umagmean,
                 amrex::Real /*Tmean*/,
-                amrex::Real /*depth*/) const override
+                amrex::Real /*depth*/) const
     {
         amrex::Real ws10m = Umagmean * std::log(10./z0ref) / std::log(zref/z0ref);
         amrex::Real Czc = 0.011 + 0.007 * std::clamp((ws10m-10.)/8., 0., 1.0);
@@ -113,10 +105,7 @@ struct COARE3Roughness : DefaultRoughness {
  * Matches implementations in WRF phys/physics_mmm/sf_sfclayrev.F90 and
  * phys/module_sf_mynn.F
  */
-struct DonelanRoughness : DefaultRoughness {
-
-    DonelanRoughness(amrex::Real zref)
-        : DefaultRoughness(zref) {}
+struct DonelanRoughness {
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -125,7 +114,7 @@ struct DonelanRoughness : DefaultRoughness {
                 amrex::Real ustar,
                 amrex::Real /*Umagmean*/,
                 amrex::Real /*Tmean*/,
-                amrex::Real /*depth*/) const override
+                amrex::Real /*depth*/) const
     {
         amrex::Real zw  = std::min(std::pow(ustar/1.06, 0.3), 1.0);
         amrex::Real zn1 = 0.011 * ustar * ustar / CONST_GRAV + ozo;
