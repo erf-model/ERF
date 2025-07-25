@@ -94,6 +94,9 @@ public:
     std::string
     Get_VarName (const int& varIdx) { return m_lsm_model[0]->Lsm_VarName(varIdx); }
 
+    int
+    Get_VarIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_VarIndex(varname); }
+
     void
     Plot_Lsm_Data (amrex::Real time,
                    const amrex::Vector<int> &level_steps,

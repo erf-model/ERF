@@ -3,7 +3,17 @@
 Building
 --------
 
-The ERF code is dependent on AMReX, and uses the radiation model (RTE-RRTMGP) which is based on KOKKOS C++ implementation for heterogeneous computing infrastructure (which are all available as submodules in the ERF repo). ERF can be built using either GNU Make or CMake, however, if radiation model is activated, only CMake build system is supported.
+The ERF code is dependent on `AMReX <https://github.com/AMReX-Codes/amrex>`_.
+
+If radiation is used, ERF includes the radiation model `RTE-RRTMGP <https://github.com/E3SM-Project/E3SM/tree/master/components/eamxx/src/physics/rrtmgp>`_ also used by E3SM.
+
+ERF can also use the `simplified-higher-order-closure (SHOC) turbulence and cloud macrophysics scheme from E3SM <https://github.com/E3SM-Project/E3SM/tree/master/components/eamxx/src/physics/shoc>`_
+
+Both RRTMGP and SHOC use Kokkos for heterogeneous computing infrastructures.
+
+AMReX, Kokkos and RTE-RRTMGP are all available as submodules in the ERF repo; SHOC must be git cloned separately.
+
+ERF can be built using either GNU Make or CMake.
 
 Minimum Requirements
 ~~~~~~~~~~~~~~~~~~~~
@@ -41,18 +51,26 @@ There is a README in each problem directory that describes the purpose/role of t
 GNU Make
 ~~~~~~~~
 
-The GNU Make system is best for use on large computing facility machines and production runs. With the GNU Make implementation, the build system will inspect the machine and use known compiler optimizations explicit to that machine if possible. These explicit settings are kept up-to-date by the AMReX project.
+The GNU Make system is best for use on large computing facility machines and production runs.
+With the GNU Make implementation, the build system will inspect the machine and use known compiler optimizations
+particular to that machine if possible. These settings are kept up-to-date by the AMReX project.
 
-Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF (AMReX, RTE-RRTMGP, and KOKKOS); note, RTE-RRTMGP is only required if running with radiation but it does also require KOKKOS. All dependencies are provided as git submodules in ERF and can be populated by using ``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``. Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>`` environment variables for each dependency is set correctly. An example of setting the ``<REPO_HOME>`` environment variables in the user's ``.bashrc`` is shown below:
+Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF
+(AMReX, RTE-RRTMGP, SHOC and Kokkos); note, RTE-RRTMGP and SHOC are only required if using those capabilities, and both require Kokkos.
+All dependencies except for SHOC are provided as git submodules in ERF and can be populated by using
+``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``.
+Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>``
+environment variables for each dependency is set correctly.
+An example of setting the ``<REPO_HOME>`` environment variables in the user's ``.bashrc`` is shown below:
 
 ::
 
    export ERF_HOME=${HOME}/ERF
    export AMREX_HOME=${ERF_HOME}/Submodules/AMReX
+   export SHOC_HOME=${HOME}/shoc
 
 The GNU Make system is set up to use the path to AMReX submodule by default, so it is not necessary to set
-these paths explicitly, unless it is desired to do so. It is also possible to use an external version of
-AMReX, downloaded by running
+the AMReX path explicitly. It is also possible to use an external version of AMReX, downloaded by running
 
    .. code:: shell
 
@@ -69,6 +87,16 @@ or if using tcsh,
 ::
 
    setenv AMREX_HOME /path/to/external/amrex
+
+#. To get the SHOC code, from an appropriate location,
+
+::
+
+   git clone --filter=blob:none --sparse https://github.com/E3SM-Project/E3SM.git ${HOME}/E3SM
+   cd ${HOME}/E3SM
+   git sparse-checkout set components/eamxx/src/physics/shoc
+   export SHOC_HOME=${HOME}/E3SM/components/eamxx/src/physics/shoc
+
 
 #. ``cd`` to the desired build directory, e.g.  ``ERF/Exec/DryRegTests/IsentropicVortex/``
 
@@ -93,6 +121,10 @@ or if using tcsh,
    | USE_NETCDF         | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
    +--------------------+------------------------------+------------------+-------------+
    | USE_PARTICLES      | Whether to enable particles  | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_RRTMGP         | Whether to enable radiation  | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_SHOC           | Whether to enable SHOC       | TRUE / FALSE     | FALSE       |
    +--------------------+------------------------------+------------------+-------------+
    | USE_MULTIBLOCK     | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
    +--------------------+------------------------------+------------------+-------------+
@@ -194,6 +226,8 @@ Analogous to GNU Make, the list of cmake directives is as follows:
    | ERF_ENABLE_MULTIBLOCK     | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_RADIATION      | Whether to enable radiation  | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_SHOC           | Whether to enable shoc       | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_TESTS          | Whether to enable tests      | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+
