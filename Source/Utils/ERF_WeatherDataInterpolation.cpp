@@ -246,7 +246,7 @@ find_bound_idx(const Real& x, const Real& y, const Real& z,
 }
 
 void
-ERF::interp_weather_data_onto_mesh (const Geometry& geom_weather,
+ERF::InterpWeatherDataOntoMesh (const Geometry& geom_weather,
                                     MultiFab& weather_forecast_interp)
 {
 
@@ -595,7 +595,7 @@ ERF::WeatherDataInterpolation(const Real time)
                              0, ncomp, 0);
 
         //Interpolate in space to get the erf_forecast_interp
-        interp_weather_data_onto_mesh(geom_weather, weather_forecast_data_1[0]);
+        InterpWeatherDataOntoMesh(geom_weather, weather_forecast_data_1[0]);
         next_read_forecast_time += 10800.0;
     }
 }

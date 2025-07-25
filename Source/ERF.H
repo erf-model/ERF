@@ -424,7 +424,7 @@ public:
                                  const amrex::DistributionMapping& dm,
                                  amrex::Vector<amrex::MultiFab>& weather_forecast_data);
 
-    void interp_weather_data_onto_mesh(const amrex::Geometry& geom_weather,
+    void InterpWeatherDataOntoMesh(const amrex::Geometry& geom_weather,
                                        amrex::MultiFab& weather_forecast_interp);
 
     void WeatherDataInterpolation(const amrex::Real time);
