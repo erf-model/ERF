@@ -112,7 +112,7 @@ public:
     {
         int varIdx = -1;
         std::string lc_varname = amrex::toLower(varname);
-        for (int idx(0); idx<LsmVar_NOAH::NumVars; ++i) {
+        for (int idx(0); idx<LsmVar_NOAH::NumVars; ++idx) {
             if (lc_varname == amrex::toLower(LsmVarName[idx])) {
                 varIdx = idx;
             }
