@@ -11,7 +11,8 @@ using namespace amrex;
 */
 
 void
-moist_set_rhs (const Box& tbx,
+moist_set_rhs (const Geometry& geom,
+               const Box& tbx,
                const Array4<Real const>& old_cons,
                const Array4<Real const>& new_cons,
                const Array4<Real      >& cell_rhs,
@@ -39,8 +40,9 @@ moist_set_rhs (const Box& tbx,
     Real F2 = 1./(50.*dt);
 
     // Domain bounds
-    const auto& dom_hi = ubound(domain);
-    const auto& dom_lo = lbound(domain);
+    auto dx = geom.CellSizeArray();
+    auto ProbHi = geom.ProbHiArray();
+    auto ProbLo = geom.ProbLoArray();
 
     // Time interpolation
     Real dT = bdy_time_interval;
@@ -191,7 +193,7 @@ moist_set_rhs (const Box& tbx,
                                 tbx_ylo, tbx_yhi,
                                 set_width, ng_vect);
         realbdy_compute_laplacian_relaxation(RhoQ1_comp, 1,
-                                             width, set_width, dom_lo, dom_hi, F1, F2,
+                                             width, dx, ProbLo, ProbHi, F1, F2,
                                              tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                                              arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                              new_cons, cell_rhs);

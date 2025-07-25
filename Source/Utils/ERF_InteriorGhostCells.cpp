@@ -493,14 +493,15 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
     // Compute RHS in relaxation region
     //==========================================================
     if (width > set_width) {
+        auto dx = geom.CellSizeArray();
+        auto ProbLo = geom.ProbLoArray();
+        auto ProbHi = geom.ProbHiArray();
         for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
             int ivar_idx = ivar_map[ivar];
             int icomp    = comp_map[ivar];
 
             Box domain = geom.Domain();
             domain.convert(S_cur_data[ivar_idx].boxArray().ixType());
-            const auto& dom_hi = ubound(domain);
-            const auto& dom_lo = lbound(domain);
             IntVect ng_vect    = S_cur_data[ivar_idx].nGrowVect();
 
 #ifdef _OPENMP
@@ -537,7 +538,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 }
 
                 realbdy_compute_laplacian_relaxation(icomp, 1,
-                                                     width, set_width, dom_lo, dom_hi, F1, F2,
+                                                     width, dx, ProbLo, ProbHi, F1, F2,
                                                      tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                                                      arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                                      data_arr, rhs_arr);
