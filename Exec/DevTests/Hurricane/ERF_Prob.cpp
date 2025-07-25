@@ -139,7 +139,6 @@ Problem::init_custom_pert (
     Real* p   = d_p.data();
 
     // File to read
-
     std::string filename;
     ParmParse pp("erf");
     pp.query("IC_file", filename);
