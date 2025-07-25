@@ -40,6 +40,8 @@ moist_set_rhs (const Geometry& geom,
     Real F2 = 1./(50.*dt);
 
     // Domain bounds
+    const auto& dom_hi = ubound(domain);
+    const auto& dom_lo = lbound(domain);
     auto dx = geom.CellSizeArray();
     auto ProbHi = geom.ProbHiArray();
     auto ProbLo = geom.ProbLoArray();
