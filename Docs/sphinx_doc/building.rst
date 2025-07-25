@@ -3,11 +3,17 @@
 Building
 --------
 
-The ERF code is dependent on AMReX, and can use the radiation model (RTE-RRTMGP) which is based on a Kokkos C++ implementation
-for heterogeneous computing infrastructures. AMReX, Kokkos and RTE-RRTMGP are all available as submodules in the ERF repo.
+The ERF code is dependent on `AMReX <https://github.com/AMReX-Codes/amrex>`_.
 
-ERF can be built using either GNU Make or CMake. However, if either the radiation model or shoc model
-is activated, only the CMake build system is supported.
+If radiation is used, ERF includes the radiation model `RTE-RRTMGP <https://github.com/E3SM-Project/E3SM/tree/master/components/eamxx/src/physics/rrtmgp>`_ also used by E3SM.
+
+ERF can also use the `simplified-higher-order-closure (SHOC) turbulence and cloud macrophysics scheme from E3SM <https://github.com/E3SM-Project/E3SM/tree/master/components/eamxx/src/physics/shoc>`_
+
+Both RRTMGP and SHOC use Kokkos for heterogeneous computing infrastructures.
+
+AMReX, Kokkos and RTE-RRTMGP are all available as submodules in the ERF repo; SHOC must be git cloned separately.
+
+ERF can be built using either GNU Make or CMake.
 
 Minimum Requirements
 ~~~~~~~~~~~~~~~~~~~~
@@ -50,7 +56,7 @@ With the GNU Make implementation, the build system will inspect the machine and 
 particular to that machine if possible. These settings are kept up-to-date by the AMReX project.
 
 Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF
-(AMReX, RTE-RRTMGP, SHOC and KOKKOS); note, RTE-RRTMGP and SHOC are only required if using those capabilities, and both require KOKKOS.
+(AMReX, RTE-RRTMGP, SHOC and Kokkos); note, RTE-RRTMGP and SHOC are only required if using those capabilities, and both require Kokkos.
 All dependencies except for SHOC are provided as git submodules in ERF and can be populated by using
 ``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``.
 Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>``
@@ -81,6 +87,16 @@ or if using tcsh,
 ::
 
    setenv AMREX_HOME /path/to/external/amrex
+
+#. To get the SHOC code, from an appropriate location,
+
+::
+
+   git clone --filter=blob:none --sparse https://github.com/E3SM-Project/E3SM.git ${HOME}/E3SM
+   cd ${HOME}/E3SM
+   git sparse-checkout set components/eamxx/src/physics/shoc
+   export SHOC_HOME=${HOME}/E3SM/components/eamxx/src/physics/shoc
+
 
 #. ``cd`` to the desired build directory, e.g.  ``ERF/Exec/DryRegTests/IsentropicVortex/``
 
