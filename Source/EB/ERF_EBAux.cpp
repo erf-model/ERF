@@ -140,7 +140,7 @@ define( int const& a_idim,
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
 #endif
-                  dx, bx, domain, flag, afrac, bnorm, bcent, 
+                  dx, bx, domain, flag, afrac, bnorm, bcent,
                   aux_flag, aux_vfrac, aux_vcent,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
@@ -207,7 +207,7 @@ define( int const& a_idim,
 
         const bool at_lo_boundary = (!l_periodic && iv_hi[idim]==domain.smallEnd(idim));
         const bool at_hi_boundary = (!l_periodic && iv_hi[idim]==domain.bigEnd(idim));
-        
+
         // Treatment of lower boundary
 
         if (at_lo_boundary) {
@@ -843,7 +843,7 @@ define( int const& a_idim,
               aux_fcent_x(i  ,j  ,k  ,1) = 0.0;
               aux_fcent_x(i+1,j  ,k  ,0) = 0.0;
               aux_fcent_x(i+1,j  ,k  ,1) = 0.0;
-              
+
               aux_fcent_y(i  ,j  ,k  ,0) = 0.0;
               aux_fcent_y(i  ,j  ,k  ,1) = 0.0;
               aux_fcent_y(i  ,j+1,k  ,0) = 0.0;
@@ -863,7 +863,7 @@ define( int const& a_idim,
               aux_bnorm(i,j,k,0) = 0.0;
               aux_bnorm(i,j,k,1) = 0.0;
               aux_bnorm(i,j,k,2) = 0.0;
-              
+
               aux_flag(i,j,k).setCovered();
             }
 

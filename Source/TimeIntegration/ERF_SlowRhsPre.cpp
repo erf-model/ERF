@@ -457,7 +457,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<const Real> u_detJ_arr{};
         Array4<const Real> v_detJ_arr{};
         Array4<const Real> w_detJ_arr{};
-        
+
         if (solverChoice.terrain_type == TerrainType::EB)
         {
             EBCellFlagFab const& cfg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi];
@@ -469,7 +469,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 az_arr   = (ebfact.get_const_factory())->getAreaFrac()[2]->const_array(mfi);
                 fcx_arr  = (ebfact.get_const_factory())->getFaceCent()[0]->const_array(mfi);
                 fcy_arr  = (ebfact.get_const_factory())->getFaceCent()[1]->const_array(mfi);
-                fcz_arr  = (ebfact.get_const_factory())->getFaceCent()[2]->const_array(mfi);   
+                fcz_arr  = (ebfact.get_const_factory())->getFaceCent()[2]->const_array(mfi);
                 detJ_arr = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
                 // if (!already_on_centroids) {mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);}
                 mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);
