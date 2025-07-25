@@ -217,6 +217,7 @@ ifeq ($(USE_RRTMGP), TRUE)
     $(error USE_KOKKOS must be true for using RRTMGP interface)
   else
     DEFINES += -DERF_USE_RRTMGP
+    DEFINES += -DRRTMGP_ENABLE_KOKKOS
 
     ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
     include $(ERF_RAD_DIR)/Make.package
@@ -232,6 +233,7 @@ ifeq ($(USE_RRTMGP), TRUE)
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples/all-sky
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
     INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/
     INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp
     INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
@@ -239,9 +241,34 @@ ifeq ($(USE_RRTMGP), TRUE)
     INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte/kernels
     INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples
     INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples/all-sky
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
     INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
   endif
 endif
+
+# If using SHOC, compile relevant source and headers
+ifeq ($(USE_SHOC), TRUE)
+  ifneq ($(USE_KOKKOS), TRUE)
+    $(error USE_KOKKOS must be true for using SHOC interface)
+  else
+    DEFINES += -DERF_USE_SHOC
+    DEFINES += -DSHOC_ENABLE_KOKKOS
+
+    ERF_SHOC_DIR = $(ERF_SOURCE_DIR)/physics/shoc
+    include $(ERF_SHOC_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_SHOC_DIR)
+    INCLUDE_LOCATIONS += $(ERF_SHOC_DIR)
+    
+    SHOC_HOME         ?= $(ERF_HOME)/external/E3SM/components/eamxx/src/physics/shoc/
+    VPATH_LOCATIONS   += $(SHOC_HOME)/disp/
+    VPATH_LOCATIONS   += $(SHOC_HOME)/eti
+    VPATH_LOCATIONS   += $(SHOC_HOME)/impl
+    INCLUDE_LOCATIONS += $(SHOC_HOME)/disp
+    INCLUDE_LOCATIONS += $(SHOC_HOME)/eti
+    INCLUDE_LOCATIONS += $(SHOC_HOME)/impl
+  endif
+endif
+    
     
 include $(AMREX_HOME)/Src/Base/Make.package
 

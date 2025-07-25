@@ -9,7 +9,6 @@ ifeq ($(USE_RRTMGP), TRUE)
     CEXE_headers += ERF_Kokkos_Radiation.H
 
     CEXE_sources += ERF_RRTMGP_Interface.cpp
-    CEXE_sources += ERF_RRTMGP_Utils.cpp 
     CEXE_sources += ERF_Radiation.cpp 
 
     # RRTMGP SUBMODULE FILES
