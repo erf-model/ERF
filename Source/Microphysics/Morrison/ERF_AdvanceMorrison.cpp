@@ -607,6 +607,21 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           });
 
 #ifdef ERF_USE_MORR_FORT
+          // Create dummy arrays for cumulus tendencies (if needed)
+          FArrayBox qrcuten_fab(grown_box, 1);
+          FArrayBox qscuten_fab(grown_box, 1);
+          FArrayBox qicuten_fab(grown_box, 1);
+          auto const& qrcuten_arr = qrcuten_fab.array();
+          auto const& qscuten_arr = qscuten_fab.array();
+          auto const& qicuten_arr = qicuten_fab.array();
+
+          // Initialize tendencies to zero (no cumulus parameterization in this example)
+          ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            qrcuten_arr(i,j,k) = 0.0;
+            qscuten_arr(i,j,k) = 0.0;
+            qicuten_arr(i,j,k) = 0.0;
+          });
+
           // WRF-Chem related variables (optional)
           bool flag_qndrop = false;  // Flag to indicate droplet number prediction
 

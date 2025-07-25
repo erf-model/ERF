@@ -615,6 +615,8 @@ struct SolverChoice {
             amrex::Print() << "Moisture Model: Kessler" << std::endl;
         } else if (moisture_type == MoistureType::Kessler_NoRain) {
             amrex::Print() << "Moisture Model: Kessler No Rain" << std::endl;
+        } else if (moisture_type == MoistureType::SatAdj) {
+            amrex::Print() << "Moisture Model: Saturation Adjustment" << std::endl;
         } else {
             amrex::Print() << "Moisture Model: None" << std::endl;
         }

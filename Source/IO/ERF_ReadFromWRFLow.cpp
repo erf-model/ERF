@@ -32,7 +32,7 @@ read_from_wrflow (const std::string& nc_low_file, const Box& domain,
 
     int ntimes;
     Real timeInterval;
-    const std::string dateTimeFormat ="%Y-%m-%d_%H:%M:%S";
+    const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor())
     {

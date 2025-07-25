@@ -12,6 +12,7 @@
 #include "ERF.H"
 #include "AMReX_buildInfo.H"
 #include "AMReX_Random.H"
+#include "AMReX_EB2_IF_Sphere.H"
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
@@ -427,18 +428,33 @@ ERF::ERF_shared ()
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
-        Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
-        FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
-        Real dummy_time = 0.0;
-        prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
-        TerrainIF ebterrain(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
-        auto gshop = EB2::makeShop(ebterrain);
+        std::string geometry ="terrain";
+        ParmParse pp("eb2");
+        pp.queryAdd("geometry", geometry);
+
         bool build_coarse_level_by_coarsening(false);
         // Note this just needs to be an integer > number of V-cycles one might use
         int max_coarsening_level = ( solverChoice.terrain_type == TerrainType::EB &&
                                     (solverChoice.project_initial_velocity ||
                                      solverChoice.anelastic[0] == 1) ) ? 100 : 0;
-        amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+        if (geometry == "terrain") {
+            Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
+            FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
+            Real dummy_time = 0.0;
+            prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
+            TerrainIF terrain_if(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
+            auto gshop = EB2::makeShop(terrain_if);
+            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+        } else if (geometry == "sphere") {
+            auto ProbLoArr = geom[max_level].ProbLoArray();
+            auto ProbHiArr = geom[max_level].ProbHiArray();
+            const Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
+            const Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
+            RealArray sphere_center = {xcen, ycen, 0.0};
+            EB2::SphereIF sphere_if(0.5, sphere_center, false);
+            auto gshop = EB2::makeShop(sphere_if);
+            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+        }
     }
 }
 
@@ -1660,17 +1676,20 @@ ERF::ReadParameters ()
 
         std::string start_datetime, stop_datetime;
         if (pp.query("start_datetime", start_datetime)) {
+            if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
+                start_datetime += ":00"; // add seconds
+            }
             start_time = getEpochTime(start_datetime, datetime_format);
-            if (start_time == -1.0) {
-               amrex::Abort("Invalid start_datetime string!");
-            }
+
             if (pp.query("stop_datetime", stop_datetime)) {
-                stop_time = getEpochTime(stop_datetime, datetime_format);
-                if (stop_time == -1.0) {
-                    amrex::Abort("Invalid stop_datetime string!");
+                if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
+                    stop_datetime += ":00"; // add seconds
                 }
+                stop_time = getEpochTime(stop_datetime, datetime_format);
             }
+
             use_datetime = true;
+
         } else {
             pp.query("stop_time", stop_time);
             pp.query("start_time", start_time); // This is optional, it defaults to 0

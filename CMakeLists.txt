@@ -42,7 +42,7 @@ option(ERF_ENABLE_NOAH "Enable Noah-MP" OFF)
 option(ERF_ENABLE_TOOLS "Enable building of additional tools" OFF)
 
 #Options for C++
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -134,8 +134,21 @@ endif()
 ########################## KOKKOS ##################################
 
 if(ERF_ENABLE_KOKKOS)
+
+  if(ERF_ENABLE_CUDA)
+    set(Kokkos_ENABLE_CUDA ON CACHE BOOL "kokkos enable cuda")
+    set(Kokkos_ENABLE_CUDA_LAMBDA ON CACHE BOOL "kokkos enable cuda lambda")
+    set(Kokkos_ENABLE_CUDA_RELOCATABLE_DEVICE_CODE ON CACHE BOOL "kokkos enable cuda RDC")
+  endif()
+
+  if(ERF_ENABLE_HIP)
+    set(Kokkos_ENABLE_HIP ON CACHE BOOL "kokkos enable hip")
+    set(Kokkos_ENABLE_HIP_LAMBDA ON CACHE BOOL "kokkos enable hip lambda")
+  endif()
+
   set(CMAKE_CXX_STANDARD 17)
   add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/kokkos)
+
 endif()
 
 ########################## NETCDF ##################################

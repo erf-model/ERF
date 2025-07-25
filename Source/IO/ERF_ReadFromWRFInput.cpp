@@ -65,17 +65,29 @@ read_from_wrfinput (int lev,
             ncf.get_attr("DY", attr); NC_dy = attr[0];
         }
         { // Global Attributes (string)
-            NC_dateTime = ncf.get_attr("SIMULATION_START_DATE")+"UTC";
-            const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S%Z";
+            NC_dateTime = ncf.get_attr("SIMULATION_START_DATE");
+            const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
             NC_epochTime = getEpochTime(NC_dateTime, dateTimeFormat);
         }
+        int west_east_stag   = static_cast<int>(ncf.dim("west_east_stag").len());
+        int south_north_stag = static_cast<int>(ncf.dim("south_north_stag").len());
+        int bottom_top       = static_cast<int>(ncf.dim("bottom_top").len());
         ncf.close();
 
         amrex::ignore_unused(NC_dateTime); amrex::ignore_unused(NC_epochTime);
 
         // Verify the inputs geometry matches what the NETCDF file has
         if (lev == 0) {
-            Real rtol   = 1.0e-7;
+            AMREX_ASSERT(west_east_stag == NC_nx);
+            AMREX_ASSERT(south_north_stag == NC_ny);
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(west_east_stag == geom.Domain().length(0)+1,
+                    "amr.n_cell[0] does not match wrfinput");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(south_north_stag == geom.Domain().length(1)+1,
+                    "amr.n_cell[1] does not match wrfinput");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bottom_top == geom.Domain().length(2),
+                    "amr.n_cell[2] does not match wrfinput");
+
+            Real rtol  = 1.0e-7;
             Real Len_x = NC_dx * Real(NC_nx-1);
             Real Len_y = NC_dy * Real(NC_ny-1);
             if (std::fabs((Len_x - (geom.ProbHi(0) - geom.ProbLo(0))) / Len_x) > rtol) {

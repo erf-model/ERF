@@ -34,6 +34,13 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     Real oma   = 1.0 - alpha;
 
+    int n_time_p1 = n_time + 1;
+    if ((time == stop_time) && (alpha==0)) {
+        // stop time coincides with final bdy snapshot -- don't try to read in
+        // another snapshot
+        n_time_p1 = n_time;
+    }
+
     // Flags for read vars and index mapping
     Vector<int> cons_read = {0, 1, 0, 0,
                              1, 0, 0,
@@ -100,14 +107,14 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                 // Then to interpolate, given time, we can define n = (time/dT)
                 // and alpha = (time - n*dT) / dT, then we define the data at time
                 // as  alpha * (data at time n+1) + (1 - alpha) * (data at time n)
-                const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][ivar].const_array();
-                const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][ivar].const_array();
-                const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][ivar].const_array();
-                const auto& bdatxhi_np1 = bdy_data_xhi[n_time+1][ivar].const_array();
-                const auto& bdatylo_n   = bdy_data_ylo[n_time  ][ivar].const_array();
-                const auto& bdatylo_np1 = bdy_data_ylo[n_time+1][ivar].const_array();
-                const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][ivar].const_array();
-                const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][ivar].const_array();
+                const auto& bdatxlo_n   = bdy_data_xlo[n_time   ][ivar].const_array();
+                const auto& bdatxlo_np1 = bdy_data_xlo[n_time_p1][ivar].const_array();
+                const auto& bdatxhi_n   = bdy_data_xhi[n_time   ][ivar].const_array();
+                const auto& bdatxhi_np1 = bdy_data_xhi[n_time_p1][ivar].const_array();
+                const auto& bdatylo_n   = bdy_data_ylo[n_time   ][ivar].const_array();
+                const auto& bdatylo_np1 = bdy_data_ylo[n_time_p1][ivar].const_array();
+                const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][ivar].const_array();
+                const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][ivar].const_array();
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

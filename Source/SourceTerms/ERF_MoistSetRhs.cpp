@@ -19,6 +19,7 @@ moist_set_rhs (const Box& tbx,
                const Real& start_bdy_time,
                const Real& new_stage_time,
                const Real& dt,
+               const Real & stop_time,
                int  width,
                int  set_width,
                const Box& domain,
@@ -48,6 +49,13 @@ moist_set_rhs (const Box& tbx,
     Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     Real oma   = 1.0 - alpha;
+
+    int n_time_p1 = n_time + 1;
+    if ((new_stage_time == stop_time) && (alpha==0)) {
+        // stop time coincides with final bdy snapshot -- don't try to read in
+        // another snapshot
+        n_time_p1 = n_time;
+    }
 
     /*
     // UNIT TEST DEBUG
@@ -81,14 +89,14 @@ moist_set_rhs (const Box& tbx,
 
     // Populate FABs from bdy interpolation (primitive vars)
     //==========================================================
-    const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][WRFBdyVars::QV].const_array();
-    const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][WRFBdyVars::QV].const_array();
-    const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][WRFBdyVars::QV].const_array();
-    const auto& bdatxhi_np1 = bdy_data_xhi[n_time+1][WRFBdyVars::QV].const_array();
-    const auto& bdatylo_n   = bdy_data_ylo[n_time  ][WRFBdyVars::QV].const_array();
-    const auto& bdatylo_np1 = bdy_data_ylo[n_time+1][WRFBdyVars::QV].const_array();
-    const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][WRFBdyVars::QV].const_array();
-    const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][WRFBdyVars::QV].const_array();
+    const auto& bdatxlo_n   = bdy_data_xlo[n_time   ][WRFBdyVars::QV].const_array();
+    const auto& bdatxlo_np1 = bdy_data_xlo[n_time_p1][WRFBdyVars::QV].const_array();
+    const auto& bdatxhi_n   = bdy_data_xhi[n_time   ][WRFBdyVars::QV].const_array();
+    const auto& bdatxhi_np1 = bdy_data_xhi[n_time_p1][WRFBdyVars::QV].const_array();
+    const auto& bdatylo_n   = bdy_data_ylo[n_time   ][WRFBdyVars::QV].const_array();
+    const auto& bdatylo_np1 = bdy_data_ylo[n_time_p1][WRFBdyVars::QV].const_array();
+    const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][WRFBdyVars::QV].const_array();
+    const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][WRFBdyVars::QV].const_array();
 
     // Get Array4 of interpolated values
     Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();
