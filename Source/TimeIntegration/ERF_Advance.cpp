@@ -128,10 +128,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 
 #endif
 
-    if(solverChoice.do_hurricane_simulation){
-        WeatherDataInterpolation(time);
-    }
-
     const BoxArray&            ba = S_old.boxArray();
     const DistributionMapping& dm = S_old.DistributionMap();
 
