@@ -182,8 +182,12 @@ public:
     void solve_with_EB_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                              amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
 
-    void solve_with_gmres (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
-                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
+    void solve_with_gmres (int lev, const amrex::Box& subdomain,
+                           amrex::MultiFab& rhs, amrex::MultiFab& p,
+                           amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
+                           amrex::MultiFab& ax_sub, amrex::MultiFab& ay_sub,
+                           amrex::MultiFab& znd_sub);
+
     void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
 
@@ -910,7 +914,7 @@ private:
     amrex::Real  stop_time = std::numeric_limits<amrex::Real>::max();
 
     bool use_datetime = false;
-    const std::string datetime_format = "%Y-%m-%d %H:%M:%S";
+    const std::string datetime_format = "%Y-%m-%d %H:%M:%S"; // ISO 8601 standard
 
     // if >= 0 we restart from a checkpoint
     std::string restart_chkfile = "";

@@ -45,7 +45,7 @@ public:
           const amrex::Geometry& geom,
           const amrex::Real& dt_advance)
     {
-        m_lsm_model[lev]->Init(cons_in, geom, dt_advance);
+        m_lsm_model[lev]->Init(lev, cons_in, geom, dt_advance);
     }
 
     void

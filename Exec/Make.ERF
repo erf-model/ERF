@@ -210,36 +210,38 @@ VPATH_LOCATIONS   += $(ERF_RAD_DIR)
 INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
 
 # If using RRTMGP Radiation, compile relevant source and headers
-#ifeq ($(USE_RRTMGP), TRUE)
-#  ifneq ($(USE_NETCDF), TRUE)
-#    $(error USE_NETCDF must be true for using RRTMGP interface)
-#  else ifneq ($(USE_YAKL), TRUE)
-#    $(error USE_YAKL must be true for using RRTMGP interface)
-#  else
-#    DEFINES += -DERF_USE_RRTMGP
-#
-#    ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
-#    include $(ERF_RAD_DIR)/Make.package
-#    VPATH_LOCATIONS   += $(ERF_RAD_DIR)
-#    INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
-#    
-#    RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte/kernels
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples/all-sky
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte/kernels
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples/all-sky
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
-#  endif
-#endif
+ifeq ($(USE_RRTMGP), TRUE)
+  ifneq ($(USE_NETCDF), TRUE)
+    $(error USE_NETCDF must be true for using RRTMGP interface)
+  else ifneq ($(USE_KOKKOS), TRUE)
+    $(error USE_KOKKOS must be true for using RRTMGP interface)
+  else
+    DEFINES += -DERF_USE_RRTMGP
+
+    ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
+    include $(ERF_RAD_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_RAD_DIR)
+    INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
+    
+    RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte/kernels
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples/all-sky
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte/kernels
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples/all-sky
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
+  endif
+endif
     
 include $(AMREX_HOME)/Src/Base/Make.package
 
@@ -275,6 +277,14 @@ endif
 
 ifeq ($(USE_MULTIBLOCK), TRUE)
   DEFINES += -DERF_USE_MULTIBLOCK
+endif
+
+ifeq ($(USE_KOKKOS), TRUE)
+  KOKKOS_HOME ?= $(ERF_HOME)/Submodules/kokkos
+  DEFINES += -DERF_USE_KOKKOS
+  INCLUDE_LOCATIONS += $(KOKKOS_HOME)/include
+  LIBRARY_LOCATIONS += $(KOKKOS_HOME)/lib
+  LIBRARIES += -lkokkoscore
 endif
 
 #turn on NetCDF macro define
