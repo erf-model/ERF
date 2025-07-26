@@ -824,59 +824,63 @@ define( int const& a_idim,
             aux_bnorm(i,j,k,1) = eb_normal[1];
             aux_bnorm(i,j,k,2) = eb_normal[2];
 
-            // Small cell
-
-            if (aux_vfrac(i,j,k) < small_volfrac) {
-              aux_vfrac(i,j,k)   = 0.0;
-              aux_vcent(i,j,k,0) = 0.0;
-              aux_vcent(i,j,k,1) = 0.0;
-              aux_vcent(i,j,k,2) = 0.0;
-
-              aux_afrac_x(i  ,j  ,k  ) = 0.0;
-              aux_afrac_x(i+1,j  ,k  ) = 0.0;
-              aux_afrac_y(i  ,j  ,k  ) = 0.0;
-              aux_afrac_y(i  ,j+1,k  ) = 0.0;
-              aux_afrac_z(i  ,j  ,k+1) = 0.0;
-              aux_afrac_z(i  ,j  ,k  ) = 0.0;
-
-              aux_fcent_x(i  ,j  ,k  ,0) = 0.0;
-              aux_fcent_x(i  ,j  ,k  ,1) = 0.0;
-              aux_fcent_x(i+1,j  ,k  ,0) = 0.0;
-              aux_fcent_x(i+1,j  ,k  ,1) = 0.0;
-
-              aux_fcent_y(i  ,j  ,k  ,0) = 0.0;
-              aux_fcent_y(i  ,j  ,k  ,1) = 0.0;
-              aux_fcent_y(i  ,j+1,k  ,0) = 0.0;
-              aux_fcent_y(i  ,j+1,k  ,1) = 0.0;
-
-              aux_fcent_z(i  ,j  ,k  ,0) = 0.0;
-              aux_fcent_z(i  ,j  ,k  ,1) = 0.0;
-              aux_fcent_z(i  ,j  ,k+1,0) = 0.0;
-              aux_fcent_z(i  ,j  ,k+1,1) = 0.0;
-
-              aux_barea(i,j,k) = 0.0;
-
-              aux_bcent(i,j,k,0) = 0.0;
-              aux_bcent(i,j,k,1) = 0.0;
-              aux_bcent(i,j,k,2) = 0.0;
-
-              aux_bnorm(i,j,k,0) = 0.0;
-              aux_bnorm(i,j,k,1) = 0.0;
-              aux_bnorm(i,j,k,2) = 0.0;
-
-              aux_flag(i,j,k).setCovered();
-            }
-
-            if (aux_vcent(i,j,k,0) < small_value) aux_vcent(i,j,k,0) = 0.0;
-            if (aux_vcent(i,j,k,1) < small_value) aux_vcent(i,j,k,1) = 0.0;
-            if (aux_vcent(i,j,k,2) < small_value) aux_vcent(i,j,k,2) = 0.0;
-            if (aux_bcent(i,j,k,0) < small_value) aux_bcent(i,j,k,0) = 0.0;
-            if (aux_bcent(i,j,k,1) < small_value) aux_bcent(i,j,k,1) = 0.0;
-            if (aux_bcent(i,j,k,2) < small_value) aux_bcent(i,j,k,2) = 0.0;
-
           }
 
         } // flag(iv_lo) and flag(iv_hi)
+      });
+
+      // Corrections for small cell
+
+      ParallelFor(bx, [&] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        if (aux_vfrac(i,j,k) < small_volfrac) {
+
+          aux_vfrac(i,j,k)   = 0.0;
+          aux_vcent(i,j,k,0) = 0.0;
+          aux_vcent(i,j,k,1) = 0.0;
+          aux_vcent(i,j,k,2) = 0.0;
+
+          aux_afrac_x(i  ,j  ,k  ) = 0.0;
+          aux_afrac_x(i+1,j  ,k  ) = 0.0;
+          aux_afrac_y(i  ,j  ,k  ) = 0.0;
+          aux_afrac_y(i  ,j+1,k  ) = 0.0;
+          aux_afrac_z(i  ,j  ,k+1) = 0.0;
+          aux_afrac_z(i  ,j  ,k  ) = 0.0;
+
+          aux_fcent_x(i  ,j  ,k  ,0) = 0.0;
+          aux_fcent_x(i  ,j  ,k  ,1) = 0.0;
+          aux_fcent_x(i+1,j  ,k  ,0) = 0.0;
+          aux_fcent_x(i+1,j  ,k  ,1) = 0.0;
+
+          aux_fcent_y(i  ,j  ,k  ,0) = 0.0;
+          aux_fcent_y(i  ,j  ,k  ,1) = 0.0;
+          aux_fcent_y(i  ,j+1,k  ,0) = 0.0;
+          aux_fcent_y(i  ,j+1,k  ,1) = 0.0;
+
+          aux_fcent_z(i  ,j  ,k  ,0) = 0.0;
+          aux_fcent_z(i  ,j  ,k  ,1) = 0.0;
+          aux_fcent_z(i  ,j  ,k+1,0) = 0.0;
+          aux_fcent_z(i  ,j  ,k+1,1) = 0.0;
+
+          aux_barea(i,j,k) = 0.0;
+
+          aux_bcent(i,j,k,0) = 0.0;
+          aux_bcent(i,j,k,1) = 0.0;
+          aux_bcent(i,j,k,2) = 0.0;
+
+          aux_bnorm(i,j,k,0) = 0.0;
+          aux_bnorm(i,j,k,1) = 0.0;
+          aux_bnorm(i,j,k,2) = 0.0;
+
+          aux_flag(i,j,k).setCovered();
+        }
+
+        if (aux_vcent(i,j,k,0) < small_value) aux_vcent(i,j,k,0) = 0.0;
+        if (aux_vcent(i,j,k,1) < small_value) aux_vcent(i,j,k,1) = 0.0;
+        if (aux_vcent(i,j,k,2) < small_value) aux_vcent(i,j,k,2) = 0.0;
+        if (aux_bcent(i,j,k,0) < small_value) aux_bcent(i,j,k,0) = 0.0;
+        if (aux_bcent(i,j,k,1) < small_value) aux_bcent(i,j,k,1) = 0.0;
+        if (aux_bcent(i,j,k,2) < small_value) aux_bcent(i,j,k,2) = 0.0;
       });
 
     } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued )
