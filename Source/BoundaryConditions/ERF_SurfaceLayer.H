@@ -398,7 +398,8 @@ public:
   void compute_fluxes (const int& lev,
                        const int& max_iters,
                        const FluxIter& most_flux,
-                       bool is_land);
+                       bool is_land,
+                       const RoughnessModel& roughness_model);
 
   void impose_SurfaceLayer_bcs (const int& lev,
                                 amrex::Vector<const amrex::MultiFab*> mfs,
@@ -578,8 +579,9 @@ private:
   amrex::Vector<amrex::FArrayBox> z_0;
   bool m_var_z0{false};
 
-  std::function<void(amrex::Real&, amrex::Real, amrex::Real, amrex::Real, amrex::Real)> roughness_land;
-  std::function<void(amrex::Real&, amrex::Real, amrex::Real, amrex::Real, amrex::Real)> roughness_sea;
+  // RoughnessModel defined in ERF_MOSTStress.H
+  RoughnessModel roughness_land;
+  RoughnessModel roughness_sea;
 
   bool use_moisture;
 
