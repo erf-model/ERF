@@ -63,34 +63,12 @@ SurfaceLayer::update_fluxes (const int& lev,
         flux_type == FluxCalcType::ROTATE) {
         bool is_land = false;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
-            if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                surface_flux_charnock most_flux(m_ma.get_zref(),
-                                                surf_temp_flux,
-                                                surf_moist_flux,
-                                                cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
-            } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
-                surface_flux_mod_charnock most_flux(m_ma.get_zref(),
-                                                    surf_temp_flux,
-                                                    surf_moist_flux,
-                                                    depth, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
-            } else if (rough_type_sea == RoughCalcType::DONELAN) {
-                surface_flux_donelan most_flux(m_ma.get_zref(),
-                                               surf_temp_flux,
-                                               surf_moist_flux,
-                                               cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
-            } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
-                surface_flux_wave_coupled most_flux(m_ma.get_zref(),
-                                                    surf_temp_flux,
-                                                    surf_moist_flux,
-                                                    cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
-            } else {
-                amrex::Abort("Unknown value for rough_type_sea");
-            }
-
+            surface_flux most_flux(m_ma.get_zref(),
+                                   surf_temp_flux,
+                                   surf_moist_flux,
+                                   cons_qflux,
+                                   depth);
+            compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             update_surf_temp(time);
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
