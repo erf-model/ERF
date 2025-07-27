@@ -123,32 +123,11 @@ SurfaceLayer::update_fluxes (const int& lev,
 
         } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
                    (moist_type == MoistCalcType::ADIABATIC)) {
-            if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                adiabatic most_flux(m_ma.get_zref(),
-                                    surf_temp_flux,
-                                    surf_moist_flux,
-                                    depth);
-                compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
-            } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
-                adiabatic most_flux(m_ma.get_zref(),
-                                    surf_temp_flux,
-                                    surf_moist_flux,
-                                    depth);
-                compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
-            } else if (rough_type_sea == RoughCalcType::DONELAN) {
-                adiabatic most_flux(m_ma.get_zref(),
-                                    surf_temp_flux,
-                                    surf_moist_flux,
-                                    depth);
-                compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
-            } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
-                adiabatic_wave_coupled most_flux(m_ma.get_zref(),
-                                                 surf_temp_flux,
-                                                 surf_moist_flux);
-                compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
-            } else {
-                amrex::Abort("Unknown value for rough_type_sea");
-            }
+            adiabatic most_flux(m_ma.get_zref(),
+                                surf_temp_flux,
+                                surf_moist_flux,
+                                depth);
+            compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
         } else {
             amrex::Abort("Unknown value for theta_type");
         }

@@ -101,19 +101,37 @@ struct adiabatic
                   const amrex::Array4<amrex::Real>& /*q_surf_arr*/,
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*pblh_arr*/,
-                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/,
+                  const amrex::Array4<amrex::Real>& Hwave_arr,
+                  const amrex::Array4<amrex::Real>& Lwave_arr,
+                  const amrex::Array4<amrex::Real>& eta_arr,
                   const RoughnessModel& update_roughness) const
     {
-        int iter = 0;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         amrex::Real ustar = 0.0; // to store previous value
+        amrex::Real Hwave = 0.0; // waveheight
+        amrex::Real Lwave = 0.0; // wavelength
+        amrex::Real eta   = 0.0; // eddy viscosity
 
+        if (Hwave_arr) // wave coupled
+        {
+            Hwave = Hwave_arr(i,j,k);
+            Lwave = Lwave_arr(i,j,k);
+
+            int ie, je;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            eta = eta_arr(ie,je,k,EddyDiff::Mom_v);
+        }
+
+        int iter = 0;
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
-            update_roughness(z0_arr(i,j,k), ustar, umm, tm_arr(i,j,k), mdata.water_depth);
+            update_roughness(z0_arr(i,j,k),
+                             ustar, umm, tm_arr(i,j,k), mdata.water_depth,
+                             eta, Hwave, Lwave);
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);

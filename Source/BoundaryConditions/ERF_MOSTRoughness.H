@@ -4,7 +4,14 @@
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
 
-using RoughnessModel = std::function<void(amrex::Real&, amrex::Real, amrex::Real, amrex::Real, amrex::Real)>;
+using RoughnessModel = std::function<void(amrex::Real& /*z0*/,
+                                          amrex::Real /*ustar*/,
+                                          amrex::Real /*Umagmean*/,
+                                          amrex::Real /*Tmean*/,
+                                          amrex::Real /*depth*/,
+                                          amrex::Real /*Kmv*/,
+                                          amrex::Real /*Hwave*/,
+                                          amrex::Real /*Lwave*/)>;
 
 struct ConstantRoughness {
 
@@ -15,8 +22,13 @@ struct ConstantRoughness {
                 amrex::Real /*ustar*/,
                 amrex::Real /*Umagmean*/,
                 amrex::Real /*Tmean*/,
-                amrex::Real /*depth*/) const
-    {}
+                amrex::Real /*depth*/,
+                amrex::Real /*Kmv*/,
+                amrex::Real /*Hwave*/,
+                amrex::Real /*Lwave*/) const
+    {
+        // no change to z0
+    }
 };
 
 /**
@@ -37,7 +49,10 @@ struct CharnockRoughness {
                 amrex::Real ustar,
                 amrex::Real /*Umagmean*/,
                 amrex::Real Tmean,
-                amrex::Real /*depth*/) const
+                amrex::Real /*depth*/,
+                amrex::Real /*Kmv*/,
+                amrex::Real /*Hwave*/,
+                amrex::Real /*Lwave*/) const
     {
         z0 = (Cnk_a / CONST_GRAV) * ustar * ustar;
         if (visc) {
@@ -62,7 +77,10 @@ struct ModifiedCharnockRoughness {
                 amrex::Real ustar,
                 amrex::Real /*Umagmean*/,
                 amrex::Real /*Tmean*/,
-                amrex::Real depth) const
+                amrex::Real depth,
+                amrex::Real /*Kmv*/,
+                amrex::Real /*Hwave*/,
+                amrex::Real /*Lwave*/) const
     {
         const amrex::Real Cnk_b = Cnk_b1 * std::log(Cnk_b2 / depth);
         z0 = std::exp( (2.7*ustar - 1.8/Cnk_b) / (ustar + 0.17/Cnk_b) );
@@ -87,7 +105,10 @@ struct COARE3Roughness {
                 amrex::Real ustar,
                 amrex::Real Umagmean,
                 amrex::Real /*Tmean*/,
-                amrex::Real /*depth*/) const
+                amrex::Real /*depth*/,
+                amrex::Real /*Kmv*/,
+                amrex::Real /*Hwave*/,
+                amrex::Real /*Lwave*/) const
     {
         amrex::Real ws10m = Umagmean * std::log(10./z0ref) / std::log(zref/z0ref);
         amrex::Real Czc = 0.011 + 0.007 * std::clamp((ws10m-10.)/8., 0., 1.0);
@@ -116,7 +137,10 @@ struct DonelanRoughness {
                 amrex::Real ustar,
                 amrex::Real /*Umagmean*/,
                 amrex::Real /*Tmean*/,
-                amrex::Real /*depth*/) const
+                amrex::Real /*depth*/,
+                amrex::Real /*Kmv*/,
+                amrex::Real /*Hwave*/,
+                amrex::Real /*Lwave*/) const
     {
         amrex::Real zw  = std::min(std::pow(ustar/1.06, 0.3), 1.0);
         amrex::Real zn1 = 0.011 * ustar * ustar / CONST_GRAV + ozo;
@@ -128,5 +152,32 @@ struct DonelanRoughness {
     }
 
     static constexpr amrex::Real ozo{1.59e-5};
+};
+
+/**
+ * Wave Coupled
+ */
+struct WaveCoupledRoughness {
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    operator() (amrex::Real& z0,
+                amrex::Real ustar,
+                amrex::Real /*Umagmean*/,
+                amrex::Real /*Tmean*/,
+                amrex::Real /*depth*/,
+                amrex::Real Kmv,
+                amrex::Real Hwave,
+                amrex::Real Lwave) const
+    {
+        z0 = 1200.0 * Hwave * std::pow( Hwave / (Lwave + eps), 4.5 )
+           + 0.11 * Kmv / ustar;
+        z0 = std::clamp(z0, z0_eps, z0_max);
+    }
+
+    static constexpr amrex::Real eps{1e-15};
+    static constexpr amrex::Real z0_eps{1.0e-6};
+    static constexpr amrex::Real z0_max{0.1};
 };
 #endif
