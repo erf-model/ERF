@@ -13,7 +13,7 @@ public:
     amrex::Real zref{10.0};           ///< Reference height (m)
     amrex::Real kappa{KAPPA};         ///< von Karman constant
     amrex::Real gravity{CONST_GRAV};  ///< Acceleration due to gravity (m/s^2)
-    amrex::Real surf_temp_flux{0.0};  ///< Heat flux
+    amrex::Real surf_temp_flux{0.0};  ///< Heat flux TODO: decide whether this is <θ'w'> or <θv'w'> under moist conditions
     amrex::Real surf_moist_flux{0.0}; ///< Moisture flux
 
     amrex::Real water_depth{30};      ///< Water depth
@@ -135,6 +135,7 @@ struct adiabatic
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
         t_star_arr(i,j,k) = 0.0;
         q_star_arr(i,j,k) = 0.0;
@@ -143,7 +144,6 @@ struct adiabatic
 
 private:
     most_data mdata;
-    similarity_funs sfuns;
 
     static constexpr amrex::Real tol{1.0e-5};   // iteration tolerance
     static constexpr amrex::Real WSMIN{0.1};    // minimum wind speed
