@@ -29,3 +29,4 @@ CEXE_sources += ERF_TerrainMetrics.cpp
 CEXE_sources += ERF_TimeAvgVel.cpp  
 
 CEXE_sources += ERF_ThinBodyWallDist.cpp
+CEXE_sources += ERF_WeatherDataInterpolation.cpp

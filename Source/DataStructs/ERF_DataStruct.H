@@ -535,6 +535,8 @@ struct SolverChoice {
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
 
+        pp.query("do_hurricane_simulation", do_hurricane_simulation);
+
         check_params(max_level);
     }
 
@@ -888,5 +890,8 @@ struct SolverChoice {
     amrex::Real const_massflux_layer_hi =  1e34;
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
+
+    bool do_hurricane_simulation = false;
+
 };
 #endif

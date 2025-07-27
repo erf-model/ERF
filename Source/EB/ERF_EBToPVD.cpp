@@ -22,7 +22,10 @@ amrex::Real dot_product(const std::array<amrex::Real,3>& a, const std::array<amr
 
 bool intersects(amrex::Real val)
 {
-   return (val > 0.0 && val < 1.0);
+   // Real eps = std::numeric_limits<Real>::epsilon();
+   constexpr Real eps0 = 1.e-15_rt;
+   constexpr Real eps1 = 1.0_rt + 1.e-15_rt;
+   return (val > -eps0 && val < eps1);
 }
 
 }
