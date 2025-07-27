@@ -5,253 +5,6 @@
 #include <ERF_IndexDefines.H>
 #include <ERF_Wstar.H>
 
-using RoughnessModel = std::function<void(amrex::Real&, amrex::Real, amrex::Real, amrex::Real, amrex::Real)>;
-
-/**
- * Adiabatic with constant roughness
- */
-struct adiabatic
-{
-    adiabatic (amrex::Real zref,
-               amrex::Real Tflux,
-               amrex::Real Qvflux)
-    {
-        mdata.zref = zref;
-        mdata.surf_temp_flux  = Tflux;
-        mdata.surf_moist_flux = Qvflux;
-    }
-
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
-    void
-    iterate_flux (const int& i,
-                  const int& j,
-                  const int& k,
-                  const int& /*max_iters*/,
-                  const amrex::Array4<const amrex::Real>& z0_arr,
-                  const amrex::Array4<const amrex::Real>& umm_arr,
-                  const amrex::Array4<const amrex::Real>& /*tm_arr*/,
-                  const amrex::Array4<const amrex::Real>& /*tvm_arr*/,
-                  const amrex::Array4<const amrex::Real>& /*qvm_arr*/,
-                  const amrex::Array4<amrex::Real>& u_star_arr,
-                  const amrex::Array4<amrex::Real>& /*w_star_arr*/,
-                  const amrex::Array4<amrex::Real>& t_star_arr,
-                  const amrex::Array4<amrex::Real>& q_star_arr,
-                  const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& /*q_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& olen_arr,
-                  const amrex::Array4<amrex::Real>& /*pblh_arr*/,
-                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/,
-                  const RoughnessModel& /*update_roughness*/) const
-    {
-        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
-        t_star_arr(i,j,k) = 0.0;
-        q_star_arr(i,j,k) = 0.0;
-        olen_arr(i,j,k)   = 1.0e16;
-    }
-
-private:
-    most_data mdata;
-    similarity_funs sfuns;
-};
-
-
-/**
- * Adiabatic with charnock roughness
- */
-struct adiabatic_charnock
-{
-    adiabatic_charnock (amrex::Real zref,
-                        amrex::Real Tflux,
-                        amrex::Real Qvflux)
-    {
-        mdata.zref = zref;
-        mdata.surf_temp_flux  = Tflux;
-        mdata.surf_moist_flux = Qvflux;
-    }
-
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
-    void
-    iterate_flux (const int& i,
-                  const int& j,
-                  const int& k,
-                  const int& max_iters,
-                  const amrex::Array4<amrex::Real>& z0_arr,
-                  const amrex::Array4<const amrex::Real>& umm_arr,
-                  const amrex::Array4<const amrex::Real>& tm_arr,
-                  const amrex::Array4<const amrex::Real>& /*tvm_arr*/,
-                  const amrex::Array4<const amrex::Real>& /*qvm_arr*/,
-                  const amrex::Array4<amrex::Real>& u_star_arr,
-                  const amrex::Array4<amrex::Real>& /*w_star_arr*/,
-                  const amrex::Array4<amrex::Real>& t_star_arr,
-                  const amrex::Array4<amrex::Real>& q_star_arr,
-                  const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& /*q_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& olen_arr,
-                  const amrex::Array4<amrex::Real>& /*pblh_arr*/,
-                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/,
-                  const RoughnessModel& update_roughness) const
-    {
-        int iter = 0;
-        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        amrex::Real ustar = 0.0;
-        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
-        do {
-            ustar = u_star_arr(i,j,k);
-            update_roughness(z0_arr(i,j,k), ustar, umm, tm_arr(i,j,k), 0);
-            u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
-            ++iter;
-        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
-
-        t_star_arr(i,j,k) = 0.0;
-        q_star_arr(i,j,k) = 0.0;
-          olen_arr(i,j,k) = 1.0e16;
-    }
-
-private:
-    most_data mdata;
-    similarity_funs sfuns;
-
-    static constexpr amrex::Real tol{1.0e-5};
-    static constexpr amrex::Real WSMIN{0.1}; // minimum wind speed
-};
-
-
-/**
- * Adiabatic with modified charnock roughness
- */
-struct adiabatic_mod_charnock
-{
-    adiabatic_mod_charnock (amrex::Real zref,
-                            amrex::Real Tflux,
-                            amrex::Real Qvflux,
-                            amrex::Real depth)
-    {
-        mdata.zref = zref;
-        mdata.Cnk_d = depth;
-        mdata.surf_temp_flux  = Tflux;
-        mdata.surf_moist_flux = Qvflux;
-    }
-
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
-    void
-    iterate_flux (const int& i,
-                  const int& j,
-                  const int& k,
-                  const int& max_iters,
-                  const amrex::Array4<amrex::Real>& z0_arr,
-                  const amrex::Array4<const amrex::Real>& umm_arr,
-                  const amrex::Array4<const amrex::Real>& tm_arr,
-                  const amrex::Array4<const amrex::Real>& /*tvm_arr*/,
-                  const amrex::Array4<const amrex::Real>& /*qvm_arr*/,
-                  const amrex::Array4<amrex::Real>& u_star_arr,
-                  const amrex::Array4<amrex::Real>& /*w_star_arr*/,
-                  const amrex::Array4<amrex::Real>& t_star_arr,
-                  const amrex::Array4<amrex::Real>& q_star_arr,
-                  const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& /*q_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& olen_arr,
-                  const amrex::Array4<amrex::Real>& /*pblh_arr*/,
-                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/,
-                  const RoughnessModel& update_roughness) const
-    {
-        int iter = 0;
-        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        amrex::Real ustar = 0.0;
-        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
-        do {
-            ustar = u_star_arr(i,j,k);
-            update_roughness(z0_arr(i,j,k), ustar, umm_arr(i,j,k), tm_arr(i,j,k), mdata.Cnk_d);
-            u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
-            ++iter;
-        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
-
-        t_star_arr(i,j,k) = 0.0;
-        q_star_arr(i,j,k) = 0.0;
-          olen_arr(i,j,k) = 1.0e16;
-    }
-
-private:
-    most_data mdata;
-    similarity_funs sfuns;
-
-    static constexpr amrex::Real tol{1.0e-5};
-    static constexpr amrex::Real WSMIN{0.1}; // minimum wind speed
-};
-
-
-/**
- * Adiabatic with Donelan roughness
- */
-struct adiabatic_donelan
-{
-    adiabatic_donelan (amrex::Real zref,
-                       amrex::Real Tflux,
-                       amrex::Real Qvflux)
-    {
-        mdata.zref = zref;
-        mdata.surf_temp_flux  = Tflux;
-        mdata.surf_moist_flux = Qvflux;
-    }
-
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
-    void
-    iterate_flux (const int& i,
-                  const int& j,
-                  const int& k,
-                  const int& max_iters,
-                  const amrex::Array4<amrex::Real>& z0_arr,
-                  const amrex::Array4<const amrex::Real>& umm_arr,
-                  const amrex::Array4<const amrex::Real>& tm_arr,
-                  const amrex::Array4<const amrex::Real>& /*tvm_arr*/,
-                  const amrex::Array4<const amrex::Real>& /*qvm_arr*/,
-                  const amrex::Array4<amrex::Real>& u_star_arr,
-                  const amrex::Array4<amrex::Real>& /*w_star_arr*/,
-                  const amrex::Array4<amrex::Real>& t_star_arr,
-                  const amrex::Array4<amrex::Real>& q_star_arr,
-                  const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& /*q_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& olen_arr,
-                  const amrex::Array4<amrex::Real>& /*pblh_arr*/,
-                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/,
-                  const RoughnessModel& update_roughness) const
-    {
-        int iter = 0;
-        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        amrex::Real ustar = 0.0;
-        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
-        do {
-            ustar = u_star_arr(i,j,k);
-            update_roughness(z0_arr(i,j,k), ustar, umm, tm_arr(i,j,k), 0);
-            u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
-            ++iter;
-        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
-
-        t_star_arr(i,j,k) = 0.0;
-        q_star_arr(i,j,k) = 0.0;
-          olen_arr(i,j,k) = 1.0e16;
-    }
-
-private:
-    most_data mdata;
-    similarity_funs sfuns;
-
-    static constexpr amrex::Real tol{1.0e-5};
-    static constexpr amrex::Real WSMIN{0.1}; // minimum wind speed
-};
-
-
 /**
  * Adiabatic with wave-coupled roughness
  */
@@ -551,7 +304,7 @@ struct surface_flux_mod_charnock
                                bool cons_qflux)
     {
         mdata.zref = zref;
-        mdata.Cnk_d = depth;
+        mdata.water_depth = depth;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
         spec_qflux  = cons_qflux;
@@ -602,7 +355,7 @@ struct surface_flux_mod_charnock
         }
         do {
             ustar = u_star_arr(i,j,k);
-            update_roughness(z0_arr(i,j,k), ustar, umm_arr(i,j,k), tm_arr(i,j,k), mdata.Cnk_d);
+            update_roughness(z0_arr(i,j,k), ustar, umm_arr(i,j,k), tm_arr(i,j,k), mdata.water_depth);
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
                                   (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
@@ -1115,7 +868,7 @@ struct surface_temp_mod_charnock
                                bool cons_qflux)
     {
         mdata.zref = zref;
-        mdata.Cnk_d = depth;
+        mdata.water_depth = depth;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
         spec_qflux  = cons_qflux;
@@ -1168,7 +921,7 @@ struct surface_temp_mod_charnock
         }
         do {
             ustar = u_star_arr(i,j,k);
-            update_roughness(z0_arr(i,j,k), ustar, umm_arr(i,j,k), tm_arr(i,j,k), mdata.Cnk_d);
+            update_roughness(z0_arr(i,j,k), ustar, umm_arr(i,j,k), tm_arr(i,j,k), mdata.water_depth);
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'T'>
             tflux *= (1 + 0.61*qvm_arr(i,j,k));

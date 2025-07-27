@@ -4,6 +4,8 @@
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
 
+using RoughnessModel = std::function<void(amrex::Real&, amrex::Real, amrex::Real, amrex::Real, amrex::Real)>;
+
 struct ConstantRoughness {
 
     AMREX_GPU_DEVICE

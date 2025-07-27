@@ -47,7 +47,7 @@ SurfaceLayer::update_fluxes (const int& lev,
             compute_fluxes(lev, max_iters, most_flux, is_land, roughness_land);
         } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
                    (moist_type == MoistCalcType::ADIABATIC)) {
-            adiabatic most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux);
+            adiabatic most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, depth);
             compute_fluxes(lev, max_iters, most_flux, is_land, roughness_land);
         } else {
             amrex::Abort("Unknown value for theta_type");
@@ -124,20 +124,22 @@ SurfaceLayer::update_fluxes (const int& lev,
         } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
                    (moist_type == MoistCalcType::ADIABATIC)) {
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
-                adiabatic_charnock most_flux(m_ma.get_zref(),
-                                             surf_temp_flux,
-                                             surf_moist_flux);
+                adiabatic most_flux(m_ma.get_zref(),
+                                    surf_temp_flux,
+                                    surf_moist_flux,
+                                    depth);
                 compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
-                adiabatic_mod_charnock most_flux(m_ma.get_zref(),
-                                                 surf_temp_flux,
-                                                 surf_moist_flux,
-                                                 depth);
+                adiabatic most_flux(m_ma.get_zref(),
+                                    surf_temp_flux,
+                                    surf_moist_flux,
+                                    depth);
                 compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
             } else if (rough_type_sea == RoughCalcType::DONELAN) {
-                adiabatic_donelan most_flux(m_ma.get_zref(),
-                                            surf_temp_flux,
-                                            surf_moist_flux);
+                adiabatic most_flux(m_ma.get_zref(),
+                                    surf_temp_flux,
+                                    surf_moist_flux,
+                                    depth);
                 compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 adiabatic_wave_coupled most_flux(m_ma.get_zref(),

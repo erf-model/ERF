@@ -236,7 +236,7 @@ public:
           } else if (rough_sea_string == "modified_charnock") {
               rough_type_sea = RoughCalcType::MODIFIED_CHARNOCK;
               roughness_sea = ModifiedCharnockRoughness();
-              pp.query("most.modified_charnock_depth", depth);
+              pp.query("most.modified_charnock_depth", depth); // TODO: handle spatially varying depth
           } else if (rough_sea_string == "wave_coupled") {
               rough_type_sea = RoughCalcType::WAVE_COUPLED;
               roughness_sea = ConstantRoughness(); // TODO
