@@ -159,7 +159,7 @@ private:
  * Solve for MOST fluxes with specified surface flux
  *
  * Need to iteratively solve for ustar, which determines the Obukhov length
- * stability parameter; the surface temperature and tstar are derived quantites.
+ * stability parameter; the surface temperature and tstar are derived quantities.
  */
 struct surface_flux
 {
