@@ -43,7 +43,7 @@ SurfaceLayer::update_fluxes (const int& lev,
             compute_fluxes(lev, max_iters, most_flux, is_land, roughness_land);
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             update_surf_temp(time);
-            surface_temp most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
+            surface_temp most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux, depth);
             compute_fluxes(lev, max_iters, most_flux, is_land, roughness_land);
         } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
                    (moist_type == MoistCalcType::ADIABATIC)) {
