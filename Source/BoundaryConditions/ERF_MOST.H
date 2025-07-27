@@ -3,6 +3,7 @@
 
 #include <ERF_Constants.H>
 #include <ERF_MOSTRoughness.H>
+#include <ERF_Wstar.H>
 
 /**
  * Structure of plain old data relevant to MOST BCs
@@ -154,5 +155,147 @@ private:
     static constexpr amrex::Real z0_max{0.1};
 };
 
+/**
+ * Solve for MOST fluxes with specified surface flux
+ *
+ * Need to iteratively solve for ustar and tstar, which determine the Obukhov
+ * length stability parameter; the surface temperature is a derived quantity.
+ */
+struct surface_flux
+{
+    surface_flux (amrex::Real zref,
+                  amrex::Real Tflux,
+                  amrex::Real Qvflux,
+                  bool cons_qflux,
+                  amrex::Real depth)
+    : spec_qflux(cons_qflux)
+    {
+        mdata.zref            = zref;
+        mdata.surf_temp_flux  = Tflux;
+        mdata.surf_moist_flux = Qvflux;
+        mdata.water_depth     = depth;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    iterate_flux (const int& i,
+                  const int& j,
+                  const int& k,
+                  const int& max_iters,
+                  const amrex::Array4<      amrex::Real>& z0_arr,
+                  const amrex::Array4<const amrex::Real>& umm_arr,
+                  const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<const amrex::Real>& tvm_arr,
+                  const amrex::Array4<const amrex::Real>& qvm_arr,
+                  const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& w_star_arr,
+                  const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& q_star_arr,
+                  const amrex::Array4<amrex::Real>& t_surf_arr,
+                  const amrex::Array4<amrex::Real>& q_surf_arr,
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& pblh_arr,
+                  const amrex::Array4<amrex::Real>& Hwave_arr,
+                  const amrex::Array4<amrex::Real>& Lwave_arr,
+                  const amrex::Array4<amrex::Real>& eta_arr,
+                  const RoughnessModel& update_roughness) const
+    {
+        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+        amrex::Real ustar = 0.0; // to store previous value
+        amrex::Real wstar = 0.0; // temporary scaled var
+        amrex::Real tflux = 0.0;
+        amrex::Real qflux = 0.0;
+        amrex::Real Olen  = 0.0;
+        amrex::Real zeta  = 0.0;
+        amrex::Real psi_m = 0.0;
+        amrex::Real psi_h = 0.0;
+        if (u_star_arr(i,j,k) == 1.E34) {
+            u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        } else {
+            Olen  = olen_arr(i,j,k);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
+        }
+
+        amrex::Real Hwave = 0.0; // waveheight
+        amrex::Real Lwave = 0.0; // wavelength
+        amrex::Real eta   = 0.0; // eddy viscosity
+        if (Hwave_arr) // wave coupled
+        {
+            Hwave = Hwave_arr(i,j,k);
+            Lwave = Lwave_arr(i,j,k);
+
+            int ie, je;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            eta = eta_arr(ie,je,k,EddyDiff::Mom_v);
+        }
+
+        int iter = 0;
+        do {
+            ustar = u_star_arr(i,j,k);
+
+            update_roughness(z0_arr(i,j,k),
+                             ustar, umm, tm_arr(i,j,k), mdata.water_depth,
+                             eta, Hwave, Lwave);
+
+            // update virtual temperature flux
+            qflux = (spec_qflux) ? mdata.surf_moist_flux :
+                                 -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                                  (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
+            tflux = mdata.surf_temp_flux*(1 + 0.61*qvm_arr(i,j,k)) + qflux*0.61*tm_arr(i,j,k);
+
+            // update w* and Umagmean for Beljaars correction
+            if (w_star_arr) {
+                w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+                wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
+                umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                umm = std::max(umm, WSMIN);
+            }
+
+            // update similarity params
+            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
+
+            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0_arr(i,j,k)) - psi_m);
+            ++iter;
+        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
+
+        t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
+                            (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
+
+        t_star_arr(i,j,k) = -mdata.surf_temp_flux / u_star_arr(i,j,k); // TODO be consistent with above
+        if (spec_qflux) {
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
+                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
+            q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
+        } else {
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                                (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
+        }
+        olen_arr(i,j,k) = Olen;
+    }
+
+private:
+    most_data mdata;
+    similarity_funs sfuns;
+
+    const bool spec_qflux;
+
+    static constexpr amrex::Real tol{1.0e-5};   // iteration tolerance
+    static constexpr amrex::Real WSMIN{0.1};    // minimum wind speed
+
+    // for wave-coupled roughness
+    static constexpr amrex::Real eps{1e-15};
+    static constexpr amrex::Real z0_eps{1.0e-6};
+    static constexpr amrex::Real z0_max{0.1};
+};
 
 #endif
