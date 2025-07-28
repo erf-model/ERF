@@ -307,7 +307,7 @@ ifeq ($(USE_MULTIBLOCK), TRUE)
 endif
 
 ifeq ($(USE_KOKKOS), TRUE)
-  KOKKOS_HOME ?= $(ERF_HOME)/Submodules/kokkos
+  KOKKOS_HOME ?= $(ERF_HOME)/Submodules/ekat/extern/kokkos
   DEFINES += -DERF_USE_KOKKOS
   INCLUDE_LOCATIONS += $(KOKKOS_HOME)/include
   LIBRARY_LOCATIONS += $(KOKKOS_HOME)/lib
