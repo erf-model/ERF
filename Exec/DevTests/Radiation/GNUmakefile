@@ -25,6 +25,7 @@ TEST = TRUE
 USE_ASSERTION = TRUE
 
 USE_RRTMGP = TRUE
+USE_NETCDF = TRUE
 
 # GNU Make
 Bpack := ./Make.package

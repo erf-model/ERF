@@ -1638,7 +1638,7 @@ If building with cmake, the following flags must be enabled:
 ``-DERF_ENABLE_RRTMGP:BOOL=ON``, ``-DERF_ENABLE_NETCDF:BOOL=ON``, and ``-DERF_ENABLE_HDF5:BOOL=ON``;
 see **ERF/Build/cmake_with_radiation.sh**.
 
-If building with gmake, set ``USE_RRTMGP = TRUE`` in the GNUmakefile.
+If building with gmake, set ``USE_RRTMGP = TRUE`` and ``USE_NETCDF = TRUE`` in the GNUmakefile.
 
 List of Parameters
 ------------------
