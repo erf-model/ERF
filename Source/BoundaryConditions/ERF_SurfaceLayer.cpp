@@ -490,6 +490,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             bx.setSmall(dir, bx.bigEnd(dir));
         }
 
+        const bool is_low_face = m_face.isLow();
+
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real Tflux = flux_comp.compute_t_flux(i, j, k, dir,
@@ -501,7 +503,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 rotate_scalar_flux(i, j, k, dir, Tflux, dxInv, zphys_arr,
                                    hfx1_arr, hfx2_arr, hfx3_arr);
             } else {
-                if (!m_face.isLow()) {
+                if (!is_low_face) {
                     Tflux = -Tflux;
                 }
 
@@ -553,7 +555,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     rotate_scalar_flux(i, j, k, dir, Qflux, dxInv, zphys_arr,
                                        qfx1_arr, qfx2_arr, qfx3_arr);
                 } else {
-                    if (!m_face.isLow()) {
+                    if (!is_low_face) {
                         Qflux = -Qflux;
                     }
                     // TODO: better way to generalize this?
