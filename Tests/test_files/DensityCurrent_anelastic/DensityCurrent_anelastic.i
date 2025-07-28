@@ -2,6 +2,8 @@
 max_step = 10
 
 erf.anelastic   = 1
+erf.poisson_reltol = 1.e-10
+erf.poisson_abstol = 1.e-10
 
 erf.check_file  = chk
 erf.plot_file_1 = plt
