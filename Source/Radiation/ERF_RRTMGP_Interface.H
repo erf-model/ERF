@@ -37,9 +37,6 @@ using optical_props1_t   = OpticalProps1sclK<RealT, layout_t, RadDefaultDevice>;
 using optical_props2_t   = OpticalProps2strK<RealT, layout_t, RadDefaultDevice>;
 using source_func_t      =     SourceFuncLWK<RealT, layout_t, RadDefaultDevice>;
 
-void init_kls ();
-void finalize_kls ();
-
 namespace rrtmgp {
 
 extern std::unique_ptr<gas_optics_t> k_dist_sw_k;

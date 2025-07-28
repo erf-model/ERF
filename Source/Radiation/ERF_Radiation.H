@@ -52,13 +52,39 @@ public:
                SolverChoice& sc);
 
     // Destructor
-    ~Radiation () = default;
+    ~Radiation ()
+    {
+        // Finalize kokkos
+        Kokkos::finalize();
+    }
 
     virtual
     void
     Init (const amrex::Geometry& geom,
           const amrex::BoxArray& ba,
-          amrex::MultiFab* cons_in) override {};
+          amrex::MultiFab* cons_in) override
+    {
+        // Ensure the boxes span klo -> khi
+        int klo = geom.Domain().smallEnd(2);
+        int khi = geom.Domain().bigEnd(2);
+
+        // Reset vector of offsets for columnar data
+        m_nlay = geom.Domain().length(2);
+
+        m_ncol = 0;
+        m_col_offsets.clear();
+        m_col_offsets.resize(int(ba.size()));
+        for (amrex::MFIter mfi(*cons_in); mfi.isValid(); ++mfi) {
+            const amrex::Box& vbx = mfi.validbox();
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
+                                             (khi == vbx.bigEnd(2)),
+                                             "Vertical decomposition with radiation is not allowed.");
+            int nx = vbx.length(0);
+            int ny = vbx.length(1);
+            m_col_offsets[mfi.index()] = m_ncol;
+            m_ncol += nx * ny;
+        }
+    };
 
     virtual
     void
