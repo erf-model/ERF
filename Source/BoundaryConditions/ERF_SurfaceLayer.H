@@ -224,7 +224,7 @@ public:
                   roughness_sea = CharnockRoughness(cnk_a, cnk_visc);
               }
           } else if (rough_sea_string == "coare3.0") {
-              rough_type_sea = RoughCalcType::CHARNOCK;
+              rough_type_sea = RoughCalcType::COARE3;
               amrex::Print() << "If there is water, Charnock relation with variable "
                   "Charnock parameter (COARE3.0)"
                              << (cnk_visc ? " and viscosity" : "") << " will be used"
@@ -397,8 +397,12 @@ public:
   template <typename FluxIter>
   void compute_fluxes (const int& lev,
                        const int& max_iters,
-                       const FluxIter& most_flux,
                        bool is_land,
+                       bool cons_qflux,
+                       const amrex::Real zref,
+                       const amrex::Real surf_temp_flux,
+                       const amrex::Real surf_moist_flux,
+                       const amrex::Real depth,
                        const RoughnessModel& roughness_model);
 
   void impose_SurfaceLayer_bcs (const int& lev,
@@ -536,11 +540,12 @@ public:
   };
 
   enum struct RoughCalcType {
-    CONSTANT = 0, ///< Constant z0
-    CHARNOCK,
-    MODIFIED_CHARNOCK,
-    DONELAN,
-    WAVE_COUPLED
+    CONSTANT = 0,       ///< Constant z0
+    CHARNOCK,           ///< Constant-coefficient Charnock
+    COARE3,             ///< Variable-coefficient Charnock
+    MODIFIED_CHARNOCK,  ///< Depth-dependent Charnock
+    DONELAN,            ///< High-wind conditions
+    WAVE_COUPLED        ///< Coupled to wave model
   };
 
   enum struct PBLHeightCalcType { None, MYNN25, YSU, MRF };

@@ -11,15 +11,16 @@
 struct most_data
 {
 public:
+    // constants
+    static constexpr amrex::Real kappa{KAPPA};          ///< von Karman constant
+    static constexpr amrex::Real gravity{CONST_GRAV};   ///< acceleration (magnitude) due to gravity (m/s^2)
+    static constexpr amrex::Real Bjr_beta{1.2};         ///< empirical parameter from Beljaars 1995 QJRMS
+
+    // physical quantities
     amrex::Real zref{10.0};           ///< Reference height (m)
-    amrex::Real kappa{KAPPA};         ///< von Karman constant
-    amrex::Real gravity{CONST_GRAV};  ///< Acceleration due to gravity (m/s^2)
     amrex::Real surf_temp_flux{0.0};  ///< Heat flux TODO: decide whether this is <θ'w'> or <θv'w'> under moist conditions
     amrex::Real surf_moist_flux{0.0}; ///< Moisture flux
-
-    amrex::Real water_depth{30};      ///< Water depth
-
-    static constexpr amrex::Real Bjr_beta = 1.2; // Empirical parameter from Beljaars 1995 QJRMS
+    amrex::Real water_depth{0};       ///< Water depth
 };
 
 
@@ -72,14 +73,13 @@ private:
 struct adiabatic
 {
     adiabatic (amrex::Real zref,
-               amrex::Real Tflux,
-               amrex::Real Qvflux,
+               amrex::Real /*Tflux*/,
+               amrex::Real /*Qvflux*/,
+               bool /*cons_qflux*/,
                amrex::Real depth)
     {
-        mdata.zref            = zref;
-        mdata.surf_temp_flux  = Tflux;
-        mdata.surf_moist_flux = Qvflux;
-        mdata.water_depth     = depth;
+        mdata.zref        = zref;
+        mdata.water_depth = depth;
     }
 
     AMREX_GPU_DEVICE

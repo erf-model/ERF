@@ -39,16 +39,22 @@ SurfaceLayer::update_fluxes (const int& lev,
         flux_type == FluxCalcType::ROTATE) {
         bool is_land = true;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
-            surface_flux most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux, depth);
-            compute_fluxes(lev, max_iters, most_flux, is_land, roughness_land);
+            compute_fluxes<surface_flux>(lev, max_iters,
+                                         is_land, cons_qflux, m_ma.get_zref(),
+                                         surf_temp_flux, surf_moist_flux,
+                                         depth, roughness_land);
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             update_surf_temp(time);
-            surface_temp most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux, depth);
-            compute_fluxes(lev, max_iters, most_flux, is_land, roughness_land);
+            compute_fluxes<surface_temp>(lev, max_iters,
+                                         is_land, cons_qflux, m_ma.get_zref(),
+                                         surf_temp_flux, surf_moist_flux,
+                                         depth, roughness_land);
         } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
                    (moist_type == MoistCalcType::ADIABATIC)) {
-            adiabatic most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, depth);
-            compute_fluxes(lev, max_iters, most_flux, is_land, roughness_land);
+            compute_fluxes<adiabatic>(lev, max_iters,
+                                      is_land, cons_qflux, m_ma.get_zref(),
+                                      surf_temp_flux, surf_moist_flux,
+                                      depth, roughness_land);
         } else {
             amrex::Abort("Unknown value for theta_type");
         }
@@ -63,27 +69,22 @@ SurfaceLayer::update_fluxes (const int& lev,
         flux_type == FluxCalcType::ROTATE) {
         bool is_land = false;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
-            surface_flux most_flux(m_ma.get_zref(),
-                                   surf_temp_flux,
-                                   surf_moist_flux,
-                                   cons_qflux,
-                                   depth);
-            compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
+            compute_fluxes<surface_flux>(lev, max_iters,
+                                         is_land, cons_qflux, m_ma.get_zref(),
+                                         surf_temp_flux, surf_moist_flux,
+                                         depth, roughness_sea);
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             update_surf_temp(time);
-            surface_temp most_flux(m_ma.get_zref(),
-                                   surf_temp_flux,
-                                   surf_moist_flux,
-                                   cons_qflux,
-                                   depth);
-            compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
+            compute_fluxes<surface_temp>(lev, max_iters,
+                                         is_land, cons_qflux, m_ma.get_zref(),
+                                         surf_temp_flux, surf_moist_flux,
+                                         depth, roughness_sea);
         } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
                    (moist_type == MoistCalcType::ADIABATIC)) {
-            adiabatic most_flux(m_ma.get_zref(),
-                                surf_temp_flux,
-                                surf_moist_flux,
-                                depth);
-            compute_fluxes(lev, max_iters, most_flux, is_land, roughness_sea);
+            compute_fluxes<adiabatic>(lev, max_iters,
+                                      is_land, cons_qflux, m_ma.get_zref(),
+                                      surf_temp_flux, surf_moist_flux,
+                                      depth, roughness_sea);
         } else {
             amrex::Abort("Unknown value for theta_type");
         }
@@ -115,10 +116,20 @@ template <typename FluxIter>
 void
 SurfaceLayer::compute_fluxes (const int& lev,
                               const int& max_iters,
-                              const FluxIter& most_flux,
                               bool is_land,
+                              bool cons_qflux,
+                              const Real zref,
+                              const Real surf_temp_flux,
+                              const Real surf_moist_flux,
+                              const Real depth,
                               const RoughnessModel& roughness_model)
 {
+    FluxIter most_flux(zref,
+                       surf_temp_flux,
+                       surf_moist_flux,
+                       cons_qflux,
+                       depth);
+
     // Pointers to the computed averages
     const auto *const tm_ptr  = m_ma.get_average(lev,2); // potential temperature
     const auto *const qvm_ptr = m_ma.get_average(lev,3); // water vapor mixing ratio
