@@ -57,6 +57,11 @@ include $(ERF_UTIL_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_UTIL_DIR)
 INCLUDE_LOCATIONS += $(ERF_UTIL_DIR)
 
+ERF_PHYSICS_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces
+include $(ERF_PHYSICS_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_PHYSICS_DIR)
+INCLUDE_LOCATIONS += $(ERF_PHYSICS_DIR)
+
 ifeq ($(USE_PARTICLES),TRUE)
 ERF_PARTICLES_DIR = $(ERF_SOURCE_DIR)/Particles
 include $(ERF_PARTICLES_DIR)/Make.package
@@ -203,14 +208,10 @@ ifeq ($(USE_NOAH), TRUE)
   endif
 endif
 
-
-ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
-include $(ERF_RAD_DIR)/Make.package
-VPATH_LOCATIONS   += $(ERF_RAD_DIR)
-INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
-
 # If using RRTMGP Radiation, compile relevant source and headers
 ifeq ($(USE_RRTMGP), TRUE)
+  USE_KOKKOS = TRUE
+  USE_NETCDF = TRUE
   ifneq ($(USE_NETCDF), TRUE)
     $(error USE_NETCDF must be true for using RRTMGP interface)
   else ifneq ($(USE_KOKKOS), TRUE)
@@ -219,7 +220,7 @@ ifeq ($(USE_RRTMGP), TRUE)
     DEFINES += -DERF_USE_RRTMGP
     DEFINES += -DRRTMGP_ENABLE_KOKKOS
 
-    ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
+    ERF_RAD_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Radiation
     include $(ERF_RAD_DIR)/Make.package
     VPATH_LOCATIONS   += $(ERF_RAD_DIR)
     INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
@@ -248,6 +249,7 @@ endif
 
 # If using SHOC, compile relevant source and headers
 ifeq ($(USE_SHOC), TRUE)
+  USE_KOKKOS = TRUE
   ifneq ($(USE_KOKKOS), TRUE)
     $(error USE_KOKKOS must be true for using SHOC interface)
   else

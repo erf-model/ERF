@@ -20,22 +20,22 @@
 #include <ERF_RRTMGP_Utils.H>
 #include <ERF_Constants.H>
 
-#include <ERF_Kokkos_Radiation.H>
+#include <ERF_Kokkos.H>
 
 template <typename T>
-using view_t       = Kokkos::View<T, layout_t, RadDefaultDevice>;
+using view_t       = Kokkos::View<T, layout_t, KokkosDefaultDevice>;
 
-using pool_t       = conv::MemPoolSingleton<RealT, layout_t, RadDefaultDevice>;
+using pool_t       = conv::MemPoolSingleton<RealT, layout_t, KokkosDefaultDevice>;
 
-using gas_optics_t       =  GasOpticsRRTMGPK<RealT, layout_t, RadDefaultDevice>;
-using cloud_optics_t     =      CloudOpticsK<RealT, layout_t, RadDefaultDevice>;
-using gas_concs_t        =         GasConcsK<RealT, layout_t, RadDefaultDevice>;
-using fluxes_t           =     FluxesBybandK<RealT, layout_t, RadDefaultDevice>;
-using fluxes_broadband_t =  FluxesBroadbandK<RealT, layout_t, RadDefaultDevice>;
-using optical_props_t    =     OpticalPropsK<RealT, layout_t, RadDefaultDevice>;
-using optical_props1_t   = OpticalProps1sclK<RealT, layout_t, RadDefaultDevice>;
-using optical_props2_t   = OpticalProps2strK<RealT, layout_t, RadDefaultDevice>;
-using source_func_t      =     SourceFuncLWK<RealT, layout_t, RadDefaultDevice>;
+using gas_optics_t       =  GasOpticsRRTMGPK<RealT, layout_t, KokkosDefaultDevice>;
+using cloud_optics_t     =      CloudOpticsK<RealT, layout_t, KokkosDefaultDevice>;
+using gas_concs_t        =         GasConcsK<RealT, layout_t, KokkosDefaultDevice>;
+using fluxes_t           =     FluxesBybandK<RealT, layout_t, KokkosDefaultDevice>;
+using fluxes_broadband_t =  FluxesBroadbandK<RealT, layout_t, KokkosDefaultDevice>;
+using optical_props_t    =     OpticalPropsK<RealT, layout_t, KokkosDefaultDevice>;
+using optical_props1_t   = OpticalProps1sclK<RealT, layout_t, KokkosDefaultDevice>;
+using optical_props2_t   = OpticalProps2strK<RealT, layout_t, KokkosDefaultDevice>;
+using source_func_t      =     SourceFuncLWK<RealT, layout_t, KokkosDefaultDevice>;
 
 namespace rrtmgp {
 

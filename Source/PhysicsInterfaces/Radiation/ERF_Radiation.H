@@ -45,7 +45,7 @@
 class Radiation : public IRadiation {
 public:
 
-    #include <ERF_Kokkos_Radiation.H>
+    #include <ERF_Kokkos.H>
 
     // Constructor
     Radiation (const int& lev,
@@ -367,7 +367,7 @@ private:
     real1d_k  m_gas_mol_weights;
     std::vector<std::string> gas_names_offset;
 
-    GasConcsK<amrex::Real, layout_t, RadDefaultDevice> m_gas_concs;
+    GasConcsK<amrex::Real, layout_t, KokkosDefaultDevice> m_gas_concs;
 
     // Process interface vars modeled after EAMXX
     //===================================================================================
