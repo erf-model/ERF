@@ -208,22 +208,22 @@ ifeq ($(USE_NOAH), TRUE)
   endif
 endif
 
+ERF_RAD_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Radiation
+include $(ERF_RAD_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_RAD_DIR)
+INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
+
 # If using RRTMGP Radiation, compile relevant source and headers
 ifeq ($(USE_RRTMGP), TRUE)
+
   USE_KOKKOS = TRUE
   USE_NETCDF = TRUE
+
   ifneq ($(USE_NETCDF), TRUE)
     $(error USE_NETCDF must be true for using RRTMGP interface)
-  else ifneq ($(USE_KOKKOS), TRUE)
-    $(error USE_KOKKOS must be true for using RRTMGP interface)
   else
     DEFINES += -DERF_USE_RRTMGP
     DEFINES += -DRRTMGP_ENABLE_KOKKOS
-
-    ERF_RAD_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Radiation
-    include $(ERF_RAD_DIR)/Make.package
-    VPATH_LOCATIONS   += $(ERF_RAD_DIR)
-    INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
     
     RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/
@@ -249,14 +249,13 @@ endif
 
 # If using SHOC, compile relevant source and headers
 ifeq ($(USE_SHOC), TRUE)
-  USE_KOKKOS = TRUE
-  ifneq ($(USE_KOKKOS), TRUE)
-    $(error USE_KOKKOS must be true for using SHOC interface)
-  else
+
+    USE_KOKKOS = TRUE
+
     DEFINES += -DERF_USE_SHOC
     DEFINES += -DSHOC_ENABLE_KOKKOS
 
-    ERF_SHOC_DIR = $(ERF_SOURCE_DIR)/physics/shoc
+    ERF_SHOC_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Shoc
     include $(ERF_SHOC_DIR)/Make.package
     VPATH_LOCATIONS   += $(ERF_SHOC_DIR)
     INCLUDE_LOCATIONS += $(ERF_SHOC_DIR)
@@ -268,7 +267,6 @@ ifeq ($(USE_SHOC), TRUE)
     INCLUDE_LOCATIONS += $(SHOC_HOME)/disp
     INCLUDE_LOCATIONS += $(SHOC_HOME)/eti
     INCLUDE_LOCATIONS += $(SHOC_HOME)/impl
-  endif
 endif
     
     
