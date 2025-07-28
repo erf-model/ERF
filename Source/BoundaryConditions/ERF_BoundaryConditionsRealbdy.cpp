@@ -42,7 +42,12 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     }
 
     // Flags for read vars and index mapping
+    /*
     Vector<int> cons_read = {0, 1, 0, 0,
+                             1, 0, 0,
+                             0, 0, 0};
+    */
+    Vector<int> cons_read = {0, 0, 0, 0,
                              1, 0, 0,
                              0, 0, 0};
 
