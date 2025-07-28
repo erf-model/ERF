@@ -1665,7 +1665,7 @@ struct moeng_flux
 
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * (qv_mean-qv_surf);
-        amrex::Real num2    = wsp_mean * (qv-qv_mean);
+        amrex::Real num2    = wsp_mean * (qv-qvm_arr(i,j,k));
 
         // NOTE: this is rho*<Qv'w'> = -K dQvdz
         amrex::Real moflux  = (std::abs(qstar) > eps) ?
@@ -1728,7 +1728,7 @@ struct moeng_flux
 
         amrex::Real wsp     = sqrt(velx*velx+vely*vely); // FIX ---
         amrex::Real num1    = wsp * (theta_mean-theta_surf);
-        amrex::Real num2    = wsp_mean * (theta-theta_mean);
+        amrex::Real num2    = wsp_mean * (theta-tm_arr(i,j,k));
 
         // NOTE: this is rho*<T'w'> = -K dTdz
         amrex::Real moflux  = (std::abs(tstar) > eps) ?
