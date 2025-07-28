@@ -1633,7 +1633,12 @@ List of Parameters
 Radiation
 =========
 
-ERF allows for radiative heating computations with the RRTMGP library. Source code must be compiled with CMAKE and the following flags enabled: ``-DERF_ENABLE_RRTMGP:BOOL=ON``, ``-DERF_ENABLE_NETCDF:BOOL=ON``, and ``-DERF_ENABLE_HDF5:BOOL=ON``; see **ERF/Build/cmake_with_radiation.sh**.
+ERF allows for radiative heating computations with the RRTMGP library.
+If building with cmake, the following flags must be enabled:
+``-DERF_ENABLE_RRTMGP:BOOL=ON``, ``-DERF_ENABLE_NETCDF:BOOL=ON``, and ``-DERF_ENABLE_HDF5:BOOL=ON``;
+see **ERF/Build/cmake_with_radiation.sh**.
+
+If building with gmake, set ``USE_RRTMGP = TRUE`` and ``USE_NETCDF = TRUE`` in the GNUmakefile.
 
 List of Parameters
 ------------------
