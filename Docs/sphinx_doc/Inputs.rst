@@ -1397,6 +1397,15 @@ List of Parameters
 |                                  | use_real_bcs is     |                    |                       |
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
+| **erf.real_extrap_w**            | First-order         | bool               | true                  |
+|                                  | extrapolation of    |                    |                       |
+|                                  | vertical velocities |                    |                       |
+|                                  | on lateral          |                    |                       |
+|                                  | boundaries (instead |                    |                       |
+|                                  | of setting to 0) if |                    |                       |
+|                                  | use_real_bcs is     |                    |                       |
+|                                  | true                |                    |                       |
++----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.metgrid_debug_quiescent**  | If init_type is     | true or false      | false                 |
 |                                  | Metgrid, overwrite  |                    |                       |
 |                                  | initial conditions  |                    |                       |

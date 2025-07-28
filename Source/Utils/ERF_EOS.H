@@ -15,7 +15,7 @@
  * @params[  out]       potential temperature
 */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getThgivenPandT(const amrex::Real T, const amrex::Real P, const amrex::Real rdOcp)
+amrex::Real getThgivenTandP(const amrex::Real T, const amrex::Real P, const amrex::Real rdOcp)
 {
     return T * std::pow(p_0/P, rdOcp);
 }

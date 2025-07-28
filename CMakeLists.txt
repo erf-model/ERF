@@ -25,8 +25,8 @@ option(ERF_ENABLE_PARTICLES "Enable Lagrangian particles" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
-option(ERF_ENABLE_MOISTURE "Enable Full Moisture" ON)
 option(ERF_ENABLE_RRTMGP "Enable RTE-RRTMGP Radiation" OFF)
+option(ERF_ENABLE_SHOC "Enable SHOC" OFF)
 
 #Options for performance
 option(ERF_ENABLE_MPI "Enable MPI" OFF)
@@ -195,6 +195,25 @@ if(ERF_ENABLE_RRTMGP)
     set(RRTMGP_ENABLE_KOKKOS TRUE)
     target_compile_definitions(rrtmgp PUBLIC RRTMGP_ENABLE_KOKKOS)
     target_link_libraries(rrtmgp Kokkos::kokkos)
+endif()
+
+########################### SHOC #################################
+
+if(ERF_ENABLE_SHOC)
+    if(NOT ERF_ENABLE_KOKKOS)
+        message(FATAL_ERROR "CMake Error: kokkos must be enabled if SHOC is enabled.")
+    endif()
+
+    message(STATUS "Building SHOC...")
+
+    # Build the static SHOC library
+    set(SHOC_BIN ${CMAKE_BINARY_DIR}/shoc)
+    add_subdirectory(${CMAKE_SOURCE_DIR}/shoc/cpp ${SHOC_BIN})
+
+    # Set up kokkos library and definitions
+    set(SHOC_ENABLE_KOKKOS TRUE)
+    target_compile_definitions(shoc PUBLIC SHOC_ENABLE_KOKKOS)
+    target_link_libraries(shoc Kokkos::kokkos)
 endif()
 
 ########################### ERF #####################################
