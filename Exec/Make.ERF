@@ -255,12 +255,23 @@ ifeq ($(USE_SHOC), TRUE)
     DEFINES += -DERF_USE_SHOC
     DEFINES += -DSHOC_ENABLE_KOKKOS
 
+    # This directory holds the EKAT source files
+    ERF_EKAT_DIR = $(ERF_HOME)/Submodules/ekat
+    VPATH_LOCATIONS   += $(ERF_EKAT_DIR)/src
+    INCLUDE_LOCATIONS += $(ERF_EKAT_DIR)/src
+    VPATH_LOCATIONS   += $(ERF_EKAT_DIR)/src/ekat
+    INCLUDE_LOCATIONS += $(ERF_EKAT_DIR)/src/ekat
+    VPATH_LOCATIONS   += $(ERF_EKAT_DIR)/extern/spdlog/include
+    INCLUDE_LOCATIONS += $(ERF_EKAT_DIR)/extern/spdlog/include
+
+    # This directory holds the ERF-SHOC interface routines
     ERF_SHOC_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Shoc
     include $(ERF_SHOC_DIR)/Make.package
     VPATH_LOCATIONS   += $(ERF_SHOC_DIR)
     INCLUDE_LOCATIONS += $(ERF_SHOC_DIR)
     
-    SHOC_HOME         ?= $(ERF_HOME)/external/E3SM/components/eamxx/src/physics/shoc/
+    # This directory holds the SHOC source itself
+    SHOC_HOME         ?= $(ERF_HOME)/external/shoc
     VPATH_LOCATIONS   += $(SHOC_HOME)/disp/
     VPATH_LOCATIONS   += $(SHOC_HOME)/eti
     VPATH_LOCATIONS   += $(SHOC_HOME)/impl
