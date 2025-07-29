@@ -27,8 +27,8 @@ SurfaceLayer::update_fluxes (const int& lev,
     m_ma.compute_averages(lev);
 
     // Do we have a constant flux for moisture?
-    bool cons_qflux = ( (moist_type == MoistCalcType::MOISTURE_FLUX) ||
-                        (moist_type == MoistCalcType::ADIABATIC) );
+    bool const_qflux = ( (moist_type == MoistCalcType::MOISTURE_FLUX) ||
+                         (moist_type == MoistCalcType::ADIABATIC) );
 
     // ***************************************************************
     // Iterate the fluxes if moeng type
@@ -39,22 +39,13 @@ SurfaceLayer::update_fluxes (const int& lev,
         flux_type == FluxCalcType::ROTATE) {
         bool is_land = true;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
-            compute_fluxes<surface_flux>(lev, max_iters,
-                                         is_land, cons_qflux, m_ma.get_zref(),
-                                         surf_temp_flux, surf_moist_flux,
-                                         depth, roughness_land);
+            compute_fluxes<surface_flux>(lev, max_iters, is_land, const_qflux);
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             update_surf_temp(time);
-            compute_fluxes<surface_temp>(lev, max_iters,
-                                         is_land, cons_qflux, m_ma.get_zref(),
-                                         surf_temp_flux, surf_moist_flux,
-                                         depth, roughness_land);
+            compute_fluxes<surface_temp>(lev, max_iters, is_land, const_qflux);
         } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
                    (moist_type == MoistCalcType::ADIABATIC)) {
-            compute_fluxes<adiabatic>(lev, max_iters,
-                                      is_land, cons_qflux, m_ma.get_zref(),
-                                      surf_temp_flux, surf_moist_flux,
-                                      depth, roughness_land);
+            compute_fluxes<adiabatic>(lev, max_iters, is_land, const_qflux);
         } else {
             amrex::Abort("Unknown value for theta_type");
         }
@@ -69,22 +60,13 @@ SurfaceLayer::update_fluxes (const int& lev,
         flux_type == FluxCalcType::ROTATE) {
         bool is_land = false;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
-            compute_fluxes<surface_flux>(lev, max_iters,
-                                         is_land, cons_qflux, m_ma.get_zref(),
-                                         surf_temp_flux, surf_moist_flux,
-                                         depth, roughness_sea);
+            compute_fluxes<surface_flux>(lev, max_iters, is_land, const_qflux);
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             update_surf_temp(time);
-            compute_fluxes<surface_temp>(lev, max_iters,
-                                         is_land, cons_qflux, m_ma.get_zref(),
-                                         surf_temp_flux, surf_moist_flux,
-                                         depth, roughness_sea);
+            compute_fluxes<surface_temp>(lev, max_iters, is_land, const_qflux);
         } else if ((theta_type == ThetaCalcType::ADIABATIC) &&
                    (moist_type == MoistCalcType::ADIABATIC)) {
-            compute_fluxes<adiabatic>(lev, max_iters,
-                                      is_land, cons_qflux, m_ma.get_zref(),
-                                      surf_temp_flux, surf_moist_flux,
-                                      depth, roughness_sea);
+            compute_fluxes<adiabatic>(lev, max_iters, is_land, const_qflux);
         } else {
             amrex::Abort("Unknown value for theta_type");
         }
@@ -106,30 +88,78 @@ SurfaceLayer::update_fluxes (const int& lev,
 }
 
 /**
+ * Wrapper around iterate_fluxes -- the roughness model is selected here
+ */
+template <template<typename> class FluxIter>
+void
+SurfaceLayer::compute_fluxes (const int& lev,
+                              const int& max_iters,
+                              bool is_land,
+                              bool const_qflux)
+{
+    const auto& rough_params = (is_land) ? land_params : sea_params;
+
+    switch(rough_params.rough_type) {
+
+        case RoughCalcType::CONSTANT:
+        {
+            FluxIter<ConstantRoughness> most_flux(m_ma.get_zref(), surf_temp_flux,
+                                                  surf_moist_flux, const_qflux,
+                                                  rough_params);
+            return iterate_fluxes(lev, max_iters, is_land, most_flux);
+        }
+        case RoughCalcType::CHARNOCK:
+        {
+            FluxIter<CharnockRoughness> most_flux(m_ma.get_zref(), surf_temp_flux,
+                                                  surf_moist_flux, const_qflux,
+                                                  rough_params);
+            return iterate_fluxes(lev, max_iters, is_land, most_flux);
+        }
+        case RoughCalcType::COARE3:
+        {
+            FluxIter<COARE3Roughness> most_flux(m_ma.get_zref(), surf_temp_flux,
+                                                surf_moist_flux, const_qflux,
+                                                rough_params);
+            return iterate_fluxes(lev, max_iters, is_land, most_flux);
+        }
+        case RoughCalcType::MODIFIED_CHARNOCK:
+        {
+            FluxIter<ModifiedCharnockRoughness> most_flux(m_ma.get_zref(), surf_temp_flux,
+                                                          surf_moist_flux, const_qflux,
+                                                          rough_params);
+            return iterate_fluxes(lev, max_iters, is_land, most_flux);
+        }
+        case RoughCalcType::DONELAN:
+        {
+            FluxIter<DonelanRoughness> most_flux(m_ma.get_zref(), surf_temp_flux,
+                                                 surf_moist_flux, const_qflux,
+                                                 rough_params);
+            return iterate_fluxes(lev, max_iters, is_land, most_flux);
+        }
+        case RoughCalcType::WAVE_COUPLED:
+        {
+            FluxIter<WaveCoupledRoughness> most_flux(m_ma.get_zref(), surf_temp_flux,
+                                                     surf_moist_flux, const_qflux,
+                                                     rough_params);
+            return iterate_fluxes(lev, max_iters, is_land, most_flux);
+        }
+    }
+}
+
+/**
  * Function to compute the fluxes (u^star and t^star) for Monin Obukhov similarity theory
  *
  * @param[in] lev Current level
  * @param[in] max_iters maximum iterations to use
  * @param[in] most_flux structure to iteratively compute ustar and tstar
  */
-template <typename FluxIter>
+template <typename FluxIterInstance>
 void
-SurfaceLayer::compute_fluxes (const int& lev,
+SurfaceLayer::iterate_fluxes (const int& lev,
                               const int& max_iters,
                               bool is_land,
-                              bool cons_qflux,
-                              const Real zref,
-                              const Real surf_temp_flux,
-                              const Real surf_moist_flux,
-                              const Real depth,
-                              const RoughnessModel& roughness_model)
+                              const FluxIterInstance& most_flux)
 {
-    FluxIter most_flux(zref,
-                       surf_temp_flux,
-                       surf_moist_flux,
-                       cons_qflux,
-                       depth);
-
     // Pointers to the computed averages
     const auto *const tm_ptr  = m_ma.get_average(lev,2); // potential temperature
     const auto *const qvm_ptr = m_ma.get_average(lev,3); // water vapor mixing ratio
@@ -177,8 +207,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
                                        u_star_arr, w_star_arr,           // to be updated
                                        t_star_arr, q_star_arr,           // to be updated
                                        t_surf_arr, q_surf_arr, olen_arr, // to be updated
-                                       pblh_arr, Hwave_arr, Lwave_arr, eta_arr,
-                                       roughness_model);
+                                       pblh_arr, Hwave_arr, Lwave_arr, eta_arr);
             }
         });
     }

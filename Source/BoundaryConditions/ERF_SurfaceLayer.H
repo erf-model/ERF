@@ -11,7 +11,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_Constants.H"
 #include "ERF_MOSTAverage.H"
-#include "ERF_MOSTRoughness.H"
+#include "ERF_MOST.H"
 #include "ERF_MOSTStress.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
@@ -194,55 +194,53 @@ public:
       amrex::ParmParse pp("erf");
 
       if (lev == 0) {
+          land_params.zref = m_ma.get_zref();
+          sea_params.zref = m_ma.get_zref();
+
           // Specify how to compute the surface flux over land (if there is any)
+          // and set additional roughness model-specific params
           std::string rough_land_string_in;
           std::string rough_land_string{"constant"};
           if (pp.query("most.roughness_type_land", rough_land_string_in)) {
               rough_land_string = amrex::toLower(rough_land_string_in);
           }
           if (rough_land_string == "constant") {
-              rough_type_land = RoughCalcType::CONSTANT;
-              roughness_land = ConstantRoughness();
+              land_params.rough_type = RoughCalcType::CONSTANT;
           } else {
               amrex::Abort("Undefined MOST roughness type for land!");
           }
 
           // Specify how to compute the surface flux over sea (if there is any)
+          // and set additional roughness model-specific params
           std::string rough_sea_string_in;
           std::string rough_sea_string{"charnock"};
           if (pp.query("most.roughness_type_sea", rough_sea_string_in)) {
               rough_sea_string = amrex::toLower(rough_sea_string_in);
           }
           if (rough_sea_string == "charnock") {
-              rough_type_sea = RoughCalcType::CHARNOCK;
-              pp.query("most.charnock_constant", cnk_a);
-              pp.query("most.charnock_viscosity", cnk_visc);
-              if (cnk_a > 0) {
-                  amrex::Print() << "If there is water, Charnock relation with C_a="
-                                 << cnk_a << (cnk_visc ? " and viscosity" : "")
+              sea_params.rough_type = RoughCalcType::CHARNOCK;
+              pp.query("most.charnock_constant", sea_params.Cnk_a);
+              pp.query("most.charnock_viscosity", sea_params.Cnk_visc);
+              if (sea_params.Cnk_a > 0) {
+                  amrex::Print() << "If there is water, Charnock relation with"
+                                 << " C_a=" << sea_params.Cnk_a
+                                 << (sea_params.Cnk_visc ? " and viscosity" : "")
                                  << " will be used" << std::endl;
-                  roughness_sea = CharnockRoughness(cnk_a, cnk_visc);
               }
           } else if (rough_sea_string == "coare3.0") {
-              rough_type_sea = RoughCalcType::COARE3;
+              sea_params.rough_type = RoughCalcType::COARE3;
               amrex::Print() << "If there is water, Charnock relation with variable "
-                  "Charnock parameter (COARE3.0)"
-                             << (cnk_visc ? " and viscosity" : "") << " will be used"
+                             << "Charnock parameter (COARE3.0)"
                              << std::endl;
-              roughness_sea = COARE3Roughness(m_ma.get_zref());
           } else if (rough_sea_string == "donelan") {
-              rough_type_sea = RoughCalcType::DONELAN;
-              roughness_sea = DonelanRoughness();
+              sea_params.rough_type = RoughCalcType::DONELAN;
           } else if (rough_sea_string == "modified_charnock") {
-              rough_type_sea = RoughCalcType::MODIFIED_CHARNOCK;
-              roughness_sea = ModifiedCharnockRoughness();
-              pp.query("most.modified_charnock_depth", depth); // TODO: handle spatially varying depth
+              sea_params.rough_type = RoughCalcType::MODIFIED_CHARNOCK;
+              pp.query("most.modified_charnock_depth", sea_params.depth); // TODO: handle spatially varying depth
           } else if (rough_sea_string == "wave_coupled") {
-              rough_type_sea = RoughCalcType::WAVE_COUPLED;
-              roughness_sea = ConstantRoughness(); // TODO
+              sea_params.rough_type = RoughCalcType::WAVE_COUPLED;
           } else if (rough_sea_string == "constant") {
-              rough_type_sea = RoughCalcType::CONSTANT;
-              roughness_sea = ConstantRoughness();
+              sea_params.rough_type = RoughCalcType::CONSTANT;
           } else {
               amrex::Abort("Undefined MOST roughness type for sea!");
           }
@@ -252,7 +250,7 @@ public:
           int lmask_min = lmask_min_reduce(*lmask_lev[0].get(), nghost);
           amrex::ParallelDescriptor::ReduceIntMin(lmask_min);
 
-          m_var_z0 = (lmask_min < 1) & (rough_type_sea != RoughCalcType::CONSTANT);
+          m_var_z0 = (lmask_min < 1) & (sea_params.rough_type != RoughCalcType::CONSTANT);
           if (m_var_z0) {
               amrex::Print() << "Time-varying surface roughness ("
                              << rough_sea_string << ")" << std::endl;
@@ -394,16 +392,17 @@ public:
                  const amrex::Real& time,
                  int max_iters = 500);
 
-  template <typename FluxIter>
+  template <template<typename> class FluxIter>
   void compute_fluxes (const int& lev,
                        const int& max_iters,
                        bool is_land,
-                       bool cons_qflux,
-                       const amrex::Real zref,
-                       const amrex::Real surf_temp_flux,
-                       const amrex::Real surf_moist_flux,
-                       const amrex::Real depth,
-                       const RoughnessModel& roughness_model);
+                       bool cons_qflux);
+
+  template <typename FluxIterInstance> // FluxIter<RoughCalc>
+  void iterate_fluxes (const int& lev,
+                       const int& max_iters,
+                       bool is_land,
+                       const FluxIterInstance& most_flux);
 
   void impose_SurfaceLayer_bcs (const int& lev,
                                 amrex::Vector<const amrex::MultiFab*> mfs,
@@ -539,22 +538,11 @@ public:
     SURFACE_MOISTURE    ///< Surface Qv specified
   };
 
-  enum struct RoughCalcType {
-    CONSTANT = 0,       ///< Constant z0
-    CHARNOCK,           ///< Constant-coefficient Charnock
-    COARE3,             ///< Variable-coefficient Charnock
-    MODIFIED_CHARNOCK,  ///< Depth-dependent Charnock
-    DONELAN,            ///< High-wind conditions
-    WAVE_COUPLED        ///< Coupled to wave model
-  };
-
   enum struct PBLHeightCalcType { None, MYNN25, YSU, MRF };
 
   FluxCalcType flux_type{FluxCalcType::MOENG};
   ThetaCalcType theta_type{ThetaCalcType::ADIABATIC};
   MoistCalcType moist_type{MoistCalcType::ADIABATIC};
-  RoughCalcType rough_type_land{RoughCalcType::CONSTANT};
-  RoughCalcType rough_type_sea{RoughCalcType::CHARNOCK};
   PBLHeightCalcType pblh_type{PBLHeightCalcType::None};
 
 private:
@@ -578,17 +566,15 @@ private:
   amrex::Real custom_qstar{0};
   amrex::Real custom_rhosurf{0}; // use specified value instead of rho from first cell
   bool specified_rho_surf{false};
-  amrex::Real cnk_a{0.0185};
-  bool cnk_visc{false};
-  amrex::Real depth{30.0};
   amrex::Vector<amrex::FArrayBox> z_0;
   bool m_var_z0{false};
 
-  // RoughnessModel defined in ERF_MOSTStress.H
-  RoughnessModel roughness_land;
-  RoughnessModel roughness_sea;
+  RoughCalcParams land_params;
+  RoughCalcParams sea_params;
 
   bool use_moisture;
+
+  most_data mdata;
 
   MOSTAverage m_ma;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;

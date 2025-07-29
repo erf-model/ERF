@@ -4,16 +4,31 @@
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
 
-using RoughnessModel = std::function<void(amrex::Real& /*z0*/,
-                                          amrex::Real /*ustar*/,
-                                          amrex::Real /*Umagmean*/,
-                                          amrex::Real /*Tmean*/,
-                                          amrex::Real /*depth*/,
-                                          amrex::Real /*Kmv*/,
-                                          amrex::Real /*Hwave*/,
-                                          amrex::Real /*Lwave*/)>;
+enum struct RoughCalcType {
+    CONSTANT = 0,       ///< Constant z0
+    CHARNOCK,           ///< Constant-coefficient Charnock
+    COARE3,             ///< Variable-coefficient Charnock
+    MODIFIED_CHARNOCK,  ///< Depth-dependent Charnock
+    DONELAN,            ///< High-wind conditions
+    WAVE_COUPLED        ///< Coupled to wave model
+};
+
+
+// this is instantiated in SurfaceLayer and used to construct the FluxIter functor
+struct RoughCalcParams {
+    RoughCalcType rough_type{RoughCalcType::CONSTANT};
+
+    amrex::Real zref{10};
+    amrex::Real depth{30};
+
+    // Charnock parameters
+    amrex::Real Cnk_a{0.0185};
+    bool Cnk_visc{false};
+};
+
 
 struct ConstantRoughness {
+    ConstantRoughness (const RoughCalcParams& params) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -22,7 +37,6 @@ struct ConstantRoughness {
                 amrex::Real /*ustar*/,
                 amrex::Real /*Umagmean*/,
                 amrex::Real /*Tmean*/,
-                amrex::Real /*depth*/,
                 amrex::Real /*Kmv*/,
                 amrex::Real /*Hwave*/,
                 amrex::Real /*Lwave*/) const
@@ -36,10 +50,9 @@ struct ConstantRoughness {
  * https://doi.org/10.1175/1520-0442(2003)016<0571:BPOASF>2.0.CO;2
  */
 struct CharnockRoughness {
-
-    CharnockRoughness(amrex::Real _Cnk_a, bool _visc)
-    : Cnk_a(_Cnk_a)
-    , visc(_visc)
+    CharnockRoughness (const RoughCalcParams& params)
+    : Cnk_a(params.Cnk_a)
+    , visc(params.Cnk_visc)
     {}
 
     AMREX_GPU_DEVICE
@@ -49,7 +62,6 @@ struct CharnockRoughness {
                 amrex::Real ustar,
                 amrex::Real /*Umagmean*/,
                 amrex::Real Tmean,
-                amrex::Real /*depth*/,
                 amrex::Real /*Kmv*/,
                 amrex::Real /*Hwave*/,
                 amrex::Real /*Lwave*/) const
@@ -65,10 +77,15 @@ struct CharnockRoughness {
 };
 
 /**
- * Modified to include water depth effects
+ * Modified to include depth effects in shallow waters
  * See Jimenez and Dudhia (2018) https://doi.org/10.1175/JAMC-D-17-0137.1
+ *
+ * This assumes constant water depth
  */
 struct ModifiedCharnockRoughness {
+    ModifiedCharnockRoughness (const RoughCalcParams& params)
+    : Cnk_b{Cnk_b1 * std::log(Cnk_b2 / params.depth)}
+    {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -77,26 +94,28 @@ struct ModifiedCharnockRoughness {
                 amrex::Real ustar,
                 amrex::Real /*Umagmean*/,
                 amrex::Real /*Tmean*/,
-                amrex::Real depth,
                 amrex::Real /*Kmv*/,
                 amrex::Real /*Hwave*/,
                 amrex::Real /*Lwave*/) const
     {
-        const amrex::Real Cnk_b = Cnk_b1 * std::log(Cnk_b2 / depth);
-        z0 = std::exp( (2.7*ustar - 1.8/Cnk_b) / (ustar + 0.17/Cnk_b) );
+        z0 = std::exp((2.7*ustar - 1.8/Cnk_b) / (ustar + 0.17/Cnk_b));
+        z0 = std::min(z0, 0.1);
     }
 
+    const amrex::Real Cnk_b{0.125};
+
     // Modified Charnock constant (Eqn. 4)
-    static constexpr amrex::Real Cnk_b1{1.0/30.0};
-    static constexpr amrex::Real Cnk_b2{1260.0};
+    const amrex::Real Cnk_b1{1.0/30.0};
+    const amrex::Real Cnk_b2{1260.0};
 };
 
 /**
  * COARE3.0, following WRF phys/module_sf_mynn.F
  */
 struct COARE3Roughness {
-
-    COARE3Roughness(amrex::Real _zref) : zref(_zref) {}
+    COARE3Roughness (const RoughCalcParams& params)
+    : zref{params.zref}
+    {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -105,7 +124,6 @@ struct COARE3Roughness {
                 amrex::Real ustar,
                 amrex::Real Umagmean,
                 amrex::Real /*Tmean*/,
-                amrex::Real /*depth*/,
                 amrex::Real /*Kmv*/,
                 amrex::Real /*Hwave*/,
                 amrex::Real /*Lwave*/) const
@@ -119,7 +137,7 @@ struct COARE3Roughness {
 
     const amrex::Real zref;
 
-    static constexpr amrex::Real z0ref{1e-4};
+    const amrex::Real z0ref{1e-4};
 };
 
 /**
@@ -129,6 +147,7 @@ struct COARE3Roughness {
  * phys/module_sf_mynn.F
  */
 struct DonelanRoughness {
+    DonelanRoughness (const RoughCalcParams& params) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -137,7 +156,6 @@ struct DonelanRoughness {
                 amrex::Real ustar,
                 amrex::Real /*Umagmean*/,
                 amrex::Real /*Tmean*/,
-                amrex::Real /*depth*/,
                 amrex::Real /*Kmv*/,
                 amrex::Real /*Hwave*/,
                 amrex::Real /*Lwave*/) const
@@ -151,13 +169,14 @@ struct DonelanRoughness {
         z0 = std::clamp(z0, 1.27e-7, 2.85e-3);
     }
 
-    static constexpr amrex::Real ozo{1.59e-5};
+    const amrex::Real ozo{1.59e-5};
 };
 
 /**
  * Wave Coupled
  */
 struct WaveCoupledRoughness {
+    WaveCoupledRoughness (const RoughCalcParams& params) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -166,7 +185,6 @@ struct WaveCoupledRoughness {
                 amrex::Real ustar,
                 amrex::Real /*Umagmean*/,
                 amrex::Real /*Tmean*/,
-                amrex::Real /*depth*/,
                 amrex::Real Kmv,
                 amrex::Real Hwave,
                 amrex::Real Lwave) const
@@ -176,8 +194,8 @@ struct WaveCoupledRoughness {
         z0 = std::clamp(z0, z0_eps, z0_max);
     }
 
-    static constexpr amrex::Real eps{1e-15};
-    static constexpr amrex::Real z0_eps{1.0e-6};
-    static constexpr amrex::Real z0_max{0.1};
+    const amrex::Real eps{1e-15};
+    const amrex::Real z0_eps{1.0e-6};
+    const amrex::Real z0_max{0.1};
 };
 #endif

@@ -163,8 +163,8 @@ struct moeng_flux
     }
 
 private:
-    const amrex::Real     eps = 1e-15;
-    const amrex::Real   WSMIN = 0.1; // minimum wind speed
+    const amrex::Real   eps = 1e-15;
+    const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
 

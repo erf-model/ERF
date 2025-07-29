@@ -12,15 +12,14 @@ struct most_data
 {
 public:
     // constants
-    static constexpr amrex::Real kappa{KAPPA};          ///< von Karman constant
-    static constexpr amrex::Real gravity{CONST_GRAV};   ///< acceleration (magnitude) due to gravity (m/s^2)
-    static constexpr amrex::Real Bjr_beta{1.2};         ///< empirical parameter from Beljaars 1995 QJRMS
+    const amrex::Real kappa{KAPPA};          ///< von Karman constant
+    const amrex::Real gravity{CONST_GRAV};   ///< acceleration (magnitude) due to gravity (m/s^2)
+    const amrex::Real Bjr_beta{1.2};         ///< empirical parameter from Beljaars 1995 QJRMS
 
     // physical quantities
     amrex::Real zref{10.0};           ///< Reference height (m)
     amrex::Real surf_temp_flux{0.0};  ///< Heat flux TODO: decide whether this is <θ'w'> or <θv'w'> under moist conditions
     amrex::Real surf_moist_flux{0.0}; ///< Moisture flux
-    amrex::Real water_depth{0};       ///< Water depth
 };
 
 
@@ -70,16 +69,17 @@ private:
  * If surface roughness is constant, it isn't necessary to solve for ustar
  * iteratively. For generality, however, iterate_flux should converge in 1 step.
  */
+template<typename RoughCalc>
 struct adiabatic
 {
     adiabatic (amrex::Real zref,
                amrex::Real /*Tflux*/,
                amrex::Real /*Qvflux*/,
                bool /*cons_qflux*/,
-               amrex::Real depth)
+               const RoughCalcParams& rough_params)
+    : update_z0(rough_params)
     {
-        mdata.zref        = zref;
-        mdata.water_depth = depth;
+        mdata.zref = zref;
     }
 
     AMREX_GPU_DEVICE
@@ -104,8 +104,7 @@ struct adiabatic
                   const amrex::Array4<amrex::Real>& /*pblh_arr*/,
                   const amrex::Array4<amrex::Real>& Hwave_arr,
                   const amrex::Array4<amrex::Real>& Lwave_arr,
-                  const amrex::Array4<amrex::Real>& eta_arr,
-                  const RoughnessModel& update_roughness) const
+                  const amrex::Array4<amrex::Real>& eta_arr) const
     {
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         amrex::Real ustar = 0.0; // to store previous value
@@ -130,9 +129,9 @@ struct adiabatic
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
-            update_roughness(z0_arr(i,j,k),
-                             ustar, umm, tm_arr(i,j,k), mdata.water_depth,
-                             eta, Hwave, Lwave);
+            update_z0(z0_arr(i,j,k),
+                      ustar, umm, tm_arr(i,j,k),
+                      eta, Hwave, Lwave);
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
@@ -145,14 +144,15 @@ struct adiabatic
 
 private:
     most_data mdata;
+    RoughCalc update_z0;
 
-    static constexpr amrex::Real tol{1.0e-5};   // iteration tolerance
-    static constexpr amrex::Real WSMIN{0.1};    // minimum wind speed
+    const amrex::Real tol{1.0e-5};   // iteration tolerance
+    const amrex::Real WSMIN{0.1};    // minimum wind speed
 
     // for wave-coupled roughness
-    static constexpr amrex::Real eps{1e-15};
-    static constexpr amrex::Real z0_eps{1.0e-6};
-    static constexpr amrex::Real z0_max{0.1};
+    const amrex::Real eps{1e-15};
+    const amrex::Real z0_eps{1.0e-6};
+    const amrex::Real z0_max{0.1};
 };
 
 /**
@@ -161,19 +161,20 @@ private:
  * Need to iteratively solve for ustar, which determines the Obukhov length
  * stability parameter; the surface temperature and tstar are derived quantities.
  */
+template<typename RoughCalc>
 struct surface_flux
 {
     surface_flux (amrex::Real zref,
                   amrex::Real Tflux,
                   amrex::Real Qvflux,
                   bool cons_qflux,
-                  amrex::Real depth)
-    : spec_qflux(cons_qflux)
+                  const RoughCalcParams& rough_params)
+    : update_z0(rough_params)
+    , spec_qflux(cons_qflux)
     {
         mdata.zref            = zref;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
-        mdata.water_depth     = depth;
     }
 
     AMREX_GPU_DEVICE
@@ -198,8 +199,7 @@ struct surface_flux
                   const amrex::Array4<amrex::Real>& pblh_arr,
                   const amrex::Array4<amrex::Real>& Hwave_arr,
                   const amrex::Array4<amrex::Real>& Lwave_arr,
-                  const amrex::Array4<amrex::Real>& eta_arr,
-                  const RoughnessModel& update_roughness) const
+                  const amrex::Array4<amrex::Real>& eta_arr) const
     {
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         amrex::Real ustar = 0.0; // to store previous value
@@ -239,9 +239,9 @@ struct surface_flux
         do {
             ustar = u_star_arr(i,j,k);
 
-            update_roughness(z0_arr(i,j,k),
-                             ustar, umm, tm_arr(i,j,k), mdata.water_depth,
-                             eta, Hwave, Lwave);
+            update_z0(z0_arr(i,j,k),
+                      ustar, umm, tm_arr(i,j,k),
+                      eta, Hwave, Lwave);
 
             // update virtual temperature flux
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
@@ -286,16 +286,17 @@ struct surface_flux
 private:
     most_data mdata;
     similarity_funs sfuns;
+    RoughCalc update_z0;
 
     const bool spec_qflux;
 
-    static constexpr amrex::Real tol{1.0e-5};   // iteration tolerance
-    static constexpr amrex::Real WSMIN{0.1};    // minimum wind speed
+    const amrex::Real tol{1.0e-5};   // iteration tolerance
+    const amrex::Real WSMIN{0.1};    // minimum wind speed
 
     // for wave-coupled roughness
-    static constexpr amrex::Real eps{1e-15};
-    static constexpr amrex::Real z0_eps{1.0e-6};
-    static constexpr amrex::Real z0_max{0.1};
+    const amrex::Real eps{1e-15};
+    const amrex::Real z0_eps{1.0e-6};
+    const amrex::Real z0_max{0.1};
 };
 
 /**
@@ -304,19 +305,20 @@ private:
  * Need to iteratively solve for ustar, which determines the Obukhov length
  * stability parameter; the surface flux and tstar are derived quantities.
  */
+template<typename RoughCalc>
 struct surface_temp
 {
     surface_temp (amrex::Real zref,
                   amrex::Real Tflux,
                   amrex::Real Qvflux,
                   bool cons_qflux,
-                  amrex::Real depth)
-    : spec_qflux(cons_qflux)
+                  const RoughCalcParams& rough_params)
+    : update_z0(rough_params)
+    , spec_qflux(cons_qflux)
     {
         mdata.zref            = zref;
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
-        mdata.water_depth     = depth;
     }
 
     AMREX_GPU_DEVICE
@@ -341,8 +343,7 @@ struct surface_temp
                   const amrex::Array4<amrex::Real>& pblh_arr,
                   const amrex::Array4<amrex::Real>& Hwave_arr,
                   const amrex::Array4<amrex::Real>& Lwave_arr,
-                  const amrex::Array4<amrex::Real>& eta_arr,
-                  const RoughnessModel& update_roughness) const
+                  const amrex::Array4<amrex::Real>& eta_arr) const
     {
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         amrex::Real ustar = 0.0; // to store previous value
@@ -384,9 +385,9 @@ struct surface_temp
         do {
             ustar = u_star_arr(i,j,k);
 
-            update_roughness(z0_arr(i,j,k),
-                             ustar, umm, tm_arr(i,j,k), mdata.water_depth,
-                             eta, Hwave, Lwave);
+            update_z0(z0_arr(i,j,k),
+                      ustar, umm, tm_arr(i,j,k),
+                      eta, Hwave, Lwave);
 
             // update virtual temperature flux
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
@@ -440,16 +441,17 @@ struct surface_temp
 private:
     most_data mdata;
     similarity_funs sfuns;
+    RoughCalc update_z0;
 
     const bool spec_qflux;
 
-    static constexpr amrex::Real tol{1.0e-5};   // iteration tolerance
-    static constexpr amrex::Real WSMIN{0.1};    // minimum wind speed
+    const amrex::Real tol{1.0e-5};   // iteration tolerance
+    const amrex::Real WSMIN{0.1};    // minimum wind speed
 
     // for wave-coupled roughness
-    static constexpr amrex::Real eps{1e-15};
-    static constexpr amrex::Real z0_eps{1.0e-6};
-    static constexpr amrex::Real z0_max{0.1};
+    const amrex::Real eps{1e-15};
+    const amrex::Real z0_eps{1.0e-6};
+    const amrex::Real z0_max{0.1};
 };
 
 #endif
