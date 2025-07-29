@@ -62,6 +62,7 @@
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
 #endif
+#include <ERF_SurfaceModel.H>
 
 #include <ERF_RadiationModels.H>
 
@@ -774,6 +775,8 @@ private:
                                                    // velocity upstream of the turbine
 #endif
 
+    std::unique_ptr<SurfaceModel> m_SurfaceModel = nullptr;
+
     LandSurface lsm;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Components: theta, q1, q2
@@ -822,6 +825,10 @@ private:
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  sst_lev;
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  tsk_lev;
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> lmask_lev;
+
+    // Urban grid type and fraction
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> urb_type_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  urb_frac_lev;
 
     // Other SFS terms
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;

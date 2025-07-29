@@ -316,6 +316,10 @@ ERF::ERF_shared ()
     tsk_lev.resize(nlevs_max);
     lmask_lev.resize(nlevs_max);
 
+    // Urban grid type and fractions
+    urb_type_lev.resize(nlevs_max);
+    urb_frac_lev.resize(nlevs_max);
+
     // Metric terms
     z_phys_nd.resize(nlevs_max);
     z_phys_cc.resize(nlevs_max);
@@ -1259,6 +1263,21 @@ ERF::InitData_post ()
    // send_to_ww3(my_lev);
 #endif
 
+    if (solverChoice.lsm_type != LandSurfaceType::None) {
+        // || (solverChoice.urban_type != UrbanModelType::None)) {
+        m_SurfaceModel = std::make_unique<SurfaceModel>(max_level+1, grids, geom, dmap[0], solverChoice);
+        for (int lev = 0; lev <= finest_level; ++lev)
+        {
+            m_SurfaceModel->set_model_data(lev, lsm_data[lev], SurfaceModelType::LAND);
+            //m_SurfaceModel->set_model_data(lev, urban_data[lev], SurfaceModelType::URBAN);
+        }
+        // For SLM:
+        // m_SurfaceModel->set_model_fields(SurfaceModelType::LAND, amrex::Vector<int>{LsmVar_SLM::ustar, 
+        //                                                                             LsmVar_SLM::tstar,
+        //                                                                             LsmVar_SLM::qstar,
+        //                                                                             LsmVar_MM5::tsurf});
+    }
+
     // Configure SurfaceLayer params if used
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
@@ -1273,7 +1292,8 @@ ERF::InitData_post ()
         // This constructor will make the ABLMost object but not allocate the arrays at each level.
         //
         m_SurfaceLayer = std::make_unique<SurfaceLayer>(geom, rotate, pp_prefix, Qv_prim,
-                                                        z_phys_nd, solverChoice.terrain_type
+                                                        z_phys_nd, solverChoice.terrain_type,
+                                                        m_SurfaceModel.get()
 #ifdef ERF_USE_NETCDF
                                                         ,start_bdy_time, bdy_time_interval
 #endif

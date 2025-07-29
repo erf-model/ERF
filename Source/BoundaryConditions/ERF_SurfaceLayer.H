@@ -14,6 +14,7 @@
 #include "ERF_MOSTStress.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
+#include "ERF_SurfaceModel.H"
 
 #include <ERF_SLM.H>
 
@@ -39,13 +40,15 @@ public:
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                          const TerrainType& a_terrain_type,
+                         SurfaceModel* surf_model = nullptr,
                          amrex::Real start_bdy_time = 0.0,
                          amrex::Real bdy_time_interval = 0.0)
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
     m_start_bdy_time(start_bdy_time),
     m_bdy_time_interval(bdy_time_interval),
-    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_terrain_type)
+    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_terrain_type),
+    m_surf_model(surf_model)
   {
       // We have a moisture model if Qv_prim is a valid pointer
       use_moisture = (Qv_prim[0].get());
@@ -96,6 +99,12 @@ public:
           pblh_type = PBLHeightCalcType::MRF;
       } else {
           amrex::Abort("Undefined PBLH calc type!");
+      }
+
+      if (m_surf_model) {
+          use_surface_model = true;
+          amrex::Print() << " Using fluxes from surface model!" << std::endl;
+          surf_model_fluxes = m_surf_model->are_fluxes();
       }
 
       // Get surface temperature
@@ -646,6 +655,10 @@ private:
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;
 
   std::vector<std::vector<amrex::Real>> sfc;
+
+  bool use_surface_model;
+  bool surf_model_fluxes;
+  SurfaceModel* m_surf_model;
 };
 
 #endif /* SURFACELAYER_H */

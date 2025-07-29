@@ -18,7 +18,7 @@ SurfaceLayer::update_fluxes (const int& lev,
 
     // TODO: we want 0 index to always be theta?
     // Update land surface temp if we have a valid pointer
-    if (m_lsm_data_lev[lev][0] && time > 0.0) get_lsm_tsurf(lev);
+    if (use_surface_model && time > 0.0) get_lsm_tsurf(lev);
 
     // Fill interior ghost cells
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
@@ -258,6 +258,31 @@ SurfaceLayer::update_fluxes (const int& lev,
         t_star[lev]->setVal(sfc_tflux / 1004.0);
         q_star[lev]->setVal(sfc_qflux / 2.5104e6);
     }
+
+    // If using Land and/or Urban models, then overwrite u_star and t_star with values calculated from the surface models
+    if (use_surface_model) {
+
+        if (surf_model_fluxes) {
+            // if the surface model is already outputting fluxes directly, then skip writing into ustar,tstar,qstar
+            u_star[lev]->setVal(0.0);
+            t_star[lev]->setVal(0.0);
+            q_star[lev]->setVal(0.0);
+        } else {
+            // NOTE: these are already weight-averaged if land and urban model
+            MultiFab::Copy(*u_star[lev], *(m_surf_model->get_ustar(lev)), 0, 0, 1, 0);
+            MultiFab::Copy(*t_star[lev], *(m_surf_model->get_tstar(lev)), 0, 0, 1, 0);
+            MultiFab::Copy(*q_star[lev], *(m_surf_model->get_qstar(lev)), 0, 0, 1, 0);
+
+            // Fill interior ghost cells
+            u_star[lev]->FillBoundary(m_geom[lev].periodicity());
+            t_star[lev]->FillBoundary(m_geom[lev].periodicity());
+            q_star[lev]->FillBoundary(m_geom[lev].periodicity());
+        
+            //m_lsm_data_lev[lev][11]->FillBoundary(m_geom[lev].periodicity());
+            //m_lsm_data_lev[lev][12]->FillBoundary(m_geom[lev].periodicity());
+
+        }
+    }
 }
 
 /**
@@ -459,10 +484,6 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         auto lsm_flux_arr = (m_lsm_flux_lev[lev][0]) ? m_lsm_flux_lev[lev][0]->array(mfi) :
                                                        Array4<Real> {};
 
-        const bool use_lsm = use_lsm_most;
-        auto lsm_flbu_arr = (use_lsm_most && m_lsm_data_lev[lev][11]) ? m_lsm_data_lev[lev][11]->array(mfi) : Array4<Real> {};
-        auto lsm_flbv_arr = (use_lsm_most && m_lsm_data_lev[lev][12]) ? m_lsm_data_lev[lev][12]->array(mfi) : Array4<Real> {};
-
         if (use_sfc_fluxes) {
             amrex::Real d_sfc_tflux = sfc_tflux;
             amrex::Real d_sfc_qflux = sfc_qflux;
@@ -487,6 +508,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             //q_star[lev]->FillBoundary(m_geom[lev].periodicity());
         }
 
+        // Get weight averaged LSM+Urban fluxes
+        // If the LSM+Urban export u*,t*,q*, then these values are already copied and MOST is used to compute the flux
+        const auto surf_tflux_arr = (use_surface_model && surf_model_fluxes) ? m_surf_model->get_tstar(lev)->array(mfi) : Array4<Real> {};
+        const auto surf_qflux_arr = (use_surface_model && surf_model_fluxes) ? m_surf_model->get_qstar(lev)->array(mfi) : Array4<Real> {};
+        const auto surf_uflux_arr = (use_surface_model && surf_model_fluxes) ? m_surf_model->get_ustar(lev)->array(mfi,0) : Array4<Real> {};
+        const auto surf_vflux_arr = (use_surface_model && surf_model_fluxes) ? m_surf_model->get_ustar(lev)->array(mfi,1) : Array4<Real> {};
+
         // Rho*Theta flux
         //============================================================================
         Box bx = mfi.tilebox();
@@ -503,6 +531,11 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 rotate_scalar_flux(i, j, k, Tflux, dxInv, zphys_arr,
                                    hfx1_arr, hfx2_arr, hfx3_arr);
             } else {
+                if (surf_tflux_arr) {
+                    // use the flux directly from LSM+Urban
+                    Tflux = surf_tflux_arr(i,j,klo);
+                }
+
                 hfx3_arr(i,j,klo) = Tflux;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
                 if (is_land && lsm_flux_arr) {
@@ -525,6 +558,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     rotate_scalar_flux(i, j, k, Qflux, dxInv, zphys_arr,
                                        qfx1_arr, qfx2_arr, qfx3_arr);
                 } else {
+                    if (surf_qflux_arr) {
+                        // use the flux directly from LSM+Urban
+                        Qflux = surf_qflux_arr(i,j,k);
+                    }
                     qfx3_arr(i,j,k) = Qflux;
                 }
             });
@@ -547,15 +584,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                      t13_arr, t31_arr,
                                      t23_arr, t32_arr);
             } else {
-                if (use_lsm) {
-                    int ic, jc;
-                    ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
-                    jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
-                    ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
-                    jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
-                    //stressx = lsm_flbu_arr(ic, jc, -1);
-                    stressx = 0.5*(lsm_flbu_arr(ic-1, jc, -1) + lsm_flbu_arr(ic, jc, -1));
-                    //stressx = 0.5*(lsm_flbu_arr(i-1, j, -1) + lsm_flbu_arr(i, j, -1));
+                if (surf_uflux_arr) {
+                    // use the flux directly from LSM+Urban
+                    stressx = surf_uflux_arr(i,j,k);
                 }
                 t13_arr(i,j,k) = stressx;
                 if (t31_arr) { t31_arr(i,j,k) = stressx; }
@@ -573,15 +604,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
             // NOTE: One stress rotation for ALL the stress components
             if (!rotate) {
-                if (use_lsm) {
-                    int ic, jc;
-                    ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
-                    jc = j  < lbound(cons_arr).y+1 ? lbound(cons_arr).y+1 : j;
-                    ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
-                    jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
-                    //stressy = lsm_flbv_arr(ic, jc, -1);
-                    stressy = 0.5 * (lsm_flbv_arr(ic, jc-1, -1) + lsm_flbv_arr(ic, jc, -1));
-                    //stressy = 0.5 * (lsm_flbv_arr(i, j-1, -1) + lsm_flbv_arr(i, j, -1));
+                if (surf_vflux_arr) {
+                    // use the flux directly from LSM+Urban
+                    stressy = surf_vflux_arr(i,j,k);
                 }
                 t23_arr(i,j,k) = stressy;
                 if (t32_arr) { t32_arr(i,j,k) = stressy; }
@@ -682,11 +707,12 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                   Array4<int> {};
-        const auto lsm_arr = m_lsm_data_lev[lev][0]->const_array(mfi);
+        //const auto lsm_arr = m_lsm_data_lev[lev][0]->const_array(mfi);
+        const auto surf_arr = m_surf_model->get_tsurf(lev)->const_array(mfi);
         // get the top-most index of the LSM to use as the surface temperature
         // this is -1 for SLM, but could be different for other models?
-        const auto &lsm_box = m_lsm_data_lev[lev][0]->box(mfi.index());
-        const int lsm_khi = lsm_box.bigEnd(2);
+        //const auto &lsm_box = surf_arr.box(mfi.index());
+        //const int lsm_khi = lsm_box.bigEnd(2);
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -694,9 +720,7 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
             if (is_land) {
                 int li = amrex::min(amrex::max(i, i_lo), i_hi);
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                // TODO: fix - using t_surf from SLM causing nans in MOST
-                //amrex::Print() << " ABLMost::get_lsm_tsurf i = " << i << " j = " << j << " k = " << k << ": OLD t_surf = " << t_surf_arr(i, j, k) << " NEW SLM t_surf = " << lsm_arr(li, lj, lsm_khi) << std::endl;
-                t_surf_arr(i,j,k) = lsm_arr(li,lj,lsm_khi);
+                t_surf_arr(i,j,k) = surf_arr(li,lj,0);
             }
         });
     }
