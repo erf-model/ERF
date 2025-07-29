@@ -32,7 +32,7 @@ struct ConstantRoughness {
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    virtual void
+    void
     operator() (amrex::Real& /*z0*/,
                 amrex::Real /*ustar*/,
                 amrex::Real /*Umagmean*/,
