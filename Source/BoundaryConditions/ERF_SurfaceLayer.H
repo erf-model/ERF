@@ -330,16 +330,10 @@ public:
 
       pp.query("most.use_sfc_fluxes", use_sfc_fluxes);
 
-      if (lsm_data.size() > 1 && lsm_data[1] && !use_sfc_fluxes)
-      {
-          // If the LSM has more than theta defined, use ustar and tstar from LSM
-          use_lsm_most = true; // enable SLM -> MOST coupling
-          //use_lsm_most = false; // disable SLM -> MOST coupling
-          amrex::Print() << "  MOST: Using ustar and tstar from LSM" << std::endl;
-      }
-
       if (use_sfc_fluxes)
       {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_surface_model, "Cannot use surface flux forcing with LSM/Urban model!");
+
           // load sensible and latent heat fluxes from sfc to prescribe
           std::string sfc_file = "";
           pp.query("most.sfc_file", sfc_file);
@@ -627,7 +621,6 @@ private:
   amrex::Real depth{30.0};
   amrex::Vector<amrex::FArrayBox> z_0;
   bool m_var_z0{false};
-  bool use_lsm_most = false;
   bool use_sfc_fluxes = false;
   int sfc_time_ind = 0;
   amrex::Real sfc_qflux;

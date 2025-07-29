@@ -160,7 +160,7 @@ private:
     bool m_use_urban = false; // whether we have an urban model
     bool m_use_land = false; // whether we have a LSM
 
-    bool m_export_fluxes = true;
+    bool m_export_fluxes = false;
 
     // internal flag to indicate if the weight average has been calculated this time step
     bool m_weights_updated = false;

@@ -1272,10 +1272,10 @@ ERF::InitData_post ()
             //m_SurfaceModel->set_model_data(lev, urban_data[lev], SurfaceModelType::URBAN);
         }
         // For SLM:
-        // m_SurfaceModel->set_model_fields(SurfaceModelType::LAND, amrex::Vector<int>{LsmVar_SLM::ustar, 
-        //                                                                             LsmVar_SLM::tstar,
-        //                                                                             LsmVar_SLM::qstar,
-        //                                                                             LsmVar_MM5::tsurf});
+        m_SurfaceModel->set_model_fields(SurfaceModelType::LAND, amrex::Vector<int>{LsmVar_SLM::ustar,
+                                                                                    LsmVar_SLM::tstar,
+                                                                                    LsmVar_SLM::qstar,
+                                                                                    LsmVar_SLM::tsurf}, false);
     }
 
     // Configure SurfaceLayer params if used
