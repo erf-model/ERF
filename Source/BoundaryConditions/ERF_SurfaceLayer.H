@@ -115,6 +115,7 @@ public:
           pp.query("most.ustar", custom_ustar);
           pp.query("most.tstar", custom_tstar);
           pp.query("most.qstar", custom_qstar);
+          pp.query("most.rhosurf", custom_rhosurf);
           if (custom_qstar != 0) {
               AMREX_ASSERT_WITH_MESSAGE(use_moisture,
               "Specified custom MOST qv flux without moisture model!");
@@ -444,18 +445,14 @@ public:
   void update_pblh (const int& lev,
                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                     amrex::MultiFab* z_phys_cc,
-                    const int RhoQv_comp,
-                    const int RhoQc_comp,
-                    const int RhoQr_comp);
+                    const MoistureComponentIndices& moisture_indices);
 
   template <typename PBLHeightEstimator>
   void compute_pblh (const int& lev,
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                      amrex::MultiFab* z_phys_cc,
                      const PBLHeightEstimator& est,
-                     const int RhoQv_comp,
-                     const int RhoQc_comp,
-                     const int RhoQr_comp);
+                     const MoistureComponentIndices& moisture_indice);
 
   void read_custom_roughness (const int& lev,
                               const std::string& fname);
@@ -586,6 +583,8 @@ private:
   amrex::Real custom_ustar{0};
   amrex::Real custom_tstar{0};
   amrex::Real custom_qstar{0};
+  amrex::Real custom_rhosurf{0}; // use specified value instead of rho from first cell
+  bool specified_rho_surf{false};
   amrex::Real cnk_a{0.0185};
   bool cnk_visc{false};
   amrex::Real depth{30.0};

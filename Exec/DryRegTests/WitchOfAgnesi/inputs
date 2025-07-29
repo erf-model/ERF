@@ -68,7 +68,7 @@ erf.rayleigh_zdamp = 5000.0
 erf.rayleigh_dampcoef = 0.2
 
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
+erf.sounding_type = Ideal
 
 # TERRRAIN GRID TYPE
 erf.terrain_type = StaticFittedMesh

@@ -12,7 +12,8 @@ using namespace amrex;
 
 /* Initialize lsm data structures */
 void
-NOAH::Init (const MultiFab& cons_in,
+NOAH::Init (const int& lev,
+            const MultiFab& cons_in,
             const Geometry& geom,
             const Real& dt)
 {
@@ -77,7 +78,7 @@ NOAH::Init (const MultiFab& cons_in,
     amrex::Print() << "Noah-MP initialization started" << std::endl;
 
     // Set noahmpio_vect to the size of local blocks (boxes)
-    noahmpio_vect.resize(cons_in.local_size());
+    noahmpio_vect.resize(cons_in.local_size(), lev);
 
     // Iterate over multifab and noahmpio object together. Multifabs is
     // used to extract size of blocks and set bounds for noahmpio objects.
@@ -96,11 +97,17 @@ NOAH::Init (const MultiFab& cons_in,
             // Pass idb context to noahmpio
             noahmpio->blkid = idb;
 
+            // Pass level context to noahmpio
+            noahmpio->level = lev;
+
             // Initialize scalar values
             noahmpio->ScalarInitDefault();
 
             // Store the rank of process for noahmp
             noahmpio->rank = amrex::ParallelDescriptor::MyProc();
+
+            // Store parallel communicator for noahmp
+            noahmpio->comm = MPI_Comm_c2f(amrex::ParallelDescriptor::Communicator());
 
             // Read namelist.erf file. This file contains
             // noahmpio specific parameters and is read by
@@ -160,6 +167,10 @@ NOAH::Init (const MultiFab& cons_in,
             // Compute additional initial values that were not supplied
             // by the NetCDF land file.
             noahmpio->InitMain();
+
+            // Write initial plotfile for land with the tag 0
+            amrex::Print() << "Noah-MP writing lnd.nc file at lev: " << lev << std::endl;
+            noahmpio->WriteLand(0);
         }
   }
 
@@ -221,6 +232,7 @@ NOAH::Advance_With_State (const int& lev,
                 SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
                 EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
             });
+
         }
     }
     amrex::Print () << "Noah-MP driver completed" << std::endl;

@@ -26,17 +26,30 @@ If gravity is set to be non-zero then the density will be vertically
 integrated to generate the background pressure
 as described in :ref:`sec:BaseState`.
 
-If **erf.init_type = InputSounding** is specified and
-**erf.init_sounding_ideal = false** (the default)
-then the hydrostatically stratified background state
-is reconstructed from 1-D input sounding data
-as described in :ref:`sec:BaseState`.
+If **erf.init_type = InputSounding**, then the thermodynamic profiles in the
+provided **erf.input_sounding_file** are used to set initial conditions and the
+base state depending on **erf.sounding_type**.
+For an ``Ideal`` sounding (default), a stratified, hydrostatically balanced base
+state is reconstructed from the 1-D input sounding data as described in
+:ref:`sec:BaseState`. The initial fields match the base state. This
+configuration corresponds to WRF's ideal.exe initialization.
 
-If **erf.init_type = InputSounding** is specified and
-**erf.init_sounding_ideal = true** in the inputs file,
-then the base state is initialized by integrating vertically
-through the values of potential temperature and water vapor
-provided in the input_sounding file.
+If the sounding is ``Isentropic`` or ``DryIsentropic``, a set of
+thermodynamically consistent, isentropic (constant :math:`\theta`) conditions
+are determined. An initial pressure profile is calculated by integrating
+:math:`p_{surf}` and :math:`\theta_{surf}` from the surface; the resulting
+base-state pressure profile is related to :math:`\rho\theta_d` through the
+equation of state. This reference profile may or may not take into account the
+input water vapor mixing ratio profile, depending the choice of isentropic or
+dry isentropic, respectively. Using the input profiles of potential temperature
+and water vapor mixing ratio, we determine the initial dry air density. These
+three quantities are used to initialize the solution fields. Note that the base
+state corresponds to the integrated :math:`p(z)` and
+:math:`\theta(z)=\theta_{surf}`.
+
+If the sounding is ``ConstantDensity``, then the initial density field is
+uniformly set to 1.0; the potential temperature (and water vapor mixing ratio)
+field(s) are set to the sounding values.
 
 In any of these cases, the user can specify any perturbations from the
 base state by editing the routines in **ERF_Prob.cpp**

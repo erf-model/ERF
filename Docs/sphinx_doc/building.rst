@@ -3,7 +3,7 @@
 Building
 --------
 
-The ERF code is dependent on AMReX, and uses the radiation model (RTE-RRTMGP) which is based on YAKL C++ implementation for heterogeneous computing infrastructure (which are all available as submodules in the ERF repo). ERF can be built using either GNU Make or CMake, however, if radiation model is activated, only CMake build system is supported.
+The ERF code is dependent on AMReX, and uses the radiation model (RTE-RRTMGP) which is based on KOKKOS C++ implementation for heterogeneous computing infrastructure (which are all available as submodules in the ERF repo). ERF can be built using either GNU Make or CMake, however, if radiation model is activated, only CMake build system is supported.
 
 Minimum Requirements
 ~~~~~~~~~~~~~~~~~~~~
@@ -43,7 +43,7 @@ GNU Make
 
 The GNU Make system is best for use on large computing facility machines and production runs. With the GNU Make implementation, the build system will inspect the machine and use known compiler optimizations explicit to that machine if possible. These explicit settings are kept up-to-date by the AMReX project.
 
-Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF (AMReX, RTE-RRTMGP, and YAKL); note, RTE-RRTMGP, and YAKL are only required if running with radiation. All dependencies are provided as git submodules in ERF and can be populated by using ``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``. Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>`` environment variables for each dependency is set correctly. An example of setting the ``<REPO_HOME>`` environment variables in the user's ``.bashrc`` is shown below:
+Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF (AMReX, RTE-RRTMGP, and KOKKOS); note, RTE-RRTMGP is only required if running with radiation but it does also require KOKKOS. All dependencies are provided as git submodules in ERF and can be populated by using ``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``. Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>`` environment variables for each dependency is set correctly. An example of setting the ``<REPO_HOME>`` environment variables in the user's ``.bashrc`` is shown below:
 
 ::
 

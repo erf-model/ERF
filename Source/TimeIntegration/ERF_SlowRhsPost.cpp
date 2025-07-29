@@ -86,6 +86,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const Real& bdy_time_interval,
                         const Real& start_bdy_time,
                         const Real& new_stage_time,
+                        const Real& stop_time,
                         int  width,
                         int  set_width,
                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
@@ -115,7 +116,6 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     const bool l_anelastic   = solverChoice.anelastic[level];
 
-    const bool l_use_mono_adv   = solverChoice.use_mono_adv;
     const bool l_use_KE         = ( tc.use_tke );
     const bool l_need_SmnSmn    = ( tc.les_type  == LESType::Deardorff ||
                                     tc.rans_type == RANSType::kEqn );
@@ -173,32 +173,6 @@ void erf_slow_rhs_post (int level, int finest_level,
          is_valid_slow_var[RhoQ1_comp] = 1;
     }
 
-    // *****************************************************************************
-    // Monotonic advection for scalars
-    // *****************************************************************************
-    int nvar = S_new[IntVars::cons].nComp();
-    Vector<Real> max_scal(nvar, 1.0e34); Gpu::DeviceVector<Real> max_scal_d(nvar);
-    Vector<Real> min_scal(nvar,-1.0e34); Gpu::DeviceVector<Real> min_scal_d(nvar);
-    if (l_use_mono_adv) {
-        auto const& ma_s_arr = S_new[IntVars::cons].const_arrays();
-        for (int ivar(RhoKE_comp); ivar<nvar; ++ivar) {
-            GpuTuple<Real,Real> mm = ParReduce(TypeList<ReduceOpMax,ReduceOpMin>{},
-                                               TypeList<Real, Real>{},
-                                               S_new[IntVars::cons], IntVect(0),
-                [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
-                -> GpuTuple<Real,Real>
-                {
-                    return { ma_s_arr[box_no](i,j,k,ivar), ma_s_arr[box_no](i,j,k,ivar) };
-                });
-            max_scal[ivar] = get<0>(mm);
-            min_scal[ivar] = get<1>(mm);
-        }
-    }
-    Gpu::copy(Gpu::hostToDevice, max_scal.begin(), max_scal.end(), max_scal_d.begin());
-    Gpu::copy(Gpu::hostToDevice, min_scal.begin(), min_scal.end(), min_scal_d.begin());
-    Real* max_s_ptr = max_scal_d.data();
-    Real* min_s_ptr = min_scal_d.data();
-
     // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities
     //
@@ -219,7 +193,6 @@ void erf_slow_rhs_post (int level, int finest_level,
 #endif
     {
       std::array<FArrayBox,AMREX_SPACEDIM> flux;
-      std::array<FArrayBox,AMREX_SPACEDIM> flux_tmp;
 
       int start_comp;
       int   num_comp;
@@ -246,17 +219,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                 flux[dir].resize(surroundingNodes(tbx,dir).grow(1),nvars);
             }
             flux[dir].setVal<RunOn::Device>(0.);
-            if (l_use_mono_adv) {
-                flux_tmp[dir].resize(surroundingNodes(tbx,dir),1);
-                flux_tmp[dir].setVal<RunOn::Device>(0.);
-            }
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
-        Array4<Real> tmpx = (l_use_mono_adv) ? flux_tmp[0].array() : Array4<Real>{};
-        Array4<Real> tmpy = (l_use_mono_adv) ? flux_tmp[1].array() : Array4<Real>{};
-        Array4<Real> tmpz = (l_use_mono_adv) ? flux_tmp[2].array() : Array4<Real>{};
-        const GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_tmp_arr{{AMREX_D_DECL(tmpx,tmpy,tmpz)}};
 
         // *************************************************************************
         // Define Array4's
@@ -433,24 +398,23 @@ void erf_slow_rhs_post (int level, int finest_level,
                     ((ivar == RhoKE_comp) && l_advect_KE))
                 {
                     if (solverChoice.terrain_type != TerrainType::EB){
-                        AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                            cur_cons, cur_prim, cell_rhs,
-                                            l_use_mono_adv, max_s_ptr, min_s_ptr,
-                                            detJ_arr, dxInv, mf_mx, mf_my,
-                                            horiz_adv_type, vert_adv_type,
-                                            horiz_upw_frac, vert_upw_frac,
-                                            flx_arr, flx_tmp_arr, domain, bc_ptr_h);
+                        AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                                               cur_prim, cell_rhs,
+                                               detJ_arr, dxInv, mf_mx, mf_my,
+                                               horiz_adv_type, vert_adv_type,
+                                               horiz_upw_frac, vert_upw_frac,
+                                               flx_arr, domain, bc_ptr_h);
                     } else {
                         EBAdvectionSrcForScalars(tbx, start_comp, num_comp,
-                                            avg_xmom, avg_ymom, avg_zmom,
-                                            cur_prim, cell_rhs,
-                                            mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
-                                            fcx_arr, fcy_arr, fcz_arr,
-                                            detJ_arr, dxInv, mf_mx, mf_my,
-                                            horiz_adv_type, vert_adv_type,
-                                            horiz_upw_frac, vert_upw_frac,
-                                            flx_arr, domain, bc_ptr_h,
-                                            already_on_centroids);
+                                                 avg_xmom, avg_ymom, avg_zmom,
+                                                 cur_prim, cell_rhs,
+                                                 mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
+                                                 fcx_arr, fcy_arr, fcz_arr,
+                                                 detJ_arr, dxInv, mf_mx, mf_my,
+                                                 horiz_adv_type, vert_adv_type,
+                                                 horiz_upw_frac, vert_upw_frac,
+                                                 flx_arr, domain, bc_ptr_h,
+                                                 already_on_centroids);
                     }
                 }
 
@@ -497,7 +461,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             const Array4<const Real> & old_cons_const = S_old[IntVars::cons].const_array(mfi);
             const Array4<const Real> & new_cons_const = S_new[IntVars::cons].const_array(mfi);
             moist_set_rhs(tbx, old_cons_const, new_cons_const, cell_rhs, bdy_time_interval,
-                          start_bdy_time, new_stage_time, dt, width, set_width, domain,
+                          start_bdy_time, new_stage_time, dt, stop_time, width, set_width, domain,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
         }
 #endif

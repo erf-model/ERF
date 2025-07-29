@@ -103,8 +103,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                 MultiFab::Copy(  *Qv_prim[lev], S_old, RhoQ1_comp, 0, 1, ng);
                 MultiFab::Divide(*Qv_prim[lev], S_old, Rho_comp  , 0, 1, ng);
 
-                if (solverChoice.RhoQr_comp > -1) {
-                    MultiFab::Copy(  *Qr_prim[lev], S_old, solverChoice.RhoQr_comp, 0, 1, ng);
+                if (solverChoice.moisture_indices.qr > -1) {
+                    MultiFab::Copy(  *Qr_prim[lev], S_old, solverChoice.moisture_indices.qr, 0, 1, ng);
                     MultiFab::Divide(*Qr_prim[lev], S_old, Rho_comp  , 0, 1, ng);
                 } else {
                     Qr_prim[lev]->setVal(0.0);
@@ -114,9 +114,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             //       Reassign the field ptrs for MAC avg computation.
             m_SurfaceLayer->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
             m_SurfaceLayer->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
-                                        solverChoice.RhoQv_comp,
-                                        solverChoice.RhoQc_comp,
-                                        solverChoice.RhoQr_comp);
+                                        solverChoice.moisture_indices);
             m_SurfaceLayer->update_fluxes(lev, time);
         }
     }
@@ -183,7 +181,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     // Update the microphysics (moisture)
     // **************************************************************************************
-    advance_microphysics(lev, S_new, dt_lev, iteration, time);
+    if (!solverChoice.moisture_tight_coupling) {
+        advance_microphysics(lev, S_new, dt_lev, iteration, time);
+    }
 
     // **************************************************************************************
     // Update the land surface model

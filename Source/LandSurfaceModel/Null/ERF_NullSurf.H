@@ -17,7 +17,8 @@ class NullSurf {
     Define (SolverChoice& /*sc*/) { }
 
     virtual
-    void Init (const amrex::MultiFab& /*cons_in*/,
+    void Init (const int& /*lev*/,
+               const amrex::MultiFab& /*cons_in*/,
                const amrex::Geometry& /*geom*/,
                const amrex::Real& /*dt_advance*/) { }
 

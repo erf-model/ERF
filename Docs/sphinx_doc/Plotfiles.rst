@@ -30,7 +30,8 @@ of the cost of a single timestep.
 
 If NetCDF output is preferred, one suggestion is to write the plotfiles in the native AMReX
 format for efficient I/O performance, then to convert the plotfiles to NetCDF files using
-the executable you can build in Exec/Tools.
+the executable you can build in Exec/Tools (using gmake, or with the ``ERF_ENABLE_TOOLS`` flag
+if using cmake).
 
 The following options in the inputs file control the generation of plotfiles.
 Note that plotfiles can be written at two different frequencies; the names,
@@ -46,7 +47,7 @@ List of Parameters
 |                             |                  | Values                |            |
 +=============================+==================+=======================+============+
 | **erf.plotfile_type**       | AMReX or NETCDF  | "amrex" or            | "amrex"    |
-|                             |                  | "netcdf / "NetCDF" or |            |
+|                             |                  | "netcdf / "NetCDF"    |            |
 +-----------------------------+------------------+-----------------------+------------+
 | **erf.plot_file_1**         | prefix for       | String                | “*plt_1_*” |
 |                             | plotfiles        |                       |            |
@@ -90,7 +91,15 @@ List of Parameters
 |                             | variables to     |                       |            |
 |                             | include in       |                       |            |
 |                             | plotfiles        |                       |            |
-|                             | at seoncd freq.  |                       |            |
+|                             | at second freq.  |                       |            |
++-----------------------------+------------------+-----------------------+------------+
+| **erf.plot_face_vels**      | output plotfiles | Boolean               | false      |
+|                             | "{prefix}U",     |                       |            |
+|                             | "{prefix}V", and |                       |            |
+|                             | "{prefix}W"      |                       |            |
+|                             | with velocity    |                       |            |
+|                             | components on the|                       |            |
+|                             | staggered grid.  |                       |            |
 +-----------------------------+------------------+-----------------------+------------+
 
 The analogous list for subvolumes contains the following options:

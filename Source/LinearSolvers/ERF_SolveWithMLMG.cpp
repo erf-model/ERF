@@ -95,5 +95,5 @@ void ERF::solve_with_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi
     // ****************************************************************************
     // Impose bc's on pprime
     // ****************************************************************************
-    ImposeBCsOnPhi(lev, phi[0]);
+    ImposeBCsOnPhi(lev, phi[0], geom[lev].Domain());
 }

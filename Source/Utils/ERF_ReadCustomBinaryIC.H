@@ -10,6 +10,8 @@
 
 inline void
 ReadCustomBinaryIC(const std::string filename,
+                   amrex::Vector<amrex::Real>& latvec_h,
+                   amrex::Vector<amrex::Real>& lonvec_h,
                    amrex::Vector<amrex::Real>& xvec_h,
                    amrex::Vector<amrex::Real>& yvec_h,
                    amrex::Vector<amrex::Real>& zvec_h,
@@ -36,6 +38,16 @@ ReadCustomBinaryIC(const std::string filename,
     infile.read(reinterpret_cast<char*>(&ny), sizeof(int));
     infile.read(reinterpret_cast<char*>(&nz), sizeof(int));
     infile.read(reinterpret_cast<char*>(&ndata), sizeof(int));
+
+    for(int i=0; i<nx*ny; i++) {
+        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
+        latvec_h.emplace_back(value);
+    }
+
+    for(int i=0; i<nx*ny; i++) {
+        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
+        lonvec_h.emplace_back(value);
+    }
 
     for(int i=0; i<nx; i++) {
         infile.read(reinterpret_cast<char*>(&value), sizeof(float));

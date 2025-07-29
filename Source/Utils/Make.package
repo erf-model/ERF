@@ -12,7 +12,7 @@ CEXE_headers += ERF_TileNoZ.H
 CEXE_headers += ERF_Utils.H
 CEXE_headers += ERF_EpochTime.H
 CEXE_headers += ERF_ParFunctions.H
-
+CEXE_headers += ERF_MoistUtils.H
 CEXE_headers += ERF_SatMethods.H
 CEXE_headers += ERF_WaterVaporSaturation.H
 CEXE_headers += ERF_DirectionSelector.H
@@ -21,6 +21,7 @@ CEXE_sources += ERF_AverageDown.cpp
 CEXE_sources += ERF_ChopGrids.cpp
 CEXE_sources += ERF_ConvertForProjection.cpp
 CEXE_sources += ERF_InitZLevels.cpp
+CEXE_sources += ERF_MakeSubdomains.cpp
 CEXE_sources += ERF_MomentumToVelocity.cpp
 CEXE_sources += ERF_VelocityToMomentum.cpp
 CEXE_sources += ERF_InteriorGhostCells.cpp

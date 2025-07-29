@@ -83,7 +83,7 @@ erf.Pr_t      = 0.33333333333333
 erf.Sc_t      = 0.33333333333333
 
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
+erf.sounding_type = Ideal
 
 erf.add_custom_rhotheta_forcing        = true
 erf.add_custom_moisture_forcing        = true
