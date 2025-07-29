@@ -503,7 +503,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 rotate_scalar_flux(i, j, k, dir, Tflux, dxInv, zphys_arr,
                                    hfx1_arr, hfx2_arr, hfx3_arr);
             } else {
-                if (!is_low_face) {
+                if (!is_low_face && dir != 2) {
                     Tflux = -Tflux;
                 }
 
@@ -555,7 +555,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     rotate_scalar_flux(i, j, k, dir, Qflux, dxInv, zphys_arr,
                                        qfx1_arr, qfx2_arr, qfx3_arr);
                 } else {
-                    if (!is_low_face) {
+                    if (!is_low_face && dir != 2) {
                         Qflux = -Qflux;
                     }
                     // TODO: better way to generalize this?
