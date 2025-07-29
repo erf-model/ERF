@@ -102,11 +102,10 @@ struct ModifiedCharnockRoughness {
         z0 = std::min(z0, 0.1);
     }
 
-    const amrex::Real Cnk_b{0.125};
-
     // Modified Charnock constant (Eqn. 4)
     const amrex::Real Cnk_b1{1.0/30.0};
     const amrex::Real Cnk_b2{1260.0};
+    const amrex::Real Cnk_b;
 };
 
 /**
@@ -135,9 +134,8 @@ struct COARE3Roughness {
         z0 = std::clamp(z0, 1.27e-7, 2.85e-3);
     }
 
-    const amrex::Real zref;
-
     const amrex::Real z0ref{1e-4};
+    const amrex::Real zref;
 };
 
 /**
