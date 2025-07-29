@@ -776,8 +776,8 @@ struct SolverChoice {
 
     bool        fixed_density       = false;
     int         ncorr               = 1;
-    amrex::Real poisson_abstol      = 1e-10;
-    amrex::Real poisson_reltol      = 1e-10;
+    amrex::Real poisson_abstol      = 1e-8;
+    amrex::Real poisson_reltol      = 1e-8;
 
     bool        test_mapfactor         = false;
 

@@ -11,7 +11,8 @@ ERF can also use the `simplified-higher-order-closure (SHOC) turbulence and clou
 
 Both RRTMGP and SHOC use Kokkos for heterogeneous computing infrastructures.
 
-AMReX, Kokkos and RTE-RRTMGP are all available as submodules in the ERF repo; SHOC must be git cloned separately.
+AMReX, EKAT, NOAH-MP and RTE-RRTMGP are all available as submodules in the ERF repo; SHOC must be git cloned separately.
+Kokkos is accessed as a submodule of the EKAT submodule.
 
 ERF can be built using either GNU Make or CMake.
 

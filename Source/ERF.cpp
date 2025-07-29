@@ -342,6 +342,7 @@ ERF::ERF_shared ()
     mf_C1H.resize(nlevs_max);
     mf_C2H.resize(nlevs_max);
     mf_MUB.resize(nlevs_max);
+    mf_PSFC.resize(nlevs_max);
 
     // Map factors
     mapfac.resize(nlevs_max);
@@ -1584,7 +1585,7 @@ ERF::init_only (int lev, Real time)
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
-        init_from_wrfinput(lev, *mf_C1H[lev], *mf_C2H[lev], *mf_MUB[lev]);
+        init_from_wrfinput(lev, *mf_C1H[lev], *mf_C2H[lev], *mf_MUB[lev], *mf_PSFC[lev]);
         if (lev==0) {
             if ((start_time > 0) && (start_time != t_new[lev])) {
                 Print() << "Ignoring specified start_time="
@@ -1901,6 +1902,9 @@ ERF::ReadParameters ()
         // Query the set and total widths for wrfbdy interior ghost cells
         pp.query("real_width", real_width);
         pp.query("real_set_width", real_set_width);
+
+        // If using real boundaries, do we extrapolate w (or set to 0)
+        pp.query("real_extrap_w", real_extrap_w);
 
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);
