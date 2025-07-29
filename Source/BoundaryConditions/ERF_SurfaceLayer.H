@@ -398,11 +398,11 @@ public:
                        bool is_land,
                        bool cons_qflux);
 
-  template <typename FluxIterInstance> // FluxIter<RoughCalc>
+  template <template<typename> class FluxIter, typename RoughCalc>
   void iterate_fluxes (const int& lev,
                        const int& max_iters,
                        bool is_land,
-                       const FluxIterInstance& most_flux);
+                       const FluxIter<RoughCalc>& most_flux);
 
   void impose_SurfaceLayer_bcs (const int& lev,
                                 amrex::Vector<const amrex::MultiFab*> mfs,

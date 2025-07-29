@@ -153,12 +153,12 @@ SurfaceLayer::compute_fluxes (const int& lev,
  * @param[in] max_iters maximum iterations to use
  * @param[in] most_flux structure to iteratively compute ustar and tstar
  */
-template <typename FluxIterInstance>
+template <template<typename> class FluxIter, typename RoughCalc>
 void
 SurfaceLayer::iterate_fluxes (const int& lev,
                               const int& max_iters,
                               bool is_land,
-                              const FluxIterInstance& most_flux)
+                              const FluxIter<RoughCalc>& most_flux)
 {
     // Pointers to the computed averages
     const auto *const tm_ptr  = m_ma.get_average(lev,2); // potential temperature

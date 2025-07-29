@@ -28,7 +28,7 @@ struct RoughCalcParams {
 
 
 struct ConstantRoughness {
-    ConstantRoughness (const RoughCalcParams& params) {}
+    ConstantRoughness (const RoughCalcParams& /*params*/) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -145,7 +145,7 @@ struct COARE3Roughness {
  * phys/module_sf_mynn.F
  */
 struct DonelanRoughness {
-    DonelanRoughness (const RoughCalcParams& params) {}
+    DonelanRoughness (const RoughCalcParams& /*params*/) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -174,7 +174,7 @@ struct DonelanRoughness {
  * Wave Coupled
  */
 struct WaveCoupledRoughness {
-    WaveCoupledRoughness (const RoughCalcParams& params) {}
+    WaveCoupledRoughness (const RoughCalcParams& /*params*/) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
