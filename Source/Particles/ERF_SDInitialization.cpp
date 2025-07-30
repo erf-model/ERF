@@ -181,7 +181,34 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
         {
             m_radius_aerosol_mean[i] = std::exp(0.5*(std::log(m_radius_aerosol_min[i])+std::log(m_radius_aerosol_max[i])));
             std::string key = "initial_aerosol_mean_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
-            pp.query(key.c_str(), m_radius_aerosol_mean[i]);
+            if (pp.contains(key.c_str())) {
+                pp.get(key.c_str(), m_radius_aerosol_mean[i]);
+                std::string keymin = "initial_aerosol_min_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+                std::string keymax = "initial_aerosol_max_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+                if ((!pp.contains(keymin.c_str())) && (pp.contains(keymax.c_str()))) {
+                    // min not specified, max and mean specified --> compute min
+                    m_radius_aerosol_min[i] = std::exp(2*std::log(m_radius_aerosol_mean[i])-std::log(m_radius_aerosol_max[i]));
+                } else if ((pp.contains(keymin.c_str())) && (!pp.contains(keymax.c_str()))) {
+                    // max not specified, min and mean specified --> compute max
+                    m_radius_aerosol_max[i] = std::exp(2*std::log(m_radius_aerosol_mean[i])-std::log(m_radius_aerosol_min[i]));
+                } else if ((!pp.contains(keymin.c_str())) && (!pp.contains(keymax.c_str()))) {
+                    // min and max not specified, mean specified --> compute min and max
+                    m_radius_aerosol_min[i] = std::min(1.0e-9,1.0e-3*m_radius_aerosol_mean[i]);
+                    m_radius_aerosol_max[i] = std::exp(2*std::log(m_radius_aerosol_mean[i])-std::log(m_radius_aerosol_min[i]));
+                } else {
+                    // min, max, mean specified --> make sure they are consistent
+                    if (m_radius_aerosol_mean[i] != std::exp(0.5*(std::log(m_radius_aerosol_min[i])+std::log(m_radius_aerosol_max[i])))) {
+                        amrex::Print() << "Aerosol " << getEnumNameString(a_aerosol_mat[i]->m_name) << ": radius lognormal distribution\n"
+                                       << "    min = " << m_radius_aerosol_min[i] << ", "
+                                       << "    max = " << m_radius_aerosol_max[i] << ", "
+                                       << "    mean = " << m_radius_aerosol_mean[i] << "\n"
+                                       << "  is not consistent; mean should be "
+                                       << std::exp(0.5*(std::log(m_radius_aerosol_min[i])+std::log(m_radius_aerosol_max[i])))
+                                       << "\n";
+                        amrex::Abort("Inconsistent values for aerosol radius distribution min, max, and mean!");
+                    }
+                }
+            }
         }
         {
             m_radius_aerosol_geom_std[i] = 2.0;
