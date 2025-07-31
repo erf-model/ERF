@@ -1024,7 +1024,7 @@ struct surface_temp
             // Initial guess from Byun 1990
             // DOI: https://doi.org/10.1175/1520-0450(1990)029<0652:OTASOF>2.0.CO;2
             amrex::Real Rib = ( (mdata.gravity * mdata.zref) / t_surf_arr(i,j,k) ) *
-                              ( (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / umm );
+                              ( (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (umm * umm) );
             if (Rib < 0.0) {
                 // Unstable (surface heating atmos)
                 zeta  = (mdata.zref/(mdata.zref-z0_arr(i,j,k))) * std::log(mdata.zref / z0_arr(i,j,k)) * Rib;
