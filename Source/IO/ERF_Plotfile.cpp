@@ -1045,96 +1045,6 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp ++;
         }
 
-        if (containerHasElement(plot_var_names, "Tau11")) {
-            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau11],0,mf_comp,1,0);
-            //MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau11,mf_comp,1,0);
-            mf_comp ++;
-        }
-
-        if (containerHasElement(plot_var_names, "Tau12")) {
-            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau12],0,mf_comp,1,0);
-            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau12,mf_comp,1,0);
-            mf_comp ++;
-        }
-
-        if (containerHasElement(plot_var_names, "Tau13")) {
-            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau13],0,mf_comp,1,0);
-            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau13,mf_comp,1,0);
-            mf_comp ++;
-        }
-
-        if (containerHasElement(plot_var_names, "Tau21")) {
-            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau21],0,mf_comp,1,0);
-            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau21,mf_comp,1,0);
-            mf_comp ++;
-        }
-
-        if (containerHasElement(plot_var_names, "Tau22")) {
-            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau22],0,mf_comp,1,0);
-            //MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau22,mf_comp,1,0);
-            mf_comp ++;
-        }
-
-        if (containerHasElement(plot_var_names, "Tau23")) {
-            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau23],0,mf_comp,1,0);
-            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau23,mf_comp,1,0);
-            mf_comp ++;
-        }
-
-        if (containerHasElement(plot_var_names, "Tau31")) {
-            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau31],0,mf_comp,1,0);
-            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau31,mf_comp,1,0);
-            mf_comp ++;
-        }
-
-        if (containerHasElement(plot_var_names, "Tau32")) {
-            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau32],0,mf_comp,1,0);
-            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau32,mf_comp,1,0);
-            mf_comp ++;
-        }
-
-        if (containerHasElement(plot_var_names, "Tau33")) {
-            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau33],0,mf_comp,1,0);
-            //MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau33,mf_comp,1,0);
-            mf_comp ++;
-        }
-
-        if (containerHasElement(plot_var_names, "hfx1")) {
-            //MultiFab::Copy(mf[lev],*SFS_hfx1_lev[lev],0,mf_comp,1,0);
-            MultiFab::Copy(mf[lev],mf_cc_fx[lev],0,mf_comp,1,0);
-            mf_comp ++;
-        }
-        if (containerHasElement(plot_var_names, "hfx2")) {
-            //MultiFab::Copy(mf[lev],*SFS_hfx2_lev[lev],0,mf_comp,1,0);
-            MultiFab::Copy(mf[lev],mf_cc_fx[lev],1,mf_comp,1,0);
-            mf_comp ++;
-        }
-        if (containerHasElement(plot_var_names, "hfx3")) {
-            //MultiFab::Copy(mf[lev],*SFS_hfx3_lev[lev],0,mf_comp,1,0);
-            MultiFab::Copy(mf[lev],mf_cc_fx[lev],2,mf_comp,1,0);
-            mf_comp ++;
-        }
-        if (containerHasElement(plot_var_names, "q1fx1")) {
-            //MultiFab::Copy(mf[lev],*SFS_q1fx1_lev[lev],0,mf_comp,1,0);
-            MultiFab::Copy(mf[lev],mf_cc_fx[lev],3,mf_comp,1,0);
-            mf_comp ++;
-        }
-        if (containerHasElement(plot_var_names, "q1fx2")) {
-            //MultiFab::Copy(mf[lev],*SFS_q1fx2_lev[lev],0,mf_comp,1,0);
-            MultiFab::Copy(mf[lev],mf_cc_fx[lev],4,mf_comp,1,0);
-            mf_comp ++;
-        }
-        if (containerHasElement(plot_var_names, "q1fx3")) {
-            //MultiFab::Copy(mf[lev],*SFS_q1fx3_lev[lev],0,mf_comp,1,0);
-            MultiFab::Copy(mf[lev],mf_cc_fx[lev],5,mf_comp,1,0);
-            mf_comp ++;
-        }
-        if (containerHasElement(plot_var_names, "q2fx3")) {
-            //MultiFab::Copy(mf[lev],*SFS_q2fx3_lev[lev],0,mf_comp,1,0);
-            MultiFab::Copy(mf[lev],mf_cc_fx[lev],6,mf_comp,1,0);
-            mf_comp ++;
-        }
-
         // TODO: The size of the q variables can vary with different
         //       moisture models. Therefore, certain components may
         //       reside at different indices. For example, Kessler is
@@ -1490,6 +1400,96 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 1, mf_comp, 1, 0);
                 mf_comp += 1;
             }
+        }
+
+        if (containerHasElement(plot_var_names, "Tau11")) {
+            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau11],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau11,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau12")) {
+            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau12],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau12,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau13")) {
+            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau13],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau13,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau21")) {
+            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau21],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau21,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau22")) {
+            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau22],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau22,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau23")) {
+            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau23],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau23,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau31")) {
+            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau31],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau31,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau32")) {
+            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau32],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau32,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau33")) {
+            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau33],0,mf_comp,1,0);
+            //MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau33,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "hfx1")) {
+            //MultiFab::Copy(mf[lev],*SFS_hfx1_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],0,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "hfx2")) {
+            //MultiFab::Copy(mf[lev],*SFS_hfx2_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],1,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "hfx3")) {
+            //MultiFab::Copy(mf[lev],*SFS_hfx3_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],2,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "q1fx1")) {
+            //MultiFab::Copy(mf[lev],*SFS_q1fx1_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],3,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "q1fx2")) {
+            //MultiFab::Copy(mf[lev],*SFS_q1fx2_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],4,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "q1fx3")) {
+            //MultiFab::Copy(mf[lev],*SFS_q1fx3_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],5,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "q2fx3")) {
+            //MultiFab::Copy(mf[lev],*SFS_q2fx3_lev[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],6,mf_comp,1,0);
+            mf_comp ++;
         }
 
         // *****************************************************************************************
