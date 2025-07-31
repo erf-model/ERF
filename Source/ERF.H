@@ -413,9 +413,21 @@ public:
 
     void init_thin_body (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
-    void init_coarse_weather_data();
+    void CreateWeatherDataGeomBoxArrayDistMap(const std::string& filename,
+                                              amrex::Geometry& geom_weather,
+                                              amrex::BoxArray& nba,
+                                              amrex::DistributionMapping& dm);
 
-    void interp_weather_data_onto_mesh();
+    void FillWeatherDataMultiFab(const std::string& filename,
+                                 const amrex::Geometry& geom_weather,
+                                 const amrex::BoxArray& nba,
+                                 const amrex::DistributionMapping& dm,
+                                 amrex::Vector<amrex::MultiFab>& weather_forecast_data);
+
+    void InterpWeatherDataOntoMesh(const amrex::Geometry& geom_weather,
+                                       amrex::MultiFab& weather_forecast_interp);
+
+    void WeatherDataInterpolation(const amrex::Real time);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -468,7 +480,11 @@ public:
 #endif
 
 #ifdef ERF_USE_NETCDF
-    void init_from_wrfinput (int lev, amrex::MultiFab& mu_C1H, amrex::MultiFab& mu_C2H, amrex::MultiFab& mu_MUB);
+    void init_from_wrfinput (int lev,
+                             amrex::MultiFab& mu_C1H,
+                             amrex::MultiFab& mu_C2H,
+                             amrex::MultiFab& mu_MUB,
+                             amrex::MultiFab& mu_PSFC);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
 #endif // ERF_USE_NETCDF
@@ -889,9 +905,6 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
 
-    amrex::Vector<amrex::MultiFab> weather_forecast_data;
-    amrex::Geometry geom_weather;
-
     int last_plot_file_step_1;
     int last_plot_file_step_2;
     int last_subvol;
@@ -1076,6 +1089,7 @@ private:
     static std::string nc_bdy_file;
     int real_width{0};
     int real_set_width{0};
+    bool real_extrap_w{true};
 
     // NetCDF initialization of zlo boundary values
     static std::string nc_low_file;
@@ -1100,6 +1114,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C1H;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C2H;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_MUB;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_PSFC;
 
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;

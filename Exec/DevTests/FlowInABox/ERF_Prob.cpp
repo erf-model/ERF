@@ -45,7 +45,7 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   Real prob_rdOcp = prob_R_d / prob_c_p;
 
   // Read in T_0 as temperature not theta then convert to theta
-  Real prob_th_0 = getThgivenPandT(parms.T_0, prob_p_0, prob_rdOcp);
+  Real prob_th_0 = getThgivenTandP(parms.T_0, prob_p_0, prob_rdOcp);
   Real  prob_r_0 = prob_p_0 / (prob_R_d * parms.T_0);
 
   amrex::Print() << "READING IN T0 as      " << parms.T_0 << std::endl;

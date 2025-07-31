@@ -1,18 +1,5 @@
 #include "ERF_RRTMGP_Interface.H"
 
-void init_kls ()
-{
-  // Initialize kokkos
-  if(!Kokkos::is_initialized()) { Kokkos::initialize(); }
-}
-
-void finalize_kls()
-{
-  // Finalize kokkos
-  Kokkos::finalize();
-}
-
-
 namespace rrtmgp {
 
 /*
@@ -994,14 +981,12 @@ rrtmgp_lw (const int ncol,
     // Surface emissivity (transposed in RRTMGP)
     // AML NOTE: This transfer was removed in EAMXX, LSM doesn't transfer its emis_sfc?
     real2d_k emis_sfc_T("emis_sfc",nbnd,ncol);
-    /*
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nbnd}),
                          KOKKOS_LAMBDA (int icol, int ibnd)
     {
         emis_sfc_T(ibnd,icol) = emis_sfc(icol,ibnd);
     });
-    */
-    Kokkos::deep_copy(emis_sfc_T, 0.98);
+    //Kokkos::deep_copy(emis_sfc_T, 0.98);
 
     // Get Gaussian quadrature weights
     // Weights and angle secants for first order (k=1) Gaussian quadrature.

@@ -129,7 +129,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool    l_use_terrain_fitted_coords    = (solverChoice.mesh_type == MeshType::VariableDz);
     const bool    l_moving_terrain               = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_stretched_dz || l_use_terrain_fitted_coords);
-    const bool    l_eb_terrain                   = (solverChoice.terrain_type == TerrainType::EB);
 
     const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
 
@@ -445,6 +444,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         // Define updates in the RHS of continuity and potential temperature equations
         // *****************************************************************************
+        bool l_eb_terrain_cc = false; // EB terrain on cell-centered grid
         Array4<const int> mask_arr{};
         Array4<const EBCellFlag> cfg_arr{};
         Array4<const Real> ax_arr{};
@@ -457,20 +457,28 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<const Real> u_detJ_arr{};
         Array4<const Real> v_detJ_arr{};
         Array4<const Real> w_detJ_arr{};
+
         if (solverChoice.terrain_type == TerrainType::EB)
         {
             EBCellFlagFab const& cfg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi];
             cfg_arr  = cfg.const_array();
-            ax_arr   = (ebfact.get_const_factory())->getAreaFrac()[0]->const_array(mfi);
-            ay_arr   = (ebfact.get_const_factory())->getAreaFrac()[1]->const_array(mfi);
-            az_arr   = (ebfact.get_const_factory())->getAreaFrac()[2]->const_array(mfi);
-            fcx_arr  = (ebfact.get_const_factory())->getFaceCent()[0]->const_array(mfi);
-            fcy_arr  = (ebfact.get_const_factory())->getFaceCent()[1]->const_array(mfi);
-            fcz_arr  = (ebfact.get_const_factory())->getFaceCent()[2]->const_array(mfi);
-            detJ_arr = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
-            // if (!already_on_centroids) {mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);}
-            mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);
-
+            if (cfg.getType(bx) == FabType::singlevalued) {
+                l_eb_terrain_cc = true;
+                ax_arr   = (ebfact.get_const_factory())->getAreaFrac()[0]->const_array(mfi);
+                ay_arr   = (ebfact.get_const_factory())->getAreaFrac()[1]->const_array(mfi);
+                az_arr   = (ebfact.get_const_factory())->getAreaFrac()[2]->const_array(mfi);
+                fcx_arr  = (ebfact.get_const_factory())->getFaceCent()[0]->const_array(mfi);
+                fcy_arr  = (ebfact.get_const_factory())->getFaceCent()[1]->const_array(mfi);
+                fcz_arr  = (ebfact.get_const_factory())->getFaceCent()[2]->const_array(mfi);
+                detJ_arr = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
+                // if (!already_on_centroids) {mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);}
+                mask_arr = physbnd_mask[IntVars::cons].const_array(mfi);
+            } else {
+                ax_arr   = ax.const_array(mfi);
+                ay_arr   = ay.const_array(mfi);
+                az_arr   = az.const_array(mfi);
+                detJ_arr = detJ.const_array(mfi);
+            }
             u_detJ_arr = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
             v_detJ_arr = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
             w_detJ_arr = (ebfact.get_w_const_factory())->getVolFrac().const_array(mfi);
@@ -481,45 +489,41 @@ void erf_slow_rhs_pre (int level, int finest_level,
             detJ_arr = detJ.const_array(mfi);
         }
 
-        if (solverChoice.terrain_type != TerrainType::EB){
-            AdvectionSrcForRho(bx, cell_rhs,
-                               rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
-                               avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
-                               ax_arr, ay_arr, az_arr, detJ_arr,
-                               dxInv, mf_mx, mf_my, mf_uy, mf_vx,
-                               flx_arr, l_fixed_rho);
+        int icomp = RhoTheta_comp; int ncomp = 1;
+        if (!l_eb_terrain_cc){
+            AdvectionSrcForRho( bx, cell_rhs,
+                                rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
+                                avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
+                                ax_arr, ay_arr, az_arr, detJ_arr,
+                                dxInv, mf_mx, mf_my, mf_uy, mf_vx,
+                                flx_arr, l_fixed_rho);
+            AdvectionSrcForScalars(bx, icomp, ncomp,
+                                avg_xmom, avg_ymom, avg_zmom,
+                                cell_prim, cell_rhs,
+                                detJ_arr, dxInv, mf_mx, mf_my,
+                                l_horiz_adv_type, l_vert_adv_type,
+                                l_horiz_upw_frac, l_vert_upw_frac,
+                                flx_arr, domain, bc_ptr_h);
         } else {
             EBAdvectionSrcForRho(bx, cell_rhs,
-                                 rho_u, rho_v, omega_arr,
-                                 avg_xmom, avg_ymom, avg_zmom,
-                                 mask_arr, cfg_arr,
-                                 ax_arr, ay_arr, az_arr,
-                                 fcx_arr, fcy_arr, fcz_arr, detJ_arr,
-                                 dxInv, mf_mx, mf_my, mf_uy, mf_vx,
-                                 flx_arr, l_fixed_rho,
-                                 already_on_centroids);
-        }
-
-        int icomp = RhoTheta_comp; int ncomp = 1;
-        if (solverChoice.terrain_type != TerrainType::EB){
-            AdvectionSrcForScalars(bx, icomp, ncomp,
-                                   avg_xmom, avg_ymom, avg_zmom,
-                                   cell_prim, cell_rhs,
-                                   detJ_arr, dxInv, mf_mx, mf_my,
-                                   l_horiz_adv_type, l_vert_adv_type,
-                                   l_horiz_upw_frac, l_vert_upw_frac,
-                                   flx_arr, domain, bc_ptr_h);
-        } else {
+                                rho_u, rho_v, omega_arr,
+                                avg_xmom, avg_ymom, avg_zmom,
+                                mask_arr, cfg_arr,
+                                ax_arr, ay_arr, az_arr,
+                                fcx_arr, fcy_arr, fcz_arr, detJ_arr,
+                                dxInv, mf_mx, mf_my, mf_uy, mf_vx,
+                                flx_arr, l_fixed_rho,
+                                already_on_centroids);
             EBAdvectionSrcForScalars(bx, icomp, ncomp,
-                                     avg_xmom, avg_ymom, avg_zmom,
-                                     cell_prim, cell_rhs,
-                                     mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
-                                     fcx_arr, fcy_arr, fcz_arr,
-                                     detJ_arr, dxInv, mf_mx, mf_my,
-                                     l_horiz_adv_type, l_vert_adv_type,
-                                     l_horiz_upw_frac, l_vert_upw_frac,
-                                     flx_arr, domain, bc_ptr_h,
-                                     already_on_centroids);
+                                avg_xmom, avg_ymom, avg_zmom,
+                                cell_prim, cell_rhs,
+                                mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
+                                fcx_arr, fcy_arr, fcz_arr,
+                                detJ_arr, dxInv, mf_mx, mf_my,
+                                l_horiz_adv_type, l_vert_adv_type,
+                                l_horiz_upw_frac, l_vert_upw_frac,
+                                flx_arr, domain, bc_ptr_h,
+                                already_on_centroids);
         }
 
         if (l_use_diff) {
@@ -633,7 +637,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // viscosity") means that there is no contribution from a
             // turbulence model. However, whether this field truly is constant
             // depends on whether MolecDiffType is Constant or ConstantAlpha.
-            if (!l_eb_terrain) {
+            if (solverChoice.terrain_type != TerrainType::EB) {
                 DiffusionSrcForMom(tbx, tby, tbz,
                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                     tau11, tau22, tau33,

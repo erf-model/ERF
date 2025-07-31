@@ -291,6 +291,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     mf_C1H[lev] = std::make_unique<MultiFab>(ba1d[lev],dm,1,ng);
     mf_C2H[lev] = std::make_unique<MultiFab>(ba1d[lev],dm,1,ng);
     mf_MUB[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ng);
+    mf_PSFC[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ng);
 
     //*********************************************************
     // Variables for Fitch model for windfarm parametrization
