@@ -222,12 +222,12 @@ void SDInitialization::printParameters ( const MatVec& a_species_mat,
                 << " (Initial distribution: " << m_species_init_type[i];
         if (m_species_init_type[i] == SupDropInit::attrib_init_const) {
             Print() << ", value=" << m_mass_species_mean[i];
-            AMREX_ALWAYS_ASSERT(m_mass_species_mean[i] > 0.0);
+            AMREX_ALWAYS_ASSERT(m_mass_species_mean[i] >= 0.0);
         } else if (m_species_init_type[i] == SupDropInit::attrib_init_exp) {
             Print() << ", min=" << m_mass_species_min[i]
                     << ", mean=" << m_mass_species_mean[i]
                     << ", max=" << m_mass_species_max[i];
-            AMREX_ALWAYS_ASSERT(m_mass_species_min[i] > 0.0);
+            AMREX_ALWAYS_ASSERT(m_mass_species_min[i] >= 0.0);
             AMREX_ALWAYS_ASSERT(m_mass_species_max[i] >= m_mass_species_min[i]);
             AMREX_ALWAYS_ASSERT(    (m_mass_species_mean[i] >= m_mass_species_min[i])
                                  && (m_mass_species_mean[i] <= m_mass_species_max[i]) );
