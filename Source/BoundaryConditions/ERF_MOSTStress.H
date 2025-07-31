@@ -1039,6 +1039,7 @@ struct surface_temp
                 zeta *= (1.0 - 2.0 * Bh * Rib) - std::sqrt(1.0 + (4.0 * (Bh - Bm) * Rib) / Pr0);
                 Olen  = mdata.zref / zeta;
             }
+            olen_arr(i,j,k) = Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
         } else {
@@ -1050,7 +1051,11 @@ struct surface_temp
 
         // Fixed point iterations on Olen
         do {
-            olen_arr(i,j,k) = Olen;
+            // Under-relax the update for stability
+            olen_arr(i,j,k) = (1.0 - alpha) * olen_arr(i,j,k) + alpha * Olen;
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
 
             if (w_star_arr) {
                 // update w* and Umagmean
@@ -1070,11 +1075,8 @@ struct surface_temp
             qflux = (spec_qflux) ? mdata.surf_moist_flux : -ustar * qstar;
             tflux += 0.61*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
 
-            Olen  = (1.0 - alpha) * olen_arr(i,j,k) -
-                    alpha * ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
-            zeta  = mdata.zref / Olen;
-            psi_m = sfuns.calc_psi_m(zeta);
-            psi_h = sfuns.calc_psi_h(zeta);
+            // New predicted Olen
+            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
 
             ++iter;
         } while ( (std::abs(olen_arr(i,j,k) - Olen) > tol) && (iter <= max_iters) );
@@ -1096,8 +1098,8 @@ private:
     most_data mdata;
     bool spec_qflux;
     similarity_funs sfuns;
-    const amrex::Real tol = 1.0e-5;
-    const amrex::Real alpha = 0.5;
+    const amrex::Real tol   = 1.0e-5;
+    const amrex::Real alpha = 0.25;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
