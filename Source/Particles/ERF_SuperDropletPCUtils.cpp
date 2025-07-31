@@ -5,6 +5,7 @@
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using SDTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
 
 /*! Compute mesh variable from particles */
 void SuperDropletPC::computeMeshVar( const std::string&  a_var_name,
@@ -99,9 +100,8 @@ void SuperDropletPC::computeMeshVar( const std::string&  a_var_name,
 Real SuperDropletPC::TotalNumberOfParticles ()
 {
     BL_PROFILE("SuperDropletPC::TotalNumberOfParticles()");
-    using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
     Real count = ReduceSum(*this,
-                           [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                           [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                            { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]; });
     ParallelDescriptor::ReduceRealSum(&count, 1, ParallelDescriptor::IOProcessorNumber());
     return count;
@@ -111,9 +111,8 @@ Real SuperDropletPC::TotalNumberOfParticles ()
 Long SuperDropletPC::NumSDDeactivated ()
 {
     BL_PROFILE("SuperDropletPC::NumSDDeactivated()");
-    using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
     auto count = ReduceSum( *this,
-                            [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Long
+                            [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Long
                             {
                                 auto mult = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                 if (mult == 0) { return Long(1); }

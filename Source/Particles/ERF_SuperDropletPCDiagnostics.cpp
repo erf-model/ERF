@@ -8,6 +8,7 @@
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using SDTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
 
 /*! Get real-type particle attribute names */
 Vector<std::string> SuperDropletPC::varNames () const
@@ -68,21 +69,20 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                   const bool a_flag )
 {
     BL_PROFILE("SuperDropletPC::Diagnostics()");
-    using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
 
     auto num_total_particles = TotalNumberOfParticles();
     auto num_superdroplets = static_cast<Real>(NumSuperDroplets());
 
     auto min_par_radius = ReduceMin( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                      { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i]; } );
 
     auto max_par_radius = ReduceMax( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                      { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i]; } );
 
     auto avg_par_radius = ReduceSum( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                      {
                                          auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                          auto r = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
@@ -90,27 +90,27 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                      } );
 
     auto min_multiplic  = ReduceMin( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                      { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]; } );
 
     auto max_multiplic  = ReduceMax( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                      { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]; } );
 
     auto avg_multiplic  = ReduceSum( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                      { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]; } );
 
     auto min_par_mass   = ReduceMin( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                      { return ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i]; } );
 
     auto max_par_mass   = ReduceMax( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                      { return ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i]; } );
 
     auto avg_par_mass   = ReduceSum( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                      {
                                          auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                          auto m = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
@@ -118,15 +118,15 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                      } );
 
     auto min_par_vx = ReduceMin( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  { return ptd.m_rdata[SuperDropletsRealIdxSoA::vx][i]; } );
 
     auto max_par_vx = ReduceMax( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  { return ptd.m_rdata[SuperDropletsRealIdxSoA::vx][i]; } );
 
     auto avg_par_vx = ReduceSum( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  {
                                      auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                      auto m = ptd.m_rdata[SuperDropletsRealIdxSoA::vx][i];
@@ -134,15 +134,15 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                  } );
 
     auto min_par_vy = ReduceMin( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  { return ptd.m_rdata[SuperDropletsRealIdxSoA::vy][i]; } );
 
     auto max_par_vy = ReduceMax( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  { return ptd.m_rdata[SuperDropletsRealIdxSoA::vy][i]; } );
 
     auto avg_par_vy = ReduceSum( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  {
                                      auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                      auto m = ptd.m_rdata[SuperDropletsRealIdxSoA::vy][i];
@@ -150,15 +150,15 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                  } );
 
     auto min_par_vz = ReduceMin( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  { return ptd.m_rdata[SuperDropletsRealIdxSoA::vz][i]; } );
 
     auto max_par_vz = ReduceMax( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  { return ptd.m_rdata[SuperDropletsRealIdxSoA::vz][i]; } );
 
     auto avg_par_vz = ReduceSum( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  {
                                      auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                      auto m = ptd.m_rdata[SuperDropletsRealIdxSoA::vz][i];
@@ -166,15 +166,15 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                  } );
 
     auto min_term_v = ReduceMin( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i]; } );
 
     auto max_term_v = ReduceMax( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i]; } );
 
     auto avg_term_v = ReduceSum( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  {
                                      auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                      auto m = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
@@ -183,15 +183,15 @@ void SuperDropletPC::Diagnostics( const int a_iter,
 
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
     auto min_cond_t = ReduceMin( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::cond_tendency][i]; } );
 
     auto max_cond_t = ReduceMax( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::cond_tendency][i]; } );
 
     auto avg_cond_t = ReduceSum( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                  {
                                      auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                      auto m = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::cond_tendency][i];
@@ -287,13 +287,13 @@ void SuperDropletPC::Diagnostics( const int a_iter,
 
     for (int is = 0; is < m_num_species; is++) {
         min_mass_species[is] = ReduceMin( *this,
-                                          [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                          [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                           { return ptd.m_runtime_rdata[ridx_s(is,na,ns)][i]; } );
         max_mass_species[is] = ReduceMax( *this,
-                                          [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                          [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                           { return ptd.m_runtime_rdata[ridx_s(is,na,ns)][i]; } );
         avg_mass_species[is] = ReduceSum( *this,
-                                          [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                          [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                           {
                                               auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                               auto m = ptd.m_runtime_rdata[ridx_s(is,na,ns)][i];
@@ -319,13 +319,13 @@ void SuperDropletPC::Diagnostics( const int a_iter,
 
     for (int ia = 0; ia < m_num_aerosols; ia++) {
         min_mass_aerosols[ia] = ReduceMin( *this,
-                                           [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                           [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                            { return ptd.m_runtime_rdata[ridx_a(ia,na,ns)][i]; } );
         max_mass_aerosols[ia] = ReduceMax( *this,
-                                           [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                           [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                            { return ptd.m_runtime_rdata[ridx_a(ia,na,ns)][i]; } );
         avg_mass_aerosols[ia] = ReduceSum( *this,
-                                           [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                           [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                            {
                                                auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                                auto m = ptd.m_runtime_rdata[ridx_a(ia,na,ns)][i];
@@ -461,11 +461,10 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
     const auto idx_w = m_idx_w;
 
     // compute g(ln R)
-    using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
     for (int n = 0; n < Nr; n++) {
         const auto lnR = ln_R[n];
         g_mass_ln_R[n] = ReduceSum(  *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                      {
                                          auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                          auto mi = ptd.m_runtime_rdata[ridx_s(idx_w,na,ns)][i];
@@ -476,7 +475,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
         for (int ia = 0; ia < m_num_aerosols; ia++) {
             const auto rho = m_aerosol_mat[ia]->m_density;
             g_amass_ln_R[ia][n] = ReduceSum(*this,
-                                            [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                            [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                             {
                                                 auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                                 auto mi = ptd.m_runtime_rdata[ridx_a(ia,na,ns)][i];
@@ -489,7 +488,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
             const int is = ia - m_num_aerosols;
             const auto rho = m_species_mat[is]->m_density;
             g_amass_ln_R[ia][n] = ReduceSum(*this,
-                                            [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                            [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                             {
                                                 auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                                 auto mi = ptd.m_runtime_rdata[ridx_s(is,na,ns)][i];
@@ -564,13 +563,12 @@ void SuperDropletPC::ComputeBinnedDistributions( const int a_iter)
     const auto idx_w = m_idx_w;
 
     // compute g(ln R)
-    using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
     for (int n = 0; n < Nbin; n++) {
         auto r_l = std::exp(ln_R[n]);
         auto r_r = std::exp(ln_R[n+1]);
 
         g_mass_ln_R[n] = ReduceSum(  *this,
-                                    [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                    [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                     {
                                         auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                         auto mi = ptd.m_runtime_rdata[ridx_s(idx_w,na,ns)][i];
@@ -579,7 +577,7 @@ void SuperDropletPC::ComputeBinnedDistributions( const int a_iter)
                                         return ni*mi*inbin * inv_cell_volume / dln_R;
                                     } );
         g_num_ln_R[n] = ReduceSum(  *this,
-                                    [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                    [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                     {
                                         auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                         auto mi = ptd.m_runtime_rdata[ridx_s(idx_w,na,ns)][i];
@@ -655,7 +653,6 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
     const auto ns = m_num_species;
     const auto idx_w = m_idx_w;
 
-    using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
     for (int n = 0; n < Nbin; n++) {
         auto r_l = std::exp(ln_R[n]);
         auto r_r = std::exp(ln_R[n+1]);
@@ -664,7 +661,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
         varnames[n] = std::string(r_str);
 
         ParticleToMesh( *this, m_mass_ln_R_mf, m_lev,
-            [=] AMREX_GPU_DEVICE (  const PTDType& ptd, int i, Array4<Real> const& mf_arr)
+            [=] AMREX_GPU_DEVICE (  const SDTDType& ptd, int i, Array4<Real> const& mf_arr)
             {
                 auto p = ptd.m_aos[i];
                 auto iv = getParticleCell(p, plo, dxi, domain);
@@ -678,7 +675,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
             }, false);
 
         ParticleToMesh( *this, m_num_ln_R_mf, m_lev,
-            [=] AMREX_GPU_DEVICE (  const PTDType& ptd, int i, Array4<Real> const& mf_arr)
+            [=] AMREX_GPU_DEVICE (  const SDTDType& ptd, int i, Array4<Real> const& mf_arr)
             {
                 auto p = ptd.m_aos[i];
                 auto iv = getParticleCell(p, plo, dxi, domain);
