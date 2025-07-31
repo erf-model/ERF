@@ -1070,7 +1070,11 @@ struct surface_temp
             qflux = (spec_qflux) ? mdata.surf_moist_flux : -ustar * qstar;
             tflux += 0.61*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
 
-            Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
+            Olen  = (1.0 - alpha) * olen_arr(i,j,k) -
+                    alpha * ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
 
             ++iter;
         } while ( (std::abs(olen_arr(i,j,k) - Olen) > tol) && (iter <= max_iters) );
@@ -1093,6 +1097,7 @@ private:
     bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real alpha = 0.5;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
