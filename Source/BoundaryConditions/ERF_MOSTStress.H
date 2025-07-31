@@ -1008,6 +1008,8 @@ struct surface_temp
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
+        amrex::Real tstar = 0.0;
+        amrex::Real qstar = 0.0;
         amrex::Real wstar = 0.0;
         amrex::Real tflux = 0.0;
         amrex::Real qflux = 0.0;
@@ -1015,26 +1017,25 @@ struct surface_temp
         amrex::Real psi_m = 0.0;
         amrex::Real psi_h = 0.0;
         amrex::Real Olen  = 0.0;
-        amrex::Real Oleno = 0.0;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
+
+        // Seed the fixed point iterations
         if (u_star_arr(i,j,k) == 1.E34) {
-            u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+            Olen  = 1.0e3; // Stable initial guess at start up
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
         } else {
             Olen  = olen_arr(i,j,k);
-            Oleno = Olen;
             zeta  = mdata.zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
         }
+
+        // Fixed point iterations on Olen
         do {
-            ustar = u_star_arr(i,j,k);
-            tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                     (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'T'>
-            tflux *= (1 + 0.61*qvm_arr(i,j,k));
-            qflux = (spec_qflux) ? mdata.surf_moist_flux :
-                                 -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
-                                  (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
-            tflux += 0.61*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
+            olen_arr(i,j,k) = Olen;
+
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -1042,32 +1043,32 @@ struct surface_temp
                 umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
                 umm = std::max(umm, WSMIN);
             }
+
+            ustar = mdata.kappa * umm /
+                    (std::log(mdata.zref / z0_arr(i,j,k)) - psi_m); // <w'u'>
+            tstar = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
+                    (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'T'>
+            qstar = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                    (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
+            tflux = -ustar * tstar * (1 + 0.61*qvm_arr(i,j,k));
+            qflux = (spec_qflux) ? mdata.surf_moist_flux : -ustar * qstar;
+            tflux += 0.61*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
+
             Olen = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
-            if ( (((Olen >= 0.0) && (Oleno <= 0.0)) ||
-                  ((Olen <= 0.0) && (Oleno >= 0.0))) &&
-                 std::fabs(Olen) + std::fabs(Oleno) < 1.) {
-                Olen = 0.5 * (Olen + Oleno);
-            }
-            Oleno = Olen;
 
-            zeta  = mdata.zref / Olen;
-            psi_m = sfuns.calc_psi_m(zeta);
-            psi_h = sfuns.calc_psi_h(zeta);
-            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(mdata.zref / z0_arr(i,j,k)) - psi_m);
             ++iter;
-        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
-        AMREX_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
+        } while ( (std::abs(olen_arr(i,j,k) - Olen) > tol) && (iter <= max_iters) );
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
-        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
-                            (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
-          olen_arr(i,j,k) = Olen;
+        olen_arr(i,j,k)   = Olen;
+        u_star_arr(i,j,k) = ustar;
+        t_star_arr(i,j,k) = tstar;
         if (spec_qflux) {
             q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h) /
                                 (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
             q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
         } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
-                                (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h);
+            q_star_arr(i,j,k) = qstar;
         }
     }
 
