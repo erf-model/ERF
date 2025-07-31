@@ -1021,8 +1021,24 @@ struct surface_temp
 
         // Seed the fixed point iterations
         if (u_star_arr(i,j,k) == 1.E34) {
-            Olen  = 1.0e3; // Stable initial guess at start up
-            zeta  = mdata.zref / Olen;
+            // Initial guess from Byun 1990
+            // DOI: https://doi.org/10.1175/1520-0450(1990)029<0652:OTASOF>2.0.CO;2
+            amrex::Real Rib = ( (mdata.gravity * mdata.zref) / t_surf_arr(i,j,k) ) *
+                              ( (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / umm );
+            if (Rib < 0.0) {
+                // Unstable (surface heating atmos)
+                zeta  = (mdata.zref/(mdata.zref-z0_arr(i,j,k))) * std::log(mdata.zref / z0_arr(i,j,k)) * Rib;
+                Olen  = mdata.zref / zeta;
+            } else {
+                // Stable (surface cooling atmos)
+                amrex::Real Pr0 = 0.74;
+                amrex::Real Bm  = 4.7;
+                amrex::Real Bh  = 6.35;
+                zeta  = (mdata.zref/(mdata.zref-z0_arr(i,j,k))) * std::log(mdata.zref / z0_arr(i,j,k));
+                zeta /= (2.0 * Bh * (Bm * Rib - 1.0));
+                zeta *= (1.0 - 2.0 * Bh * Rib) - std::sqrt(1.0 + (4.0 * (Bh - Bm) * Rib) / Pr0);
+                Olen  = mdata.zref / zeta;
+            }
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
         } else {
