@@ -455,7 +455,7 @@ ERF::derive_diag_profiles_stag (Real /*time*/,
             const Array4<Real>& w_fc_arr =  w_fc.array(mfi);
             const Array4<Real>&   p0_arr = p_hse.array(mfi);
 
-            int rhoqr_comp = solverChoice.RhoQr_comp;
+            int rhoqr_comp = solverChoice.moisture_indices.qr;
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {

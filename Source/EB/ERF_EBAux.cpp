@@ -1,4 +1,5 @@
 #include <AMReX_BoxList.H>
+#include <AMReX_ParmParse.H>
 #include <ERF_EBAux.H>
 #include <ERF_EBCutCell.H>
 
@@ -26,6 +27,12 @@ define( int const& a_idim,
 {
   // Box dbox(a_geom.Domain());
 
+  // small_volfrac
+  Real small_volfrac = 1.e-14;
+  ParmParse pp("eb2");
+  pp.queryAdd("small_volfrac", small_volfrac);
+  const Real small_value = 1.e-15;
+
   const IntVect vdim(IntVect::TheDimensionVector(a_idim));
 
   const BoxArray& grids = amrex::convert(a_grids, vdim);
@@ -45,7 +52,7 @@ define( int const& a_idim,
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
       const BoxArray& faceba = amrex::convert(a_grids, IntVect::TheDimensionVector(idim));
-      m_areafrac[idim] = new MultiFab(faceba, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+      m_areafrac[idim] = new MultiFab(faceba, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
       m_facecent[idim] = new MultiFab(faceba, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
   }
 
@@ -76,13 +83,11 @@ define( int const& a_idim,
 
       GpuArray<Real, AMREX_SPACEDIM> dx = a_geom.CellSizeArray();
 
+      // CC cell quantities
       Array4<EBCellFlag const> const& flag = FlagFab.const_array(mfi);
-
       // Array4<Real const> const& vfrac = (a_factory->getVolFrac()).const_array(mfi);
       // Array4<Real const> const& ccent = (a_factory->getCentroid()).const_array(mfi);
-      // Array4<Real const> const& afrac = (a_factory->getAreaFrac()[a_idim])->const_array(mfi);
-
-      // EB normal and face centroid
+      Array4<Real const> const& afrac = (a_factory->getAreaFrac()[a_idim])->const_array(mfi);
       Array4<Real const> const& bnorm = a_factory->getBndryNormal()[mfi].const_array();
       Array4<Real const> const& bcent = a_factory->getBndryCent()[mfi].const_array();
 
@@ -103,10 +108,9 @@ define( int const& a_idim,
       Array4<Real>       const& aux_bcent = m_bndrycent->array(mfi);
       Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
 
-      bool is_per = a_geom.isPeriodic(a_idim);
+      bool l_periodic   = a_geom.isPeriodic(a_idim);
 
       // Initialization
-      // This is an ad-hoc; ideally, eb_aux should be defined in bx_grown.
 
       // Extended domain in the direction of periodicity
       Box dom_grown = domain;
@@ -136,12 +140,13 @@ define( int const& a_idim,
 #ifndef AMREX_USE_GPU
                   verbose=m_verbose,
 #endif
-                  dx, bx, domain, bnorm, bcent, flag,
+                  dx, bx, domain, flag, afrac, bnorm, bcent,
                   aux_flag, aux_vfrac, aux_vcent,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
                   aux_barea, aux_bcent, aux_bnorm,
-                  vdim, idim=a_idim, is_per ]
+                  vdim, idim=a_idim, l_periodic,
+                  small_volfrac, small_value ]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
 
@@ -192,20 +197,83 @@ define( int const& a_idim,
         // Index for low and hi cells
         IntVect iv_hi(i,j,k);
         IntVect iv_lo(iv_hi - vdim);
-        if (!is_per && iv_hi[idim]==domain.bigEnd(idim)){
-          iv_hi = iv_lo; // At the upper boundary, hi cell takes the values of the low cell.
-        }
-        if (!is_per && iv_hi[idim]==domain.smallEnd(idim)){
-          iv_lo = iv_hi; // At the lower boundary, low cell takes the values of the high cell.
+
+        bool lo_isCovered = flag(iv_lo).isCovered();
+        bool hi_isCovered = flag(iv_hi).isCovered();
+        bool lo_isRegular = flag(iv_lo).isRegular();
+        bool hi_isRegular = flag(iv_hi).isRegular();
+        bool lo_isSingleValued = flag(iv_lo).isSingleValued();
+        bool hi_isSingleValued = flag(iv_hi).isSingleValued();
+
+        const bool at_lo_boundary = (!l_periodic && iv_hi[idim]==domain.smallEnd(idim));
+        const bool at_hi_boundary = (!l_periodic && iv_hi[idim]==domain.bigEnd(idim));
+
+        // Treatment of lower boundary
+
+        if (at_lo_boundary) {
+          if (hi_isCovered) {
+            lo_isCovered = true;
+            lo_isRegular = false;
+            lo_isSingleValued = false;
+          } else if (hi_isRegular) {
+            lo_isCovered = false;
+            lo_isRegular = true;
+            lo_isSingleValued = false;
+          } else if (hi_isSingleValued) {
+            if (almostEqual(afrac(i,j,k),0.0)) {
+              lo_isCovered = true;
+              lo_isRegular = false;
+              lo_isSingleValued = false;
+            } else if (almostEqual(afrac(i,j,k),1.0)) {
+              lo_isCovered = false;
+              lo_isRegular = true;
+              lo_isSingleValued = false;
+            } else {
+              lo_isCovered = false;
+              lo_isRegular = false;
+              lo_isSingleValued = true;
+              iv_lo = iv_hi; // At the lower boundary, low cell takes the values of the high cell.
+            }
+          }
         }
 
-        if ( flag(iv_lo).isCovered() && flag(iv_hi).isCovered()) {
+        // Treatment of upper boundary
+
+        if (at_hi_boundary) {
+          if (lo_isCovered) { // Covered
+            hi_isCovered = true;
+            hi_isRegular = false;
+            hi_isSingleValued = false;
+          } else if (lo_isRegular) { // Regular
+            hi_isCovered = false;
+            hi_isRegular = true;
+            hi_isSingleValued = false;
+          } else if (lo_isSingleValued) { // SingleValued
+            if (almostEqual(afrac(i,j,k),0.0)) { //Covered
+              hi_isCovered = true;
+              hi_isRegular = false;
+              hi_isSingleValued = false;
+            } else if (almostEqual(afrac(i,j,k),1.0)) { //Regular
+              hi_isCovered = false;
+              hi_isRegular = true;
+              hi_isSingleValued = false;
+            } else { // SingleValued
+              hi_isCovered = false;
+              hi_isRegular = false;
+              hi_isSingleValued = true;
+              iv_hi = iv_lo; // At the upper boundary, hi cell takes the values of the low cell.
+            }
+          }
+        }
+
+        if ( lo_isCovered && hi_isCovered) {
 
           // defaults to covered and disconnected.
 
-        } else if ( flag(iv_lo).isRegular() && flag(iv_hi).isRegular()) {
+        } else if ( lo_isRegular && hi_isRegular) {
 
           aux_flag(i,j,k).setRegular();
+          aux_flag(i,j,k).setConnected();
 
           aux_vfrac(i,j,k) = 1.0;
 
@@ -251,12 +319,11 @@ define( int const& a_idim,
           RealVect lo_point (bcent(iv_lo,0), bcent(iv_lo,1), bcent(iv_lo,2));
           RealVect lo_normal(bnorm(iv_lo,0), bnorm(iv_lo,1), bnorm(iv_lo,2));
 
-          if (!is_per && iv_hi[idim]==domain.smallEnd(idim)){
+          if (at_lo_boundary) { // At lower boundary
             lo_point[idim] += 1.0; // Move the boundary centroid upward in the idim direction.
           }
 
-          if (flag(iv_lo).isSingleValued() ) {
-
+          if (lo_isSingleValued ) {
             Real bnorm_x = bnorm(iv_lo,0) * dx[0];
             Real bnorm_y = bnorm(iv_lo,1) * dx[1];
             Real bnorm_z = bnorm(iv_lo,2) * dx[2];
@@ -265,10 +332,7 @@ define( int const& a_idim,
 
             RealVect bnorm_isoparam ( bnorm_x / norm, bnorm_y / norm, bnorm_z / norm);
 
-            // plane point and normal
-            // lo_point  = bcent_isoparam;
             lo_normal = bnorm_isoparam;
-
           }
 
           // High side of low cell
@@ -280,8 +344,8 @@ define( int const& a_idim,
 
           // cell iv_lo covered (regular) imples lo_eb_cc is covered (regular)
           // The inverse is not always true.
-          AMREX_ASSERT( !flag(iv_lo).isCovered() || lo_eb_cc.isCovered() );
-          AMREX_ASSERT( !flag(iv_lo).isRegular() || lo_eb_cc.isRegular() );
+          AMREX_ASSERT( !lo_isCovered || lo_eb_cc.isCovered() );
+          AMREX_ASSERT( !lo_isRegular || lo_eb_cc.isRegular() );
 
           //-----------------------
           // High EB cut cell
@@ -290,12 +354,11 @@ define( int const& a_idim,
           RealVect hi_point (bcent(iv_hi,0), bcent(iv_hi,1), bcent(iv_hi,2));
           RealVect hi_normal(bnorm(iv_hi,0), bnorm(iv_hi,1), bnorm(iv_hi,2));
 
-          if (!is_per && iv_hi[idim]==domain.bigEnd(idim)){
-            lo_point[idim] += -1.0; // Move the boundary centroid downward in the idim direction.
+          if (at_hi_boundary) {
+            hi_point[idim] += -1.0; // Move the boundary centroid downward in the idim direction.
           }
 
-          if (flag(iv_hi).isSingleValued() ) {
-
+          if (hi_isSingleValued ) {
             Real bnorm_x = bnorm(iv_hi,0) * dx[0];
             Real bnorm_y = bnorm(iv_hi,1) * dx[1];
             Real bnorm_z = bnorm(iv_hi,2) * dx[2];
@@ -304,10 +367,7 @@ define( int const& a_idim,
 
             RealVect bnorm_isoparam ( bnorm_x / norm, bnorm_y / norm, bnorm_z / norm);
 
-            // plane point and normal
-            // hi_point  = bcent_isoparam;
             hi_normal = bnorm_isoparam;
-
           }
 
           // Low side of high cell
@@ -319,8 +379,8 @@ define( int const& a_idim,
 
           // cell iv_hi covered (regular) imples hi_eb_cc is covered (regular)
           // The inverse is not always true.
-          AMREX_ASSERT( !flag(iv_hi).isCovered() || hi_eb_cc.isCovered() );
-          AMREX_ASSERT( !flag(iv_hi).isRegular() || hi_eb_cc.isRegular() );
+          AMREX_ASSERT( !hi_isCovered || hi_eb_cc.isCovered() );
+          AMREX_ASSERT( !hi_isRegular || hi_eb_cc.isRegular() );
 
 #if 0
 #if defined(AMREX_DEBUG) || defined(AMREX_TESTING) || 1
@@ -338,25 +398,25 @@ define( int const& a_idim,
             // cell iv_hi covered (regular) imples hi_hi_eb_cc is covered (regular)
             // The inverse is not always true.
 #ifndef AMREX_USE_GPU
-            if ( !(!flag(iv_hi).isRegular() || hi_hi_eb_cc.isRegular()) ||
-                 !(!flag(iv_hi).isCovered() || hi_hi_eb_cc.isCovered()) ) {
+            if ( !(!hi_isRegular || hi_hi_eb_cc.isRegular()) ||
+                 !(!hi_isCovered || hi_hi_eb_cc.isCovered()) ) {
               Print() << "flag(iv_hi) and hi_hi_eb_cc flags do not agree\n"
-                      << "\n  isRegular() " << flag(iv_hi).isRegular() << "  " << hi_hi_eb_cc.isRegular()
-                      << "\n  isCovered() " << flag(iv_hi).isCovered() << "  " << hi_hi_eb_cc.isCovered()
+                      << "\n  isRegular() " << hi_isRegular << "  " << hi_hi_eb_cc.isRegular()
+                      << "\n  isCovered() " << hi_isCovered << "  " << hi_hi_eb_cc.isCovered()
                       << "\n";
             }
 #endif
             // If cell iv_hi is regular or covered, then hi_hi_eb_cc must also
             // be regular or covered. The inverse is not true.
-            AMREX_ALWAYS_ASSERT( !flag(iv_hi).isRegular() || hi_hi_eb_cc.isRegular() );
-            AMREX_ALWAYS_ASSERT( !flag(iv_hi).isCovered() || hi_hi_eb_cc.isCovered() );
+            AMREX_ALWAYS_ASSERT( !hi_isRegular || hi_hi_eb_cc.isRegular() );
+            AMREX_ALWAYS_ASSERT( !hi_isCovered || hi_hi_eb_cc.isCovered() );
 
             // The area and volume fractions that are computed for the scalar grid
             // are slightly different than those we compute from the geometric
             // reconstruction using the EB point and normal. However, we expect
             // that the area fractions computed here will give back the same
             // normal we used to compute them.
-            if ( flag(iv_hi).isSingleValued() ) {
+            if ( hi_isSingleValued ) {
 
               Real const adx = (idim == 0)
                              ? (hi_eb_cc.areaLo(0) - hi_hi_eb_cc.areaHi(0)) * dx[1] * dx[2]
@@ -472,6 +532,7 @@ define( int const& a_idim,
           } else if (lo_eb_cc.isRegular() && hi_eb_cc.isRegular()) {
 
             aux_flag(i,j,k).setRegular();
+            aux_flag(i,j,k).setConnected();
 
             aux_vfrac(i,j,k) = 1.0;
 
@@ -505,6 +566,8 @@ define( int const& a_idim,
 #endif
 
           } else {
+
+            // 0. Cell Flag
 
             aux_flag(i,j,k).setSingleValued();
 
@@ -760,17 +823,60 @@ define( int const& a_idim,
             aux_bnorm(i,j,k,0) = eb_normal[0];
             aux_bnorm(i,j,k,1) = eb_normal[1];
             aux_bnorm(i,j,k,2) = eb_normal[2];
+
+            // Small cell
+
+            if (aux_vfrac(i,j,k) < small_volfrac) {
+              aux_vfrac(i,j,k)   = 0.0;
+              aux_vcent(i,j,k,0) = 0.0;
+              aux_vcent(i,j,k,1) = 0.0;
+              aux_vcent(i,j,k,2) = 0.0;
+
+              aux_afrac_x(i  ,j  ,k  ) = 0.0;
+              aux_afrac_x(i+1,j  ,k  ) = 0.0;
+              aux_afrac_y(i  ,j  ,k  ) = 0.0;
+              aux_afrac_y(i  ,j+1,k  ) = 0.0;
+              aux_afrac_z(i  ,j  ,k+1) = 0.0;
+              aux_afrac_z(i  ,j  ,k  ) = 0.0;
+
+              aux_fcent_x(i  ,j  ,k  ,0) = 0.0;
+              aux_fcent_x(i  ,j  ,k  ,1) = 0.0;
+              aux_fcent_x(i+1,j  ,k  ,0) = 0.0;
+              aux_fcent_x(i+1,j  ,k  ,1) = 0.0;
+
+              aux_fcent_y(i  ,j  ,k  ,0) = 0.0;
+              aux_fcent_y(i  ,j  ,k  ,1) = 0.0;
+              aux_fcent_y(i  ,j+1,k  ,0) = 0.0;
+              aux_fcent_y(i  ,j+1,k  ,1) = 0.0;
+
+              aux_fcent_z(i  ,j  ,k  ,0) = 0.0;
+              aux_fcent_z(i  ,j  ,k  ,1) = 0.0;
+              aux_fcent_z(i  ,j  ,k+1,0) = 0.0;
+              aux_fcent_z(i  ,j  ,k+1,1) = 0.0;
+
+              aux_barea(i,j,k) = 0.0;
+
+              aux_bcent(i,j,k,0) = 0.0;
+              aux_bcent(i,j,k,1) = 0.0;
+              aux_bcent(i,j,k,2) = 0.0;
+
+              aux_bnorm(i,j,k,0) = 0.0;
+              aux_bnorm(i,j,k,1) = 0.0;
+              aux_bnorm(i,j,k,2) = 0.0;
+
+              aux_flag(i,j,k).setCovered();
+            }
+
+            if (aux_vcent(i,j,k,0) < small_value) aux_vcent(i,j,k,0) = 0.0;
+            if (aux_vcent(i,j,k,1) < small_value) aux_vcent(i,j,k,1) = 0.0;
+            if (aux_vcent(i,j,k,2) < small_value) aux_vcent(i,j,k,2) = 0.0;
+            if (aux_bcent(i,j,k,0) < small_value) aux_bcent(i,j,k,0) = 0.0;
+            if (aux_bcent(i,j,k,1) < small_value) aux_bcent(i,j,k,1) = 0.0;
+            if (aux_bcent(i,j,k,2) < small_value) aux_bcent(i,j,k,2) = 0.0;
+
           }
 
         } // flag(iv_lo) and flag(iv_hi)
-      });
-
-
-      // Set Connectivities
-
-      ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-      {
-        EB2::build_cellflag_from_ap (i, j, k, aux_flag, aux_afrac_x, aux_afrac_y, aux_afrac_z);
       });
 
     } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued )
@@ -788,6 +894,125 @@ define( int const& a_idim,
   m_bndryarea->FillBoundary(a_geom.periodicity());
   m_bndrycent->FillBoundary(a_geom.periodicity());
   m_bndrynorm->FillBoundary(a_geom.periodicity());
+
+  // Set Connectivities
+
+  for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
+
+    const Box& bx = mfi.validbox();
+    const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
+
+    if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
+
+      Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
+      Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
+      Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
+      Array4<Real>       const& aux_afrac_z = m_areafrac[2]->array(mfi);
+
+      ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        EB2::build_cellflag_from_ap (i, j, k, aux_flag, aux_afrac_x, aux_afrac_y, aux_afrac_z);
+      });
+
+      // Set disconnected non-periodicfaces
+
+      bool l_periodic_x = a_geom.isPeriodic(0);
+      bool l_periodic_y = a_geom.isPeriodic(1);
+      bool l_periodic_z = a_geom.isPeriodic(2);
+
+      if (!l_periodic_x) {
+        Box dom_grown = grow(grow(domain,1,1),2,1);
+        Box dom_face_x_lo = dom_grown;
+        Box dom_face_x_hi = dom_grown;
+        dom_face_x_lo.setSmall(0, bx.smallEnd(0));
+        dom_face_x_lo.setBig(  0, bx.smallEnd(0));
+        dom_face_x_hi.setSmall(0, bx.bigEnd(0));
+        dom_face_x_hi.setBig(  0, bx.bigEnd(0));
+
+        const Box bx_grown  = grow(grow(bx,1,1),2,1);
+        const Box bx_face_x_lo = bx_grown & dom_face_x_lo;
+        const Box bx_face_x_hi = bx_grown & dom_face_x_hi;
+
+        ParallelFor(bx_face_x_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          for(int kk(-1); kk<=1; kk++) {
+          for(int jj(-1); jj<=1; jj++) {
+            aux_flag(i,j,k).setDisconnected(-1,jj,kk);
+          }}
+        });
+        ParallelFor(bx_face_x_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          for(int kk(-1); kk<=1; kk++) {
+          for(int jj(-1); jj<=1; jj++) {
+            aux_flag(i,j,k).setDisconnected( 1,jj,kk);
+          }}
+        });
+      }
+
+      if (!l_periodic_y) {
+        Box dom_grown = grow(grow(domain,0,1),2,1);
+        Box dom_face_y_lo = dom_grown;
+        Box dom_face_y_hi = dom_grown;
+        dom_face_y_lo.setSmall(1, bx.smallEnd(1));
+        dom_face_y_lo.setBig(  1, bx.smallEnd(1));
+        dom_face_y_hi.setSmall(1, bx.bigEnd(1));
+        dom_face_y_hi.setBig(  1, bx.bigEnd(1));
+
+        const Box bx_grown  = grow(grow(bx,0,1),2,1);
+        const Box bx_face_y_lo = bx_grown & dom_face_y_lo;
+        const Box bx_face_y_hi = bx_grown & dom_face_y_hi;
+
+        ParallelFor(bx_face_y_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          for(int kk(-1); kk<=1; kk++) {
+          for(int ii(-1); ii<=1; ii++) {
+            aux_flag(i,j,k).setDisconnected(ii,-1,kk);
+          }}
+        });
+        ParallelFor(bx_face_y_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          for(int kk(-1); kk<=1; kk++) {
+          for(int ii(-1); ii<=1; ii++) {
+            aux_flag(i,j,k).setDisconnected(ii, 1,kk);
+          }}
+        });
+      }
+
+      if (!l_periodic_z) {
+        Box dom_grown = grow(grow(domain,0,1),1,1);
+        Box dom_face_z_lo = dom_grown;
+        Box dom_face_z_hi = dom_grown;
+        dom_face_z_lo.setSmall(2, bx.smallEnd(2));
+        dom_face_z_lo.setBig(  2, bx.smallEnd(2));
+        dom_face_z_hi.setSmall(2, bx.bigEnd(2));
+        dom_face_z_hi.setBig(  2, bx.bigEnd(2));
+
+        const Box bx_grown  = grow(grow(bx,0,1),1,1);
+        const Box bx_face_z_lo = bx_grown & dom_face_z_lo;
+        const Box bx_face_z_hi = bx_grown & dom_face_z_hi;
+
+        ParallelFor(bx_face_z_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          for(int jj(-1); jj<=1; jj++) {
+          for(int ii(-1); ii<=1; ii++) {
+            aux_flag(i,j,k).setDisconnected(ii,jj,-1);
+          }}
+        });
+        ParallelFor(bx_face_z_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          for(int jj(-1); jj<=1; jj++) {
+          for(int ii(-1); ii<=1; ii++) {
+            aux_flag(i,j,k).setDisconnected(ii,jj, 1);
+          }}
+        });
+      }
+    }
+
+  }
+
+  // Fill Boundary
+
+  m_cellflags->FillBoundary(a_geom.periodicity());
 
 }
 

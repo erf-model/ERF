@@ -780,7 +780,7 @@ init_state_from_metgrid (const bool use_moisture,
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    theta(i,j,k) = getThgivenPandT(temp(i,j,k),pres(i,j,k),l_rdOcp);
+                    theta(i,j,k) = getThgivenTandP(temp(i,j,k),pres(i,j,k),l_rdOcp);
                 });
             }
 
@@ -927,7 +927,7 @@ init_state_from_metgrid (const bool use_moisture,
 
             ParallelFor(tbxc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real Calc_Val = getThgivenPandT(temp(i,j,k),pres(i,j,k),l_rdOcp);
+                Real Calc_Val = getThgivenTandP(temp(i,j,k),pres(i,j,k),l_rdOcp);
                 if (metgrid_debug_isothermal) Calc_Val = 300.0; // Debugging option to run isothermal.
                 if (mask_c_arr(i,j,k) && bx_xlo.contains(i,j,k)) bc_data_xlo(i,j,k,0) = Calc_Val;
                 if (mask_c_arr(i,j,k) && bx_xhi.contains(i,j,k)) bc_data_xhi(i,j,k,0) = Calc_Val;

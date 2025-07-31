@@ -8,17 +8,45 @@ using namespace amrex;
  * Solve the Poisson equation using FFT
  * Note that the level may or may not be level 0.
  */
-void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes)
+void ERF::solve_with_fft (int lev, const Box& subdomain,
+                          MultiFab& rhs, MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes)
 {
     BL_PROFILE("ERF::solve_with_fft()");
 
-    auto const dom_lo = lbound(geom[lev].Domain());
-    auto const dom_hi = ubound(geom[lev].Domain());
+    auto const dom_lo = lbound(Geom(lev).Domain());
+    auto const dom_hi = ubound(Geom(lev).Domain());
 
+    auto const sub_lo = lbound(subdomain);
+    auto const sub_hi = ubound(subdomain);
+
+    auto dx    = geom[lev].CellSizeArray();
     auto dxInv = geom[lev].InvCellSizeArray();
 
-    Box bounding_box(rhs.boxArray().minimalBox());
-    auto bc_fft = get_fft_bc(geom[lev],domain_bc_type,bounding_box);
+    auto bc_fft = get_fft_bc(geom[lev],domain_bc_type,subdomain);
+
+    Geometry my_geom;
+
+    Array<int,AMREX_SPACEDIM> is_per; is_per[0] = 0; is_per[1] = 0; is_per[2] = 0;
+    if (geom[lev].isPeriodic(0) && sub_lo.x == dom_lo.x && sub_hi.x == dom_hi.x) { is_per[0] = 1;}
+    if (geom[lev].isPeriodic(1) && sub_lo.y == dom_lo.y && sub_hi.y == dom_hi.y) { is_per[1] = 1;}
+
+    amrex::Print() <<" Periodic flag " << is_per[0] << " " << is_per[1] << " " << is_per[2] << std::endl;
+
+    int coord_sys = 0;
+
+    // If subdomain == domain then we pass Geom(lev) to the FFT solver
+    if (subdomain == Geom(lev).Domain()) {
+        my_geom.define(Geom(lev).Domain(), Geom(lev).ProbDomain(), coord_sys, is_per);
+    } else {
+        // else we create a new geometry based only on the subdomain
+        // The information in my_geom used by the FFT routines is:
+        //   1) my_geom.Domain()
+        //   2) my_geom.CellSize()
+        //   3) my_geom.isAllPeriodic() / my_geom.periodicity()
+        RealBox rb( sub_lo.x   *dx[0],  sub_lo.y   *dx[1],  sub_lo.z   *dx[2],
+                   (sub_hi.x+1)*dx[0], (sub_hi.y+1)*dx[1], (sub_hi.z+1)*dx[2]);
+        my_geom.define(subdomain, rb, coord_sys, is_per);
+    }
 
     // ****************************************************************************
     // FFT solve
@@ -29,12 +57,12 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
     if (solverChoice.mesh_type == MeshType::ConstantDz)
     {
         if (mg_verbose > 0) {
-            amrex::Print() << "Using the 3D FFT solver..." << std::endl;
+            amrex::Print() << "Using the 3D FFT solver on domain " << my_geom.Domain() << std::endl;
         }
         if (m_3D_poisson.size() <= lev) {
             m_3D_poisson.resize(lev+1);
-            m_3D_poisson[lev] = std::make_unique<FFT::Poisson<MultiFab>>(Geom(lev),bc_fft);
         }
+        m_3D_poisson[lev] = std::make_unique<FFT::Poisson<MultiFab>>(my_geom,bc_fft);
         m_3D_poisson[lev]->solve(phi, rhs);
 
     //
@@ -47,22 +75,34 @@ void ERF::solve_with_fft (int lev, MultiFab& rhs, MultiFab& phi, Array<MultiFab,
     else if (solverChoice.mesh_type == MeshType::StretchedDz)
     {
         if (mg_verbose > 0) {
-            amrex::Print() << "Using the hybrid FFT solver..." << std::endl;
+            amrex::Print() << "Using the hybrid FFT solver on domain " << my_geom.Domain() << std::endl;
         }
         if (m_2D_poisson.size() <= lev) {
             m_2D_poisson.resize(lev+1);
-            m_2D_poisson[lev] = std::make_unique<FFT::PoissonHybrid<MultiFab>>(Geom(lev),bc_fft);
         }
+        m_2D_poisson[lev] = std::make_unique<FFT::PoissonHybrid<MultiFab>>(my_geom,bc_fft);
         m_2D_poisson[lev]->solve(phi, rhs, stretched_dz_d[lev]);
 
     } else {
         amrex::Abort("FFT isn't appropriate for spatially varying terrain");
     }
 
+    amrex::Print() << "FFT solve complete on domain " << my_geom.Domain() << std::endl;
+
+    if (lev > 0 && my_geom.Domain().contains(IntVect(146,0,0))) {
+       amrex::Print() << "TRYING TO PRINT PHI(146,0,0)" << std::endl;
+       print_state(phi,IntVect(146,0,0));
+    }
+
     // ****************************************************************************
     // Impose bc's on pprime
     // ****************************************************************************
-    ImposeBCsOnPhi(lev, phi);
+    ImposeBCsOnPhi(lev, phi, subdomain);
+
+    if (lev > 0 && my_geom.Domain().contains(IntVect(146,0,0))) {
+       amrex::Print() << "AFTER IMPOSE: POINT IS HERE " << std::endl;
+       print_state(phi,IntVect(146,0,0));
+    }
 
     // ****************************************************************************
     // Compute fluxes which we will subtract from the momenta

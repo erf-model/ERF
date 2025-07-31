@@ -481,14 +481,14 @@ struct WENO_Z7
         if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
 
         // Data to interpolate on
-        amrex::Real sp3 = m_phi(i  , j  , k+2, qty_index);
+        amrex::Real sp3 = m_phi(i  , j  , k+3, qty_index);
         amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
         amrex::Real sm1 = m_phi(i  , j  , k-1, qty_index);
         amrex::Real sm2 = m_phi(i  , j  , k-2, qty_index);
         amrex::Real sm3 = m_phi(i  , j  , k-3, qty_index);
-        amrex::Real sm4 = m_phi(i  , j  , k-3, qty_index);
+        amrex::Real sm4 = m_phi(i  , j  , k-4, qty_index);
 
         // Left and right fluxes
         amrex::Real Fhi = Evaluate(sm4,sm3,sm2,sm1,s  ,sp1,sp2);
@@ -556,7 +556,7 @@ struct WENO_Z7
         amrex::Real w1 = g1 * ( 1.0 + (t5*t5) / ((eps + b1) * (eps + b1)) );
         amrex::Real w2 = g2 * ( 1.0 + (t5*t5) / ((eps + b2) * (eps + b2)) );
         amrex::Real w3 = g3 * ( 1.0 + (t5*t5) / ((eps + b3) * (eps + b3)) );
-        amrex::Real w4 = g4 * ( 1.0 + (t5*t5) / ((eps + b3) * (eps + b3)) );
+        amrex::Real w4 = g4 * ( 1.0 + (t5*t5) / ((eps + b4) * (eps + b4)) );
 
         // Weight factor norm
         amrex::Real wsum = w1 + w2 + w3 + w4;

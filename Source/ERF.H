@@ -172,19 +172,26 @@ public:
     // Calculate wall distance by solving a Poisson equation
     void poisson_wall_dist (int lev);
 
+    void make_subdomains(const amrex::BoxList& ba, amrex::Vector<amrex::BoxArray>& bins);
+
 #ifdef ERF_USE_FFT
-    void solve_with_fft (int lev, amrex::MultiFab& rhs, amrex::MultiFab& p,
+    void solve_with_fft (int lev, const amrex::Box& subdomain,
+                         amrex::MultiFab& rhs, amrex::MultiFab& p,
                          amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 #endif
     void solve_with_EB_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                              amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
 
-    void solve_with_gmres (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
-                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
+    void solve_with_gmres (int lev, const amrex::Box& subdomain,
+                           amrex::MultiFab& rhs, amrex::MultiFab& p,
+                           amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
+                           amrex::MultiFab& ax_sub, amrex::MultiFab& ay_sub,
+                           amrex::MultiFab& znd_sub);
+
     void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
 
-    void ImposeBCsOnPhi (int lev, amrex::MultiFab& phi);
+    void ImposeBCsOnPhi (int lev, amrex::MultiFab& phi, const amrex::Box& subdomain);
 
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
@@ -406,9 +413,21 @@ public:
 
     void init_thin_body (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
-    void init_coarse_weather_data();
+    void CreateWeatherDataGeomBoxArrayDistMap(const std::string& filename,
+                                              amrex::Geometry& geom_weather,
+                                              amrex::BoxArray& nba,
+                                              amrex::DistributionMapping& dm);
 
-    void interp_weather_data_onto_mesh();
+    void FillWeatherDataMultiFab(const std::string& filename,
+                                 const amrex::Geometry& geom_weather,
+                                 const amrex::BoxArray& nba,
+                                 const amrex::DistributionMapping& dm,
+                                 amrex::Vector<amrex::MultiFab>& weather_forecast_data);
+
+    void InterpWeatherDataOntoMesh(const amrex::Geometry& geom_weather,
+                                       amrex::MultiFab& weather_forecast_interp);
+
+    void WeatherDataInterpolation(const amrex::Real time);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -461,7 +480,11 @@ public:
 #endif
 
 #ifdef ERF_USE_NETCDF
-    void init_from_wrfinput (int lev, amrex::MultiFab& mu_C1H, amrex::MultiFab& mu_C2H, amrex::MultiFab& mu_MUB);
+    void init_from_wrfinput (int lev,
+                             amrex::MultiFab& mu_C1H,
+                             amrex::MultiFab& mu_C2H,
+                             amrex::MultiFab& mu_MUB,
+                             amrex::MultiFab& mu_PSFC);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
 #endif // ERF_USE_NETCDF
@@ -650,6 +673,9 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_xhi;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_ylo;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
+
+    // Maximum value of terrain read in from wrfinput at level 0
+    amrex::Real z_top = 0.;
 
     amrex::Vector<amrex::FArrayBox> low_data_zlo;
 
@@ -879,9 +905,6 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
 
-    amrex::Vector<amrex::MultiFab> weather_forecast_data;
-    amrex::Geometry geom_weather;
-
     int last_plot_file_step_1;
     int last_plot_file_step_2;
     int last_subvol;
@@ -904,7 +927,7 @@ private:
     amrex::Real  stop_time = std::numeric_limits<amrex::Real>::max();
 
     bool use_datetime = false;
-    const std::string datetime_format = "%Y-%m-%d %H:%M:%S";
+    const std::string datetime_format = "%Y-%m-%d %H:%M:%S"; // ISO 8601 standard
 
     // if >= 0 we restart from a checkpoint
     std::string restart_chkfile = "";
@@ -1063,13 +1086,10 @@ private:
     static std::string nc_bdy_file;
     int real_width{0};
     int real_set_width{0};
+    bool real_extrap_w{true};
 
     // NetCDF initialization of zlo boundary values
     static std::string nc_low_file;
-
-    // Flag to trigger initialization from input_sounding like WRF's ideal.exe
-    // used with init_type == InitType::Input_Sounding
-    static bool init_sounding_ideal;
 
     // Options for vertical interpolation of met_em*.nc data.
     bool        metgrid_debug_quiescent{false};
@@ -1091,6 +1111,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C1H;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C2H;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_MUB;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_PSFC;
 
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;
@@ -1169,6 +1190,8 @@ private:
     // Holds info for dynamically generated tagging criteria
     //
     static amrex::Vector<amrex::AMRErrorTag> ref_tags;
+
+    amrex::Vector<amrex::Vector<amrex::BoxArray>> subdomains;
 
     //
     // Build a mask that zeroes out values on a coarse level underlying

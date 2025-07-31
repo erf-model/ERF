@@ -30,7 +30,8 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                                          const Real& l_gravity,
                                          const Real& l_rdOcp,
                                          const bool& l_moist,
-                                         InputSoundingData const &inputSoundingData);
+                                         InputSoundingData const &inputSoundingData,
+                                         const bool& l_isentropic);
 
 void
 init_bx_velocities_from_input_sounding (const Box &bx,
@@ -66,7 +67,13 @@ ERF::init_from_input_sounding (int lev)
 
         // this will calculate the hydrostatically balanced density and pressure
         // profiles following WRF ideal.exe
-        if (init_sounding_ideal) input_sounding_data.calc_rho_p(0);
+        if (solverChoice.sounding_type == SoundingType::Ideal) {
+            input_sounding_data.calc_rho_p(0);
+        } else if (solverChoice.sounding_type == SoundingType::Isentropic ||
+                   solverChoice.sounding_type == SoundingType::DryIsentropic) {
+            input_sounding_data.assume_dry = (solverChoice.sounding_type == SoundingType::DryIsentropic);
+            input_sounding_data.calc_rho_p_isentropic(0);
+        }
 
     } else {
         //
@@ -94,7 +101,11 @@ ERF::init_from_input_sounding (int lev)
 
     auto& lev_new = vars_new[lev];
 
-    // update if init_sounding_ideal == true
+    // updated if sounding is ideal (following WRF) or isentropic
+    const bool l_isentropic = (solverChoice.sounding_type == SoundingType::Isentropic ||
+                               solverChoice.sounding_type == SoundingType::DryIsentropic);
+    const bool sounding_ideal_or_isentropic = (solverChoice.sounding_type == SoundingType::Ideal ||
+                                               l_isentropic);
     MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
     MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
     MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
@@ -123,18 +134,20 @@ ERF::init_from_input_sounding (int lev)
         Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
 
-        if (init_sounding_ideal)
+        if (sounding_ideal_or_isentropic)
         {
             // HSE will be initialized here, interpolated from values previously
-            // calculated by calc_rho_p()
+            // calculated by calc_rho_p or calc_rho_p_isentropic
             init_bx_scalars_from_input_sounding_hse(
                 bx, cons_arr,
                 r_hse_arr, p_hse_arr, pi_hse_arr, th_hse_arr, qv_hse_arr,
                 geom[lev].data(), z_cc_arr,
-                l_gravity, l_rdOcp, l_moist, input_sounding_data);
+                l_gravity, l_rdOcp, l_moist, input_sounding_data,
+                l_isentropic);
         }
         else
         {
+            // This assumes rho_0 = 1.0
             // HSE will be calculated later with call to initHSE
             init_bx_scalars_from_input_sounding(
                 bx, cons_arr,
@@ -234,13 +247,15 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                                          const Real& /*l_gravity*/,
                                          const Real& l_rdOcp,
                                          const bool& l_moist,
-                                         InputSoundingData const &inputSoundingData)
+                                         InputSoundingData const &inputSoundingData,
+                                         const bool& l_isentropic)
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d[0].dataPtr();
     const Real* rho_inp_sound   = inputSoundingData.rho_inp_sound_d.dataPtr();
     const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d[0].dataPtr();
     const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d[0].dataPtr();
     const int   inp_sound_size  = inputSoundingData.size(0);
+    const bool anel_assume_dry  = inputSoundingData.assume_dry;
 
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
@@ -259,14 +274,27 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
         const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
                                   : z_lo + (k + 0.5) * dz;
 
-        Real rho_k, qv_k, rhoTh_k;
+        Real rho_k = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
+        Real rhoTh_k = rho_k * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
+
+        Real rho_k_base = rho_k;
+        if (l_isentropic) {
+            // `rho_inp_sound` previously calculated in calc_rho_p_isentropic()
+            // is in HSE and, when multiplied by the specified
+            // `theta_input_sound`, give p, T, and theta that are consistent
+            // with each other.
+            //
+            // Here, we do not require thermodynamic consistency between the
+            // initial base state rho and the prognostic variables. Instead,
+            // we calculate a `rho_hse` that is consistent with the isentropic
+            // (constant theta) assumption.
+            rho_k_base = rhoTh_k / theta_inp_sound[0];
+        }
 
         // Set the density
-        rho_k = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
         state(i, j, k, Rho_comp) = rho_k;
 
         // Initial Rho0*Theta0
-        rhoTh_k = rho_k * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
         state(i, j, k, RhoTheta_comp) = rhoTh_k;
 
         // Initialize all scalars to 0.
@@ -274,14 +302,36 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
             state(i, j, k, RhoScalar_comp+n) = 0;
         }
 
-        // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
-        qv_k = (l_moist) ? interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size) : 0.0;
+        // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there
+        // is no cloud water or cloud ice
+        Real qv_k = 0.0;
+        if (l_moist) {
+            qv_k = interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+            state(i, j, k, RhoQ1_comp) = rho_k * qv_k;
+        }
 
-        qv_hse_arr(i,j,k) = qv_k;
-        r_hse_arr (i,j,k) = rho_k * (1.0 + qv_k);
+        // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
+        if (anel_assume_dry) qv_k = 0;
+        r_hse_arr (i,j,k) = rho_k_base * (1.0 + qv_k);
         p_hse_arr (i,j,k) = getPgivenRTh(rhoTh_k, qv_k);
         pi_hse_arr(i,j,k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
-        th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), qv_k) / rho_k;
+        th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), qv_k) / rho_k_base;
+        qv_hse_arr(i,j,k) = qv_k;
+        if (l_isentropic) {
+#if 0
+            if (i==0 && j==0) {
+                Print() << "HSE rho,p,T=pi*th,th at " << IntVect(i,j,k) << " : "
+                    << r_hse_arr(i,j,k) << " "
+                    << p_hse_arr(i,j,k) << " "
+                    << pi_hse_arr(i,j,k)*th_hse_arr(i,j,k) << " "
+                    << th_hse_arr(i,j,k)
+                    << " with rho,rhotheta=" << rho_k << " " << rhoTh_k
+                    << std::endl;
+            }
+#endif
+            // If everything above is thermodynamically consistent, this should be constant
+            AMREX_ALWAYS_ASSERT(std::abs(th_hse_arr(i,j,k) - theta_inp_sound[0]) < 1e-12);
+        }
 
         // TODO: we should be setting this to the number of ghost cells of base_state[lev]
         //       instead of hard-wiring it here!
@@ -306,12 +356,6 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                 pi_hse_arr(i, j, k+kk) = pi_hse_arr(i,j,k);
                 qv_hse_arr(i, j, k+kk) = qv_hse_arr(i,j,k);
             }
-        }
-
-        // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there
-        // is no cloud water or cloud ice
-        if (l_moist) {
-            state(i, j, k, RhoQ1_comp) = rho_k * qv_k;
         }
     });
 }

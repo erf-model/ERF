@@ -69,6 +69,9 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     Real vol = dx * dy * dz;
 
     const bool l_simple = false;
+    const bool l_constraint_x = solverChoice.diffChoice.eb_diff_constraint_x;
+    const bool l_constraint_y = solverChoice.diffChoice.eb_diff_constraint_y;
+    const bool l_constraint_z = solverChoice.diffChoice.eb_diff_constraint_z;
 
     // int n = 0;
 
@@ -123,7 +126,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
             diffContrib      /= u_volfrac(i,j,k);
             rho_u_rhs(i,j,k) -= diffContrib;
 
-            if (u_cellflg(i,j,k).isSingleValued()) {
+            if (!l_constraint_x && u_cellflg(i,j,k).isSingleValued()) {
 
                 Real axm = u_afrac_x(i  ,j  ,k  );
                 Real axp = u_afrac_x(i+1,j  ,k  );
@@ -157,17 +160,17 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 } else {
 
                     const RealVect bcent_eb {u_bcent(i,j,k,0), u_bcent(i,j,k,1), u_bcent(i,j,k,2)};
-                    const Real Dirichelt_u {0.};
-                    const Real Dirichelt_v {0.};
-                    const Real Dirichelt_w {0.};
+                    const Real Dirichlet_u {0.};
+                    const Real Dirichlet_v {0.};
+                    const Real Dirichlet_w {0.};
 
                     GpuArray<Real,AMREX_SPACEDIM> slopes_u;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_v;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_w;
 
-                    slopes_u = erf_calc_slopes_eb          ( Vars::xvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_u, u_arr, u_volcent, u_cellflg);
-                    slopes_v = erf_calc_slopes_eb_staggered( Vars::xvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_v, v_arr, u_volcent, v_cellflg);
-                    slopes_w = erf_calc_slopes_eb_staggered( Vars::xvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_w, w_arr, u_volcent, w_cellflg);
+                    slopes_u = erf_calc_slopes_eb_Dirichlet          ( Vars::xvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_u, u_arr, u_volcent, u_cellflg);
+                    slopes_v = erf_calc_slopes_eb_Dirichlet_staggered( Vars::xvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_v, v_arr, v_volcent, v_cellflg);
+                    slopes_w = erf_calc_slopes_eb_Dirichlet_staggered( Vars::xvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_w, w_arr, w_volcent, w_cellflg);
 
                     Real dudx = slopes_u[0];
                     Real dudy = slopes_u[1];
@@ -208,7 +211,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
             rho_v_rhs(i,j,k) -= diffContrib;
 
             // Boundary flux (simple version)
-            if (v_cellflg(i,j,k).isSingleValued()) {
+            if (!l_constraint_y && v_cellflg(i,j,k).isSingleValued()) {
 
                 Real axm = v_afrac_x(i  ,j  ,k  );
                 Real axp = v_afrac_x(i+1,j  ,k  );
@@ -239,17 +242,17 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 } else {
 
                     const RealVect bcent_eb {v_bcent(i,j,k,0), v_bcent(i,j,k,1), v_bcent(i,j,k,2)};
-                    const Real Dirichelt_u {0.};
-                    const Real Dirichelt_v {0.};
-                    const Real Dirichelt_w {0.};
+                    const Real Dirichlet_u {0.};
+                    const Real Dirichlet_v {0.};
+                    const Real Dirichlet_w {0.};
 
                     GpuArray<Real,AMREX_SPACEDIM> slopes_u;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_v;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_w;
 
-                    slopes_u = erf_calc_slopes_eb_staggered( Vars::yvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_u, u_arr, v_volcent, u_cellflg);
-                    slopes_v = erf_calc_slopes_eb          ( Vars::yvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_v, v_arr, v_volcent, v_cellflg);
-                    slopes_w = erf_calc_slopes_eb_staggered( Vars::yvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_w, w_arr, v_volcent, w_cellflg);
+                    slopes_u = erf_calc_slopes_eb_Dirichlet_staggered( Vars::yvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_u, u_arr, u_volcent, u_cellflg);
+                    slopes_v = erf_calc_slopes_eb_Dirichlet          ( Vars::yvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_v, v_arr, v_volcent, v_cellflg);
+                    slopes_w = erf_calc_slopes_eb_Dirichlet_staggered( Vars::yvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_w, w_arr, w_volcent, w_cellflg);
 
                     Real dudx = slopes_u[0];
                     Real dudy = slopes_u[1];
@@ -289,7 +292,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
             rho_w_rhs(i,j,k) -= diffContrib;
 
             // Boundary flux (simple version)
-            if (w_cellflg(i,j,k).isSingleValued()) {
+            if (!l_constraint_z && w_cellflg(i,j,k).isSingleValued()) {
 
                 Real axm = w_afrac_x(i  ,j  ,k  );
                 Real axp = w_afrac_x(i+1,j  ,k  );
@@ -320,17 +323,17 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                 } else {
 
                     const RealVect bcent_eb {w_bcent(i,j,k,0), w_bcent(i,j,k,1), w_bcent(i,j,k,2)};
-                    const Real Dirichelt_u {0.};
-                    const Real Dirichelt_v {0.};
-                    const Real Dirichelt_w {0.};
+                    const Real Dirichlet_u {0.};
+                    const Real Dirichlet_v {0.};
+                    const Real Dirichlet_w {0.};
 
                     GpuArray<Real,AMREX_SPACEDIM> slopes_u;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_v;
                     GpuArray<Real,AMREX_SPACEDIM> slopes_w;
 
-                    slopes_u = erf_calc_slopes_eb_staggered( Vars::zvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_u, u_arr, w_volcent, u_cellflg);
-                    slopes_v = erf_calc_slopes_eb_staggered( Vars::zvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_v, v_arr, w_volcent, v_cellflg);
-                    slopes_w = erf_calc_slopes_eb          ( Vars::zvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichelt_w, w_arr, w_volcent, w_cellflg);
+                    slopes_u = erf_calc_slopes_eb_Dirichlet_staggered( Vars::zvel, Vars::xvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_u, u_arr, u_volcent, u_cellflg);
+                    slopes_v = erf_calc_slopes_eb_Dirichlet_staggered( Vars::zvel, Vars::yvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_v, v_arr, v_volcent, v_cellflg);
+                    slopes_w = erf_calc_slopes_eb_Dirichlet          ( Vars::zvel, Vars::zvel, dx, dy, dz, i, j, k, bcent_eb, Dirichlet_w, w_arr, w_volcent, w_cellflg);
 
                     Real dudx = slopes_u[0];
                     // Real dudy = slopes_u[1];

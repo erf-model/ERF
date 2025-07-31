@@ -12,7 +12,8 @@ using namespace amrex;
 
 /* Initialize lsm data structures */
 void
-NOAH::Init (const MultiFab& cons_in,
+NOAH::Init (const int& lev,
+            const MultiFab& cons_in,
             const Geometry& geom,
             const Real& dt)
 {
@@ -24,10 +25,16 @@ NOAH::Init (const MultiFab& cons_in,
     khi_lsm    = domain.smallEnd(2) - 1;
 
     LsmVarMap.resize(m_lsm_size);
-    LsmVarMap = {LsmVar_NOAH::theta};
+    LsmVarMap = {LsmVar_NOAH::t_sfc, LsmVar_NOAH::sfc_emis,
+                 LsmVar_NOAH::sfc_alb_dir_vis, LsmVar_NOAH::sfc_alb_dir_nir,
+                 LsmVar_NOAH::sfc_alb_dif_vis, LsmVar_NOAH::sfc_alb_dif_nir,
+                 LsmVar_NOAH::sw_flux_dn , LsmVar_NOAH::lw_flux_dn };
 
     LsmVarName.resize(m_lsm_size);
-    LsmVarName = {"theta"};
+    LsmVarName = {"t_sfc"      , "sfc_emis"   ,
+                  "sfc_alb_dir_vis", "sfc_alb_dir_nir",
+                  "sfc_alb_dif_vis", "sfc_alb_dif_nir",
+                  "sw_flux_dn" , "lw_flux_dn" };
 
     // NOTE: lsm data is not used for Noahmp, however, the initialization is done
     //       to maintin consistency with IO and Driver interfaces that depend on
@@ -38,14 +45,13 @@ NOAH::Init (const MultiFab& cons_in,
     //       If that were to change, the dm and new ba are no longer valid and
     //       direct copying between lsm data/flux vars cannot be done in a parfor.
 
-    // Set box array for lsm data
-    IntVect ng(0,0,1);
+    // Set 2D box array for lsm data
+    IntVect ng(0,0,0);
     BoxArray ba = cons_in.boxArray();
     DistributionMapping dm = cons_in.DistributionMap();
     BoxList bl_lsm = ba.boxList();
     for (auto& b : bl_lsm) {
-        b.setBig(2,khi_lsm);                  // First point below the surface
-        b.setSmall(2,khi_lsm - m_nz_lsm + 1); // Last point below the surface
+        b.setRange(2,0);
     }
     BoxArray ba_lsm(std::move(bl_lsm));
 
@@ -62,9 +68,8 @@ NOAH::Init (const MultiFab& cons_in,
     // Create the data and fluxes
     for (auto ivar = 0; ivar < LsmVar_NOAH::NumVars; ++ivar) {
         // State vars are CC
-        Real theta_0 = m_theta_dir;
         lsm_fab_vars[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
-        lsm_fab_vars[ivar]->setVal(theta_0);
+        lsm_fab_vars[ivar]->setVal(0.0);
 
         // Fluxes are nodal in z
         lsm_fab_flux[ivar] = std::make_shared<MultiFab>(convert(ba_lsm, IntVect(0,0,1)), dm, 1, IntVect(0,0,0));
@@ -77,7 +82,7 @@ NOAH::Init (const MultiFab& cons_in,
     amrex::Print() << "Noah-MP initialization started" << std::endl;
 
     // Set noahmpio_vect to the size of local blocks (boxes)
-    noahmpio_vect.resize(cons_in.local_size());
+    noahmpio_vect.resize(cons_in.local_size(), lev);
 
     // Iterate over multifab and noahmpio object together. Multifabs is
     // used to extract size of blocks and set bounds for noahmpio objects.
@@ -96,11 +101,17 @@ NOAH::Init (const MultiFab& cons_in,
             // Pass idb context to noahmpio
             noahmpio->blkid = idb;
 
+            // Pass level context to noahmpio
+            noahmpio->level = lev;
+
             // Initialize scalar values
             noahmpio->ScalarInitDefault();
 
             // Store the rank of process for noahmp
             noahmpio->rank = amrex::ParallelDescriptor::MyProc();
+
+            // Store parallel communicator for noahmp
+            noahmpio->comm = MPI_Comm_c2f(amrex::ParallelDescriptor::Communicator());
 
             // Read namelist.erf file. This file contains
             // noahmpio specific parameters and is read by
@@ -160,6 +171,10 @@ NOAH::Init (const MultiFab& cons_in,
             // Compute additional initial values that were not supplied
             // by the NetCDF land file.
             noahmpio->InitMain();
+
+            // Write initial plotfile for land with the tag 0
+            amrex::Print() << "Noah-MP writing lnd.nc file at lev: " << lev << std::endl;
+            noahmpio->WriteLand(0);
         }
   }
 
@@ -184,7 +199,7 @@ NOAH::Advance_With_State (const int& lev,
     // Loop over blocks to copy forcing data to Noahmp, drive the land model,
     // and copy data back to ERF Multifabs.
     int idb = 0;
-    for (amrex::MFIter mfi(xvel_in, false); mfi.isValid(); ++mfi, ++idb) {
+    for (amrex::MFIter mfi(cons_in, false); mfi.isValid(); ++mfi, ++idb) {
 
         const amrex::Box& bx = mfi.tilebox();
 
@@ -203,8 +218,8 @@ NOAH::Advance_With_State (const int& lev,
             // Copy forcing data from ERF to Noahmp.
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
             {
-                noahmpio->U_PHY(i,1,j) = U_PHY(i,j,0);
-                noahmpio->V_PHY(i,1,j) = V_PHY(i,j,0);
+                noahmpio->U_PHY(i,1,j) = 0.5*(U_PHY(i,j,0)+U_PHY(i+1,j,0));
+                noahmpio->V_PHY(i,1,j) = 0.5*(V_PHY(i,j,0)+V_PHY(i,j+1,0));
                 noahmpio->T_PHY(i,1,j) = QV_TH(i,j,0,RhoTheta_comp)/QV_TH(i,j,0,Rho_comp);
                 noahmpio->QV_CURR(i,1,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
 
@@ -221,6 +236,8 @@ NOAH::Advance_With_State (const int& lev,
                 SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
                 EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
             });
+            noahmpio->WriteLand(nstep+1);
+
         }
     }
     amrex::Print () << "Noah-MP driver completed" << std::endl;

@@ -152,11 +152,17 @@ SurfaceLayer::update_fluxes (const int& lev,
 
     } // MOENG -- SEA
 
-    if (flux_type == FluxCalcType::CUSTOM ||
-        flux_type == FluxCalcType::RICO) {
-        u_star[lev]->setVal(custom_ustar);
-        t_star[lev]->setVal(custom_tstar);
-        q_star[lev]->setVal(custom_qstar);
+    if (flux_type == FluxCalcType::CUSTOM || flux_type == FluxCalcType::RICO) {
+        if (custom_rhosurf > 0) {
+            specified_rho_surf = true;
+            u_star[lev]->setVal(std::sqrt(custom_rhosurf) * custom_ustar);
+            t_star[lev]->setVal(custom_rhosurf * custom_tstar);
+            q_star[lev]->setVal(custom_rhosurf * custom_qstar);
+        } else {
+            u_star[lev]->setVal(custom_ustar);
+            t_star[lev]->setVal(custom_tstar);
+            q_star[lev]->setVal(custom_qstar);
+        }
     }
 }
 
@@ -272,7 +278,7 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp);
     } else {
-        custom_flux flux_comp;
+        custom_flux flux_comp(specified_rho_surf);
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
@@ -558,13 +564,11 @@ void
 SurfaceLayer::update_pblh (const int& lev,
                            Vector<Vector<MultiFab>>& vars,
                            MultiFab* z_phys_cc,
-                           int RhoQv_comp,
-                           int RhoQc_comp,
-                           int RhoQr_comp)
+                           const MoistureComponentIndices& moisture_indices)
 {
     if (pblh_type == PBLHeightCalcType::MYNN25) {
         MYNNPBLH estimator;
-        compute_pblh(lev, vars, z_phys_cc, estimator, RhoQv_comp, RhoQc_comp, RhoQr_comp);
+        compute_pblh(lev, vars, z_phys_cc, estimator, moisture_indices);
     } else if (pblh_type == PBLHeightCalcType::YSU || pblh_type == PBLHeightCalcType::MRF) {
         amrex::Error("YSU/MRF PBLH calc not implemented yet");
     }
@@ -576,13 +580,11 @@ SurfaceLayer::compute_pblh (const int& lev,
                             Vector<Vector<MultiFab>>& vars,
                             MultiFab* z_phys_cc,
                             const PBLHeightEstimator& est,
-                            int RhoQv_comp,
-                            int RhoQc_comp,
-                            int RhoQr_comp)
+                            const MoistureComponentIndices& moisture_indices)
 {
     est.compute_pblh(m_geom[lev],z_phys_cc, pblh[lev].get(),
                      vars[lev][Vars::cons],m_lmask_lev[lev][0],
-                     RhoQv_comp, RhoQc_comp, RhoQr_comp);
+                     moisture_indices);
 }
 
 void

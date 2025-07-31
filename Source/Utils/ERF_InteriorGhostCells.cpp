@@ -176,6 +176,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     const Real& start_bdy_time,
                                     const Real& time,
                                     const Real& delta_t,
+                                    const Real& stop_time,
                                     int  width,
                                     int  set_width,
                                     const Geometry& geom,
@@ -208,6 +209,13 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
     Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     Real oma   = 1.0 - alpha;
+
+    int n_time_p1 = n_time + 1;
+    if ((time == stop_time) && (alpha==0)) {
+        // stop time coincides with final bdy snapshot -- don't try to read in
+        // another snapshot
+        n_time_p1 = n_time;
+    }
 
     /*
     // UNIT TEST DEBUG
@@ -317,14 +325,14 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             }
 
             // Boundary data at fixed time intervals
-            const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][ivar].const_array();
-            const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][ivar].const_array();
-            const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][ivar].const_array();
-            const auto& bdatxhi_np1 = bdy_data_xhi[n_time+1][ivar].const_array();
-            const auto& bdatylo_n   = bdy_data_ylo[n_time  ][ivar].const_array();
-            const auto& bdatylo_np1 = bdy_data_ylo[n_time+1][ivar].const_array();
-            const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][ivar].const_array();
-            const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][ivar].const_array();
+            const auto& bdatxlo_n   = bdy_data_xlo[n_time   ][ivar].const_array();
+            const auto& bdatxlo_np1 = bdy_data_xlo[n_time_p1][ivar].const_array();
+            const auto& bdatxhi_n   = bdy_data_xhi[n_time   ][ivar].const_array();
+            const auto& bdatxhi_np1 = bdy_data_xhi[n_time_p1][ivar].const_array();
+            const auto& bdatylo_n   = bdy_data_ylo[n_time   ][ivar].const_array();
+            const auto& bdatylo_np1 = bdy_data_ylo[n_time_p1][ivar].const_array();
+            const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][ivar].const_array();
+            const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][ivar].const_array();
 
             // Current density to convert to conserved vars
             Array4<Real> r_arr = S_cur_data[IntVars::cons].array(mfi);

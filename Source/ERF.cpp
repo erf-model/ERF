@@ -12,6 +12,7 @@
 #include "ERF.H"
 #include "AMReX_buildInfo.H"
 #include "AMReX_Random.H"
+#include "AMReX_EB2_IF_Sphere.H"
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
@@ -63,9 +64,6 @@ std::string ERF::nc_bdy_file; // Must provide via input
 
 // NetCDF wrflow (bottom boundary) file
 std::string ERF::nc_low_file; // Must provide via input
-
-// Flag to trigger initialization from input_sounding like WRF's ideal.exe
-bool ERF::init_sounding_ideal = false;
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int  ERF::output_1d_column = 0;
@@ -347,6 +345,7 @@ ERF::ERF_shared ()
     mf_C1H.resize(nlevs_max);
     mf_C2H.resize(nlevs_max);
     mf_MUB.resize(nlevs_max);
+    mf_PSFC.resize(nlevs_max);
 
     // Map factors
     mapfac.resize(nlevs_max);
@@ -433,18 +432,33 @@ ERF::ERF_shared ()
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
-        Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
-        FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
-        Real dummy_time = 0.0;
-        prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
-        TerrainIF ebterrain(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
-        auto gshop = EB2::makeShop(ebterrain);
+        std::string geometry ="terrain";
+        ParmParse pp("eb2");
+        pp.queryAdd("geometry", geometry);
+
         bool build_coarse_level_by_coarsening(false);
         // Note this just needs to be an integer > number of V-cycles one might use
         int max_coarsening_level = ( solverChoice.terrain_type == TerrainType::EB &&
                                     (solverChoice.project_initial_velocity ||
                                      solverChoice.anelastic[0] == 1) ) ? 100 : 0;
-        amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+        if (geometry == "terrain") {
+            Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
+            FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
+            Real dummy_time = 0.0;
+            prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
+            TerrainIF terrain_if(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
+            auto gshop = EB2::makeShop(terrain_if);
+            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+        } else if (geometry == "sphere") {
+            auto ProbLoArr = geom[max_level].ProbLoArray();
+            auto ProbHiArr = geom[max_level].ProbHiArray();
+            const Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
+            const Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
+            RealArray sphere_center = {xcen, ycen, 0.0};
+            EB2::SphereIF sphere_if(0.5, sphere_center, false);
+            auto gshop = EB2::makeShop(sphere_if);
+            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+        }
     }
 }
 
@@ -830,6 +844,10 @@ ERF::InitData_post ()
 
 #ifdef ERF_USE_PARTICLES
         if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+            if (solverChoice.moisture_tight_coupling) {
+                Warning("Tight coupling has not been tested with Lagrangian microphysics");
+            }
+
             for (int lev = 0; lev <= finest_level; lev++) {
                 dynamic_cast<LagrangianMicrophysics&>(*micro).initParticles(z_phys_nd[lev]);
             }
@@ -1270,7 +1288,7 @@ ERF::InitData_post ()
                 MultiFab::Copy(  *Qv_prim[lev], vars_new[lev][Vars::cons], RhoQ1_comp, 0, 1, ng);
                 MultiFab::Divide(*Qv_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
 
-                int rhoqr_comp = solverChoice.RhoQr_comp;
+                int rhoqr_comp = solverChoice.moisture_indices.qr;
                 if (rhoqr_comp > -1) {
                     MultiFab::Copy(  *Qr_prim[lev], vars_new[lev][Vars::cons], rhoqr_comp, 0, 1, ng);
                     MultiFab::Divide(*Qr_prim[lev], vars_new[lev][Vars::cons],   Rho_comp, 0, 1, ng);
@@ -1285,9 +1303,7 @@ ERF::InitData_post ()
                 // we don't want to call update_fluxes multiple times because
                 // it will change u* and theta* from their previous values
                 m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
-                                            solverChoice.RhoQv_comp,
-                                            solverChoice.RhoQc_comp,
-                                            solverChoice.RhoQr_comp);
+                                            solverChoice.moisture_indices);
                 m_SurfaceLayer->update_fluxes(lev, time);
             }
         }
@@ -1564,10 +1580,6 @@ ERF::init_only (int lev, Real time)
 
     // Initialize background flow (optional)
     if (solverChoice.init_type == InitType::Input_Sounding) {
-        // The base state is initialized by integrating vertically through the
-        // input sounding, if the init_sounding_ideal flag is set; otherwise
-        // it is set by initHSE()
-
         // The physbc's need the terrain but are needed for initHSE
         // We have already made the terrain in the call to init_zphys
         //    in MakeNewLevelFromScratch
@@ -1576,10 +1588,16 @@ ERF::init_only (int lev, Real time)
         // Now init the base state and the data itself
         init_from_input_sounding(lev);
 
-        if (init_sounding_ideal) {
+        // The base state has been initialized by integrating vertically
+        // through the sounding for ideal (like WRF) or isentropic approaches
+        if (solverChoice.sounding_type == SoundingType::Ideal ||
+            solverChoice.sounding_type == SoundingType::Isentropic ||
+            solverChoice.sounding_type == SoundingType::DryIsentropic) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_gravity,
                 "Gravity should be on to be consistent with sounding initialization.");
-        } else {
+        } else { // SoundingType::ConstantDensity
+            AMREX_ASSERT_WITH_MESSAGE(!solverChoice.use_gravity,
+                "Constant density probably doesn't make sense with gravity");
             initHSE();
         }
 
@@ -1589,7 +1607,7 @@ ERF::init_only (int lev, Real time)
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
-        init_from_wrfinput(lev, *mf_C1H[lev], *mf_C2H[lev], *mf_MUB[lev]);
+        init_from_wrfinput(lev, *mf_C1H[lev], *mf_C2H[lev], *mf_MUB[lev], *mf_PSFC[lev]);
         if (lev==0) {
             if ((start_time > 0) && (start_time != t_new[lev])) {
                 Print() << "Ignoring specified start_time="
@@ -1681,17 +1699,20 @@ ERF::ReadParameters ()
 
         std::string start_datetime, stop_datetime;
         if (pp.query("start_datetime", start_datetime)) {
+            if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
+                start_datetime += ":00"; // add seconds
+            }
             start_time = getEpochTime(start_datetime, datetime_format);
-            if (start_time == -1.0) {
-               amrex::Abort("Invalid start_datetime string!");
-            }
+
             if (pp.query("stop_datetime", stop_datetime)) {
-                stop_time = getEpochTime(stop_datetime, datetime_format);
-                if (stop_time == -1.0) {
-                    amrex::Abort("Invalid stop_datetime string!");
+                if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
+                    stop_datetime += ":00"; // add seconds
                 }
+                stop_time = getEpochTime(stop_datetime, datetime_format);
             }
+
             use_datetime = true;
+
         } else {
             pp.query("stop_time", stop_time);
             pp.query("start_time", start_time); // This is optional, it defaults to 0
@@ -1795,9 +1816,6 @@ ERF::ReadParameters ()
         }
 
 #endif
-
-        // Flag to trigger initialization from input_sounding like WRF's ideal.exe
-        pp.query("init_sounding_ideal", init_sounding_ideal);
 
         // Options for vertical interpolation of met_em*.nc data.
         pp.query("metgrid_debug_quiescent",  metgrid_debug_quiescent);
@@ -1906,6 +1924,9 @@ ERF::ReadParameters ()
         // Query the set and total widths for wrfbdy interior ghost cells
         pp.query("real_width", real_width);
         pp.query("real_set_width", real_set_width);
+
+        // If using real boundaries, do we extrapolate w (or set to 0)
+        pp.query("real_extrap_w", real_extrap_w);
 
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);

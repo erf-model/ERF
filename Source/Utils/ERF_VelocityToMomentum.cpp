@@ -154,5 +154,15 @@ void VelocityToMomentum (const MultiFab& xvel_in,
             }
         }
 
+        // Extrapolate momenta at top of domain (in case they need to be used in OmegaFromW)
+        if (bx.bigEnd(2) == domain.bigEnd(2))
+        {
+            ParallelFor(makeSlab(tbx,2,domain.bigEnd(2)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                momx(i,j,k) = momx(i,j,k-1);
+            });
+            ParallelFor(makeSlab(tby,2,domain.bigEnd(2)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                momy(i,j,k) = momy(i,j,k-1);
+            });
+        }
     } // end MFIter
 }

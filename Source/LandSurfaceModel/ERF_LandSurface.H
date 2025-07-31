@@ -45,7 +45,7 @@ public:
           const amrex::Geometry& geom,
           const amrex::Real& dt_advance)
     {
-        m_lsm_model[lev]->Init(cons_in, geom, dt_advance);
+        m_lsm_model[lev]->Init(lev, cons_in, geom, dt_advance);
     }
 
     void
@@ -93,6 +93,9 @@ public:
 
     std::string
     Get_VarName (const int& varIdx) { return m_lsm_model[0]->Lsm_VarName(varIdx); }
+
+    int
+    Get_VarIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_VarIndex(varname); }
 
     void
     Plot_Lsm_Data (amrex::Real time,

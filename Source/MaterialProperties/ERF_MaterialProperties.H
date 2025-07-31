@@ -203,7 +203,8 @@ struct MaterialProperties {
 
         } else {
 
-            auto sigma = 1.18e-8 * std::cbrt(m_mol_weight/m_density);
+            auto mol_weight_v = s_N_av/m_Nav_by_molweight;
+            auto sigma = 1.18e-8 * std::cbrt(mol_weight_v/m_density);
             auto sigma_v_air = 0.5 * (sigma + s_sigma_air);
 
             auto eps_v = 1.15 * m_Tb * s_kb;

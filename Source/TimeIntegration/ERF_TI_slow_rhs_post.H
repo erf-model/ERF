@@ -56,7 +56,7 @@
                           z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level],
                           detJ_cc[level], new_detJ, stretched_dz_d[level], mapfac[level], EBFactory(level),
 #if defined(ERF_USE_NETCDF)
-                          moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
+                          moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time, stop_time,
                           real_width, real_set_width,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
@@ -66,4 +66,11 @@
         // in both the fast and slow integrators
         apply_bcs(S_new, new_stage_time, S_new[IntVars::cons].nGrow(), S_new[IntVars::xmom].nGrow(),
                   fast_only=false, vel_and_mom_synced=false);
+
+        if (solverChoice.moisture_tight_coupling) {
+            // TODO: need iteration var for lagrangian microphysics
+            // call signature in ERF::Advance() is
+            //advance_microphysics(lev, S_new,    dt_lev,  iteration, time);
+            advance_microphysics(level, S_new[0], slow_dt, 123456789, old_step_time);
+        }
     }; // end slow_rhs_fun_post

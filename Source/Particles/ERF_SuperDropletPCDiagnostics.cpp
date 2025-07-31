@@ -572,12 +572,12 @@ void SuperDropletPC::Diagnostics( const int a_iter,
         for (int ia = 0; ia < m_num_species; ia++) {
             const auto rho = m_species_mat[ia]->m_density;
             auto r_eff_min_species = std::cbrt( min_mass_species[ia] / ((4.0/3.0)*PI*rho) );
-            if ((r_eff_min_species < r_eff_min) && (r_eff_min_species > 0.0)) { r_eff_min = r_eff_min_species; }
+            if ((r_eff_min_species < r_eff_min) && (r_eff_min_species > 1.0e-10)) { r_eff_min = r_eff_min_species; }
         }
         for (int ia = 0; ia < m_num_aerosols; ia++) {
             const auto rho = m_aerosol_mat[ia]->m_density;
             auto r_eff_min_aero = std::cbrt( min_mass_aerosols[ia] / ((4.0/3.0)*PI*rho) );
-            if ((r_eff_min_aero < r_eff_min) && (r_eff_min_aero > 0.0)) { r_eff_min = r_eff_min_aero; }
+            if ((r_eff_min_aero < r_eff_min) && (r_eff_min_aero > 1.0e-10)) { r_eff_min = r_eff_min_aero; }
         }
         ComputeDistributions( a_iter, r_eff_min, r_eff_max );
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS

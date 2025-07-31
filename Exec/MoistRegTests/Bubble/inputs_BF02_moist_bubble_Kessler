@@ -64,7 +64,7 @@ erf.alpha_C           = 0.0
 # INITIAL CONDITIONS
 #erf.init_type = "input_sounding"
 #erf.input_sounding_file = "BF02_moist_sounding"
-#erf.init_sounding_ideal = true
+#erf.sounding_type = Ideal
 
 # PROBLEM PARAMETERS (optional)
 # warm bubble input

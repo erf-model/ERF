@@ -113,6 +113,7 @@ void realbdy_compute_interior_ghost_rhs (const amrex::Real& bdy_time_interval,
                                          const amrex::Real& start_bdy_time,
                                          const amrex::Real& time,
                                          const amrex::Real& delta_t,
+                                         const amrex::Real& stop_time,
                                          int width,
                                          int set_width,
                                          const amrex::Geometry& geom,
@@ -432,4 +433,8 @@ thinbody_wall_dist (std::unique_ptr<amrex::MultiFab>& wdist,
                     amrex::Vector<amrex::IntVect>& zfaces,
                     const amrex::Geometry& geomdata,
                     std::unique_ptr<amrex::MultiFab>& z_phys_cc);
+
+
+void WeatherDataInterpolation(const amrex::Real time);
+
 #endif
