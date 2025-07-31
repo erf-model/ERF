@@ -1053,7 +1053,7 @@ struct surface_temp
         do {
             // Under-relax the update for stability
             olen_arr(i,j,k) = (1.0 - alpha) * olen_arr(i,j,k) + alpha * Olen;
-            zeta  = mdata.zref / Olen;
+            zeta  = mdata.zref / olen_arr(i,j,k);
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
 
