@@ -1019,8 +1019,6 @@ struct surface_temp
         amrex::Real Olen  = 0.0;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
 
-        amrex::Real IG;
-
         // Seed the fixed point iterations
         if (u_star_arr(i,j,k) == 1.E34) {
             // Initial guess from Byun 1990
@@ -1050,8 +1048,6 @@ struct surface_temp
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
         }
-
-        IG = olen_arr(i,j,k);
 
         // Fixed point iterations on Olen
         do {
