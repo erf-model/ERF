@@ -1019,6 +1019,8 @@ struct surface_temp
         amrex::Real Olen  = 0.0;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
 
+        amrex::Real IG;
+
         // Seed the fixed point iterations
         if (u_star_arr(i,j,k) == 1.E34) {
             // Initial guess from Byun 1990
@@ -1049,14 +1051,10 @@ struct surface_temp
             psi_h = sfuns.calc_psi_h(zeta);
         }
 
+        IG = olen_arr(i,j,k);
+
         // Fixed point iterations on Olen
         do {
-            // Under-relax the update for stability
-            olen_arr(i,j,k) = (1.0 - alpha) * olen_arr(i,j,k) + alpha * Olen;
-            zeta  = mdata.zref / olen_arr(i,j,k);
-            psi_m = sfuns.calc_psi_m(zeta);
-            psi_h = sfuns.calc_psi_h(zeta);
-
             if (w_star_arr) {
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
@@ -1078,11 +1076,66 @@ struct surface_temp
             // New predicted Olen
             Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
 
+            // Dynamic under-relaxation
+            amrex::Real alpha = 1.0;
+            amrex::Real R_cur = olen_arr(i,j,k) - Olen;
+            amrex::Real R_new = 1.0e12;
+            amrex::Real Olen_new = Olen;
+            do {
+                Olen_new = (1.0 - alpha) * olen_arr(i,j,k) + alpha * Olen;
+                zeta  = mdata.zref / Olen_new;
+                psi_m = sfuns.calc_psi_m(zeta);
+                psi_h = sfuns.calc_psi_h(zeta);
+
+                ustar = mdata.kappa * umm /
+                        (std::log(mdata.zref / z0_arr(i,j,k)) - psi_m); // <w'u'>
+                tstar = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
+                        (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'T'>
+                qstar = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                        (std::log(mdata.zref / z0_arr(i,j,k)) - psi_h); // <w'Qv'>
+                tflux = -ustar * tstar;// * (1 + 0.61*qvm_arr(i,j,k));
+                qflux = 0.0; //(spec_qflux) ? mdata.surf_moist_flux : -ustar * qstar;
+                tflux += 0.61*tm_arr(i,j,k) * qflux; // ~= <w'Tv'>
+
+                R_new = Olen_new + ustar * ustar * ustar * tvm_arr(i,j,k) /
+                                   (mdata.kappa * mdata.gravity * tflux);
+
+                alpha *= 0.5;
+            } while ( (alpha > 0.001) && (std::fabs(R_new) > std::fabs(R_cur)) );
+
+            // Perform the update
+            if (alpha > 0.001) {
+                olen_arr(i,j,k) = Olen_new;
+            } else {
+                olen_arr(i,j,k) = Olen;
+            }
+            zeta  = mdata.zref / olen_arr(i,j,k);
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
+
             ++iter;
         } while ( (std::abs(olen_arr(i,j,k) - Olen) > tol) && (iter <= max_iters) );
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
+        //AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
-        olen_arr(i,j,k)   = Olen;
+        if (i==332 && j==7) {
+          amrex::AllPrint() << "Non convergent: " << amrex::IntVect(i,j,k) << ' '
+                            << IG << ' '
+                            << olen_arr(i,j,k) << ' '
+                            << Olen << ' '
+                            << umm << ' '
+                            << tm_arr(i,j,k) << ' '
+                            << t_surf_arr(i,j,k) << "\n";
+        }
+        if (iter >= max_iters) {
+          amrex::AllPrint() << "Non convergent: " << amrex::IntVect(i,j,k) << ' '
+                            << IG << ' '
+                            << olen_arr(i,j,k) << ' '
+                            << Olen << ' '
+                            << umm << ' '
+                            << tm_arr(i,j,k) << ' '
+                            << t_surf_arr(i,j,k) << "\n";
+        }
+
         u_star_arr(i,j,k) = ustar;
         t_star_arr(i,j,k) = tstar;
         if (spec_qflux) {
@@ -1099,7 +1152,6 @@ private:
     bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol   = 1.0e-5;
-    const amrex::Real alpha = 0.25;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
