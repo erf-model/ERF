@@ -1115,26 +1115,7 @@ struct surface_temp
 
             ++iter;
         } while ( (std::abs(olen_arr(i,j,k) - Olen) > tol) && (iter <= max_iters) );
-        //AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
-
-        if (i==332 && j==7) {
-          amrex::AllPrint() << "Non convergent: " << amrex::IntVect(i,j,k) << ' '
-                            << IG << ' '
-                            << olen_arr(i,j,k) << ' '
-                            << Olen << ' '
-                            << umm << ' '
-                            << tm_arr(i,j,k) << ' '
-                            << t_surf_arr(i,j,k) << "\n";
-        }
-        if (iter >= max_iters) {
-          amrex::AllPrint() << "Non convergent: " << amrex::IntVect(i,j,k) << ' '
-                            << IG << ' '
-                            << olen_arr(i,j,k) << ' '
-                            << Olen << ' '
-                            << umm << ' '
-                            << tm_arr(i,j,k) << ' '
-                            << t_surf_arr(i,j,k) << "\n";
-        }
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
         u_star_arr(i,j,k) = ustar;
         t_star_arr(i,j,k) = tstar;
