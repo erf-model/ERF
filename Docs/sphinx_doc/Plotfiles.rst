@@ -9,12 +9,12 @@ Plotfiles
 .. toctree::
    :maxdepth: 1
 
-There are three types of plotfiles that can be written from ERF. 
+There are three types of plotfiles that can be written from ERF.
 
 The first is the standard type of plotfile which includes 3D data on all levels for those variables
-specified by the user in the inputs file.  
+specified by the user in the inputs file.
 
-The second is a pseudo-2D plotfile that contains data that is only defined as a function 
+The second is a pseudo-2D plotfile that contains data that is only defined as a function
 of horizontal position, such as map factors, latitude and longitude.
 
 The third type of plotfile contains
