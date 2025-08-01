@@ -1101,9 +1101,13 @@ struct surface_temp
 
             // Perform the update
             if (alpha > 0.001) {
+                // Acceptable update
                 olen_arr(i,j,k) = Olen_new;
             } else {
+                // Take a large step to get out of local mininma
+                Olen_new = olen_arr(i,j,k);
                 olen_arr(i,j,k) = Olen;
+                Olen = Olen_new;
             }
             zeta  = mdata.zref / olen_arr(i,j,k);
             psi_m = sfuns.calc_psi_m(zeta);
