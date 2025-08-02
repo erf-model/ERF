@@ -77,11 +77,34 @@ define( int const& a_idim,
 
     const Box& bx = mfi.validbox();
     const Box& bx_grown = mfi.growntilebox();
+    const Box tbx = mfi.nodaltilebox(a_idim);
     const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
 
-    if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
+    GpuArray<Real, AMREX_SPACEDIM> dx = a_geom.CellSizeArray();
+    bool l_periodic   = a_geom.isPeriodic(a_idim);
 
-      GpuArray<Real, AMREX_SPACEDIM> dx = a_geom.CellSizeArray();
+    Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
+    Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
+
+    if (FlagFab[mfi].getType(bx) == FabType::covered ) {
+
+      ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        aux_flag(i,j,k).setCovered();
+        aux_vfrac(i,j,k) = 0.0;
+      });
+
+    } else if (FlagFab[mfi].getType(bx) == FabType::regular ) {
+
+      ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        aux_flag(i,j,k).setRegular();
+        aux_vfrac(i,j,k) = 1.0;
+      });
+
+    } else if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
+    
+      // Initialization
 
       // CC cell quantities
       Array4<EBCellFlag const> const& flag = FlagFab.const_array(mfi);
@@ -92,8 +115,6 @@ define( int const& a_idim,
       Array4<Real const> const& bcent = a_factory->getBndryCent()[mfi].const_array();
 
       // aux quantities
-      Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
-      Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
       Array4<Real>       const& aux_vcent = m_volcent->array(mfi);
 
       Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
@@ -107,10 +128,6 @@ define( int const& a_idim,
       Array4<Real>       const& aux_barea = m_bndryarea->array(mfi);
       Array4<Real>       const& aux_bcent = m_bndrycent->array(mfi);
       Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
-
-      bool l_periodic   = a_geom.isPeriodic(a_idim);
-
-      // Initialization
 
       // Extended domain in the direction of periodicity
       Box dom_grown = domain;
@@ -827,9 +844,10 @@ define( int const& a_idim,
           }
 
         } // flag(iv_lo) and flag(iv_hi)
+
       });
 
-      // Corrections for small cell
+      // Corrections for small cells
 
       ParallelFor(bx, [&] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
