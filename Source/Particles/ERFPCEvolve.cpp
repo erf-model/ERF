@@ -142,28 +142,26 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                 update_location_idata(p,plo,dxi,zheight);
 
                 // If the particle crossed below the bottom surface, move it up to 0.2*dz above the surface
-                int k = p.idata(ERFParticlesIntIdxAoS::k);
                 if (!periodic_in_z) {
-                    if (k < 0) {
-                        int i = domlo.x + int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0]));
-                        int j = domlo.y + int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1]));
+                    if (p.idata(ERFParticlesIntIdxAoS::k) < 0) {
+                        int ii = domlo.x + int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0]));
+                        int jj = domlo.y + int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1]));
+                        int kk = 0;
 
-                        // amrex::Print() << "Adjusting particle in cell " << ipass << " " << IntVect(i,j,k) << std::endl;
-                        p.idata(ERFParticlesIntIdxAoS::k) = 0;
-
-                        k = p.idata(ERFParticlesIntIdxAoS::k);
+                        // Update the stored particle location
+                        p.idata(ERFParticlesIntIdxAoS::k) = kk;
 
                         if (zheight) {
-                            Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<amrex::Real>(i);
-                            Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<amrex::Real>(j);
-                            auto zlo = zheight(i  ,j  ,k  ) * (1.0-lx) * (1.0-ly) +
-                                       zheight(i+1,j  ,k  ) *      lx  * (1.0-ly) +
-                                       zheight(i  ,j+1,k  ) * (1.0-lx) * ly +
-                                       zheight(i+1,j+1,k  ) *      lx  * ly;
-                            auto zhi = zheight(i  ,j  ,k+1) * (1.0-lx) * (1.0-ly) +
-                                       zheight(i+1,j  ,k+1) *      lx  * (1.0-ly) +
-                                       zheight(i  ,j+1,k+1) * (1.0-lx) * ly +
-                                       zheight(i+1,j+1,k+1) *      lx  * ly;
+                            Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<amrex::Real>(ii);
+                            Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<amrex::Real>(jj);
+                            auto zlo = zheight(ii  ,jj  ,kk  ) * (1.0-lx) * (1.0-ly) +
+                                       zheight(ii+1,jj  ,kk  ) *      lx  * (1.0-ly) +
+                                       zheight(ii  ,jj+1,kk  ) * (1.0-lx) * ly +
+                                       zheight(ii+1,jj+1,kk  ) *      lx  * ly;
+                            auto zhi = zheight(ii  ,jj  ,kk+1) * (1.0-lx) * (1.0-ly) +
+                                       zheight(ii+1,jj  ,kk+1) *      lx  * (1.0-ly) +
+                                       zheight(ii  ,jj+1,kk+1) * (1.0-lx) * ly +
+                                       zheight(ii+1,jj+1,kk+1) *      lx  * ly;
                             p.pos(2) = zlo + 0.2 * (zhi - zlo);
                         } else {
                             p.pos(2) = plo[2] + 0.2 / dxi[2];
