@@ -55,7 +55,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
 
-    auto domlo = ubound(geom.Domain());
+    auto domlo = lbound(geom.Domain());
 
     Vector<std::unique_ptr<MultiFab> > raii_umac(AMREX_SPACEDIM);
     Vector<MultiFab*> umac_pointer(AMREX_SPACEDIM);
