@@ -51,8 +51,10 @@ Real ERF::sum_per       = -1.0;
 int  ERF::pert_interval = -1;
 
 // Native AMReX vs NetCDF
-PlotFileType ERF::plotfile_type_1  = PlotFileType::None;
-PlotFileType ERF::plotfile_type_2  = PlotFileType::None;
+PlotFileType ERF::plotfile3d_type_1  = PlotFileType::None;
+PlotFileType ERF::plotfile3d_type_2  = PlotFileType::None;
+PlotFileType ERF::plotfile2d_type_1  = PlotFileType::None;
+PlotFileType ERF::plotfile2d_type_2  = PlotFileType::None;
 
 StateInterpType ERF::interpolation_type;
 
@@ -165,8 +167,10 @@ ERF::ERF_shared ()
         }
     }
 
-    const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
-    const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
+    const std::string& pv3d_1 = "plot_vars_1"  ; setPlotVariables(pv3d_1,plot3d_var_names_1);
+    const std::string& pv3d_2 = "plot_vars_2"  ; setPlotVariables(pv3d_2,plot3d_var_names_2);
+    const std::string& pv2d_1 = "plot2d_vars_1"; setPlotVariables(pv2d_1,plot2d_var_names_1);
+    const std::string& pv2d_2 = "plot2d_vars_2"; setPlotVariables(pv2d_2,plot2d_var_names_2);
 
     // This is only used when we have mesh_type == MeshType::StretchedDz
     stretched_dz_h.resize(nlevs_max);
@@ -389,15 +393,13 @@ ERF::ERF_shared ()
     vel_t_avg.resize(nlevs_max);
     t_avg_cnt.resize(nlevs_max);
 
-#ifdef ERF_USE_NETCDF
-    // Size lat long arrays if using netcdf
+    // Size lat long arrays and default to null pointers
     lat_m.resize(nlevs_max);
     lon_m.resize(nlevs_max);
     for (int lev = 0; lev < max_level; ++lev) {
         lat_m[lev] = nullptr;
         lon_m[lev] = nullptr;
     }
-#endif
 
     // Variable coriolis
     sinPhi_m.resize(nlevs_max);
@@ -499,14 +501,25 @@ ERF::Evolve ()
 
         post_timestep(step, cur_time, dt[0]);
 
-        if (writeNow(cur_time, dt[0], step+1, m_plot_int_1, m_plot_per_1)) {
-            last_plot_file_step_1 = step+1;
-            WritePlotFile(1,plotfile_type_1,plot_var_names_1);
+        if (writeNow(cur_time, dt[0], step+1, m_plot3d_int_1, m_plot3d_per_1)) {
+            last_plot3d_file_step_1 = step+1;
+            Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
         }
-        if (writeNow(cur_time, dt[0], step+1, m_plot_int_2, m_plot_per_2)) {
-            last_plot_file_step_2 = step+1;
-            WritePlotFile(2,plotfile_type_2,plot_var_names_2);
+        if (writeNow(cur_time, dt[0], step+1, m_plot3d_int_2, m_plot3d_per_2)) {
+            last_plot3d_file_step_2 = step+1;
+            Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
         }
+
+        if (writeNow(cur_time, dt[0], step+1, m_plot2d_int_1, m_plot2d_per_1)) {
+            last_plot2d_file_step_1 = step+1;
+            Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+        }
+
+        if (writeNow(cur_time, dt[0], step+1, m_plot2d_int_2, m_plot2d_per_2)) {
+            last_plot2d_file_step_2 = step+1;
+            Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
+        }
+
         if (writeNow(cur_time, dt[0], step+1, m_subvol_int, m_subvol_per)) {
             last_subvol = step+1;
             WriteSubvolume();
@@ -529,11 +542,17 @@ ERF::Evolve ()
     }
 
     // Write plotfiles at final time
-    if ( (m_plot_int_1 > 0 || m_plot_per_1 > 0.) && istep[0] > last_plot_file_step_1 ) {
-        WritePlotFile(1,plotfile_type_1,plot_var_names_1);
+    if ( (m_plot3d_int_1 > 0 || m_plot3d_per_1 > 0.) && istep[0] > last_plot3d_file_step_1 ) {
+        Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
     }
-    if ( (m_plot_int_2 > 0 || m_plot_per_2 > 0.) && istep[0] > last_plot_file_step_2) {
-        WritePlotFile(2,plotfile_type_1,plot_var_names_2);
+    if ( (m_plot3d_int_2 > 0 || m_plot3d_per_2 > 0.) && istep[0] > last_plot3d_file_step_2) {
+        Write3DPlotFile(2,plotfile3d_type_1,plot3d_var_names_2);
+    }
+    if ( (m_plot2d_int_1 > 0 || m_plot2d_per_1 > 0.) && istep[0] > last_plot2d_file_step_1 ) {
+        Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+    }
+    if ( (m_plot2d_int_2 > 0 || m_plot2d_per_2 > 0.) && istep[0] > last_plot2d_file_step_2) {
+        Write2DPlotFile(2,plotfile2d_type_1,plot2d_var_names_2);
     }
     if ( (m_subvol_int > 0 || m_subvol_per > 0.) && istep[0] > last_subvol) {
         WriteSubvolume();
@@ -708,8 +727,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     ParmParse pp("erf");
     pp.query("is_hurricane_tracker_io", is_hurricane_tracker_io);
 
-    if(is_hurricane_tracker_io) {
-        if(nstep == 0 or (nstep+1)%m_plot_int_1 == 0){
+    if (is_hurricane_tracker_io) {
+        if(nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0){
             std::string filename = MakeVTKFilename(nstep);
             Real velmag_threshold = 1e10;
             pp.query("hurr_track_io_velmag_greater_than", velmag_threshold);
@@ -754,8 +773,10 @@ ERF::InitData_pre ()
         m_r2d = std::make_unique<ReadBndryPlanes>(geom[0], solverChoice.rdOcp);
     }
 
-    last_plot_file_step_1 = -1;
-    last_plot_file_step_2 = -1;
+    last_plot3d_file_step_1 = -1;
+    last_plot3d_file_step_2 = -1;
+    last_plot2d_file_step_1 = -1;
+    last_plot2d_file_step_2 = -1;
     last_check_file_step  = -1;
 
     if (restart_chkfile.empty()) {
@@ -1307,8 +1328,10 @@ ERF::InitData_post ()
 
     // check for additional plotting variables that are available after particle containers
     // are setup.
-    const std::string& pv1 = "plot_vars_1"; appendPlotVariables(pv1,plot_var_names_1);
-    const std::string& pv2 = "plot_vars_2"; appendPlotVariables(pv2,plot_var_names_2);
+    const std::string& pv3d_1 = "plot_vars_1"  ; appendPlotVariables(pv3d_1,plot3d_var_names_1);
+    const std::string& pv3d_2 = "plot_vars_2"  ; appendPlotVariables(pv3d_2,plot3d_var_names_2);
+    const std::string& pv2d_1 = "plot2d_vars_1"; appendPlotVariables(pv2d_1,plot2d_var_names_1);
+    const std::string& pv2d_2 = "plot2d_vars_2"; appendPlotVariables(pv2d_2,plot2d_var_names_2);
 
     if ( restart_chkfile.empty() && (m_check_int > 0 || m_check_per > 0.) )
     {
@@ -1319,15 +1342,25 @@ ERF::InitData_post ()
     if ( (restart_chkfile.empty()) ||
          (!restart_chkfile.empty() && plot_file_on_restart) )
     {
-        if (m_plot_int_1 > 0 || m_plot_per_1 > 0.)
+        if (m_plot3d_int_1 > 0 || m_plot3d_per_1 > 0.)
         {
-            WritePlotFile(1,plotfile_type_1,plot_var_names_1);
-            last_plot_file_step_1 = istep[0];
+            Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+            last_plot3d_file_step_1 = istep[0];
         }
-        if (m_plot_int_2 > 0 || m_plot_per_2 > 0.)
+        if (m_plot3d_int_2 > 0 || m_plot3d_per_2 > 0.)
         {
-            WritePlotFile(2,plotfile_type_2,plot_var_names_2);
-            last_plot_file_step_2 = istep[0];
+            Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+            last_plot3d_file_step_2 = istep[0];
+        }
+        if (m_plot2d_int_1 > 0 || m_plot2d_per_1 > 0.)
+        {
+            Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+            last_plot2d_file_step_1 = istep[0];
+        }
+        if (m_plot2d_int_2 > 0 || m_plot2d_per_2 > 0.)
+        {
+            Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
+            last_plot2d_file_step_2 = istep[0];
         }
         if (m_subvol_int > 0 || m_subvol_per > 0.) {
             WriteSubvolume();
@@ -1814,48 +1847,82 @@ ERF::ReadParameters ()
         interpolation_type = StateInterpType::FullState;
         pp.query_enum_case_insensitive("interpolation_type"  ,interpolation_type);
 
-        PlotFileType plotfile_type_temp = PlotFileType::None;
-        pp.query_enum_case_insensitive("plotfile_type"  ,plotfile_type_temp);
-        pp.query_enum_case_insensitive("plotfile_type_1",plotfile_type_1);
-        pp.query_enum_case_insensitive("plotfile_type_2",plotfile_type_2);
+        PlotFileType plotfile3d_type_temp = PlotFileType::None;
+        pp.query_enum_case_insensitive("plotfile_type"  ,plotfile3d_type_temp);
+        pp.query_enum_case_insensitive("plotfile_type_1",plotfile3d_type_1);
+        pp.query_enum_case_insensitive("plotfile_type_2",plotfile3d_type_2);
+
+        PlotFileType plotfile2d_type_temp = PlotFileType::None;
+        pp.query_enum_case_insensitive("plotfile2d_type"  ,plotfile2d_type_temp);
+        pp.query_enum_case_insensitive("plotfile2d_type_1",plotfile2d_type_1);
+        pp.query_enum_case_insensitive("plotfile2d_type_2",plotfile2d_type_2);
         //
         // This option is for backward consistency -- if only plotfile_type is set,
         //     then it will be used for both 1 and 2 if and only if they are not set
         //
         // Default is native amrex if no type is specified
         //
-        if (plotfile_type_temp == PlotFileType::None) {
-            if (plotfile_type_1 == PlotFileType::None) {
-                plotfile_type_1  = PlotFileType::Amrex;
+        if (plotfile3d_type_temp == PlotFileType::None) {
+            if (plotfile3d_type_1 == PlotFileType::None) {
+                plotfile3d_type_1  = PlotFileType::Amrex;
             }
-            if (plotfile_type_2 == PlotFileType::None) {
-                plotfile_type_2  = PlotFileType::Amrex;
+            if (plotfile3d_type_2 == PlotFileType::None) {
+                plotfile3d_type_2  = PlotFileType::Amrex;
             }
         } else {
-            if (plotfile_type_1 == PlotFileType::None) {
-                plotfile_type_1  = plotfile_type_temp;
+            if (plotfile3d_type_1 == PlotFileType::None) {
+                plotfile3d_type_1  = plotfile3d_type_temp;
             } else {
                 amrex::Abort("You must set either plotfile_type or plotfile_type_1, not both");
             }
-            if (plotfile_type_2 == PlotFileType::None) {
-                plotfile_type_2  = plotfile_type_temp;
+            if (plotfile3d_type_2 == PlotFileType::None) {
+                plotfile3d_type_2  = plotfile3d_type_temp;
             } else {
                 amrex::Abort("You must set either plotfile_type or plotfile_type_2, not both");
             }
         }
+        if (plotfile2d_type_temp == PlotFileType::None) {
+            if (plotfile2d_type_1 == PlotFileType::None) {
+                plotfile2d_type_1  = PlotFileType::Amrex;
+            }
+            if (plotfile2d_type_2 == PlotFileType::None) {
+                plotfile2d_type_2  = PlotFileType::Amrex;
+            }
+        } else {
+            if (plotfile2d_type_1 == PlotFileType::None) {
+                plotfile2d_type_1  = plotfile2d_type_temp;
+            } else {
+                amrex::Abort("You must set either plotfile2d_type or plotfile2d_type_1, not both");
+            }
+            if (plotfile2d_type_2 == PlotFileType::None) {
+                plotfile2d_type_2  = plotfile2d_type_temp;
+            } else {
+                amrex::Abort("You must set either plotfile2d_type or plotfile2d_type_2, not both");
+            }
+        }
 #ifndef ERF_USE_NETCDF
-        if (plotfile_type_1 == PlotFileType::Netcdf ||
-            plotfile_type_2 == PlotFileType::Netcdf) {
+        if (plotfile3d_type_1 == PlotFileType::Netcdf ||
+            plotfile3d_type_2 == PlotFileType::Netcdf ||
+            plotfile2d_type_1 == PlotFileType::Netcdf ||
+            plotfile2d_type_2 == PlotFileType::Netcdf) {
             amrex::Abort("Plotfile type = Netcdf is not allowed without USE_NETCDF = TRUE");
         }
 #endif
 
-        pp.query("plot_file_1",   plot_file_1);
-        pp.query("plot_file_2",   plot_file_2);
-        pp.query("plot_int_1" , m_plot_int_1);
-        pp.query("plot_int_2" , m_plot_int_2);
-        pp.query("plot_per_1",  m_plot_per_1);
-        pp.query("plot_per_2",  m_plot_per_2);
+        pp.query("plot_file_1"  ,   plot3d_file_1);
+        pp.query("plot_file_2"  ,   plot3d_file_2);
+        pp.query("plot2d_file_1",   plot2d_file_1);
+        pp.query("plot2d_file_2",   plot2d_file_2);
+
+        pp.query("plot_int_1"   , m_plot3d_int_1);
+        pp.query("plot_int_2"   , m_plot3d_int_2);
+        pp.query("plot_per_1"   , m_plot3d_per_1);
+        pp.query("plot_per_2"   , m_plot3d_per_2);
+
+        pp.query("plot2d_int_1" , m_plot2d_int_1);
+        pp.query("plot2d_int_2" , m_plot2d_int_2);
+        pp.query("plot2d_per_1",  m_plot2d_per_1);
+        pp.query("plot2d_per_2",  m_plot2d_per_2);
 
         pp.query("subvol_file",   subvol_file);
         pp.query("subvol_int" , m_subvol_int);
@@ -1865,8 +1932,12 @@ ERF::ReadParameters ()
 
         pp.query("plot_face_vels",m_plot_face_vels);
 
-        if ( (m_plot_int_1 > 0 && m_plot_per_1 > 0) ||
-             (m_plot_int_2 > 0 && m_plot_per_2 > 0.) ) {
+        if ( (m_plot3d_int_1 > 0 && m_plot3d_per_1 > 0) ||
+             (m_plot3d_int_2 > 0 && m_plot3d_per_2 > 0.) ) {
+            Abort("Must choose only one of plot_int or plot_per");
+        }
+        if ( (m_plot2d_int_1 > 0 && m_plot2d_per_1 > 0) ||
+             (m_plot2d_int_2 > 0 && m_plot2d_per_2 > 0.) ) {
             Abort("Must choose only one of plot_int or plot_per");
         }
 

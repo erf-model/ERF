@@ -55,7 +55,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
     if (verbose) {
         amrex::Print() <<            "BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
-        amrex::Print() <<" SIMPLIFIED BA FROM SCRATCH AT LEVEL " << lev << " " << ba.simplified_list() << std::endl;
+        // amrex::Print() <<" SIMPLIFIED BA FROM SCRATCH AT LEVEL " << lev << " " << ba.simplified_list() << std::endl;
     }
 
     subdomains.resize(lev+1);
