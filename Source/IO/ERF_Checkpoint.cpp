@@ -234,7 +234,7 @@ ERF::WriteCheckpointFile () const
 #endif
 
         if (m_SurfaceLayer)  {
-            amrex::Print() << "Writing SurfaceLayer variables" << std::endl;
+            amrex::Print() << "Writing SurfaceLayer variables at level " << lev << std::endl;
             ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
             MultiFab   m_var(ba2d[lev],dmap[lev],1,ng);
             MultiFab* src = nullptr;
@@ -326,7 +326,7 @@ ERF::WriteCheckpointFile () const
 
         // Write lat/lon if it exists
         if (lat_m[lev] && lon_m[lev] && solverChoice.has_lat_lon) {
-            amrex::Print() << "Writing Lat/Lon variables" << std::endl;
+            amrex::Print() << "Writing Lat/Lon variables at level " << lev << std::endl;
             MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
             MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
             MultiFab::Copy(lat,*lat_m[lev],0,0,1,ngv);
@@ -335,10 +335,11 @@ ERF::WriteCheckpointFile () const
             VisMF::Write(lon, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LON"));
         }
 
+
 #ifdef ERF_USE_NETCDF
         // Write sinPhi and cosPhi if it exists
         if (cosPhi_m[lev] && sinPhi_m[lev] && solverChoice.variable_coriolis) {
-            amrex::Print() << "Writing Coriolis factors" << std::endl;
+            amrex::Print() << "Writing Coriolis factors at level " << lev << std::endl;
             MultiFab sphi(ba2d[lev],dmap[lev],1,ngv);
             MultiFab cphi(ba2d[lev],dmap[lev],1,ngv);
             MultiFab::Copy(sphi,*sinPhi_m[lev],0,0,1,ngv);
@@ -348,16 +349,18 @@ ERF::WriteCheckpointFile () const
         }
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
-            MultiFab tmp1d(ba1d[lev],dmap[lev],1,ngv);
-            MultiFab tmp2d(ba2d[lev],dmap[lev],1,ngv);
+            amrex::Print() << "Writing C1H/C2H/MUB variables at level " << lev << std::endl;
+            MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
-            MultiFab::Copy(tmp1d,*mf_C1H[lev],0,0,1,ngv);
+            MultiFab::Copy(tmp1d,*mf_C1H,0,0,1,0);
             VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C1H"));
 
-            MultiFab::Copy(tmp1d,*mf_C2H[lev],0,0,1,ngv);
+            MultiFab::Copy(tmp1d,*mf_C2H,0,0,1,0);
             VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
 
-            MultiFab::Copy(tmp2d,*mf_MUB[lev],0,0,1,ngv);
+            MultiFab tmp2d(ba2d[0],dmap[0],1,mf_MUB->nGrowVect());
+
+            MultiFab::Copy(tmp2d,*mf_MUB,0,0,1,mf_MUB->nGrowVect());
             VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
         }
 #endif
@@ -823,17 +826,21 @@ ERF::ReadCheckpointFile ()
         }
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
-            MultiFab tmp1d(ba1d[lev],dmap[lev],1,ngv);
-            MultiFab tmp2d(ba2d[lev],dmap[lev],1,ngv);
 
-            VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C1H"));
-            MultiFab::Copy(*mf_C1H[lev],tmp1d,0,0,1,ngv);
+            if (lev == 0) {
+                MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
-            VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C2H"));
-            MultiFab::Copy(*mf_C2H[lev],tmp1d,0,0,1,ngv);
+                VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C1H"));
+                MultiFab::Copy(*mf_C1H,tmp1d,0,0,1,0);
 
-            VisMF::Read(tmp2d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MUB"));
-            MultiFab::Copy(*mf_MUB[lev],tmp2d,0,0,1,ngv);
+                VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C2H"));
+                MultiFab::Copy(*mf_C2H,tmp1d,0,0,1,0);
+
+                MultiFab tmp2d(ba2d[0],dmap[0],1,mf_MUB->nGrowVect());
+
+                VisMF::Read(tmp2d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MUB"));
+                MultiFab::Copy(*mf_MUB,tmp2d,0,0,1,mf_MUB->nGrowVect());
+            }
         }
 #endif
 

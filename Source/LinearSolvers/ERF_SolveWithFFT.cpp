@@ -89,20 +89,10 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
 
     amrex::Print() << "FFT solve complete on domain " << my_geom.Domain() << std::endl;
 
-    if (lev > 0 && my_geom.Domain().contains(IntVect(146,0,0))) {
-       amrex::Print() << "TRYING TO PRINT PHI(146,0,0)" << std::endl;
-       print_state(phi,IntVect(146,0,0));
-    }
-
     // ****************************************************************************
     // Impose bc's on pprime
     // ****************************************************************************
     ImposeBCsOnPhi(lev, phi, subdomain);
-
-    if (lev > 0 && my_geom.Domain().contains(IntVect(146,0,0))) {
-       amrex::Print() << "AFTER IMPOSE: POINT IS HERE " << std::endl;
-       print_state(phi,IntVect(146,0,0));
-    }
 
     // ****************************************************************************
     // Compute fluxes which we will subtract from the momenta
