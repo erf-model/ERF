@@ -57,13 +57,13 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
 
-  if(ERF_ENABLE_NOAH)
+  if(ERF_ENABLE_NOAHMP)
     target_include_directories(${erf_lib_name} PUBLIC
-                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/NOAH>
-                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/NOAH-MP/drivers/erf>)
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/Noah-MP>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/Noah-MP/drivers/erf>)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/LandSurfaceModel/NOAH/ERF_NOAH.cpp)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NOAH)
+                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP.cpp)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NOAHMP)
     target_link_libraries_system(${erf_lib_name} PUBLIC NoahMP::noahmp)
   endif()
 
@@ -277,7 +277,7 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
-    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAH)
+    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
       target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_Fortran>)
     endif()
   endif()

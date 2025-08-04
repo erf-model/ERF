@@ -343,9 +343,6 @@ ERF::ERF_shared ()
     ba2d.resize(nlevs_max);
 
     // MultiFabs needed to convert WRFBdy data
-    mf_C1H.resize(nlevs_max);
-    mf_C2H.resize(nlevs_max);
-    mf_MUB.resize(nlevs_max);
     mf_PSFC.resize(nlevs_max);
 
     // Map factors
@@ -914,7 +911,7 @@ ERF::InitData_post ()
                                  bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                  real_width);
                 convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                        *mf_MUB[lev], *mf_C1H[lev], *mf_C2H[lev],
+                                        *mf_MUB, *mf_C1H, *mf_C2H,
                                         vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
                                         geom[lev], use_moist);
             } // itime
@@ -1134,7 +1131,10 @@ ERF::InitData_post ()
         }
     }
 
-    ComputeDt();
+    // We don't need to recompute dt[lev] on restart because we read it in from the checkpoint file.
+    if (restart_chkfile.empty()) {
+        ComputeDt();
+    }
 
     // Check the viscous limit
     DiffChoice dc = solverChoice.diffChoice;
@@ -1223,6 +1223,62 @@ ERF::InitData_post ()
             lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
         }
     }
+
+    // If lev > 0, we need to fill bc's by interpolation from coarser grid
+    for (int lev = 1; lev <= finest_level; ++lev)
+    {
+        Real time_for_fp = 0.; // This is not actually used
+        Vector<Real> ftime    = {time_for_fp, time_for_fp};
+        Vector<Real> ctime    = {time_for_fp, time_for_fp};
+        if (lat_m[lev]) {
+            // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+            Vector<MultiFab*> fmf = {lat_m[lev  ].get(), lat_m[lev  ].get()};
+            Vector<MultiFab*> cmf = {lat_m[lev-1].get(), lat_m[lev-1].get()};
+            IntVect ngv = lat_m[lev]->nGrowVect(); ngv[2] = 0;
+            Interpolater* mapper = &cell_cons_interp;
+            FillPatchTwoLevels(*lat_m[lev].get(), ngv, IntVect(0,0,0),
+                               time_for_fp, cmf, ctime, fmf, ftime,
+                               0, 0, 1, geom[lev-1], geom[lev],
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::cons_bc);
+        }
+        if (lon_m[lev]) {
+            // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+            Vector<MultiFab*> fmf = {lon_m[lev  ].get(), lon_m[lev  ].get()};
+            Vector<MultiFab*> cmf = {lon_m[lev-1].get(), lon_m[lev-1].get()};
+            IntVect ngv = lon_m[lev]->nGrowVect(); ngv[2] = 0;
+            Interpolater* mapper = &cell_cons_interp;
+            FillPatchTwoLevels(*lon_m[lev].get(), ngv, IntVect(0,0,0),
+                               time_for_fp, cmf, ctime, fmf, ftime,
+                               0, 0, 1, geom[lev-1], geom[lev],
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::cons_bc);
+        } // lon_m
+        if (sinPhi_m[lev]) {
+            // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+            Vector<MultiFab*> fmf = {sinPhi_m[lev  ].get(), sinPhi_m[lev  ].get()};
+            Vector<MultiFab*> cmf = {sinPhi_m[lev-1].get(), sinPhi_m[lev-1].get()};
+            IntVect ngv = sinPhi_m[lev]->nGrowVect(); ngv[2] = 0;
+            Interpolater* mapper = &cell_cons_interp;
+            FillPatchTwoLevels(*sinPhi_m[lev].get(), ngv, IntVect(0,0,0),
+                               time_for_fp, cmf, ctime, fmf, ftime,
+                               0, 0, 1, geom[lev-1], geom[lev],
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::cons_bc);
+        } // sinPhi
+        if (cosPhi_m[lev]) {
+            // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+            Vector<MultiFab*> fmf = {cosPhi_m[lev  ].get(), cosPhi_m[lev  ].get()};
+            Vector<MultiFab*> cmf = {cosPhi_m[lev-1].get(), cosPhi_m[lev-1].get()};
+            IntVect ngv = cosPhi_m[lev]->nGrowVect(); ngv[2] = 0;
+            Interpolater* mapper = &cell_cons_interp;
+            FillPatchTwoLevels(*cosPhi_m[lev].get(), ngv, IntVect(0,0,0),
+                               time_for_fp, cmf, ctime, fmf, ftime,
+                               0, 0, 1, geom[lev-1], geom[lev],
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::cons_bc);
+        } // cosPhi
+    } // lev
 
 #ifdef ERF_USE_WW3_COUPLING
     int my_lev = 0;
@@ -1618,7 +1674,7 @@ ERF::init_only (int lev, Real time)
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
-        init_from_wrfinput(lev, *mf_C1H[lev], *mf_C2H[lev], *mf_MUB[lev], *mf_PSFC[lev]);
+        init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
         if (lev==0) {
             if ((start_time > 0) && (start_time != t_new[lev])) {
                 Print() << "Ignoring specified start_time="
@@ -2030,10 +2086,10 @@ ERF::ReadParameters ()
     } else if (solverChoice.lsm_type == LandSurfaceType::MM5) {
         lsm.SetModel<MM5>();
         Print() << "MM5 land surface model!\n";
-#ifdef ERF_USE_NOAH
-    } else if (solverChoice.lsm_type == LandSurfaceType::NOAH) {
-        lsm.SetModel<NOAH>();
-        Print() << "NOAH land surface model!\n";
+#ifdef ERF_USE_NOAHMP
+    } else if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
+        lsm.SetModel<NOAHMP>();
+        Print() << "Noah-MP land surface model!\n";
 #endif
     } else if (solverChoice.lsm_type == LandSurfaceType::None) {
         lsm.SetModel<NullSurf>();
