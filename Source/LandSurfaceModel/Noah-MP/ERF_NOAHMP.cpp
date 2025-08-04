@@ -233,7 +233,6 @@ NOAHMP::Advance_With_State (const int& lev,
                 SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
                 EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
             });
-            noahmpio->WriteLand(nstep+1);
 
             if((nstep+1)%m_plot_int_1 == 0) {
                 noahmpio->WriteLand(nstep+1);
