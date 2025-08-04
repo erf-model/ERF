@@ -61,8 +61,8 @@ function(build_erf_lib erf_lib_name)
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/Noah-MP>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/Noah-MP/drivers/erf>)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAH.cpp)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NOAH)
+                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP.cpp)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NOAHMP)
     target_link_libraries_system(${erf_lib_name} PUBLIC NoahMP::noahmp)
   endif()
 
