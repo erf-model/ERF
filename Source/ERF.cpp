@@ -1131,7 +1131,10 @@ ERF::InitData_post ()
         }
     }
 
-    ComputeDt();
+    // We don't need to recompute dt[lev] on restart because we read it in from the checkpoint file.
+    if (restart_chkfile.empty()) {
+        ComputeDt();
+    }
 
     // Check the viscous limit
     DiffChoice dc = solverChoice.diffChoice;
