@@ -19,6 +19,7 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_KOKKOS)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_KOKKOS)
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/PhysicsInterfaces>)
   endif()
 
   if(ERF_ENABLE_MULTIBLOCK)
@@ -77,7 +78,7 @@ function(build_erf_lib erf_lib_name)
         target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_SYCL)
     endif()
     target_include_directories(${erf_lib_name} PUBLIC
-                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Radiation>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels>
@@ -89,8 +90,8 @@ function(build_erf_lib erf_lib_name)
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband>
                               )
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/Radiation/ERF_RRTMGP_Interface.cpp
-                   ${SRC_DIR}/Radiation/ERF_Radiation.cpp
+                   ${SRC_DIR}/PhysicsInterfaces/Radiation/ERF_RRTMGP_Interface.cpp
+                   ${SRC_DIR}/PhysicsInterfaces/Radiation/ERF_Radiation.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/mo_rrtmgp_util_reorder.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels/mo_gas_optics_kernels.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/expand_and_transpose.cpp
@@ -316,7 +317,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/SLM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/MM5>)
-  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Radiation/>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation/>)
 
   #Link to amrex library
   target_link_libraries_system(${erf_lib_name} PUBLIC AMReX::amrex)

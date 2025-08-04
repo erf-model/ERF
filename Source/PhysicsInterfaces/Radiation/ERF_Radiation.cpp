@@ -164,19 +164,7 @@ Radiation::set_grids (int& level,
     if (m_rad_freq_in_steps > 0) { m_update_rad = ( (m_step == 0) || (m_step % m_rad_freq_in_steps == 0) ); }
 
     if (m_update_rad) {
-        // Reset vector of offsets for columnar data
-        m_nlay = geom.Domain().length(2);
-
-        m_ncol = 0;
-        m_col_offsets.clear();
-        m_col_offsets.resize(int(ba.size()));
-        for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
-            const auto& vbx = mfi.validbox();
-            int nx = vbx.length(0);
-            int ny = vbx.length(1);
-            m_col_offsets[mfi.index()] = m_ncol;
-            m_ncol += nx * ny;
-        }
+        // Call to Init() has set the dimensions: ncol & nlay
 
         // Allocate the buffer arrays
         alloc_buffers();

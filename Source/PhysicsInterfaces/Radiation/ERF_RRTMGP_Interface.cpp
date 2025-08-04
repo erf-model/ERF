@@ -1,18 +1,5 @@
 #include "ERF_RRTMGP_Interface.H"
 
-void init_kls ()
-{
-  // Initialize kokkos
-  if(!Kokkos::is_initialized()) { Kokkos::initialize(); }
-}
-
-void finalize_kls()
-{
-  // Finalize kokkos
-  Kokkos::finalize();
-}
-
-
 namespace rrtmgp {
 
 /*

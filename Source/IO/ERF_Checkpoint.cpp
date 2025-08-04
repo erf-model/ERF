@@ -322,7 +322,6 @@ ERF::WriteCheckpointFile () const
             }
         }
 
-#ifdef ERF_USE_NETCDF
         IntVect ngv = ng; ngv[2] = 0;
 
         // Write lat/lon if it exists
@@ -336,6 +335,7 @@ ERF::WriteCheckpointFile () const
             VisMF::Write(lon, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LON"));
         }
 
+#ifdef ERF_USE_NETCDF
         // Write sinPhi and cosPhi if it exists
         if (cosPhi_m[lev] && sinPhi_m[lev] && solverChoice.variable_coriolis) {
             amrex::Print() << "Writing Coriolis factors" << std::endl;
@@ -793,7 +793,6 @@ ERF::ReadCheckpointFile ()
             lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
         }
 
-#ifdef ERF_USE_NETCDF
         IntVect ngv = ng; ngv[2] = 0;
 
         // Read lat/lon if it exists
@@ -809,6 +808,7 @@ ERF::ReadCheckpointFile ()
             MultiFab::Copy(*lon_m[lev],lon,0,0,1,ngv);
         }
 
+#ifdef ERF_USE_NETCDF
         // Read sinPhi and cosPhi if it exists
         if (solverChoice.variable_coriolis) {
             amrex::Print() << "Reading Coriolis factors" << std::endl;
