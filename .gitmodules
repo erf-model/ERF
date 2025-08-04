@@ -8,7 +8,7 @@
     branch = jgfouca/more_perf
     shallow = true
 [submodule "Submodules/NOAH-MP"]
-	path = Submodules/NOAH-MP
+	path = Submodules/Noah-MP
     url = https://github.com/AIEADA/noahmp.git
     shallow = true
 [submodule "Submodules/WW3"]

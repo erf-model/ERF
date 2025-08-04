@@ -1955,10 +1955,10 @@ ERF::ReadParameters ()
     } else if (solverChoice.lsm_type == LandSurfaceType::MM5) {
         lsm.SetModel<MM5>();
         Print() << "MM5 land surface model!\n";
-#ifdef ERF_USE_NOAH
-    } else if (solverChoice.lsm_type == LandSurfaceType::NOAH) {
-        lsm.SetModel<NOAH>();
-        Print() << "NOAH land surface model!\n";
+#ifdef ERF_USE_NOAHMP
+    } else if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
+        lsm.SetModel<NOAHMP>();
+        Print() << "Noah-MP land surface model!\n";
 #endif
     } else if (solverChoice.lsm_type == LandSurfaceType::None) {
         lsm.SetModel<NullSurf>();

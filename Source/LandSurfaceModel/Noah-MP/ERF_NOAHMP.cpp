@@ -6,13 +6,13 @@
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
 
-#include <ERF_NOAH.H>
+#include <ERF_NOAHMP.H>
 
 using namespace amrex;
 
 /* Initialize lsm data structures */
 void
-NOAH::Init (const int& lev,
+NOAHMP::Init (const int& lev,
             const MultiFab& cons_in,
             const Geometry& geom,
             const Real& dt)
@@ -25,10 +25,10 @@ NOAH::Init (const int& lev,
     khi_lsm    = domain.smallEnd(2) - 1;
 
     LsmVarMap.resize(m_lsm_size);
-    LsmVarMap = {LsmVar_NOAH::t_sfc, LsmVar_NOAH::sfc_emis,
-                 LsmVar_NOAH::sfc_alb_dir_vis, LsmVar_NOAH::sfc_alb_dir_nir,
-                 LsmVar_NOAH::sfc_alb_dif_vis, LsmVar_NOAH::sfc_alb_dif_nir,
-                 LsmVar_NOAH::sw_flux_dn , LsmVar_NOAH::lw_flux_dn };
+    LsmVarMap = {LsmVar_NOAHMP::t_sfc, LsmVar_NOAHMP::sfc_emis,
+                 LsmVar_NOAHMP::sfc_alb_dir_vis, LsmVar_NOAHMP::sfc_alb_dir_nir,
+                 LsmVar_NOAHMP::sfc_alb_dif_vis, LsmVar_NOAHMP::sfc_alb_dif_nir,
+                 LsmVar_NOAHMP::sw_flux_dn , LsmVar_NOAHMP::lw_flux_dn };
 
     LsmVarName.resize(m_lsm_size);
     LsmVarName = {"t_sfc"      , "sfc_emis"   ,
@@ -64,7 +64,7 @@ NOAH::Init (const int& lev,
     m_lsm_geom.define( ba_lsm.minimalBox(), lsm_rb, m_geom.Coord(), m_geom.isPeriodic() );
 
     // Create the data and fluxes
-    for (auto ivar = 0; ivar < LsmVar_NOAH::NumVars; ++ivar) {
+    for (auto ivar = 0; ivar < LsmVar_NOAHMP::NumVars; ++ivar) {
         // State vars are CC
         lsm_fab_vars[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
         lsm_fab_vars[ivar]->setVal(0.0);
@@ -178,7 +178,7 @@ NOAH::Init (const int& lev,
 };
 
 void
-NOAH::Advance_With_State (const int& lev,
+NOAHMP::Advance_With_State (const int& lev,
                           MultiFab& cons_in,
                           MultiFab& xvel_in,
                           MultiFab& yvel_in,
@@ -206,8 +206,8 @@ NOAH::Advance_With_State (const int& lev,
             const amrex::Array4<const amrex::Real>& U_PHY = xvel_in.const_array(mfi);
             const amrex::Array4<const amrex::Real>& V_PHY = yvel_in.const_array(mfi);
             const amrex::Array4<const amrex::Real>& QV_TH = cons_in.const_array(mfi);
-            //const amrex::Array4<const amrex::Real>& SWFLUXDN = lsm_fab_vars[LsmVar_NOAH::sw_flux_dn]->const_array(mfi);
-            //amrex::Array4<amrex::Real> TSK = lsm_fab_vars[LsmVar_NOAH::t_sfc]->array(mfi);
+            //const amrex::Array4<const amrex::Real>& SWFLUXDN = lsm_fab_vars[LsmVar_NOAHMP::sw_flux_dn]->const_array(mfi);
+            //amrex::Array4<amrex::Real> TSK = lsm_fab_vars[LsmVar_NOAHMP::t_sfc]->array(mfi);
 
             amrex::Array4<amrex::Real> SHBXY = hfx3_out->array(mfi);
             amrex::Array4<amrex::Real> EVBXY = qfx3_out->array(mfi);
