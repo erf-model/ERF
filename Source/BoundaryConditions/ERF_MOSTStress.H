@@ -1008,57 +1008,45 @@ struct surface_temp
     {
         int iter = 0;
 
-        amrex::Real F        = 1.0e12;
-        amrex::Real dFdZ     = 1.0e12;
-        amrex::Real hi       = 0.0;
-        amrex::Real lo       = 0.0;
         amrex::Real Rib      = 0.0;
         amrex::Real zeta     = 0.0;
+        amrex::Real zeta_old = 0.0;
         amrex::Real psi_m    = 0.0;
         amrex::Real psi_h    = 0.0;
-        amrex::Real psi_m_hi = 0.0;
-        amrex::Real psi_h_hi = 0.0;
-        amrex::Real psi_m_lo = 0.0;
-        amrex::Real psi_h_lo = 0.0;
+        amrex::Real num      = 0.0;
+        amrex::Real den      = 0.0;
         amrex::Real umm      = std::max(umm_arr(i,j,k), WSMIN);
         amrex::Real C        = std::log(mdata.zref / z0_arr(i,j,k));
 
         // First iteration we assume neutral (L -> inf)
         if (u_star_arr(i,j,k) == 1.E34) { olen_arr(i,j,k) = 1.0e3; }
         zeta  = mdata.zref / olen_arr(i,j,k);
-        psi_m = sfuns.calc_psi_m(zeta);
-        psi_h = sfuns.calc_psi_h(zeta);
 
         // Bulk Richardson number
         Rib = ( (mdata.gravity * mdata.zref) / tm_arr(i,j,k) ) *
-                          ( (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (umm * umm) );
+              ( (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (umm * umm) );
 
-        // Initialize the residual
-        F = Rib - zeta * (C - psi_h) / (C - psi_m);
-
+        // Fixed point iteration with limiting
         do {
+            // Transfer curr to old
+            zeta_old = zeta;
 
-            // Derivative from stab funs
-            psi_m_hi = sfuns.calc_psi_m(zeta+dz);
-            psi_h_hi = sfuns.calc_psi_h(zeta+dz);
-            psi_m_lo = sfuns.calc_psi_m(zeta-dz);
-            psi_h_lo = sfuns.calc_psi_h(zeta-dz);
+            // Stability functions
+            psi_m = sfuns.calc_psi_m(zeta_old);
+            psi_h = sfuns.calc_psi_h(zeta_old);
 
-            // Derivate total
-            hi   = -(zeta+dz) * (C - psi_h_hi) / (C - psi_m_hi);
-            lo   = -(zeta-dz) * (C - psi_h_lo) / (C - psi_m_lo);
-            dFdZ = 0.5 * idz * (hi - lo);
+            // Limiting
+            num = std::max(C - psi_m, 1.0);
+            den = std::max(C - psi_h, 1.0);
 
             // Update
-            zeta -= F/dFdZ;
-            psi_m = sfuns.calc_psi_m(zeta);
-            psi_h = sfuns.calc_psi_h(zeta);
-            F = Rib - zeta * (C - psi_h) / (C - psi_m);
+            zeta = Rib * num * num / den;
 
             ++iter;
-        } while ((std::abs(F) > tol) && iter <= max_iters);
+        } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
+        // Populate the cached MOST arrays
         olen_arr(i,j,k)   = mdata.zref / zeta;
         u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_h);
         t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
@@ -1075,9 +1063,7 @@ private:
     most_data mdata;
     bool spec_qflux;
     similarity_funs sfuns;
-    const amrex::Real tol = 1.0e-6;
-    const amrex::Real dz  = 1.0e-3;
-    const amrex::Real idz = 1.0e3;
+    const amrex::Real tol = 0.01;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
