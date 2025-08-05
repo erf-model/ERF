@@ -1045,7 +1045,7 @@ struct surface_temp
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        // TODO: Add back moisture & wstar
+        // TODO: Add back wstar
 
         amrex::Real Rib      = 0.0;
         amrex::Real zeta     = 0.0;
@@ -1062,9 +1062,22 @@ struct surface_temp
         if (u_star_arr(i,j,k) == 1.E34) { olen_arr(i,j,k) = 1.0e3; }
         zeta  = mdata.zref / olen_arr(i,j,k);
 
+        // Water vapor in atmos and surface
+        amrex::Real qv_s, qv_a;
+        if (q_surf_arr(i,j,k) > 0.) {
+            qv_s = q_surf_arr(i,j,k);
+        } else {
+            // First iteration and no qv_surf was specified
+            // Use mean since there will be no flux
+            qv_s = qvm_arr(i,j,k);
+        }
+        qv_a = qvm_arr(i,j,k);
+
         // Bulk Richardson number
+        amrex::Real thv_s = t_surf_arr(i,j,k) * (1.0 + 0.61*qv_s);
+        amrex::Real thv_a =     tm_arr(i,j,k) * (1.0 + 0.61*qv_a);
         Rib = ( (mdata.gravity * mdata.zref) / tm_arr(i,j,k) ) *
-              ( (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (umm * umm) );
+              ( (thv_a - thv_s) / (umm * umm) );
         Rib = std::min(std::max(Rib,-4.0),4.0);
 
         // Fixed point iteration on zeta
@@ -1156,7 +1169,7 @@ struct surface_temp_charnock
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        // TODO: Add back moisture & wstar
+        // TODO: Add back wstar
 
         amrex::Real Rib      = 0.0;
         amrex::Real zeta     = 0.0;
@@ -1175,9 +1188,22 @@ struct surface_temp_charnock
         if (u_star_arr(i,j,k) == 1.E34) { olen_arr(i,j,k) = 1.0e3; }
         zeta  = mdata.zref / olen_arr(i,j,k);
 
+        // Water vapor in atmos and surface
+        amrex::Real qv_s, qv_a;
+        if (q_surf_arr(i,j,k) > 0.) {
+            qv_s = q_surf_arr(i,j,k);
+        } else {
+            // First iteration and no qv_surf was specified
+            // Use mean since there will be no flux
+            qv_s = qvm_arr(i,j,k);
+        }
+        qv_a = qvm_arr(i,j,k);
+
         // Bulk Richardson number
+        amrex::Real thv_s = t_surf_arr(i,j,k) * (1.0 + 0.61*qv_s);
+        amrex::Real thv_a =     tm_arr(i,j,k) * (1.0 + 0.61*qv_a);
         Rib = ( (mdata.gravity * mdata.zref) / tm_arr(i,j,k) ) *
-              ( (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (umm * umm) );
+              ( (thv_a - thv_s) / (umm * umm) );
         Rib = std::min(std::max(Rib,-4.0),4.0);
 
         // Fixed point iteration on zeta
