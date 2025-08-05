@@ -44,7 +44,7 @@ struct similarity_funs
             amrex::Real x = std::pow(1.0 + std::pow(zeta, 2.5), 1.0/2.5);
             return ( -6.1*std::log(zeta + x) );
         } else {
-            amrex::Real x = std::pow(1.0 - 16.0*zeta), 0.25);
+            amrex::Real x = std::pow(1.0 - 16.0*zeta, 0.25);
             amrex::Real psi_k_m =  2.0 * std::log(0.5 * (1.0 + x)) + log(0.5 * (1.0 + x * x)) -
                                    2.0 * std::atan(x) + PIoTwo;
             amrex::Real y = std::pow(1.0 - 10.0*zeta, 1.0/3.0);
