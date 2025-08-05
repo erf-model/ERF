@@ -1304,18 +1304,31 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
 #ifdef ERF_USE_PARTICLES
         const auto& particles_namelist( particleData.getNames() );
-        for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++) {
-            if (containerHasElement(plot_var_names, std::string(particles_namelist[i]+"_count"))) {
+
+        if (containerHasElement(plot_var_names, "tracer_particles_count")) {
+            if (particles_namelist.size() == 0) {
                 MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
                 temp_dat.setVal(0);
-                particleData[particles_namelist[i]]->Increment(temp_dat, lev);
                 MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
                 mf_comp += 1;
+            } else {
+                for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++) {
+                    if (containerHasElement(plot_var_names, std::string(particles_namelist[i]+"_count"))) {
+                        MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
+                        temp_dat.setVal(0);
+                        if (particleData.HasSpecies(particles_namelist[i])) {
+                            particleData[particles_namelist[i]]->Increment(temp_dat, lev);
+                        }
+                        MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+                        mf_comp += 1;
+                    }
+                }
             }
         }
 
         Vector<std::string> particle_mesh_plot_names(0);
         particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
+
         for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
             std::string plot_var_name(particle_mesh_plot_names[i]);
             if (containerHasElement(plot_var_names, plot_var_name) ) {

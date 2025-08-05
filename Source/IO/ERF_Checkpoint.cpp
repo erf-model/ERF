@@ -145,6 +145,24 @@ ERF::WriteCheckpointFile () const
         MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
         VisMF::Write(zvel, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
 
+        if (solverChoice.anelastic[lev] == 1) {
+            MultiFab ppinc(grids[lev],dmap[lev],1,0);
+            MultiFab::Copy(ppinc,pp_inc[lev],0,0,1,0);
+            VisMF::Write(ppinc, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PP_Inc"));
+
+            MultiFab gpx(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
+            MultiFab::Copy(gpx,gradp[lev][GpVars::gpx],0,0,1,0);
+            VisMF::Write(gpx, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Gpx"));
+
+            MultiFab gpy(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
+            MultiFab::Copy(gpy,gradp[lev][GpVars::gpy],0,0,1,0);
+            VisMF::Write(gpy, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Gpy"));
+
+            MultiFab gpz(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
+            MultiFab::Copy(gpz,gradp[lev][GpVars::gpz],0,0,1,0);
+            VisMF::Write(gpz, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Gpz"));
+        }
+
         // Note that we write the ghost cells of the base state (unlike above)
         IntVect ng_base = base_state[lev].nGrowVect();
         int  ncomp_base = base_state[lev].nComp();
@@ -582,6 +600,28 @@ ERF::ReadCheckpointFile ()
         VisMF::Read(zvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
         vars_new[lev][Vars::zvel].setBndry(1.0e34);
+
+        if (solverChoice.anelastic[lev] == 1) {
+            MultiFab ppinc(grids[lev],dmap[lev],1,0);
+            VisMF::Read(ppinc, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PP_Inc"));
+            MultiFab::Copy(pp_inc[lev],ppinc,0,0,1,0);
+            pp_inc[lev].FillBoundary(geom[lev].periodicity());
+
+            MultiFab gpx(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
+            VisMF::Read(gpx, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Gpx"));
+            MultiFab::Copy(gradp[lev][GpVars::gpx],gpx,0,0,1,0);
+            gradp[lev][GpVars::gpx].FillBoundary(geom[lev].periodicity());
+
+            MultiFab gpy(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
+            VisMF::Read(gpy, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Gpy"));
+            MultiFab::Copy(gradp[lev][GpVars::gpy],gpy,0,0,1,0);
+            gradp[lev][GpVars::gpy].FillBoundary(geom[lev].periodicity());
+
+            MultiFab gpz(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
+            VisMF::Read(gpz, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Gpz"));
+            MultiFab::Copy(gradp[lev][GpVars::gpz],gpz,0,0,1,0);
+            gradp[lev][GpVars::gpz].FillBoundary(geom[lev].periodicity());
+        }
 
         // Note that we read the ghost cells of the base state (unlike above)
 
