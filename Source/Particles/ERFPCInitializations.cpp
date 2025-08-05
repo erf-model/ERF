@@ -112,11 +112,10 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
                                    height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
                                    height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
 
-                Real z_sfc = 0.25 * (height_arr(i,j  ,0) + height_arr(i+1,j  ,0) +
-                                     height_arr(i,j+1,0) + height_arr(i+1,j+1,0) );
-
-                // SWAP THE TWO LINES BELOW TO COMPUTE ABSOLUTE HEIGHT VS HEIGHT ABOVE SURFACE
+                // SWAP TWO LINES BELOW TO COMPUTE ABSOLUTE HEIGHT VS HEIGHT ABOVE SURFACE
                 Real z = zh;
+                // Real z_sfc = 0.25 * (height_arr(i,j  ,0) + height_arr(i+1,j  ,0) +
+                //                      height_arr(i,j+1,0) + height_arr(i+1,j+1,0) );
                 // Real z = std::max((zh-z_sfc),0.0);
 
                 if (particle_init_domain.contains(RealVect(x,y,z))) {
