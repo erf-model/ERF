@@ -487,6 +487,14 @@ ERF::Evolve ()
             m_r2d->read_input_files(cur_time,dt[0],m_bc_extdir_vals);
         }
 
+#ifdef ERF_USE_PARTICLES
+        // We call this every time step with the knowledge that the particles may be
+        //    initialized at a later time than the simulation start time.
+        // The ParticleContainer carries a "start time" so the initialization will happen
+        //    only when a) time > start_time, and b) particles have not yet been initialized
+        initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,cur_time);
+#endif
+
         int lev = 0;
         int iteration = 1;
         timeStep(lev, cur_time, iteration);
@@ -1624,6 +1632,11 @@ ERF::restart ()
             RemakeLevel(0,t_new[0],new_ba,new_dm);
         }
     }
+
+#ifdef ERF_USE_PARTICLES
+    // We call this here without knowing whether the particles have already been initialized or not
+    initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,t_new[0]);
+#endif
 }
 
 // This is called only if starting from scratch (from ERF::MakeNewLevelFromScratch)

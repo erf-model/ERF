@@ -59,6 +59,14 @@ and / or
 
 in the inputs file or on the command line at runtime.
 
+The time at which the particles are initialize can be controlled by a parameter in the inputs file.
+For tracer particles one would set this as
+
+::
+
+   tracer_particles.start_time = 0.5
+
+
 Caveat: the particle information is currently output when using the AMReX-native plotfile format, but not
 when using netcdf.  Writing particles into the netcdf files is a WIP.
 

@@ -264,7 +264,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 #ifdef ERF_USE_PARTICLES
     if (restart_chkfile.empty()) {
         if (lev == 0) {
-            initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd);
+            initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,time);
         } else {
             particleData.Redistribute();
         }
