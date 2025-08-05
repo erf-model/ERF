@@ -67,7 +67,7 @@ struct similarity_funs
             amrex::Real x = std::sqrt(1.0 - 16.0*zeta);
             amrex::Real psi_k_h = 2.0 * std::log(0.5 * (1.0 + x));
             amrex::Real y = std::pow(1.0 - 34.0*zeta, 1.0/3.0);
-            amrex::Real psi_c_m = (3.0/2.0)*std::log(y*y + y + 1.0/3.0)
+            amrex::Real psi_c_h = (3.0/2.0)*std::log(y*y + y + 1.0/3.0)
                                 - std::sqrt(3.0)*std::atan(2.0*y + 1.0/std::sqrt(3.0))
                                 + PI/std::sqrt(3.0);
             return ( (psi_k_h + zeta*zeta*psi_c_h) / (1. + zeta*zeta) );
@@ -1059,12 +1059,8 @@ struct surface_temp
         amrex::Real C        = std::log(mdata.zref / z0);
 
         // First iteration we assume neutral (L -> inf)
-        if (u_star_arr(i,j,k) == 1.E34) {
-            L = 1.0e3;
-        } else {
-            L = olen_arr(i,j,k);
-        }
-        zeta  = mdata.zref / L;
+        if (u_star_arr(i,j,k) == 1.E34) { olen_arr(i,j,k) = 1.0e3; }
+        zeta  = mdata.zref / olen_arr(i,j,k);
 
         // Bulk Richardson number
         Rib = ( (mdata.gravity * mdata.zref) / tm_arr(i,j,k) ) *
