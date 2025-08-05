@@ -38,6 +38,45 @@ struct similarity_funs
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
+    calc_psi_m2 (amrex::Real zeta, amrex::Real Rib) const
+    {
+        if (Rib > 0) {
+            amrex::Real x = std::pow(1.0 + std::pow(zeta, 2.5), 1.0/2.5);
+            return ( -6.1*std::log(zeta + x) );
+        } else {
+            amrex::Real x = std::pow(1.0 - 16.0*zeta), 0.25);
+            amrex::Real psi_k_m =  2.0 * std::log(0.5 * (1.0 + x)) + log(0.5 * (1.0 + x * x)) -
+                                   2.0 * std::atan(x) + PIoTwo;
+            amrex::Real y = std::pow(1.0 - 10.0*zeta, 1.0/3.0);
+            amrex::Real psi_c_m = (3.0/2.0)*std::log(y*y + y + 1.0/3.0)
+                                - std::sqrt(3.0)*std::atan(2.0*y + 1.0/std::sqrt(3.0))
+                                + PI/std::sqrt(3.0);
+            return ( (psi_k_m + zeta*zeta*psi_c_m) / (1. + zeta*zeta) );
+        }
+    }
+
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    calc_psi_h2 (amrex::Real zeta, amrex::Real Rib) const
+    {
+        if (Rib > 0) {
+            amrex::Real x = std::pow(1.0 + std::pow(zeta, 1.1), 1.0/1.1);
+            return ( -6.1*std::log(zeta + x) );
+        } else {
+            amrex::Real x = std::sqrt(1.0 - 16.0*zeta);
+            amrex::Real psi_k_h = 2.0 * std::log(0.5 * (1.0 + x));
+            amrex::Real y = std::pow(1.0 - 34.0*zeta, 1.0/3.0);
+            amrex::Real psi_c_m = (3.0/2.0)*std::log(y*y + y + 1.0/3.0)
+                                - std::sqrt(3.0)*std::atan(2.0*y + 1.0/std::sqrt(3.0))
+                                + PI/std::sqrt(3.0);
+            return ( (psi_k_h + zeta*zeta*psi_c_h) / (1. + zeta*zeta) );
+        }
+    }
+
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
     calc_psi_m (amrex::Real zeta) const
     {
         if (zeta > 0) {
@@ -1015,12 +1054,17 @@ struct surface_temp
         amrex::Real psi_h    = 0.0;
         amrex::Real num      = 0.0;
         amrex::Real den      = 0.0;
+        amrex::Real z0       = z0_arr(i,j,k);
         amrex::Real umm      = std::max(umm_arr(i,j,k), WSMIN);
-        amrex::Real C        = std::log(mdata.zref / z0_arr(i,j,k));
+        amrex::Real C        = std::log(mdata.zref / z0);
 
         // First iteration we assume neutral (L -> inf)
-        if (u_star_arr(i,j,k) == 1.E34) { olen_arr(i,j,k) = 1.0e3; }
-        zeta  = mdata.zref / olen_arr(i,j,k);
+        if (u_star_arr(i,j,k) == 1.E34) {
+            L = 1.0e3;
+        } else {
+            L = olen_arr(i,j,k);
+        }
+        zeta  = mdata.zref / L;
 
         // Bulk Richardson number
         Rib = ( (mdata.gravity * mdata.zref) / tm_arr(i,j,k) ) *
@@ -1032,8 +1076,8 @@ struct surface_temp
             zeta_old = zeta;
 
             // Stability functions
-            psi_m = sfuns.calc_psi_m(zeta_old);
-            psi_h = sfuns.calc_psi_h(zeta_old);
+            psi_m  = sfuns.calc_psi_m2(zeta_old, Rib);
+            psi_h  = sfuns.calc_psi_h2(zeta_old, Rib);
 
             // Limiting
             num = std::max(C - psi_m, 1.0);
@@ -1046,9 +1090,9 @@ struct surface_temp
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
-        // Populate the cached MOST arrays
+        // Populate the stored MOST arrays
         olen_arr(i,j,k)   = mdata.zref / zeta;
-        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_h);
+        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
         t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
         if (spec_qflux) {
             q_surf_arr(i,j,k) = mdata.surf_moist_flux * (C - psi_h) /
@@ -1063,7 +1107,7 @@ private:
     most_data mdata;
     bool spec_qflux;
     similarity_funs sfuns;
-    const amrex::Real tol = 0.01;
+    const amrex::Real tol = 1.0e-3;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
