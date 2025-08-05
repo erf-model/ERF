@@ -1065,6 +1065,7 @@ struct surface_temp
         // Bulk Richardson number
         Rib = ( (mdata.gravity * mdata.zref) / tm_arr(i,j,k) ) *
               ( (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (umm * umm) );
+        Rib = std::min(std::max(Rib,-4.0),4.0);
 
         // Fixed point iteration with limiting
         do {
@@ -1072,8 +1073,8 @@ struct surface_temp
             zeta_old = zeta;
 
             // Stability functions
-            psi_m = sfuns.calc_psi_m2(zeta_old, Rib);
-            psi_h = sfuns.calc_psi_h2(zeta_old, Rib);
+            psi_m = sfuns.calc_psi_m2(zeta_old);
+            psi_h = sfuns.calc_psi_h2(zeta_old);
 
             // Limiting
             num = std::max(C - psi_m, 1.0);
@@ -1087,8 +1088,8 @@ struct surface_temp
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters, "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays
-        psi_m = sfuns.calc_psi_m2(zeta, Rib);
-        psi_h = sfuns.calc_psi_h2(zeta, Rib);
+        psi_m = sfuns.calc_psi_m2(zeta);
+        psi_h = sfuns.calc_psi_h2(zeta);
         olen_arr(i,j,k)   = mdata.zref / zeta;
         u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
         t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
