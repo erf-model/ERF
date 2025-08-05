@@ -65,7 +65,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
                bool use_moist = (solverChoice.moisture_type != MoistureType::None);
                convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                   *mf_MUB[lev], *mf_C1H[lev], *mf_C2H[lev],
+                                   *mf_MUB, *mf_C1H, *mf_C2H,
                                    vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
                                    geom[lev], use_moist);
            }

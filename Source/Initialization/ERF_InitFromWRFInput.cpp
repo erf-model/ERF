@@ -188,7 +188,6 @@ ERF::init_from_wrfinput (int lev,
             {
                 for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
                 {
-                    FArrayBox& cons_fab = lev_new[Vars::cons][mfi];
                     FArrayBox* cur_fab;
                     if (var_name == "U") {
                       cur_fab  = &lev_new[Vars::xvel][mfi];

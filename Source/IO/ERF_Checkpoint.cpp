@@ -145,6 +145,24 @@ ERF::WriteCheckpointFile () const
         MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
         VisMF::Write(zvel, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
 
+        if (solverChoice.anelastic[lev] == 1) {
+            MultiFab ppinc(grids[lev],dmap[lev],1,0);
+            MultiFab::Copy(ppinc,pp_inc[lev],0,0,1,0);
+            VisMF::Write(ppinc, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PP_Inc"));
+
+            MultiFab gpx(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
+            MultiFab::Copy(gpx,gradp[lev][GpVars::gpx],0,0,1,0);
+            VisMF::Write(gpx, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Gpx"));
+
+            MultiFab gpy(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
+            MultiFab::Copy(gpy,gradp[lev][GpVars::gpy],0,0,1,0);
+            VisMF::Write(gpy, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Gpy"));
+
+            MultiFab gpz(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
+            MultiFab::Copy(gpz,gradp[lev][GpVars::gpz],0,0,1,0);
+            VisMF::Write(gpz, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Gpz"));
+        }
+
         // Note that we write the ghost cells of the base state (unlike above)
         IntVect ng_base = base_state[lev].nGrowVect();
         int  ncomp_base = base_state[lev].nComp();
@@ -234,7 +252,7 @@ ERF::WriteCheckpointFile () const
 #endif
 
         if (m_SurfaceLayer)  {
-            amrex::Print() << "Writing SurfaceLayer variables" << std::endl;
+            amrex::Print() << "Writing SurfaceLayer variables at level " << lev << std::endl;
             ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
             MultiFab   m_var(ba2d[lev],dmap[lev],1,ng);
             MultiFab* src = nullptr;
@@ -322,12 +340,11 @@ ERF::WriteCheckpointFile () const
             }
         }
 
-#ifdef ERF_USE_NETCDF
         IntVect ngv = ng; ngv[2] = 0;
 
         // Write lat/lon if it exists
         if (lat_m[lev] && lon_m[lev] && solverChoice.has_lat_lon) {
-            amrex::Print() << "Writing Lat/Lon variables" << std::endl;
+            amrex::Print() << "Writing Lat/Lon variables at level " << lev << std::endl;
             MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
             MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
             MultiFab::Copy(lat,*lat_m[lev],0,0,1,ngv);
@@ -336,9 +353,11 @@ ERF::WriteCheckpointFile () const
             VisMF::Write(lon, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LON"));
         }
 
+
+#ifdef ERF_USE_NETCDF
         // Write sinPhi and cosPhi if it exists
         if (cosPhi_m[lev] && sinPhi_m[lev] && solverChoice.variable_coriolis) {
-            amrex::Print() << "Writing Coriolis factors" << std::endl;
+            amrex::Print() << "Writing Coriolis factors at level " << lev << std::endl;
             MultiFab sphi(ba2d[lev],dmap[lev],1,ngv);
             MultiFab cphi(ba2d[lev],dmap[lev],1,ngv);
             MultiFab::Copy(sphi,*sinPhi_m[lev],0,0,1,ngv);
@@ -348,16 +367,18 @@ ERF::WriteCheckpointFile () const
         }
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
-            MultiFab tmp1d(ba1d[lev],dmap[lev],1,ngv);
-            MultiFab tmp2d(ba2d[lev],dmap[lev],1,ngv);
+            amrex::Print() << "Writing C1H/C2H/MUB variables at level " << lev << std::endl;
+            MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
-            MultiFab::Copy(tmp1d,*mf_C1H[lev],0,0,1,ngv);
+            MultiFab::Copy(tmp1d,*mf_C1H,0,0,1,0);
             VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C1H"));
 
-            MultiFab::Copy(tmp1d,*mf_C2H[lev],0,0,1,ngv);
+            MultiFab::Copy(tmp1d,*mf_C2H,0,0,1,0);
             VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
 
-            MultiFab::Copy(tmp2d,*mf_MUB[lev],0,0,1,ngv);
+            MultiFab tmp2d(ba2d[0],dmap[0],1,mf_MUB->nGrowVect());
+
+            MultiFab::Copy(tmp2d,*mf_MUB,0,0,1,mf_MUB->nGrowVect());
             VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
         }
 #endif
@@ -580,6 +601,28 @@ ERF::ReadCheckpointFile ()
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
         vars_new[lev][Vars::zvel].setBndry(1.0e34);
 
+        if (solverChoice.anelastic[lev] == 1) {
+            MultiFab ppinc(grids[lev],dmap[lev],1,0);
+            VisMF::Read(ppinc, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PP_Inc"));
+            MultiFab::Copy(pp_inc[lev],ppinc,0,0,1,0);
+            pp_inc[lev].FillBoundary(geom[lev].periodicity());
+
+            MultiFab gpx(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
+            VisMF::Read(gpx, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Gpx"));
+            MultiFab::Copy(gradp[lev][GpVars::gpx],gpx,0,0,1,0);
+            gradp[lev][GpVars::gpx].FillBoundary(geom[lev].periodicity());
+
+            MultiFab gpy(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
+            VisMF::Read(gpy, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Gpy"));
+            MultiFab::Copy(gradp[lev][GpVars::gpy],gpy,0,0,1,0);
+            gradp[lev][GpVars::gpy].FillBoundary(geom[lev].periodicity());
+
+            MultiFab gpz(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
+            VisMF::Read(gpz, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Gpz"));
+            MultiFab::Copy(gradp[lev][GpVars::gpz],gpz,0,0,1,0);
+            gradp[lev][GpVars::gpz].FillBoundary(geom[lev].periodicity());
+        }
+
         // Note that we read the ghost cells of the base state (unlike above)
 
         // The original base state only had 3 components and 1 ghost cell -- we read this
@@ -793,7 +836,6 @@ ERF::ReadCheckpointFile ()
             lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
         }
 
-#ifdef ERF_USE_NETCDF
         IntVect ngv = ng; ngv[2] = 0;
 
         // Read lat/lon if it exists
@@ -809,6 +851,7 @@ ERF::ReadCheckpointFile ()
             MultiFab::Copy(*lon_m[lev],lon,0,0,1,ngv);
         }
 
+#ifdef ERF_USE_NETCDF
         // Read sinPhi and cosPhi if it exists
         if (solverChoice.variable_coriolis) {
             amrex::Print() << "Reading Coriolis factors" << std::endl;
@@ -823,17 +866,21 @@ ERF::ReadCheckpointFile ()
         }
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
-            MultiFab tmp1d(ba1d[lev],dmap[lev],1,ngv);
-            MultiFab tmp2d(ba2d[lev],dmap[lev],1,ngv);
 
-            VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C1H"));
-            MultiFab::Copy(*mf_C1H[lev],tmp1d,0,0,1,ngv);
+            if (lev == 0) {
+                MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
-            VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C2H"));
-            MultiFab::Copy(*mf_C2H[lev],tmp1d,0,0,1,ngv);
+                VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C1H"));
+                MultiFab::Copy(*mf_C1H,tmp1d,0,0,1,0);
 
-            VisMF::Read(tmp2d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MUB"));
-            MultiFab::Copy(*mf_MUB[lev],tmp2d,0,0,1,ngv);
+                VisMF::Read(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C2H"));
+                MultiFab::Copy(*mf_C2H,tmp1d,0,0,1,0);
+
+                MultiFab tmp2d(ba2d[0],dmap[0],1,mf_MUB->nGrowVect());
+
+                VisMF::Read(tmp2d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MUB"));
+                MultiFab::Copy(*mf_MUB,tmp2d,0,0,1,mf_MUB->nGrowVect());
+            }
         }
 #endif
 

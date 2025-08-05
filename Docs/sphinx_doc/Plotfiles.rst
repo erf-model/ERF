@@ -9,10 +9,16 @@ Plotfiles
 .. toctree::
    :maxdepth: 1
 
-There are two types of plotfiles that can be written from ERF.   The first is the
-standard type of plotfile which includes data on all levels for those variables
-specified by the user in the inputs file.  The second type of plotfile contains
-data on one level only and in a specified region of the domain.   We refer to this
+There are three types of plotfiles that can be written from ERF.
+
+The first is the standard type of plotfile which includes 3D data on all levels for those variables
+specified by the user in the inputs file.
+
+The second is a pseudo-2D plotfile that contains data that is only defined as a function
+of horizontal position, such as map factors, latitude and longitude.
+
+The third type of plotfile contains
+3D data on one level only and in a specified region of the domain.   We refer to this
 latter capability as "Subvolumes" below.  The level at which the data is written
 out is determined by the mesh spacing specified by the user.
 
@@ -39,8 +45,8 @@ frequency and content of the two streams are controlled separately.
 
 .. _list-of-parameters-9:
 
-List of Parameters
-------------------
+List of Parameters for 3D Plotfiles
+-----------------------------------
 
 +-----------------------------+------------------+-----------------------+------------+
 | Parameter                   | Definition       | Acceptable            | Default    |
@@ -102,7 +108,63 @@ List of Parameters
 |                             | staggered grid.  |                       |            |
 +-----------------------------+------------------+-----------------------+------------+
 
-The analogous list for subvolumes contains the following options:
+List of Parameters for 2D Plotfiles
+-----------------------------------
+
++-----------------------------+------------------+-----------------------+--------------+
+| Parameter                   | Definition       | Acceptable            | Default      |
+|                             |                  | Values                |              |
++=============================+==================+=======================+==============+
+| **erf.plotfile_type**       | AMReX or NETCDF  | "amrex" or            | "amrex"      |
+|                             |                  | "netcdf / "NetCDF"    |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_file_1**       | prefix for       | String                | “*plt2d_1_*” |
+|                             | 2d plotfiles     |                       |              |
+|                             | at first freq.   |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_file_2**       | prefix for       | String                | “*plt2d_2_*” |
+|                             | 2d plotfiles     |                       |              |
+|                             | at seoncd freq.  |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_int_1**        | how often (by    | Integer               | -1           |
+|                             | level-0 time     | :math:`> 0`           |              |
+|                             | steps) to write  |                       |              |
+|                             | 2d plot files    |                       |              |
+|                             | at first freq.   |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_int_2**        | how often (by    | Integer               | -1           |
+|                             | level-0 time     | :math:`> 0`           |              |
+|                             | steps) to write  |                       |              |
+|                             | 2d plot files    |                       |              |
+|                             | at second freq.  |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_per_1**        | how often (in    | Real                  | -1.0         |
+|                             | simulation time) | :math:`> 0`           |              |
+|                             | to write         |                       |              |
+|                             | 2d plot files    |                       |              |
+|                             | at first freq.   |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_per_2**        | how often (in    | Real                  | -1.0         |
+|                             | simulation time) | :math:`> 0`           |              |
+|                             | to write         |                       |              |
+|                             | 2d plot files    |                       |              |
+|                             | at second freq.  |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_vars_1**       | name of          | list of names         | None         |
+|                             | variables to     |                       |              |
+|                             | include in       |                       |              |
+|                             | 2d plotfiles     |                       |              |
+|                             | at first freq.   |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.plot2d_vars_2**       | name of          | list of names         | None         |
+|                             | variables to     |                       |              |
+|                             | include in       |                       |              |
+|                             | p2d lotfiles     |                       |              |
+|                             | at second freq.  |                       |              |
++-----------------------------+------------------+-----------------------+--------------+
+
+List of Parameters for Subvolumes
+-----------------------------------
 
 +-----------------------------+-------------------+-----------------------+---------------+
 | Parameter                   | Definition        | Acceptable            | Default       |
@@ -175,8 +237,8 @@ storage of the time averaged variables with ``erf.time_avg_vel = true``.
 Subvolumes current default to plotting only the three velocity components but will
 be generalized in future.
 
-Output Options
---------------
+Output Options for 3D plotfiles
+-------------------------------
 
 +-----------------------------+------------------+
 | Parameter                   | Definition       |
@@ -254,7 +316,6 @@ Output Options
 |                             | kinetic energy   |
 |                             | (from Deardorff  |
 |                             |  or MYNN)        |
-|                             |                  |
 +-----------------------------+------------------+
 | **rhoKE**                   | Density * KE     |
 |                             |                  |

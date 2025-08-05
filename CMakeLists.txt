@@ -1,7 +1,7 @@
 ############################ BASE ######################################
 
 cmake_minimum_required (VERSION 3.14 FATAL_ERROR)
-if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAH)
+if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
   project(ERF CXX C Fortran)
 else()
   project(ERF CXX C)
@@ -36,7 +36,7 @@ option(ERF_ENABLE_HIP  "Enable HIP" OFF)
 option(ERF_ENABLE_SYCL "Enable SYCL" OFF)
 
 #Options for NOAH-MP
-option(ERF_ENABLE_NOAH "Enable Noah-MP" OFF)
+option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 
 #Option to build tools
 option(ERF_ENABLE_TOOLS "Enable building of additional tools" OFF)
@@ -164,10 +164,10 @@ endif()
 
 ########################## NOAH-MP ##################################
 
-if(ERF_ENABLE_NOAH)
+if(ERF_ENABLE_NOAHMP)
   if(ERF_ENABLE_NETCDF)
-     set(NOAHMP_HOME ${CMAKE_SOURCE_DIR}/Submodules/NOAH-MP/drivers/erf)
-     set(NOAHMP_BIN  ${CMAKE_BINARY_DIR}/Submodules/NOAH-MP/drivers/erf)
+     set(NOAHMP_HOME ${CMAKE_SOURCE_DIR}/Submodules/Noah-MP/drivers/erf)
+     set(NOAHMP_BIN  ${CMAKE_BINARY_DIR}/Submodules/Noah-MP/drivers/erf)
      add_subdirectory(${NOAHMP_HOME} ${NOAHMP_BIN})
   else()
      message(FATAL_ERROR "Noah-MP requires NetCDF be enabled")
@@ -219,7 +219,7 @@ endif()
 ########################### ERF #####################################
 
 if(ERF_ENABLE_MPI)
-  if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAH)
+  if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
     find_package(MPI COMPONENTS Fortran REQUIRED)
   else()
     find_package(MPI REQUIRED)
