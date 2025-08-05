@@ -83,28 +83,25 @@ void ERF::restartTracers ( ParGDBBase* a_gdb,
         if (species_name == ERFParticleNames::tracers)
         {
             AMREX_ASSERT(m_use_tracer_particles);
-            std::string TracerHeaderFileName(a_fname + "/tracer_particles/Header");
-            std::ofstream TracerHeaderFile;
-            TracerHeaderFile.open(TracerHeaderFileName.c_str(), std::ofstream::out | std::ofstream::trunc );
-
-            if (TracerHeaderFile.good()) {
-                ERFPC* pc = new ERFPC(a_gdb, ERFParticleNames::tracers);
-                pc->Restart(a_fname, ERFParticleNames::tracers);
+            std::string m_name = ERFParticleNames::tracers;
+            std::string HeaderFileName(a_fname + "/" + m_name + "/Header");
+            if (FileExists(HeaderFileName)) {
+                ERFPC* pc = new ERFPC(a_gdb, m_name);
+                pc->Restart(a_fname, m_name);
                 amrex::Print() << "Restarted " << pc->TotalNumberOfParticles() << " tracer particles.\n";
-                particleData.pushBack(ERFParticleNames::tracers, pc);
+                particleData.pushBack(m_name, pc);
             }
 
         } else if (species_name == ERFParticleNames::hydro) {
 
             AMREX_ASSERT(m_use_hydro_particles);
-            std::string HydroHeaderFileName(a_fname + "/hydro_particles/Header");
-            std::ofstream HydroHeaderFile;
-            HydroHeaderFile.open(HydroHeaderFileName.c_str(), std::ofstream::out | std::ofstream::trunc );
-            if (HydroHeaderFile.good()) {
-                ERFPC* pc = new ERFPC(a_gdb, ERFParticleNames::hydro);
-                pc->Restart(a_fname, ERFParticleNames::hydro);
+            std::string m_name = ERFParticleNames::hydro;
+            std::string HeaderFileName(a_fname + "/" + m_name + "/Header");
+            if (FileExists(HeaderFileName)) {
+                ERFPC* pc = new ERFPC(a_gdb, m_name);
+                pc->Restart(a_fname, m_name);
                 amrex::Print() << "Restarted " << pc->TotalNumberOfParticles() << " hydro particles.\n";
-                particleData.pushBack(ERFParticleNames::hydro, pc);
+                particleData.pushBack(m_name, pc);
             }
 
         }
