@@ -171,9 +171,9 @@ void SuperDropletsMoist::InitParticles ( MFPtr& a_z_phys_nd /*!< terrain */)
            density is not available. So, just initialize with a uniform distribution
            for now; set the radius and multiplicity from condensate density when
            Update_Micro_Vars() is called for the first time. */
-        m_super_droplets->InitializeParticles(a_z_phys_nd);
+        m_super_droplets->InitializeParticles(0.0, a_z_phys_nd);
     } else {
-        m_super_droplets->InitializeParticles(a_z_phys_nd);
+        m_super_droplets->InitializeParticles(0.0, a_z_phys_nd);
         amrex::Print() << "Initialized "
                        << m_super_droplets->NumSuperDroplets()
                        << " super-droplets representing "
