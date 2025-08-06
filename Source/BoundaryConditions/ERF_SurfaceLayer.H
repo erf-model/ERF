@@ -395,7 +395,7 @@ public:
   void
   update_fluxes (const int& lev,
                  const amrex::Real& time,
-                 int max_iters = 500);
+                 int max_iters = 100);
 
   template <typename FluxIter>
   void compute_fluxes (const int& lev,
