@@ -2,6 +2,7 @@
 #define SUPERDROPLET_PC_MASSCHANGE_H_
 
 #include <cmath>
+#include "ERF_Constants.H"
 
 #ifdef ERF_USE_PARTICLES
 
@@ -779,6 +780,269 @@ namespace SDMassChangeUtils_LV
                     a_success = false;
                     break;
 
+                }
+
+                n_step++;
+            }
+
+            return;
+        }
+
+    };
+}
+
+/*! \brief Namespace with classes and functions for deposition/sublimation
+ *  (solid <--> vapour) */
+namespace SDMassChangeUtils_SV
+{
+    /*! \brief Phase change equation (in terms of mass) */
+    template <typename RT /*!< real-type */ >
+    struct dMdt
+    {
+        RT L;       /*!< latent heat of vaporization (condensate) */
+        RT K;       /*!< thermal conductivity */
+        RT Rv;      /*!< gas constant of air with vapour */
+        RT rho_ice; /*!< True density of ice */
+
+        /*! \brief Compute growth ratio */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT growthRatio ( const RT a_T /*!< temperature */ ) const noexcept
+        {
+            // Table of the inherent growth ratio (Chen and Lamb 1994)
+            // T(n) = (1.375-n)/4. Here, T is the temperature in [degreeC], and n is the index.
+            static const RT tb_habit[121] = { 1.000000e+00, 9.799412e-01, 9.600636e-01, 9.399397e-01, 9.200258e-01,
+                                              9.001191e-01, 8.800351e-01, 8.570378e-01, 8.340652e-01, 8.109611e-01,
+                                              7.830689e-01, 7.550922e-01, 7.030723e-01, 5.370318e-01, 4.677351e-01,
+                                              5.248075e-01, 6.309573e-01, 8.128305e-01, 1.096478e+00, 1.479108e+00,
+                                              1.905461e+00, 2.089296e+00, 2.290868e+00, 2.398833e+00, 2.454709e+00,
+                                              2.426610e+00, 2.371374e+00, 2.290868e+00, 2.137962e+00, 1.995262e+00,
+                                              1.862087e+00, 1.737801e+00, 1.621810e+00, 1.513561e+00, 1.396368e+00,
+                                              1.288250e+00, 1.188502e+00, 1.096478e+00, 1.000000e+00, 9.225714e-01,
+                                              8.511380e-01, 7.852356e-01, 7.244360e-01, 6.683439e-01, 6.165950e-01,
+                                              5.754399e-01, 5.370318e-01, 5.011872e-01, 4.677351e-01, 4.365158e-01,
+                                              4.073803e-01, 3.801894e-01, 3.548134e-01, 3.311311e-01, 3.162278e-01,
+                                              3.019952e-01, 2.917427e-01, 2.851018e-01, 2.818383e-01, 2.786121e-01,
+                                              2.754229e-01, 2.786121e-01, 2.818383e-01, 2.851018e-01, 2.917427e-01,
+                                              2.985383e-01, 3.090295e-01, 3.198895e-01, 3.311311e-01, 3.467369e-01,
+                                              3.672823e-01, 3.935501e-01, 4.265795e-01, 4.570882e-01, 4.897788e-01,
+                                              5.248075e-01, 5.623413e-01, 6.095369e-01, 6.606934e-01, 7.161434e-01,
+                                              7.852356e-01, 8.609938e-01, 9.549926e-01, 1.047129e+00, 1.148154e+00,
+                                              1.258925e+00, 1.380384e+00, 1.496236e+00, 1.603245e+00, 1.698244e+00,
+                                              1.778279e+00, 1.840772e+00, 1.883649e+00, 1.905461e+00, 1.905461e+00,
+                                              1.883649e+00, 1.862087e+00, 1.840772e+00, 1.798871e+00, 1.737801e+00,
+                                              1.698244e+00, 1.640590e+00, 1.584893e+00, 1.549173e+00, 1.513910e+00,
+                                              1.476046e+00, 1.452112e+00, 1.428894e+00, 1.412863e+00, 1.393157e+00,
+                                              1.376892e+00, 1.361131e+00, 1.348963e+00, 1.336903e+00, 1.327089e+00,
+                                              1.317953e+00, 1.308881e+00, 1.302867e+00, 1.293898e+00, 1.287953e+00,
+                                              1.279087e+00 };
+
+            auto T_degC = a_T - 273.15; // [K] => [degC]
+            int n = std::min(std::max(static_cast<int>(std::round(1.375-4.0*T_degC)),1),121);
+            return tb_habit[n-1];
+
+        }
+
+        /*! \brief Compute F_k + F_d */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT Fk_plus_Fd ( const RT a_T,    /*!< temperature */
+                        const RT a_e_s,  /*!< saturation pressure */
+                        const RT a_D     /*!< mol. diffusion coeff */ ) const noexcept
+        {
+            auto F_k = (L/(Rv*a_T) - 1.0) * (L / (K*a_T));
+            auto F_d = (Rv*a_T) / (a_D*a_e_s);
+            return (F_k + F_d);
+        }
+
+        /*! \brief Compute dynamic viscosity */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT viscCoeff ( const RT a_T /*!< temperature */ ) const noexcept
+        {
+            auto T_degC = a_T - 273.15; // [K] => [degC]
+            RT visc_coeff = 0.0;
+            if( T_degC >= 0.0 ) {
+                visc_coeff = ( 1.7180 + 4.9E-3*T_degC ) * 1.E-5;
+            } else {
+                visc_coeff = ( 1.7180 + 4.9E-3*T_degC -1.2E-5*T_degC*T_degC ) * 1.E-5;
+            }
+            return visc_coeff;
+        }
+
+        /*! \brief Compute capacitance */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT capacitance( const RT a_a, /*!< equatorial radius */
+                        const RT a_c  /*!< polar radius */ ) const noexcept
+        {
+            auto phi = a_c / a_a;
+            RT capaci = 0.0;
+            if(phi >= 1.001) {
+                auto ecent = std::sqrt(1.0 - 1.0/(phi*phi));
+                capaci = ecent*a_c / std::log((1.0+ecent)*phi);
+            } else if (phi <= 0.999) {
+                auto ecent = std::sqrt(1.0 - phi*phi);
+                capaci = ecent*a_a / std::asin(ecent);
+            } else {
+                capaci = (2.0*a_a + a_c)/3.0;
+            }
+            return capaci;
+        }
+
+        /*! \brief Compute ventilation effect */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT ventX ( const RT a_a,    /*!< equatorial radius */
+                   const RT a_c,    /*!< polar radius */
+                   const RT a_vterm,/*!< terminal velocity */
+                   const RT a_T,    /*!< temperature */
+                   const RT a_rhom, /*!< moist density */
+                   const RT a_D     /*!< mol. diffusion coeff */ ) const noexcept
+        {
+            auto visc_coeff = viscCoeff(a_T);
+            auto maxdim = 2.0 * std::max(a_a, a_c);
+            auto n_re = a_rhom * maxdim * a_vterm / visc_coeff;
+            auto n_sc = visc_coeff / (a_rhom*a_D);
+            auto X_vent = std::cbrt(n_sc) * std::sqrt(n_re);
+            return X_vent;
+        }
+
+        /*! \brief Radius change */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT growthRatioStar ( const RT a_dmass,   /*!< delta mass */
+                             const RT a_a,       /*!< equatorial radius */
+                             const RT a_c,       /*!< polar radius */
+                             const RT a_vterm,   /*!< terminal velocity */
+                             const RT a_rhom,    /*!< moist air density */
+                             const RT a_T,       /*!< temperature */
+                             const RT a_D        /*!< mol. diffusion coeff */ ) const noexcept
+        {
+            auto capaci = capacitance(a_a, a_c);
+            auto X_vent = ventX(a_a, a_c, a_vterm, a_T, a_rhom, a_D);
+            RT fratio = 0.0;
+            if(X_vent <= 1.0) {
+               fratio =    (1.0 + 0.14*X_vent*X_vent*std::sqrt(a_c/capaci))
+                         / (1.0 + 0.14*X_vent*X_vent*std::sqrt(a_a/capaci));
+            } else {
+               fratio =   (0.86 + 0.28*X_vent*std::sqrt(a_c/capaci))
+                        / (0.86 + 0.28*X_vent*std::sqrt(a_a/capaci));
+            }
+
+            auto gr = growthRatio(a_T);
+            if ((2.0*std::max(a_a,a_c) < 1.0e-5) || (a_dmass <= 0.0)) { gr = 1.0; }
+            auto gr_star = gr * fratio;
+            if((a_dmass > 0.0) && (a_c/a_a > 40.0)) { gr_star = std::min(gr_star,1.0); }
+
+            return gr_star;
+        }
+
+        /*! \brief Volume change */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT dVolume ( const RT a_dmass,        /*!< delta mass */
+                     const RT a_a,            /*!< equatorial radius */
+                     const RT a_c,            /*!< polar radius */
+                     const RT a_rho,          /*!< ice density of particle */
+                     const RT a_S,            /*!< saturation ratio */
+                     const RT a_T,            /*!< temperature */
+                     const RT a_e_s,          /*!< saturation pressure */
+                     const RT a_es_ratio_wi,  /*!< ratio of saturation pressures of water to ice */
+                     const RT a_D             /*!< mol. diffusion coeff */ ) const noexcept
+        {
+            RT rho_i_ds = a_rho;
+            auto gr = growthRatio(a_T);
+            if (a_dmass > 0.0) {
+                if ((gr < 1.0) && (a_a < 1.0e-4)) {
+                    rho_i_ds = rho_ice;
+                } else {
+                    if (2.0*std::max(a_a,a_c) < 1.0e-5) { gr = 1.0; }
+                    auto ex_vap_dens = 1000.0 * (std::min(a_S,a_es_ratio_wi) - 1.0) / (Fk_plus_Fd(a_T,a_e_s,a_D) * a_D);
+                    rho_i_ds = rho_ice * std::exp(-3.0*std::max(ex_vap_dens-0.05,0.0)/gr);
+                }
+            }
+
+            auto dvol = a_dmass / rho_i_ds;
+            return dvol;
+        }
+
+        /*! \brief Radius change */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT dLogRadius ( const RT a_grstar,  /*!< growth ratio */
+                        const RT a_dlogvol  /*!< delta log volume */ ) const noexcept
+        {
+            return a_dlogvol / (a_grstar+2.0);
+        }
+
+        /*! \brief Right-hand-side of the phase change ODE */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT rhs_func ( const RT a_a,    /*!< equatorial radius */
+                      const RT a_c,    /*!< polar radius */
+                      const RT a_vterm,/*!< terminal velocity */
+                      const RT a_S,    /*!< saturation ratio */
+                      const RT a_rhom, /*!< moist density */
+                      const RT a_T,    /*!< temperature */
+                      const RT a_e_s,  /*!< saturation pressure */
+                      const RT a_D     /*!< mol. diffusion coeff */ ) const noexcept
+        {
+            auto capaci = capacitance(a_a, a_c);
+            auto X_vent = ventX(a_a, a_c, a_vterm, a_T, a_rhom, a_D);
+
+            RT f_vent = 0.0;
+            if (X_vent <= 1.0) { f_vent = 1.0 + 0.14*X_vent*X_vent; }
+            else               { f_vent = 0.86 + 0.28*X_vent; }
+
+            auto retval = 4.0*PI * capaci * (a_S-1.0) * f_vent / Fk_plus_Fd(a_T, a_e_s, a_D);
+            return retval;
+        }
+
+    };
+
+    /*! \brief Implicit and explicit time integrators for the phase change equation */
+    template<   typename ODE /*!< ODE */,
+                typename RT /*!< real-type */ >
+    struct TI
+    {
+        const ODE m_ode; /*!< ODE */
+
+        RT m_t_final;   /*!< final time */
+        mutable RT m_dt;/*!< dt */
+        RT m_max_steps; /*!< max number of timesteps */
+
+        RT m_a;         /*!< equatorial radius */
+        RT m_c;         /*!< polar radius */
+        RT m_vt;        /*!< terminal velocity */
+        RT m_S;         /*!< saturation ratio */
+        RT m_rhom;      /*!< moist density */
+        RT m_T;         /*!< temperature */
+        RT m_e_s;       /*!< saturation pressure */
+        RT m_D;         /*!< mol. diff. coeff */
+
+        bool m_verbose; /*!< verbosity */
+
+        /*! \brief 1st-order, forward Euler method */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        void fe ( RT& a_u,  /*!< solution */
+                  bool& a_success  /*!< success/failure flag */ ) const
+        {
+            RT cur_time = 0.0;
+            a_success = true;
+
+            int n_step = 0;
+            while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
+
+                if ((cur_time + m_dt) > m_t_final) {
+                    m_dt = m_t_final - cur_time;
+                }
+
+                RT rhs = m_ode.rhs_func(m_a, m_c, m_vt, m_S, m_rhom, m_T, m_e_s, m_D);
+                RT u_new = a_u + m_dt*rhs;
+                if (!std::isfinite(u_new)) {
+                    a_success = false;
+                    break;
+                }
+
+                RT snorm = std::sqrt((a_u-u_new)*(a_u-u_new)/(a_u*a_u));
+                a_u = u_new;
+                cur_time += m_dt;
+
+                if (m_verbose) {
+                    printf( "Time %1.2e, m_dt = %1.2e, mass = %1.4e, snorm = %1.1e\n",
+                            cur_time, m_dt, a_u, snorm);
                 }
 
                 n_step++;

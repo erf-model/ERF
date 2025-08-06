@@ -135,7 +135,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                         MicVar_SD::q_r,
                         MicVar_SD::q_i,
                         MicVar_SD::q_g,
-                        MicVar_SD::rh,
+                        MicVar_SD::rh_w,
                         MicVar_SD::rain_accum,
                         MicVar_SD::graup_accum,
                         MicVar_SD::snow_accum };

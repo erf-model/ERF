@@ -24,7 +24,8 @@ namespace MicVar_SD {
         q_s,         /*!< Snow */
         q_g,         /*!< Graupel */
         dqcdt,       /*!< Condensation rate */
-        rh,          /*!< relative humidity */
+        rh_w,        /*!< relative humidity (water) */
+        rh_i,        /*!< relative humidity (ice) */
         rain_accum,  /*!< rain accumulation (mm) */
         graup_accum,  /*!< rain accumulation (mm) */
         snow_accum,  /*!< snow accumulation (mm) */
@@ -285,6 +286,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! \brief Freezing/melting for water */
         virtual void phaseChange_SL_w (const Real&, const Vector<MFPtr>&);
+
+        /*! \brief Deposition/sublimation for ice */
+        virtual void phaseChange_SV_i (const Real&, const Vector<MFPtr>&);
 
         virtual void GetPlotVarNames (Vector<std::string>& a_names) const override
         {

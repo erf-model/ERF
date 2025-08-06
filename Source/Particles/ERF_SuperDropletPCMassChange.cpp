@@ -471,4 +471,230 @@ void SuperDropletPC::MassChange_SL (  int                                       
 
 }
 
+/*! Compute mass change of particles due to deposition and sublimation
+ *  (solid <--> vapour) */
+void SuperDropletPC::MassChange_SV (  int                                      a_lev,
+                                      Real                                     a_dt,
+                                      const MultiFab&                          a_density,
+                                      const MultiFab&                          a_temperature,
+                                      const MultiFab&                          a_pressure,
+                                      const MultiFab&                          a_moist_density,
+                                      const MultiFab&                          a_sat_pressure,
+                                      const MultiFab&                          a_sat_pressure_wi,
+                                      const MultiFab&                          a_sat_ratio,
+                                      const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd )
+{
+    using namespace SDMassChangeUtils_SV;
+
+    BL_PROFILE("SuperDropletPC::MassChange_SV()");
+    AMREX_ASSERT( a_lev == m_lev );
+
+    const Geometry& geom = m_gdb->Geom(a_lev);
+    const auto plo = geom.ProbLoArray();
+    const auto dxi = geom.InvCellSizeArray();
+
+    const auto is_periodic = geom.isPeriodic();
+    auto is_periodic_z = is_periodic[2];
+
+    const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
+
+    const int num_sp  = m_num_species;
+    const int num_ae = m_num_aerosols;
+
+    const Real rho_w = m_species_mat[m_idx_w]->m_density;
+    const int idx_w = m_idx_w;
+    const int idx_i = m_idx_i;
+    AMREX_ALWAYS_ASSERT((idx_w >= 0) && (idx_i >= 0) && (idx_w != idx_i));
+    const auto mat_prop(*(m_species_mat[idx_i]));
+
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
+        int grid = pti.index();
+        auto& ptile = ParticlesAt(a_lev, pti);
+        auto& aos = ptile.GetArrayOfStructs();
+        auto& soa = ptile.GetStructOfArrays();
+        const int num_particles = aos.numParticles();
+        auto* p_pbox = aos().data();
+
+        auto zheight = (*z_height)[grid].array();
+        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
+        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
+        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
+        auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
+        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data();
+        auto* c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data();
+        auto* rhoi_ptr = soa.GetRealData(idx_ice_rho(num_ae,num_sp)).data();
+        auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data();
+
+        SDSpeciesMassArr sp_mass_ptrs;
+        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
+        Gpu::DeviceVector<int> sp_solubility(num_sp);
+        {
+            Vector<ParticleReal> sp_density_h(num_sp);
+            Vector<int> sp_solubility_h(num_sp);
+            for (int i = 0; i < num_sp; i++) {
+                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
+                sp_density_h[i] = m_species_mat[i]->m_density;
+                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        sp_density_h.begin(),
+                        sp_density_h.end(),
+                        sp_density.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        sp_solubility_h.begin(),
+                        sp_solubility_h.end(),
+                        sp_solubility.begin() );
+        }
+
+        SDAerosolMassArr ae_mass_ptrs;
+        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
+        Gpu::DeviceVector<int> ae_solubility(num_ae);
+        {
+            Vector<ParticleReal> ae_density_h(num_ae);
+            Vector<int> ae_solubility_h(num_ae);
+            for (int i = 0; i < num_ae; i++) {
+                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
+                ae_density_h[i] = m_aerosol_mat[i]->m_density;
+                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        ae_density_h.begin(),
+                        ae_density_h.end(),
+                        ae_density.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        ae_solubility_h.begin(),
+                        ae_solubility_h.end(),
+                        ae_solubility.begin() );
+        }
+
+        const auto& sat_pressure_arr = a_sat_pressure[grid].array();
+        const auto& sat_pressure_wi_arr = a_sat_pressure_wi[grid].array();
+        const auto& sat_ratio_arr = a_sat_ratio[grid].array();
+        const auto& density_arr = a_density[grid].array();
+        const auto& temperature_arr = a_temperature[grid].array();
+        const auto& pressure_arr = a_pressure[grid].array();
+        const auto& moist_density_arr = a_moist_density[grid].array();
+
+        dMdt<ParticleReal> dmdt{ mat_prop.m_lat_vap,
+                                 therco, /* ERF_Constants.H */
+                                 mat_prop.m_Rv,
+                                 mat_prop.m_density };
+
+        auto sp_rho_arr = sp_density.data();
+        auto sp_sol_arr = sp_solubility.data();
+        auto ae_rho_arr = ae_density.data();
+        auto ae_sol_arr = ae_solubility.data();
+
+        ParallelFor(num_particles, [=] AMREX_GPU_DEVICE (int i)
+        {
+            ParticleType& p = p_pbox[i];
+            if (p.id() <= 0) { return; }
+            if (mult_ptr[i] == 0.0) { return; }
+
+            // skip water particles
+            auto par_phase = SD_phase(i, idx_w, idx_i, sp_mass_ptrs);
+            if (par_phase == SDPhase::water) { return; }
+
+            ParticleReal sat_ratio, e_sat, e_sat_ratio_wi, density, temperature, pressure, moist_density;
+            if (is_periodic_z) {
+                cic_interpolate( p, plo, dxi, sat_pressure_arr, &e_sat, 1 );
+                cic_interpolate( p, plo, dxi, sat_pressure_wi_arr, &e_sat_ratio_wi, 1 );
+                cic_interpolate( p, plo, dxi, sat_ratio_arr, &sat_ratio, 1 );
+                cic_interpolate( p, plo, dxi, density_arr, &density, 1 );
+                cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
+                cic_interpolate( p, plo, dxi, pressure_arr, &pressure, 1 );
+                cic_interpolate( p, plo, dxi, moist_density_arr, &moist_density, 1 );
+            } else {
+                cic_interpolate_mapped_z( p, plo, dxi, sat_pressure_arr, zheight, &e_sat, 1 );
+                cic_interpolate_mapped_z( p, plo, dxi, sat_pressure_wi_arr, zheight, &e_sat_ratio_wi, 1 );
+                cic_interpolate_mapped_z( p, plo, dxi, sat_ratio_arr, zheight, &sat_ratio, 1 );
+                cic_interpolate_mapped_z( p, plo, dxi, density_arr, zheight, &density, 1 );
+                cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
+                cic_interpolate_mapped_z( p, plo, dxi, pressure_arr, zheight, &pressure, 1 );
+                cic_interpolate_mapped_z( p, plo, dxi, moist_density_arr, zheight, &moist_density, 1 );
+            }
+
+            auto coeff_moldiff = mat_prop.coeffMolecularDiffusion(temperature, pressure);
+
+            TI< dMdt<ParticleReal>,
+                ParticleReal > ti { dmdt, a_dt, a_dt, 100,
+                                    a_ptr[i], c_ptr[i], vterm_ptr[i],
+                                    sat_ratio, moist_density, temperature, e_sat,
+                                    coeff_moldiff,
+                                    false };
+
+            auto mass_old = sp_mass_ptrs[idx_i][i];
+            auto vol_old = (4.0/3.0) * PI * a_ptr[i]*a_ptr[i]*c_ptr[i];
+            AMREX_ALWAYS_ASSERT(mass_old == vol_old*rhoi_ptr[i]);
+
+            // compute new mass
+            bool success = false;
+            auto mass_new = mass_old;
+            ti.fe(mass_new, success);
+            AMREX_ALWAYS_ASSERT(success);
+            mass_new = std::max(mass_new, 3.8403e-24); // lower limit: 1nm spherical ice particle
+            auto d_mass = mass_new - mass_old;
+
+            // compute new volume
+            auto d_vol = dmdt.dVolume(  d_mass, a_ptr[i], c_ptr[i], rhoi_ptr[i],
+                                        sat_ratio, temperature,  e_sat, e_sat_ratio_wi,
+                                        coeff_moldiff );
+            auto vol_new = vol_old + d_vol;
+            vol_new = std::max(vol_new, mass_new/mat_prop.m_density);
+            d_vol = vol_new - vol_old;
+            auto rhoi_new = mass_new / vol_new;
+
+            // compute growth ratio and new radii
+            auto gr_star = dmdt.growthRatioStar( d_mass,
+                                                 a_ptr[i], c_ptr[i], vterm_ptr[i],
+                                                 moist_density, temperature, coeff_moldiff );
+            auto d_loga = dmdt.dLogRadius(gr_star, std::log(vol_new/vol_old));
+            auto a_new = a_ptr[i] * std::exp(d_loga);
+            auto c_new = c_ptr[i] * std::exp(gr_star*d_loga);
+
+            // Smaller than 1 um --> sphere with true ice density
+            if (std::min(a_new,c_new) <= 1.0e-6) {
+                rhoi_new = mat_prop.m_density;
+                vol_new = mass_new / rhoi_new;
+                c_new = a_new = std::cbrt(vol_new/(4.0*PI/3.0));
+            }
+            // limit particle size to 1 nm
+            if (std::min(a_new,c_new) <= 1.0e-9 ) {
+                c_new = a_new = 1.0e-9;
+                rhoi_new = mat_prop.m_density;
+                vol_new = (4.0/3.0)*PI*a_new*a_new*c_new;
+                mass_new = vol_new * rhoi_new;
+            }
+
+            // rime mass
+            auto mrime_new = mrime_ptr[i];
+            if (d_mass <= 0.0) { mrime_new = mrime_ptr[i] * mass_new/mass_old; }
+
+            // update attributes
+            a_ptr[i] = a_new;
+            c_ptr[i] = c_new;
+            rhoi_ptr[i] = rhoi_new;
+            mrime_ptr[i] = mrime_new;
+            sp_mass_ptrs[idx_i][i] = mass_new;
+
+            // update total mass
+            mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+            // update effective radius
+            radius_ptr[i] = SD_effective_radius( i, idx_w,
+                                                 rho_w,
+                                                 num_sp, num_ae,
+                                                 sp_sol_arr, ae_sol_arr,
+                                                 sp_mass_ptrs, ae_mass_ptrs,
+                                                 sp_rho_arr, ae_rho_arr );
+
+        });
+        Gpu::synchronize();
+    }
+
+}
+
 #endif

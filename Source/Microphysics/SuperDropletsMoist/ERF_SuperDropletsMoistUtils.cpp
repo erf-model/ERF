@@ -12,7 +12,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
     const auto& gvec = a_cons_vars.nGrowVect();
 
     // Copy density and vapour mixing ratio from state variables
-    // Note: do *not* copy qc
+    // Note: do *not* copy other q
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
         Box bx = mfi.tilebox();
         bx.grow(gvec);
@@ -84,24 +84,50 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
     AMREX_ASSERT( !m_mic_fab_vars[MicVar_SD::pressure]->contains_nan() );
     AMREX_ASSERT( !m_mic_fab_vars[MicVar_SD::temperature]->contains_nan() );
 
-    // water
+    // compute saturation ratio for water
     {
         // Get vapour material properties object for water
         auto& vapour_mat = m_super_droplets->getSpeciesMaterial(Species::Name::H2O);
 
         // Compute saturation ratio
-        vapour_mat.computeSaturationVapFrac( (*m_mic_fab_vars[MicVar_SD::rh]),
+        vapour_mat.computeSaturationVapFrac( (*m_mic_fab_vars[MicVar_SD::rh_w]),
                                              (*m_mic_fab_vars[MicVar_SD::temperature]),
                                              (*m_mic_fab_vars[MicVar_SD::pressure]) );
 
-        for (   MFIter mfi((*m_mic_fab_vars[MicVar_SD::rh]),
+        for (   MFIter mfi((*m_mic_fab_vars[MicVar_SD::rh_w]),
                 TilingIfNotGPU()); mfi.isValid();
                 ++mfi ) {
 
             Box bx = mfi.tilebox();
-            bx.grow( m_mic_fab_vars[MicVar_SD::rh]->nGrowVect() );
+            bx.grow( m_mic_fab_vars[MicVar_SD::rh_w]->nGrowVect() );
 
-            const Array4<Real>& sr_arr = m_mic_fab_vars[MicVar_SD::rh]->array(mfi);
+            const Array4<Real>& sr_arr = m_mic_fab_vars[MicVar_SD::rh_w]->array(mfi);
+            const Array4<Real const>& qv_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            { sr_arr(i,j,k,0) = qv_arr(i,j,k,0) / sr_arr(i,j,k,0); });
+
+        }
+    }
+
+    // compute saturation ratio for ice
+    if (m_with_ice) {
+        // Get vapour material properties object for ice
+        auto& vapour_mat = m_super_droplets->getSpeciesMaterial(Species::Name::ice);
+
+        // Compute saturation ratio
+        vapour_mat.computeSaturationVapFrac( (*m_mic_fab_vars[MicVar_SD::rh_i]),
+                                             (*m_mic_fab_vars[MicVar_SD::temperature]),
+                                             (*m_mic_fab_vars[MicVar_SD::pressure]) );
+
+        for (   MFIter mfi((*m_mic_fab_vars[MicVar_SD::rh_i]),
+                TilingIfNotGPU()); mfi.isValid();
+                ++mfi ) {
+
+            Box bx = mfi.tilebox();
+            bx.grow( m_mic_fab_vars[MicVar_SD::rh_i]->nGrowVect() );
+
+            const Array4<Real>& sr_arr = m_mic_fab_vars[MicVar_SD::rh_i]->array(mfi);
             const Array4<Real const>& qv_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept

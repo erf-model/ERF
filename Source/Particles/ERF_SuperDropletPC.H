@@ -162,6 +162,18 @@ class SuperDropletPC : public ERFPC
                                     const amrex::MultiFab&,
                                     const amrex::Vector<MFPtr>& );
 
+        /*! \brief Deposition and sublimation growth/shrinking for one time step */
+        virtual void MassChange_SV (int,
+                                    amrex::Real,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::Vector<MFPtr>& );
+
         /*! \brief Coalescence of super-droplets */
         virtual void Coalescence (  int,
                                     amrex::Real,
