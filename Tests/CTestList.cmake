@@ -210,6 +210,10 @@ add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "MoistRegTests/Bubble" "erf_bubble"
 add_test_sdm(SDM_Bubble2D_Adv                "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 1e-12 1e-12)
 # condensation/evaporation
 add_test_sdm(SDM_Box3D_Cond                  "MoistRegTests/Bubble" "erf_bubble"   "plt00010" 1e-14 2e-13)
+# ice freezing + deposition          
+add_test_sdm(SDM_Box3D_IceFrzDep             "MoistRegTests/Bubble" "erf_bubble"   "plt00010" 1e-14 2e-13)
+# ice sublimation         
+add_test_sdm(SDM_Box3D_IceSub                "MoistRegTests/Bubble" "erf_bubble"   "plt00010" 1e-14 2e-13)
 # terminal velocity
 add_test_sdm(SDM_Box3D_VTerm                 "MoistRegTests/Bubble" "erf_bubble"   "plt00001" 5e-13 1e-14)
 # Congestus case
