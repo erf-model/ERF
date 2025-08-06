@@ -735,7 +735,6 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
             auto* Tfz_ptr = soa.GetRealData(idx_ice_Tfz(num_ae,num_sp)).data() + size_old;
             auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data() + size_old;
             auto* c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data() + size_old;
-            auto* rho_ptr = soa.GetRealData(idx_ice_rho(num_ae,num_sp)).data() + size_old;
             auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data() + size_old;
             auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data() + size_old;
 
@@ -743,7 +742,6 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
             {
                 Tfz_ptr[i] = 235.15; // -38 degrees Celsius
                 a_ptr[i] = c_ptr[i] = 0.0;
-                rho_ptr[i] = 0.0;
                 mrime_ptr[i] = 0.0;
                 nmono_ptr[i] = 0.0;
             });

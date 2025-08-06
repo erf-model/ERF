@@ -358,7 +358,6 @@ void SuperDropletPC::MassChange_SL (  int                                       
         auto* Tfz_ptr = soa.GetRealData(idx_ice_Tfz(num_ae,num_sp)).data();
         auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data();
         auto* c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data();
-        auto* rhoi_ptr = soa.GetRealData(idx_ice_rho(num_ae,num_sp)).data();
         auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data();
         auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data();
 
@@ -439,7 +438,6 @@ void SuperDropletPC::MassChange_SL (  int                                       
                     sp_mass_ptrs[idx_i][i] = sp_mass_ptrs[idx_w][i];
                     sp_mass_ptrs[idx_w][i] = 0.0;
                     a_ptr[i] = c_ptr[i] = std::cbrt(sp_mass_ptrs[idx_i][i]/(4.0/3.0*PI*rho_i));
-                    rhoi_ptr[i] = rho_i;
                     mrime_ptr[i] = 0.0;
                     nmono_ptr[i] = 1.0;
                 }
@@ -450,7 +448,7 @@ void SuperDropletPC::MassChange_SL (  int                                       
                 if (temperature > tmelt /* from ERF_Constants.H */) {
                     sp_mass_ptrs[idx_w][i] = sp_mass_ptrs[idx_i][i];
                     sp_mass_ptrs[idx_i][i] = 0.0;
-                    a_ptr[i] = c_ptr[i] = rhoi_ptr[i] = mrime_ptr[i] = nmono_ptr[i] = 0.0;
+                    a_ptr[i] = c_ptr[i] = mrime_ptr[i] = nmono_ptr[i] = 0.0;
                 }
 
             } else {
@@ -527,7 +525,6 @@ void SuperDropletPC::MassChange_SV (  int                                      a
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
         auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data();
         auto* c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data();
-        auto* rhoi_ptr = soa.GetRealData(idx_ice_rho(num_ae,num_sp)).data();
         auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data();
 
         SDSpeciesMassArr sp_mass_ptrs;
@@ -630,10 +627,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
 
             auto mass_old = sp_mass_ptrs[idx_i][i];
             auto vol_old = (4.0/3.0) * PI * a_ptr[i]*a_ptr[i]*c_ptr[i];
-            {
-                auto err = std::sqrt(((mass_old-vol_old*rhoi_ptr[i])/mass_old)*((mass_old-vol_old*rhoi_ptr[i])/mass_old));
-                AMREX_ALWAYS_ASSERT(err < 1.0e-12);
-            }
+            auto rhoi_old = mass_old / vol_old;
 
             // compute new mass
             bool success = false;
@@ -644,7 +638,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             auto d_mass = mass_new - mass_old;
 
             // compute new volume
-            auto d_vol = dmdt.dVolume(  d_mass, a_ptr[i], c_ptr[i], rhoi_ptr[i],
+            auto d_vol = dmdt.dVolume(  d_mass, a_ptr[i], c_ptr[i], rhoi_old,
                                         sat_ratio, temperature,  e_sat, e_sat_ratio_wi,
                                         coeff_moldiff );
             auto vol_new = vol_old + d_vol;
@@ -681,7 +675,6 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             // update attributes
             a_ptr[i] = a_new;
             c_ptr[i] = c_new;
-            rhoi_ptr[i] = rhoi_new;
             mrime_ptr[i] = mrime_new;
             sp_mass_ptrs[idx_i][i] = mass_new;
 

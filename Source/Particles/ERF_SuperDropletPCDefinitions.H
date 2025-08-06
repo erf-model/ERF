@@ -8,6 +8,7 @@
 #include <AMReX_REAL.H>
 #include <AMReX_Particles.H>
 #include "ERF_IndexDefines.H"
+#include "ERF_Constants.H"
 #include "ERFPC.H"
 #include "ERF_SDInitialization.H"
 
@@ -46,7 +47,6 @@ struct SDIceRealIdxSoA_RT
         T_fz = 0,   /*!< freezing temperature */
         a,          /*!< equatorial radius */
         c,          /*!< porous radius */
-        rho,        /*!< apparent density */
         m_rime,     /*!< rime mass */
         n_mono,     /*!< number of primary ice crystals */
         ncomps
@@ -125,16 +125,6 @@ static int ridx_ice_c(const int a_num_a, /*!< Number of aerosols */
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int ridx_ice_rho(const int a_num_a, /*!< Number of aerosols */
-                        const int a_num_s  /*!< Number of species */)
-{
-    return   SuperDropletsRealIdxSoA_RT::ncomps
-           + a_num_a
-           + a_num_s
-           + SDIceRealIdxSoA_RT::rho;
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int ridx_ice_mrime(const int a_num_a, /*!< Number of aerosols */
                           const int a_num_s  /*!< Number of species */)
 {
@@ -176,13 +166,6 @@ static int idx_ice_c(const int a_num_a, /*!< Number of aerosols */
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int idx_ice_rho(const int a_num_a, /*!< Number of aerosols */
-                       const int a_num_s  /*!< Number of species */)
-{
-    return SuperDropletsRealIdxSoA::ncomps + ridx_ice_rho(a_num_a,a_num_s);
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int idx_ice_mrime(const int a_num_a, /*!< Number of aerosols */
                          const int a_num_s  /*!< Number of species */)
 {
@@ -194,6 +177,20 @@ static int idx_ice_nmono(const int a_num_a, /*!< Number of aerosols */
                          const int a_num_s  /*!< Number of species */)
 {
     return SuperDropletsRealIdxSoA::ncomps + ridx_ice_nmono(a_num_a,a_num_s);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static auto ice_rho(const amrex::ParticleReal a_a, /*!< polar radius */
+                    const amrex::ParticleReal a_c, /*!< equatorial radius */
+                    const amrex::ParticleReal a_mass /*!< mass */ )
+{
+    auto vol = (4.0/3.0)*PI*a_a*a_a*a_c;
+    if (vol == 0.0) {
+        AMREX_ALWAYS_ASSERT(a_mass == 0.0);
+        return 0.0;
+    } else {
+        return a_mass/vol;
+    }
 }
 
 /*! \brief Compute total mass of a droplet from its components */

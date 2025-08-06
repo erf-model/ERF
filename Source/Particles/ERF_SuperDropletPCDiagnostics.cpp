@@ -391,6 +391,8 @@ void SuperDropletPC::Diagnostics( const int a_iter,
 
     if (m_idx_i >= 0) {
 
+        auto idx_i = m_idx_i;
+
         auto min_par_Tfz = ReduceMin( *this,
                                       [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       { return ptd.m_runtime_rdata[ridx_ice_Tfz(na,ns)][i]; } );
@@ -441,17 +443,27 @@ void SuperDropletPC::Diagnostics( const int a_iter,
 
         auto min_par_rho = ReduceMin( *this,
                                       [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                      { return ptd.m_runtime_rdata[ridx_ice_rho(na,ns)][i]; } );
+                                      {
+                                          return ice_rho( ptd.m_runtime_rdata[ridx_ice_a(na,ns)][i],
+                                                          ptd.m_runtime_rdata[ridx_ice_c(na,ns)][i],
+                                                          ptd.m_runtime_rdata[ridx_s(idx_i,na,ns)][i]);
+                                      } );
 
         auto max_par_rho = ReduceMax( *this,
                                       [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                      { return ptd.m_runtime_rdata[ridx_ice_rho(na,ns)][i]; } );
+                                      {
+                                          return ice_rho( ptd.m_runtime_rdata[ridx_ice_a(na,ns)][i],
+                                                          ptd.m_runtime_rdata[ridx_ice_c(na,ns)][i],
+                                                          ptd.m_runtime_rdata[ridx_s(idx_i,na,ns)][i]);
+                                      } );
 
         auto avg_par_rho = ReduceSum( *this,
                                       [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       {
                                           auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                          auto r = ptd.m_runtime_rdata[ridx_ice_rho(na,ns)][i];
+                                          auto r = ice_rho(ptd.m_runtime_rdata[ridx_ice_a(na,ns)][i],
+                                                           ptd.m_runtime_rdata[ridx_ice_c(na,ns)][i],
+                                                           ptd.m_runtime_rdata[ridx_s(idx_i,na,ns)][i]);
                                           return n*r;
                                       } );
 

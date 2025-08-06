@@ -90,11 +90,10 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
-        const ParticleReal *a_ptr(nullptr), *c_ptr(nullptr), *rhoi_ptr(nullptr);
+        const ParticleReal *a_ptr(nullptr), *c_ptr(nullptr);
         if (idx_i >= 0) {
             a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data();
             c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data();
-            rhoi_ptr = soa.GetRealData(idx_ice_rho(num_ae,num_sp)).data();
         }
 
         SDSpeciesMassArr sp_mass_ptrs;
@@ -213,7 +212,8 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 } else if (vterm_type_i == SDTerminalVelocityType::IceBohm) {
                     auto m_total = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
                     terminal_vel = term_vel.IceBohm( m_total,
-                                                     a_ptr[i], c_ptr[i], rhoi_ptr[i],
+                                                     a_ptr[i], c_ptr[i],
+                                                     ice_rho(a_ptr[i],c_ptr[i],sp_mass_ptrs[idx_i][i]),
                                                      density, temperature );
                 } else {
                     amrex::Abort("Invalid option for ice particle terminal velocity model");
