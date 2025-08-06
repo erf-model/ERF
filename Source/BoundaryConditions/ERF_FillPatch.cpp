@@ -125,7 +125,7 @@ ERF::FillPatch (int lev, Real time,
             }
         }
 
-        // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
         FillPatchTwoLevels(mf_c, ngvect_cons, IntVect(0,0,0),
                            time, cmf, ctime, fmf, ftime,
                            0, 0, mf_c.nComp(), geom[lev-1], geom[lev],
@@ -195,7 +195,7 @@ ERF::FillPatch (int lev, Real time,
             fmf = {&vars_old[lev  ][Vars::xvel], &vars_new[lev  ][Vars::xvel]};
             cmf = {&vars_old[lev-1][Vars::xvel], &vars_new[lev-1][Vars::xvel]};
 
-            // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
+            // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mf_u, ngvect_vels, IntVect(0,0,0),
                                time, cmf, ctime, fmf, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
@@ -207,7 +207,7 @@ ERF::FillPatch (int lev, Real time,
             fmf = {&vars_old[lev  ][Vars::yvel], &vars_new[lev  ][Vars::yvel]};
             cmf = {&vars_old[lev-1][Vars::yvel], &vars_new[lev-1][Vars::yvel]};
 
-            // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
+            // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mf_v, ngvect_vels, IntVect(0,0,0),
                                time, cmf, ctime, fmf, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
@@ -219,7 +219,7 @@ ERF::FillPatch (int lev, Real time,
             fmf = {&vars_old[lev  ][Vars::zvel], &vars_new[lev  ][Vars::zvel]};
             cmf = {&vars_old[lev-1][Vars::zvel], &vars_new[lev-1][Vars::zvel]};
 
-            // Call FillPatchTwoLevels which ASSUMES that all ghost cells have already been filled
+            // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mf_w, ngvect_vels, IntVect(0,0,0),
                                time, cmf, ctime, fmf, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],

@@ -361,7 +361,8 @@ public:
     void derive_upwp (amrex::Vector<amrex::Real>& h_havg);
 
     // Write plotfile to disk
-    void WritePlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
+    void Write3DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
+    void Write2DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
 
     // Write subvolume of data into a different "plotfile"
     void WriteSubvolume  ();
@@ -481,10 +482,10 @@ public:
 
 #ifdef ERF_USE_NETCDF
     void init_from_wrfinput (int lev,
-                             amrex::MultiFab& mu_C1H,
-                             amrex::MultiFab& mu_C2H,
-                             amrex::MultiFab& mu_MUB,
-                             amrex::MultiFab& mu_PSFC);
+                             amrex::MultiFab& mf_C1H,
+                             amrex::MultiFab& mf_C2H,
+                             amrex::MultiFab& mf_MUB,
+                             amrex::MultiFab& mf_PSFC);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
 #endif // ERF_USE_NETCDF
@@ -679,8 +680,9 @@ private:
 
     amrex::Vector<amrex::FArrayBox> low_data_zlo;
 
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;       // Latitude and Longitude on the grid
 #endif // ERF_USE_NETCDF
+
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;       // Latitude and Longitude on the grid
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
@@ -905,8 +907,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
 
-    int last_plot_file_step_1;
-    int last_plot_file_step_2;
+    int last_plot3d_file_step_1;
+    int last_plot3d_file_step_2;
+    int last_plot2d_file_step_1;
+    int last_plot2d_file_step_2;
     int last_subvol;
 
     int last_check_file_step;
@@ -954,15 +958,21 @@ private:
     bool regrid_level_0_on_restart = false;
 
     // plotfile prefix and frequency
-    std::string plot_file_1 {"plt_1_"};
-    std::string plot_file_2 {"plt_2_"};
+    std::string plot3d_file_1 {"plt_1_"};
+    std::string plot3d_file_2 {"plt_2_"};
+    std::string plot2d_file_1 {"plt2d_1_"};
+    std::string plot2d_file_2 {"plt2d_2_"};
     std::string subvol_file {"subvol"};
     bool m_expand_plotvars_to_unif_rr = false;
-    int m_plot_int_1 = -1;
-    int m_plot_int_2 = -1;
+    int m_plot3d_int_1 = -1;
+    int m_plot3d_int_2 = -1;
+    int m_plot2d_int_1 = -1;
+    int m_plot2d_int_2 = -1;
     int m_subvol_int = -1;
-    amrex::Real m_plot_per_1 = -1.0;
-    amrex::Real m_plot_per_2 = -1.0;
+    amrex::Real m_plot3d_per_1 = -1.0;
+    amrex::Real m_plot3d_per_2 = -1.0;
+    amrex::Real m_plot2d_per_1 = -1.0;
+    amrex::Real m_plot2d_per_2 = -1.0;
     amrex::Real m_subvol_per = -1.0;
     bool m_plot_face_vels = false;
 
@@ -977,8 +987,10 @@ private:
     int m_check_int = -1;
     amrex::Real m_check_per = -1.0;
 
-    amrex::Vector<std::string> plot_var_names_1;
-    amrex::Vector<std::string> plot_var_names_2;
+    amrex::Vector<std::string> plot3d_var_names_1;
+    amrex::Vector<std::string> plot3d_var_names_2;
+    amrex::Vector<std::string> plot2d_var_names_1;
+    amrex::Vector<std::string> plot2d_var_names_2;
     const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoadv_0",
                                                      "rhoQ1", "rhoQ2", "rhoQ3",
                                                      "rhoQ4", "rhoQ5", "rhoQ6"};
@@ -995,7 +1007,7 @@ private:
                                                     "num_turb", "SMark0", "SMark1",
 #endif
                                                     "dpdx", "dpdy", "dpdz", "pres_hse_x", "pres_hse_y",
-                                                    "z_phys", "detJ" , "mapfac", "lat_m", "lon_m",
+                                                    "z_phys", "detJ", "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
                                                     "u_t_avg", "v_t_avg", "w_t_avg", "umag_t_avg",
                                                     // eddy viscosity
@@ -1047,7 +1059,8 @@ private:
 
     /*! Initialize tracer and hydro particles */
     void initializeTracers ( amrex::ParGDBBase*,
-                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&,
+                             const amrex::Real time);
 
     /*! Restart tracer and hydro particles */
     void restartTracers ( amrex::ParGDBBase*, const std::string& );
@@ -1074,8 +1087,10 @@ private:
     static amrex::Real sum_per;
 
     // Write in native AMReX or NetCDF format for each plotfile
-    static PlotFileType plotfile_type_1;
-    static PlotFileType plotfile_type_2;
+    static PlotFileType plotfile3d_type_1;
+    static PlotFileType plotfile3d_type_2;
+    static PlotFileType plotfile2d_type_1;
+    static PlotFileType plotfile2d_type_2;
 
     static StateInterpType interpolation_type;
 
@@ -1111,9 +1126,10 @@ private:
 
     amrex::Vector<amrex::BoxArray> ba1d;
     amrex::Vector<amrex::BoxArray> ba2d;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C1H;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C2H;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_MUB;
+    std::unique_ptr<amrex::MultiFab> mf_C1H;
+    std::unique_ptr<amrex::MultiFab> mf_C2H;
+    std::unique_ptr<amrex::MultiFab> mf_MUB;
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_PSFC;
 
     // 1D CDF output (for ingestion in AMR-Wind)

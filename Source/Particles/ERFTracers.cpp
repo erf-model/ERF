@@ -29,7 +29,8 @@ void ERF::readTracersParams ()
 
 /*! Initialize tracer and hydro particles */
 void ERF::initializeTracers ( ParGDBBase* a_gdb,
-                              const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd )
+                              const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd,
+                              const Real time)
 {
     auto& namelist_unalloc( particleData.getNamesUnalloc() );
 
@@ -37,27 +38,34 @@ void ERF::initializeTracers ( ParGDBBase* a_gdb,
 
         std::string species_name( *it );
 
-        if (species_name == ERFParticleNames::tracers) {
+        if ( (species_name == ERFParticleNames::tracers) && (!particleData.HasSpecies(species_name)) ) {
 
             AMREX_ASSERT(m_use_tracer_particles);
             ERFPC* pc = new ERFPC(a_gdb, ERFParticleNames::tracers);
-            pc->InitializeParticles(a_z_phys_nd[0]);
-            amrex::Print() << "Initialized " << pc->TotalNumberOfParticles() << " tracer particles.\n";
-            particleData.pushBack(ERFParticleNames::tracers, pc);
+            pc->InitializeParticles(time,a_z_phys_nd[0]);
+            if (pc->TotalNumberOfParticles() > 0) {
+                amrex::Print() << "Initialized " << pc->TotalNumberOfParticles() << " tracer particles.\n";
+                particleData.pushBack(ERFParticleNames::tracers, pc);
+            }
 
-        } else if (species_name == ERFParticleNames::hydro) {
+        } else if ( (species_name == ERFParticleNames::hydro) && !particleData.HasSpecies(species_name)) {
 
             AMREX_ASSERT(m_use_hydro_particles);
             ERFPC* pc = new ERFPC(a_gdb, ERFParticleNames::hydro);
-            pc->InitializeParticles(a_z_phys_nd[0]);
-            amrex::Print() << "Initialized " << pc->TotalNumberOfParticles() << " hydro particles.\n";
-            particleData.pushBack(ERFParticleNames::hydro, pc);
-
+            pc->InitializeParticles(time,a_z_phys_nd[0]);
+            if (pc->TotalNumberOfParticles() > 0) {
+                amrex::Print() << "Initialized " << pc->TotalNumberOfParticles() << " hydro particles.\n";
+                particleData.pushBack(ERFParticleNames::hydro, pc);
+            }
         }
     }
 
-    if (m_use_tracer_particles) namelist_unalloc.remove( ERFParticleNames::tracers );
-    if (m_use_hydro_particles)  namelist_unalloc.remove( ERFParticleNames::hydro );
+    if (m_use_tracer_particles && particleData.HasSpecies(ERFParticleNames::tracers)) {
+        namelist_unalloc.remove( ERFParticleNames::tracers );
+    }
+    if (m_use_hydro_particles && particleData.HasSpecies(ERFParticleNames::hydro)) {
+        namelist_unalloc.remove( ERFParticleNames::hydro );
+    }
 
     return;
 }
@@ -72,27 +80,39 @@ void ERF::restartTracers ( ParGDBBase* a_gdb,
 
         std::string species_name( *it );
 
-        if (species_name == ERFParticleNames::tracers) {
-
+        if (species_name == ERFParticleNames::tracers)
+        {
             AMREX_ASSERT(m_use_tracer_particles);
-            ERFPC* pc = new ERFPC(a_gdb, ERFParticleNames::tracers);
-            pc->Restart(a_fname, ERFParticleNames::tracers);
-            amrex::Print() << "Restarted " << pc->TotalNumberOfParticles() << " tracer particles.\n";
-            particleData.pushBack(ERFParticleNames::tracers, pc);
+            std::string m_name = ERFParticleNames::tracers;
+            std::string HeaderFileName(a_fname + "/" + m_name + "/Header");
+            if (FileExists(HeaderFileName)) {
+                ERFPC* pc = new ERFPC(a_gdb, m_name);
+                pc->Restart(a_fname, m_name);
+                amrex::Print() << "Restarted " << pc->TotalNumberOfParticles() << " tracer particles.\n";
+                particleData.pushBack(m_name, pc);
+            }
 
         } else if (species_name == ERFParticleNames::hydro) {
 
             AMREX_ASSERT(m_use_hydro_particles);
-            ERFPC* pc = new ERFPC(a_gdb, ERFParticleNames::hydro);
-            pc->Restart(a_fname, ERFParticleNames::hydro);
-            amrex::Print() << "Restarted " << pc->TotalNumberOfParticles() << " hydro particles.\n";
-            particleData.pushBack(ERFParticleNames::hydro, pc);
+            std::string m_name = ERFParticleNames::hydro;
+            std::string HeaderFileName(a_fname + "/" + m_name + "/Header");
+            if (FileExists(HeaderFileName)) {
+                ERFPC* pc = new ERFPC(a_gdb, m_name);
+                pc->Restart(a_fname, m_name);
+                amrex::Print() << "Restarted " << pc->TotalNumberOfParticles() << " hydro particles.\n";
+                particleData.pushBack(m_name, pc);
+            }
 
         }
     }
 
-    if (m_use_tracer_particles) namelist_unalloc.remove( ERFParticleNames::tracers );
-    if (m_use_hydro_particles)  namelist_unalloc.remove( ERFParticleNames::hydro );
+    if (m_use_tracer_particles && particleData.HasSpecies(ERFParticleNames::tracers)) {
+        namelist_unalloc.remove( ERFParticleNames::tracers );
+    }
+    if (m_use_hydro_particles && particleData.HasSpecies(ERFParticleNames::hydro)) {
+        namelist_unalloc.remove( ERFParticleNames::hydro );
+    }
 
     return;
 }
@@ -103,13 +123,13 @@ void ERF::evolveTracers ( int                                        a_lev,
                           Vector<Vector<MultiFab>>&                  a_vars_new,
                           const Vector<std::unique_ptr<MultiFab>>&   a_z_phys_nd )
 {
-    if (m_use_tracer_particles) {
+    if ( m_use_tracer_particles && particleData.HasSpecies(ERFParticleNames::tracers) ) {
       particleData[ERFParticleNames::tracers]->EvolveParticles(  a_lev,
                                                                  a_dt_lev,
                                                                  a_vars_new,
                                                                  a_z_phys_nd );
     }
-    if (m_use_hydro_particles) {
+    if ( m_use_hydro_particles && particleData.HasSpecies(ERFParticleNames::hydro) ) {
       particleData[ERFParticleNames::hydro]->EvolveParticles( a_lev,
                                                               a_dt_lev,
                                                               a_vars_new,
