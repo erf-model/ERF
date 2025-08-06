@@ -737,13 +737,17 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
             auto* c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data() + size_old;
             auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data() + size_old;
             auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data() + size_old;
+            const auto idx_i = m_idx_i;
+            const Real rho_i = m_species_mat[m_idx_i]->m_density;
 
             ParallelFor(np, [=] AMREX_GPU_DEVICE(int i)
             {
                 Tfz_ptr[i] = 235.15; // -38 degrees Celsius
-                a_ptr[i] = c_ptr[i] = 0.0;
+
+                auto mass = sp_mass_ptrs[idx_i][i];
+                a_ptr[i] = c_ptr[i] = std::cbrt(mass/((4.0/3.0)*PI*rho_i));
                 mrime_ptr[i] = 0.0;
-                nmono_ptr[i] = 0.0;
+                nmono_ptr[i] = (mass > 0 ? 1.0 : 0.0);
             });
         }
     }
