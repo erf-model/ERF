@@ -6,7 +6,7 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 Box
-read_subdomain_from_wrfinput(int lev, const std::string& fname, int& ratio)
+read_subdomain_from_wrfinput(int /*lev*/, const std::string& fname, int& ratio)
 {
     int  is, js;
     int  nx, ny, nz;

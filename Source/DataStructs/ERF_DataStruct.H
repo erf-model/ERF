@@ -75,7 +75,7 @@ AMREX_ENUM(WindFarmLocType,
 );
 
 AMREX_ENUM(LandSurfaceType,
-    SLM, MM5, None, NOAH
+    SLM, MM5, None, NOAHMP
 );
 
 AMREX_ENUM(RadiationType,

@@ -7,8 +7,8 @@
 	url = https://github.com/E3SM-Project/rte-rrtmgp
     branch = jgfouca/more_perf
     shallow = true
-[submodule "Submodules/NOAH-MP"]
-	path = Submodules/NOAH-MP
+[submodule "Submodules/Noah-MP"]
+	path = Submodules/Noah-MP
     url = https://github.com/AIEADA/noahmp.git
     shallow = true
 [submodule "Submodules/WW3"]

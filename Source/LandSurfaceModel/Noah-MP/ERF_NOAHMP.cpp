@@ -6,13 +6,13 @@
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
 
-#include <ERF_NOAH.H>
+#include <ERF_NOAHMP.H>
 
 using namespace amrex;
 
 /* Initialize lsm data structures */
 void
-NOAH::Init (const int& lev,
+NOAHMP::Init (const int& lev,
             const MultiFab& cons_in,
             const Geometry& geom,
             const Real& dt)
@@ -25,10 +25,10 @@ NOAH::Init (const int& lev,
     khi_lsm    = domain.smallEnd(2) - 1;
 
     LsmVarMap.resize(m_lsm_size);
-    LsmVarMap = {LsmVar_NOAH::t_sfc, LsmVar_NOAH::sfc_emis,
-                 LsmVar_NOAH::sfc_alb_dir_vis, LsmVar_NOAH::sfc_alb_dir_nir,
-                 LsmVar_NOAH::sfc_alb_dif_vis, LsmVar_NOAH::sfc_alb_dif_nir,
-                 LsmVar_NOAH::sw_flux_dn , LsmVar_NOAH::lw_flux_dn };
+    LsmVarMap = {LsmVar_NOAHMP::t_sfc, LsmVar_NOAHMP::sfc_emis,
+                 LsmVar_NOAHMP::sfc_alb_dir_vis, LsmVar_NOAHMP::sfc_alb_dir_nir,
+                 LsmVar_NOAHMP::sfc_alb_dif_vis, LsmVar_NOAHMP::sfc_alb_dif_nir,
+                 LsmVar_NOAHMP::sw_flux_dn , LsmVar_NOAHMP::lw_flux_dn };
 
     LsmVarName.resize(m_lsm_size);
     LsmVarName = {"t_sfc"      , "sfc_emis"   ,
@@ -36,10 +36,8 @@ NOAH::Init (const int& lev,
                   "sfc_alb_dif_vis", "sfc_alb_dif_nir",
                   "sw_flux_dn" , "lw_flux_dn" };
 
-    // NOTE: lsm data is not used for Noahmp, however, the initialization is done
-    //       to maintin consistency with IO and Driver interfaces that depend on
-    //       this data. We eventually want to tweak those interfaces so we don't
-    //       have to allocate lsm_data while using Noahmp lsm.
+    amrex::ParmParse pp("erf");
+    pp.query("plot_int_1" , m_plot_int_1);
 
     // NOTE: All boxes in ba extend from zlo to zhi, so this transform is valid.
     //       If that were to change, the dm and new ba are no longer valid and
@@ -66,7 +64,7 @@ NOAH::Init (const int& lev,
     m_lsm_geom.define( ba_lsm.minimalBox(), lsm_rb, m_geom.Coord(), m_geom.isPeriodic() );
 
     // Create the data and fluxes
-    for (auto ivar = 0; ivar < LsmVar_NOAH::NumVars; ++ivar) {
+    for (auto ivar = 0; ivar < LsmVar_NOAHMP::NumVars; ++ivar) {
         // State vars are CC
         lsm_fab_vars[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
         lsm_fab_vars[ivar]->setVal(0.0);
@@ -75,9 +73,6 @@ NOAH::Init (const int& lev,
         lsm_fab_flux[ivar] = std::make_shared<MultiFab>(convert(ba_lsm, IntVect(0,0,1)), dm, 1, IntVect(0,0,0));
         lsm_fab_flux[ivar]->setVal(0.);
     }
-
-    // NOTE: Actual NoahmpIO interface that is relevant for the
-    //       implementation of this lsm
 
     amrex::Print() << "Noah-MP initialization started" << std::endl;
 
@@ -183,7 +178,7 @@ NOAH::Init (const int& lev,
 };
 
 void
-NOAH::Advance_With_State (const int& lev,
+NOAHMP::Advance_With_State (const int& lev,
                           MultiFab& cons_in,
                           MultiFab& xvel_in,
                           MultiFab& yvel_in,
@@ -211,6 +206,8 @@ NOAH::Advance_With_State (const int& lev,
             const amrex::Array4<const amrex::Real>& U_PHY = xvel_in.const_array(mfi);
             const amrex::Array4<const amrex::Real>& V_PHY = yvel_in.const_array(mfi);
             const amrex::Array4<const amrex::Real>& QV_TH = cons_in.const_array(mfi);
+            //const amrex::Array4<const amrex::Real>& SWFLUXDN = lsm_fab_vars[LsmVar_NOAHMP::sw_flux_dn]->const_array(mfi);
+            //amrex::Array4<amrex::Real> TSK = lsm_fab_vars[LsmVar_NOAHMP::t_sfc]->array(mfi);
 
             amrex::Array4<amrex::Real> SHBXY = hfx3_out->array(mfi);
             amrex::Array4<amrex::Real> EVBXY = qfx3_out->array(mfi);
@@ -236,8 +233,10 @@ NOAH::Advance_With_State (const int& lev,
                 SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
                 EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
             });
-            noahmpio->WriteLand(nstep+1);
 
+            if((nstep+1)%m_plot_int_1 == 0) {
+                noahmpio->WriteLand(nstep+1);
+            }
         }
     }
     amrex::Print () << "Noah-MP driver completed" << std::endl;

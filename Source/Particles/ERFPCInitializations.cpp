@@ -46,6 +46,9 @@ void ERFPC::readInputs ()
     m_advect_w_flow = (m_name == ERFParticleNames::tracers ? true : false);
     pp.query("advect_with_flow", m_advect_w_flow);
 
+    m_start_time = 0.;
+    pp.query("start_time", m_start_time);
+
     m_advect_w_gravity = (m_name == ERFParticleNames::hydro ? true : false);
     pp.query("advect_with_gravity", m_advect_w_gravity);
 
@@ -61,20 +64,21 @@ void ERFPC::readInputs ()
 }
 
 /*! Initialize particles in domain */
-void ERFPC::InitializeParticles (const std::unique_ptr<MultiFab>& a_height_ptr)
+void ERFPC::InitializeParticles (const Real time, const std::unique_ptr<MultiFab>& a_height_ptr)
 {
-    BL_PROFILE("ERFPC::initializeParticles");
+    BL_PROFILE("ERFPC::InitializeParticles");
 
-    if (m_initialization_type == ERFParticleInitializations::init_box_uniform) {
-        initializeParticlesUniformDistributionInBox( a_height_ptr , m_particle_box );
-    } else {
-        Print() << "Error: " << m_initialization_type
-                << " is not a valid initialization for "
-                << m_name << " particle species.\n";
-        Error("See error message!");
+    if (time >= m_start_time && !m_initialized) {
+        if (m_initialization_type == ERFParticleInitializations::init_box_uniform) {
+            initializeParticlesUniformDistributionInBox( a_height_ptr , m_particle_box );
+        } else {
+            Print() << "Error: " << m_initialization_type
+                    << " is not a valid initialization for "
+                    << m_name << " particle species.\n";
+            Error("See error message!");
+        }
+        m_initialized = true;
     }
-
-    return;
 }
 
 /*! Uniform distribution: the number of particles per grid cell is specified
@@ -101,12 +105,19 @@ void ERFPC::initializeParticlesUniformDistributionInBox (const std::unique_ptr<M
             const auto height_arr = (*a_height_ptr)[mfi].array();
             ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real x = plo[0] + (i + 0.5)*dx[0];
-                Real y = plo[1] + (j + 0.5)*dx[1];
-                Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
-                                  height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
-                                  height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
-                                  height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
+                Real x  = plo[0] + (i + 0.5)*dx[0];
+                Real y  = plo[1] + (j + 0.5)*dx[1];
+                Real zh = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
+                                   height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
+                                   height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
+                                   height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
+
+                // SWAP TWO LINES BELOW TO COMPUTE ABSOLUTE HEIGHT VS HEIGHT ABOVE SURFACE
+                Real z = zh;
+                // Real z_sfc = 0.25 * (height_arr(i,j  ,0) + height_arr(i+1,j  ,0) +
+                //                      height_arr(i,j+1,0) + height_arr(i+1,j+1,0) );
+                // Real z = std::max((zh-z_sfc),0.0);
+
                 if (particle_init_domain.contains(RealVect(x,y,z))) {
                     num_particles_arr(i,j,k) = particles_per_cell;
                 }

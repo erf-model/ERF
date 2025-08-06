@@ -1,3 +1,18 @@
+#25.08
+    -- 2D plotfile capability (#2463)
+
+    -- Couple RRTMGP & NOAH-MP (#2442)
+
+    -- GMRES fixes (#2439)
+
+    -- Init from WRFInput fixes (#2436)
+
+    -- Add kokkos and remove yakl submodule (#2429)
+
+    -- Multi-level FFT (#2433)
+
+    -- Moist stratification effect on turbulence models (#2407)
+    
 #25.07
     -- Enable initialization from netcdf file (#2390)
 

@@ -1,5 +1,5 @@
-#ifndef NOAH_H
-#define NOAH_H
+#ifndef NOAHMP_H
+#define NOAHMP_H
 
 #include <string>
 #include <vector>
@@ -19,7 +19,7 @@
 // External include from the noahmp library
 #include <NoahmpIO.H>
 
-namespace LsmVar_NOAH {
+namespace LsmVar_NOAHMP {
    enum {
       // 2D coupling variables
       t_sfc = 0,
@@ -34,16 +34,16 @@ namespace LsmVar_NOAH {
   };
 }
 
-class NOAH : public NullSurf {
+class NOAHMP : public NullSurf {
 
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
 
 public:
     // Constructor
-    NOAH () {}
+    NOAHMP () {}
 
     // Destructor
-    virtual ~NOAH () = default;
+    virtual ~NOAHMP () = default;
 
     // Set thermo and grid properties
     void
@@ -77,7 +77,7 @@ public:
     Lsm_Data_Ptr (const int& varIdx) override
     {
         int lsmIdx = LsmVarMap[varIdx];
-        AMREX_ALWAYS_ASSERT(lsmIdx < NOAH::m_lsm_size && lsmIdx>=0);
+        AMREX_ALWAYS_ASSERT(lsmIdx < NOAHMP::m_lsm_size && lsmIdx>=0);
         return lsm_fab_vars[lsmIdx].get();
     }
 
@@ -86,7 +86,7 @@ public:
     Lsm_Flux_Ptr (const int& varIdx) override
     {
         int lsmIdx = LsmVarMap[varIdx];
-        AMREX_ALWAYS_ASSERT(lsmIdx < NOAH::m_lsm_size && lsmIdx>=0);
+        AMREX_ALWAYS_ASSERT(lsmIdx < NOAHMP::m_lsm_size && lsmIdx>=0);
         return lsm_fab_flux[lsmIdx].get();
     }
 
@@ -96,14 +96,14 @@ public:
 
     // Get number of vars lsm class contains
     int
-    Lsm_Data_Size () override { return NOAH::m_lsm_size; }
+    Lsm_Data_Size () override { return NOAHMP::m_lsm_size; }
 
     // Get variable names
     std::string
     Lsm_VarName (const int& varIdx) override
     {
         int lsmIdx = LsmVarMap[varIdx];
-        AMREX_ALWAYS_ASSERT(lsmIdx < NOAH::m_lsm_size && lsmIdx>=0);
+        AMREX_ALWAYS_ASSERT(lsmIdx < NOAHMP::m_lsm_size && lsmIdx>=0);
         return LsmVarName[lsmIdx];
     }
 
@@ -112,7 +112,7 @@ public:
     {
         int varIdx = -1;
         std::string lc_varname = amrex::toLower(varname);
-        for (int idx(0); idx<LsmVar_NOAH::NumVars; ++idx) {
+        for (int idx(0); idx<LsmVar_NOAHMP::NumVars; ++idx) {
             if (lc_varname == amrex::toLower(LsmVarName[idx])) {
                 varIdx = idx;
             }
@@ -122,7 +122,7 @@ public:
 
 private:
     // number of lsm variables (theta)
-    int m_lsm_size = LsmVar_NOAH::NumVars;
+    int m_lsm_size = LsmVar_NOAHMP::NumVars;
 
     // LsmVar map (state indices -> LsmVar enum)
     amrex::Vector<int> LsmVarMap;
@@ -149,10 +149,10 @@ private:
     // amrex::Real m_gOcp;
 
     // independent variables
-    amrex::Array<FabPtr, LsmVar_NOAH::NumVars> lsm_fab_vars;
+    amrex::Array<FabPtr, LsmVar_NOAHMP::NumVars> lsm_fab_vars;
 
     // flux array for conjugate transfer
-    amrex::Array<FabPtr, LsmVar_NOAH::NumVars> lsm_fab_flux;
+    amrex::Array<FabPtr, LsmVar_NOAHMP::NumVars> lsm_fab_flux;
 
     // Vars that should be parsed
     // ==========================
@@ -176,5 +176,7 @@ private:
 
    // Vector to store NoahmpIO objects at a level
    NoahmpIO_vector noahmpio_vect;
+
+   int m_plot_int_1 = -1;
 };
 #endif
