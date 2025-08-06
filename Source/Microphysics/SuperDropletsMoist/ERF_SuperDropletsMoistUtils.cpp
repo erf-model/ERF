@@ -131,7 +131,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
             const Array4<Real const>& qv_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            { sr_arr(i,j,k,0) = qv_arr(i,j,k,0) / sr_arr(i,j,k,0); });
+            { sr_arr(i,j,k,0) = (sr_arr(i,j,k,0) > 0.0 ? qv_arr(i,j,k,0) / sr_arr(i,j,k,0) : 0.0); });
 
         }
     }
