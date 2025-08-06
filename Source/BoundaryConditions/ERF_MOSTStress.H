@@ -1034,7 +1034,7 @@ struct surface_temp
                   const amrex::Array4<const amrex::Real>& tvm_arr,
                   const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
-                  const amrex::Array4<amrex::Real>& /*w_star_arr*/,
+                  const amrex::Array4<amrex::Real>& w_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
                   const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
@@ -1045,8 +1045,6 @@ struct surface_temp
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        // TODO: Add back wstar
-
         amrex::Real Rib      = 0.0;
         amrex::Real zeta     = 0.0;
         amrex::Real zeta_old = 0.0;
@@ -1073,7 +1071,23 @@ struct surface_temp
         }
         qv_a = qvm_arr(i,j,k);
 
-        // Bulk Richardson number
+        // update w* and Umagmean from Beljaars (1995)
+        if (w_star_arr) {
+            // NOTE: Thv flux is lagged, similar to WRF
+            psi_m = sfuns.calc_psi_m2(zeta);
+            psi_h = sfuns.calc_psi_h2(zeta);
+            amrex::Real ustar = mdata.kappa * umm / (C - psi_m);
+            amrex::Real tstar = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
+            amrex::Real qflux = (spec_qflux) ? mdata.surf_moist_flux :
+                                 -ustar * mdata.kappa * (qv_a - qv_s) / (C - psi_h);
+            amrex::Real tflux = -ustar*tstar*(1 + 0.61*qvm_arr(i,j,k)) + 0.61*tm_arr(i,j,k)*qflux;
+            w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+            amrex::Real wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
+            umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+            umm = std::max(umm, WSMIN);
+        }
+
+        // Bulk Richardson number w/ moisture
         amrex::Real thv_s = t_surf_arr(i,j,k) * (1.0 + 0.61*qv_s);
         amrex::Real thv_a =     tm_arr(i,j,k) * (1.0 + 0.61*qv_a);
         Rib = ( (mdata.gravity * mdata.zref) / tm_arr(i,j,k) ) *
@@ -1158,7 +1172,7 @@ struct surface_temp_charnock
                   const amrex::Array4<const amrex::Real>& tvm_arr,
                   const amrex::Array4<const amrex::Real>& qvm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
-                  const amrex::Array4<amrex::Real>& /*w_star_arr*/,
+                  const amrex::Array4<amrex::Real>& w_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
                   const amrex::Array4<amrex::Real>& q_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
@@ -1169,8 +1183,6 @@ struct surface_temp_charnock
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        // TODO: Add back wstar
-
         amrex::Real Rib      = 0.0;
         amrex::Real zeta     = 0.0;
         amrex::Real zeta_old = 0.0;
@@ -1182,7 +1194,7 @@ struct surface_temp_charnock
         amrex::Real z0_old   = z0;
         amrex::Real ustar    = 0.0;
         amrex::Real umm      = std::max(umm_arr(i,j,k), WSMIN);
-        amrex::Real C        = 0.0;
+        amrex::Real C        = std::log(mdata.zref / z0);
 
         // First iteration we assume neutral (L -> inf)
         if (u_star_arr(i,j,k) == 1.E34) { olen_arr(i,j,k) = 1.0e3; }
@@ -1199,7 +1211,23 @@ struct surface_temp_charnock
         }
         qv_a = qvm_arr(i,j,k);
 
-        // Bulk Richardson number
+        // update w* and Umagmean from Beljaars (1995)
+        if (w_star_arr) {
+            // NOTE: Thv flux is lagged, similar to WRF
+            psi_m = sfuns.calc_psi_m2(zeta);
+            psi_h = sfuns.calc_psi_h2(zeta);
+            amrex::Real ustar = mdata.kappa * umm / (C - psi_m);
+            amrex::Real tstar = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
+            amrex::Real qflux = (spec_qflux) ? mdata.surf_moist_flux :
+                                 -ustar * mdata.kappa * (qv_a - qv_s) / (C - psi_h);
+            amrex::Real tflux = -ustar*tstar*(1 + 0.61*qvm_arr(i,j,k)) + 0.61*tm_arr(i,j,k)*qflux;
+            w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
+            amrex::Real wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
+            umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+            umm = std::max(umm, WSMIN);
+        }
+
+        // Bulk Richardson number w/ moisture
         amrex::Real thv_s = t_surf_arr(i,j,k) * (1.0 + 0.61*qv_s);
         amrex::Real thv_a =     tm_arr(i,j,k) * (1.0 + 0.61*qv_a);
         Rib = ( (mdata.gravity * mdata.zref) / tm_arr(i,j,k) ) *
