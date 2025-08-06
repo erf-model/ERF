@@ -392,15 +392,15 @@ void SuperDropletPC::Diagnostics( const int a_iter,
     if (m_idx_i >= 0) {
 
         auto min_par_Tfz = ReduceMin( *this,
-                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                      [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       { return ptd.m_runtime_rdata[ridx_ice_Tfz(na,ns)][i]; } );
 
         auto max_par_Tfz = ReduceMax( *this,
-                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                      [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       { return ptd.m_runtime_rdata[ridx_ice_Tfz(na,ns)][i]; } );
 
         auto avg_par_Tfz = ReduceSum( *this,
-                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                      [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       {
                                           auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                           auto r = ptd.m_runtime_rdata[ridx_ice_Tfz(na,ns)][i];
@@ -408,15 +408,15 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                       } );
 
         auto min_par_a   = ReduceMin( *this,
-                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                      [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       { return ptd.m_runtime_rdata[ridx_ice_a(na,ns)][i]; } );
 
         auto max_par_a   = ReduceMax( *this,
-                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                      [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       { return ptd.m_runtime_rdata[ridx_ice_a(na,ns)][i]; } );
 
         auto avg_par_a   = ReduceSum( *this,
-                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                      [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       {
                                           auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                           auto r = ptd.m_runtime_rdata[ridx_ice_a(na,ns)][i];
@@ -424,15 +424,15 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                       } );
 
         auto min_par_c   = ReduceMin( *this,
-                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                      [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       { return ptd.m_runtime_rdata[ridx_ice_c(na,ns)][i]; } );
 
         auto max_par_c   = ReduceMax( *this,
-                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                      [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       { return ptd.m_runtime_rdata[ridx_ice_c(na,ns)][i]; } );
 
         auto avg_par_c   = ReduceSum( *this,
-                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                      [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       {
                                           auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                           auto r = ptd.m_runtime_rdata[ridx_ice_c(na,ns)][i];
@@ -440,15 +440,15 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                       } );
 
         auto min_par_rho = ReduceMin( *this,
-                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                      [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       { return ptd.m_runtime_rdata[ridx_ice_rho(na,ns)][i]; } );
 
         auto max_par_rho = ReduceMax( *this,
-                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                      [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       { return ptd.m_runtime_rdata[ridx_ice_rho(na,ns)][i]; } );
 
         auto avg_par_rho = ReduceSum( *this,
-                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                      [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                       {
                                           auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                           auto r = ptd.m_runtime_rdata[ridx_ice_rho(na,ns)][i];
@@ -456,15 +456,15 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                       } );
 
         auto min_par_mrime = ReduceMin( *this,
-                                        [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                        [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                         { return ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i]; } );
 
         auto max_par_mrime = ReduceMax( *this,
-                                        [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                        [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                         { return ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i]; } );
 
         auto avg_par_mrime = ReduceSum( *this,
-                                        [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                        [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                         {
                                             auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                             auto r = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
@@ -472,15 +472,15 @@ void SuperDropletPC::Diagnostics( const int a_iter,
                                         } );
 
         auto min_par_nmono = ReduceMin( *this,
-                                        [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                        [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                         { return ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i]; } );
 
         auto max_par_nmono = ReduceMax( *this,
-                                        [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                        [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                         { return ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i]; } );
 
         auto avg_par_nmono = ReduceSum( *this,
-                                        [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                        [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
                                         {
                                             auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                             auto r = ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i];
