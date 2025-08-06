@@ -221,8 +221,9 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
 }
 
 /*! Initialize the particles */
-void SuperDropletPC::InitializeParticles (const MFPtr& a_ptr)
+void SuperDropletPC::InitializeParticles (const Real a_t, const MFPtr& a_ptr)
 {
+    amrex::ignore_unused(a_t);
     BL_PROFILE("SuperDropletPC::InitializeParticles()");
     Print() << "SuperDropletPC(" << m_name << "):\n"
             << "    Density scaling: " << (m_density_scaling ? "true" : "false") << "\n"
