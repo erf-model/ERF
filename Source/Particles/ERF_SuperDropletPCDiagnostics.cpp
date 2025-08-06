@@ -34,7 +34,6 @@ Vector<std::string> SuperDropletPC::varNames () const
         retval.push_back("T_fz");
         retval.push_back("a");
         retval.push_back("c");
-        retval.push_back("rho_i");
         retval.push_back("m_rime");
         retval.push_back("n_mono");
     }
