@@ -91,6 +91,7 @@ define( int const& a_idim,
       ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
         aux_flag(i,j,k).setCovered();
+        aux_flag(i,j,k).setDisconnected();
         aux_vfrac(i,j,k) = 0.0;
       });
 
@@ -99,6 +100,7 @@ define( int const& a_idim,
       ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
         aux_flag(i,j,k).setRegular();
+        aux_flag(i,j,k).setDisconnected();
         aux_vfrac(i,j,k) = 1.0;
       });
 
@@ -162,13 +164,10 @@ define( int const& a_idim,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
                   aux_barea, aux_bcent, aux_bnorm,
-                  vdim, idim=a_idim, l_periodic,
-                  small_volfrac, small_value ]
+                  vdim, idim=a_idim, l_periodic]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-
         // defaults to covered and disconnected.
-
         aux_flag(i,j,k).setCovered();
         aux_flag(i,j,k).setDisconnected();
 
