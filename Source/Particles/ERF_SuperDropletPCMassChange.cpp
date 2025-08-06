@@ -315,6 +315,7 @@ void SuperDropletPC::MassChange_SL (  int                                       
 {
     BL_PROFILE("SuperDropletPC::MassChange_SL()");
     AMREX_ASSERT( a_lev == m_lev );
+    amrex::ignore_unused(a_dt);
 
     if (m_idx_i < 0) { return; } // ice not being modeled
 

@@ -174,16 +174,16 @@ struct TerminalVelocity
                                      RT(1.33)/(std::max(std::log(phi),0.0)+RT(1.19)) ));
 
         auto phi_poly = 3.76-8.41*phi+9.18*phi*phi-3.53*phi*phi*phi;
-        auto Gamma = std::max( RT(1.0), std::min(RT(1.98), phi_poly) );
+        auto TVGamma = std::max( RT(1.0), std::min(RT(1.98), phi_poly) );
 
-        auto C_DPS = std::max(0.292*k*Gamma, 0.492 - 0.2/std::sqrt(phi));
+        auto C_DPS = std::max(0.292*k*TVGamma, 0.492 - 0.2/std::sqrt(phi));
         auto C_DP  = std::max( RT(1.0), q*(1.46*q-0.46) ) * C_DPS;
         auto C_DO = 4.5 * k*k * std::max(phi, 1.0);
 
         auto t2 = RT(1.0) + C_DP/(6.0*k) * std::sqrt(Xp/C_DP);
         auto beta = std::sqrt(t2) - 1.0;
-        auto gamma = (C_DO-C_DP) / (4*C_DP);
-        auto t1 = RT(1.0) + (2*beta*std::exp(-beta*gamma)) / ((2.0+beta)*(1.0+beta));
+        auto TVgamma = (C_DO-C_DP) / (4*C_DP);
+        auto t1 = RT(1.0) + (2*beta*std::exp(-beta*TVgamma)) / ((2.0+beta)*(1.0+beta));
         auto N_Re = (6.0*k/C_DP) * beta*beta * t1;
 
         auto vterm = (mu*N_Re)/(a_rho*d);
