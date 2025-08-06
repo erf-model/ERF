@@ -35,6 +35,9 @@ public:
  */
 struct similarity_funs
 {
+    //
+    // Similarity functions from Jimenez (2012)
+    //
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -74,6 +77,10 @@ struct similarity_funs
         }
     }
 
+
+    //
+    // Similarity functions from Businger & Dyer (1966)
+    //
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     amrex::Real
@@ -215,13 +222,22 @@ struct adiabatic_charnock
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        int iter = 0;
-        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        amrex::Real ustar = 0.0;
-        amrex::Real z0    = 0.0;
-        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
+        amrex::Real ustar  = 0.0;
+        amrex::Real z0     = z0_arr(i,j,k);
+        amrex::Real z0_old = z0;
+        amrex::Real psi_m  = 0.0;
+        amrex::Real umm    = std::max(umm_arr(i,j,k), WSMIN);
+        amrex::Real C      = std::log(mdata.zref / z0);
+
+        // Fixed point iteration on roughness
+        int iter_z = 0;
         do {
-            ustar = u_star_arr(i,j,k);
+            // Transfer curr to old
+            z0_old = z0;
+
+            // Update
+            C = std::log(mdata.zref / z0_old);
+            ustar = mdata.kappa * umm / (C - psi_m);
             if (mdata.Cnk_a > 0) {
                 z0 = (mdata.Cnk_a / mdata.gravity) * ustar * ustar;
                 if (mdata.visc) {
@@ -230,20 +246,25 @@ struct adiabatic_charnock
             } else {
                 z0 = COARE3_roughness(mdata.zref, umm, ustar);
             }
-            u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0);
-            ++iter;
-        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
 
+            ++iter_z;
+        } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z < max_iters,
+                                         "Maximum number of MOST roughness iterations reached.");
+        C = std::log(mdata.zref / z0);
+
+        // Populate the stored MOST arrays
+        z0_arr(i,j,k)     = z0;
+        olen_arr(i,j,k)   = 1.0e16;
+        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
         t_star_arr(i,j,k) = 0.0;
         q_star_arr(i,j,k) = 0.0;
-          olen_arr(i,j,k) = 1.0e16;
-            z0_arr(i,j,k) = z0;
     }
 
 private:
     most_data mdata;
     similarity_funs sfuns;
-    const amrex::Real tol = 1.0e-5;
+    const amrex::Real tol_z = 1.0e-10;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
@@ -289,28 +310,42 @@ struct adiabatic_mod_charnock
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
-        int iter = 0;
-        amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        amrex::Real ustar = 0.0;
-        amrex::Real z0    = 0.0;
-        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0_arr(i,j,k));
-        do {
-            ustar = u_star_arr(i,j,k);
-            z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
-            u_star_arr(i,j,k) = mdata.kappa * umm / std::log(mdata.zref / z0);
-            ++iter;
-        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        amrex::Real ustar  = 0.0;
+        amrex::Real z0     = z0_arr(i,j,k);
+        amrex::Real z0_old = z0;
+        amrex::Real psi_m  = 0.0;
+        amrex::Real umm    = std::max(umm_arr(i,j,k), WSMIN);
+        amrex::Real C      = std::log(mdata.zref / z0);
 
+        // Fixed point iteration on roughness
+        int iter_z = 0;
+        do {
+            // Transfer curr to old
+            z0_old = z0;
+
+            // Update
+            C = std::log(mdata.zref / z0_old);
+            ustar = mdata.kappa * umm / (C - psi_m);
+            z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
+
+            ++iter_z;
+        } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z < max_iters,
+                                         "Maximum number of MOST roughness iterations reached.");
+        C = std::log(mdata.zref / z0);
+
+        // Populate the stored MOST arrays
+        z0_arr(i,j,k)     = z0;
+        olen_arr(i,j,k)   = 1.0e16;
+        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
         t_star_arr(i,j,k) = 0.0;
         q_star_arr(i,j,k) = 0.0;
-          olen_arr(i,j,k) = 1.0e16;
-            z0_arr(i,j,k) = z0;
     }
 
 private:
     most_data mdata;
     similarity_funs sfuns;
-    const amrex::Real tol = 1.0e-5;
+    const amrex::Real tol_z = 1.0e-10;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
