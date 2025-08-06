@@ -409,6 +409,8 @@ void SuperDropletPC::Diagnostics( const int a_iter,
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
         ComputeBinnedDistributions( a_iter);
         ComputeBinnedDistributionsCell( a_iter, a_time);
+#else
+        amrex::ignore_unused(a_time);
 #endif
     }
 }

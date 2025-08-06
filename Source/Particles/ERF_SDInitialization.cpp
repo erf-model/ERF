@@ -68,6 +68,7 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
                                     const MatVec& a_aerosol_mat )
 {
     BL_PROFILE("SDInitialization::readInputs");
+    amrex::ignore_unused(a_geom);
     using namespace amrex;
 
     amrex::ParmParse pp(a_prefix);
