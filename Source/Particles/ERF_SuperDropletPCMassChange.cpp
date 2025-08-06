@@ -630,7 +630,10 @@ void SuperDropletPC::MassChange_SV (  int                                      a
 
             auto mass_old = sp_mass_ptrs[idx_i][i];
             auto vol_old = (4.0/3.0) * PI * a_ptr[i]*a_ptr[i]*c_ptr[i];
-            AMREX_ALWAYS_ASSERT(mass_old == vol_old*rhoi_ptr[i]);
+            {
+                auto err = std::sqrt(((mass_old-vol_old*rhoi_ptr[i])/mass_old)*((mass_old-vol_old*rhoi_ptr[i])/mass_old));
+                AMREX_ALWAYS_ASSERT(err < 1.0e-12);
+            }
 
             // compute new mass
             bool success = false;
