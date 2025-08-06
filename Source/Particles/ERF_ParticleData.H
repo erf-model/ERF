@@ -63,7 +63,7 @@ class ParticleData
                 for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
                     auto name( m_namelist[i] );
                     auto particles( m_particle_species.at(name) );
-                    particles->Checkpoint( a_fname, name, true, particles->varNames() );
+                    particles->WritePlotFile(a_fname, name, true, particles->varNames());
                 }
             }
         }
