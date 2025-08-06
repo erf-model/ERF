@@ -1509,6 +1509,7 @@ private:
     similarity_funs sfuns;
     const amrex::Real tol   = 1.0e-3;
     const amrex::Real tol_z = 1.0e-10;
+    const amrex::Real alpha = 0.5;
     const amrex::Real WSMIN = 0.1; // minimum wind speed
 };
 
