@@ -1267,7 +1267,7 @@ struct surface_temp_charnock
             // NOTE: Thv flux is lagged, similar to WRF
             psi_m = sfuns.calc_psi_m2(zeta);
             psi_h = sfuns.calc_psi_h2(zeta);
-            amrex::Real ustar = mdata.kappa * umm / (C - psi_m);
+                        ustar = mdata.kappa * umm / (C - psi_m);
             amrex::Real tstar = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
             amrex::Real qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -ustar * mdata.kappa * (qv_a - qv_s) / (C - psi_h);
@@ -1432,7 +1432,7 @@ struct surface_temp_mod_charnock
             // NOTE: Thv flux is lagged, similar to WRF
             psi_m = sfuns.calc_psi_m2(zeta);
             psi_h = sfuns.calc_psi_h2(zeta);
-            amrex::Real ustar = mdata.kappa * umm / (C - psi_m);
+                        ustar = mdata.kappa * umm / (C - psi_m);
             amrex::Real tstar = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
             amrex::Real qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -ustar * mdata.kappa * (qv_a - qv_s) / (C - psi_h);
