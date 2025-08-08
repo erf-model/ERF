@@ -482,11 +482,25 @@ convert_wrfbdy_data (const int itime,
         bdy_data_tmp[ivar].template setVal<RunOn::Device>(0.);
     }
 
+    // BDY data
+    Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
+    Array4<Real> bdy_v_arr  = bdy_data[itime][WRFBdyVars::V].array();  // This is y-face-centered
+    Array4<Real> bdy_t_arr  = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
+    Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
+    Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
+
+    // Bounds limiting
+    int ilo  = domain.smallEnd()[0];
+    int ihi  = domain.bigEnd()[0];
+    int jlo  = domain.smallEnd()[1];
+    int jhi  = domain.bigEnd()[1];
+
     for ( MFIter mfi(cons); mfi.isValid(); ++mfi )
     {
         Box tbx = mfi.tilebox();
         Box xbx = mfi.nodaltilebox(0);
         Box ybx = mfi.nodaltilebox(1);
+
         const Box& bx_u  = (xbx & bdy_data[itime][WRFBdyVars::U].box());
         const Box& bx_v  = (ybx & bdy_data[itime][WRFBdyVars::V].box());
         const Box& bx_t  = (tbx & bdy_data[itime][WRFBdyVars::T].box());
@@ -507,19 +521,6 @@ convert_wrfbdy_data (const int itime,
         Array4<Real const> c1h_arr  = mf_C1H.const_array(mfi);
         Array4<Real const> c2h_arr  = mf_C2H.const_array(mfi);
         Array4<Real const> mub_arr  = mf_MUB.const_array(mfi);
-
-        // BDY data
-        Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
-        Array4<Real> bdy_v_arr  = bdy_data[itime][WRFBdyVars::V].array();  // This is y-face-centered
-        Array4<Real> bdy_t_arr  = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
-        Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
-        Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
-
-        // Bounds limiting
-        int ilo  = domain.smallEnd()[0];
-        int ihi  = domain.bigEnd()[0];
-        int jlo  = domain.smallEnd()[1];
-        int jhi  = domain.bigEnd()[1];
 
         // Define u velocity
         ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
