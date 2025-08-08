@@ -1047,8 +1047,7 @@ private:
     ParticleData particleData;
 
     // variables and functions for tracers particles
-    bool  m_use_tracer_particles; /*!< tracer particles that advect with flow */
-    bool  m_use_hydro_particles;  /*!< tracer particles that fall with gravity */
+    bool  m_use_tracer_particles; /*!< tracer particles that advect with flow with optional sedimentation */
 
     /*! Read tracer and hydro particles parameters */
     void readTracersParams();

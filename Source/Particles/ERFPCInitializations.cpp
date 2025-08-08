@@ -43,14 +43,14 @@ void ERFPC::readInputs ()
     m_ppc_init = 1;
     pp.query("initial_particles_per_cell", m_ppc_init);
 
-    m_advect_w_flow = (m_name == ERFParticleNames::tracers ? true : false);
+    m_advect_w_flow = true;
     pp.query("advect_with_flow", m_advect_w_flow);
+
+    m_advect_w_gravity = false;
+    pp.query("advect_with_gravity", m_advect_w_gravity);
 
     m_start_time = 0.;
     pp.query("start_time", m_start_time);
-
-    m_advect_w_gravity = (m_name == ERFParticleNames::hydro ? true : false);
-    pp.query("advect_with_gravity", m_advect_w_gravity);
 
     m_stable_redistribute = false;
     pp.query("stable_redistribute", m_stable_redistribute);
