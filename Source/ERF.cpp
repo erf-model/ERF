@@ -1312,7 +1312,7 @@ ERF::InitData_post ()
         m_SurfaceLayer = std::make_unique<SurfaceLayer>(geom, rotate, pp_prefix, Qv_prim,
                                                         z_phys_nd, solverChoice.terrain_type
 #ifdef ERF_USE_NETCDF
-                                                        ,start_bdy_time, bdy_time_interval
+                                                        , bdy_time_interval
 #endif
                                                         );
         // This call will allocate the arrays at each level. If we regrid later, either changing

@@ -37,11 +37,9 @@ public:
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                          const TerrainType& a_terrain_type,
-                         amrex::Real start_bdy_time = 0.0,
                          amrex::Real bdy_time_interval = 0.0)
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
-    m_start_bdy_time(start_bdy_time),
     m_bdy_time_interval(bdy_time_interval),
     m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_terrain_type)
   {
@@ -558,7 +556,6 @@ private:
   // Set in constructor
   amrex::Vector<amrex::Geometry> m_geom;
   bool m_rotate = false;
-  amrex::Real m_start_bdy_time;
   amrex::Real m_bdy_time_interval;
 
   bool m_include_wstar = false;
