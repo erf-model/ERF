@@ -33,11 +33,8 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     if (solverChoice.use_real_bcs && (lev==0)) {
         Real dT = bdy_time_interval;
 
-        Real time_since_start_old = time - start_bdy_time;
-        int n_time_old = static_cast<int>( time_since_start_old /  dT);
-
-        Real time_since_start_new = time + dt[lev] - start_bdy_time;
-        int n_time_new = static_cast<int>( time_since_start_new /  dT);
+        int n_time_old = static_cast<int>( (time        ) /  dT);
+        int n_time_new = static_cast<int>( (time+dt[lev]) /  dT);
 
         int ntimes = bdy_data_xlo.size();
         for (int itime = 0; itime < ntimes; itime++)

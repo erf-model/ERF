@@ -906,8 +906,7 @@ ERF::InitData_post ()
                                                        start_bdy_time);
             Real dT = bdy_time_interval;
 
-            Real time_since_start_old = t_new[0] - start_bdy_time;
-            int n_time_old = static_cast<int>(time_since_start_old /  dT);
+            int n_time_old = static_cast<int>(t_new[0] /  dT);
 
             // I don't think this works if lev > 0 ...?
             AMREX_ALWAYS_ASSERT(finest_level == 0);
