@@ -49,8 +49,8 @@ void ERFPC::readInputs ()
     m_advect_w_gravity = false;
     pp.query("advect_with_gravity", m_advect_w_gravity);
 
-    m_start_time = 0.;
-    pp.query("start_time", m_start_time);
+    m_inject_start_time = 0.;
+    pp.query("start_time", m_inject_start_time);
 
     m_stable_redistribute = false;
     pp.query("stable_redistribute", m_stable_redistribute);
@@ -68,7 +68,7 @@ void ERFPC::InitializeParticles (const Real time, const std::unique_ptr<MultiFab
 {
     BL_PROFILE("ERFPC::InitializeParticles");
 
-    if (time >= m_start_time && !m_initialized) {
+    if (time >= m_inject_start_time && !m_initialized) {
         if (m_initialization_type == ERFParticleInitializations::init_box_uniform) {
             initializeParticlesUniformDistributionInBox( a_height_ptr , m_particle_box );
         } else {

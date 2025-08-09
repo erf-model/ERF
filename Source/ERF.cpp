@@ -673,7 +673,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     {
         if (rad_datalog_int > 0 && (nstep+1) % rad_datalog_int == 0) {
             if (rad[0]->hasDatalog()) {
-                rad[0]->WriteDataLog(time);
+                rad[0]->WriteDataLog(time+start_time);
             }
         }
     }
@@ -1179,10 +1179,10 @@ ERF::InitData_post ()
         //
         bool fillset = false;
         if (lev == 0) {
-            FillPatch(lev, t_new[lev],
+            FillPatchCrseLevel(lev, t_new[lev],
                       {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]});
         } else {
-            FillPatch(lev, t_new[lev],
+            FillPatchFineLevel(lev, t_new[lev],
                       {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
                       {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
                       base_state[lev], base_state[lev],

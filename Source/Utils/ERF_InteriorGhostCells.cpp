@@ -169,11 +169,9 @@ realbdy_bc_bxs_xy (const Box& bx,
  * @param[in] bdy_data_xhi boundary data on interior of high x-face
  * @param[in] bdy_data_ylo boundary data on interior of low y-face
  * @param[in] bdy_data_yhi boundary data on interior of high y-face
- * @param[in] start_bdy_time time of the first boundary data read in
  */
 void
 realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
-                                    const Real& start_bdy_time,
                                     const Real& time,
                                     const Real& delta_t,
                                     const Real& stop_time,
@@ -204,7 +202,12 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
     // Time interpolation
     Real dT = bdy_time_interval;
-    Real time_since_start = time - start_bdy_time;
+
+    //
+    // Note this is because we define "time" to be time since start_bdy_time
+    //
+    Real time_since_start = time;
+
     int n_time = static_cast<int>( time_since_start /  dT);
     Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);

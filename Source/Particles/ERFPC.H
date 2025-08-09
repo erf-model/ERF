@@ -229,7 +229,7 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         std::string m_initialization_type;  /*!< initial particle distribution type */
         int m_ppc_init;                     /*!< initial number of particles per cell */
 
-        amrex::Real m_start_time;           /*!< particles will only be initialized if time >= m_start_time */
+        amrex::Real m_inject_start_time;    /*!< particles will only be initialized/injected if time >= m_inject_start_time */
 
         bool m_initialized = false;         /*!< have the particles been initialized */
 

@@ -77,11 +77,11 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
     //
     if (lev == 0) {
-        FillPatch(lev, time, {&S_new, &U_new, &V_new, &W_new});
+        FillPatchCrseLevel(lev, time, {&S_new, &U_new, &V_new, &W_new});
     } else if (lev < finest_level) {
-        FillPatch(lev, time, {&S_new, &U_new, &V_new, &W_new},
-                             {&S_new, &rU_new[lev], &rV_new[lev], &rW_new[lev]},
-                             base_state[lev], base_state[lev]);
+        FillPatchFineLevel(lev, time, {&S_new, &U_new, &V_new, &W_new},
+                           {&S_new, &rU_new[lev], &rV_new[lev], &rW_new[lev]},
+                           base_state[lev], base_state[lev]);
     }
 
     if (regrid_int > 0)  // We may need to regrid
@@ -129,7 +129,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     if (Verbose()) {
         amrex::Print() << "[Level " << lev << " step " << istep[lev]+1 << "] ";
         amrex::Print() << std::setprecision(timeprecision)
-                       << "ADVANCE from time = " << t_old[lev] << " to " << t_new[lev]
+                       << "ADVANCE from elapsed time = " << t_old[lev] << " to " << t_new[lev]
                        << " with dt = " << dt[lev] << std::endl;
     }
 

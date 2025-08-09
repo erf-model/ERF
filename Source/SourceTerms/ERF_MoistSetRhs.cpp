@@ -17,7 +17,6 @@ moist_set_rhs (const Geometry& geom,
                const Array4<Real const>& new_cons,
                const Array4<Real      >& cell_rhs,
                const Real& bdy_time_interval,
-               const Real& start_bdy_time,
                const Real& new_stage_time,
                const Real& dt,
                const Real & stop_time,
@@ -48,7 +47,12 @@ moist_set_rhs (const Geometry& geom,
 
     // Time interpolation
     Real dT = bdy_time_interval;
-    Real time_since_start = new_stage_time - start_bdy_time;
+
+    //
+    // Note this is because we define "time" to be time since start_bdy_time
+    //
+    Real time_since_start = new_stage_time;
+
     int n_time = static_cast<int>( time_since_start /  dT);
     Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);

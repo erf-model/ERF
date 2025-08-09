@@ -86,11 +86,11 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     MultiFab& W_new = vars_new[levc][Vars::zvel];
     //
     if (levc == 0) {
-        FillPatch(levc, time, {&S_new, &U_new, &V_new, &W_new});
+        FillPatchCrseLevel(levc, time, {&S_new, &U_new, &V_new, &W_new});
     } else {
-        FillPatch(levc, time, {&S_new, &U_new, &V_new, &W_new},
-                              {&S_new, &rU_new[levc], &rV_new[levc], &rW_new[levc]},
-                              base_state[levc], base_state[levc],
+        FillPatchFineLevel(levc, time, {&S_new, &U_new, &V_new, &W_new},
+                           {&S_new, &rU_new[levc], &rV_new[levc], &rW_new[levc]},
+                           base_state[levc], base_state[levc],
                               false, true);
     }
 

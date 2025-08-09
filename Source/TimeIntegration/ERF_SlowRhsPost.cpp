@@ -84,7 +84,6 @@ void erf_slow_rhs_post (int level, int finest_level,
 #if defined(ERF_USE_NETCDF)
                         const bool& moist_set_rhs_bool,
                         const Real& bdy_time_interval,
-                        const Real& start_bdy_time,
                         const Real& new_stage_time,
                         const Real& stop_time,
                         int  width,
@@ -466,7 +465,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             const Array4<const Real> & old_cons_const = S_old[IntVars::cons].const_array(mfi);
             const Array4<const Real> & new_cons_const = S_new[IntVars::cons].const_array(mfi);
             moist_set_rhs(geom, tbx, old_cons_const, new_cons_const, cell_rhs, bdy_time_interval,
-                          start_bdy_time, new_stage_time, dt, stop_time, width, set_width, domain,
+                          new_stage_time, dt, stop_time, width, set_width, domain,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
         }
 #endif

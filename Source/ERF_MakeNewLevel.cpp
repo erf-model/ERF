@@ -549,10 +549,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         // NOTE: we must create the new base state before calling FillPatch because we will
         //       interpolate perturbational quantities
         // *************************************************************************************************
-        FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
-                              &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
-                             {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                             base_state[lev], temp_base_state, false);
+        FillPatchFineLevel(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
+                           &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
+                          {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                           base_state[lev], temp_base_state, false);
     } else {
         temp_base_state.ParallelCopy(base_state[lev],0,0,base_state[lev].nComp(),
                                      base_state[lev].nGrowVect(),base_state[lev].nGrowVect());
