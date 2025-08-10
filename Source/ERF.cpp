@@ -841,31 +841,39 @@ ERF::InitData_pre ()
 void
 ERF::InitData_post ()
 {
-    if (restart_chkfile.empty()) {
-        //
-        // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
-        //
+    if (solverChoice.advChoice.have_zero_flux_faces)
+    {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
+            "Thin immersed body with refinement not currently supported.");
         if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-            for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
-                average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-                average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
-            }
+            amrex::Print() << "NOTE: Thin immersed body with non-constant dz has not been tested." << std::endl;
         }
+    }
 
+    if (!restart_chkfile.empty()) {
+        restart();
+    }
+
+    //
+    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    //
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
+            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
+              detJ_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
+            z_phys_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
+        }
+    }
+
+    if (restart_chkfile.empty()) {
         if (solverChoice.coupling_type == CouplingType::TwoWay) {
             AverageDown();
         }
-
-        if (solverChoice.advChoice.have_zero_flux_faces)
-        {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
-                "Thin immersed body with refinement not currently supported.");
-            if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-                amrex::Print() << "NOTE: Thin immersed body with non-constant dz has not been tested." << std::endl;
-            }
-        }
+    }
 
 #ifdef ERF_USE_PARTICLES
+    if (restart_chkfile.empty()) {
         if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
             if (solverChoice.moisture_tight_coupling) {
                 Warning("Tight coupling has not been tested with Lagrangian microphysics");
@@ -875,11 +883,10 @@ ERF::InitData_post ()
                 dynamic_cast<LagrangianMicrophysics&>(*micro).initParticles(z_phys_nd[lev]);
             }
         }
+    }
 #endif
 
-    } else { // Restart from a checkpoint
-
-        restart();
+    if (!restart_chkfile.empty()) { // Restart from a checkpoint
 
         // Create the physbc objects for {cons, u, v, w, base state}
         // We fill the additional base state ghost cells just in case we have read the old format

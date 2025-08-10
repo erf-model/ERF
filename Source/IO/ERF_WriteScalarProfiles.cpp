@@ -661,6 +661,9 @@ ERF::volWgtSumMF (int lev,
 
     // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
     // m is the map scale factor at cell centers
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
     for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx   = mfi.tilebox();
         const auto  dst = tmp.array(mfi);
@@ -684,20 +687,6 @@ ERF::volWgtSumMF (int lev,
     volume.setVal(cell_vol);
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
         MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
-    }
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for (MFIter mfi(volume, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        const Box& tbx  = mfi.tilebox();
-        auto dst        = volume.array(mfi);
-        const auto& mfx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-        const auto& mfy = mapfac[lev][MapFacType::m_y]->const_array(mfi);
-        ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            dst(i,j,k) /= (mfx(i,j,0)*mfy(i,j,0));
-        });
     }
 
     //
