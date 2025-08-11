@@ -848,7 +848,7 @@ define( int const& a_idim,
 
       // Corrections for small cells
 
-      ParallelFor(bx, [&] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
         if (aux_vfrac(i,j,k) < small_volfrac) {
 
