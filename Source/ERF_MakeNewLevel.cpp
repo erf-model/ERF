@@ -55,7 +55,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
     if (verbose) {
         amrex::Print() <<            "BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
-        amrex::Print() <<" SIMPLIFIED BA FROM SCRATCH AT LEVEL " << lev << " " << ba.simplified_list() << std::endl;
+        // amrex::Print() <<" SIMPLIFIED BA FROM SCRATCH AT LEVEL " << lev << " " << ba.simplified_list() << std::endl;
     }
 
     subdomains.resize(lev+1);
@@ -264,7 +264,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 #ifdef ERF_USE_PARTICLES
     if (restart_chkfile.empty()) {
         if (lev == 0) {
-            initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd);
+            initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,time);
         } else {
             particleData.Redistribute();
         }
@@ -361,6 +361,14 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
+    }
+
+    //********************************************************************************************
+    // Radiation
+    // *******************************************************************************************
+    if (solverChoice.rad_type != RadiationType::None)
+    {
+        rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
     }
 
     // *****************************************************************************************************
@@ -541,10 +549,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         // NOTE: we must create the new base state before calling FillPatch because we will
         //       interpolate perturbational quantities
         // *************************************************************************************************
-        FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
-                              &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
-                             {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                             base_state[lev], temp_base_state, false);
+        FillPatchFineLevel(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
+                           &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
+                          {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                           base_state[lev], temp_base_state, false);
     } else {
         temp_base_state.ParallelCopy(base_state[lev],0,0,base_state[lev].nComp(),
                                      base_state[lev].nGrowVect(),base_state[lev].nGrowVect());
@@ -598,6 +606,14 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
+    }
+
+    //********************************************************************************************
+    // Radiation
+    // *******************************************************************************************
+    if (solverChoice.rad_type != RadiationType::None)
+    {
+        rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
     }
 
     // ********************************************************************************************

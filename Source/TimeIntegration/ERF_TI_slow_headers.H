@@ -131,7 +131,6 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
 #if defined(ERF_USE_NETCDF)
                        const bool& moist_zero,
                        const amrex::Real& bdy_time_interval,
-                       const amrex::Real& start_bdy_time,
                        const amrex::Real& new_stage_time,
                        const amrex::Real& stop_time,
                        int  width,

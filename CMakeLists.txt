@@ -1,7 +1,7 @@
 ############################ BASE ######################################
 
 cmake_minimum_required (VERSION 3.14 FATAL_ERROR)
-if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAH)
+if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
   project(ERF CXX C Fortran)
 else()
   project(ERF CXX C)
@@ -25,8 +25,8 @@ option(ERF_ENABLE_PARTICLES "Enable Lagrangian particles" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
-option(ERF_ENABLE_MOISTURE "Enable Full Moisture" ON)
 option(ERF_ENABLE_RRTMGP "Enable RTE-RRTMGP Radiation" OFF)
+option(ERF_ENABLE_SHOC "Enable SHOC" OFF)
 
 #Options for performance
 option(ERF_ENABLE_MPI "Enable MPI" OFF)
@@ -36,7 +36,7 @@ option(ERF_ENABLE_HIP  "Enable HIP" OFF)
 option(ERF_ENABLE_SYCL "Enable SYCL" OFF)
 
 #Options for NOAH-MP
-option(ERF_ENABLE_NOAH "Enable Noah-MP" OFF)
+option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 
 #Option to build tools
 option(ERF_ENABLE_TOOLS "Enable building of additional tools" OFF)
@@ -147,7 +147,7 @@ if(ERF_ENABLE_KOKKOS)
   endif()
 
   set(CMAKE_CXX_STANDARD 17)
-  add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/kokkos)
+  add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/ekat/extern/kokkos)
 
 endif()
 
@@ -164,10 +164,10 @@ endif()
 
 ########################## NOAH-MP ##################################
 
-if(ERF_ENABLE_NOAH)
+if(ERF_ENABLE_NOAHMP)
   if(ERF_ENABLE_NETCDF)
-     set(NOAHMP_HOME ${CMAKE_SOURCE_DIR}/Submodules/NOAH-MP/drivers/erf)
-     set(NOAHMP_BIN  ${CMAKE_BINARY_DIR}/Submodules/NOAH-MP/drivers/erf)
+     set(NOAHMP_HOME ${CMAKE_SOURCE_DIR}/Submodules/Noah-MP/drivers/erf)
+     set(NOAHMP_BIN  ${CMAKE_BINARY_DIR}/Submodules/Noah-MP/drivers/erf)
      add_subdirectory(${NOAHMP_HOME} ${NOAHMP_BIN})
   else()
      message(FATAL_ERROR "Noah-MP requires NetCDF be enabled")
@@ -197,10 +197,29 @@ if(ERF_ENABLE_RRTMGP)
     target_link_libraries(rrtmgp Kokkos::kokkos)
 endif()
 
+########################### SHOC #################################
+
+if(ERF_ENABLE_SHOC)
+    if(NOT ERF_ENABLE_KOKKOS)
+        message(FATAL_ERROR "CMake Error: kokkos must be enabled if SHOC is enabled.")
+    endif()
+
+    message(STATUS "Building SHOC...")
+
+    # Build the static SHOC library
+    set(SHOC_BIN ${CMAKE_BINARY_DIR}/shoc)
+    add_subdirectory(${CMAKE_SOURCE_DIR}/shoc/cpp ${SHOC_BIN})
+
+    # Set up kokkos library and definitions
+    set(SHOC_ENABLE_KOKKOS TRUE)
+    target_compile_definitions(shoc PUBLIC SHOC_ENABLE_KOKKOS)
+    target_link_libraries(shoc Kokkos::kokkos)
+endif()
+
 ########################### ERF #####################################
 
 if(ERF_ENABLE_MPI)
-  if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAH)
+  if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
     find_package(MPI COMPONENTS Fortran REQUIRED)
   else()
     find_package(MPI REQUIRED)

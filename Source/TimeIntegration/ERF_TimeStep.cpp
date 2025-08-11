@@ -33,11 +33,8 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     if (solverChoice.use_real_bcs && (lev==0)) {
         Real dT = bdy_time_interval;
 
-        Real time_since_start_old = time - start_bdy_time;
-        int n_time_old = static_cast<int>( time_since_start_old /  dT);
-
-        Real time_since_start_new = time + dt[lev] - start_bdy_time;
-        int n_time_new = static_cast<int>( time_since_start_new /  dT);
+        int n_time_old = static_cast<int>( (time        ) /  dT);
+        int n_time_new = static_cast<int>( (time+dt[lev]) /  dT);
 
         int ntimes = bdy_data_xlo.size();
         for (int itime = 0; itime < ntimes; itime++)
@@ -65,7 +62,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
                bool use_moist = (solverChoice.moisture_type != MoistureType::None);
                convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                   *mf_MUB[lev], *mf_C1H[lev], *mf_C2H[lev],
+                                   *mf_MUB, *mf_C1H, *mf_C2H,
                                    vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
                                    geom[lev], use_moist);
            }
@@ -77,11 +74,11 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
     //
     if (lev == 0) {
-        FillPatch(lev, time, {&S_new, &U_new, &V_new, &W_new});
+        FillPatchCrseLevel(lev, time, {&S_new, &U_new, &V_new, &W_new});
     } else if (lev < finest_level) {
-        FillPatch(lev, time, {&S_new, &U_new, &V_new, &W_new},
-                             {&S_new, &rU_new[lev], &rV_new[lev], &rW_new[lev]},
-                             base_state[lev], base_state[lev]);
+        FillPatchFineLevel(lev, time, {&S_new, &U_new, &V_new, &W_new},
+                           {&S_new, &rU_new[lev], &rV_new[lev], &rW_new[lev]},
+                           base_state[lev], base_state[lev]);
     }
 
     if (regrid_int > 0)  // We may need to regrid
@@ -129,7 +126,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     if (Verbose()) {
         amrex::Print() << "[Level " << lev << " step " << istep[lev]+1 << "] ";
         amrex::Print() << std::setprecision(timeprecision)
-                       << "ADVANCE from time = " << t_old[lev] << " to " << t_new[lev]
+                       << "ADVANCE from elapsed time = " << t_old[lev] << " to " << t_new[lev]
                        << " with dt = " << dt[lev] << std::endl;
     }
 
