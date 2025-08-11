@@ -105,7 +105,7 @@ define( int const& a_idim,
       });
 
     } else if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
-    
+
       // Initialization
 
       // CC cell quantities
