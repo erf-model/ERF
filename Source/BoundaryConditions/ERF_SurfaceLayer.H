@@ -14,6 +14,7 @@
 #include "ERF_MOSTStress.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
+#include "ERF_MicrophysicsUtils.H"
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
@@ -393,6 +394,8 @@ public:
   void
   update_fluxes (const int& lev,
                  const amrex::Real& time,
+                 const amrex::MultiFab& cons_in,
+                 const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                  int max_iters = 100);
 
   template <typename FluxIter>
@@ -427,6 +430,10 @@ public:
 
   void fill_tsurf_with_sst_and_tsk (const int& lev,
                                     const amrex::Real& time);
+
+  void fill_qsurf_with_qsat (const int& lev,
+                             const amrex::MultiFab& cons_in,
+                             const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   void get_lsm_tsurf (const int& lev);
 
