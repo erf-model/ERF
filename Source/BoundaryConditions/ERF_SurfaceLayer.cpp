@@ -561,10 +561,11 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
             if (!is_land) {
                 auto deltaZ = (z_arr) ? Compute_Zrel_AtCellCenter(i,j,k,z_arr) :
                                         0.5*dz;
+                auto Rho  = cons_arr(i,j,k,Rho_comp);
                 auto RTh  = cons_arr(i,j,k,RhoTheta_comp);
-                auto Qv   = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);
+                auto Qv   = cons_arr(i,j,k,RhoQ1_comp) / Rho;
                 auto P_cc = getPgivenRTh(RTh, Qv);
-                P_cc += deltaZ*CONST_GRAV;
+                P_cc += Rho*CONST_GRAV*deltaZ;
                 P_cc *= 0.01;
                 erf_qsatw(t_surf_arr(i,j,k), P_cc, q_surf_arr(i,j,k));
             }
