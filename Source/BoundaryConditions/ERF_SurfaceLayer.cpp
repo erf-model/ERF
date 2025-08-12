@@ -60,7 +60,6 @@ SurfaceLayer::update_fluxes (const int& lev,
                 amrex::Abort("Unknown value for rough_type_land");
             }
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-
             if (rough_type_land == RoughCalcType::CONSTANT) {
                 surface_temp most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
@@ -114,7 +113,6 @@ SurfaceLayer::update_fluxes (const int& lev,
             }
 
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-            update_surf_temp(time);
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
                 surface_temp_charnock most_flux(m_ma.get_zref(),
                                                 surf_temp_flux, surf_moist_flux,
