@@ -407,7 +407,7 @@ protected:
     } // set_variables
 
     void set_mass_and_energy_fluxes (const view_1d_const& surf_evap_, const view_1d_const surf_sens_flux_,
-				     const view_1d& vapor_flux_, const view_1d& water_flux_,
+                     const view_1d& vapor_flux_, const view_1d& water_flux_,
                                      const view_1d& ice_flux_, const view_1d& heat_flux_)
     {
       compute_mass_and_energy_fluxes = true;
