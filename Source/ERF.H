@@ -69,6 +69,10 @@
 #include "ERF_ShocInterface.H"
 #endif
 
+#ifdef ERF_USE_P3
+#include "ERF_P3Interface.H"
+#endif
+
 #include <iostream>
 
 #ifdef AMREX_LAZY
@@ -368,6 +372,13 @@ public:
                                   amrex::MultiFab& source,    amrex::MultiFab& xmom_src,
                                   amrex::MultiFab& ymom_src,  amrex::MultiFab& zmom_src,
                                   const amrex::Real& dt_advance);
+#endif
+
+#ifdef ERF_USE_P3
+    void compute_p3_tendencies (int lev,
+                                amrex::MultiFab& cons_in,
+                                amrex::MultiFab& source,
+                                const amrex::Real& dt_advance);
 #endif
 
     amrex::MultiFab& build_fine_mask (int lev);
@@ -814,6 +825,10 @@ private:
 
 #ifdef ERF_USE_SHOC
     amrex::Vector<std::unique_ptr<SHOCInterface>> shoc_interface; // SHOC model at each level
+#endif
+
+#ifdef ERF_USE_P3
+    amrex::Vector<std::unique_ptr<P3Interface>> p3_interface; // P3 model at each level
 #endif
 
     // Containers for additional SLM inputs
