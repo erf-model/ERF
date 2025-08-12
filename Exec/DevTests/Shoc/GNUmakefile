@@ -22,7 +22,7 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
-USE_SHOC   = TRUE
+USE_SHOC = TRUE
 
 # GNU Make
 Bpack := ./Make.package

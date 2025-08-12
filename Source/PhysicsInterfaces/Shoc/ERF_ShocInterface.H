@@ -19,7 +19,7 @@
 #include <ERF_Kokkos.H>
 
 #include "ekat/ekat_parameter_list.hpp"
-#include "ekat_workspace.hpp"
+#include "ekat/ekat_workspace.hpp"
 #include "ekat/kokkos/ekat_subview_utils.hpp"
 
 #include <shoc_constants.hpp>
