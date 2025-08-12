@@ -59,7 +59,7 @@ static constexpr bool SCREAM_BFB_TESTING = true;
 /*
  * Utility function for handling floating point literals,
  * so that they match the scream precision. This is
- * especially useful for bfb tests agaisnt fortran,
+ * especially useful for bfb tests against fortran,
  * to ensure that literals are not a source of round-off differences.
  */
 template<typename T> KOKKOS_INLINE_FUNCTION

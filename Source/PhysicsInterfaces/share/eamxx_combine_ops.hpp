@@ -94,7 +94,7 @@ void fill_aware_combine (const ScalarIn& newVal, ScalarOut& result, const Scalar
       if (newVal != fill_val)
         combine<CM>(newVal,result,alpha,beta);
       break;
-        
+
     default:
       EKAT_KERNEL_ERROR_MSG("Unsupported combine mode for 'fill_aware_combine' overload");
   }

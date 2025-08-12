@@ -479,7 +479,7 @@ SHOCInterface::initialize_impl ()
   output.ustar    = get_field_out("ustar").get_view<Real*>();
   output.obklen   = get_field_out("obklen").get_view<Real*>();
 
-  // Ouput (diagnostic)
+  // Output (diagnostic)
   history_output.shoc_mix  = m_buffer.shoc_mix;
   history_output.isotropy  = m_buffer.isotropy;
   if (m_params.get<bool>("extra_shoc_diags", false)) {

@@ -7,7 +7,7 @@ The ERF code is dependent on `AMReX <https://github.com/AMReX-Codes/amrex>`_.
 
 If radiation is used, ERF includes the radiation model `RTE-RRTMGP <https://github.com/E3SM-Project/E3SM/tree/master/components/eamxx/src/physics/rrtmgp>`_ also used by E3SM.
 
-ERF can also use the `simplified-higher-order-closure (SHOC) turbulence and cloud macrophysics scheme from E3SM <https://github.com/E3SM-Project/E3SM/tree/master/components/eamxx/src/physics/shoc>`_ , as well as the 
+ERF can also use the `simplified-higher-order-closure (SHOC) turbulence and cloud macrophysics scheme from E3SM <https://github.com/E3SM-Project/E3SM/tree/master/components/eamxx/src/physics/shoc>`_ , as well as the
 `P3 microphysics scheme scheme from E3SM <https://github.com/E3SM-Project/E3SM/tree/master/components/eamxx/src/physics/p3>`_ .
 
 RRTMGP, SHOC and P3 use Kokkos for heterogeneous computing infrastructures.
