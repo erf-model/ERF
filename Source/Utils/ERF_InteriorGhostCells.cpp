@@ -792,6 +792,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
             const Array4<const Real>& data_arr = fmf.const_array(mfi);
             const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
+            Box vbx = mfi.validbox();
             const auto& vbx_lo = lbound(vbx);
             const auto& vbx_hi = ubound(vbx);
 
