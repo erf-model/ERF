@@ -11,14 +11,28 @@ using namespace amrex;
 void
 SurfaceLayer::update_fluxes (const int& lev,
                              const Real& time,
+                             const MultiFab& cons_in,
+                             const std::unique_ptr<MultiFab>& z_phys_nd,
                              int max_iters)
 {
-    // Update SST data if we have a valid pointer
-    if (m_sst_lev[lev][0]) fill_tsurf_with_sst_and_tsk(lev, time);
+    // Update with SST/TSK data if we have a valid pointer
+    if (m_sst_lev[lev][0]) {
+        fill_tsurf_with_sst_and_tsk(lev, time);
+    }
+
+    // Apply heating rate if needed
+    if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
+        update_surf_temp(time);
+    }
+
+    // Update qsurf with qsat over sea
+    if (use_moisture && (moist_type == MoistCalcType::SURFACE_MOISTURE)) {
+        fill_qsurf_with_qsat(lev, cons_in, z_phys_nd);
+    }
 
     // TODO: we want 0 index to always be theta?
     // Update land surface temp if we have a valid pointer
-    if (m_lsm_data_lev[lev][0]) get_lsm_tsurf(lev);
+    if (m_lsm_data_lev[lev][0]) { get_lsm_tsurf(lev); }
 
     // Fill interior ghost cells
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
@@ -40,15 +54,14 @@ SurfaceLayer::update_fluxes (const int& lev,
         bool is_land = true;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
             if (rough_type_land == RoughCalcType::CONSTANT) {
-              surface_flux most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
+                surface_flux most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
             }
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-            update_surf_temp(time);
             if (rough_type_land == RoughCalcType::CONSTANT) {
-              surface_temp most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
+                surface_temp most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
@@ -100,7 +113,6 @@ SurfaceLayer::update_fluxes (const int& lev,
             }
 
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-            update_surf_temp(time);
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
                 surface_temp_charnock most_flux(m_ma.get_zref(),
                                                 surf_temp_flux, surf_moist_flux,
@@ -493,7 +505,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
                                                   Array4<int> {};
 
         if (use_tsk) {
-            const auto    tsk_arr = m_tsk_lev[lev][n_time_lo]->const_array(mfi);
+            const auto tsk_arr = m_tsk_lev[lev][n_time_lo]->const_array(mfi);
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
@@ -518,6 +530,46 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
         }
     }
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
+}
+
+void
+SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
+                                    const MultiFab& cons_in,
+                                    const std::unique_ptr<MultiFab>& z_phys_nd)
+{
+    // NOTE: We have already tested a moisture model exists
+
+    // Populate q_surf with qsat over water
+    auto dz = m_geom[lev].CellSize(2);
+    for (MFIter mfi(*q_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        auto q_surf_arr = q_surf[lev]->array(mfi);
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                  Array4<int> {};
+        const auto cons_arr = cons_in.const_array(mfi);
+        const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
+                                            Array4<const Real> {};
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+            if (!is_land) {
+                auto deltaZ = (z_arr) ? Compute_Zrel_AtCellCenter(i,j,k,z_arr) :
+                                        0.5*dz;
+                auto Rho  = cons_arr(i,j,k,Rho_comp);
+                auto RTh  = cons_arr(i,j,k,RhoTheta_comp);
+                auto Qv   = cons_arr(i,j,k,RhoQ1_comp) / Rho;
+                auto P_cc = getPgivenRTh(RTh, Qv);
+                P_cc += Rho*CONST_GRAV*deltaZ;
+                P_cc *= 0.01;
+                erf_qsatw(t_surf_arr(i,j,k), P_cc, q_surf_arr(i,j,k));
+            }
+        });
+    }
+    q_surf[lev]->FillBoundary(m_geom[lev].periodicity());
 }
 
 void
