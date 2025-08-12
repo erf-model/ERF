@@ -274,16 +274,15 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
 
     // Level 0 FilLPatch
-    FillPatch(0, t_new[0], {&vars_new[0][Vars::cons], &vars_new[0][Vars::xvel],
-                            &vars_new[0][Vars::yvel], &vars_new[0][Vars::zvel]});
+    FillPatchCrseLevel(0, t_new[0], {&vars_new[0][Vars::cons], &vars_new[0][Vars::xvel],
+                       &vars_new[0][Vars::yvel], &vars_new[0][Vars::zvel]});
 
     for (int lev = 1; lev <= finest_level; ++lev) {
         bool fillset = false;
-        FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
-                                    &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
-                                   {&vars_new[lev][Vars::cons],
-                                    &rU_new[lev], &rV_new[lev], &rW_new[lev]},
-                                    base_state[lev], base_state[lev], fillset);
+        FillPatchFineLevel(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
+                           &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
+                          {&vars_new[lev][Vars::cons], &rU_new[lev], &rV_new[lev], &rW_new[lev]},
+                           base_state[lev], base_state[lev], fillset);
     }
 
     // Get qmoist pointers if using moisture
@@ -1304,18 +1303,31 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
 #ifdef ERF_USE_PARTICLES
         const auto& particles_namelist( particleData.getNames() );
-        for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++) {
-            if (containerHasElement(plot_var_names, std::string(particles_namelist[i]+"_count"))) {
+
+        if (containerHasElement(plot_var_names, "tracer_particles_count")) {
+            if (particles_namelist.size() == 0) {
                 MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
                 temp_dat.setVal(0);
-                particleData[particles_namelist[i]]->Increment(temp_dat, lev);
                 MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
                 mf_comp += 1;
+            } else {
+                for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++) {
+                    if (containerHasElement(plot_var_names, std::string(particles_namelist[i]+"_count"))) {
+                        MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
+                        temp_dat.setVal(0);
+                        if (particleData.HasSpecies(particles_namelist[i])) {
+                            particleData[particles_namelist[i]]->Increment(temp_dat, lev);
+                        }
+                        MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+                        mf_comp += 1;
+                    }
+                }
             }
         }
 
         Vector<std::string> particle_mesh_plot_names(0);
         particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
+
         for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
             std::string plot_var_name(particle_mesh_plot_names[i]);
             if (containerHasElement(plot_var_names, plot_var_name) ) {

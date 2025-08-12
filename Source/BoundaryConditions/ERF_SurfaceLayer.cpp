@@ -460,11 +460,10 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     if (n_times_in_sst > 1) {
         // Time interpolation
         Real dT = m_bdy_time_interval;
-        Real time_since_start = time - m_start_bdy_time;
-        int n_time = static_cast<int>( time_since_start /  dT);
+        int n_time = static_cast<int>( time /  dT);
         n_time_lo = n_time;
         n_time_hi = n_time+1;
-        alpha = (time_since_start - n_time * dT) / dT;
+        alpha = (time - n_time * dT) / dT;
         AMREX_ALWAYS_ASSERT( (n_time >= 0) && (n_time < (m_sst_lev[lev].size()-1)));
     } else {
         n_time_lo = 0;

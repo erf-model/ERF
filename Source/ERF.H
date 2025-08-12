@@ -482,10 +482,10 @@ public:
 
 #ifdef ERF_USE_NETCDF
     void init_from_wrfinput (int lev,
-                             amrex::MultiFab& mu_C1H,
-                             amrex::MultiFab& mu_C2H,
-                             amrex::MultiFab& mu_MUB,
-                             amrex::MultiFab& mu_PSFC);
+                             amrex::MultiFab& mf_C1H,
+                             amrex::MultiFab& mf_C2H,
+                             amrex::MultiFab& mf_MUB,
+                             amrex::MultiFab& mf_PSFC);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
 #endif // ERF_USE_NETCDF
@@ -577,17 +577,17 @@ private:
     // NOTE: FillPatch takes in an empty MF, and returns cell-centered + velocities (not momenta)
     //
     // This one works only at level = 0 (base state does not change)
-    void FillPatch (int lev, amrex::Real time,
-                    const amrex::Vector<amrex::MultiFab*>& mfs_vel,
-                    bool cons_only=false);
+    void FillPatchCrseLevel (int lev, amrex::Real time,
+                             const amrex::Vector<amrex::MultiFab*>& mfs_vel,
+                             bool cons_only=false);
 
     // This one works only at level > 0 (base state does change)
-    void FillPatch (int lev, amrex::Real time,
-                    const amrex::Vector<amrex::MultiFab*>& mfs_vel,
-                    const amrex::Vector<amrex::MultiFab*>& mfs_mom,
-                    const amrex::MultiFab& old_base_state,
-                    const amrex::MultiFab& new_base_state,
-                    bool fillset=true, bool cons_only=false);
+    void FillPatchFineLevel (int lev, amrex::Real time,
+                             const amrex::Vector<amrex::MultiFab*>& mfs_vel,
+                             const amrex::Vector<amrex::MultiFab*>& mfs_mom,
+                             const amrex::MultiFab& old_base_state,
+                             const amrex::MultiFab& new_base_state,
+                             bool fillset=true, bool cons_only=false);
 
     // Compute new multifabs by copying data from valid region and filling ghost cells.
     // Unlike FillPatch, FillIntermediatePatch will use the supplied multifabs instead of fine level data.
@@ -1047,15 +1047,15 @@ private:
     ParticleData particleData;
 
     // variables and functions for tracers particles
-    bool  m_use_tracer_particles; /*!< tracer particles that advect with flow */
-    bool  m_use_hydro_particles;  /*!< tracer particles that fall with gravity */
+    bool  m_use_tracer_particles; /*!< tracer particles that advect with flow with optional sedimentation */
 
     /*! Read tracer and hydro particles parameters */
     void readTracersParams();
 
     /*! Initialize tracer and hydro particles */
     void initializeTracers ( amrex::ParGDBBase*,
-                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&,
+                             const amrex::Real time);
 
     /*! Restart tracer and hydro particles */
     void restartTracers ( amrex::ParGDBBase*, const std::string& );
@@ -1121,9 +1121,10 @@ private:
 
     amrex::Vector<amrex::BoxArray> ba1d;
     amrex::Vector<amrex::BoxArray> ba2d;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C1H;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_C2H;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_MUB;
+    std::unique_ptr<amrex::MultiFab> mf_C1H;
+    std::unique_ptr<amrex::MultiFab> mf_C2H;
+    std::unique_ptr<amrex::MultiFab> mf_MUB;
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_PSFC;
 
     // 1D CDF output (for ingestion in AMR-Wind)
