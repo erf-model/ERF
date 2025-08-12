@@ -151,7 +151,6 @@ read_from_wrflow (const std::string& nc_low_file, const Box& domain,
 
         for (int nt(0); nt < ntimes; ++nt)
         {
-            amrex::Print() << "FILLING LOW_DATA_ZLO " << nt << " " << low_data_zlo[nt].box() << std::endl;
             fab_arr  = low_data_zlo[nt].array();
             int n_off = nt * num_pts;
             for (int n(0); n < num_pts; ++n) {

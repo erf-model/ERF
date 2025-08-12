@@ -49,7 +49,6 @@ namespace ERFParticleInitializations
 namespace ERFParticleNames
 {
     const std::string tracers = "tracer_particles";
-    const std::string hydro = "hydro_particles";
 }
 
 struct ERFParticlesAssignor
@@ -144,7 +143,7 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         }
 
         /*! Initialize particles in domain */
-        virtual void InitializeParticles (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+        virtual void InitializeParticles (const amrex::Real time, const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
 
         /*! Evolve particles for one time step */
         virtual void EvolveParticles (   int,
@@ -229,6 +228,10 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
 
         std::string m_initialization_type;  /*!< initial particle distribution type */
         int m_ppc_init;                     /*!< initial number of particles per cell */
+
+        amrex::Real m_inject_start_time;    /*!< particles will only be initialized/injected if time >= m_inject_start_time */
+
+        bool m_initialized = false;         /*!< have the particles been initialized */
 
         bool m_stable_redistribute;         /*!< use stable redistribute for deterministic simulations */
 
