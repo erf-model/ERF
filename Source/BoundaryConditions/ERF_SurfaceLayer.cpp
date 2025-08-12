@@ -26,7 +26,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     }
 
     // Update qsurf with qsat over sea
-    if (use_moisture) {
+    if (use_moisture && (moist_type == MoistCalcType::SURFACE_MOISTURE)) {
         fill_qsurf_with_qsat(lev, cons_in, z_phys_nd);
     }
 
