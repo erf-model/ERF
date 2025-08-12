@@ -53,8 +53,8 @@ erf.terrain_type = StaticFittedMesh
 erf.moisture_model = "Kessler"
 
 erf.molec_diff_type = "None"
-erf.les_type        = "Smagorinsky2D"
-erf.Cs              = 0.1
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.005
 
 erf.has_lat_lon = true
     
