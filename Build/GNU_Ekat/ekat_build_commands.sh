@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set path to ERF
-ERF_DIR=/home/amlattanzi/ERF
+${ERF_DIR=/home/ERF}
 
 # Set the path to ekat source
 SRC_DIR=${ERF_DIR}/Submodules/ekat
