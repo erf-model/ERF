@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Set path to ERF
-ERF_DIR="/home/alattanz/ERF"
+ERF_DIR=/home/amlattanzi/ERF
 
 # Set the path to external in ERF
 EXT_DIR=${ERF_DIR}/external
 
 # NOTE: These git commands requires git version > 2.34
-git clone --filter=blob:none https://github.com/E3SM-Project/E3SM.git ${Ext_Loc}/E3SM --sparse
+git clone --filter=blob:none https://github.com/E3SM-Project/E3SM.git ${EXT_DIR}/E3SM --sparse
 cd ${EXT_DIR}/E3SM
 git sparse-checkout set components/eamxx/src/physics/shoc
 export SHOC_HOME=${EXT_DIR}/E3SM/components/eamxx/src/physics/shoc
