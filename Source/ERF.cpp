@@ -473,9 +473,8 @@ ERF::Evolve ()
     for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step)
     {
         if (use_datetime) {
-            Print() << "\n" << getTimestamp(cur_time, datetime_format)
-                    << " (" << cur_time-start_time << " s elapsed)"
-                    << std::endl;
+            Print() << "\n" << getTimestamp(start_time+cur_time, datetime_format)
+                    << " (" << cur_time << " s elapsed)" << std::endl;
         }
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
@@ -785,10 +784,11 @@ ERF::InitData_pre ()
     last_check_file_step  = -1;
 
     if (restart_chkfile.empty()) {
-        // start simulation from the beginning
 
+        // Start simulation from the beginning
         const Real time = start_time;
         InitFromScratch(time);
+
     } else {
         // For initialization this is done in init_only; it is done here for restart
         init_bcs();
@@ -1693,15 +1693,19 @@ ERF::init_only (int lev, Real time)
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
+
         init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
+
         if (lev==0) {
-            if ((start_time > 0) && (start_time != t_new[lev])) {
+            if ((start_time > 0) && (start_time != start_bdy_time)) {
                 Print() << "Ignoring specified start_time="
                         << std::setprecision(timeprecision) << start_time
                         << std::endl;
             }
-            start_time = t_new[lev];
         }
+
+        start_time = start_bdy_time;
+
         use_datetime = true;
 
         // The physbc's need the terrain but are needed for initHSE
