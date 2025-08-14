@@ -232,6 +232,19 @@ public:
         return LsmVarName[varIdx];
     }
 
+    int
+    Lsm_VarIndex (std::string varname) override
+    {
+        int varIdx = -1;
+        std::string lc_varname = amrex::toLower(varname);
+        for (int idx(0); idx<LsmVar_SLM::NumVars; ++idx) {
+            if (lc_varname == amrex::toLower(LsmVarName[idx])) {
+                varIdx = idx;
+            }
+        }
+        return varIdx;
+    }
+
     void
     Copy_State_to_Lsm (const amrex::MultiFab& cons_in, const amrex::MultiFab& u_in, const amrex::MultiFab& v_in) override;
 

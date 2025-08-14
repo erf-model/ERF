@@ -47,8 +47,8 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                              0, 0, 0};
 
     Vector<int> cons_map = {Rho_comp, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
-                            RealBdyVars::QV, RhoQ2_comp,  RhoQ3_comp,
-                            RhoQ4_comp, RhoQ5_comp,  RhoQ6_comp};
+                            RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
+                            RhoQ4_comp, RhoQ5_comp, RhoQ6_comp};
 
     Vector<Vector<int>> is_read;
     is_read.push_back( cons_read );
@@ -60,13 +60,21 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     ind_map.push_back( cons_map );
     ind_map.push_back( {RealBdyVars::U} ); // xvel
     ind_map.push_back( {RealBdyVars::V} ); // yvel
-    ind_map.push_back( {0} );             // zvel
+    ind_map.push_back( {0} );              // zvel
 
     // Nvars to loop over
     Vector<int> comp_var = {ncomp_cons, 1, 1, 1};
 
     // End of vars loop
     int var_idx_end = (cons_only) ? Vars::cons + 1 : Vars::NumTypes;
+
+    // Extrapolate w from the interior (default) or explicitly set to 0
+    bool zero_w = (!cons_only && !real_extrap_w);
+    if (zero_w) {
+        var_idx_end -= 1;
+
+        mfs[Vars::zvel]->setVal(0.0);
+    }
 
     // Loop over all variable types
     for (int var_idx = Vars::cons; var_idx < var_idx_end; ++var_idx)
@@ -85,7 +93,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
 
         // Offset only applies to cons (we may fill a subset of these vars)
         int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
-
 
         // Ghost cells to be filled
         IntVect ng_vect = (var_idx == Vars::cons) ? ngvect_cons : ngvect_vels;

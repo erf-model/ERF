@@ -1,0 +1,3 @@
+ifeq ($(USE_KOKKOS), TRUE)
+    CEXE_headers += ERF_Kokkos.H
+endif

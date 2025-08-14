@@ -1,140 +1,82 @@
-#include <ERF_OrbCosZenith.H>
+#ifndef ERF_ORB_COS_ZENITH_H
+#define ERF_ORB_COS_ZENITH_H
 
-real
-orbital_cos_zenith (real& jday,
-                    real& lat,
-                    real& lon,
-                    real& declin,
-                    real dt_avg,
-                    real uniform_angle,
-                    real constant_zenith_angle_deg)
+#include <vector>
+#include <cmath>
+
+#include <ERF_Constants.H>
+
+typedef double real;
+
+
+AMREX_GPU_HOST
+AMREX_FORCE_INLINE
+void
+orbital_decl (real& calday,
+              real& eccen,
+              real& mvelpp,
+              real& lambm0,
+              real& obliqr,
+              real& delta,
+              real& eccf)
 {
-    // Constant zenith angle is true
-    if ( constant_zenith_angle_deg >= 0. ) {
-        return std::cos( constant_zenith_angle_deg * PI/180. );
-    }
 
-    // Uniform angle is true
-    if ( uniform_angle >= 0.) {
-        return std::cos(uniform_angle);
-    }
+    real lambm;  // Lambda m, mean long of perihelion (rad)
+    real lmm;    // Intermediate argument involving lambm
+    real lamb;   // Lambda, the earths long of perihelion
+    real invrho; // Inverse normalized sun/earth distance
+    real sinl;   // Sine of lmm
+    static constexpr real dayspy = real(365.0); // Day per year
+    static constexpr real ve     = real( 80.5); // Calday of vernal equinox
 
-    // Perform the calculation of Orbital_Cos_Zenith
-    bool use_dt_avg = false;
-    if (dt_avg > 0.) {
-        use_dt_avg = true;
-    }
-    // If dt for the average cosz is specified, then call the shr_orb_avg_cosz
-    if (use_dt_avg) {
-        return orbital_avg_cos_zenith(jday, lat, lon, declin, dt_avg);
-    } else {
-        return  std::sin(lat)*std::sin(declin) - std::cos(lat)*std::cos(declin) *
-                std::cos((jday-floor(jday))*real(2.0)*PI + lon);
-    }
+    /*
+     Compute eccentricity factor and solar declination using
+     day value where a round day (such as 213.0) refers to 0z at
+     Greenwich longitude.
+
+     Use formulas from Berger, Andre 1978: Long-Term Variations of Daily
+     Insolation and Quaternary Climatic Changes. J. of the Atmo. Sci.
+     35:2362-2367.
+
+     To get the earths true longitude (position in orbit; lambda in Berger
+     1978) which is necessary to find the eccentricity factor and declination,
+     must first calculate the mean longitude (lambda m in Berger 1978) at
+     the present day.  This is done by adding to lambm0 (the mean longitude
+     at the vernal equinox, set as March 21 at noon, when lambda=0; in radians)
+     an increment (delta lambda m in Berger 1978) that is the number of
+     days past or before (a negative increment) the vernal equinox divided by
+     the days in a model year times the 2*pi radians in a complete orbit.
+    */
+
+    lambm = lambm0 + (calday - ve)*2.0*PI/dayspy;
+    lmm   = lambm  - mvelpp;
+
+    // The earths true longitude, in radians, is then found from
+    // the formula in Berger 1978:
+
+    sinl  = std::sin(lmm);
+    lamb  = lambm  + eccen*( 2.0*sinl + eccen*( 1.25*sin(2.0*lmm)
+                                              + eccen*((13.0/12.0)*std::sin(3.0*lmm) - 0.25*sinl)));
+
+    /*
+     Using the obliquity, eccentricity, moving vernal equinox longitude of
+     perihelion (plus), and earths true longitude, the declination (delta)
+     and the normalized earth/sun distance (rho in Berger 1978; actually inverse
+     rho will be used), and thus the eccentricity factor (eccf), can be
+     calculated from formulas given in Berger 1978.
+    */
+
+    invrho = (1.0 + eccen*std::cos(lamb - mvelpp)) / (1.0 - eccen*eccen);
+
+    // Set solar declination and eccentricity factor
+
+    delta  = std::asin(std::sin(obliqr)*std::sin(lamb));
+    eccf   = invrho*invrho;
 }
 
 
-real
-orbital_avg_cos_zenith (real& jday,
-                        real& lat,
-                        real& lon,
-                        real& declin,
-                        real& dt_avg)
-{
-    // adjust latitude so that its tangent will be defined
-    real del;
-    if (lat ==  PIoTwo) {
-        del = lat - real(1.0e-05);
-    } else if (lat ==  -PIoTwo) {
-        del = lat + real(1.0e-05);
-    } else {
-        del = lat;
-    }
-
-    // adjust declination so that its tangent will be defined
-    real phi;
-    if (declin == PIoTwo) {
-        phi = declin - real(1.0e-05);
-    } else if (declin == -PIoTwo) {
-        phi = declin + real(1.0e-05);
-    } else {
-        phi = declin;
-    }
-
-    // define the cosine of the half-day length
-    // adjust for cases of all daylight or all night
-    real h;
-    real cos_h = - std::tan(del) * std::tan(phi);
-    if (cos_h <= -1.0) {
-        h = PI;
-    } else if (cos_h >= 1.0) {
-        h = 0.0;
-    } else {
-        h = std::acos(cos_h);
-    }
-
-    // Define Local Time t and t + dt
-    // adjust t to be between -pi and pi
-    real t1 = (jday - int(jday)) * 2.0*PI + lon - PI;
-    if (t1 >=  PI) {
-        t1 = t1 - 2.0*PI;
-    } else if (t1 < -PI) {
-        t1 = t1 + 2.0*PI;
-    }
-
-    real dt = dt_avg / real(86400.0) * 2.0*PI;
-    real t2 = t1 + dt;
-
-    // Compute Cosine Solar Zenith angle
-    // define terms needed in the cosine zenith angle equation
-    real aa = std::sin(lat) * std::sin(declin);
-    real bb = std::cos(lat) * std::cos(declin);
-
-    // define the hour angle
-    // force it to be between -h and h
-    // consider the situation when the night period is too short
-    real tt1,tt2,tt3,tt4;
-    if ( (t2 >= PI) && (t1 <= PI) && (PI - h <= dt) ) {
-        tt2 = h;
-        tt1 = std::min(std::max(t1,         -h),          h);
-        tt4 = std::min(std::max(t2, 2.0*PI - h), 2.0*PI + h);
-        tt3 = 2.0*PI - h;
-    } else if ( (t2 >= -PI) && (t1 <= -PI) && (PI - h <= dt) ) {
-        tt2 = - 2.0*PI + h;
-        tt1 = std::min(std::max(t1, -2.0*PI - h), -2.0*PI + h);
-        tt4 = std::min(std::max(t2,          -h),           h);
-        tt3 = -h;
-    } else {
-        if (t2 > PI) {
-            tt2 = std::min(std::max(t2 - 2.0*PI, -h), h);
-        } else if (t2 < - PI) {
-            tt2 = std::min(std::max(t2 + 2.0*PI, -h), h);
-        } else {
-            tt2 = std::min(std::max(t2         , -h), h);
-        }
-
-        if (t1 > PI) {
-            tt1 = std::min(std::max(t1 - 2.0*PI, -h), h);
-        } else if (t1 < -PI) {
-            tt1 = std::min(std::max(t1 + 2.0*PI, -h), h);
-        } else {
-            tt1 = std::min(std::max(t1         , -h), h);
-        }
-        tt4 = 0.0;
-        tt3 = 0.0;
-    }
-
-    // perform a time integration to obtain cosz if desired
-    // output is valid over the period from t to t + dt
-    if ( (tt2 > tt1) || (tt4 > tt3) ) {
-       return (aa * (tt2 - tt1) + bb * (sin(tt2) - sin(tt1))) / dt +
-              (aa * (tt4 - tt3) + bb * (sin(tt4) - sin(tt3))) / dt;
-    } else {
-        return 0.0;
-    }
-}
-
-
+AMREX_GPU_HOST
+AMREX_FORCE_INLINE
 void
 orbital_params (int& iyear_AD,
                 real& eccen,
@@ -508,65 +450,141 @@ orbital_params (int& iyear_AD,
 }
 
 
-void
-orbital_decl (real& calday,
-              real& eccen,
-              real& mvelpp,
-              real& lambm0,
-              real& obliqr,
-              real& delta,
-              real& eccf)
+AMREX_GPU_HOST
+AMREX_FORCE_INLINE
+real
+orbital_avg_cos_zenith (real& jday,
+                        real& lat,
+                        real& lon,
+                        real& declin,
+                        real& dt_avg)
 {
+    // adjust latitude so that its tangent will be defined
+    real del;
+    if (lat ==  PIoTwo) {
+        del = lat - real(1.0e-05);
+    } else if (lat ==  -PIoTwo) {
+        del = lat + real(1.0e-05);
+    } else {
+        del = lat;
+    }
 
-    real lambm;  // Lambda m, mean long of perihelion (rad)
-    real lmm;    // Intermediate argument involving lambm
-    real lamb;   // Lambda, the earths long of perihelion
-    real invrho; // Inverse normalized sun/earth distance
-    real sinl;   // Sine of lmm
-    static constexpr real dayspy = real(365.0); // Day per year
-    static constexpr real ve     = real( 80.5); // Calday of vernal equinox
+    // adjust declination so that its tangent will be defined
+    real phi;
+    if (declin == PIoTwo) {
+        phi = declin - real(1.0e-05);
+    } else if (declin == -PIoTwo) {
+        phi = declin + real(1.0e-05);
+    } else {
+        phi = declin;
+    }
 
-    /*
-     Compute eccentricity factor and solar declination using
-     day value where a round day (such as 213.0) refers to 0z at
-     Greenwich longitude.
+    // define the cosine of the half-day length
+    // adjust for cases of all daylight or all night
+    real h;
+    real cos_h = - std::tan(del) * std::tan(phi);
+    if (cos_h <= -1.0) {
+        h = PI;
+    } else if (cos_h >= 1.0) {
+        h = 0.0;
+    } else {
+        h = std::acos(cos_h);
+    }
 
-     Use formulas from Berger, Andre 1978: Long-Term Variations of Daily
-     Insolation and Quaternary Climatic Changes. J. of the Atmo. Sci.
-     35:2362-2367.
+    // Define Local Time t and t + dt
+    // adjust t to be between -pi and pi
+    real t1 = (jday - int(jday)) * 2.0*PI + lon - PI;
+    if (t1 >=  PI) {
+        t1 = t1 - 2.0*PI;
+    } else if (t1 < -PI) {
+        t1 = t1 + 2.0*PI;
+    }
 
-     To get the earths true longitude (position in orbit; lambda in Berger
-     1978) which is necessary to find the eccentricity factor and declination,
-     must first calculate the mean longitude (lambda m in Berger 1978) at
-     the present day.  This is done by adding to lambm0 (the mean longitude
-     at the vernal equinox, set as March 21 at noon, when lambda=0; in radians)
-     an increment (delta lambda m in Berger 1978) that is the number of
-     days past or before (a negative increment) the vernal equinox divided by
-     the days in a model year times the 2*pi radians in a complete orbit.
-    */
+    real dt = dt_avg / real(86400.0) * 2.0*PI;
+    real t2 = t1 + dt;
 
-    lambm = lambm0 + (calday - ve)*2.0*PI/dayspy;
-    lmm   = lambm  - mvelpp;
+    // Compute Cosine Solar Zenith angle
+    // define terms needed in the cosine zenith angle equation
+    real aa = std::sin(lat) * std::sin(declin);
+    real bb = std::cos(lat) * std::cos(declin);
 
-    // The earths true longitude, in radians, is then found from
-    // the formula in Berger 1978:
+    // define the hour angle
+    // force it to be between -h and h
+    // consider the situation when the night period is too short
+    real tt1,tt2,tt3,tt4;
+    if ( (t2 >= PI) && (t1 <= PI) && (PI - h <= dt) ) {
+        tt2 = h;
+        tt1 = std::min(std::max(t1,         -h),          h);
+        tt4 = std::min(std::max(t2, 2.0*PI - h), 2.0*PI + h);
+        tt3 = 2.0*PI - h;
+    } else if ( (t2 >= -PI) && (t1 <= -PI) && (PI - h <= dt) ) {
+        tt2 = - 2.0*PI + h;
+        tt1 = std::min(std::max(t1, -2.0*PI - h), -2.0*PI + h);
+        tt4 = std::min(std::max(t2,          -h),           h);
+        tt3 = -h;
+    } else {
+        if (t2 > PI) {
+            tt2 = std::min(std::max(t2 - 2.0*PI, -h), h);
+        } else if (t2 < - PI) {
+            tt2 = std::min(std::max(t2 + 2.0*PI, -h), h);
+        } else {
+            tt2 = std::min(std::max(t2         , -h), h);
+        }
 
-    sinl  = std::sin(lmm);
-    lamb  = lambm  + eccen*( 2.0*sinl + eccen*( 1.25*sin(2.0*lmm)
-                                              + eccen*((13.0/12.0)*std::sin(3.0*lmm) - 0.25*sinl)));
+        if (t1 > PI) {
+            tt1 = std::min(std::max(t1 - 2.0*PI, -h), h);
+        } else if (t1 < -PI) {
+            tt1 = std::min(std::max(t1 + 2.0*PI, -h), h);
+        } else {
+            tt1 = std::min(std::max(t1         , -h), h);
+        }
+        tt4 = 0.0;
+        tt3 = 0.0;
+    }
 
-    /*
-     Using the obliquity, eccentricity, moving vernal equinox longitude of
-     perihelion (plus), and earths true longitude, the declination (delta)
-     and the normalized earth/sun distance (rho in Berger 1978; actually inverse
-     rho will be used), and thus the eccentricity factor (eccf), can be
-     calculated from formulas given in Berger 1978.
-    */
-
-    invrho = (1.0 + eccen*std::cos(lamb - mvelpp)) / (1.0 - eccen*eccen);
-
-    // Set solar declination and eccentricity factor
-
-    delta  = std::asin(std::sin(obliqr)*std::sin(lamb));
-    eccf   = invrho*invrho;
+    // perform a time integration to obtain cosz if desired
+    // output is valid over the period from t to t + dt
+    if ( (tt2 > tt1) || (tt4 > tt3) ) {
+       return (aa * (tt2 - tt1) + bb * (sin(tt2) - sin(tt1))) / dt +
+              (aa * (tt4 - tt3) + bb * (sin(tt4) - sin(tt3))) / dt;
+    } else {
+        return 0.0;
+    }
 }
+
+
+AMREX_GPU_HOST
+AMREX_FORCE_INLINE
+real
+orbital_cos_zenith (real& jday,
+                    real& lat,
+                    real& lon,
+                    real& declin,
+                    real dt_avg = -1.,
+                    real uniform_angle = -1.,
+                    real constant_zenith_angle_deg = -1.)
+{
+    // Constant zenith angle is true
+    if ( constant_zenith_angle_deg >= 0. ) {
+        return std::cos( constant_zenith_angle_deg * PI/180. );
+    }
+
+    // Uniform angle is true
+    if ( uniform_angle >= 0.) {
+        return std::cos(uniform_angle);
+    }
+
+    // Perform the calculation of Orbital_Cos_Zenith
+    bool use_dt_avg = false;
+    if (dt_avg > 0.) {
+        use_dt_avg = true;
+    }
+    // If dt for the average cosz is specified, then call the shr_orb_avg_cosz
+    if (use_dt_avg) {
+        return orbital_avg_cos_zenith(jday, lat, lon, declin, dt_avg);
+    } else {
+        return  std::sin(lat)*std::sin(declin) - std::cos(lat)*std::cos(declin) *
+                std::cos((jday-floor(jday))*real(2.0)*PI + lon);
+    }
+}
+#endif

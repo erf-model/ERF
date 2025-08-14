@@ -303,6 +303,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
+        bool l_eb_terrain_cc = false; // EB terrain on cell-centered grid
         Array4<const int> mask_arr{};
         Array4<const EBCellFlag> cfg_arr{};
         Array4<const Real> ax_arr{};
@@ -315,16 +316,20 @@ void erf_slow_rhs_post (int level, int finest_level,
         if (solverChoice.terrain_type == TerrainType::EB) {
             EBCellFlagFab const& cfg = ebfact.getMultiEBCellFlagFab()[mfi];
             cfg_arr  = cfg.const_array();
-            ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
-            ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
-            az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
-            fcx_arr  = ebfact.getFaceCent()[0]->const_array(mfi);
-            fcy_arr  = ebfact.getFaceCent()[1]->const_array(mfi);
-            fcz_arr  = ebfact.getFaceCent()[2]->const_array(mfi);
-            detJ_arr = ebfact.getVolFrac().const_array(mfi);
-            // if (!already_on_centroids) {mask_arr = physbnd_mask.const_array(mfi);}
-            mask_arr = physbnd_mask.const_array(mfi);
-        } else {
+            if (cfg.getType(tbx) == FabType::singlevalued) {
+                l_eb_terrain_cc = true;
+                ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
+                ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
+                az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
+                fcx_arr  = ebfact.getFaceCent()[0]->const_array(mfi);
+                fcy_arr  = ebfact.getFaceCent()[1]->const_array(mfi);
+                fcz_arr  = ebfact.getFaceCent()[2]->const_array(mfi);
+                detJ_arr = ebfact.getVolFrac().const_array(mfi);
+                // if (!already_on_centroids) {mask_arr = physbnd_mask.const_array(mfi);}
+                mask_arr = physbnd_mask.const_array(mfi);
+            }
+        }
+        if (!l_eb_terrain_cc) {
             ax_arr   = ax->const_array(mfi);
             ay_arr   = ay->const_array(mfi);
             az_arr   = az->const_array(mfi);
@@ -397,7 +402,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                 if (( ivar != RhoKE_comp                 ) ||
                     ((ivar == RhoKE_comp) && l_advect_KE))
                 {
-                    if (solverChoice.terrain_type != TerrainType::EB){
+                    if (!l_eb_terrain_cc){
                         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                                cur_prim, cell_rhs,
                                                detJ_arr, dxInv, mf_mx, mf_my,

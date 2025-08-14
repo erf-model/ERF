@@ -105,6 +105,13 @@ class NullSurf {
         return LSM_Type::None;
     }
 
+    virtual
+    int
+    Lsm_VarIndex (std::string /*varname*/)
+    {
+        return (-1);
+    }
+
  private:
     int m_lsm_size = 1;
     amrex::Geometry m_lsm_geom;

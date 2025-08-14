@@ -63,7 +63,11 @@ init_base_state_from_wrfinput (const Box& subdomain,
  * @param lev Integer specifying the current level
  */
 void
-ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, MultiFab& mf_MUB_lev)
+ERF::init_from_wrfinput (int lev,
+                         MultiFab& mf_C1H_lev,
+                         MultiFab& mf_C2H_lev,
+                         MultiFab& mf_MUB_lev,
+                         MultiFab& mf_PSFC_lev)
 {
     if (nc_init_file.empty()) {
         amrex::Error("NetCDF initialization file name must be provided via input");
@@ -83,21 +87,22 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     NC_names.push_back("PHB");       // 7
     NC_names.push_back("PB");        // 8
     NC_names.push_back("P");         // 9
-    NC_names.push_back("MUB");       // 10
-    NC_names.push_back("MAPFAC_U");  // 11
-    NC_names.push_back("MAPFAC_V");  // 12
-    NC_names.push_back("MAPFAC_M");  // 13
-    NC_names.push_back("SST");       // 14
-    NC_names.push_back("TSK");       // 15
-    NC_names.push_back("LANDMASK");  // 16
-    NC_names.push_back("C1H");       // 17
+    NC_names.push_back("PSFC");      // 10
+    NC_names.push_back("MUB");       // 11
+    NC_names.push_back("MAPFAC_U");  // 12
+    NC_names.push_back("MAPFAC_V");  // 13
+    NC_names.push_back("MAPFAC_M");  // 14
+    NC_names.push_back("SST");       // 15
+    NC_names.push_back("TSK");       // 16
+    NC_names.push_back("LANDMASK");  // 17
+    NC_names.push_back("C1H");       // 18
     NC_names.push_back("C2H");       // 19
-    NC_names.push_back("XLAT_V");    // 19
-    NC_names.push_back("XLONG_U");   // 20
+    NC_names.push_back("XLAT_V");    // 20
+    NC_names.push_back("XLONG_U");   // 21
     if (use_moist) {
-        NC_names.push_back("QVAPOR"); // 21
-        NC_names.push_back("QCLOUD"); // 22
-        NC_names.push_back("QRAIN");  // 23
+        NC_names.push_back("QVAPOR"); // 22
+        NC_names.push_back("QCLOUD"); // 23
+        NC_names.push_back("QRAIN");  // 24
     }
     int nvar = NC_names.size();
     Vector<Vector<FArrayBox>> NC_fab_var_file;
@@ -121,6 +126,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     IntVect ngv = ng; ngv[2] = 0;
 
     bool compute_terrain_here = true;
+
+    const Real l_rdOcp = solverChoice.rdOcp;
 
     Print() << "Loading initial data from NetCDF file at level " << lev << "\n";
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
@@ -327,6 +334,16 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
+          } else if ( var_name == "PSFC" ) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+              for ( MFIter mfi(mf_PSFC_lev, false); mfi.isValid(); ++mfi )
+              {
+                FArrayBox &cur_fab = mf_PSFC_lev[mfi];
+                cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+              }
+              var_fab.clear();
           } else if ( var_name == "MUB" ) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -410,11 +427,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                   Box gtbx = mfi.growntilebox();
                   const Array4<      Real>& dst_arr = sst_lev[lev][0]->array(mfi);
                   const Array4<const Real>& src_arr = var_fab.const_array();
+                  const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
                   ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                   {
                       int li = amrex::min(amrex::max(i, i_lo), i_hi);
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                      dst_arr(i,j,0) = static_cast<int>(src_arr(li,lj,0));
+                      dst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
                   });
               }
               (sst_lev[lev][0])->FillBoundary(geom[lev].periodicity());
@@ -427,11 +445,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                   Box gtbx = mfi.growntilebox();
                   const Array4<      Real>& dst_arr = tsk_lev[lev][0]->array(mfi);
                   const Array4<const Real>& src_arr = var_fab.const_array();
+                  const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
                   ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                   {
                       int li = amrex::min(amrex::max(i, i_lo), i_hi);
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                      dst_arr(i,j,0) = static_cast<int>(src_arr(li,lj,0));
+                      dst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
                   });
               }
               (tsk_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
@@ -693,7 +712,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
     // **************************************************************************
     // Initialize the base state
     // **************************************************************************
-    const Real l_rdOcp = solverChoice.rdOcp;
     MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
     MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
     MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
@@ -807,11 +825,15 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_C1H_lev, MultiFab& mf_C2H_lev, Mu
                 FArrayBox& dst = (*(sst_lev[lev][itime]))[mfi];
                 const Array4<      Real>& dst_arr = dst.array();
                 const Array4<const Real>& src_arr = src.const_array();
+                const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
                 ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                 {
                     int li = min(max(i, i_lo), i_hi);
                     int lj = min(max(j, j_lo), j_hi);
-                    dst_arr(i,j,0) = src_arr(li,lj,0);
+                    // NOTE: we convert to potential temperature for the surface
+                    // layer scheme using the initial surface pressure since it's
+                    // not available in the wrflowinp file
+                    dst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
                 });
             }
             sst_lev[lev][itime]->FillBoundary(geom[lev].periodicity());

@@ -45,37 +45,70 @@
 class Radiation : public IRadiation {
 public:
 
-    #include <ERF_Kokkos_Radiation.H>
+    #include <ERF_Kokkos.H>
 
     // Constructor
     Radiation (const int& lev,
                SolverChoice& sc);
 
     // Destructor
-    ~Radiation () = default;
+    ~Radiation ()
+    {
+        // Finalize kokkos
+        Kokkos::finalize();
+    }
 
-    virtual void Init (const amrex::Geometry& geom,
-                       const amrex::BoxArray& ba,
-                       amrex::MultiFab* cons_in) override {};
+    virtual
+    void
+    Init (const amrex::Geometry& geom,
+          const amrex::BoxArray& ba,
+          amrex::MultiFab* cons_in) override
+    {
+        // Ensure the boxes span klo -> khi
+        int klo = geom.Domain().smallEnd(2);
+        int khi = geom.Domain().bigEnd(2);
 
-    virtual void Run (int& level,
-                      int& step,
-                      amrex::Real& time,
-                      const amrex::Real& dt,
-                      const amrex::BoxArray& ba,
-                      amrex::Geometry& geom,
-                      amrex::MultiFab* cons_in,
-                      amrex::MultiFab* lsm_fluxes,
-                      amrex::MultiFab* lsm_zenith,
-                      amrex::MultiFab* qheating_rates,
-                      amrex::MultiFab* z_phys,
-                      amrex::MultiFab* lat,
-                      amrex::MultiFab* lon) override
+        // Reset vector of offsets for columnar data
+        m_nlay = geom.Domain().length(2);
+
+        m_ncol = 0;
+        m_col_offsets.clear();
+        m_col_offsets.resize(int(ba.size()));
+        for (amrex::MFIter mfi(*cons_in); mfi.isValid(); ++mfi) {
+            const amrex::Box& vbx = mfi.validbox();
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
+                                             (khi == vbx.bigEnd(2)),
+                                             "Vertical decomposition with radiation is not allowed.");
+            int nx = vbx.length(0);
+            int ny = vbx.length(1);
+            m_col_offsets[mfi.index()] = m_ncol;
+            m_ncol += nx * ny;
+        }
+    };
+
+    virtual
+    void
+    Run (int& level,
+         int& step,
+         amrex::Real& time,
+         const amrex::Real& dt,
+         const amrex::BoxArray& ba,
+         amrex::Geometry& geom,
+         amrex::MultiFab* cons_in,
+         amrex::MultiFab* lsm_fluxes,
+         amrex::MultiFab* lsm_zenith,
+         const amrex::Vector<const amrex::MultiFab*>& lsm_input_ptrs,
+         const amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs,
+         amrex::MultiFab* qheating_rates,
+         amrex::MultiFab* z_phys,
+         amrex::MultiFab* lat,
+         amrex::MultiFab* lon) override
     {
         set_grids(level, step, time, dt, ba, geom,
                   cons_in, lsm_fluxes, lsm_zenith,
-                  qheating_rates, z_phys, lat, lon);
-        rad_run_impl();
+                  lsm_input_ptrs, qheating_rates,
+                  z_phys, lat, lon);
+        rad_run_impl(lsm_output_ptrs);
     }
 
     // Set the grid info for columnar data in KOKKOS
@@ -89,85 +122,11 @@ public:
                amrex::MultiFab* cons_in,
                amrex::MultiFab* lsm_fluxes,
                amrex::MultiFab* lsm_zenith,
+               const amrex::Vector<const amrex::MultiFab*>& lsm_input_ptrs,
                amrex::MultiFab* qheating_rates,
                amrex::MultiFab* z_phys,
                amrex::MultiFab* lat,
                amrex::MultiFab* lon);
-
-    template<typename LandSurfaceModelType>
-    void set_lsm_inputs (LandSurfaceModelType *model)
-    {
-        if constexpr(std::is_same_v<LandSurfaceModelType, SLM>)
-        {
-            if (!m_update_rad)
-            {
-                // skip getting LSM inputs if radiation not updating this timestep
-                return;
-            }
-            amrex::Print() << " RADIATION: SETTING LSM INPUTS" << std::endl;
-
-            // get surface temperature, LW flux, and emissivities from SLM
-            ///*
-            auto slm_to_rad_vars = model->export_to_RRTMGP();
-
-            for (amrex::MFIter mfi(*slm_to_rad_vars[0]); mfi.isValid(); ++mfi) {
-                const auto& vbx  = mfi.validbox();
-                const auto& sbx  = amrex::makeSlab(vbx, 2, 0);
-
-                const int nx     = vbx.length(0);
-                const int imin   = vbx.smallEnd(0);
-                const int jmin   = vbx.smallEnd(1);
-                const int offset = m_col_offsets[mfi.index()];
-
-                const auto &slm_tsurf           = slm_to_rad_vars[0]->const_array(mfi);
-                const auto &slm_alb_dir_vis_arr = slm_to_rad_vars[2]->const_array(mfi);
-                const auto &slm_alb_dir_nir_arr = slm_to_rad_vars[4]->const_array(mfi);
-                const auto &slm_IR_emis_arr     = slm_to_rad_vars[5]->const_array(mfi);
-                const auto &slm_net_rad_arr     = slm_to_rad_vars[6]->const_array(mfi);
-                amrex::ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    // map [i,j,k] 0-based to [icol, ilay] 0-based
-                    const int icol = (j-jmin)*nx + (i-imin) + offset;
-                    const int ilay = 0;
-
-                    //yakl::memset(mu0, 0.86);
-                    //amrex::Print() << " i = " << i << " j = " << j << " k = " << k << " -> icol = " << icol << ": " << std::endl;
-                    t_sfc(icol) = slm_tsurf(i, j, k);
-
-                    sfc_alb_dir_vis(icol) = slm_alb_dir_vis_arr(i, j, k);
-                    sfc_alb_dir_nir(icol) = slm_alb_dir_nir_arr(i, j, k);
-                    sfc_alb_dif_vis(icol) = slm_alb_dir_vis_arr(i, j, k);
-                    sfc_alb_dif_nir(icol) = slm_alb_dir_nir_arr(i, j, k);
-
-                    sfc_emis(icol) = slm_IR_emis_arr(i, j, k);
-                    //lw_src(icol) = slm_net_rad_arr(i, j, k, SLM_NetRad::net_lwup1);
-                    lw_src(icol) = 0.0; // TODO
-
-                    //amrex::Print() << "    tsurf           = " << t_sfc(icol) << std::endl;
-                    //amrex::Print() << "    sfc_alb_dir_vis = " << sfc_alb_dir_vis(icol) << std::endl;
-                    //amrex::Print() << "    sfc_alb_dir_nir = " << sfc_alb_dir_nir(icol) << std::endl;
-                    //amrex::Print() << "    sfc_alb_dif_vis = " << sfc_alb_dif_vis(icol) << std::endl;
-                    //amrex::Print() << "    sfc_alb_dif_nir = " << sfc_alb_dif_nir(icol) << std::endl;
-                    //amrex::Print() << "    emis_sfc        = " << sfc_emis(icol) << std::endl;
-                    //amrex::Print() << "    LW canopy->atmos= " << lw_src(icol) << std::endl;
-                });
-            }
-
-            /*
-            // expand sfc_emis and lw_src over nlwbands
-            // TODO: check if this is correct - should emissivity vary based on band?
-            Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {m_nlwbands, m_ncol}),
-                                 KOKKOS_LAMBDA (int ibnd, int icol)
-            {
-                emis_sfc(icol, ibnd) = sfc_emis(icol);
-                //lw_sfc_src(ibnd, icol) = lw_src(icol);
-            });
-            */
-
-            Kokkos::deep_copy(emis_sfc, 0.98);
-            Kokkos::deep_copy(lw_src, 0.0);
-        }
-    }
 
     // Initialize the temporary variables
     void
@@ -179,11 +138,11 @@ public:
 
     // Fill KOKKOS Views from AMReX MultiFabs
     void
-    mf_to_kokkos_buffers();
+    mf_to_kokkos_buffers(const amrex::Vector<const amrex::MultiFab*>& lsm_input_ptrs);
 
     // Fill AMReX MultiFabs from KOKKOS Views
     void
-    kokkos_buffers_to_mf ();
+    kokkos_buffers_to_mf (const amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs);
 
     // Write the rrtmgp fluxes
     void
@@ -199,24 +158,45 @@ public:
 
     // Finalize the implementation
     void
-    finalize_impl ();
+    finalize_impl (const amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs);
 
     // Wrapper for implementation steps
     void
-    rad_run_impl ()
+    rad_run_impl (const amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs)
     {
         if (m_update_rad) {
             amrex::Print() << "Advancing radiation at level: " << m_lev << " ...";
             this->initialize_impl();
             this->run_impl();
-            this->finalize_impl();
+            this->finalize_impl(lsm_output_ptrs);
             amrex::Print() << "DONE\n";
         }
     }
 
-    void populateDatalogMF ();
+    // Get names input varnames for lsm
+    virtual
+    amrex::Vector<std::string>
+    get_lsm_input_varnames () override
+    {
+        return m_lsm_input_names;
+    }
 
-    virtual void WriteDataLog (const amrex::Real &time) override;
+    // Get names output varnames for lsm
+    virtual
+    amrex::Vector<std::string>
+    get_lsm_output_varnames () override
+    {
+        return m_lsm_output_names;
+    }
+
+    // Populate datalog structures
+    void
+    populateDatalogMF ();
+
+    // Write datalog
+    virtual
+    void
+    WriteDataLog (const amrex::Real &time) override;
 
 private:
 
@@ -255,6 +235,17 @@ private:
 
     // Do we have a land surface model?
     bool m_lsm   = false;
+
+    // List of input parameter names
+    amrex::Vector<std::string> m_lsm_input_names = {"t_sfc"          , "sfc_emis"       ,
+                                                    "sfc_alb_dir_vis", "sfc_alb_dir_nir",
+                                                    "sfc_alb_dif_vis", "sfc_alb_dif_nir"};
+
+    // List of output parameter names
+    amrex::Vector<std::string> m_lsm_output_names = {"sw_flux_dn", "lw_flux_dn"};
+
+    // T surf if no LSM is available
+    amrex::Real m_rad_t_sfc = -1;
 
     // Pointer to the CC conserved vars
     amrex::MultiFab* m_cons_in = nullptr;
@@ -313,7 +304,7 @@ private:
     real1d_k  m_gas_mol_weights;
     std::vector<std::string> gas_names_offset;
 
-    GasConcsK<amrex::Real, layout_t, RadDefaultDevice> m_gas_concs;
+    GasConcsK<amrex::Real, layout_t, KokkosDefaultDevice> m_gas_concs;
 
     // Process interface vars modeled after EAMXX
     //===================================================================================

@@ -15,6 +15,6 @@
 	path = Submodules/WW3
 	url = https://github.com/erf-model/WW3
 	shallow = true
-[submodule "Submodules/kokkos"]
-	path = Submodules/kokkos
-	url = https://github.com/kokkos/kokkos.git
+[submodule "Submodules/ekat"]
+	path = Submodules/ekat
+	url = https://github.com/E3SM-Project/EKAT

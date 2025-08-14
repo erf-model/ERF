@@ -118,7 +118,7 @@ void Problem::compute_rho (const Real& pressure, Real& theta, Real& rho, Real& q
 {
     T_b     = compute_temperature(pressure);
 
-    theta   = getThgivenPandT(T_b, pressure, (R_d/Cp_d));
+    theta   = getThgivenTandP(T_b, pressure, (R_d/Cp_d));
 
     Real RH = compute_relative_humidity();
     q_v     = vapor_mixing_ratio(pressure, T_b, RH);

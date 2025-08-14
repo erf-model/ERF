@@ -150,7 +150,7 @@ Problem::init_custom_pert (
             Real Tpert    = (1.0 - 2.0*rand_double);
             Real Tnew     = Told + 0.1*Tpert*(1.0 - z / parms_d.pert_ref_height);
 
-            Real theta_new = getThgivenPandT(Tnew,P,rdOcp);
+            Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
             Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
             //state_pert(i, j, k, Rho_comp) = rhonew - rho;
             state_pert(i, j, k, Rho_comp) = 0.0;

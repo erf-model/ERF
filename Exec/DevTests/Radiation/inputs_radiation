@@ -50,7 +50,7 @@ erf.input_sounding_file = "input_sounding_moist"
 erf.sounding_type = Ideal
     
 # RADIATION INPUTS
-start_datetime             = "2010-01-01_18:00:00UTC" # UTC is 6 hrs ahead of MT time
+start_datetime             = "2010-01-01 18:00:00" # UTC is 6 hrs ahead of MT time
 erf.radiation_model        = "RRTMGP"
 erf.rad.datalog            = "radiation"
 erf.profile_rad_int        = 1
@@ -60,6 +60,7 @@ erf.rad_write_fluxes       = false
 erf.rad_orbital_year       = 2010
 erf.rad_cons_lat           =  40.0
 erf.rad_cons_lon           = -99.0
+erf.rad_t_sfc              = 305.0
 erf.co2vmr                 = 0.00036
 erf.o3vmr                  = 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 4.0e-8 4.25e-8 4.5e-8 4.9e-8 5.4e-8 6.0e-8 6.9e-8 8.0e-8 9.25e-8 1.07e-7 1.25e-7 1.63e-7 2.7e-7 5.4e-7 1.0e-6 1.7e-6 2.6e-6 4.0e-6 5.75e-6 7.5e-6 9.0e-6 9.6e-6 9.34e-6 7.83e-6 5.4e-6 3.3e-6 1.9e-6 9.1e-7 
 erf.n2ovmr                 = 3.2e-7

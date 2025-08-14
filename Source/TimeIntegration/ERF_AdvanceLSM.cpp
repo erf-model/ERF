@@ -14,9 +14,9 @@ void ERF::advance_lsm (int lev,
         yvel_in.FillBoundary(geom[lev].periodicity());
 
         lsm.Update_Lsm_Vars_Lev(lev, cons_in, xvel_in, yvel_in);
-#ifdef ERF_USE_RRTMGP
-        lsm.set_LSM_flux_inputs(lev, sw_lw_fluxes[lev].get(), solar_zenith[lev].get());
-#endif
+        if (solverChoice.rad_type != RadiationType::None) {
+            lsm.set_LSM_flux_inputs(lev, sw_lw_fluxes[lev].get(), solar_zenith[lev].get());
+        }
         const bool use_moist = solverChoice.moisture_type != MoistureType::None && solverChoice.moisture_type != MoistureType::Kessler_NoRain && solverChoice.moisture_type != MoistureType::SatAdj;
         int rain_comp = 0;
         if (use_moist) {

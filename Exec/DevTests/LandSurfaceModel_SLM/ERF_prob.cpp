@@ -78,7 +78,7 @@ Problem::init_custom_pert(
 
         const Real qv = q_ref / 1000.0; // qv converted to kg/kg
         const Real pres = p_ref * 100.0; // pressure converted from mbar to Pa
-        const Real theta = getThgivenPandT(T_ref, pres, R_d / Cp_d);
+        const Real theta = getThgivenTandP(T_ref, pres, R_d / Cp_d);
         const Real rho = getRhogivenThetaPress(theta, pres, R_d / Cp_d, qv);
 
         // NOTE: these are pertubations from the initial state
