@@ -1,5 +1,5 @@
-AMREX_HOME ?= ../../..
 ERF_HOME   ?= ../..
+AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
 
 DEBUG	= FALSE
 
