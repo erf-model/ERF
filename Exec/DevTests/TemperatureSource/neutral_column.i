@@ -17,7 +17,7 @@ zhi.type = "SlipWall"
 
 # INITIALIZATION
 erf.init_type = input_sounding
-erf.init_sounding_ideal = true
+erf.sounding_type = Ideal
 
 # TIME STEP CONTROL
 erf.fixed_dt                    = 0.1
@@ -48,3 +48,4 @@ erf.les_type = "None"
 
 erf.add_custom_rhotheta_forcing = true
 erf.custom_forcing_uses_primitive_vars = true
+prob.advection_heating_rate   = -2.3148E-5

@@ -22,7 +22,10 @@ amrex::Real dot_product(const std::array<amrex::Real,3>& a, const std::array<amr
 
 bool intersects(amrex::Real val)
 {
-   return (val > 0.0 && val < 1.0);
+   // Real eps = std::numeric_limits<Real>::epsilon();
+   constexpr Real eps0 = 1.e-15_rt;
+   constexpr Real eps1 = 1.0_rt + 1.e-15_rt;
+   return (val > -eps0 && val < eps1);
 }
 
 }
@@ -222,9 +225,10 @@ void eb_::EBToPVD::WriteEBVTP(const int myID, const int level) const
    }
 }
 
-void eb_::EBToPVD::WritePVTP(const int nProcs)
+void eb_::EBToPVD::WritePVTP(const int nProcs, const int level)
 {
-   std::ofstream myfile("eb.pvtp");
+   std::string cID = "eb_level_" + std::to_string(level) + ".pvtp";
+   std::ofstream myfile(cID);
 
    if(myfile.is_open()) {
       myfile << "<?xml version=\"1.0\"?>\n";
@@ -238,7 +242,7 @@ void eb_::EBToPVD::WritePVTP(const int nProcs)
 
       for(int lc1 = 0; lc1 < nProcs; ++lc1) {
          std::stringstream ss;
-         ss << std::setw(8) << std::setfill('0') << lc1;
+         ss << std::setw(8) << std::setfill('0') << lc1 << "_level_"<< level;
          std::string clc1 = "eb_" + ss.str() + ".vtp";
          myfile << "<Piece Source=\"" << clc1 << "\"/>\n";
       }

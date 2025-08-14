@@ -20,7 +20,8 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                        int level,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
-                       const std::unique_ptr<MultiFab>& z_phys_nd)
+                       const std::unique_ptr<MultiFab>& z_phys_nd,
+                       const MoistureComponentIndices& moisture_indices)
 {
     {
         /*
@@ -209,15 +210,12 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                     constexpr Real min_richardson = -100.0;
                     constexpr Real prandtl_max = 4.0;
                     Real dthetadz, dudz, dvdz;
-                    const int RhoQv_comp = -1;
-                    const int RhoQc_comp = -1;
-                    const int RhoQr_comp = -1;
                     ComputeVerticalDerivativesPBL(i, j, k,
                                                   uvel, vvel, cell_data, izmin, izmax, 1.0/dz_terrain,
                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                                   v_ext_dir_on_zlo, v_ext_dir_on_zhi,
-                                                  dthetadz, dudz, dvdz, RhoQv_comp, RhoQc_comp, RhoQr_comp);
+                                                  dthetadz, dudz, dvdz, moisture_indices);
                     const Real shear_squared = dudz*dudz + dvdz*dvdz + 1.0e-9; // 1.0e-9 from WRF to avoid divide by zero
                     const Real theta = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
                     Real richardson = CONST_GRAV / theta * dthetadz / shear_squared;

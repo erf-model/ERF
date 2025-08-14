@@ -76,6 +76,10 @@ private:
         S_scratch = T_store[1].get();
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         F_slow = T_store[2].get();
+        // initializing to zero
+        for (long idx = 0; idx < S_sum->size(); idx++) { (*S_sum)[idx].setVal(0.0); }
+        for (long idx = 0; idx < S_scratch->size(); idx++) { (*S_scratch)[idx].setVal(0.0); }
+        for (long idx = 0; idx < F_slow->size(); idx++) { (*F_slow)[idx].setVal(0.0); }
     }
 
 public:

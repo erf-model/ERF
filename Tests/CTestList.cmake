@@ -109,6 +109,42 @@ function(add_test_0 TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     )
 endfunction(add_test_0)
 
+# SDM regression test
+function(add_test_sdm TEST_NAME TEST_DIR TEST_EXE PLTFILE TEST_RTOL TEST_ATOL)
+    set(options )
+    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS")
+    set(multiValueArgs )
+    cmake_parse_arguments(ADD_TEST_SDM "${options}" "${oneValueArgs}"
+        "${multiValueArgs}" ${ARGN})
+
+    setup_test()
+
+    set(RUNTIME_OPTIONS "${ADD_TEST_SDM_RUNTIME_OPTIONS}")
+    if(NOT "${ADD_TEST_SDM_INPUT_SOUNDING}" STREQUAL "")
+      string(APPEND RUNTIME_OPTIONS "erf.input_sounding_file=${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_SDM_INPUT_SOUNDING}")
+    endif()
+
+    if(WIN32)
+        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe")
+    else()
+        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}")
+    endif()
+
+    set(FCOMPARE_TOLERANCE "--rel_tol ${TEST_RTOL} --abs_tol ${TEST_ATOL}")
+    set(FCOMPARE_FLAGS "--abort_if_not_all_found --allow_diff_grids ${FCOMPARE_TOLERANCE}")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 5400
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
+    )
+endfunction(add_test_sdm)
+
 #=============================================================================
 # Regression tests
 #=============================================================================
@@ -154,6 +190,9 @@ if(ERF_ENABLE_PARTICLES)
   add_test_r(ParticleAdvect                  "DryRegTests/ParticleAdvection" "erf_particles_advect" "plt00010")
   add_test_r(ParticleWoA                     "DryRegTests/ParticlesOverWoA" "erf_particles_over_woa" "plt00010")
 endif()
+if(ERF_ENABLE_RRGMTP)
+  add_test_r(Radiation                       "DevTests/Radiation" "erf_radiation" "plt00010")
+endif()
 
 add_test_0(CouetteFlow_x                     "DryRegTests/Couette_Poiseuille" "erf_couette_poiseuille" "plt00050")
 add_test_0(CouetteFlow_y                     "DryRegTests/Couette_Poiseuille" "erf_couette_poiseuille" "plt00050")
@@ -161,6 +200,24 @@ add_test_0(PoiseuilleFlow_x                  "DryRegTests/Couette_Poiseuille" "e
 add_test_0(PoiseuilleFlow_y                  "DryRegTests/Couette_Poiseuille" "erf_couette_poiseuille" "plt00010")
 add_test_0(InitSoundingIdeal_stationary      "ABL" "erf_abl" "plt00010")
 add_test_0(Deardorff_stationary              "ABL" "erf_abl" "plt00010")
+
+# log-normal distribution for radius
+add_test_sdm(SDM_RICO3D_InitSampling         "DevTests/RICO"        "erf_rico"     "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding")
+# mass-exponential distribution for mass
+add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "MoistRegTests/Bubble" "erf_bubble"   "plt00000" 1e-14 1e-14)
+
+# passive advection of particles
+add_test_sdm(SDM_Bubble2D_Adv                "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 1e-12 1e-12)
+# condensation/evaporation
+add_test_sdm(SDM_Box3D_Cond                  "MoistRegTests/Bubble" "erf_bubble"   "plt00010" 1e-14 2e-13)
+# terminal velocity
+add_test_sdm(SDM_Box3D_VTerm                 "MoistRegTests/Bubble" "erf_bubble"   "plt00001" 5e-13 1e-14)
+# Congestus case
+add_test_sdm(SDM_Congestus3D                 "DevTests/TemperatureSourceSpatial"   "erf_abl_with_spatial_temperature_source" "plt00020" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
+# RICO case
+add_test_sdm(SDM_RICO3D                      "DevTests/RICO"        "erf_rico"     "plt00010" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
+# multispecies setup with dummy water species
+add_test_sdm(SDM_MultiSpecies_Bubble2D       "DevTests/MultiSpeciesBubble" "erf_multispeciesbubble"     "plt00001" 5e-12 1e-12)
 
 #=============================================================================
 # Performance tests

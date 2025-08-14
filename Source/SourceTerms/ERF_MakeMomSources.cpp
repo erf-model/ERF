@@ -441,7 +441,7 @@ void make_mom_sources (Real time,
         // *****************************************************************************
         // 4. Add custom SUBSIDENCE terms
         // *****************************************************************************
-        if (solverChoice.custom_w_subsidence && is_slow_step) {
+        if (solverChoice.custom_w_subsidence && is_slow_step && solverChoice.do_mom_advection) {
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

@@ -60,7 +60,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                      qheating_rates[level].get(),
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
-                     dptr_rhotheta_src, dptr_rhoqt_src,
+                     rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      input_sounding_data, turbPert, false);
 

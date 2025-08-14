@@ -34,6 +34,10 @@ AMREX_ENUM(InitType,
     None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform
 );
 
+AMREX_ENUM(SoundingType,
+    ConstantDensity, Ideal, Isentropic, DryIsentropic
+);
+
 AMREX_ENUM(ABLDriverType,
     None, PressureGradient, GeostrophicWind
 );
@@ -59,7 +63,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, SuperDroplets, None
 );
 
 AMREX_ENUM(WindFarmType,
@@ -71,7 +75,7 @@ AMREX_ENUM(WindFarmLocType,
 );
 
 AMREX_ENUM(LandSurfaceType,
-    SLM, MM5, None, NOAH
+    SLM, MM5, None, NOAHMP
 );
 
 AMREX_ENUM(RadiationType,
@@ -93,6 +97,26 @@ enum Sponge {
 };
 
 static const std::string BoundaryFaceName[] = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
+
+struct MoistureComponentIndices {
+    int qv = -1;  // Water vapor
+    int qc = -1;  // Cloud liquid water
+    int qi = -1;  // Cloud ice
+    int qr = -1;  // Rain
+    int qs = -1;  // Snow
+    int qg = -1;  // Graupel
+
+    // Constructor for easy initialization
+    MoistureComponentIndices (int qv_comp, int qc_comp,
+                              int qi_comp=-1,
+                              int qr_comp=-1,
+                              int qs_comp=-1,
+                              int qg_comp=-1)
+        : qv(qv_comp), qc(qc_comp), qi(qi_comp), qr(qr_comp), qs(qs_comp), qg(qg_comp) {}
+
+    // Default constructor
+    MoistureComponentIndices() = default;
+};
 
 /**
  * Container holding many of the algorithmic options and parameters
@@ -139,22 +163,43 @@ struct SolverChoice {
             amrex::Abort("The input moisture_type is deprecated.  Set moisture_model instead.");
         }
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
-        if ( (moisture_type == MoistureType::Morrison      ) ||
-             (moisture_type == MoistureType::SAM           ) ||
-             (moisture_type == MoistureType::Morrison_NoIce) ||
-             (moisture_type == MoistureType::SAM_NoIce     ) ) {
-            RhoQv_comp = RhoQ1_comp;
-            RhoQc_comp = RhoQ2_comp;
-            RhoQr_comp = RhoQ4_comp;
+        if ( (moisture_type == MoistureType::Morrison) ||
+             (moisture_type == MoistureType::SAM) ) {
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor
+                RhoQ2_comp,  // cloud water
+                RhoQ3_comp,  // cloud ice
+                RhoQ4_comp,  // rain
+                RhoQ5_comp,  // snow
+                RhoQ6_comp   // graupel
+            );
+        } else if ( (moisture_type == MoistureType::Morrison_NoIce) ||
+                    (moisture_type == MoistureType::SAM_NoIce) ) {
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor
+                RhoQ2_comp,  // cloud water
+                -1,          // cloud ice
+                RhoQ4_comp   // rain
+            );
         } else if ( (moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
                     (moisture_type == MoistureType::Kessler_NoRain) ||
                     (moisture_type == MoistureType::SatAdj) ) {
-            RhoQv_comp = RhoQ1_comp;
-            RhoQc_comp = RhoQ2_comp;
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor
+                RhoQ2_comp   // cloud water
+            );
         } else if (moisture_type == MoistureType::Kessler) {
-            RhoQv_comp = RhoQ1_comp;
-            RhoQc_comp = RhoQ2_comp;
-            RhoQr_comp = RhoQ3_comp;
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor
+                RhoQ2_comp,  // cloud water
+                RhoQ3_comp   // rain
+            );
+        } else if (moisture_type == MoistureType::SuperDroplets) {
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor
+                RhoQ2_comp,  // cloud water
+                RhoQ3_comp   // rain
+            );
         }
 
         // TODO: should we set default for dry??
@@ -172,6 +217,8 @@ struct SolverChoice {
             } else {
                 buoyancy_type = 2; // uses Tprime
             }
+
+            pp.query("moisture_tight_coupling",moisture_tight_coupling);
         }
 
         // Which expression (1,2/3 or 4) to use for buoyancy
@@ -252,6 +299,10 @@ struct SolverChoice {
             pp.query("rebalance_wrfinput",rebalance_wrfinput);
         }
 
+        // How to interpret input_sounding
+        if (init_type == InitType::Input_Sounding) {
+            pp.query_enum_case_insensitive("sounding_type",sounding_type);
+        }
 
         if (terrain_type == TerrainType::StaticFittedMesh ||
             terrain_type == TerrainType::MovingFittedMesh) {
@@ -402,8 +453,12 @@ struct SolverChoice {
         pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
         pp.query("add_custom_moisture_forcing", custom_moisture_forcing);
         pp.query("add_custom_w_subsidence", custom_w_subsidence);
+        pp.query("add_do_theta_advection", do_theta_advection);
+        pp.query("add_do_mom_advection", do_mom_advection);
         pp.query("add_custom_geostrophic_profile", custom_geostrophic_profile);
         pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
+        pp.query("spatial_rhotheta_forcing", spatial_rhotheta_forcing);
+        pp.query("spatial_moisture_forcing", spatial_moisture_forcing);
 
         pp.query("nudging_from_input_sounding", nudging_from_input_sounding);
 
@@ -425,9 +480,6 @@ struct SolverChoice {
                 << num_diff_coeff << std::endl;
             num_diff_coeff *= std::pow(2.0,-6);
         }
-
-        // Use monotonic advection?
-        pp.query("use_mono_adv",use_mono_adv);
 
            advChoice.init_params(pp_prefix);
           diffChoice.init_params(pp_prefix);
@@ -495,6 +547,8 @@ struct SolverChoice {
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
 
+        pp.query("do_hurricane_simulation", do_hurricane_simulation);
+
         check_params(max_level);
     }
 
@@ -546,7 +600,9 @@ struct SolverChoice {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
         for (int lev = 0; lev <= max_level; lev++) {
-            amrex::Print() << "anelastic      at level : " << lev << " is " <<     anelastic[lev] << std::endl;
+            if (anelastic[lev]) {
+                amrex::Print() << "Level " << lev << " is anelastic" << std::endl;
+            }
             if (substepping_type[lev] == SubsteppingType::None) {
                 amrex::Print() << "No substepping at level " << lev << std::endl;
             } else if (substepping_type[lev] == SubsteppingType::Explicit) {
@@ -573,6 +629,8 @@ struct SolverChoice {
             amrex::Print() << "Moisture Model: Kessler" << std::endl;
         } else if (moisture_type == MoistureType::Kessler_NoRain) {
             amrex::Print() << "Moisture Model: Kessler No Rain" << std::endl;
+        } else if (moisture_type == MoistureType::SatAdj) {
+            amrex::Print() << "Moisture Model: Saturation Adjustment" << std::endl;
         } else {
             amrex::Print() << "Moisture Model: None" << std::endl;
         }
@@ -701,6 +759,9 @@ struct SolverChoice {
     InitType init_type = InitType::None;
 
     inline static
+    SoundingType sounding_type = SoundingType::Ideal;
+
+    inline static
     TerrainType terrain_type = TerrainType::None;
 
     inline static
@@ -727,8 +788,8 @@ struct SolverChoice {
 
     bool        fixed_density       = false;
     int         ncorr               = 1;
-    amrex::Real poisson_abstol      = 1e-10;
-    amrex::Real poisson_reltol      = 1e-10;
+    amrex::Real poisson_abstol      = 1e-8;
+    amrex::Real poisson_reltol      = 1e-8;
 
     bool        test_mapfactor         = false;
 
@@ -776,8 +837,12 @@ struct SolverChoice {
     bool custom_rhotheta_forcing  = false;
     bool custom_moisture_forcing  = false;
     bool custom_w_subsidence      = false;
+    bool do_theta_advection       = true;
+    bool do_mom_advection       = true;
     bool custom_geostrophic_profile = false;
     bool custom_forcing_prim_vars = false;
+    bool spatial_rhotheta_forcing = false;
+    bool spatial_moisture_forcing = false;
 
     // Do we use source terms to nudge the solution towards
     //    the time-varying data provided in input sounding files?
@@ -795,9 +860,6 @@ struct SolverChoice {
     // Numerical diffusion
     bool use_num_diff{false};
     amrex::Real num_diff_coeff{0.};
-
-    // Monotonic advection limiter
-    bool use_mono_adv{false};
 
     // Rebalance wrfinput
     bool rebalance_wrfinput{false};
@@ -822,14 +884,9 @@ struct SolverChoice {
 
     // Microphysics params
     bool use_moist_background {false};
-    int RhoQv_comp {-1};
-    int RhoQc_comp {-1};
+    MoistureComponentIndices moisture_indices;
 
-    // This component will be model-dependent:
-    // if a model with no rain, this will stay -1
-    // if Kessler, then it will be set to RhoQ3
-    // if     SAM, then it will be set to RhoQ4
-    int RhoQr_comp {-1};
+    bool moisture_tight_coupling {false};
 
     std::string windfarm_loc_table, windfarm_spec_table, windfarm_spec_table_extra;
     std::string windfarm_blade_table, windfarm_airfoil_tables;
@@ -849,5 +906,8 @@ struct SolverChoice {
     amrex::Real const_massflux_layer_hi =  1e34;
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
+
+    bool do_hurricane_simulation = false;
+
 };
 #endif

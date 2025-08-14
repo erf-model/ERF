@@ -98,22 +98,21 @@
                      qheating_rates[level].get(),
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
-                     dptr_rhotheta_src, dptr_rhoqt_src,
+                     rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      input_sounding_data, turbPert, true);
 
         // *****************************************************************************
         // Define the pressure gradient
         // *****************************************************************************
-        BCRec const* bcrec_ptr = domain_bcs_type_d.data();
         make_gradp_pert(level, solverChoice, fine_geom, S_data,
-                        p0_to_use, *zpn_to_use, *zpc_to_use, bcrec_ptr, get_eb(level), gradp[level]);
+                        p0_to_use, *zpn_to_use, *zpc_to_use, get_eb(level), gradp[level]);
 
         // *****************************************************************************
         // Define the buoyancy forcing term in the z-direction
         // *****************************************************************************
         make_buoyancy(S_data, S_prim, qt, buoyancy, fine_geom, solverChoice, base_to_use,
-                      micro->Get_Qstate_Moist_Size(), solverChoice.anelastic[level]);
+                      micro->Get_Qstate_Moist_Size(), get_eb(level), solverChoice.anelastic[level]);
 
         // *****************************************************************************
         // Make remaining (not gradp or buoyancy) momentum sources
@@ -247,7 +246,8 @@
         // Populate RHS for relaxation zones if using real bcs
         if (solverChoice.use_real_bcs && (level == 0)) {
             if (real_width>0) {
-                realbdy_compute_interior_ghost_rhs(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                realbdy_compute_interior_ghost_rhs(bdy_time_interval, start_bdy_time,
+                                                   new_stage_time, slow_dt, stop_time,
                                                    real_width, real_set_width, fine_geom,
                                                    S_rhs, S_old, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,

@@ -17,8 +17,17 @@ function(build_erf_lib erf_lib_name)
 
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
 
+  if(ERF_ENABLE_KOKKOS)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_KOKKOS)
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/PhysicsInterfaces>)
+  endif()
+
   if(ERF_ENABLE_MULTIBLOCK)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
+  endif()
+
+  if(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_ML_UPHYS_DIAGNOSTICS)
   endif()
 
   if(ERF_ENABLE_PARTICLES)
@@ -26,7 +35,16 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Particles/ERFPCEvolve.cpp
                    ${SRC_DIR}/Particles/ERFPCInitializations.cpp
                    ${SRC_DIR}/Particles/ERFPCUtils.cpp
-                   ${SRC_DIR}/Particles/ERFTracers.cpp)
+                   ${SRC_DIR}/Particles/ERFTracers.cpp
+                   ${SRC_DIR}/Particles/ERF_SDInitialization.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCAdvection.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCBoundaries.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCCoalescence.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCDiagnostics.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCInitializations.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCMassChange.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCRecycle.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCUtils.cpp)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Particles>)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
   endif()
@@ -52,19 +70,28 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
 
-  if(ERF_ENABLE_NOAH)
+  if(ERF_ENABLE_NOAHMP)
     target_include_directories(${erf_lib_name} PUBLIC
-                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/NOAH>
-                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/NOAH-MP/drivers/erf>)
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/Noah-MP>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/Noah-MP/drivers/erf>)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/LandSurfaceModel/NOAH/ERF_NOAH.cpp)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NOAH)
+                   ${SRC_DIR}/LandSurfaceModel/Noah-MP/ERF_NOAHMP.cpp)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NOAHMP)
     target_link_libraries_system(${erf_lib_name} PUBLIC NoahMP::noahmp)
   endif()
 
   if(ERF_ENABLE_RRTMGP)
+    if(ERF_ENABLE_CUDA)
+        target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_CUDA)
+    endif()
+    if(ERF_ENABLE_HIP)
+        target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_HIP)
+    endif()
+    if(ERF_ENABLE_SYCL)
+        target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_SYCL)
+    endif()
     target_include_directories(${erf_lib_name} PUBLIC
-                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Radiation>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels>
@@ -76,9 +103,8 @@ function(build_erf_lib erf_lib_name)
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband>
                               )
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/Radiation/ERF_RRTMGP_Interface.cpp
-                   ${SRC_DIR}/Radiation/ERF_Radiation.cpp
-                   ${SRC_DIR}/Radiation/ERF_OrbCosZenith.cpp
+                   ${SRC_DIR}/PhysicsInterfaces/Radiation/ERF_RRTMGP_Interface.cpp
+                   ${SRC_DIR}/PhysicsInterfaces/Radiation/ERF_Radiation.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/mo_rrtmgp_util_reorder.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels/mo_gas_optics_kernels.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/expand_and_transpose.cpp
@@ -91,8 +117,7 @@ function(build_erf_lib erf_lib_name)
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband/mo_fluxes_byband_kernels.cpp
                   )
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_RRTMGP)
-    target_compile_definitions(${erf_lib_name} PUBLIC RRTMGP_ENABLE_YAKL)
-    target_link_libraries(${erf_lib_name} PUBLIC yakl)
+    target_compile_definitions(${erf_lib_name} PUBLIC RRTMGP_ENABLE_KOKKOS)
   endif()
 
   if(ERF_ENABLE_MORR_FORT)
@@ -136,6 +161,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatcher.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom.cpp
+       ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForMom_EB.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_N.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_S.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_T.cpp
@@ -198,6 +224,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SatAdj/ERF_InitSatAdj.cpp
        ${SRC_DIR}/Microphysics/SatAdj/ERF_SatAdj.cpp
        ${SRC_DIR}/Microphysics/SatAdj/ERF_UpdateSatAdj.cpp
+       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistAdvance.cpp
+       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistInit.cpp
+       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistPhaseChange.cpp
+       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistUtils.cpp
+       ${SRC_DIR}/MaterialProperties/ERF_MaterialProperties.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNN25.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
@@ -230,6 +261,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
        ${SRC_DIR}/Utils/ERF_InitZLevels.cpp
+       ${SRC_DIR}/Utils/ERF_MakeSubdomains.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp
        ${SRC_DIR}/Utils/ERF_TerrainMetrics.cpp
        ${SRC_DIR}/Utils/ERF_VelocityToMomentum.cpp
@@ -252,14 +284,20 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_NETCDF)
     if(NETCDF_FOUND)
-      #Link our executable to the NETCDF libraries, etc
       target_link_libraries(${erf_lib_name} PUBLIC ${NETCDF_LINK_LIBRARIES})
       target_include_directories(${erf_lib_name} PUBLIC ${NETCDF_INCLUDE_DIRS})
     endif()
   endif()
 
+  if(ERF_ENABLE_KOKKOS)
+      target_link_libraries(${erf_lib_name} PUBLIC Kokkos::kokkos)
+  endif()
+
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
+    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
+      target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_Fortran>)
+    endif()
   endif()
 
   # Workaround for gcc-8 where std::filesystem is in libstdc++fs. Starting with
@@ -281,12 +319,14 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/TimeIntegration>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Utils>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/MaterialProperties>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SAM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Kessler>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Morrison>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SatAdj>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>) 
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Fitch>)
@@ -297,7 +337,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/SLM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/LandSurfaceModel/MM5>)
-  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Radiation/>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation/>)
 
   #Link to amrex library
   target_link_libraries_system(${erf_lib_name} PUBLIC AMReX::amrex)

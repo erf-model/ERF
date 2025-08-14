@@ -176,7 +176,6 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
         }
     }
 #endif
-
     plot_var_names = tmp_plot_names;
 }
 
@@ -203,10 +202,20 @@ ERF::appendPlotVariables (const std::string& pp_plot_var_names, Vector<std::stri
 #ifdef ERF_USE_PARTICLES
     Vector<std::string> particle_mesh_plot_names;
     particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
-    for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
-        std::string tmp(particle_mesh_plot_names[i]);
-        if (containerHasElement(plot_var_names, tmp) ) {
-            tmp_plot_names.push_back(tmp);
+    if (particle_mesh_plot_names.size() > 0) {
+        static bool first_call = true;
+        if (first_call) {
+            Print() << "ParticleData: the following additional Eulerian variables are available to plot:\n";
+            for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
+                Print() << "    " << particle_mesh_plot_names[i] << "\n";
+            }
+            first_call = false;
+        }
+        for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
+            std::string tmp(particle_mesh_plot_names[i]);
+            if (containerHasElement(plot_var_names, tmp) ) {
+                tmp_plot_names.push_back(tmp);
+            }
         }
     }
 #endif
@@ -260,7 +269,7 @@ ERF::PlotFileVarNames (Vector<std::string> plot_var_names )
 
 // Write plotfile to disk
 void
-ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
+ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
 {
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = varnames.size();
@@ -756,11 +765,12 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         // These are based on computing gradient of full pressure
         // **********************************************************************************************
 
-        if ( (containerHasElement(plot_var_names, "dpdx")) ||
-             (containerHasElement(plot_var_names, "dpdy")) ||
-             (containerHasElement(plot_var_names, "dpdz")) ) {
-            BCRec const* bcrec_ptr = domain_bcs_type_d.data();
-            compute_gradp(pressure, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), bcrec_ptr, get_eb(lev), gradp_temp, solverChoice);
+        if (solverChoice.anelastic[lev] == 0) {
+            if ( (containerHasElement(plot_var_names, "dpdx")) ||
+                 (containerHasElement(plot_var_names, "dpdy")) ||
+                 (containerHasElement(plot_var_names, "dpdz")) ) {
+                compute_gradp(pressure, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), get_eb(lev), gradp_temp, solverChoice);
+            }
         }
 
         if (containerHasElement(plot_var_names, "dpdx"))
@@ -814,8 +824,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
         if ( (containerHasElement(plot_var_names, "pres_hse_x")) ||
              (containerHasElement(plot_var_names, "pres_hse_y")) ) {
-            BCRec const* bcrec_ptr = domain_bcs_type_d.data();
-            compute_gradp(p_hse, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), bcrec_ptr, get_eb(lev), gradp_temp, solverChoice);
+            compute_gradp(p_hse, geom[lev], *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), get_eb(lev), gradp_temp, solverChoice);
         }
 
         if (containerHasElement(plot_var_names, "pres_hse_x"))
@@ -867,6 +876,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
         } // use_terrain
 
         if (containerHasElement(plot_var_names, "mapfac")) {
+            amrex::Print() << "You are plotting a 3D version of mapfac; we suggest using the 2D plotfile instead" << std::endl;
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -882,9 +892,9 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
             mf_comp ++;
         }
 
-#ifdef ERF_USE_NETCDF
-        if (solverChoice.use_real_bcs) {
-            if (containerHasElement(plot_var_names, "lat_m")) {
+        if (containerHasElement(plot_var_names, "lat_m")) {
+            amrex::Print() << "You are plotting a 3D version of lat_m; we suggest using the 2D plotfile instead" << std::endl;
+            if (lat_m[lev]) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -897,10 +907,15 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                        derdat(i, j, k, mf_comp) = data(i,j,0);
                     });
                 }
-                mf_comp ++;
-            } // lat_m
+            } else {
+                mf[lev].setVal(0.0,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // lat_m
 
-            if (containerHasElement(plot_var_names, "lon_m")) {
+        if (containerHasElement(plot_var_names, "lon_m")) {
+            amrex::Print() << "You are plotting a 3D version of lon_m; we suggest using the 2D plotfile instead" << std::endl;
+            if (lon_m[lev]) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -913,11 +928,11 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                        derdat(i, j, k, mf_comp) = data(i,j,0);
                     });
                 }
-                mf_comp ++;
-            } // lon_m
-        } // use_real_bcs
-#endif
-
+            } else {
+                mf[lev].setVal(0.0,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // lon_m
 
         if (solverChoice.time_avg_vel) {
             if (containerHasElement(plot_var_names, "u_t_avg")) {
@@ -1187,6 +1202,11 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                     MultiFab::Copy(mf[lev],*(qmoist[lev][offset]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
+                if (containerHasElement(plot_var_names, "rel_humidity")) {
+                    Print() << "Warning: plot variable \"rel_humidity\" is not available with Kessler moisture model.\n";
+                    mf[lev].setVal(0.0, mf_comp, 1, 0);
+                    mf_comp += 1;
+                }
             }
             else if ( (solverChoice.moisture_type == MoistureType::SAM) ||
                       (solverChoice.moisture_type == MoistureType::Morrison) )
@@ -1205,6 +1225,37 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                 if (containerHasElement(plot_var_names, "graup_accum"))
                 {
                     MultiFab::Copy(mf[lev],*(qmoist[lev][offset+2]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "rel_humidity")) {
+                    Print() << "Warning: plot variable \"rel_humidity\" is not available with SAM moisture model.\n";
+                    mf[lev].setVal(0.0, mf_comp, 1, 0);
+                    mf_comp += 1;
+                }
+            }
+            else if(solverChoice.moisture_type == MoistureType::SuperDroplets) {
+                if (containerHasElement(plot_var_names, "rain_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][6]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "rel_humidity")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][5]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "condensation_rate")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][3]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "qv_sdm")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][1]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "qc_sdm")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][2]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "qrain_sdm")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][4]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
             }
@@ -1500,18 +1551,31 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 
 #ifdef ERF_USE_PARTICLES
         const auto& particles_namelist( particleData.getNames() );
-        for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++) {
-            if (containerHasElement(plot_var_names, std::string(particles_namelist[i]+"_count"))) {
+
+        if (containerHasElement(plot_var_names, "tracer_particles_count")) {
+            if (particles_namelist.size() == 0) {
                 MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
                 temp_dat.setVal(0);
-                particleData[particles_namelist[i]]->Increment(temp_dat, lev);
                 MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
                 mf_comp += 1;
+            } else {
+                for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++) {
+                    if (containerHasElement(plot_var_names, std::string(particles_namelist[i]+"_count"))) {
+                        MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
+                        temp_dat.setVal(0);
+                        if (particleData.HasSpecies(particles_namelist[i])) {
+                            particleData[particles_namelist[i]]->Increment(temp_dat, lev);
+                        }
+                        MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+                        mf_comp += 1;
+                    }
+                }
             }
         }
 
         Vector<std::string> particle_mesh_plot_names(0);
         particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
+
         for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
             std::string plot_var_name(particle_mesh_plot_names[i]);
             if (containerHasElement(plot_var_names, plot_var_name) ) {
@@ -1569,15 +1633,15 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
     std::string plotfilenameV;
     std::string plotfilenameW;
     if (which == 1) {
-       plotfilename = Concatenate(plot_file_1, istep[0], 5);
-       plotfilenameU = Concatenate(plot_file_1+"U", istep[0], 5);
-       plotfilenameV = Concatenate(plot_file_1+"V", istep[0], 5);
-       plotfilenameW = Concatenate(plot_file_1+"W", istep[0], 5);
+       plotfilename = Concatenate(plot3d_file_1, istep[0], 5);
+       plotfilenameU = Concatenate(plot3d_file_1+"U", istep[0], 5);
+       plotfilenameV = Concatenate(plot3d_file_1+"V", istep[0], 5);
+       plotfilenameW = Concatenate(plot3d_file_1+"W", istep[0], 5);
     } else if (which == 2) {
-       plotfilename = Concatenate(plot_file_2, istep[0], 5);
-       plotfilenameU = Concatenate(plot_file_2+"U", istep[0], 5);
-       plotfilenameV = Concatenate(plot_file_2+"V", istep[0], 5);
-       plotfilenameW = Concatenate(plot_file_2+"W", istep[0], 5);
+       plotfilename = Concatenate(plot3d_file_2, istep[0], 5);
+       plotfilenameU = Concatenate(plot3d_file_2+"U", istep[0], 5);
+       plotfilenameV = Concatenate(plot3d_file_2+"V", istep[0], 5);
+       plotfilenameW = Concatenate(plot3d_file_2+"W", istep[0], 5);
     }
 
     // LSM writes it's own data
@@ -1600,7 +1664,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
     {
         if (plotfile_type == PlotFileType::Amrex)
         {
-            Print() << "Writing native plotfile " << plotfilename << "\n";
+            Print() << "Writing native 3D plotfile " << plotfilename << "\n";
             if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                 WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                    GetVecOfConstPtrs(mf),
@@ -1648,7 +1712,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
 #endif
         } else {
             // Here we assume the plotfile_type is PlotFileType::None
-            Print() << "Writing no plotfile since plotfile_type is none" << std::endl;
+            Print() << "Writing no 3D plotfile since plotfile_type is none" << std::endl;
         }
 
     } else { // Multilevel
@@ -1727,7 +1791,7 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
                     rr[lev] = IntVect(desired_ratio);
                 }
 
-               Print() << "Writing plotfile " << plotfilename << "\n";
+               Print() << "Writing 3D plotfile " << plotfilename << "\n";
                if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                    WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                       GetVecOfConstPtrs(mf2),
@@ -1967,5 +2031,146 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
     std::string mf_nodal_prefix = "Nu_nd";
     for (int level = 0; level <= finest_level; ++level) {
         HeaderFile << MultiFabHeaderPath(level, levelPrefix, mf_nodal_prefix) << '\n';
+    }
+}
+
+void
+ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
+{
+    const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
+    const int ncomp_mf = varnames.size();
+
+    if (ncomp_mf == 0) return;
+
+    // Vector of MultiFabs for cell-centered data
+    Vector<MultiFab> mf(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        mf[lev].define(ba2d[lev], dmap[lev], ncomp_mf, 0);
+    }
+
+
+    // **********************************************************************************************
+    // (Effectively) 2D arrays
+    // **********************************************************************************************
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        int mf_comp = 0;
+
+        // Set all components to zero in case they aren't defined below
+        mf[lev].setVal(0.0);
+
+        if (containerHasElement(plot_var_names, "mapfac")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real>& derdat = mf[lev].array(mfi);
+                const Array4<Real>& mf_m   = mapfac[lev][MapFacType::m_x]->array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                   derdat(i ,j ,k, mf_comp) = mf_m(i,j,0);
+                });
+            }
+            mf_comp++;
+        }
+
+        if (containerHasElement(plot_var_names, "lat_m")) {
+            if (lat_m[lev]) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<Real>& derdat = mf[lev].array(mfi);
+                    const Array4<Real>& data   = lat_m[lev]->array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                       derdat(i, j, k, mf_comp) = data(i,j,0);
+                    });
+                }
+            }
+            mf_comp++;
+        } // lat_m
+
+        if (containerHasElement(plot_var_names, "lon_m")) {
+            if (lon_m[lev]) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<Real>& derdat = mf[lev].array(mfi);
+                    const Array4<Real>& data   = lon_m[lev]->array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                       derdat(i, j, k, mf_comp) = data(i,j,0);
+                    });
+                }
+            } else {
+                mf[lev].setVal(0.0,mf_comp,1,0);
+            }
+
+            mf_comp++;
+
+        } // lon_m
+    }
+
+    // mf[0].setVal(1.0);
+
+    std::string plotfilename;
+    if (which == 1) {
+       plotfilename = Concatenate(plot2d_file_1, istep[0], 5);
+    } else if (which == 2) {
+       plotfilename = Concatenate(plot2d_file_2, istep[0], 5);
+    }
+
+    Vector<Geometry> my_geom(finest_level+1);
+
+    Array<int,AMREX_SPACEDIM> is_per; is_per[0] = 0; is_per[1] = 0; is_per[2] = 0;
+    if (geom[0].isPeriodic(0)) { is_per[0] = 1;}
+    if (geom[0].isPeriodic(1)) { is_per[1] = 1;}
+
+    int coord_sys = 0;
+
+    for (int lev = 0; lev <= finest_level; lev++)
+    {
+       Box slab = makeSlab(geom[lev].Domain(),2,0);
+       auto const slab_lo = lbound(slab);
+       auto const slab_hi = ubound(slab);
+
+        // Create a new geometry based only on the 2D slab
+        // We need
+        //   1) my_geom.Domain()
+        //   2) my_geom.CellSize()
+        //   3) my_geom.periodicity()
+        const auto dx    = geom[lev].CellSize();
+        RealBox rb( slab_lo.x   *dx[0],  slab_lo.y   *dx[1],  slab_lo.z   *dx[2],
+                   (slab_hi.x+1)*dx[0], (slab_hi.y+1)*dx[1], (slab_hi.z+1)*dx[2]);
+        my_geom[lev].define(slab, rb, coord_sys, is_per);
+    }
+
+    if (plotfile_type == PlotFileType::Amrex)
+    {
+        Print() << "Writing 2D native plotfile " << plotfilename << "\n";
+        WriteMultiLevelPlotfile(plotfilename, finest_level+1,
+                                GetVecOfConstPtrs(mf),
+                                varnames, my_geom, t_new[0], istep, refRatio());
+        writeJobInfo(plotfilename);
+
+#ifdef ERF_USE_NETCDF
+    } else if (plotfile_type == PlotFileType::Netcdf) {
+         int lev   = 0;
+         int l_which = 0;
+         const Real* p_lo = my_geom[lev].ProbLo();
+         const Real* p_hi = my_geom[lev].ProbHi();
+         const auto dx    = my_geom[lev].CellSize();
+         writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
+                         {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],dx[2]}, {dx[0],dx[1],dx[2]},
+                         my_geom[lev].Domain(), t_new[0], start_bdy_time);
+#endif
+    } else {
+        // Here we assume the plotfile_type is PlotFileType::None
+        Print() << "Writing no 2D plotfile since plotfile_type is none" << std::endl;
     }
 }

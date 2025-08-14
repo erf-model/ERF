@@ -68,6 +68,8 @@ public:
               flux_type = FluxCalcType::DONELAN;
           } else if (flux_string == "moeng") {
               flux_type = FluxCalcType::MOENG;
+          } else if (flux_string == "rico") {
+                flux_type = FluxCalcType::RICO;
           } else if (flux_string == "custom") {
               flux_type = FluxCalcType::CUSTOM;
           } else {
@@ -108,12 +110,14 @@ public:
       if (erf_sq) { default_land_surf_moist = surf_moist; }
 
       // Custom type user must specify the fluxes
-      if (flux_type == FluxCalcType::CUSTOM) {
+      if (flux_type == FluxCalcType::CUSTOM ||
+          flux_type == FluxCalcType::RICO) {
           theta_type = ThetaCalcType::HEAT_FLUX;
           moist_type = MoistCalcType::MOISTURE_FLUX;
           pp.query("most.ustar", custom_ustar);
           pp.query("most.tstar", custom_tstar);
           pp.query("most.qstar", custom_qstar);
+          pp.query("most.rhosurf", custom_rhosurf);
           if (custom_qstar != 0) {
               AMREX_ASSERT_WITH_MESSAGE(use_moisture,
               "Specified custom MOST qv flux without moisture model!");
@@ -157,6 +161,12 @@ public:
                   moist_type = MoistCalcType::ADIABATIC;
               }
           }
+      }
+
+      if (flux_type == FluxCalcType::RICO)
+      {
+          pp.query("most.rico.theta_z0", rico_theta_z0);
+          pp.query("most.rico.qsat_z0", rico_qsat_z0);
       }
 
       // Make sure the inputs file doesn't try to use most.roughness_type
@@ -448,18 +458,14 @@ public:
   void update_pblh (const int& lev,
                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                     amrex::MultiFab* z_phys_cc,
-                    const int RhoQv_comp,
-                    const int RhoQc_comp,
-                    const int RhoQr_comp);
+                    const MoistureComponentIndices& moisture_indices);
 
   template <typename PBLHeightEstimator>
   void compute_pblh (const int& lev,
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                      amrex::MultiFab* z_phys_cc,
                      const PBLHeightEstimator& est,
-                     const int RhoQv_comp,
-                     const int RhoQc_comp,
-                     const int RhoQr_comp);
+                     const MoistureComponentIndices& moisture_indice);
 
   void read_custom_roughness (const int& lev,
                               const std::string& fname);
@@ -538,7 +544,8 @@ public:
     MOENG = 0, ///< Moeng functional form
     DONELAN,   ///< Donelan functional form
     CUSTOM,    ///< Custom constant flux functional form
-    ROTATE     ///< Terrain rotation flux functional form
+    ROTATE,     ///< Terrain rotation flux functional form
+    RICO
   };
 
   enum struct ThetaCalcType {
@@ -590,11 +597,16 @@ private:
   amrex::Real custom_ustar{0};
   amrex::Real custom_tstar{0};
   amrex::Real custom_qstar{0};
+  amrex::Real custom_rhosurf{0}; // use specified value instead of rho from first cell
+  bool specified_rho_surf{false};
   amrex::Real cnk_a{0.0185};
   bool cnk_visc{false};
   amrex::Real depth{30.0};
   amrex::Vector<amrex::FArrayBox> z_0;
   bool m_var_z0{false};
+
+  amrex::Real rico_theta_z0{298.0};
+  amrex::Real rico_qsat_z0{0.001};
 
   bool use_moisture;
 

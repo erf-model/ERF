@@ -110,6 +110,7 @@ time cmake \
      -DMPIEXEC_PREFLAGS:STRING="${mpiexec_preflags}" \
      -DCMAKE_BUILD_TYPE:STRING="${build_type}" \
      -DERF_DIM:STRING=3 \
+     -DERF_ENABLE_PARTICLES:BOOL=ON \
      -DERF_ENABLE_MPI:BOOL=ON \
      -DERF_ENABLE_CUDA:BOOL="${ERF_ENABLE_CUDA}" \
      -DAMReX_CUDA_ARCH:STRING="${CUDA_ARCH:-""}" \

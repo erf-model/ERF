@@ -57,6 +57,11 @@ include $(ERF_UTIL_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_UTIL_DIR)
 INCLUDE_LOCATIONS += $(ERF_UTIL_DIR)
 
+ERF_PHYSICS_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces
+include $(ERF_PHYSICS_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_PHYSICS_DIR)
+INCLUDE_LOCATIONS += $(ERF_PHYSICS_DIR)
+
 ifeq ($(USE_PARTICLES),TRUE)
 ERF_PARTICLES_DIR = $(ERF_SOURCE_DIR)/Particles
 include $(ERF_PARTICLES_DIR)/Make.package
@@ -117,6 +122,11 @@ ERF_MOISTURE_SATADJ_DIR = $(ERF_SOURCE_DIR)/Microphysics/SatAdj
 include $(ERF_MOISTURE_SATADJ_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_SATADJ_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_SATADJ_DIR)
+
+ERF_MOISTURE_SUPERDROPLETSMOIST_DIR = $(ERF_SOURCE_DIR)/Microphysics/SuperDropletsMoist
+include $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)
 
 # If using windfarm parametrization, then compile all models and choose 
 # at runtime from the inputs
@@ -185,6 +195,12 @@ VPATH_LOCATIONS   += $(ERF_LSM_MM5_DIR)
 INCLUDE_LOCATIONS += $(ERF_LSM_MM5_DIR)
 
 
+ERF_MATPROP_DIR = $(ERF_SOURCE_DIR)/MaterialProperties
+include $(ERF_MATPROP_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MATPROP_DIR)
+INCLUDE_LOCATIONS += $(ERF_MATPROP_DIR)
+
+
 # If using NOAH-MP model, then compile relevant source and headers
 ifeq ($(USE_NOAH), TRUE)
   ifneq ($(USE_NETCDF), TRUE)
@@ -203,43 +219,67 @@ ifeq ($(USE_NOAH), TRUE)
   endif
 endif
 
-
-ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
+ERF_RAD_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Radiation
 include $(ERF_RAD_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_RAD_DIR)
 INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
 
 # If using RRTMGP Radiation, compile relevant source and headers
-#ifeq ($(USE_RRTMGP), TRUE)
-#  ifneq ($(USE_NETCDF), TRUE)
-#    $(error USE_NETCDF must be true for using RRTMGP interface)
-#  else ifneq ($(USE_YAKL), TRUE)
-#    $(error USE_YAKL must be true for using RRTMGP interface)
-#  else
-#    DEFINES += -DERF_USE_RRTMGP
-#
-#    ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
-#    include $(ERF_RAD_DIR)/Make.package
-#    VPATH_LOCATIONS   += $(ERF_RAD_DIR)
-#    INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
-#    
-#    RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte/kernels
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples/all-sky
-#    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte/kernels
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples/all-sky
-#    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
-#  endif
-#endif
+ifeq ($(USE_RRTMGP), TRUE)
+
+  USE_KOKKOS = TRUE
+  USE_NETCDF = TRUE
+
+  ifneq ($(USE_NETCDF), TRUE)
+    $(error USE_NETCDF must be true for using RRTMGP interface)
+  else
+    DEFINES += -DERF_USE_RRTMGP
+    DEFINES += -DRRTMGP_ENABLE_KOKKOS
+    
+    RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte/kernels
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples/all-sky
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
+    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte/kernels
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples/all-sky
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
+    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
+  endif
+endif
+
+# If using SHOC, compile relevant source and headers
+ifeq ($(USE_SHOC), TRUE)
+
+    USE_KOKKOS = TRUE
+
+    DEFINES += -DERF_USE_SHOC
+    DEFINES += -DSHOC_ENABLE_KOKKOS
+
+    ERF_SHOC_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Shoc
+    include $(ERF_SHOC_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_SHOC_DIR)
+    INCLUDE_LOCATIONS += $(ERF_SHOC_DIR)
+    
+    SHOC_HOME         ?= $(ERF_HOME)/external/E3SM/components/eamxx/src/physics/shoc/
+    VPATH_LOCATIONS   += $(SHOC_HOME)/disp/
+    VPATH_LOCATIONS   += $(SHOC_HOME)/eti
+    VPATH_LOCATIONS   += $(SHOC_HOME)/impl
+    INCLUDE_LOCATIONS += $(SHOC_HOME)/disp
+    INCLUDE_LOCATIONS += $(SHOC_HOME)/eti
+    INCLUDE_LOCATIONS += $(SHOC_HOME)/impl
+endif
+    
     
 include $(AMREX_HOME)/Src/Base/Make.package
 
@@ -277,6 +317,14 @@ ifeq ($(USE_MULTIBLOCK), TRUE)
   DEFINES += -DERF_USE_MULTIBLOCK
 endif
 
+ifeq ($(USE_KOKKOS), TRUE)
+  KOKKOS_HOME ?= $(ERF_HOME)/Submodules/ekat/extern/kokkos
+  DEFINES += -DERF_USE_KOKKOS
+  INCLUDE_LOCATIONS += $(KOKKOS_HOME)/include
+  LIBRARY_LOCATIONS += $(KOKKOS_HOME)/lib
+  LIBRARIES += -lkokkoscore
+endif
+
 #turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
@@ -292,6 +340,10 @@ endif
 
 ifeq ($(USE_TERRAIN_VELOCITY), TRUE)
   DEFINES += -DERF_USE_TERRAIN_VELOCITY
+endif
+
+ifeq ($(USE_ML_UPHYS_DIAGNOSTICS), TRUE)
+  DEFINES += -DERF_USE_ML_UPHYS_DIAGNOSTICS
 endif
 
 CEXE_sources += AMReX_buildInfo.cpp

@@ -37,7 +37,7 @@ ERF::init_from_ncfile (int lev)
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
-    r_hse.setVal(1.0); p_hse.setVal(1.0); pi_hse.setVal(1.); th_hse.setVal(1.0); qv_hse.setVal(0.0);
+    r_hse.setVal(1.0); p_hse.setVal(1.e5); pi_hse.setVal(1.); th_hse.setVal(300.0); qv_hse.setVal(0.0);
 
     // ***********************************************************
 
@@ -45,6 +45,7 @@ ERF::init_from_ncfile (int lev)
 
     FArrayBox NC_rho_fab;
     FArrayBox NC_theta_fab;
+    FArrayBox NC_scalar_fab;
     FArrayBox NC_xvel_fab;
     FArrayBox NC_yvel_fab;
     FArrayBox NC_zvel_fab;
@@ -59,11 +60,12 @@ ERF::init_from_ncfile (int lev)
     Vector<std::string> NC_fnames;
     Vector<enum NC_Data_Dims_Type> NC_fdim_types;
 
-    NC_fabs.push_back(&NC_rho_fab)  ; NC_fnames.push_back("RHO"); NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-    NC_fabs.push_back(&NC_theta_fab); NC_fnames.push_back("T")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-    NC_fabs.push_back(&NC_xvel_fab) ; NC_fnames.push_back("U")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-    NC_fabs.push_back(&NC_yvel_fab) ; NC_fnames.push_back("V")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-    NC_fabs.push_back(&NC_zvel_fab) ; NC_fnames.push_back("W")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+    NC_fabs.push_back(&NC_rho_fab)   ; NC_fnames.push_back("RHO") ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+    NC_fabs.push_back(&NC_theta_fab) ; NC_fnames.push_back("T")   ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+    NC_fabs.push_back(&NC_scalar_fab); NC_fnames.push_back("SCAL"); NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+    NC_fabs.push_back(&NC_xvel_fab)  ; NC_fnames.push_back("U")   ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+    NC_fabs.push_back(&NC_yvel_fab)  ; NC_fnames.push_back("V")   ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+    NC_fabs.push_back(&NC_zvel_fab)  ; NC_fnames.push_back("W")   ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
 
     NC_fabs.push_back(&NC_r_hse_fab)  ; NC_fnames.push_back("RHO_HSE"); NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
     NC_fabs.push_back(&NC_p_hse_fab)    ; NC_fnames.push_back("P_HSE")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
@@ -88,11 +90,15 @@ ERF::init_from_ncfile (int lev)
 
     // Default density to 1
     Real den_ref = 1.0;
-    lev_new[Vars::cons].setVal(den_ref,0,1);
+    lev_new[Vars::cons].setVal(den_ref,Rho_comp,1);
 
     // Default theta to 300; multiply by rho below
     Real theta_ref = 300.0;
-    lev_new[Vars::cons].setVal(theta_ref,1,1);
+    lev_new[Vars::cons].setVal(theta_ref,RhoTheta_comp,1);
+
+    // Default scalar to 0; multiply by rho below
+    Real scal_ref = 0.0;
+    lev_new[Vars::cons].setVal(scal_ref,RhoScalar_comp,1);
 
     // Default xvel to 0
     lev_new[Vars::xvel].setVal(0.0,0,0,1);
@@ -122,44 +128,52 @@ ERF::init_from_ncfile (int lev)
 
         // Copy on intersect...
         if (success[0]) {
-            int dest_comp = 0;
+            int dest_comp = Rho_comp;
             cons_fab.template copy<RunOn::Device>(NC_rho_fab  , src_comp, dest_comp, num_comp);
         }
         if (success[1]) {
-            int dest_comp = 1;
+            int dest_comp = RhoTheta_comp;
             cons_fab.template copy<RunOn::Device>(NC_theta_fab, src_comp, dest_comp, num_comp);
-            // cons_fab.template plus<RunOn::Device>(theta_ref, 1);
+        }
+        if (success[2]) {
+            int dest_comp = RhoScalar_comp;
+            cons_fab.template copy<RunOn::Device>(NC_scalar_fab, src_comp, dest_comp, num_comp);
         }
 
-        if (success[2]) {
+        if (success[3]) {
             int dest_comp = 0;
             xvel_fab.template copy<RunOn::Device>(NC_xvel_fab , src_comp, dest_comp, num_comp);
         }
-        if (success[3]) {
+        if (success[4]) {
             int dest_comp = 0;
             yvel_fab.template copy<RunOn::Device>(NC_yvel_fab , src_comp, dest_comp, num_comp);
         }
-        if (success[4]) {
+        if (success[5]) {
             int dest_comp = 0;
             zvel_fab.template copy<RunOn::Device>(NC_zvel_fab , src_comp, dest_comp, num_comp);
         }
 
-        if (success[5]) {
+        if (success[6]) {
             int dest_comp = 0;
             r_hse_fab.template copy<RunOn::Device>(NC_r_hse_fab , src_comp, dest_comp, num_comp);
         }
-        if (success[6]) {
+        if (success[7]) {
             int dest_comp = 0;
             p_hse_fab.template copy<RunOn::Device>(NC_p_hse_fab , src_comp, dest_comp, num_comp);
         }
-        if (success[7]) {
+        if (success[8]) {
             int dest_comp = 0;
             th_hse_fab.template copy<RunOn::Device>(NC_th_hse_fab , src_comp, dest_comp, num_comp);
         }
 
     } // mf
 
-    MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], 0, 1, 1, 0);
+    lev_new[Vars::xvel].setVal(0.0,0,0,1);
+    lev_new[Vars::yvel].setVal(0.0,0,0,1);
+    lev_new[Vars::zvel].setVal(0.0,0,0,1);
+
+    MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, RhoTheta_comp, 1, 0);
+    MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, RhoScalar_comp, 1, 0);
 
     // Populate the base state ghost cells and derived data structures if needed
     if (success[6]) {
