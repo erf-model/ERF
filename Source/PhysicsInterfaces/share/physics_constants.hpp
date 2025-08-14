@@ -3,9 +3,9 @@
 
 #include "share/eamxx_types.hpp"
 
-#include "ekat/util/ekat_string_utils.hpp"
+#include "ekat/ekat_string_utils.hpp"
 #include "ekat/ekat_scalar_traits.hpp"
-#include "ekat/logging/ekat_logger.hpp"
+#include "ekat/ekat_logger.hpp"
 
 #include <vector>
 

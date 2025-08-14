@@ -20,7 +20,7 @@
 
 #include "ekat/ekat_parameter_list.hpp"
 #include "ekat/ekat_workspace.hpp"
-#include "ekat/kokkos/ekat_subview_utils.hpp"
+#include "ekat/ekat_subview_utils.hpp"
 
 #include <shoc_constants.hpp>
 #include <shoc_functions.hpp>

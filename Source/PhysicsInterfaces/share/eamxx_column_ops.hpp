@@ -4,14 +4,14 @@
 #include "eamxx_combine_ops.hpp"
 #include "eamxx_types.hpp"
 
-#include "ekat/ekat_pack.hpp"
-#include "ekat/ekat_pack_math.hpp"
 #include "ekat/ekat_scalar_traits.hpp"
-#include "ekat/kokkos/ekat_kokkos_types.hpp"
-#include "ekat/ekat_pack_utils.hpp"
-#include "ekat/ekat_pack_kokkos.hpp"
-#include "ekat/util//ekat_arch.hpp"
-#include "ekat/ekat_pack.hpp"
+#include "ekat/ekat_kokkos_types.hpp"
+#include "ekat/ekat_arch.hpp"
+
+#include "ekat_pack.hpp"
+#include "ekat_pack_utils.hpp"
+#include "ekat_pack_math.hpp"
+#include "ekat_pack_kokkos.hpp"
 
 #include <type_traits>
 

@@ -24,14 +24,15 @@ cmake \
   -D MACH_FILE_DIR="${MACH_FILE_DIR}"               \
   -C ${MY_MACH_FILE_DIR}/my_ekat.cmake              \
   -D CMAKE_BUILD_TYPE:STRING=DEBUG                  \
+  -D EKAT_ENABLE_MPI:BOOL=ON                        \
   -D CMAKE_CXX_COMPILER:STRING=mpicxx               \
   -D CMAKE_Fortran_COMPILER:STRING=mpif90           \
   -D CMAKE_INSTALL_PREFIX:PATH=${INSTALL_DIR}       \
-  -D EKAT_DISABLE_TPL_WARNINGS:BOOL=ON              \
   -D EKAT_ENABLE_TESTS:BOOL=ON                      \
+  -D EKAT_ENABLE_KOKKOS:BOOL=ON                     \
+  -D EKAT_ENABLE_LOGGING:BOOL=ON                    \
   -D EKAT_TEST_DOUBLE_PRECISION:BOOL=ON             \
   -D EKAT_TEST_SINGLE_PRECISION:BOOL=ON             \
-  -D EKAT_TEST_MAX_THREADS:STRING=8                 \
   ${SRC_DIR}
 
 make install

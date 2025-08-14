@@ -2,14 +2,13 @@
 #define SCREAM_TYPES_HPP
 
 #include "ekat/ekat.hpp"
-#include "ekat/kokkos/ekat_kokkos_types.hpp"
+#include "ekat/ekat_kokkos_types.hpp"
 #include "eamxx_config.h"
 
 namespace scream
 {
 
 // Scalar types
-using ekat::Int;
 #ifdef SCREAM_DOUBLE_PRECISION
 using Real = double;
 #else
