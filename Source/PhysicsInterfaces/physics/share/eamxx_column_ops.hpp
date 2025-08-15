@@ -4,9 +4,9 @@
 #include "eamxx_combine_ops.hpp"
 #include "eamxx_types.hpp"
 
-#include "ekat/ekat_scalar_traits.hpp"
-#include "ekat/ekat_kokkos_types.hpp"
-#include "ekat/ekat_arch.hpp"
+#include "ekat_scalar_traits.hpp"
+#include "ekat_kokkos_types.hpp"
+#include "ekat_arch.hpp"
 
 #include "ekat_pack.hpp"
 #include "ekat_pack_utils.hpp"

@@ -4,9 +4,9 @@
 #include "physics_constants.hpp"
 #include "shoc_constants.hpp"
 
-#include "share/eamxx_types.hpp"
+#include "eamxx_types.hpp"
 
-#include "ekat/ekat_workspace.hpp"
+#include "ekat_workspace.hpp"
 
 #include "ekat_pack_kokkos.hpp"
 

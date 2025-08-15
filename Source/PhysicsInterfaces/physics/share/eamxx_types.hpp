@@ -1,8 +1,9 @@
 #ifndef SCREAM_TYPES_HPP
 #define SCREAM_TYPES_HPP
 
-#include "ekat/ekat.hpp"
-#include "ekat/ekat_kokkos_types.hpp"
+#include "ekat.hpp"
+#include "ekat_kokkos_types.hpp"
+
 #include "eamxx_config.h"
 
 namespace scream

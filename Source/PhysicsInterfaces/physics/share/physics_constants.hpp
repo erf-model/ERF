@@ -1,11 +1,11 @@
 #ifndef PHYSICS_CONSTANTS_HPP
 #define PHYSICS_CONSTANTS_HPP
 
-#include "share/eamxx_types.hpp"
+#include "eamxx_types.hpp"
 
-#include "ekat/ekat_string_utils.hpp"
-#include "ekat/ekat_scalar_traits.hpp"
-#include "ekat/ekat_logger.hpp"
+#include "ekat_string_utils.hpp"
+#include "ekat_scalar_traits.hpp"
+#include "ekat_logger.hpp"
 
 #include <vector>
 

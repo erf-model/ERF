@@ -1,0 +1,7 @@
+ifeq ($(USE_SHOC), TRUE)
+    CEXE_headers += eamxx_common_physics_functions.hpp
+endif
+
+ifeq ($(USE_P3), TRUE)
+    CEXE_headers += eamxx_common_physics_functions.hpp
+endif

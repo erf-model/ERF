@@ -18,9 +18,9 @@
 #include <ERF_DataStruct.H>
 #include <ERF_Kokkos.H>
 
-#include "ekat/ekat_parameter_list.hpp"
-#include "ekat/ekat_workspace.hpp"
-#include "ekat/ekat_subview_utils.hpp"
+#include "ekat_parameter_list.hpp"
+#include "ekat_workspace.hpp"
+#include "ekat_subview_utils.hpp"
 
 #include <shoc_constants.hpp>
 #include <shoc_functions.hpp>

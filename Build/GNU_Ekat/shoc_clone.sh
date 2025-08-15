@@ -11,4 +11,3 @@ git clone --filter=blob:none https://github.com/E3SM-Project/E3SM.git ${EXT_DIR}
 cd ${EXT_DIR}/E3SM
 git sparse-checkout set components/eamxx/src/physics/shoc
 export SHOC_HOME=${EXT_DIR}/E3SM/components/eamxx/src/physics/shoc
-
