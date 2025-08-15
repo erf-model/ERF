@@ -25,7 +25,7 @@ struct PhysicsFunctions
   // ---------------------------------------------------------------- //
 
   //-----------------------------------------------------------------------------------------------//
-  // Determine the length of a square column cell at a specifc latitude given the area in radians
+  // Determine the length of a square column cell at a specific latitude given the area in radians
   //   grid_dx = mpdeglat * area
   // where,
   //   mpdeglat is the distance between two points on an ellipsoid
@@ -72,7 +72,7 @@ struct PhysicsFunctions
   //   Rd is the gas constant, [J/K]
   //   Cp is heat capacity of dry air, [J/K]
   // All universal constants, P0, Rd, and Cp, are defined in physics_constants.hpp
-  // Note: Another experssion for Exner is,
+  // Note: Another expression for Exner is,
   //   Exner = T/th
   // where,
   //   T  is the temperature, [K]
@@ -95,7 +95,7 @@ struct PhysicsFunctions
   static ScalarT calculate_theta_from_T(const ScalarT& temperature, const ScalarT& pressure);
 
   //-----------------------------------------------------------------------------------------------//
-  // Converts potential temperature to liquid potental temperature:
+  // Converts potential temperature to liquid potential temperature:
   //   theta_l = theta - (theta / temperature) * (LatVap/Cpair) * qc,
   // where
   //   theta  is the potential temperature, [K]
@@ -243,7 +243,7 @@ struct PhysicsFunctions
   //   dz             is the vertical layer thickness, [m]
   //   pseudo_density is the pressure level thickness, [Pa]
   //   T_virtual      is the virtual temperature - calculated using a separate function from this suite, [K]
-  //   p_mid          is the avgerage atmosphere pressure over the level, [Pa]
+  //   p_mid          is the avegrage atmosphere pressure over the level, [Pa]
   //   g              is the graviational constant, [m s-2]
   //   Rd             is the universal gas constant for dry air, [J/kg/K]
   //   T_mid          is the atmospheric temperature, [K] - needed for T_virtual
@@ -331,7 +331,7 @@ struct PhysicsFunctions
   // Apply rayleigh friction. Given the decay rate profile, we compute the tendencies in u
   // and v components of the horizontal wind using an Euler backward scheme, and then apply
   // the negative of the kinetic energy tendency to the dry static energy.
-  // Note: We don't actually calculate dse since this is simply a tendancy of cp*T_mid.
+  // Note: We don't actually calculate dse since this is simply a tendency of cp*T_mid.
   // INPUTS:
   // dt is the physics timestep
   // otau is the decay rate
