@@ -915,11 +915,12 @@ ERF::InitData_post ()
 
             int n_time_old = static_cast<int>(t_new[0] /  dT);
 
-            // I don't think this works if lev > 0 ...?
-            AMREX_ALWAYS_ASSERT(finest_level == 0);
             int lev = 0;
             bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-            for (int itime = n_time_old; itime < n_time_old+3; itime++)
+
+            int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
+
+            for (int itime = n_time_old; itime < ntimes; itime++)
             {
                 read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
                                  bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
