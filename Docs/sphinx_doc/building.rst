@@ -12,7 +12,7 @@ ERF can also use the `simplified-higher-order-closure (SHOC) turbulence and clou
 
 RRTMGP, SHOC and P3 use Kokkos for heterogeneous computing infrastructures.
 
-AMReX, EKAT, NOAH-MP and RTE-RRTMGP are all available as submodules in the ERF repo; SHOC and P3 must be git cloned separately.
+AMReX, EKAT, NOAH-MP and RTE-RRTMGP are all available as submodules in the ERF repo; using SHOC and P3 requires extra steps described below.
 Kokkos is accessed as a submodule of the EKAT submodule.
 
 ERF can be built using either GNU Make or CMake.
@@ -60,7 +60,7 @@ particular to that machine if possible. These settings are kept up-to-date by th
 Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF.
 
 All dependencies except for SHOC and P3 are provided as git submodules in ERF and can be populated by using
-``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``.
+``git submodule update --init --recursive`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``.
 Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>``
 environment variables for each dependency is set correctly.
 An example of setting the ``<REPO_HOME>`` environment variables in the user's ``.bashrc`` is shown below:
@@ -89,26 +89,25 @@ or if using tcsh,
 
    setenv AMREX_HOME /path/to/external/amrex
 
-To get the SHOC code itself,
+To build with SHOC using gmake
 
 ::
 
-   git clone --filter=blob:none --sparse https://github.com/E3SM-Project/E3SM.git ${MY_PLACE}/E3SM
-   cd ${MY_PLACE}/E3SM
-   git sparse-checkout set components/eamxx/src/physics/shoc
-   export SHOC_HOME=${MY_PLACE}/E3SM/components/eamxx/src/physics/shoc
+   export ERF_DIR=/path/to/ERF
+   export /path/to/ERF/Build/GNU_Ekat/shoc_clone.sh
+   source /path/to/ERF/Build/GNU_Ekat/ekat_build_commands.sh
 
-The default for ``SHOC_HOME`` in ``Make.ERF`` is ``ERF/external/shoc``.
+Then follow the instructions below, ensuring that you have ``USE_SHOC=TRUE`` in your GNUmakefile.
 
-To get the P3 code itself,
+To build with P3 using gmake
 
 ::
 
-   git clone --filter=blob:none --sparse https://github.com/E3SM-Project/E3SM.git ${MY_PLACE}/E3SM
-   cd ${MY_PLACE}/E3SM
-   git sparse-checkout set components/eamxx/src/physics/p3
-   export P3_HOME=${MY_PLACE}/E3SM/components/eamxx/src/physics/p3
+   export ERF_DIR=/path/to/ERF
+   export /path/to/ERF/Build/GNU_Ekat/p3_clone.sh
+   source /path/to/ERF/Build/GNU_Ekat/ekat_build_commands.sh
 
+Then follow the instructions below, ensuring that you have ``USE_P3=TRUE`` in your GNUmakefile.
 
 #. ``cd`` to the desired build directory, e.g.  ``ERF/Exec/DryRegTests/IsentropicVortex/``
 
@@ -214,6 +213,22 @@ An example CMake configure command to build ERF with MPI is listed below:
           .. && make
 
 Typically, a user will create a ``build`` directory in the project directory and execute the configuration from said directory (``cmake <options> ..``) before building.  Note that CMake is able to generate makefiles for the Ninja build system as well which will allow for faster building of the executable(s).
+
+To build with SHOC or P3 using cmake, you will need to make sure you have run ``git submodule update --init --recursive``, then
+
+::
+
+   export ERF_DIR=/path/to/ERF
+   export /path/to/ERF/Build/GNU_Ekat/shoc_clone.sh
+
+or
+
+::
+
+   export ERF_DIR=/path/to/ERF
+   export /path/to/ERF/Build/GNU_Ekat/shoc_clone.sh
+
+Then follow the guidance below, making sure to set ``ERF_ENABLE_SHOC`` and/or ``ERF_ENABLE_P3`` to TRUE.
 
 Analogous to GNU Make, the list of cmake directives is as follows:
 
@@ -375,100 +390,6 @@ Finally, you can prepare your SLURM job script, using the following as a guide:
              > test.out
 
 To submit your job script, do ``sbatch [your job script]`` and you can check its status by doing ``squeue -u [your username]``.
-
-AMReX--Kokkos on `Perlmutter`_ (NERSC)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-There is an `example in amrex-devtests`_ of how one can build `Kokkos`_ and `AMReX`_. This uses ``cmake`` to first compile
-Kokkos and AMReX, and then the example is built. This section describes the build procedure on `Perlmutter`_, though this can be used as
-a template for other machines as well.
-
-Load the following modules, and specify ``MPI_INCLUDE_PATH`` in ``~/.bash_profile``. The ``cmake`` version has to be ``3.24.3``.
-
-.. code-block:: bash
-
-   module load cray-mpich
-   module load PrgEnv-gnu
-   module load cudatoolkit/12.2
-   module load cmake/3.24.3
-
-   export MPI_INCLUDE_PATH=/opt/cray/pe/mpich/8.1.28/ofi/gnu/12.3/include
-
-Make sure to do ``source ~/.bash_profile``.
-
-**Kokkos installation on Perlmutter**
-
-To install `Kokkos`_, execute the following commands. In the ``cmake`` command, specify the path where the Kokkos installation should reside
-``-DCMAKE_INSTALL_PREFIX=<path-to-kokkos-install-dir>``. The full path to the ``kokkos`` directory has to be specified in
-``-DCMAKE_CXX_COMPILER=<full-path-to-kokkos-dir>/bin/nvcc_wrapper``.
-
-.. code-block:: bash
-
-   git clone https://github.com/kokkos/kokkos.git
-   cd kokkos
-   mkdir build
-   cd build
-   cmake .. -DCMAKE_INSTALL_PREFIX=<path-to-kokkos-install-dir> -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 -DKokkos_ENABLE_CUDA=ON -DCMAKE_CXX_COMPILER=<full-path-to-kokkos-dir>/bin/nvcc_wrapper -DKokkos_ENABLE_CUDA_RELOCATABLE_DEVICE_CODE=ON -DKokkos_ARCH_PASCAL60=ON
-   make -j8
-   make install
-
-**AMReX installation on Perlmutter**
-
-.. note::
-
-   After cloning the repository in the first step below, add the following lines to ``amrex/CMakeLists.txt`` for MPI installation.
-
-   .. code-block:: bash
-
-      # Find MPI
-      find_package(MPI REQUIRED)
-
-      # Include MPI headers
-      include_directories(${MPI_INCLUDE_PATH})
-
-To install `AMReX`_, execute the following commands. In the ``cmake`` command, specify the path where the installation AMReX installation should reside
-``-DCMAKE_INSTALL_PREFIX=<path-to-amrex-install-dir>``.
-
-.. code-block:: bash
-
-   git clone https://github.com/AMReX-Codes/amrex.git
-   cd amrex
-   mkdir build
-   cd build
-   cmake .. -DCMAKE_INSTALL_PREFIX=<path-to-amrex-install-dir> -DAMReX_GPU_BACKEND=CUDA -DAMReX_CUDA_ARCH=60 -DAMReX_MPI=OFF -DCMAKE_PREFIX_PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/23.9/math_libs/12.2/lib64 -DAMReX_MPI=ON -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx -DMPI_INCLUDE_PATH=/opt/cray/pe/mpich/8.1.28/ofi/gnu/12.3/include
-   make -j8
-   make install
-
-**Compiling the AMReX-Kokkos example on Perlmutter**
-
-.. note::
-
-   After cloning the repository in the first step below, add the following lines to ``amrex-devtests/kokkos/CMakeLists.txt`` for MPI installation.
-
-   .. code-block:: bash
-
-      # Find MPI
-      find_package(MPI REQUIRED)
-
-      # Include MPI headers
-      include_directories(${MPI_INCLUDE_PATH})
-
-To compile the AMReX-Kokkos example, execute the following commands. In the ``cmake`` command, specify the full path to the amrex installation
-directory ``-DAMReX_ROOT=<full-path-to-amrex-install-dir>``, and the Kokkos installation directory ``-DKokkos_ROOT=<full-path-to-kokkos-install-dir>``.
-
-.. code-block:: bash
-
-   git clone https://github.com/WeiqunZhang/amrex-devtests.git
-   cd amrex-devtests/kokkos
-   mkdir build
-   cd build
-   cmake .. -DENABLE_CUDA=ON -DAMReX_ROOT=<full-path-to-amrex-install-dir> -DKokkos_ROOT=<full-path-to-kokkos-install-dir> -DCMAKE_CUDA_ARCHITECTURES=60 -DMPI_INCLUDE_PATH=/opt/cray/pe/mpich/8.1.28/ofi/gnu/12.3/include
-   make -j8
-
-.. _`example in amrex-devtests`: https://github.com/WeiqunZhang/amrex-devtests/tree/main/kokkos
-.. _`Kokkos`: https://github.com/kokkos/kokkos
-.. _`AMReX`: https://github.com/AMReX-Codes/amrex
-.. _`Perlmutter`: https://docs.nersc.gov/systems/perlmutter/architecture/
 
 Kestrel (NREL)
 ~~~~~~~~~~~~~~
