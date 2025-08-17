@@ -62,6 +62,11 @@ include $(ERF_PHYSICS_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_PHYSICS_DIR)
 INCLUDE_LOCATIONS += $(ERF_PHYSICS_DIR)
 
+ERF_PHYSICS_SHARE_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/physics/share
+include $(ERF_PHYSICS_SHARE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_PHYSICS_SHARE_DIR)
+INCLUDE_LOCATIONS += $(ERF_PHYSICS_SHARE_DIR)
+
 ifeq ($(USE_PARTICLES),TRUE)
 ERF_PARTICLES_DIR = $(ERF_SOURCE_DIR)/Particles
 include $(ERF_PARTICLES_DIR)/Make.package
@@ -254,19 +259,69 @@ ifeq ($(USE_SHOC), TRUE)
 
     DEFINES += -DERF_USE_SHOC
     DEFINES += -DSHOC_ENABLE_KOKKOS
+    DEFINES += -DEKAT_ENABLE_MPI
+    
+    # Location of EKAT include and library
+    EKAT_HOME ?= $(ERF_HOME)/Submodules/ekat
+    DEFINES   += -DERF_USE_KOKKOS
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include/ekat
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/kokkos
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/pack
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/algorithm
+    LIBRARY_LOCATIONS += $(EKAT_HOME)/lib
+    LIBRARIES += -lekat_core -lspdlog
 
+    # This directory holds the ERF-SHOC interface routines
     ERF_SHOC_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Shoc
     include $(ERF_SHOC_DIR)/Make.package
     VPATH_LOCATIONS   += $(ERF_SHOC_DIR)
     INCLUDE_LOCATIONS += $(ERF_SHOC_DIR)
     
-    SHOC_HOME         ?= $(ERF_HOME)/external/E3SM/components/eamxx/src/physics/shoc/
-    VPATH_LOCATIONS   += $(SHOC_HOME)/disp/
+    # This directory holds the SHOC source itself
+    SHOC_HOME         ?= $(ERF_HOME)/external/shoc
+    VPATH_LOCATIONS   += $(SHOC_HOME)/disp
     VPATH_LOCATIONS   += $(SHOC_HOME)/eti
     VPATH_LOCATIONS   += $(SHOC_HOME)/impl
     INCLUDE_LOCATIONS += $(SHOC_HOME)/disp
     INCLUDE_LOCATIONS += $(SHOC_HOME)/eti
     INCLUDE_LOCATIONS += $(SHOC_HOME)/impl
+endif
+    
+# If using P3, compile relevant source and headers
+ifeq ($(USE_P3), TRUE)
+
+    USE_KOKKOS = TRUE
+
+    DEFINES += -DERF_USE_P3
+    DEFINES += -DP3_ENABLE_KOKKOS
+    DEFINES += -DEKAT_ENABLE_MPI
+    
+    # Location of EKAT include and library
+    EKAT_HOME ?= $(ERF_HOME)/Submodules/ekat
+    DEFINES   += -DERF_USE_KOKKOS
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include/ekat
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/kokkos
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/pack
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/algorithm
+    LIBRARY_LOCATIONS += $(EKAT_HOME)/lib
+    LIBRARIES += -lekat_core -lspdlog
+    
+    # This directory holds the ERF-P3 interface routines
+    ERF_P3_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/P3
+    include $(ERF_P3_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_P3_DIR)
+    INCLUDE_LOCATIONS += $(ERF_P3_DIR)
+    
+    # This directory holds the P3 source itself
+    P3_HOME           ?= $(ERF_HOME)/external/p3
+    VPATH_LOCATIONS   += $(P3_HOME)/disp
+    VPATH_LOCATIONS   += $(P3_HOME)/eti
+    VPATH_LOCATIONS   += $(P3_HOME)/impl
+    INCLUDE_LOCATIONS += $(P3_HOME)/disp
+    INCLUDE_LOCATIONS += $(P3_HOME)/eti
+    INCLUDE_LOCATIONS += $(P3_HOME)/impl
 endif
     
     
@@ -307,10 +362,11 @@ ifeq ($(USE_MULTIBLOCK), TRUE)
 endif
 
 ifeq ($(USE_KOKKOS), TRUE)
-  KOKKOS_HOME ?= $(ERF_HOME)/Submodules/ekat/extern/kokkos
-  DEFINES += -DERF_USE_KOKKOS
-  INCLUDE_LOCATIONS += $(KOKKOS_HOME)/include
-  LIBRARY_LOCATIONS += $(KOKKOS_HOME)/lib
+  # NOTE: EKAT provides KOKKOS
+  EKAT_HOME ?= $(ERF_HOME)/Submodules/ekat
+  DEFINES   += -DERF_USE_KOKKOS
+  INCLUDE_LOCATIONS += $(EKAT_HOME)/include/kokkos
+  LIBRARY_LOCATIONS += $(EKAT_HOME)/lib
   LIBRARIES += -lkokkoscore
 endif
 

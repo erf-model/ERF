@@ -19,8 +19,7 @@ using namespace amrex;
 Radiation::Radiation (const int& lev,
                       SolverChoice& sc)
 {
-    // Initialize kokkos
-    if (!Kokkos::is_initialized()) { Kokkos::initialize(); }
+    // Note that Kokkos is now initialized in main.cpp
 
     // Check if we have a valid moisture model
     if (sc.moisture_type != MoistureType::None) { m_moist = true; }
