@@ -226,7 +226,7 @@ or
 ::
 
    export ERF_DIR=/path/to/ERF
-   source /path/to/ERF/Build/GNU_Ekat/shoc_clone.sh
+   source /path/to/ERF/Build/GNU_Ekat/p3_clone.sh
 
 Then follow the guidance below, making sure to set ``ERF_ENABLE_SHOC`` and/or ``ERF_ENABLE_P3`` to TRUE.
 
