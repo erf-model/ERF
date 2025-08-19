@@ -30,13 +30,21 @@ Problem::Problem (const Real* problo, const Real* probhi)
 
     pp.query("pert_deltaU", parms.pert_deltaU);
     pp.query("pert_deltaV", parms.pert_deltaV);
+    pp.query("pert_deltaT", parms.pert_deltaT);
+    pp.query("pert_deltaQV", parms.pert_deltaQV);
     pp.query("pert_periods_U", parms.pert_periods_U);
     pp.query("pert_periods_V", parms.pert_periods_V);
+    pp.query("pert_periods_T", parms.pert_periods_T);
+    pp.query("pert_periods_QV", parms.pert_periods_QV);
     pp.query("pert_ref_height", parms.pert_ref_height);
     parms.aval = parms.pert_periods_U * 2.0 * PI / (probhi[1] - problo[1]);
     parms.bval = parms.pert_periods_V * 2.0 * PI / (probhi[0] - problo[0]);
+    parms.cval = parms.pert_periods_T * 2.0 * PI / (probhi[0] - problo[0]);
+    parms.dval = parms.pert_periods_QV * 2.0 * PI / (probhi[0] - problo[0]);
     parms.ufac = parms.pert_deltaU * std::exp(0.5) / parms.pert_ref_height;
     parms.vfac = parms.pert_deltaV * std::exp(0.5) / parms.pert_ref_height;
+    parms.tfac = parms.pert_deltaT * std::exp(0.5) / parms.pert_ref_height;
+    parms.qvfac = parms.pert_deltaQV * std::exp(0.5) / parms.pert_ref_height;
 
     //===========================================================================
     // READ USER-DEFINED INPUTS
@@ -151,6 +159,42 @@ Problem::init_custom_pert (
 
                 state_pert(i, j, k, RhoQ1_comp) = rhonew * qvnew - rhoold * qvold;
             }
+        }
+
+        // sinusoidal variation of theta and qv for regression tests
+        if (parms_d.pert_deltaT != 0.0)
+        {
+            const Real zl = z / parms_d.pert_ref_height;
+            const Real damp = std::exp(-0.5 * zl * zl);
+
+            Real rhotheta  = state(i,j,k,RhoTheta_comp);
+            Real rho       = state(i,j,k,Rho_comp);
+            Real qv        = state(i,j,k,RhoQ1_comp) / rho;
+            Real Told      = getTgivenRandRTh(rho,rhotheta,qv);
+            Real P         = getPgivenRTh(rhotheta,qv);
+
+            Real Tpert    = parms_d.tfac * damp * z * std::cos(parms_d.cval * (x - xc));
+            Real Tnew     = Told + Tpert;
+
+            Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
+            Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
+
+            state_pert(i, j, k, Rho_comp) = rhonew - rho;
+            state_pert(i, j, k, RhoTheta_comp) = 0.0;
+        }
+
+        if (use_moisture && parms_d.pert_deltaQV)
+        {
+            const Real zl = z / parms_d.pert_ref_height;
+            const Real damp = std::exp(-0.5 * zl * zl);
+
+            Real rhoold = state(i,j,k,Rho_comp);
+            Real rhonew = rhoold + state_pert(i,j,k,Rho_comp);
+
+            Real qvold = state(i,j,k,RhoQ1_comp) / rhoold;
+            Real qvnew = qvold + parms_d.qvfac * damp * z * std::cos(parms_d.dval * (x - xc));
+
+            state_pert(i, j, k, RhoQ1_comp) = rhonew * qvnew - rhoold * qvold;
         }
     });
 

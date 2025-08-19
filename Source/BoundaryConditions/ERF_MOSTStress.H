@@ -2006,7 +2006,10 @@ struct rico_flux
         amrex::Real rho   = cons_arr(i,j,k,Rho_comp);
         amrex::Real qstar = q_star_arr(i,j,k);
         amrex::Real q     = cons_arr(i, j, k, RhoQ1_comp) / rho;
-        amrex::Real wsp   = umm_arr(i, j, k);
+
+        amrex::Real velx = 0.5 * (velx_arr(i,j,k) + velx_arr(i+1,j,k));
+        amrex::Real vely = 0.5 * (vely_arr(i,j,k) + vely_arr(i,j+1,k));
+        amrex::Real wsp = sqrt(velx*velx + vely*vely);
 
         // NOTE: this is rho*<q'w'> = -K dqdz
         amrex::Real moflux  = (std::abs(qstar) > eps) ? - rho * qstar * wsp * (q - qsat_z0) : 0.0;
@@ -2031,8 +2034,11 @@ struct rico_flux
     {
         amrex::Real rho   = cons_arr(i,j,k,Rho_comp);
         amrex::Real tstar = t_star_arr(i, j, k);
-        amrex::Real wsp   = umm_arr(i, j, k);
         amrex::Real theta = cons_arr(i, j, k, RhoTheta_comp) / rho;
+
+        amrex::Real velx = 0.5 * (velx_arr(i,j,k) + velx_arr(i+1,j,k));
+        amrex::Real vely = 0.5 * (vely_arr(i,j,k) + vely_arr(i,j+1,k));
+        amrex::Real wsp = sqrt(velx*velx + vely*vely);
 
         // NOTE: this is rho*<T'w'> = -K dTdz
         amrex::Real moflux  = (std::abs(tstar) > eps) ? - rho * tstar * wsp * (theta - theta_z0) : 0.0;
