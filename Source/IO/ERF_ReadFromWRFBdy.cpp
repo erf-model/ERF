@@ -478,7 +478,7 @@ convert_wrfbdy_data (const int itime,
     int vsize = bdy_data[itime].size() - 2; // Don't do MU & PC
     amrex::Vector<amrex::FArrayBox> bdy_data_tmp; bdy_data_tmp.resize(vsize);
     for (int ivar(0); ivar < vsize; ++ivar) {
-        bdy_data_tmp[ivar].resize(bdy_data[itime][ivar].box(),1);
+        bdy_data_tmp[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
         bdy_data_tmp[ivar].template setVal<RunOn::Device>(0.);
     }
 

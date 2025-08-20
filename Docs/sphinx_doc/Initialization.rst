@@ -54,7 +54,7 @@ field(s) are set to the sounding values.
 In any of these cases, the user can specify any perturbations from the
 base state by editing the routines in **ERF_Prob.cpp**
 
-Initialization From NetCDF Files
+Initialization From Real Data
 ----------------------------------
 
 There are three options for ingesting the full 3D initial data from a NetCDF file.
@@ -90,3 +90,40 @@ file **ERF_Prob.cpp** must still be present for the build.
     vertical velocity components, and temperature (or potential temperature) can
     be read in.  This case is designed for idealized problems and does not allow
     for terrain-fitted coordinates, map factors or a non-zero base state.
+
+Workflows
+--------------------
+For a summary of initialization strategies for real-data simulations, see the table below.
+
+.. list-table:: Simulation Workflows
+   :header-rows: 1
+
+   * -
+     - Large-Scale Data (reanalysis, HRRR, ...)
+     - Intermediate Processing
+     - Weather Simulation
+   * - WRF
+     - Manual download
+     - WPS + ``real.exe``
+     - ``wrf.exe``
+   * - WRF --> ERF
+     - Manual download
+     - WPS + ``real.exe``
+     - ``erf_abl`` (init from wrfinput)
+   * -
+     - Manual download
+     - ``ndown.exe``
+     - ``erf_abl`` (init from wrfinput)
+   * - WPS --> ERF
+     - Manual download
+     - WPS
+     - ``erf_abl`` (init from metgrid)
+   * - E3SM --> ERF
+     - ``run_e3sm``
+     -  *Under development*
+     - ``erf_abl``
+   * - ERF standalone
+     - Python tools
+     - Python tools *(under development)*
+     - ``erf_abl``
+

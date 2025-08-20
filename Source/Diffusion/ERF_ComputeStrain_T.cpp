@@ -134,9 +134,15 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz0  = ( z_nd(i,j,k+1) - z_nd(i,j,k-1) );
             Real idz0 = 1.0 / dz0;
 
-            Real GradUz = 0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+            Real GradUz = (k == 0) ?
+                                idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+                                       - u(i  ,j  ,k  ) - u(i  ,j-1,k  ) ) :
+                          0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                        - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-            Real GradVz = 0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+            Real GradVz = (k == 0) ?
+                                idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+                                       - v(i  ,j  ,k  ) - v(i-1,j  ,k  ) ) :
+                          0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
@@ -169,9 +175,15 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz0  = ( z_nd(i,j,k+1) - z_nd(i,j,k-1) );
             Real idz0 = 1.0 / dz0;
 
-            Real GradUz = 0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+            Real GradUz = (k == 0) ?
+                                idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+                                       - u(i  ,j  ,k  ) - u(i  ,j-1,k  ) ) :
+                          0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                        - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-            Real GradVz = 0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+            Real GradVz = (k == 0) ?
+                                idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+                                       - v(i  ,j  ,k  ) - v(i-1,j  ,k  ) ) :
+                          0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
@@ -272,9 +284,15 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz0  = ( z_nd(i,j,k+1) - z_nd(i,j,k-1) );
             Real idz0 = 1.0 / dz0;
 
-            Real GradUz = 0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+            Real GradUz = (k == 0) ?
+                                idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+                                       - u(i  ,j  ,k  ) - u(i  ,j-1,k  ) ) :
+                          0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                        - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-            Real GradVz = 0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+            Real GradVz = (k == 0) ?
+                                idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+                                       - v(i  ,j  ,k  ) - v(i-1,j  ,k  ) ) :
+                          0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
@@ -306,9 +324,15 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dz0  = ( z_nd(i,j,k+1) - z_nd(i,j,k-1) );
             Real idz0 = 1.0 / dz0;
 
-            Real GradUz = 0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+            Real GradUz = (k == 0) ?
+                                idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+                                       - u(i  ,j  ,k  ) - u(i  ,j-1,k  ) ) :
+                          0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                        - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-            Real GradVz = 0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+            Real GradVz = (k == 0) ?
+                                idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+                                       - v(i  ,j  ,k  ) - v(i-1,j  ,k  ) ) :
+                          0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
@@ -546,6 +570,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             tau22(i,j,k) = ( (v(i, j+1, k) - v(i, j, k) )*dxInv[1]
                            - (met_h_eta)*GradVz ) * mfy;
             tau33(i,j,k) = ( w(i, j, k+1) - w(i, j, k) )*idz0;
+
         });
 
         Box planexy = tbxxy; planexy.setBig(2, planexy.smallEnd(2) );
@@ -664,9 +689,15 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                            - z_nd(i,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j,k-1) - z_nd(i+1,j+1,k-1) );
         Real idz0 = 1.0 / dz0;
 
-        Real GradUz = 0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i-1,j  ,k+1)
+        Real GradUz = (k == 0) ?
+                            idz0 * ( u(i  ,j  ,k+1) + u(i-1,j  ,k+1)
+                                   - u(i  ,j  ,k  ) - u(i-1,j  ,k  ) ) :
+                      0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i-1,j  ,k+1)
                                    - u(i  ,j  ,k-1) - u(i-1,j  ,k-1) );
-        Real GradVz = 0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i  ,j-1,k+1)
+        Real GradVz = (k == 0) ?
+                            idz0 * ( v(i  ,j  ,k+1) + v(i  ,j-1,k+1)
+                                   - v(i  ,j  ,k  ) - v(i  ,j-1,k  ) ) :
+                      0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i  ,j-1,k+1)
                                    - v(i  ,j  ,k-1) - v(i  ,j-1,k-1) );
 
         Real mfx = mf_mx(i,j,0);
@@ -688,9 +719,15 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         Real dz0  = ( z_nd(i,j,k+1) - z_nd(i,j,k-1) );
         Real idz0 = 1.0 / dz0;
 
-        Real GradUz = 0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+        Real GradUz = (k == 0) ?
+                            idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+                                   - u(i  ,j  ,k  ) - u(i  ,j-1,k  ) ) :
+                      0.5 * idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                    - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-        Real GradVz = 0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+        Real GradVz = (k == 0) ?
+                            idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+                                   - v(i  ,j  ,k  ) - v(i-1,j  ,k  ) ) :
+                      0.5 * idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                    - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
         Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));

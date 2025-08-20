@@ -5,12 +5,12 @@
 [submodule "Submodules/RRTMGP"]
 	path = Submodules/RRTMGP
 	url = https://github.com/E3SM-Project/rte-rrtmgp
-    branch = jgfouca/more_perf
-    shallow = true
+	branch = jgfouca/more_perf
+	shallow = true
 [submodule "Submodules/Noah-MP"]
 	path = Submodules/Noah-MP
-    url = https://github.com/AIEADA/noahmp.git
-    shallow = true
+	url = https://github.com/erf-model/noahmp.git
+	shallow = false
 [submodule "Submodules/WW3"]
 	path = Submodules/WW3
 	url = https://github.com/erf-model/WW3
