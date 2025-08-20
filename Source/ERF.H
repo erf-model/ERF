@@ -860,6 +860,7 @@ private:
 
     // Urban grid type and fraction
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> urb_type_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> soil_type_lev;
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  urb_frac_lev;
 
     // Other SFS terms

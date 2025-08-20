@@ -419,6 +419,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     urb_type_lev[lev][0]->setVal(0);
     urb_type_lev[lev][0]->FillBoundary(geom[lev].periodicity());
 
+    soil_type_lev[lev].resize(1);
+    soil_type_lev[lev][0] = std::make_unique<iMultiFab>(ba2d_mask,dm,1,ngv);
+    soil_type_lev[lev][0]->setVal(0);
+    soil_type_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+
     urb_frac_lev[lev].resize(1);
     urb_frac_lev[lev][0] = std::make_unique<MultiFab>(ba2d_mask,dm,1,ngv);
     urb_frac_lev[lev][0]->setVal(1.0);
