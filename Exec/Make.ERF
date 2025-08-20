@@ -1,4 +1,8 @@
-AMREX_HOME      ?= $(ERF_HOME)/Submodules/AMReX
+AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
+EKAT_HOME  ?= $(ERF_HOME)/Submodules/ekat/build/install
+SHOC_HOME  ?= $(ERF_HOME)/external/E3SM/components/eamxx/src/physics/shoc
+P3_HOME    ?= $(ERF_HOME)/external/E3SM/components/eamxx/src/physics/p3
+      
 ifeq ($(USE_MORR_FORT), TRUE)
 DEFINES += -DERF_USE_MORR_FORT
 BL_NO_FORT = FALSE
@@ -262,7 +266,6 @@ ifeq ($(USE_SHOC), TRUE)
     DEFINES += -DEKAT_ENABLE_MPI
     
     # Location of EKAT include and library
-    EKAT_HOME ?= $(ERF_HOME)/Submodules/ekat
     DEFINES   += -DERF_USE_KOKKOS
     INCLUDE_LOCATIONS += $(EKAT_HOME)/include
     INCLUDE_LOCATIONS += $(EKAT_HOME)/include/ekat
@@ -279,7 +282,6 @@ ifeq ($(USE_SHOC), TRUE)
     INCLUDE_LOCATIONS += $(ERF_SHOC_DIR)
     
     # This directory holds the SHOC source itself
-    SHOC_HOME         ?= $(ERF_HOME)/external/shoc
     VPATH_LOCATIONS   += $(SHOC_HOME)/disp
     VPATH_LOCATIONS   += $(SHOC_HOME)/eti
     VPATH_LOCATIONS   += $(SHOC_HOME)/impl
@@ -298,7 +300,6 @@ ifeq ($(USE_P3), TRUE)
     DEFINES += -DEKAT_ENABLE_MPI
     
     # Location of EKAT include and library
-    EKAT_HOME ?= $(ERF_HOME)/Submodules/ekat
     DEFINES   += -DERF_USE_KOKKOS
     INCLUDE_LOCATIONS += $(EKAT_HOME)/include
     INCLUDE_LOCATIONS += $(EKAT_HOME)/include/ekat
@@ -315,7 +316,6 @@ ifeq ($(USE_P3), TRUE)
     INCLUDE_LOCATIONS += $(ERF_P3_DIR)
     
     # This directory holds the P3 source itself
-    P3_HOME           ?= $(ERF_HOME)/external/p3
     VPATH_LOCATIONS   += $(P3_HOME)/disp
     VPATH_LOCATIONS   += $(P3_HOME)/eti
     VPATH_LOCATIONS   += $(P3_HOME)/impl
@@ -361,16 +361,15 @@ ifeq ($(USE_MULTIBLOCK), TRUE)
   DEFINES += -DERF_USE_MULTIBLOCK
 endif
 
+# NOTE: EKAT provides KOKKOS
 ifeq ($(USE_KOKKOS), TRUE)
-  # NOTE: EKAT provides KOKKOS
-  EKAT_HOME ?= $(ERF_HOME)/Submodules/ekat
   DEFINES   += -DERF_USE_KOKKOS
   INCLUDE_LOCATIONS += $(EKAT_HOME)/include/kokkos
   LIBRARY_LOCATIONS += $(EKAT_HOME)/lib
   LIBRARIES += -lkokkoscore
 endif
 
-#turn on NetCDF macro define
+# Turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
   has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)
