@@ -132,7 +132,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real inv_dist = (k == 0) ? Real(2.0) / (z_nd(i,j,k+2) - z_nd(i,j,k  )) :
-                                       Real(2.0) / (z_nd(i,j,k+2) + z_nd(i,j,k+2) - z_nd(i,j,k) - z_nd(i,j,k-1));
+                                       Real(2.0) / (z_nd(i,j,k+2) + z_nd(i,j,k+1) - z_nd(i,j,k) - z_nd(i,j,k-1));
 
             Real GradUz = (k == 0) ?
                             inv_dist * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
@@ -173,7 +173,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real inv_dist = (k == 0) ? Real(2.0) / (z_nd(i,j,k+2) - z_nd(i,j,k  )) :
-                                       Real(2.0) / (z_nd(i,j,k+2) + z_nd(i,j,k+2) - z_nd(i,j,k) - z_nd(i,j,k-1));
+                                       Real(2.0) / (z_nd(i,j,k+2) + z_nd(i,j,k+1) - z_nd(i,j,k) - z_nd(i,j,k-1));
 
             Real GradUz = (k == 0) ?
                             inv_dist * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
