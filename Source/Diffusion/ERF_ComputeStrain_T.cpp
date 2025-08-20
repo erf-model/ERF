@@ -131,21 +131,18 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         bool need_to_test = (bc_ptr[BCVars::yvel_bc].lo(0) == ERFBCType::ext_dir_upwind) ? true : false;
 
         ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real zhi =            0.5d0 * (z_nd(i,j,k+1) + z_nd(i,j,k+2);
-            Real zlo = (k == 0) ? 0.5d0 * (z_nd(i,j,k  ) + z_nd(i,j,k+1) :
-                                  0.5d0 * (z_nd(i,j,k-1) + z_nd(i,j,k  );
-            Real dz0 = (k == 0) ? (zhi - zlo) : 0.5 * (zhi - zlo);
-            Real idz0 = 1.0 / dz0;
+            Real inv_dist = (k == 0) ? Real(2.0) / (z_nd(i,j,k+2) - z_nd(i,j,k  )) :
+                                       Real(2.0) / (z_nd(i,j,k+2) + z_nd(i,j,k+2) - z_nd(i,j,k) - z_nd(i,j,k-1));
 
             Real GradUz = (k == 0) ?
-                                idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+                            inv_dist * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                        - u(i  ,j  ,k  ) - u(i  ,j-1,k  ) ) :
-                                idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+                            inv_dist * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                        - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
             Real GradVz = (k == 0) ?
-                                idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+                            inv_dist * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k  ) - v(i-1,j  ,k  ) ) :
-                                idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+                            inv_dist * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
@@ -175,21 +172,18 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         bool need_to_test = (bc_ptr[BCVars::yvel_bc].hi(0) == ERFBCType::ext_dir_upwind) ? true : false;
 
         ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real zhi =            0.5d0 * (z_nd(i,j,k+1) + z_nd(i,j,k+2);
-            Real zlo = (k == 0) ? 0.5d0 * (z_nd(i,j,k  ) + z_nd(i,j,k+1) :
-                                  0.5d0 * (z_nd(i,j,k-1) + z_nd(i,j,k  );
-            Real dz0 = (k == 0) ? (zhi - zlo) : 0.5 * (zhi - zlo);
-            Real idz0 = 1.0 / dz0;
+            Real inv_dist = (k == 0) ? Real(2.0) / (z_nd(i,j,k+2) - z_nd(i,j,k  )) :
+                                       Real(2.0) / (z_nd(i,j,k+2) + z_nd(i,j,k+2) - z_nd(i,j,k) - z_nd(i,j,k-1));
 
             Real GradUz = (k == 0) ?
-                                idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+                            inv_dist * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                        - u(i  ,j  ,k  ) - u(i  ,j-1,k  ) ) :
-                                idz0 * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+                            inv_dist * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
                                        - u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
             Real GradVz = (k == 0) ?
-                                idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+                            inv_dist * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k  ) - v(i-1,j  ,k  ) ) :
-                                idz0 * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
+                            inv_dist * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
                                        - v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
