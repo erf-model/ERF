@@ -476,9 +476,8 @@ ERF::Evolve ()
     for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step)
     {
         if (use_datetime) {
-            Print() << "\n" << getTimestamp(cur_time, datetime_format)
-                    << " (" << cur_time-start_time << " s elapsed)"
-                    << std::endl;
+            Print() << "\n" << getTimestamp(start_time+cur_time, datetime_format)
+                    << " (" << cur_time << " s elapsed)" << std::endl;
         }
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
@@ -676,7 +675,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     {
         if (rad_datalog_int > 0 && (nstep+1) % rad_datalog_int == 0) {
             if (rad[0]->hasDatalog()) {
-                rad[0]->WriteDataLog(time);
+                rad[0]->WriteDataLog(time+start_time);
             }
         }
     }
@@ -788,10 +787,11 @@ ERF::InitData_pre ()
     last_check_file_step  = -1;
 
     if (restart_chkfile.empty()) {
-        // start simulation from the beginning
 
+        // Start simulation from the beginning
         const Real time = start_time;
         InitFromScratch(time);
+
     } else {
         // For initialization this is done in init_only; it is done here for restart
         init_bcs();
@@ -844,31 +844,39 @@ ERF::InitData_pre ()
 void
 ERF::InitData_post ()
 {
-    if (restart_chkfile.empty()) {
-        //
-        // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
-        //
+    if (solverChoice.advChoice.have_zero_flux_faces)
+    {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
+            "Thin immersed body with refinement not currently supported.");
         if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-            for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
-                average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-                average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
-            }
+            amrex::Print() << "NOTE: Thin immersed body with non-constant dz has not been tested." << std::endl;
         }
+    }
 
+    if (!restart_chkfile.empty()) {
+        restart();
+    }
+
+    //
+    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    //
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
+            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
+              detJ_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
+            z_phys_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
+        }
+    }
+
+    if (restart_chkfile.empty()) {
         if (solverChoice.coupling_type == CouplingType::TwoWay) {
             AverageDown();
         }
-
-        if (solverChoice.advChoice.have_zero_flux_faces)
-        {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
-                "Thin immersed body with refinement not currently supported.");
-            if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-                amrex::Print() << "NOTE: Thin immersed body with non-constant dz has not been tested." << std::endl;
-            }
-        }
+    }
 
 #ifdef ERF_USE_PARTICLES
+    if (restart_chkfile.empty()) {
         if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
             if (solverChoice.moisture_tight_coupling) {
                 Warning("Tight coupling has not been tested with Lagrangian microphysics");
@@ -878,11 +886,10 @@ ERF::InitData_post ()
                 dynamic_cast<LagrangianMicrophysics&>(*micro).initParticles(z_phys_nd[lev]);
             }
         }
+    }
 #endif
 
-    } else { // Restart from a checkpoint
-
-        restart();
+    if (!restart_chkfile.empty()) { // Restart from a checkpoint
 
         // Create the physbc objects for {cons, u, v, w, base state}
         // We fill the additional base state ghost cells just in case we have read the old format
@@ -909,8 +916,7 @@ ERF::InitData_post ()
                                                        start_bdy_time);
             Real dT = bdy_time_interval;
 
-            Real time_since_start_old = t_new[0] - start_bdy_time;
-            int n_time_old = static_cast<int>(time_since_start_old /  dT);
+            int n_time_old = static_cast<int>(t_new[0] /  dT);
 
             // I don't think this works if lev > 0 ...?
             AMREX_ALWAYS_ASSERT(finest_level == 0);
@@ -1198,10 +1204,10 @@ ERF::InitData_post ()
         //
         bool fillset = false;
         if (lev == 0) {
-            FillPatch(lev, t_new[lev],
+            FillPatchCrseLevel(lev, t_new[lev],
                       {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]});
         } else {
-            FillPatch(lev, t_new[lev],
+            FillPatchFineLevel(lev, t_new[lev],
                       {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
                       {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
                       base_state[lev], base_state[lev],
@@ -1332,7 +1338,7 @@ ERF::InitData_post ()
         m_SurfaceLayer = std::make_unique<SurfaceLayer>(geom, rotate, pp_prefix, Qv_prim,
                                                         z_phys_nd, solverChoice.terrain_type
 #ifdef ERF_USE_NETCDF
-                                                        ,start_bdy_time, bdy_time_interval
+                                                        , bdy_time_interval
 #endif
                                                         );
         // This call will allocate the arrays at each level. If we regrid later, either changing
@@ -1389,7 +1395,7 @@ ERF::InitData_post ()
                 // it will change u* and theta* from their previous values
                 m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
                                             solverChoice.moisture_indices);
-                m_SurfaceLayer->update_fluxes(lev, time);
+                m_SurfaceLayer->update_fluxes(lev, time, vars_new[lev][Vars::cons], z_phys_nd[lev]);
             }
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
@@ -1709,15 +1715,19 @@ ERF::init_only (int lev, Real time)
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
+
         init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
+
         if (lev==0) {
-            if ((start_time > 0) && (start_time != t_new[lev])) {
+            if ((start_time > 0) && (start_time != start_bdy_time)) {
                 Print() << "Ignoring specified start_time="
                         << std::setprecision(timeprecision) << start_time
                         << std::endl;
             }
-            start_time = t_new[lev];
         }
+
+        start_time = start_bdy_time;
+
         use_datetime = true;
 
         // The physbc's need the terrain but are needed for initHSE

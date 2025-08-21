@@ -13,7 +13,7 @@ AMREX_ENUM(StratType, theta, thetav, thetal);
 
 template <typename T>
 void
-query_one_or_per_level(
+query_one_or_per_level (
   const amrex::ParmParse& pp,
   const char* query_string,
   T& query_var,
@@ -50,8 +50,8 @@ public:
 
     // Handle 2-D Smag
     if (les_type == LESType::Smagorinsky2D) {
-      les_type = LESType::Smagorinsky;
-      smag2d = true;
+        les_type = LESType::Smagorinsky;
+        smag2d = true;
     }
 
     // Which RANS closure?
@@ -59,7 +59,7 @@ public:
     query_one_or_per_level(pp, "rans_type", rans_type, lev, max_level);
 
     if ((rans_type != RANSType::None) && (les_type != LESType::None)) {
-      amrex::Error("Hybrid RANS-LES not implemented");
+        amrex::Error("Hybrid RANS-LES not implemented");
     }
 
     // Which PBL Closure

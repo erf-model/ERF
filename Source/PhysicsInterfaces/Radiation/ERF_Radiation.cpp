@@ -479,6 +479,11 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
             Real r_lo  = cons_arr(i,j,k-1,Rho_comp);
             Real rt_lo = cons_arr(i,j,k-1,RhoTheta_comp);
             Real qv_lo = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : 0.0;
+
+            // make sure qv is >= 0 for H2O VMR
+            qv_lo = std::max(0.0, qv_lo);
+            qv = std::max(0.0, qv);
+
             Real r_avg  = 0.5 * (r  + r_lo);
             Real rt_avg = 0.5 * (rt + rt_lo);
             Real qv_avg = 0.5 * (qv + qv_lo);
@@ -511,6 +516,7 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
                 Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
                 Real qv_hi = (moist) ? cons_arr(i,j,k+1,RhoQ1_comp)/r_hi : 0.0;
+                qv_hi = std::max(0.0, qv_hi);
                 r_avg  = 0.5 * (r  + r_hi);
                 rt_avg = 0.5 * (rt + rt_hi);
                 qv_avg = 0.5 * (qv + qv_hi);

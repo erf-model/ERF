@@ -7,15 +7,14 @@
 Particles
 =========
 
-ERF has the option to include Lagrangian particles in addition to the mesh-based solution.  Currently
-there are two particle types available in ERF: tracer_particles and hydro_particles.
+ERF has the option to include Lagrangian particles in addition to the mesh-based solution.
+Currently there is one example of particle types available in ERF: tracer_particles.
 
 The particle functionality is very simple and meant for demonstration.
 
-The particles are initialized one per mesh cell in a
-vertical plane at :math:`i = 3` for tracer particles and a horizontal plane at :math:`k = 23` for hydro particles.
+The particles are initialized one per mesh cell in a vertical plane at :math:`i = 3` for tracer particles.
 
-The tracer particles are advected by the velocity field; the hydro particles fall with a velocity determined by gravity minus drag.
+The tracer particles are advected by the velocity field with optional sedimentation.
 
 We note that unless the domain is periodic in the vertical direction, any particles that
 cross the bottom boundary during the advection step will be moved back into the domain
@@ -51,12 +50,6 @@ One must also set
 
    erf.use_tracer_particles = 1
 
-and / or
-
-::
-
-   erf.use_hydro_particles = 1
-
 in the inputs file or on the command line at runtime.
 
 The time at which the particles are initialize can be controlled by a parameter in the inputs file.
@@ -74,7 +67,6 @@ To see an example of using the particle functionality, build the executable usin
 
 To visualize the number of particles per cell as a mesh-based variable, add
 ``tracer_particle_count`` (if you have set ``erf.use_tracer_particles``) and
-``hydro_particle_count`` (if you have set ``erf.use_tracer_particles``)
 to the line in the inputs file that begins
 
 ::
