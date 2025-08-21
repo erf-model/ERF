@@ -31,7 +31,7 @@ enum TauType {
 };
 
 AMREX_ENUM(InitType,
-    None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform
+    None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform, Meteorological
 );
 
 AMREX_ENUM(SoundingType,
@@ -258,7 +258,11 @@ struct SolverChoice {
             amrex::Warning("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
             init_type = InitType::WRFInput;
             use_real_bcs = false;
-        } else {
+        } else if (init_type_temp_string == "Meteorological") {
+            init_type = InitType::Meteorological;
+            use_real_bcs = false;
+        }
+        else {
             pp.query_enum_case_insensitive("init_type",init_type);
             use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
         }
@@ -268,6 +272,8 @@ struct SolverChoice {
                 amrex::Abort("Only terrain_type = StaticFittedMesh are allowed with init_type = WRFInput or Metgrid");
             }
         }
+
+
 
         if (init_type == InitType::WRFInput) {
             if (moisture_type == MoistureType::None) {
@@ -543,7 +549,7 @@ struct SolverChoice {
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
 
-        pp.query("do_hurricane_simulation", do_hurricane_simulation);
+        pp.query("enable_met_forcing", enable_met_forcing);
 
         check_params(max_level);
     }
@@ -902,7 +908,7 @@ struct SolverChoice {
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
 
-    bool do_hurricane_simulation = false;
+    bool enable_met_forcing = false;
 
 };
 #endif

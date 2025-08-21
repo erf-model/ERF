@@ -108,7 +108,6 @@ void make_mom_sources (Real time,
     auto sinphi               = solverChoice.sinphi;
     auto var_coriolis         = solverChoice.variable_coriolis;
     auto has_lat_lon          = solverChoice.has_lat_lon;
-    auto do_hurricane_simulation = solverChoice.do_hurricane_simulation;
 
     // *****************************************************************************
     // Flag for Geostrophic forcing
@@ -314,7 +313,7 @@ void make_mom_sources (Real time,
         // 1. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis && is_slow_step) {
-            if(do_hurricane_simulation) {
+            if(solverChoice.init_type == InitType::Meteorological) {
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
@@ -618,15 +617,18 @@ void make_mom_sources (Real time,
                                         r0, z_nd_arr, z_cc_arr);
             }
 
-            const Array4<const Real>& rho_u_forecast_state  = forecast_state_at_lev[IntVars::xmom].array(mfi);
-            const Array4<const Real>& rho_v_forecast_state  = forecast_state_at_lev[IntVars::ymom].array(mfi);
-            const Array4<const Real>& rho_w_forecast_state  = forecast_state_at_lev[IntVars::zmom].array(mfi);
-            const Array4<const Real>& cons_forecast_state   = forecast_state_at_lev[IntVars::cons].array(mfi);
-            ApplyBndryForcing_Forecast(geom, tbx, tby, tbz,
-                                       xmom_src_arr, ymom_src_arr, zmom_src_arr,
-                                       rho_u, rho_v, rho_w,
-                                       rho_u_forecast_state, rho_v_forecast_state, rho_w_forecast_state,
-                                       cons_forecast_state);
+            if(solverChoice.init_type == InitType::Meteorological and solverChoice.enable_met_forcing){
+
+                const Array4<const Real>& rho_u_forecast_state  = forecast_state_at_lev[IntVars::xmom].array(mfi);
+                const Array4<const Real>& rho_v_forecast_state  = forecast_state_at_lev[IntVars::ymom].array(mfi);
+                const Array4<const Real>& rho_w_forecast_state  = forecast_state_at_lev[IntVars::zmom].array(mfi);
+                const Array4<const Real>& cons_forecast_state   = forecast_state_at_lev[IntVars::cons].array(mfi);
+                ApplyBndryForcing_Forecast(geom, tbx, tby, tbz, z_nd_arr,
+                                           xmom_src_arr, ymom_src_arr, zmom_src_arr,
+                                           rho_u, rho_v, rho_w,
+                                           rho_u_forecast_state, rho_v_forecast_state, rho_w_forecast_state,
+                                           cons_forecast_state);
+            }
         }
 
         // *****************************************************************************

@@ -128,7 +128,10 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 
 #endif
 
-    WeatherDataInterpolation(time);
+    if(solverChoice.init_type == InitType::Meteorological and
+       solverChoice.enable_met_forcing){
+       WeatherDataInterpolation(time);
+    }
 
     const BoxArray&            ba = S_old.boxArray();
     const DistributionMapping& dm = S_old.DistributionMap();

@@ -249,23 +249,19 @@ void
 ERF::CreateForecastStateMultiFabs(Vector<Vector<MultiFab>>& forecast_state)
 {
 
-    ParmParse pp_erf("erf");
-    bool is_lateral_sponges_hurricanes = false;
-    if (pp_erf.query("is_lateral_sponges_hurricanes", is_lateral_sponges_hurricanes)) {
-        forecast_state.resize(max_level+1);
-        for (int lev = 0; lev < max_level+1; ++lev) {
-            forecast_state[lev].resize(vars_new[lev].size()+1);
-            for (int comp = 0; comp < vars_new[lev].size(); ++comp) {
-                const MultiFab& src = vars_new[lev][comp];
-                forecast_state[lev][comp].define(src.boxArray(), src.DistributionMap(),
-                                        src.nComp(), src.nGrow());
-            }
-            int comp = vars_new[lev].size();
-            const MultiFab& src = vars_new[lev][0];
+    forecast_state.resize(max_level+1);
+    for (int lev = 0; lev < max_level+1; ++lev) {
+        forecast_state[lev].resize(vars_new[lev].size()+1);
+        for (int comp = 0; comp < vars_new[lev].size(); ++comp) {
+            const MultiFab& src = vars_new[lev][comp];
             forecast_state[lev][comp].define(src.boxArray(), src.DistributionMap(),
-                                        2, src.nGrow());
-        }
-    }
+                                        src.nComp(), src.nGrow());
+         }
+         int comp = vars_new[lev].size();
+         const MultiFab& src = vars_new[lev][0];
+         forecast_state[lev][comp].define(src.boxArray(), src.DistributionMap(),
+                                          2, src.nGrow());
+     }
 }
 
 void
@@ -500,6 +496,7 @@ ERF::FillWeatherDataMultiFab(const std::string& filename,
 void
 ERF::WeatherDataInterpolation(const Real time)
 {
+
     static Real next_read_forecast_time = -1.0;
 
     if (next_read_forecast_time < 0.0) {
@@ -517,15 +514,6 @@ ERF::WeatherDataInterpolation(const Real time)
         }
 
         std::vector<std::string> bin_files;
-        for (const auto& entry : fs::directory_iterator(folder)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".bin") {
-                bin_files.push_back(entry.path().string());
-            }
-        }
-
-        // 2. Sort lexicographically
-        std::sort(bin_files.begin(), bin_files.end());
-
 
         for (const auto& entry : fs::directory_iterator(folder)) {
             if (!entry.is_regular_file()) continue;
