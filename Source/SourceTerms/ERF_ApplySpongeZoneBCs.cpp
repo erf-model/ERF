@@ -108,7 +108,7 @@ ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
         if(use_zhi_sponge_damping){
             if (z > zhi_sponge_start) {
                 Real xi = (z - zhi_sponge_start) / (ProbHiArr[2] - zhi_sponge_start);
-                //cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
+                cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
             }
         }
     });
@@ -232,7 +232,7 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
         if(use_zhi_sponge_damping){
             if (z > zhi_sponge_start) {
                 Real xi = (z - zhi_sponge_start) / (ProbHiArr[2] - zhi_sponge_start);
-                //rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - sponge_density*sponge_x_velocity);
+                rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - sponge_density*sponge_x_velocity);
             }
         }
     });
@@ -292,7 +292,7 @@ ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
         if(use_zhi_sponge_damping){
             if (z > zhi_sponge_start) {
                 Real xi = (z - zhi_sponge_start) / (ProbHiArr[2] - zhi_sponge_start);
-                //rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - sponge_density*sponge_y_velocity);
+                rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - sponge_density*sponge_y_velocity);
             }
         }
     });
