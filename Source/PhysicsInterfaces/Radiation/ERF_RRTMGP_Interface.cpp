@@ -136,7 +136,7 @@ get_subsampled_clouds (const int ncol,
     int1d_k seeds("seeds", ncol);
     Kokkos::parallel_for(ncol, KOKKOS_LAMBDA(int icol)
     {
-        seeds(icol) = 1.0e9 * (p_lay(icol,nlay) - int(p_lay(icol,nlay)));
+        seeds(icol) = 1.0e9 * (p_lay(icol,nlay-1) - int(p_lay(icol,nlay-1)));
     });
     auto cldmask = get_subcolumn_mask(ncol, nlay, ngpt, cldfrac_rad, overlap, seeds);
 

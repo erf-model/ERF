@@ -19,7 +19,7 @@ option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_REGRESSION_TESTS_ONLY "Enable only regression tests" OFF)
 option(ERF_USE_INTERNAL_AMREX "Add AMReX as subproject" ON)
 option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
-option(ERF_ENABLE_KOKKOS "Enable Kokkos " OFF)
+option(ERF_ENABLE_EKAT "Enable Ekat " OFF)
 option(ERF_ENABLE_HDF5 "Enable HDF5 IO" ${ERF_ENABLE_NETCDF})
 option(ERF_ENABLE_PARTICLES "Enable Lagrangian particles" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
@@ -131,10 +131,11 @@ else()
     endif()
 endif()
 
-########################## KOKKOS ##################################
+########################## EKAT ##################################
 
-if(ERF_ENABLE_KOKKOS)
+if(ERF_ENABLE_EKAT)
 
+  # NOTE: EKAT provides KOKKOS, so set relevant flags for KOKKOS
   if(ERF_ENABLE_CUDA)
     set(Kokkos_ENABLE_CUDA ON CACHE BOOL "kokkos enable cuda")
     set(Kokkos_ENABLE_CUDA_LAMBDA ON CACHE BOOL "kokkos enable cuda lambda")
@@ -147,7 +148,12 @@ if(ERF_ENABLE_KOKKOS)
   endif()
 
   set(CMAKE_CXX_STANDARD 17)
-  add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/ekat/extern/kokkos)
+  set(EKAT_ENABLE_MPI ON CACHE BOOL "ekat enable mpi")
+  set(EKAT_ENABLE_TESTS OFF CACHE BOOL "ekat enable tests")
+  set(EKAT_ENABLE_KOKKOS ON CACHE BOOL "ekat enable kokkos")
+  set(EKAT_ENABLE_LOGGING ON CACHE BOOL "ekat enable spdlog")
+  set(EKAT_BIN ${CMAKE_BINARY_DIR}/Submodules/ekat)
+  add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/ekat ${EKAT_BIN})
 
 endif()
 
@@ -177,43 +183,35 @@ endif()
 ########################### RRTMGP #################################
 
 if(ERF_ENABLE_RRTMGP)
-    if(NOT ERF_ENABLE_KOKKOS)
-        message(FATAL_ERROR "CMake Error: kokkos must be enabled if rrtmgp is enabled.")
+    if(NOT ERF_ENABLE_EKAT)
+        message(FATAL_ERROR "CMake Error: EKAT must be enabled if RRTMGP is enabled.")
     endif()
 
     if(NOT ERF_ENABLE_NETCDF)
-        message(FATAL_ERROR "CMake Error: netcdf must be enabled if rrtmgp is enabled.")
+        message(FATAL_ERROR "CMake Error: NetCDF must be enabled if RRTMGP is enabled.")
     endif()
 
-    message(STATUS "Building RRTMGP/KOKKOS...")
+    message(STATUS "Building RRTMGP + KOKKOS...")
 
     # Build the static rrtmgp library
-    set(RRTMGP_BIN ${CMAKE_BINARY_DIR}/rrtmgp)
+    set(RRTMGP_BIN ${CMAKE_BINARY_DIR}/Submodules/rrtmgp)
     add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp ${RRTMGP_BIN})
 
     # Set up kokkos library and definitions
     set(RRTMGP_ENABLE_KOKKOS TRUE)
     target_compile_definitions(rrtmgp PUBLIC RRTMGP_ENABLE_KOKKOS)
-    target_link_libraries(rrtmgp Kokkos::kokkos)
+    target_link_libraries(rrtmgp kokkos)
 endif()
 
 ########################### SHOC #################################
 
 if(ERF_ENABLE_SHOC)
-    if(NOT ERF_ENABLE_KOKKOS)
-        message(FATAL_ERROR "CMake Error: kokkos must be enabled if SHOC is enabled.")
+    if(NOT ERF_ENABLE_EKAT)
+        message(FATAL_ERROR "CMake Error: EKAT must be enabled if SHOC is enabled.")
     endif()
 
-    message(STATUS "Building SHOC...")
+    # NOTE: We compile shoc src files directly
 
-    # Build the static SHOC library
-    set(SHOC_BIN ${CMAKE_BINARY_DIR}/shoc)
-    add_subdirectory(${CMAKE_SOURCE_DIR}/shoc/cpp ${SHOC_BIN})
-
-    # Set up kokkos library and definitions
-    set(SHOC_ENABLE_KOKKOS TRUE)
-    target_compile_definitions(shoc PUBLIC SHOC_ENABLE_KOKKOS)
-    target_link_libraries(shoc Kokkos::kokkos)
 endif()
 
 ########################### ERF #####################################

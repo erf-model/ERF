@@ -507,7 +507,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
             Box domain = geom.Domain();
             domain.convert(S_cur_data[ivar_idx].boxArray().ixType());
-            IntVect ng_vect    = S_cur_data[ivar_idx].nGrowVect();
+            IntVect ng_vect = S_cur_data[ivar_idx].nGrowVect();
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -683,13 +683,13 @@ fine_compute_interior_ghost_rhs (const Real& time,
 #endif
             for ( MFIter mfi(fmf_p,TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                Box vbx = mfi.validbox();
+                Box tbx = mfi.tilebox();
 
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
                 const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
@@ -710,13 +710,13 @@ fine_compute_interior_ghost_rhs (const Real& time,
 #endif
             for ( MFIter mfi(fmf_p,TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                Box vbx = mfi.validbox();
+                Box tbx = mfi.tilebox();
 
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
                 const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
@@ -737,13 +737,13 @@ fine_compute_interior_ghost_rhs (const Real& time,
 #endif
             for ( MFIter mfi(fmf_p,TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                Box vbx = mfi.validbox();
+                Box tbx = mfi.tilebox();
 
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
                 const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
@@ -763,11 +763,11 @@ fine_compute_interior_ghost_rhs (const Real& time,
 #endif
         for ( MFIter mfi(rhs,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            Box vbx = mfi.validbox();
+            Box tbx = mfi.tilebox();
             const Array4<Real>& rhs_arr  = rhs.array(mfi);
             const Array4<const int>& mask_arr = mask->const_array(mfi);
 
-            ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (mask_arr(i,j,k) == set_mask_val) {
                     rhs_arr(i,j,k) = 0.0;
@@ -786,12 +786,13 @@ fine_compute_interior_ghost_rhs (const Real& time,
 #endif
         for ( MFIter mfi(fmf_p,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            Box vbx = mfi.validbox();
+            Box tbx = mfi.tilebox();
             const Array4<Real>&        rhs_arr = rhs.array(mfi);
             const Array4<const Real>& fine_arr = fmf_p.const_array(mfi);
             const Array4<const Real>& data_arr = fmf.const_array(mfi);
             const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
+            Box vbx = mfi.validbox();
             const auto& vbx_lo = lbound(vbx);
             const auto& vbx_hi = ubound(vbx);
 
@@ -799,9 +800,9 @@ fine_compute_interior_ghost_rhs (const Real& time,
 
             int Spec_z  = set_width;
             int Relax_z = width - Spec_z;
-            Real num   = Real(Spec_z + Relax_z);
-            Real denom = Real(Relax_z - 1);
-            ParallelFor(vbx, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            Real num    = Real(Spec_z + Relax_z);
+            Real denom  = Real(Relax_z - 1);
+            ParallelFor(tbx, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
                if (mask_arr(i,j,k) == relax_mask_val) {
 

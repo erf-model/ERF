@@ -1,0 +1,25 @@
+ifeq ($(USE_SHOC), TRUE)
+    CEXE_headers += eamxx_column_ops.hpp
+    CEXE_headers += eamxx_combine_ops.hpp
+    CEXE_headers += eamxx_common_physics_functions.hpp
+    CEXE_headers += eamxx_common_physics_functions_impl.hpp
+    CEXE_headers += eamxx_types.hpp
+    CEXE_headers += eamxx_universal_constants.hpp
+    CEXE_headers += physics_constants.hpp
+    CEXE_headers += physics_functions.hpp
+    CEXE_headers += physics_saturation_impl.hpp
+    CEXE_sources += physics_saturation.cpp
+endif
+
+ifeq ($(USE_P3), TRUE)
+    CEXE_headers += eamxx_column_ops.hpp
+    CEXE_headers += eamxx_combine_ops.hpp
+    CEXE_headers += eamxx_common_physics_functions.hpp
+    CEXE_headers += eamxx_common_physics_functions_impl.hpp
+    CEXE_headers += eamxx_types.hpp
+    CEXE_headers += eamxx_universal_constants.hpp
+    CEXE_headers += physics_constants.hpp
+    CEXE_headers += physics_functions.hpp
+    CEXE_headers += physics_saturation_impl.hpp
+    CEXE_sources += physics_saturation.cpp
+endif

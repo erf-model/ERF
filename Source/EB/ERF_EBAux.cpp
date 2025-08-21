@@ -85,6 +85,9 @@ define( int const& a_idim,
 
     Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
     Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
+    Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
+    Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
+    Array4<Real>       const& aux_afrac_z = m_areafrac[2]->array(mfi);
 
     if (FlagFab[mfi].getType(bx) == FabType::covered ) {
 
@@ -93,6 +96,9 @@ define( int const& a_idim,
         aux_flag(i,j,k).setCovered();
         aux_flag(i,j,k).setDisconnected();
         aux_vfrac(i,j,k) = 0.0;
+        aux_afrac_x(i,j,k) = 0.0;
+        aux_afrac_y(i,j,k) = 0.0;
+        aux_afrac_z(i,j,k) = 0.0;
       });
 
     } else if (FlagFab[mfi].getType(bx) == FabType::regular ) {
@@ -102,6 +108,9 @@ define( int const& a_idim,
         aux_flag(i,j,k).setRegular();
         aux_flag(i,j,k).setDisconnected();
         aux_vfrac(i,j,k) = 1.0;
+        aux_afrac_x(i,j,k) = 1.0;
+        aux_afrac_y(i,j,k) = 1.0;
+        aux_afrac_z(i,j,k) = 1.0;
       });
 
     } else if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
@@ -118,15 +127,9 @@ define( int const& a_idim,
 
       // aux quantities
       Array4<Real>       const& aux_vcent = m_volcent->array(mfi);
-
-      Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
-      Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
-      Array4<Real>       const& aux_afrac_z = m_areafrac[2]->array(mfi);
-
       Array4<Real>       const& aux_fcent_x = m_facecent[0]->array(mfi);
       Array4<Real>       const& aux_fcent_y = m_facecent[1]->array(mfi);
       Array4<Real>       const& aux_fcent_z = m_facecent[2]->array(mfi);
-
       Array4<Real>       const& aux_barea = m_bndryarea->array(mfi);
       Array4<Real>       const& aux_bcent = m_bndrycent->array(mfi);
       Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
