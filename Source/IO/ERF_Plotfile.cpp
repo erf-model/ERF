@@ -1368,15 +1368,15 @@ ERF::WritePlotFile (int which, PlotFileType plotfile_type, Vector<std::string> p
     std::string plotfilenameV;
     std::string plotfilenameW;
     if (which == 1) {
-       plotfilename = Concatenate(plot_file_1, istep[0], 5);
-       plotfilenameU = Concatenate(plot_file_1+"U", istep[0], 5);
-       plotfilenameV = Concatenate(plot_file_1+"V", istep[0], 5);
-       plotfilenameW = Concatenate(plot_file_1+"W", istep[0], 5);
+       plotfilename = Concatenate(plot_file_1, istep[0], 6);
+       plotfilenameU = Concatenate(plot_file_1+"U", istep[0], 6);
+       plotfilenameV = Concatenate(plot_file_1+"V", istep[0], 6);
+       plotfilenameW = Concatenate(plot_file_1+"W", istep[0], 6);
     } else if (which == 2) {
-       plotfilename = Concatenate(plot_file_2, istep[0], 5);
-       plotfilenameU = Concatenate(plot_file_2+"U", istep[0], 5);
-       plotfilenameV = Concatenate(plot_file_2+"V", istep[0], 5);
-       plotfilenameW = Concatenate(plot_file_2+"W", istep[0], 5);
+       plotfilename = Concatenate(plot_file_2, istep[0], 6);
+       plotfilenameU = Concatenate(plot_file_2+"U", istep[0], 6);
+       plotfilenameV = Concatenate(plot_file_2+"V", istep[0], 6);
+       plotfilenameW = Concatenate(plot_file_2+"W", istep[0], 6);
     }
 
     // LSM writes it's own data

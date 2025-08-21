@@ -96,7 +96,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                          mapfac[level],
                          (solverChoice.have_geo_wind_profile) ? d_u_geos[level].data() : nullptr,
                          (solverChoice.have_geo_wind_profile) ? d_v_geos[level].data() : nullptr,
-                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev, forecast_state_interp[level],
                          input_sounding_data, false);
 
         // Moving terrain
