@@ -145,14 +145,11 @@ void SuperDropletPC::readInputs ()
     for (int i = 0; i < m_num_initializations; i++) {
         m_initializations[i] = std::make_unique<SDInitialization>();
         m_initializations[i]->setDefaults(Geom(0), m_species_mat,m_aerosol_mat);
-        if (m_num_initializations == 1){
-            Print() << "Querying inputs file using the string: '" << m_name << "'!\n";
-            m_initializations[i]->readInputs(m_name, Geom(0), m_species_mat, m_aerosol_mat);
-            break;
-        }
-        // Loop through multiple initializations
+
         char i_str[12]; sprintf(i_str, "%d", i);
         std::string prefix = m_name + "." + std::string(i_str);
+        Print() << "Querying inputs file using the string: '" << m_name << "'!\n";
+        m_initializations[i]->readInputs(m_name, Geom(0), m_species_mat, m_aerosol_mat);
         Print() << "Querying inputs file using the string: '" << prefix << "'!\n";
         m_initializations[i]->readInputs(prefix, Geom(0), m_species_mat, m_aerosol_mat);
     }

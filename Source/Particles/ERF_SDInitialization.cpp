@@ -34,7 +34,7 @@ void SDInitialization::setDefaults ( const amrex::Geometry& a_geom,
         m_radius_species_min[i] = 1.0e-15;
         m_radius_species_max[i] = 1.0e-15;
         m_radius_species_mean[i] = 1.0e-15;
-        m_radius_species_geom_std[i] = 1.0;
+        m_radius_species_geom_std[i] = 2.0;
     }
 
     m_num_aerosols = a_aerosol_mat.size();
@@ -56,7 +56,7 @@ void SDInitialization::setDefaults ( const amrex::Geometry& a_geom,
         m_radius_aerosol_min[i] = 1.0e-9;
         m_radius_aerosol_max[i] = 1.0e-6;
         m_radius_aerosol_mean[i] = 1.0e-40;
-        m_radius_aerosol_geom_std[i] = 1.0;
+        m_radius_aerosol_geom_std[i] = 2.0;
     }
 
     m_mult_type = SDMultiplicityType::sampled;
@@ -137,19 +137,21 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
             pp.query(key.c_str(), m_radius_species_max[i]);
         }
         {
-            m_radius_species_mean[i] = std::exp(0.5*(std::log(m_radius_species_min[i])+std::log(m_radius_species_max[i])));
             std::string key = "initial_species_mean_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_species_mean[i]);
         }
         {
-            m_radius_species_geom_std[i] = 2.0;
-            std::string key = "initial_species_std_radius_" + getEnumNameString(a_species_mat[i]->m_name);
-            pp.query(key.c_str(), m_radius_species_geom_std[i]);
-            m_radius_species_geom_std[i] = std::exp(m_radius_species_geom_std[i]);
-        }
-        {
-            std::string key = "initial_species_geomstd_radius_" + getEnumNameString(a_species_mat[i]->m_name);
-            pp.query(key.c_str(), m_radius_species_geom_std[i]);
+            std::string key_std = "initial_species_std_radius_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key_gstd = "initial_species_geomstd_radius_" + getEnumNameString(a_species_mat[i]->m_name);
+            if (pp.contains(key_std.c_str()) && pp.contains(key_gstd.c_str())) {
+                amrex::Abort("Cannot specify BOTH initial_species_std_radius and initial_species_geomstd_radius");
+            }
+            if (pp.contains(key_std.c_str())) {
+                pp.get(key_std.c_str(), m_radius_species_geom_std[i]);
+                m_radius_species_geom_std[i] = std::exp(m_radius_species_geom_std[i]);
+            } else {
+                pp.query(key_gstd.c_str(), m_radius_species_geom_std[i]);
+            }
         }
     }
 
@@ -180,19 +182,21 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
             pp.query(key.c_str(), m_radius_aerosol_max[i]);
         }
         {
-            m_radius_aerosol_mean[i] = std::exp(0.5*(std::log(m_radius_aerosol_min[i])+std::log(m_radius_aerosol_max[i])));
             std::string key = "initial_aerosol_mean_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_aerosol_mean[i]);
         }
         {
-            m_radius_aerosol_geom_std[i] = 2.0;
-            std::string key = "initial_aerosol_std_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
-            pp.query(key.c_str(), m_radius_aerosol_geom_std[i]);
-            m_radius_aerosol_geom_std[i] = std::exp(m_radius_aerosol_geom_std[i]);
-        }
-        {
-            std::string key = "initial_aerosol_geomstd_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
-            pp.query(key.c_str(), m_radius_aerosol_geom_std[i]);
+            std::string key_std = "initial_aerosol_std_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key_gstd = "initial_aerosol_geomstd_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            if (pp.contains(key_std.c_str()) && pp.contains(key_gstd.c_str())) {
+                amrex::Abort("Cannot specify BOTH initial_species_std_radius and initial_species_geomstd_radius");
+            }
+            if (pp.contains(key_std.c_str())) {
+                pp.get(key_std.c_str(), m_radius_aerosol_geom_std[i]);
+                m_radius_aerosol_geom_std[i] = std::exp(m_radius_aerosol_geom_std[i]);
+            } else {
+                pp.query(key_gstd.c_str(), m_radius_aerosol_geom_std[i]);
+            }
         }
     }
 
