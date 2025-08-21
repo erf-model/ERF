@@ -66,10 +66,6 @@ ApplyBndryForcing_Forecast (
         Real rho_u_sponge = rho_u_initial_state(i,j,k)*cons_initial_state(i,j,k,0);
         // x lo sponge
             if (x < xlo_sponge_end) {
-                /*printf("Inside this routine rhou............%0.15g, %0.15g, %0.15g, %0.15g\n", rho_u(i, j, k),
-                        rho_u_initial_state(i,j,k), cons_initial_state(i,j,k,0), rho_u_sponge);
-                printf("Inside this routine rhov............%0.15g, %0.15g\n", rho_v(i, j, k), rho_v_initial_state(i,j,k));
-                printf("Inside this routine rhow............%0.15g, %0.15g\n", rho_w(i, j, k), rho_w_initial_state(i,j,k));*/
                 Real xi = (xlo_sponge_end - x) / sponge_length;
                 rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - rho_u_sponge);
             }
