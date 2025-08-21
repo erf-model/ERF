@@ -376,7 +376,7 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             auto dry_r = std::exp(tmp);
             a_mass[n] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
             auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(2.0*sigma*sigma));
-            a_mult[n] += 1.0 / (sigma*std::sqrt(2*PI)*dry_r) * term;
+            a_mult[n] += 1.0 / (sigma*std::sqrt(2*PI)) * term;
         }
     } else if (a_init_type == SupDropInit::attrib_init_lnr_auto) {
         std::uniform_real_distribution<> urd(0.0, 1.0);
@@ -413,7 +413,7 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             auto dry_r = std::exp(tmp);
             a_mass[n] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
             auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(2.0*sigma*sigma));
-            a_mult[n] = 1.0 / (sigma*std::sqrt(2*PI)*dry_r) * term;
+            a_mult[n] = 1.0 / (sigma*std::sqrt(2*PI)) * term;
         }
 
         // initialize the tail using approximate erfinv
