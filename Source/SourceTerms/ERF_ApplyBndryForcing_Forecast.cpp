@@ -28,13 +28,13 @@ ApplyBndryForcing_Forecast (
     auto ProbHiArr = geom.ProbHiArray();
     auto ProbLoArr = geom.ProbLoArray();
 
-    Real met_laeral_sponge_strength = -1.0, met_lateral_sponge_length = -1.0;
+    Real met_lateral_sponge_strength = -1.0, met_lateral_sponge_length = -1.0;
     Real met_zhi_sponge_strength = -1.0, met_zhi_sponge_length = -1.0;
     bool use_met_zhi_sponge_damping = false;
 
     amrex::ParmParse pp("erf");
 
-    pp.query("met_laeral_sponge_strength", met_laeral_sponge_strength);
+    pp.query("met_lateral_sponge_strength", met_lateral_sponge_strength);
     pp.query("met_lateral_sponge_length", met_lateral_sponge_length);
 
     pp.query("met_zhi_sponge_length", met_zhi_sponge_length);
@@ -42,8 +42,8 @@ ApplyBndryForcing_Forecast (
 
     pp.query("use_met_zhi_sponge_damping", use_met_zhi_sponge_damping);
 
-    if (met_laeral_sponge_strength < 0.0) {
-        amrex::Abort("ERROR: Missing input parameter 'erf.met_laeral_sponge_strength' or it is specified to be less than zero");
+    if (met_lateral_sponge_strength < 0.0) {
+        amrex::Abort("ERROR: Missing input parameter 'erf.met_lateral_sponge_strength' or it is specified to be less than zero");
     }
 
     if (met_lateral_sponge_length < 0.0) {
@@ -88,22 +88,22 @@ ApplyBndryForcing_Forecast (
         // x lo sponge
             if (x < xlo_sponge_end) {
                 Real xi = (xlo_sponge_end - x) / met_lateral_sponge_length;
-                rho_u_rhs(i, j, k) -= met_laeral_sponge_strength * xi * xi * (rho_u(i, j, k) - rho_u_sponge);
+                rho_u_rhs(i, j, k) -= met_lateral_sponge_strength * xi * xi * (rho_u(i, j, k) - rho_u_sponge);
             }
         // x hi sponge
             if (x > xhi_sponge_start) {
                 Real xi = (x - xhi_sponge_start) / met_lateral_sponge_length;
-                rho_u_rhs(i, j, k) -= met_laeral_sponge_strength * xi * xi * (rho_u(i, j, k) - rho_u_sponge);
+                rho_u_rhs(i, j, k) -= met_lateral_sponge_strength * xi * xi * (rho_u(i, j, k) - rho_u_sponge);
             }
         // y lo sponge
             if (y < ylo_sponge_end) {
                 Real xi = (ylo_sponge_end - y) / met_lateral_sponge_length;
-                rho_u_rhs(i, j, k) -= met_laeral_sponge_strength * xi * xi * (rho_u(i, j, k) - rho_u_sponge);
+                rho_u_rhs(i, j, k) -= met_lateral_sponge_strength * xi * xi * (rho_u(i, j, k) - rho_u_sponge);
             }
         // x right sponge
             if (y > yhi_sponge_start) {
                 Real xi = (y - yhi_sponge_start) / met_lateral_sponge_length;
-                rho_u_rhs(i, j, k) -= met_laeral_sponge_strength * xi * xi * (rho_u(i, j, k) - rho_u_sponge);
+                rho_u_rhs(i, j, k) -= met_lateral_sponge_strength * xi * xi * (rho_u(i, j, k) - rho_u_sponge);
             }
     });
 
@@ -121,23 +121,23 @@ ApplyBndryForcing_Forecast (
         // x lo sponge
             if (x < xlo_sponge_end) {
                 Real xi = (xlo_sponge_end - x) / met_lateral_sponge_length;
-                rho_v_rhs(i, j, k) -= met_laeral_sponge_strength * xi * xi * (rho_v(i, j, k) - rho_v_sponge);
+                rho_v_rhs(i, j, k) -= met_lateral_sponge_strength * xi * xi * (rho_v(i, j, k) - rho_v_sponge);
             }
         // x hi sponge
             if (x > xhi_sponge_start) {
                 Real xi = (x - xhi_sponge_start) / met_lateral_sponge_length;
-                rho_v_rhs(i, j, k) -= met_laeral_sponge_strength * xi * xi * (rho_v(i, j, k) - rho_v_sponge);
+                rho_v_rhs(i, j, k) -= met_lateral_sponge_strength * xi * xi * (rho_v(i, j, k) - rho_v_sponge);
             }
 
         // y lo sponge
             if (y < ylo_sponge_end) {
                 Real xi = (ylo_sponge_end - y) / met_lateral_sponge_length;
-                rho_v_rhs(i, j, k) -= met_laeral_sponge_strength * xi * xi * (rho_v(i, j, k) - rho_v_sponge);
+                rho_v_rhs(i, j, k) -= met_lateral_sponge_strength * xi * xi * (rho_v(i, j, k) - rho_v_sponge);
             }
         // x right sponge
             if (y > yhi_sponge_start) {
                 Real xi = (y - yhi_sponge_start) / met_lateral_sponge_length;
-                rho_v_rhs(i, j, k) -= met_laeral_sponge_strength * xi * xi * (rho_v(i, j, k) - rho_v_sponge);
+                rho_v_rhs(i, j, k) -= met_lateral_sponge_strength * xi * xi * (rho_v(i, j, k) - rho_v_sponge);
             }
     });
 
