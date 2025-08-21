@@ -89,25 +89,16 @@ or if using tcsh,
 
    setenv AMREX_HOME /path/to/external/amrex
 
-To build with SHOC using gmake
+To build with SHOC or P3 using gmake
 
 ::
 
    export ERF_DIR=/path/to/ERF
-   source /path/to/ERF/Build/GNU_Ekat/shoc_clone.sh
+   source /path/to/ERF/Build/GNU_Ekat/eamxx_clone.sh
    source /path/to/ERF/Build/GNU_Ekat/ekat_build_commands.sh
 
-Then follow the instructions below, ensuring that you have ``USE_SHOC=TRUE`` in your GNUmakefile.
-
-To build with P3 using gmake
-
-::
-
-   export ERF_DIR=/path/to/ERF
-   source /path/to/ERF/Build/GNU_Ekat/p3_clone.sh
-   source /path/to/ERF/Build/GNU_Ekat/ekat_build_commands.sh
-
-Then follow the instructions below, ensuring that you have ``USE_P3=TRUE`` in your GNUmakefile.
+Then follow the instructions below, ensuring that you have ``USE_SHOC=TRUE`` (when running with shoc)
+and ``USE_P3=TRUE`` (when running with p3) in your GNUmakefile.
 
 #. ``cd`` to the desired build directory, e.g.  ``ERF/Exec/DryRegTests/IsentropicVortex/``
 
@@ -219,14 +210,7 @@ To build with SHOC or P3 using cmake, you will need to make sure you have run ``
 ::
 
    export ERF_DIR=/path/to/ERF
-   source /path/to/ERF/Build/GNU_Ekat/shoc_clone.sh
-
-or
-
-::
-
-   export ERF_DIR=/path/to/ERF
-   source /path/to/ERF/Build/GNU_Ekat/p3_clone.sh
+   source /path/to/ERF/Build/GNU_Ekat/eamxx_clone.sh
 
 Then follow the guidance below, making sure to set ``ERF_ENABLE_SHOC`` and/or ``ERF_ENABLE_P3`` to TRUE.
 
