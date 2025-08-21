@@ -152,7 +152,7 @@ public:
     // Hurricane track line output as VTKPolyline
     amrex::Vector<std::array<amrex::Real, 2>> hurricane_track_xy;
     amrex::Vector<amrex::MultiFab> weather_forecast_data_1, weather_forecast_data_2;
-    amrex::Vector<amrex::Vector<amrex::MultiFab>> forecast_state_1, 
+    amrex::Vector<amrex::Vector<amrex::MultiFab>> forecast_state_1,
                                                   forecast_state_2,
                                                   forecast_state_interp;
     std::string MakeVTKFilename(int nstep);

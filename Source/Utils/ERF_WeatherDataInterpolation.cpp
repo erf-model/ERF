@@ -269,7 +269,7 @@ ERF::CreateForecastStateMultiFabs(Vector<Vector<MultiFab>>& forecast_state)
 }
 
 void
-ERF::InterpWeatherDataOntoMesh (const Geometry& geom_weather, 
+ERF::InterpWeatherDataOntoMesh (const Geometry& geom_weather,
                                 MultiFab& weather_forecast_data,
                                 Vector<Vector<MultiFab>>& forecast_state)
 {
@@ -529,7 +529,7 @@ ERF::WeatherDataInterpolation(const Real time)
 
         for (const auto& entry : fs::directory_iterator(folder)) {
             if (!entry.is_regular_file()) continue;
-    
+
             std::string fname = entry.path().filename().string();
             if (fname.size() >= 4 && fname.substr(fname.size() - 4) == ".bin") {
                 bin_files.push_back(entry.path().string());
@@ -543,7 +543,7 @@ ERF::WeatherDataInterpolation(const Real time)
         }
 
         std::string filename1, filename2;
-       
+
         int idx1 = static_cast<int>(time / 10800.0);
         int idx2 = static_cast<int>(time / 10800.0)+1;
         std::cout << "Reading weather data " << time << " " << idx1 << " " << idx2 <<" " << bin_files.size() << std::endl;
@@ -572,7 +572,7 @@ ERF::WeatherDataInterpolation(const Real time)
                                 weather_forecast_data_1);
 
         CreateForecastStateMultiFabs(forecast_state_1);
-        InterpWeatherDataOntoMesh(geom_weather, weather_forecast_data_1[0], forecast_state_1);    
+        InterpWeatherDataOntoMesh(geom_weather, weather_forecast_data_1[0], forecast_state_1);
 
         FillWeatherDataMultiFab(filename2,
                                 geom_weather,
