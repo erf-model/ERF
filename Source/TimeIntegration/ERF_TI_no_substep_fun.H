@@ -206,46 +206,23 @@
                     dUdt[i].setDomainBndry(1.234e10, 0, ncomp_fast[i], fine_geom);
                 }
 
-                // if (level==0) {
-                //     dUdt_tmp.FillBoundary(fine_geom.periodicity());
-                //     dUdt_tmp.setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);                    
-                // } else {
-                //     dUdt_tmp.FillPatchFineLevel(fine_geom.periodicity());
-                //     dUdt_tmp.setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);
-                // }
-
-                BCRec const* bc_ptr_d = domain_bcs_type_d.data();
-                S_old[IntVars::cons].FillBoundary(fine_geom.periodicity());
-                S_old[IntVars::cons].setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);
-
-                // Update F_slow by Redistribution.
-                redistribute_term ( ncomp_fast[IntVars::cons], fine_geom, F_slow[IntVars::cons], dUdt[IntVars::cons],
-                                    S_old[IntVars::cons], EBFactory(level), bc_ptr_d, slow_dt);
-
-                // Redistribute momentum states (face-centered)
-
-                // Vector<MultiFab> dUdt_mom(AMREX_SPACEDIM);
-                // for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-                //     dUdt_mom[i].define(F_slow[1+i].boxArray(), F_slow[1+i].DistributionMap(), F_slow[1+i].nComp(), F_slow[1+i].nGrow(), MFInfo());
-                //     dUdt_mom[i].setVal(0.);
-                //     MultiFab::Copy(dUdt_mom[i], F_slow[1+i], 0, 0, F_slow[1+i].nComp(), F_slow[1+i].nGrow());
-                //     dUdt_mom[i].FillBoundary(fine_geom.periodicity());
-                //     dUdt_mom[i].setDomainBndry(1.234e10, 0, ncomp_fast[1+i], fine_geom);
-                // }
-
-                for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-                    S_old[1+i].FillBoundary(fine_geom.periodicity());
-                    S_old[1+i].setDomainBndry(1.234e10, 0, ncomp_fast[1+i], fine_geom);
+                for (int i = 0; i <= AMREX_SPACEDIM; ++i) {                
+                    S_old[i].FillBoundary(fine_geom.periodicity());
+                    S_old[i].setDomainBndry(1.234e10, 0, ncomp_fast[i], fine_geom);
                 }
 
+                BCRec const* bc_ptr_d = domain_bcs_type_d.data();
+
                 // Update F_slow by Redistribution.
 
-                redistribute_term( ncomp_fast[IntVars::xmom], fine_geom, F_slow[IntVars::xmom], dUdt[IntVars::xmom],
-                                   S_old[IntVars::xmom], *(get_eb(level).get_u_const_factory()), bc_ptr_d, slow_dt, IntVars::xmom);
-                redistribute_term( ncomp_fast[IntVars::ymom], fine_geom, F_slow[IntVars::ymom], dUdt[IntVars::ymom],
-                                   S_old[IntVars::ymom], *(get_eb(level).get_v_const_factory()), bc_ptr_d, slow_dt, IntVars::ymom);
-                redistribute_term( ncomp_fast[IntVars::zmom], fine_geom, F_slow[IntVars::zmom], dUdt[IntVars::zmom],
-                                   S_old[IntVars::zmom], *(get_eb(level).get_w_const_factory()), bc_ptr_d, slow_dt, IntVars::zmom);
+                redistribute_term ( ncomp_fast[IntVars::cons], fine_geom, F_slow[IntVars::cons], dUdt[IntVars::cons],
+                                    S_old[IntVars::cons], EBFactory(level), bc_ptr_d, slow_dt);
+                redistribute_term ( ncomp_fast[IntVars::xmom], fine_geom, F_slow[IntVars::xmom], dUdt[IntVars::xmom],
+                                    S_old[IntVars::xmom], *(get_eb(level).get_u_const_factory()), bc_ptr_d, slow_dt, IntVars::xmom);
+                redistribute_term ( ncomp_fast[IntVars::ymom], fine_geom, F_slow[IntVars::ymom], dUdt[IntVars::ymom],
+                                    S_old[IntVars::ymom], *(get_eb(level).get_v_const_factory()), bc_ptr_d, slow_dt, IntVars::ymom);
+                redistribute_term ( ncomp_fast[IntVars::zmom], fine_geom, F_slow[IntVars::zmom], dUdt[IntVars::zmom],
+                                    S_old[IntVars::zmom], *(get_eb(level).get_w_const_factory()), bc_ptr_d, slow_dt, IntVars::zmom);
 
                 // Update state using the updated F_slow. (NOTE: redistribute_term returns RHS not state variables.)
 
