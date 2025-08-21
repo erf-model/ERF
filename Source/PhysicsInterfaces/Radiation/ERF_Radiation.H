@@ -54,8 +54,7 @@ public:
     // Destructor
     ~Radiation ()
     {
-        // Finalize kokkos
-        Kokkos::finalize();
+        // Note that Kokkos is now finalized in main.cpp
     }
 
     virtual

@@ -473,9 +473,8 @@ ERF::Evolve ()
     for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step)
     {
         if (use_datetime) {
-            Print() << "\n" << getTimestamp(cur_time, datetime_format)
-                    << " (" << cur_time-start_time << " s elapsed)"
-                    << std::endl;
+            Print() << "\n" << getTimestamp(start_time+cur_time, datetime_format)
+                    << " (" << cur_time << " s elapsed)" << std::endl;
         }
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
@@ -785,10 +784,11 @@ ERF::InitData_pre ()
     last_check_file_step  = -1;
 
     if (restart_chkfile.empty()) {
-        // start simulation from the beginning
 
+        // Start simulation from the beginning
         const Real time = start_time;
         InitFromScratch(time);
+
     } else {
         // For initialization this is done in init_only; it is done here for restart
         init_bcs();
@@ -915,11 +915,12 @@ ERF::InitData_post ()
 
             int n_time_old = static_cast<int>(t_new[0] /  dT);
 
-            // I don't think this works if lev > 0 ...?
-            AMREX_ALWAYS_ASSERT(finest_level == 0);
             int lev = 0;
             bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-            for (int itime = n_time_old; itime < n_time_old+3; itime++)
+
+            int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
+
+            for (int itime = n_time_old; itime < ntimes; itime++)
             {
                 read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
                                  bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
@@ -1376,7 +1377,7 @@ ERF::InitData_post ()
                 // it will change u* and theta* from their previous values
                 m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
                                             solverChoice.moisture_indices);
-                m_SurfaceLayer->update_fluxes(lev, time);
+                m_SurfaceLayer->update_fluxes(lev, time, vars_new[lev][Vars::cons], z_phys_nd[lev]);
             }
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
@@ -1693,15 +1694,19 @@ ERF::init_only (int lev, Real time)
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
+
         init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
+
         if (lev==0) {
-            if ((start_time > 0) && (start_time != t_new[lev])) {
+            if ((start_time > 0) && (start_time != start_bdy_time)) {
                 Print() << "Ignoring specified start_time="
                         << std::setprecision(timeprecision) << start_time
                         << std::endl;
             }
-            start_time = t_new[lev];
         }
+
+        start_time = start_bdy_time;
+
         use_datetime = true;
 
         // The physbc's need the terrain but are needed for initHSE

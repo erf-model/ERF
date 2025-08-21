@@ -43,7 +43,8 @@ intersect_plane_edge ( amrex::RealVect const& a_plane_point,
 
   amrex::Real np_dot_ne = a_plane_normal.dotProduct(edge_normal);
 
-  if ( amrex::Math::abs(np_dot_ne) < std::numeric_limits<amrex::Real>::min() )
+  // if ( amrex::Math::abs(np_dot_ne) < std::numeric_limits<amrex::Real>::min() )
+  if ( amrex::Math::abs(np_dot_ne) < 10.0 * std::numeric_limits<amrex::Real>::epsilon() )
   { return 0; }
 
   a_intersection_dist = a_plane_normal.dotProduct(a_plane_point - a_edge_point0);
