@@ -894,7 +894,7 @@ define( int const& a_idim,
 
           aux_flag(i,j,k).setCovered();
         }
-        
+
         if (aux_vcent(i,j,k,0) < small_value) aux_vcent(i,j,k,0) = 0.0;
         if (aux_vcent(i,j,k,1) < small_value) aux_vcent(i,j,k,1) = 0.0;
         if (aux_vcent(i,j,k,2) < small_value) aux_vcent(i,j,k,2) = 0.0;
