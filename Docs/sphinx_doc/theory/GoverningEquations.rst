@@ -83,10 +83,10 @@ See the :ref:`Microphysics<Microphysics>` section for more details.
 
 Height-Following Terrain Coordinates
 ------------------------------------
-Consider two coordinate systems that correspond to a terrain-following grid, :math:`\bm{X}`, and a flat cartesian grid, :math:`\bm{Z}`, with axes given by
+Consider two coordinate systems that correspond to a terrain-following grid, :math:`\mathbf{X}`, and a flat cartesian grid, :math:`\mathbf{Z}`, with axes given by
 
 .. math::
-   \bm{X} &= \left[ x \; y \; z \right]^{\intercal}, \quad \quad \bm{\Xi} &= \left[ \xi \; \eta \; \zeta \right]^{\intercal},
+   \mathbf{X} = \left[ x \; y \; z \right]^{\intercal}, \quad \quad \mathbf{\Xi} = \left[ \xi \; \eta \; \zeta \right]^{\intercal},
 
 and
 
@@ -96,15 +96,15 @@ and
 Only the vertical coordinate in the physical domain is deformed by the terrain-fitting.
 To account for isotropic lateral grid stretching as represented by ``map factors" :math:`m_x = m_y = m` as in WRF, we augment the coordinate transform above with stretching in the lateral directions only.
 
-These combined transformations yield the following Jacobian, :math:`\bar{\bm{J}}`, and inverse Jacobian, :math:`\bar{\bm{T}}`, matrices
+These combined transformations yield the following Jacobian, :math:`\bar{\mathbf{J}}`, and inverse Jacobian, :math:`\bar{\mathbf{T}}`, matrices
 
 .. math::
-    \bar{\bm{J}}  &= \begin{bmatrix}
+    \bar{\mathbf{J}}  = \begin{bmatrix}
     \frac{1}{m} & 0 & 0 \\
     0 & \frac{1}{m} & 0\\
    h_{\xi} &  h_{\eta} & h_{\zeta} \\
     \end{bmatrix}, \quad \quad
-     \bar{\bm{T}} =  \bm{J}^{-1} =  \frac{m^2}{h_{\zeta}} \begin{bmatrix}
+     \bar{\mathbf{T}} =  \mathbf{J}^{-1} =  \frac{m^2}{h_{\zeta}} \begin{bmatrix}
     \frac{h_{\zeta}}{m} & 0 & 0 \\
     0 & \frac{h_{\zeta}}{m} & 0\\
    -\frac{h_{\xi}}{m} &  -\frac{h_{\eta}}{m} & \frac{1}{m^2} \\
@@ -116,14 +116,15 @@ These combined transformations yield the following Jacobian, :math:`\bar{\bm{J}}
    -\frac{h_{\xi}}{h_\zeta}m &  -\frac{h_{\eta}}{h_\zeta}m & \frac{1}{h_\zeta} \\
     \end{bmatrix}.
 
-In the above, :math:`J = \left| \bar{\bm{J}} \right |=  h_{\zeta} / m^2` is the Jacobian determinant. To explicitly close the governing equations in terrain-following coordinates, we provide relations for the gradient of a scalar (:math:`f`) and divergence of a vector (:math:`\bm{F}`):
+In the above, :math:`J = \left| \bar{\mathbf{J}} \right |=  h_{\zeta} / m^2` is the Jacobian determinant. To explicitly close the governing equations in terrain-following coordinates, we provide relations for the gradient of a scalar (:math:`f`) and divergence of a vector (:math:`\mathbf{F}`):
 
 .. math::
-    \nabla_{\bm{X}} f &= \bar{\bm{T}}^{\intercal} \nabla_{\bm{Z}} f,
-    \nabla_{\bm{X}} \cdot \left( \bm{F} \right) &= \frac{1}{J} \nabla_{\bm{Z}} \cdot \left( J  \bar{\bm{T}} \bm{F}\right).
+    \nabla_{\mathbf{X}} f &= \bar{\mathbf{T}}^{\intercal} \nabla_{\mathbf{Z}} f,
+
+    \nabla_{\mathbf{X}} \cdot \left( \mathbf{F} \right) &= \frac{1}{J} \nabla_{\mathbf{Z}} \cdot \left( J  \bar{\mathbf{T}} \mathbf{F}\right).
 
 
-Vector rotation of the fluid velocity yields :math:`J  \bar{\bm{T}} \bm{u} = \left[h_{\zeta}u/m, \, h_{\zeta}v/m, \, \omega/m^2  \right]^{\intercal}`, where :math:`\omega = w -h_{\xi} u m - h_{\eta} v m` is the vertical velocity that is normal to the top/bottom faces of the grid cells.
+Vector rotation of the fluid velocity yields :math:`J  \bar{\mathbf{T}} \mathbf{u} = \left[h_{\zeta}u/m, \;\; h_{\zeta}v/m, \;\; \omega/m^2  \right]^{\intercal}`, where :math:`\omega = w -h_{\xi} u m - h_{\eta} v m` is the vertical velocity that is normal to the top/bottom faces of the grid cells.
 
 
 Background (reference) state
