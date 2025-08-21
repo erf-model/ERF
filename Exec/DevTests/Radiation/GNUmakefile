@@ -26,7 +26,6 @@ USE_ASSERTION = TRUE
 
 USE_RRTMGP = TRUE
 USE_NETCDF = TRUE
-USE_KOKKOS = TRUE
 
 # GNU Make
 Bpack := ./Make.package

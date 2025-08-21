@@ -77,11 +77,36 @@ define( int const& a_idim,
 
     const Box& bx = mfi.validbox();
     const Box& bx_grown = mfi.growntilebox();
+    const Box tbx = mfi.nodaltilebox(a_idim);
     const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
 
-    if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
+    GpuArray<Real, AMREX_SPACEDIM> dx = a_geom.CellSizeArray();
+    bool l_periodic   = a_geom.isPeriodic(a_idim);
 
-      GpuArray<Real, AMREX_SPACEDIM> dx = a_geom.CellSizeArray();
+    Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
+    Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
+
+    if (FlagFab[mfi].getType(bx) == FabType::covered ) {
+
+      ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        aux_flag(i,j,k).setCovered();
+        aux_flag(i,j,k).setDisconnected();
+        aux_vfrac(i,j,k) = 0.0;
+      });
+
+    } else if (FlagFab[mfi].getType(bx) == FabType::regular ) {
+
+      ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        aux_flag(i,j,k).setRegular();
+        aux_flag(i,j,k).setDisconnected();
+        aux_vfrac(i,j,k) = 1.0;
+      });
+
+    } else if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
+
+      // Initialization
 
       // CC cell quantities
       Array4<EBCellFlag const> const& flag = FlagFab.const_array(mfi);
@@ -92,8 +117,6 @@ define( int const& a_idim,
       Array4<Real const> const& bcent = a_factory->getBndryCent()[mfi].const_array();
 
       // aux quantities
-      Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
-      Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
       Array4<Real>       const& aux_vcent = m_volcent->array(mfi);
 
       Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
@@ -107,10 +130,6 @@ define( int const& a_idim,
       Array4<Real>       const& aux_barea = m_bndryarea->array(mfi);
       Array4<Real>       const& aux_bcent = m_bndrycent->array(mfi);
       Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
-
-      bool l_periodic   = a_geom.isPeriodic(a_idim);
-
-      // Initialization
 
       // Extended domain in the direction of periodicity
       Box dom_grown = domain;
@@ -145,13 +164,10 @@ define( int const& a_idim,
                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
                   aux_barea, aux_bcent, aux_bnorm,
-                  vdim, idim=a_idim, l_periodic,
-                  small_volfrac, small_value ]
+                  vdim, idim=a_idim, l_periodic]
       AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-
         // defaults to covered and disconnected.
-
         aux_flag(i,j,k).setCovered();
         aux_flag(i,j,k).setDisconnected();
 
@@ -824,59 +840,64 @@ define( int const& a_idim,
             aux_bnorm(i,j,k,1) = eb_normal[1];
             aux_bnorm(i,j,k,2) = eb_normal[2];
 
-            // Small cell
-
-            if (aux_vfrac(i,j,k) < small_volfrac) {
-              aux_vfrac(i,j,k)   = 0.0;
-              aux_vcent(i,j,k,0) = 0.0;
-              aux_vcent(i,j,k,1) = 0.0;
-              aux_vcent(i,j,k,2) = 0.0;
-
-              aux_afrac_x(i  ,j  ,k  ) = 0.0;
-              aux_afrac_x(i+1,j  ,k  ) = 0.0;
-              aux_afrac_y(i  ,j  ,k  ) = 0.0;
-              aux_afrac_y(i  ,j+1,k  ) = 0.0;
-              aux_afrac_z(i  ,j  ,k+1) = 0.0;
-              aux_afrac_z(i  ,j  ,k  ) = 0.0;
-
-              aux_fcent_x(i  ,j  ,k  ,0) = 0.0;
-              aux_fcent_x(i  ,j  ,k  ,1) = 0.0;
-              aux_fcent_x(i+1,j  ,k  ,0) = 0.0;
-              aux_fcent_x(i+1,j  ,k  ,1) = 0.0;
-
-              aux_fcent_y(i  ,j  ,k  ,0) = 0.0;
-              aux_fcent_y(i  ,j  ,k  ,1) = 0.0;
-              aux_fcent_y(i  ,j+1,k  ,0) = 0.0;
-              aux_fcent_y(i  ,j+1,k  ,1) = 0.0;
-
-              aux_fcent_z(i  ,j  ,k  ,0) = 0.0;
-              aux_fcent_z(i  ,j  ,k  ,1) = 0.0;
-              aux_fcent_z(i  ,j  ,k+1,0) = 0.0;
-              aux_fcent_z(i  ,j  ,k+1,1) = 0.0;
-
-              aux_barea(i,j,k) = 0.0;
-
-              aux_bcent(i,j,k,0) = 0.0;
-              aux_bcent(i,j,k,1) = 0.0;
-              aux_bcent(i,j,k,2) = 0.0;
-
-              aux_bnorm(i,j,k,0) = 0.0;
-              aux_bnorm(i,j,k,1) = 0.0;
-              aux_bnorm(i,j,k,2) = 0.0;
-
-              aux_flag(i,j,k).setCovered();
-            }
-
-            if (aux_vcent(i,j,k,0) < small_value) aux_vcent(i,j,k,0) = 0.0;
-            if (aux_vcent(i,j,k,1) < small_value) aux_vcent(i,j,k,1) = 0.0;
-            if (aux_vcent(i,j,k,2) < small_value) aux_vcent(i,j,k,2) = 0.0;
-            if (aux_bcent(i,j,k,0) < small_value) aux_bcent(i,j,k,0) = 0.0;
-            if (aux_bcent(i,j,k,1) < small_value) aux_bcent(i,j,k,1) = 0.0;
-            if (aux_bcent(i,j,k,2) < small_value) aux_bcent(i,j,k,2) = 0.0;
-
           }
 
         } // flag(iv_lo) and flag(iv_hi)
+
+      });
+
+      // Corrections for small cells
+
+      ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        if (aux_vfrac(i,j,k) < small_volfrac) {
+
+          aux_vfrac(i,j,k)   = 0.0;
+          aux_vcent(i,j,k,0) = 0.0;
+          aux_vcent(i,j,k,1) = 0.0;
+          aux_vcent(i,j,k,2) = 0.0;
+
+          aux_afrac_x(i  ,j  ,k  ) = 0.0;
+          aux_afrac_x(i+1,j  ,k  ) = 0.0;
+          aux_afrac_y(i  ,j  ,k  ) = 0.0;
+          aux_afrac_y(i  ,j+1,k  ) = 0.0;
+          aux_afrac_z(i  ,j  ,k+1) = 0.0;
+          aux_afrac_z(i  ,j  ,k  ) = 0.0;
+
+          aux_fcent_x(i  ,j  ,k  ,0) = 0.0;
+          aux_fcent_x(i  ,j  ,k  ,1) = 0.0;
+          aux_fcent_x(i+1,j  ,k  ,0) = 0.0;
+          aux_fcent_x(i+1,j  ,k  ,1) = 0.0;
+
+          aux_fcent_y(i  ,j  ,k  ,0) = 0.0;
+          aux_fcent_y(i  ,j  ,k  ,1) = 0.0;
+          aux_fcent_y(i  ,j+1,k  ,0) = 0.0;
+          aux_fcent_y(i  ,j+1,k  ,1) = 0.0;
+
+          aux_fcent_z(i  ,j  ,k  ,0) = 0.0;
+          aux_fcent_z(i  ,j  ,k  ,1) = 0.0;
+          aux_fcent_z(i  ,j  ,k+1,0) = 0.0;
+          aux_fcent_z(i  ,j  ,k+1,1) = 0.0;
+
+          aux_barea(i,j,k) = 0.0;
+
+          aux_bcent(i,j,k,0) = 0.0;
+          aux_bcent(i,j,k,1) = 0.0;
+          aux_bcent(i,j,k,2) = 0.0;
+
+          aux_bnorm(i,j,k,0) = 0.0;
+          aux_bnorm(i,j,k,1) = 0.0;
+          aux_bnorm(i,j,k,2) = 0.0;
+
+          aux_flag(i,j,k).setCovered();
+        }
+
+        if (aux_vcent(i,j,k,0) < small_value) aux_vcent(i,j,k,0) = 0.0;
+        if (aux_vcent(i,j,k,1) < small_value) aux_vcent(i,j,k,1) = 0.0;
+        if (aux_vcent(i,j,k,2) < small_value) aux_vcent(i,j,k,2) = 0.0;
+        if (aux_bcent(i,j,k,0) < small_value) aux_bcent(i,j,k,0) = 0.0;
+        if (aux_bcent(i,j,k,1) < small_value) aux_bcent(i,j,k,1) = 0.0;
+        if (aux_bcent(i,j,k,2) < small_value) aux_bcent(i,j,k,2) = 0.0;
       });
 
     } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued )

@@ -30,16 +30,16 @@ ERF::FillCoarsePatch (int lev, Real time)
     //
     bool cons_only = false;
     if (lev == 1) {
-        FillPatch(lev-1, time, {&vars_new[lev-1][Vars::cons], &vars_new[lev-1][Vars::xvel],
-                                &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
-                                cons_only);
+        FillPatchCrseLevel(lev-1, time, {&vars_new[lev-1][Vars::cons], &vars_new[lev-1][Vars::xvel],
+                           &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
+                           cons_only);
     } else {
-        FillPatch(lev-1, time, {&vars_new[lev-1][Vars::cons], &vars_new[lev-1][Vars::xvel],
-                                &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
-                               {&vars_new[lev-1][Vars::cons],
-                                &rU_new[lev-1], &rV_new[lev-1], &rW_new[lev-1]},
-                                base_state[lev-1], base_state[lev-1],
-                                false, cons_only);
+        FillPatchFineLevel(lev-1, time, {&vars_new[lev-1][Vars::cons], &vars_new[lev-1][Vars::xvel],
+                           &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
+                          {&vars_new[lev-1][Vars::cons],
+                           &rU_new[lev-1], &rV_new[lev-1], &rW_new[lev-1]},
+                           base_state[lev-1], base_state[lev-1],
+                           false, cons_only);
     }
 
     //
@@ -67,7 +67,7 @@ ERF::FillCoarsePatch (int lev, Real time)
     //
     //************************************************************************************************
     // Interpolate cell-centered data from coarse to fine level
-    // with InterpFromCoarseLevel which ASSUMES that all ghost cells have already been filled
+    // with InterpFromCoarseLevel which ASSUMES that all ghost cells at lev-1 have already been filled
     // ************************************************************************************************
     IntVect ngvect_cons = vars_new[lev][Vars::cons].nGrowVect();
     int      ncomp_cons = vars_new[lev][Vars::cons].nComp();
@@ -86,7 +86,7 @@ ERF::FillCoarsePatch (int lev, Real time)
     //
     //************************************************************************************************
     // Interpolate x-momentum from coarse to fine level
-    // with InterpFromCoarseLevel which ASSUMES that all ghost cells have already been filled
+    // with InterpFromCoarseLevel which ASSUMES that all ghost cells at lev-1 have already been filled
     // ************************************************************************************************
     //
     InterpFromCoarseLevel(rU_new[lev], IntVect{0}, IntVect{0}, rU_new[lev-1], 0, 0, 1,
@@ -96,7 +96,7 @@ ERF::FillCoarsePatch (int lev, Real time)
     //
     //************************************************************************************************
     // Interpolate y-momentum from coarse to fine level
-    // with InterpFromCoarseLevel which ASSUMES that all ghost cells have already been filled
+    // with InterpFromCoarseLevel which ASSUMES that all ghost cells at lev-1 have already been filled
     // ************************************************************************************************
     //
     InterpFromCoarseLevel(rV_new[lev], IntVect{0}, IntVect{0}, rV_new[lev-1], 0, 0, 1,
@@ -105,7 +105,7 @@ ERF::FillCoarsePatch (int lev, Real time)
 
     //************************************************************************************************
     // Interpolate z-momentum from coarse to fine level
-    // with InterpFromCoarseLevel which ASSUMES that all ghost cells have already been filled
+    // with InterpFromCoarseLevel which ASSUMES that all ghost cells at lev-1 have already been filled
     // ************************************************************************************************
     InterpFromCoarseLevel(rW_new[lev],  IntVect{0}, IntVect{0}, rW_new[lev-1], 0, 0, 1,
                           geom[lev-1], geom[lev],

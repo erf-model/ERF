@@ -19,8 +19,7 @@ using namespace amrex;
 Radiation::Radiation (const int& lev,
                       SolverChoice& sc)
 {
-    // Initialize kokkos
-    if (!Kokkos::is_initialized()) { Kokkos::initialize(); }
+    // Note that Kokkos is now initialized in main.cpp
 
     // Check if we have a valid moisture model
     if (sc.moisture_type != MoistureType::None) { m_moist = true; }
@@ -164,19 +163,7 @@ Radiation::set_grids (int& level,
     if (m_rad_freq_in_steps > 0) { m_update_rad = ( (m_step == 0) || (m_step % m_rad_freq_in_steps == 0) ); }
 
     if (m_update_rad) {
-        // Reset vector of offsets for columnar data
-        m_nlay = geom.Domain().length(2);
-
-        m_ncol = 0;
-        m_col_offsets.clear();
-        m_col_offsets.resize(int(ba.size()));
-        for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
-            const auto& vbx = mfi.validbox();
-            int nx = vbx.length(0);
-            int ny = vbx.length(1);
-            m_col_offsets[mfi.index()] = m_ncol;
-            m_ncol += nx * ny;
-        }
+        // Call to Init() has set the dimensions: ncol & nlay
 
         // Allocate the buffer arrays
         alloc_buffers();
@@ -491,6 +478,11 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
             Real r_lo  = cons_arr(i,j,k-1,Rho_comp);
             Real rt_lo = cons_arr(i,j,k-1,RhoTheta_comp);
             Real qv_lo = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : 0.0;
+
+            // make sure qv is >= 0 for H2O VMR
+            qv_lo = std::max(0.0, qv_lo);
+            qv = std::max(0.0, qv);
+
             Real r_avg  = 0.5 * (r  + r_lo);
             Real rt_avg = 0.5 * (rt + rt_lo);
             Real qv_avg = 0.5 * (qv + qv_lo);
@@ -523,6 +515,7 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
                 Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
                 Real qv_hi = (moist) ? cons_arr(i,j,k+1,RhoQ1_comp)/r_hi : 0.0;
+                qv_hi = std::max(0.0, qv_hi);
                 r_avg  = 0.5 * (r  + r_hi);
                 rt_avg = 0.5 * (rt + rt_hi);
                 qv_avg = 0.5 * (qv + qv_hi);

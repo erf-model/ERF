@@ -45,20 +45,45 @@
 class Radiation : public IRadiation {
 public:
 
-    #include <ERF_Kokkos_Radiation.H>
+    #include <ERF_Kokkos.H>
 
     // Constructor
     Radiation (const int& lev,
                SolverChoice& sc);
 
     // Destructor
-    ~Radiation () = default;
+    ~Radiation ()
+    {
+        // Note that Kokkos is now finalized in main.cpp
+    }
 
     virtual
     void
     Init (const amrex::Geometry& geom,
           const amrex::BoxArray& ba,
-          amrex::MultiFab* cons_in) override {};
+          amrex::MultiFab* cons_in) override
+    {
+        // Ensure the boxes span klo -> khi
+        int klo = geom.Domain().smallEnd(2);
+        int khi = geom.Domain().bigEnd(2);
+
+        // Reset vector of offsets for columnar data
+        m_nlay = geom.Domain().length(2);
+
+        m_ncol = 0;
+        m_col_offsets.clear();
+        m_col_offsets.resize(int(ba.size()));
+        for (amrex::MFIter mfi(*cons_in); mfi.isValid(); ++mfi) {
+            const amrex::Box& vbx = mfi.validbox();
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
+                                             (khi == vbx.bigEnd(2)),
+                                             "Vertical decomposition with radiation is not allowed.");
+            int nx = vbx.length(0);
+            int ny = vbx.length(1);
+            m_col_offsets[mfi.index()] = m_ncol;
+            m_ncol += nx * ny;
+        }
+    };
 
     virtual
     void
@@ -341,7 +366,7 @@ private:
     real1d_k  m_gas_mol_weights;
     std::vector<std::string> gas_names_offset;
 
-    GasConcsK<amrex::Real, layout_t, RadDefaultDevice> m_gas_concs;
+    GasConcsK<amrex::Real, layout_t, KokkosDefaultDevice> m_gas_concs;
 
     // Process interface vars modeled after EAMXX
     //===================================================================================

@@ -248,6 +248,7 @@ find_bound_idx(const Real& x, const Real& y, const Real& z,
 void
 ERF::CreateForecastStateMultiFabs(Vector<Vector<MultiFab>>& forecast_state)
 {
+
     ParmParse pp_erf("erf");
     bool is_lateral_sponges_hurricanes = false;
     if (pp_erf.query("is_lateral_sponges_hurricanes", is_lateral_sponges_hurricanes)) {
@@ -339,7 +340,7 @@ ERF::InterpWeatherDataOntoMesh (const Geometry& geom_weather,
 
         const Array4<Real> &crse_arr = tmp_coarse_data.array(mfi);
 
-        const Box& gbx = mfi.growntilebox(); // validbox + ghost cells
+        const Box& gbx = mfi.growntilebox(); // tilebox + ghost cells
 
         const Box &gtbx = mfi.tilebox(IntVect(1,0,0));
         const Box &gtby = mfi.tilebox(IntVect(0,1,0));
@@ -496,9 +497,6 @@ ERF::FillWeatherDataMultiFab(const std::string& filename,
     //PlotMultiFab(weather_mf, geom_weather, "plt_coarse_weather", MultiFabType::NC);
 }
 
-
-
-
 void
 ERF::WeatherDataInterpolation(const Real time)
 {
@@ -519,6 +517,15 @@ ERF::WeatherDataInterpolation(const Real time)
         }
 
         std::vector<std::string> bin_files;
+        for (const auto& entry : fs::directory_iterator(folder)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".bin") {
+                bin_files.push_back(entry.path().string());
+            }
+        }
+
+        // 2. Sort lexicographically
+        std::sort(bin_files.begin(), bin_files.end());
+
 
         for (const auto& entry : fs::directory_iterator(folder)) {
             if (!entry.is_regular_file()) continue;

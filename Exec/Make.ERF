@@ -1,4 +1,8 @@
-AMREX_HOME      ?= $(ERF_HOME)/Submodules/AMReX
+AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
+EKAT_HOME  ?= $(ERF_HOME)/Submodules/ekat/build/install
+SHOC_HOME  ?= $(ERF_HOME)/external/E3SM/components/eamxx/src/physics/shoc
+P3_HOME    ?= $(ERF_HOME)/external/E3SM/components/eamxx/src/physics/p3
+      
 ifeq ($(USE_MORR_FORT), TRUE)
 DEFINES += -DERF_USE_MORR_FORT
 BL_NO_FORT = FALSE
@@ -56,6 +60,16 @@ ERF_UTIL_DIR = $(ERF_SOURCE_DIR)/Utils
 include $(ERF_UTIL_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_UTIL_DIR)
 INCLUDE_LOCATIONS += $(ERF_UTIL_DIR)
+
+ERF_PHYSICS_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces
+include $(ERF_PHYSICS_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_PHYSICS_DIR)
+INCLUDE_LOCATIONS += $(ERF_PHYSICS_DIR)
+
+ERF_PHYSICS_SHARE_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/physics/share
+include $(ERF_PHYSICS_SHARE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_PHYSICS_SHARE_DIR)
+INCLUDE_LOCATIONS += $(ERF_PHYSICS_SHARE_DIR)
 
 ifeq ($(USE_PARTICLES),TRUE)
 ERF_PARTICLES_DIR = $(ERF_SOURCE_DIR)/Particles
@@ -203,26 +217,22 @@ ifeq ($(USE_NOAH), TRUE)
   endif
 endif
 
-
-ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
+ERF_RAD_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Radiation
 include $(ERF_RAD_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_RAD_DIR)
 INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
 
 # If using RRTMGP Radiation, compile relevant source and headers
 ifeq ($(USE_RRTMGP), TRUE)
+
+  USE_KOKKOS = TRUE
+  USE_NETCDF = TRUE
+
   ifneq ($(USE_NETCDF), TRUE)
     $(error USE_NETCDF must be true for using RRTMGP interface)
-  else ifneq ($(USE_KOKKOS), TRUE)
-    $(error USE_KOKKOS must be true for using RRTMGP interface)
   else
     DEFINES += -DERF_USE_RRTMGP
     DEFINES += -DRRTMGP_ENABLE_KOKKOS
-
-    ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
-    include $(ERF_RAD_DIR)/Make.package
-    VPATH_LOCATIONS   += $(ERF_RAD_DIR)
-    INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
     
     RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/
@@ -248,25 +258,70 @@ endif
 
 # If using SHOC, compile relevant source and headers
 ifeq ($(USE_SHOC), TRUE)
-  ifneq ($(USE_KOKKOS), TRUE)
-    $(error USE_KOKKOS must be true for using SHOC interface)
-  else
+
+    USE_KOKKOS = TRUE
+
     DEFINES += -DERF_USE_SHOC
     DEFINES += -DSHOC_ENABLE_KOKKOS
+    DEFINES += -DEKAT_ENABLE_MPI
+    
+    # Location of EKAT include and library
+    DEFINES   += -DERF_USE_KOKKOS
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include/ekat
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/kokkos
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/pack
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/algorithm
+    LIBRARY_LOCATIONS += $(EKAT_HOME)/lib
+    LIBRARIES += -lekat_core -lspdlog
 
-    ERF_SHOC_DIR = $(ERF_SOURCE_DIR)/physics/shoc
+    # This directory holds the ERF-SHOC interface routines
+    ERF_SHOC_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Shoc
     include $(ERF_SHOC_DIR)/Make.package
     VPATH_LOCATIONS   += $(ERF_SHOC_DIR)
     INCLUDE_LOCATIONS += $(ERF_SHOC_DIR)
     
-    SHOC_HOME         ?= $(ERF_HOME)/external/E3SM/components/eamxx/src/physics/shoc/
-    VPATH_LOCATIONS   += $(SHOC_HOME)/disp/
+    # This directory holds the SHOC source itself
+    VPATH_LOCATIONS   += $(SHOC_HOME)/disp
     VPATH_LOCATIONS   += $(SHOC_HOME)/eti
     VPATH_LOCATIONS   += $(SHOC_HOME)/impl
     INCLUDE_LOCATIONS += $(SHOC_HOME)/disp
     INCLUDE_LOCATIONS += $(SHOC_HOME)/eti
     INCLUDE_LOCATIONS += $(SHOC_HOME)/impl
-  endif
+endif
+    
+# If using P3, compile relevant source and headers
+ifeq ($(USE_P3), TRUE)
+
+    USE_KOKKOS = TRUE
+
+    DEFINES += -DERF_USE_P3
+    DEFINES += -DP3_ENABLE_KOKKOS
+    DEFINES += -DEKAT_ENABLE_MPI
+    
+    # Location of EKAT include and library
+    DEFINES   += -DERF_USE_KOKKOS
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include/ekat
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/kokkos
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/pack
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/algorithm
+    LIBRARY_LOCATIONS += $(EKAT_HOME)/lib
+    LIBRARIES += -lekat_core -lspdlog
+    
+    # This directory holds the ERF-P3 interface routines
+    ERF_P3_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/P3
+    include $(ERF_P3_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_P3_DIR)
+    INCLUDE_LOCATIONS += $(ERF_P3_DIR)
+    
+    # This directory holds the P3 source itself
+    VPATH_LOCATIONS   += $(P3_HOME)/disp
+    VPATH_LOCATIONS   += $(P3_HOME)/eti
+    VPATH_LOCATIONS   += $(P3_HOME)/impl
+    INCLUDE_LOCATIONS += $(P3_HOME)/disp
+    INCLUDE_LOCATIONS += $(P3_HOME)/eti
+    INCLUDE_LOCATIONS += $(P3_HOME)/impl
 endif
     
     
@@ -306,15 +361,15 @@ ifeq ($(USE_MULTIBLOCK), TRUE)
   DEFINES += -DERF_USE_MULTIBLOCK
 endif
 
+# NOTE: EKAT provides KOKKOS
 ifeq ($(USE_KOKKOS), TRUE)
-  KOKKOS_HOME ?= $(ERF_HOME)/Submodules/kokkos
-  DEFINES += -DERF_USE_KOKKOS
-  INCLUDE_LOCATIONS += $(KOKKOS_HOME)/include
-  LIBRARY_LOCATIONS += $(KOKKOS_HOME)/lib
+  DEFINES   += -DERF_USE_KOKKOS
+  INCLUDE_LOCATIONS += $(EKAT_HOME)/include/kokkos
+  LIBRARY_LOCATIONS += $(EKAT_HOME)/lib
   LIBRARIES += -lkokkoscore
 endif
 
-#turn on NetCDF macro define
+# Turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
   has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)
