@@ -27,7 +27,7 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
 
         zlevels_stag[lev].resize(nz);
 
-        stretched_dz_h[lev].resize(domain.length(2));
+        stretched_dz_h[lev].resize(nz);
 
         if (grid_stretching_ratio == 0) {
             // This is the default for z_levels
@@ -35,7 +35,7 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
             {
                 zlevels_stag[lev][k] = k * dx[2];
             }
-            for (int k = 0; k < nz-1; k++)
+            for (int k = 0; k < nz; k++)
             {
                 stretched_dz_h[lev][k] = dx[2];
             }
