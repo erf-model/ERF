@@ -63,6 +63,17 @@ void SuperDropletPC::readInputs ()
     m_mass_change_logging = false;
     m_mass_change_log_fname = "unconverged_superdroplets.log";
 
+    /* recycled particle position bounds */
+    const Geometry& geom = m_gdb->Geom(m_lev);
+    const auto plo = geom.ProbLoArray();
+    const auto phi = geom.ProbHiArray();
+    m_recyc_xmin = plo[0];
+    m_recyc_xmax = phi[0];
+    m_recyc_ymin = plo[1];
+    m_recyc_ymax = phi[1];
+    m_recyc_zmin = plo[2];
+    m_recyc_zmax = phi[2];
+
     std::string coal_kernel_name = "";
     std::string term_vel_name = "";
 
@@ -91,7 +102,14 @@ void SuperDropletPC::readInputs ()
     pp.query("include_brownian_coalescence", m_include_brownian_coalescence);
     pp.query("sigma0", m_sigma0);
     pp.query("place_randomly_in_cells", m_place_randomly_in_cells);
+
     pp.query("recycle_threshold", m_recycle_threshold);
+    pp.query("recycle_xmin", m_recyc_xmin);
+    pp.query("recycle_xmax", m_recyc_xmax);
+    pp.query("recycle_ymin", m_recyc_ymin);
+    pp.query("recycle_ymax", m_recyc_ymax);
+    pp.query("recycle_zmin", m_recyc_zmin);
+    pp.query("recycle_zmax", m_recyc_zmax);
 
     std::string ti_name = "backward_euler";
     pp.query("mass_change_cfl", m_mass_change_cfl);
@@ -225,6 +243,9 @@ void SuperDropletPC::InitializeParticles (const Real a_t, const MFPtr& a_ptr)
             << "    Density scaling: " << (m_density_scaling ? "true" : "false") << "\n"
             << "    Nucleate particles: " << (m_nucleate_particles ? "true" : "false") << "\n"
             << "    Recycling threshold: " << m_recycle_threshold << "\n"
+            << "    Recycling bounding box: " <<    "[" << m_recyc_xmin << ", " << m_recyc_xmax << "] "
+                                              << " x [" << m_recyc_ymin << ", " << m_recyc_ymax << "] "
+                                              << " x [" << m_recyc_zmin << ", " << m_recyc_zmax << "]\n"
             << "    Advect with flow: " << (m_advect_w_flow ? "true" : "false") << "\n"
             << "    Advect with gravity: " << (m_advect_w_gravity ? "true" : "false") << "\n"
             << "    Prescribed advection: " << (m_prescribed_advection ? "true" : "false") << "\n"

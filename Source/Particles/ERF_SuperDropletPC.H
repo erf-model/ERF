@@ -294,6 +294,14 @@ class SuperDropletPC : public ERFPC
         /*! recycling threshold */
         amrex::Real m_recycle_threshold;
 
+        /* recycled particle position bounds */
+        amrex::Real m_recyc_xmin;
+        amrex::Real m_recyc_xmax;
+        amrex::Real m_recyc_ymin;
+        amrex::Real m_recyc_ymax;
+        amrex::Real m_recyc_zmin;
+        amrex::Real m_recyc_zmax;
+
         /*! \brief read inputs from file */
         virtual void readInputs () override;
 

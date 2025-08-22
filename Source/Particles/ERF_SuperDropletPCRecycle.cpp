@@ -9,7 +9,7 @@ using namespace amrex;
  *  recycled by resetting them to dry aerosol particles and placing them randomly
  *  in the domain. */
 void SuperDropletPC::Recycle ( const int             a_lev,
-                               const Vector<MFPtr>&  a_z_phys_nd )
+                               const Vector<MFPtr>&  /*a_z_phys_nd*/ )
 {
     BL_PROFILE("SuperDropletPC::Recycle()");
 
@@ -32,16 +32,6 @@ void SuperDropletPC::Recycle ( const int             a_lev,
     // function is called.
     const auto init_r = *(m_initializations[init_idx]);
     const auto sampled_multiplicity = init_r.sampledMultiplicity();
-
-    const MFPtr& z_height = a_z_phys_nd[a_lev];
-    const Geometry& geom = m_gdb->Geom(a_lev);
-    const auto plo = geom.ProbLoArray();
-    const auto phi = geom.ProbHiArray();
-    const auto dxi = geom.InvCellSizeArray();
-    const auto domain = geom.Domain();
-
-    const int k_lo = domain.smallEnd(2);
-    const int k_hi = domain.bigEnd(2);
 
     const auto dx_h = Geom(m_lev).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
@@ -78,8 +68,6 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         v_ptr[1] = soa.GetRealData(SuperDropletsRealIdxSoA::vy).data();
         v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
         auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
-
-        auto zheight = (*z_height)[grid].array();
 
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
@@ -188,26 +176,20 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         Gpu::Buffer<Long> np_recycle_buf({0});
         auto* np_recycle_ptr = np_recycle_buf.data();
 
+        const auto x_min = m_recyc_xmin;
+        const auto x_max = m_recyc_xmax;
+        const auto y_min = m_recyc_ymin;
+        const auto y_max = m_recyc_ymax;
+        const auto z_min = m_recyc_zmin;
+        const auto z_max = m_recyc_zmax;
+
         ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine) noexcept
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
             if (mult_ptr[i] > 0) { return; }
 
-            auto x_min = plo[0];
-            auto x_max = phi[0];
-            auto y_min = plo[1];
-            auto y_max = phi[1];
-            auto z_min = plo[2];
-            auto z_max = phi[2];
-            {
-                // probably not the right thing to do
-                auto iv = getParticleCell(p, plo, dxi, domain);
-                z_min = zheight(iv[0],iv[1],k_lo);
-                z_max = zheight(iv[0],iv[1],k_hi+1);
-            }
-
-            // Place particle randomly in domain
+            // Place particle randomly in domain within specified bounds
             p.pos(0) = x_min + Random(rnd_engine)*(x_max - x_min);
             p.pos(1) = y_min + Random(rnd_engine)*(y_max - y_min);
             p.pos(2) = z_min + Random(rnd_engine)*(z_max - z_min);
