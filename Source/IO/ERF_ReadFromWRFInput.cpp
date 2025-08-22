@@ -133,7 +133,11 @@ read_from_wrfinput (int lev,
     else if (NC_name == "TSLB" || NC_name == "SMOIS" || NC_name == "SH2O")
     {
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_SL_SN_WE);
-    } else {
+    }
+    else if (NC_name == "ZS" || NC_name == "DZS") {
+        NC_dim_types.push_back(NC_Data_Dims_Type::Time_SL);
+    }
+    else {
         amrex::Print() << " ERROR: no NC dim type for NC_name = '" << NC_name << "'" << std::endl;
     }
 

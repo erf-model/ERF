@@ -31,6 +31,7 @@ enum class NC_Data_Dims_Type {
     Time_BT_SN_WE,
     Time_SN_WE,
     Time_BT,
+    Time_SL,             // Time, Soil layers
     Time,
     Time_BdyWidth_BT_SN,
     Time_BdyWidth_BT_WE,
@@ -289,6 +290,11 @@ fill_fab_from_arrays (int iv,
         ns2 = nc_arrays[iv].get_vshape()[2];
         ns3 = nc_arrays[iv].get_vshape()[3];
         // amrex::Print() << "TYPE SL SN WE " << ns1 << " " << ns2 << " " << ns3 << std::endl;
+    } else if (NC_dim_type == NC_Data_Dims_Type::Time_SL) {
+        ns1 = nc_arrays[iv].get_vshape()[1];
+        ns2 = 1;
+        ns3 = 1;
+        // amrex::Print() << "TYPE SL " << ns1 << std::endl;
     }
     else {
         amrex::Abort("Dont know this NC_Data_Dims_Type");
@@ -309,7 +315,7 @@ fill_fab_from_arrays (int iv,
     else if (var_name == "W" || var_name == "WW") {
         my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
     }
-    else if (var_name == "TSLB" || var_name == "SMOIS" || var_name == "SH2O") {
+    else if (var_name == "TSLB" || var_name == "SMOIS" || var_name == "SH2O" || var_name == "ZS" || var_name == "DZS") {
         // soil variables are staggered in z
         my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
     }

@@ -112,6 +112,8 @@ ERF::init_from_wrfinput (int lev,
         NC_names.push_back("SMOIS");  // 28
         NC_names.push_back("SH2O");   // 29
         NC_names.push_back("LAI");    // 30
+        NC_names.push_back("ZS");     // 31
+        NC_names.push_back("DZS");    // 32
 
         // --- debugging ---
         // print LSM varname->WRF input name map
@@ -537,7 +539,14 @@ ERF::init_from_wrfinput (int lev,
 
                       int lsm_nsoil = lsm.Get_Lsm_Geom(lev).Domain().length(2);
                       amrex::Print() << " LSM NZ = " << lsm_nsoil << " WRFINPUT NZ = " << var_fab.box().length(2) << std::endl;
-                      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_nsoil == var_fab.box().length(2), "Number of soil layers must match!");
+                      if (is_3d) {
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_nsoil == var_fab.box().length(2), "Number of soil layers must match!");
+                      }
+
+                      // check for special case of single column data (such as soil thickness ZS, DZS)
+                      //  the single column is duplicated across all grid points
+                      bool is_column = var_fab.box().length(0) == 1 && var_fab.box().length(1) == 1;
+
                       for ( MFIter mfi(*lsm_data[lev][lsm_idx], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                           Box gtbx = mfi.tilebox();
                           int lsm_khi = gtbx.bigEnd(2);
@@ -548,10 +557,14 @@ ERF::init_from_wrfinput (int lev,
                           {
                               int li = amrex::min(amrex::max(i, i_lo), i_hi);
                               int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                              if (is_column) {
+                                // single column src input is copied to all i,j in dst
+                                li = 0;
+                                lj = 0;
+                              }
                               // Note: LSM z levels are at negative k below surface
                               //  map [0, nsoil-1] to [-1, -nsoil]
                               const int lsm_k = lsm_khi - k;
-                              //amrex::Print() << " i = " << li << " j = " << lj << " k = " << k << " -> lsm k = " << lsm_k << ":  src_arr = " << src_arr(li, lj, k) << " dst_arr = " << dst_arr(i, j, lsm_k) << std::endl;
                               dst_arr(i,j,lsm_k) = src_arr(li,lj,k);
                           });
                       }
