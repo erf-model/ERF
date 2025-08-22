@@ -47,6 +47,7 @@ void SuperDropletPC::readInputs ()
 #endif
     m_sigma0 = 0.62;
     m_place_randomly_in_cells = true;
+    m_recycle_threshold = 0.01;
 
     /* Newton solver parameters */
     m_newton_rtol = 1.0e-6;
@@ -90,6 +91,7 @@ void SuperDropletPC::readInputs ()
     pp.query("include_brownian_coalescence", m_include_brownian_coalescence);
     pp.query("sigma0", m_sigma0);
     pp.query("place_randomly_in_cells", m_place_randomly_in_cells);
+    pp.query("recycle_threshold", m_recycle_threshold);
 
     std::string ti_name = "backward_euler";
     pp.query("mass_change_cfl", m_mass_change_cfl);
@@ -222,6 +224,7 @@ void SuperDropletPC::InitializeParticles (const Real a_t, const MFPtr& a_ptr)
     Print() << "SuperDropletPC(" << m_name << "):\n"
             << "    Density scaling: " << (m_density_scaling ? "true" : "false") << "\n"
             << "    Nucleate particles: " << (m_nucleate_particles ? "true" : "false") << "\n"
+            << "    Recycling threshold: " << m_recycle_threshold << "\n"
             << "    Advect with flow: " << (m_advect_w_flow ? "true" : "false") << "\n"
             << "    Advect with gravity: " << (m_advect_w_gravity ? "true" : "false") << "\n"
             << "    Prescribed advection: " << (m_prescribed_advection ? "true" : "false") << "\n"

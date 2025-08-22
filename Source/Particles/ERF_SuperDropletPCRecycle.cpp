@@ -13,8 +13,14 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 {
     BL_PROFILE("SuperDropletPC::Recycle()");
 
+    const auto num_sd_deactivated = NumSDDeactivated();
+    const auto num_sd = NumSuperDroplets();
+    const auto deac_frac = static_cast<Real>(num_sd_deactivated) / static_cast<Real>(num_sd);
+
+    if (deac_frac < m_recycle_threshold) { return; }
+
     const int init_idx = Random_int(m_num_initializations);
-    const Long num_sd_deactivated = NumSDDeactivated();
+
     Print() << "SuperDropletPC(" << m_name << "): "
             << "recycling " << num_sd_deactivated << " super-droplets "
             << "based on initialization #" << init_idx << ".\n";

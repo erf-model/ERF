@@ -291,6 +291,9 @@ class SuperDropletPC : public ERFPC
         /*! species index of water */
         int m_idx_w;
 
+        /*! recycling threshold */
+        amrex::Real m_recycle_threshold;
+
         /*! \brief read inputs from file */
         virtual void readInputs () override;
 
