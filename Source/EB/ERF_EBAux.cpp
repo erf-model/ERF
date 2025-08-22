@@ -922,6 +922,28 @@ define( int const& a_level,
         if (aux_bcent(i,j,k,2) < small_value) aux_bcent(i,j,k,2) = 0.0;
       });
 
+      // Area fraction MultiFab has one more slice at bigEnd(idim),
+      // and this slice is not filled by fillBoundary(), for higher levels.
+      // (Lower level might be filled by fillBoundary().)
+      // Fill the ghost region for the last slice at bigEnd(idim) 
+      // by the value of the nearst point. And let fillBoundary() overwrite it.
+
+      Box upper_slab = makeSlab(bx_grown, a_idim, bx.bigEnd(a_idim)+1);
+      Box bx_grown_1 = bx; bx_grown_1.grow(a_idim,1);
+      BoxList slab_diffList = boxDiff(upper_slab, bx_grown_1);
+
+      for (const Box& b : slab_diffList) {
+        ParallelFor(b, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          IntVect iv(AMREX_D_DECL(i,j,k));
+          IntVect iv_nearest = iv;
+          for (int d=0; d<AMREX_SPACEDIM; ++d) {
+              iv_nearest[d] = Clamp(iv[d], bx_grown_1.smallEnd(d), bx_grown_1.bigEnd(d));
+          }
+          aux_afrac_x(iv) = aux_afrac_x(iv_nearest);
+        });
+      }
+
     } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued )
 
   } // MFIter
