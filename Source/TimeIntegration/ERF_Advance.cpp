@@ -128,8 +128,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 
 #endif
 
-    if(solverChoice.init_type == InitType::Meteorological and
-       solverChoice.enable_met_forcing){
+    if(solverChoice.init_type == InitType::HindCast and
+       solverChoice.hindcast_lateral_forcing){
        WeatherDataInterpolation(time);
     }
 

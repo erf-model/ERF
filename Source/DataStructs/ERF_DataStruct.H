@@ -31,7 +31,7 @@ enum TauType {
 };
 
 AMREX_ENUM(InitType,
-    None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform, Meteorological
+    None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform, HindCast
 );
 
 AMREX_ENUM(SoundingType,
@@ -258,8 +258,8 @@ struct SolverChoice {
             amrex::Warning("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
             init_type = InitType::WRFInput;
             use_real_bcs = false;
-        } else if (init_type_temp_string == "Meteorological") {
-            init_type = InitType::Meteorological;
+        } else if (init_type_temp_string == "hindcast") {
+            init_type = InitType::HindCast;
             use_real_bcs = false;
         }
         else {
@@ -549,7 +549,7 @@ struct SolverChoice {
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
 
-        pp.query("enable_met_forcing", enable_met_forcing);
+        pp.query("hindcast_lateral_forcing", hindcast_lateral_forcing);
 
         check_params(max_level);
     }
@@ -908,7 +908,7 @@ struct SolverChoice {
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
 
-    bool enable_met_forcing = false;
+    bool hindcast_lateral_forcing = false;
 
 };
 #endif

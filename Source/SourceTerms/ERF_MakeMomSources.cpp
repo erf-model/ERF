@@ -313,7 +313,7 @@ void make_mom_sources (Real time,
         // 1. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis && is_slow_step) {
-            if(solverChoice.init_type == InitType::Meteorological) {
+            if(solverChoice.init_type == InitType::HindCast) {
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
@@ -617,7 +617,7 @@ void make_mom_sources (Real time,
                                         r0, z_nd_arr, z_cc_arr);
             }
 
-            if(solverChoice.init_type == InitType::Meteorological and solverChoice.enable_met_forcing){
+            if(solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_lateral_forcing){
 
                 const Array4<const Real>& rho_u_forecast_state  = forecast_state_at_lev[IntVars::xmom].array(mfi);
                 const Array4<const Real>& rho_v_forecast_state  = forecast_state_at_lev[IntVars::ymom].array(mfi);

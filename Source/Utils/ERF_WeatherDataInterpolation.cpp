@@ -331,7 +331,7 @@ ERF::InterpWeatherDataOntoMesh (const Geometry& geom_weather,
         const Array4<Real> &fine_cons_arr = erf_mf_cons.array(mfi);
         const Array4<Real> &fine_xvel_arr = erf_mf_xvel.array(mfi);
         const Array4<Real> &fine_yvel_arr = erf_mf_yvel.array(mfi);
-        const Array4<Real> &fine_zvel_arr = erf_mf_zvel.array(mfi);
+        //const Array4<Real> &fine_zvel_arr = erf_mf_zvel.array(mfi);
         const Array4<Real> &fine_latlon_arr = erf_mf_latlon.array(mfi);
 
         const Array4<Real> &crse_arr = tmp_coarse_data.array(mfi);
@@ -340,7 +340,7 @@ ERF::InterpWeatherDataOntoMesh (const Geometry& geom_weather,
 
         const Box &gtbx = mfi.tilebox(IntVect(1,0,0));
         const Box &gtby = mfi.tilebox(IntVect(0,1,0));
-        const Box &gtbz = mfi.tilebox(IntVect(0,0,1));
+        //const Box &gtbz = mfi.tilebox(IntVect(0,0,1));
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
@@ -580,7 +580,7 @@ ERF::WeatherDataInterpolation(const Real time)
     MultiFab& erf_mf_cons   = forecast_state_interp[0][Vars::cons];
     MultiFab& erf_mf_xvel   = forecast_state_interp[0][Vars::xvel];
     MultiFab& erf_mf_yvel   = forecast_state_interp[0][Vars::yvel];
-    MultiFab& erf_mf_zvel   = forecast_state_interp[0][Vars::zvel];
+    //MultiFab& erf_mf_zvel   = forecast_state_interp[0][Vars::zvel];
     MultiFab& erf_mf_latlon = forecast_state_interp[0][4];
 
     MultiFab::LinComb(forecast_state_interp[0][Vars::cons],
