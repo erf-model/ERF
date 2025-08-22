@@ -228,7 +228,7 @@ SLM::Init (const int& /*lev*/,
 	// if false, SLM is coupled to ERF atmosphere, therefore, zref is computed  
 	pp.query("SLM_use_inputs",set_from_file);
 
-    if (!set_from_file) {
+    if (!set_from_file && !use_wrfinput) {
         ParmParse pp_erf("erf");
         pp_erf.query("use_terrain", use_terrain);
 
@@ -589,21 +589,24 @@ void SLM::slm_init()
         auto mw_mx_arr = mw_mx.array(mfi);
         auto LAI_arr = LAI.array(mfi);
         auto Khai_L_arr = Khai_L.array(mfi);
+        auto landmask_arr = landmask.const_array(mfi);
 
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-            if (vegetype_arr(i, j, 0) == 0) {
-                vege_YES_arr(i, j, 0) = 0.0;
-            } else {
-                // set minimum LAI for vegetated land
-                LAI_arr(i, j, 0) = std::max(LAI_arr(i, j, 0), 0.001);
-            }
+            if (landmask_arr(i, j, 0) == 1) {
+                if (vegetype_arr(i, j, 0) == 0) {
+                    vege_YES_arr(i, j, 0) = 0.0;
+                } else {
+                    // set minimum LAI for vegetated land
+                    LAI_arr(i, j, 0) = std::max(LAI_arr(i, j, 0), 0.001);
+                }
 
-            IR_emis_vege_arr(i, j, 0) = 0.97 * (1.0 - std::exp(-1.0 * LAI_arr(i, j, 0)));
-            phi_1_arr(i, j, 0) = 0.5 - 0.633 * Khai_L_arr(i, j, 0) - 0.33 * (std::pow(Khai_L_arr(i, j, 0), 2));
-            phi_2_arr(i, j, 0) = 0.877 * (1.0 - 2.0 * phi_1_arr(i, j, 0));
-            precip_extinc_arr(i, j, 0) = phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0);
-            mw_mx_arr(i, j, 0) = 0.1 * LAI_arr(i, j, 0);
+                IR_emis_vege_arr(i, j, 0) = 0.97 * (1.0 - std::exp(-1.0 * LAI_arr(i, j, 0)));
+                phi_1_arr(i, j, 0) = 0.5 - 0.633 * Khai_L_arr(i, j, 0) - 0.33 * (std::pow(Khai_L_arr(i, j, 0), 2));
+                phi_2_arr(i, j, 0) = 0.877 * (1.0 - 2.0 * phi_1_arr(i, j, 0));
+                precip_extinc_arr(i, j, 0) = phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0);
+                mw_mx_arr(i, j, 0) = 0.1 * LAI_arr(i, j, 0);
+            }
         });
     }
 

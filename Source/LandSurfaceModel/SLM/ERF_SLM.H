@@ -266,11 +266,14 @@ public:
                     const amrex::Array4<const amrex::Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : amrex::Array4<amrex::Real>{};
                     auto ztop_arr = ztop.array(mfi);
                     auto zrefxy_arr = zrefxy.array(mfi);
+                    auto landmask_arr = landmask.const_array(mfi);
 
                     ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
-                        amrex::Real zcc = (z_cc_arr) ? z_cc_arr(i,j,0) : zlo + 0.5*dz;
-                        zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + zcc;
-                        //amrex::Print() << " i = " << i << " j = " << j << ": zrefxy = " << zrefxy_arr(i,j,0) << std::endl;
+                        if (landmask_arr(i,j,0) == 1) {
+                            amrex::Real zcc = (z_cc_arr) ? z_cc_arr(i,j,0) : zlo + 0.5*dz;
+                            zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + zcc;
+                            //amrex::Print() << " i = " << i << " j = " << j << ": zrefxy = " << zrefxy_arr(i,j,0) << std::endl;
+                        }
                     });
                 }
             }
