@@ -386,7 +386,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                                     const TurbChoice& turbChoice,
                                     const Real const_grav,
                                     std::unique_ptr<SurfaceLayer>& SurfLayer,
-                                    const FArrayBox* z_0)
+                                    const MultiFab* z_0)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const bool use_SurfLayer = (SurfLayer != nullptr);
@@ -418,7 +418,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
             Box bxcc = mfi.tilebox();
 
             const Array4<Real const>& d_arr  = wdist.const_array(mfi);
-            const Array4<Real const>& z0_arr = (use_SurfLayer) ? z_0->const_array() : Array4<Real const>{};
+            const Array4<Real const>& z0_arr = (use_SurfLayer) ? z_0->const_array(mfi) : Array4<Real const>{};
 
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& hfx_x   = Hfx1.array(mfi);
@@ -603,7 +603,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
                                 const std::unique_ptr<MultiFab>& z_phys_nd,
                                 const SolverChoice& solverChoice,
                                 std::unique_ptr<SurfaceLayer>& SurfLayer,
-                                const FArrayBox* z_0,
+                                const MultiFab* z_0,
                                 const bool& use_terrain_fitted_coords,
                                 const bool& use_moisture,
                                 int level,
