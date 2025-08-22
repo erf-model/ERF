@@ -76,8 +76,9 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
                 } else if (bc_ptr[0].lo(0) == ERFBCType::neumann_int) {
                     dest_arr(i,j,k) = (4.0*dest_arr(dom_lo.x+1,j,k) - dest_arr(dom_lo.x+2,j,k))/3.0;
                 } else if (bc_ptr[0].lo(0) == ERFBCType::hoextrap) {
-                    Real delta_i = (dom_lo.x - i);
-                    dest_arr(i,j,k) = (1.0 + delta_i)*dest_arr(dom_lo.x,j,k) - delta_i*dest_arr(dom_lo.x+1,j,k);
+                    //Real delta_i = (dom_lo.x - i);
+                    //dest_arr(i,j,k) = (1.0 + delta_i)*dest_arr(dom_lo.x,j,k) - delta_i*dest_arr(dom_lo.x+1,j,k);
+                    dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
                 }
             },
             // We only set the values on the domain faces themselves if EXT_DIR or neumann_int
@@ -111,8 +112,9 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
                 } else if (bc_ptr[0].hi(0) == ERFBCType::neumann_int) {
                     dest_arr(i,j,k) = (4.0*dest_arr(dom_hi.x,j,k) - dest_arr(dom_hi.x-1,j,k))/3.0;
                 } else if (bc_ptr[0].hi(0) == ERFBCType::hoextrap) {
-                    Real delta_i = (i - dom_hi.x - 1);
-                    dest_arr(i,j,k) = (1.0 + delta_i)*dest_arr(dom_hi.x+1,j,k) - delta_i*dest_arr(dom_hi.x,j,k);
+                    //Real delta_i = (i - dom_hi.x - 1);
+                    //dest_arr(i,j,k) = (1.0 + delta_i)*dest_arr(dom_hi.x+1,j,k) - delta_i*dest_arr(dom_hi.x,j,k);
+                    dest_arr(i,j,k) =  dest_arr(dom_hi.x+1,j,k);
                 }
             },
             // We only set the values on the domain faces themselves if EXT_DIR or neumann_int
@@ -151,8 +153,9 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
                 } else if (bc_ptr[0].lo(1) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(i,jflip,k);
                 } else if (bc_ptr[0].lo(1) == ERFBCType::hoextrap) {
-                    Real delta_j = (dom_lo.y - j);
-                    dest_arr(i,j,k) = (1.0 + delta_j)*dest_arr(i,dom_lo.y,k) - delta_j*dest_arr(i,dom_lo.y+1,k);
+                    //Real delta_j = (dom_lo.y - j);
+                    //dest_arr(i,j,k) = (1.0 + delta_j)*dest_arr(i,dom_lo.y,k) - delta_j*dest_arr(i,dom_lo.y+1,k);
+                    dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -170,8 +173,9 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
                 } else if (bc_ptr[0].hi(1) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(i,jflip,k);
                 } else if (bc_ptr[0].hi(1) == ERFBCType::hoextrap) {
-                    Real delta_j = (j - dom_hi.y);
-                    dest_arr(i,j,k) = (1.0 + delta_j)*dest_arr(i,dom_hi.y,k) - delta_j*dest_arr(i,dom_hi.y-1,k);
+                    //Real delta_j = (j - dom_hi.y);
+                    //dest_arr(i,j,k) = (1.0 + delta_j)*dest_arr(i,dom_hi.y,k) - delta_j*dest_arr(i,dom_hi.y-1,k);
+                    dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
                 }
             }
         );
@@ -252,8 +256,9 @@ void ERFPhysBCFunct_u::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                 } else if (bc_ptr[0].lo(2) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(i,j,kflip);
                 } else if (bc_ptr[0].lo(2) == ERFBCType::hoextrap) {
-                    Real delta_k = (dom_lo.z - k);
-                    dest_arr(i,j,k) = (1.0 + delta_k)*dest_arr(i,j,dom_lo.z) - delta_k*dest_arr(i,j,dom_lo.z+1);
+                    //Real delta_k = (dom_lo.z - k);
+                    //dest_arr(i,j,k) = (1.0 + delta_k)*dest_arr(i,j,dom_lo.z) - delta_k*dest_arr(i,j,dom_lo.z+1);
+                    dest_arr(i,j,k) =  dest_arr(i,j,dom_lo.z);
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -269,8 +274,9 @@ void ERFPhysBCFunct_u::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                 } else if (bc_ptr[0].hi(2) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(i,j,kflip);
                 } else if (bc_ptr[0].hi(2) == ERFBCType::hoextrap){
-                    Real delta_k = (k - dom_hi.z);
-                    dest_arr(i,j,k) = (1.0 + delta_k)*dest_arr(i,j,dom_hi.z) - delta_k*dest_arr(i,j,dom_hi.z-1);
+                    //Real delta_k = (k - dom_hi.z);
+                    //dest_arr(i,j,k) = (1.0 + delta_k)*dest_arr(i,j,dom_hi.z) - delta_k*dest_arr(i,j,dom_hi.z-1);
+                    dest_arr(i,j,k) =  dest_arr(i,j,dom_hi.z);
                 }
             }
         );
