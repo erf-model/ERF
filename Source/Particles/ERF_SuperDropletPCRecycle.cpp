@@ -13,9 +13,16 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 {
     BL_PROFILE("SuperDropletPC::Recycle()");
 
-    auto num_sd_deactivated = NumSDDeactivated();
+    const int init_idx = Random_int(m_num_initializations);
+    const Long num_sd_deactivated = NumSDDeactivated();
     Print() << "SuperDropletPC(" << m_name << "): "
-            << "recycling " << num_sd_deactivated << " super-droplets.\n";
+            << "recycling " << num_sd_deactivated << " super-droplets "
+            << "based on initialization #" << init_idx << ".\n";
+
+    // for multiple initializations, cycle through them each time this
+    // function is called.
+    const auto init_r = *(m_initializations[init_idx]);
+    const auto sampled_multiplicity = init_r.sampledMultiplicity();
 
     const MFPtr& z_height = a_z_phys_nd[a_lev];
     const Geometry& geom = m_gdb->Geom(a_lev);
@@ -32,8 +39,8 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
     const int idx_w = m_idx_w;
     const Real rho_w = m_species_mat[m_idx_w]->m_density;
-    const int n_species  = m_num_species;
-    const int n_aerosols = m_num_aerosols;
+    const int num_sp  = m_num_species;
+    const int num_ae = m_num_aerosols;
 
     // number of super-droplets per cell
     int num_sd_per_cell = m_num_sd_per_cell;
@@ -42,17 +49,19 @@ void SuperDropletPC::Recycle ( const int             a_lev,
     for (int i = 0; i < m_num_initializations; i++) {
         num_par_per_cell += m_initializations[i]->numParticlesPerCell(cell_volume);
     }
-    auto multiplicity = num_par_per_cell / num_sd_per_cell;
+    // average multiplicity
+    auto mult_avg = num_par_per_cell / num_sd_per_cell;
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
+    Long np_recycle_total = 0;
     for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
         int grid    = pti.index();
         auto& ptile = ParticlesAt(a_lev, pti);
         auto& aos  = ptile.GetArrayOfStructs();
         auto& soa  = ptile.GetStructOfArrays();
-        const int n = aos.numParticles();
+        const int np = aos.numParticles();
         auto *p_pbox = aos().data();
 
         Array<ParticleReal*,AMREX_SPACEDIM> v_ptr;
@@ -68,17 +77,120 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
-        SDSpeciesMassArr species_mass_ptrs;
-        for (int i = 0; i < n_species; i++) {
-            species_mass_ptrs[i] = soa.GetRealData(idx_s(i,n_aerosols,n_species)).data();
+        SDSpeciesMassArr sp_mass_ptrs;
+        for (int i = 0; i < num_sp; i++) {
+            sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
         }
 
-        SDAerosolMassArr aerosol_mass_ptrs;
-        for (int i = 0; i < n_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(idx_a(i,n_aerosols,n_species)).data();
+        SDAerosolMassArr ae_mass_ptrs;
+        for (int i = 0; i < num_ae; i++) {
+            ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
         }
 
-        ParallelForRNG(n, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine) noexcept
+        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
+        Gpu::DeviceVector<int> sp_solubility(num_sp);
+        {
+            Vector<ParticleReal> sp_density_h(num_sp);
+            Vector<int> sp_solubility_h(num_sp);
+            for (int i = 0; i < num_sp; i++) {
+                sp_density_h[i] = m_species_mat[i]->m_density;
+                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        sp_density_h.begin(),
+                        sp_density_h.end(),
+                        sp_density.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        sp_solubility_h.begin(),
+                        sp_solubility_h.end(),
+                        sp_solubility.begin() );
+        }
+
+        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
+        Gpu::DeviceVector<int> ae_solubility(num_ae);
+        {
+            Vector<ParticleReal> ae_density_h(num_ae);
+            Vector<int> ae_solubility_h(num_ae);
+            for (int i = 0; i < num_ae; i++) {
+                ae_density_h[i] = m_aerosol_mat[i]->m_density;
+                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        ae_density_h.begin(),
+                        ae_density_h.end(),
+                        ae_density.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        ae_solubility_h.begin(),
+                        ae_solubility_h.end(),
+                        ae_solubility.begin() );
+        }
+
+        auto sp_rho_arr = sp_density.data();
+        auto sp_sol_arr = sp_solubility.data();
+        auto ae_rho_arr = ae_density.data();
+        auto ae_sol_arr = ae_solubility.data();
+
+        // count number of particles to recycle
+        Gpu::Buffer<Long> np_recycle_buf({0});
+        auto* np_recycle_ptr = np_recycle_buf.data();
+        ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) noexcept
+        {
+            ParticleType& p = p_pbox[i];
+            if (p.id() <= 0) { return; }
+            if (mult_ptr[i] > 0) { return; }
+            Gpu::Atomic::Add(np_recycle_ptr, Long(1));
+        });
+        Gpu::synchronize();
+        auto npr = *(np_recycle_buf.copyToHost());
+        np_recycle_total += npr;
+
+        // get sampled aerosol mass values based on initialization
+        Gpu::DeviceVector<Real> aerosol_mass_d(num_ae*np);
+        Gpu::DeviceVector<Real> multiplicity_d(np);
+        ParticleReal mult_scale = 1.0;
+        {
+            Vector<Real> multiplicity_h(np, 0.0);
+            for (int i = 0; i < num_ae; i++) {
+                Vector<Real> aerosol_mass_h;
+                if (sampled_multiplicity) {
+                    init_r.getAerosolDistribution( aerosol_mass_h,
+                                                   multiplicity_h,
+                                                   i,
+                                                   np,
+                                                   m_aerosol_mat[i]->m_density,
+                                                   m_rndeng );
+                } else {
+                    init_r.getAerosolDistribution( aerosol_mass_h,
+                                                   i,
+                                                   np,
+                                                   m_aerosol_mat[i]->m_density,
+                                                   m_rndeng );
+                }
+                Gpu::copy( Gpu::hostToDevice,
+                           aerosol_mass_h.begin(),
+                           aerosol_mass_h.end(),
+                           aerosol_mass_d.begin() + (i*np) );
+            }
+            if (sampled_multiplicity) {
+                // compute multiplicity scale
+                ParticleReal mult_sum = 0.0;
+                for (int ctr=0; ctr < multiplicity_h.size(); ctr++) {
+                    mult_sum += multiplicity_h[ctr];
+                }
+                mult_scale = np * mult_avg / mult_sum;
+                // copy to GPU
+                Gpu::copy( Gpu::hostToDevice,
+                           multiplicity_h.begin(),
+                           multiplicity_h.end(),
+                           multiplicity_d.begin() );
+            }
+        }
+        Gpu::synchronize();
+
+        auto aerosol_mass = aerosol_mass_d.data();
+        auto mult_arr = multiplicity_d.data();
+
+        ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine) noexcept
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
@@ -102,29 +214,43 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             p.pos(1) = y_min + Random(rnd_engine)*(y_max - y_min);
             p.pos(2) = z_min + Random(rnd_engine)*(z_max - z_min);
 
-            for (int ctr = 0; ctr < n_species; ctr++) {
-                species_mass_ptrs[ctr][i] = 0.0;
-            }
-            // Reset radius and condensate mass
-            auto par_radius = 1.0e-15;
-            radius_ptr[i] = par_radius;
-            auto cond_mass = (4.0/3.0)*PI
-                             * par_radius*par_radius*par_radius*rho_w;
-            species_mass_ptrs[idx_w][i] = cond_mass;
-            ParticleReal aerosol_mass_total = 0.0;
-            for (int ctr = 0; ctr < n_aerosols; ctr++) {
-                aerosol_mass_total += aerosol_mass_ptrs[ctr][i];
-            }
-            mass_ptr[i] = cond_mass + aerosol_mass_total;
-
-            // Set multiplicity to an averaged multiplicity
-            mult_ptr[i] = multiplicity;
-
             // Set velocities to zero
             v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
+
+            // reset all species masses to zero
+            for (int ctr = 0; ctr < num_sp; ctr++) {
+                sp_mass_ptrs[ctr][i] = 0.0;
+            }
+            // Reset water mass
+            auto water_radius = 1.0e-15;
+            auto water_mass = (4.0/3.0)*PI
+                             * water_radius*water_radius*water_radius*rho_w;
+            sp_mass_ptrs[idx_w][i] = water_mass;
+
+            // choose a random index
+            auto j = Random_int(np, rnd_engine);
+            // Set aerosol mass
+            for (int ctr = 0; ctr < num_ae; ctr++) {
+                ae_mass_ptrs[ctr][i] = aerosol_mass[ctr*np+j];
+            }
+            // Set multiplicity to sampled or averaged multiplicity
+            if (sampled_multiplicity) { mult_ptr[i] = std::ceil(mult_arr[j] * mult_scale); }
+            else { mult_ptr[i] = mult_avg; }
+
+            // compute effective radius and total mass
+            radius_ptr[i] = SD_effective_radius( i, idx_w,
+                                                 rho_w,
+                                                 num_sp, num_ae,
+                                                 sp_sol_arr, ae_sol_arr,
+                                                 sp_mass_ptrs, ae_mass_ptrs,
+                                                 sp_rho_arr, ae_rho_arr );
+            mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
         });
         Gpu::synchronize();
     }
+
+    ParallelDescriptor::ReduceLongSum( &np_recycle_total, 1 );
+    Print() << "    recycled " << np_recycle_total << " super-droplets.\n";
 
     Redistribute();
 }
