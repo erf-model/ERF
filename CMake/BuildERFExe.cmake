@@ -22,9 +22,6 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_KOKKOS)
     target_include_directories(${erf_lib_name} PUBLIC
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/PhysicsInterfaces>
-                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/PhysicsInterfaces/physics>
-                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/PhysicsInterfaces/physics/share>
-                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/PhysicsInterfaces/physics/share/util>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/ekat/src/pack>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/ekat/src/algorithm>
                               )
@@ -125,13 +122,15 @@ function(build_erf_lib erf_lib_name)
     target_include_directories(${erf_lib_name} PUBLIC
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/PhysicsInterfaces/Shoc>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics>
+                               $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/share>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/impl>
                               )
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/PhysicsInterfaces/Shoc/ERF_ShocInterface.cpp
-                   ${SRC_DIR}/PhysicsInterfaces/physics/share/physics_saturation.cpp
+                   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/share/physics_saturation.cpp>
                    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_assumed_pdf_disp.cpp>
                    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_check_tke_disp.cpp>
                    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/disp/shoc_compute_shoc_temperature_disp.cpp>
@@ -191,6 +190,7 @@ function(build_erf_lib erf_lib_name)
                    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_update_prognostics_implicit.cpp>
                   )
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_SHOC)
+    target_compile_definitions(${erf_lib_name} PUBLIC SCREAM_SHOC_SMALL_KERNELS)              
   endif()
 
   if(ERF_ENABLE_MORR_FORT)

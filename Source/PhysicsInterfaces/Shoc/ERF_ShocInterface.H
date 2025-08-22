@@ -22,9 +22,9 @@
 #include "ekat_workspace.hpp"
 #include "ekat_subview_utils.hpp"
 
-#include <shoc_constants.hpp>
-#include <shoc_functions.hpp>
-#include <eamxx_common_physics_functions.hpp>
+#include <physics/shoc/shoc_constants.hpp>
+#include <physics/shoc/shoc_functions.hpp>
+#include <share/util/eamxx_common_physics_functions.hpp>
 
 //#include "share/atm_process/atmosphere_process.hpp"
 //#include "share/atm_process/ATMBufferManager.hpp"
@@ -36,22 +36,22 @@ using view_t       = Kokkos::View<T, layout_t, KokkosDefaultDevice>;
 
 class SHOCInterface
 {
-  using SHF          = scream::shoc::Functions<Real, DefaultDevice>;
-  using PF           = scream::PhysicsFunctions<DefaultDevice>;
-  using C            = scream::physics::Constants<Real>;
-  using KT           = ekat::KokkosTypes<DefaultDevice>;
-  using SC           = scream::shoc::Constants<Real>;
+  using SHF          = scream::shoc::Functions<amrex::Real, KokkosDefaultDevice>;
+  using PF           = scream::PhysicsFunctions<KokkosDefaultDevice>;
+  using C            = scream::physics::Constants<amrex::Real>;
+  using KT           = ekat::KokkosTypes<KokkosDefaultDevice>;
+  using SC           = scream::shoc::Constants<amrex::Real>;
 
   using Spack                = typename SHF::Spack;
   using IntSmallPack         = typename SHF::IntSmallPack;
   using Smask                = typename SHF::Smask;
-  using view_1d_int          = typename KT::template view_1d<Int>;
-  using view_1d              = typename SHF::view_1d<Real>;
-  using view_1d_const        = typename SHF::view_1d<const Real>;
+  using view_1d_int          = typename KT::template view_1d<scream::Int>;
+  using view_1d              = typename SHF::view_1d<amrex::Real>;
+  using view_1d_const        = typename SHF::view_1d<const amrex::Real>;
   using view_2d              = typename SHF::view_2d<SHF::Spack>;
   using view_2d_const        = typename SHF::view_2d<const Spack>;
-  using sview_2d             = typename ekat::KokkosTypes<DefaultDevice>::template view_2d<Real>;
-  using sview_2d_const       = typename ekat::KokkosTypes<DefaultDevice>::template view_2d<const Real>;
+  using sview_2d             = typename ekat::KokkosTypes<KokkosDefaultDevice>::template view_2d<amrex::Real>;
+  using sview_2d_const       = typename ekat::KokkosTypes<KokkosDefaultDevice>::template view_2d<const amrex::Real>;
   using view_3d              = typename SHF::view_3d<Spack>;
   using view_3d_const        = typename SHF::view_3d<const Spack>;
   using view_3d_strided       = typename SHF::view_3d_strided<Spack>;
@@ -122,15 +122,15 @@ protected:
     void operator()(const Kokkos::TeamPolicy<KT::ExeSpace>::member_type& team) const {
       const int i = team.league_rank();
 
-      const Real zvir = C::ZVIR;
-      const Real cpair = C::Cpair;
-      const Real ggr = C::gravit;
-      const Real inv_ggr = 1/ggr;
-      const Real mintke = SC::mintke;
+      const amrex::Real zvir = C::ZVIR;
+      const amrex::Real cpair = C::Cpair;
+      const amrex::Real ggr = C::gravit;
+      const amrex::Real inv_ggr = 1/ggr;
+      const amrex::Real mintke = SC::mintke;
 
       const int nlev_packs = ekat::npack<Spack>(nlev);
 
-      Kokkos::parallel_for(Kokkos::TeamVectorRange(team, nlev_packs), [&] (const Int& k) {
+      Kokkos::parallel_for(Kokkos::TeamVectorRange(team, nlev_packs), [&] (const scream::Int& k) {
 
 
         cldfrac_liq_prev(i,k)=cldfrac_liq(i,k);
@@ -179,7 +179,7 @@ protected:
 
       const int nlevi_v = nlev/Spack::n;
       const int nlevi_p = nlev%Spack::n;
-      Kokkos::parallel_for(Kokkos::TeamVectorRange(team, nlev_packs), [&] (const Int& k) {
+      Kokkos::parallel_for(Kokkos::TeamVectorRange(team, nlev_packs), [&] (const scream::Int& k) {
         zt_grid(i,k) = z_mid(i,k) - z_int(i, nlevi_v)[nlevi_p];
         zi_grid(i,k) = z_int(i,k) - z_int(i, nlevi_v)[nlevi_p];
 
@@ -208,7 +208,7 @@ protected:
 
     // Local variables
     int ncol, nlev;
-    Real z_surf;
+    amrex::Real z_surf;
     view_2d_const  T_mid;
     view_2d_const  p_mid;
     view_2d_const  p_int;
@@ -248,7 +248,7 @@ protected:
 
     // Assigning local variables
     void set_variables(const int ncol_, const int nlev_,
-                       const Real z_surf_,
+                       const amrex::Real z_surf_,
                        const view_2d_const& T_mid_, const view_2d_const& p_mid_, const view_2d_const& p_int_, const view_2d_const& pseudo_density_,
                        const view_2d_const& omega_,
                        const view_1d_const& phis_, const view_1d_const& surf_sens_flux_, const view_1d_const& surf_evap_,
@@ -317,11 +317,11 @@ protected:
     void operator()(const Kokkos::TeamPolicy<KT::ExeSpace>::member_type& team) const {
       const int i = team.league_rank();
 
-      const Real inv_qc_relvar_max = 10;
-      const Real inv_qc_relvar_min = 0.001;
+      const amrex::Real inv_qc_relvar_max = 10;
+      const amrex::Real inv_qc_relvar_min = 0.001;
 
       const int nlev_packs = ekat::npack<Spack>(nlev);
-      Kokkos::parallel_for(Kokkos::TeamVectorRange(team, nlev_packs), [&] (const Int& k) {
+      Kokkos::parallel_for(Kokkos::TeamVectorRange(team, nlev_packs), [&] (const scream::Int& k) {
         // See comment in SHOCPreprocess::operator() about the necessity of *_copy views
         tke(i,k) = tke_copy(i,k);
         qc(i,k)  = qc_copy(i,k);
@@ -344,7 +344,7 @@ protected:
         // Temperature
         const Spack dse_ik(dse(i,k));
         const Spack z_mid_ik(z_mid(i,k));
-        const Real  phis_i(phis(i));
+        const amrex::Real  phis_i(phis(i));
         T_mid(i,k) = PF::calculate_temperature_from_dse(dse_ik,z_mid_ik,phis_i);
 
       });
@@ -438,22 +438,22 @@ protected:
 #endif
     static constexpr int num_2d_vector_tr   = 1;
 
-    uview_1d<Real> wpthlp_sfc;
-    uview_1d<Real> wprtp_sfc;
-    uview_1d<Real> upwp_sfc;
-    uview_1d<Real> vpwp_sfc;
+    uview_1d<amrex::Real> wpthlp_sfc;
+    uview_1d<amrex::Real> wprtp_sfc;
+    uview_1d<amrex::Real> upwp_sfc;
+    uview_1d<amrex::Real> vpwp_sfc;
 #ifdef SCREAM_SHOC_SMALL_KERNELS
-    uview_1d<Real> se_b;
-    uview_1d<Real> ke_b;
-    uview_1d<Real> wv_b;
-    uview_1d<Real> wl_b;
-    uview_1d<Real> se_a;
-    uview_1d<Real> ke_a;
-    uview_1d<Real> wv_a;
-    uview_1d<Real> wl_a;
-    uview_1d<Real> kbfs;
-    uview_1d<Real> ustar2;
-    uview_1d<Real> wstar;
+    uview_1d<amrex::Real> se_b;
+    uview_1d<amrex::Real> ke_b;
+    uview_1d<amrex::Real> wv_b;
+    uview_1d<amrex::Real> wl_b;
+    uview_1d<amrex::Real> se_a;
+    uview_1d<amrex::Real> ke_a;
+    uview_1d<amrex::Real> wv_a;
+    uview_1d<amrex::Real> wl_a;
+    uview_1d<amrex::Real> kbfs;
+    uview_1d<amrex::Real> ustar2;
+    uview_1d<amrex::Real> wstar;
 #endif
 
     uview_1d<Spack> pref_mid;
@@ -529,12 +529,12 @@ protected:
 
     // Keep track of field dimensions and other scalar values
     // needed in shoc_main
-    Int m_num_cols;
-    Int m_num_layers;
-    Int m_npbl;
-    Int m_nadv;
-    Int m_num_tracers;
-    Int hdtime;
+    scream::Int m_num_cols;
+    scream::Int m_num_layers;
+    scream::Int m_npbl;
+    scream::Int m_nadv;
+    scream::Int m_num_tracers;
+    scream::Int hdtime;
 
     // Grid level
     int m_lev;
