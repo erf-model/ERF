@@ -17,7 +17,10 @@ void SuperDropletPC::Recycle ( const int             a_lev,
     const auto num_sd = NumSuperDroplets();
     const auto deac_frac = static_cast<Real>(num_sd_deactivated) / static_cast<Real>(num_sd);
 
-    if (deac_frac < m_recycle_threshold) { return; }
+    int flag = 0;
+    if (deac_frac > m_recycle_threshold) { flag = 1; }
+    ParallelDescriptor::ReduceIntMax( &flag, 1 );
+    if (!flag) { return; }
 
     const int init_idx = Random_int(m_num_initializations);
 
@@ -58,10 +61,10 @@ void SuperDropletPC::Recycle ( const int             a_lev,
     // average multiplicity
     auto mult_avg = num_par_per_cell / num_sd_per_cell;
 
+    Long np_recycle_total = 0;
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    Long np_recycle_total = 0;
     for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
         int grid    = pti.index();
         auto& ptile = ParticlesAt(a_lev, pti);
@@ -136,20 +139,6 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         auto ae_rho_arr = ae_density.data();
         auto ae_sol_arr = ae_solubility.data();
 
-        // count number of particles to recycle
-        Gpu::Buffer<Long> np_recycle_buf({0});
-        auto* np_recycle_ptr = np_recycle_buf.data();
-        ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) noexcept
-        {
-            ParticleType& p = p_pbox[i];
-            if (p.id() <= 0) { return; }
-            if (mult_ptr[i] > 0) { return; }
-            Gpu::Atomic::Add(np_recycle_ptr, Long(1));
-        });
-        Gpu::synchronize();
-        auto npr = *(np_recycle_buf.copyToHost());
-        np_recycle_total += npr;
-
         // get sampled aerosol mass values based on initialization
         Gpu::DeviceVector<Real> aerosol_mass_d(num_ae*np);
         Gpu::DeviceVector<Real> multiplicity_d(np);
@@ -195,6 +184,9 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         auto aerosol_mass = aerosol_mass_d.data();
         auto mult_arr = multiplicity_d.data();
+
+        Gpu::Buffer<Long> np_recycle_buf({0});
+        auto* np_recycle_ptr = np_recycle_buf.data();
 
         ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine) noexcept
         {
@@ -251,8 +243,12 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                                                  sp_mass_ptrs, ae_mass_ptrs,
                                                  sp_rho_arr, ae_rho_arr );
             mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+
+            // add to count
+            Gpu::Atomic::Add(np_recycle_ptr, Long(1));
         });
         Gpu::synchronize();
+        np_recycle_total += *(np_recycle_buf.copyToHost());
     }
 
     ParallelDescriptor::ReduceLongSum( &np_recycle_total, 1 );
