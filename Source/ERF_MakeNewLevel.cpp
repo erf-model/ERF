@@ -98,6 +98,24 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // *******************************************************************************************
     init_stuff(lev, ba, dm, lev_new, lev_old, base_state[lev], z_phys_nd[lev]);
 
+    //********************************************************************************************
+    // Land Surface Model: This block must be executed after update_terrain_arrays(lev) function.
+	// Because z_phys_cc is used inside SLM to define the reference height
+    // NOTE: moved back to original place because lsm data needs to be defined before WRFInput
+    // *******************************************************************************************
+    int lsm_size  = lsm.Get_Data_Size();
+    lsm_data[lev].resize(lsm_size);
+    lsm_flux[lev].resize(lsm_size);
+    lsm.Define(lev, solverChoice);
+    if (solverChoice.lsm_type != LandSurfaceType::None)
+    {
+        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_cc[lev] ); // dummy dt value
+    }
+    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+    }
+
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
     // ********************************************************************************************
@@ -178,23 +196,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ngrow);
             terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
         }
-    }
-    
-	//********************************************************************************************
-    // Land Surface Model: This block must be executed after update_terrain_arrays(lev) function.
-	// Because z_phys_cc is used inside SLM to define the reference height
-    // *******************************************************************************************
-    int lsm_size  = lsm.Get_Data_Size();
-    lsm_data[lev].resize(lsm_size);
-    lsm_flux[lev].resize(lsm_size);
-    lsm.Define(lev, solverChoice);
-    if (solverChoice.lsm_type != LandSurfaceType::None)
-    {
-        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0,z_phys_cc[lev] ); // dummy dt value
-    }
-    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
-        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
     }
 
 #ifdef ERF_USE_NETCDF

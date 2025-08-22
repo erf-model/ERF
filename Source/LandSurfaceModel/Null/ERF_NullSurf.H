@@ -112,9 +112,17 @@ class NullSurf {
         return (-1);
     }
 
+    virtual
+    std::unordered_map<std::string, std::string>&
+    Lsm_WRFInputNames() {
+        return wrfinput_map;
+    }
+
  private:
     int m_lsm_size = 1;
     amrex::Geometry m_lsm_geom;
     std::string varname = " ";
+
+    std::unordered_map<std::string,std::string> wrfinput_map;
 };
 #endif

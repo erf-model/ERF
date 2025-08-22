@@ -319,6 +319,7 @@ ERF::ERF_shared ()
 
     // Urban grid type and fractions
     urb_type_lev.resize(nlevs_max);
+    soil_type_lev.resize(nlevs_max);
     urb_frac_lev.resize(nlevs_max);
 
     // Metric terms

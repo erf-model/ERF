@@ -71,6 +71,10 @@ namespace LsmVar_SLM {
       m_pot_sat,       // moisture potential at saturation
       Bconst,          // B constant
       ks,              // hydraulic conductivity at saturation [m/s]
+      // 2D inputs populated from WRFInput
+      lai,             // leaf area index (2D)
+      vegtype,         // vegetation type (2D)
+      soiltype,        // soil type (2D)
       // model outputs
       flbu,            // surface u-momentum
       flbv,            // surface v-momentum
@@ -154,11 +158,19 @@ public:
 
     // Set thermo and grid properties
     void
-    Define (SolverChoice& /*sc*/) override
+    Define (SolverChoice& sc) override
     {
         // NOTE: We should parse things from sc here,
         //       but they are hard coded because this
         //       is a demonstration for now.
+
+        // Check if initializing from WRFInput
+        if (sc.init_type == InitType::WRFInput) {
+            amrex::Print() << " SLM is initializing from WRFInput!" << std::endl;
+            use_wrfinput = true;
+        } else {
+            use_wrfinput = false;
+        }
     }
 
     // Initialize data structures
@@ -169,7 +181,7 @@ public:
           const amrex::MultiFab& v_in,
           const amrex::Geometry& geom,
           const amrex::Real& dt,
-          std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
+          std::unique_ptr<amrex::MultiFab>& z_phys_cc_in) override;
 
     // Wrapper to do all the updating
     void
@@ -186,6 +198,82 @@ public:
             // initialize values using first reference data
             //this->init_slm_vars();
             first_step = false;
+
+            if (use_wrfinput) {
+                // TODO: fix - WRFinput sets 3D MFs in lsm_data - these need to be copied into SLM local 2D MFs
+                int d_khi_lsm = khi_lsm;
+
+                for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
+                    amrex::Box bx2d = mfi.tilebox();
+
+                    amrex::Box bx3d_mf = bx2d;
+                    bx3d_mf.setBig(2, khi_lsm);
+                    bx3d_mf.setSmall(2, khi_lsm);
+
+                    // Copies from 3D MF at k=-1 filled from WRFInput to 2D MF defined at k=0
+                    //landtype[mfi].template copy<amrex::RunOn::Device>((*lsm_fab_vars[LsmVar_SLM::vegtype])[mfi], bx2d);
+                    //LAI[mfi].template copy<amrex::RunOn::Device>((*lsm_fab_vars[LsmVar_SLM::lai])[mfi], bx2d);
+
+                    auto vegtype_arr = lsm_fab_vars[LsmVar_SLM::vegtype]->const_array(mfi);
+                    auto in_soiltype_arr = lsm_fab_vars[LsmVar_SLM::soiltype]->const_array(mfi);
+                    auto in_lai_arr = lsm_fab_vars[LsmVar_SLM::lai]->const_array(mfi);
+                    auto in_tsk_arr = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
+
+                    auto landmask_arr = landmask.array(mfi);
+                    auto landtype_arr = landtype.array(mfi);
+                    auto lai_arr = LAI.array(mfi);
+
+                    auto sstxy_arr = sstxy.array(mfi);
+
+                    amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+                        landtype_arr(i,j,0) = vegtype_arr(i,j,d_khi_lsm);
+                        //soiltype_arr(i,j,0) = in_soiltype_arr(i,j,d_khi_lsm);
+                        lai_arr(i,j,0) = in_lai_arr(i,j,d_khi_lsm);
+
+                        sstxy_arr(i,j,0) = in_tsk_arr(i,j,d_khi_lsm);
+
+                        in_tsk_arr(i,j,0) = in_tsk_arr(i,j,d_khi_lsm);
+
+                        //amrex::Print() << " i = " << i << " j = " << j << ": landtype = " << landtype_arr(i,j,0) << " soiltype = " << in_soiltype_arr(i,j,d_khi_lsm) << " LAI = " << lai_arr(i, j, 0) << std::endl;
+
+                        if (landtype_arr(i,j,0) == 17) {
+                            amrex::Print() << "     -- water cell - setting landtype=0 landmask=0" << std::endl;
+                            landmask_arr(i,j,0) = 0;
+                            landtype_arr(i,j,0) = 0;
+                        } else if (landtype_arr(i,j,0) > 16) {
+                            amrex::Print() << "     -- urban cell - setting landtype=13" << std::endl;
+                            landtype_arr(i,j,0) = 13;
+                        }
+                    });
+                }
+
+                // If using WRFInput, SLM init needs to be delayed here to use correct values set from WRFInput
+                slm_init();
+
+                init_slm_vars();
+            }
+
+            // update zref using updated z_phys_cc
+            // TODO: fix this - use_terrain flag is deprecated
+            if (!set_from_file) {
+                amrex::ParmParse pp_erf("erf");
+                pp_erf.query("use_terrain", use_terrain);
+
+                amrex::Real zlo      = m_geom.ProbLo(2);
+                amrex::Real dz       = m_geom.CellSize(2);
+                for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
+                    const amrex::Box& xybx      = mfi.growntilebox(0);
+                    const amrex::Array4<const amrex::Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : amrex::Array4<amrex::Real>{};
+                    auto ztop_arr = ztop.array(mfi);
+                    auto zrefxy_arr = zrefxy.array(mfi);
+
+                    ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+                        amrex::Real zcc = (z_cc_arr) ? z_cc_arr(i,j,0) : zlo + 0.5*dz;
+                        zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + zcc;
+                        //amrex::Print() << " i = " << i << " j = " << j << ": zrefxy = " << zrefxy_arr(i,j,0) << std::endl;
+                    });
+                }
+            }
         }
 
         this->AdvanceSLM();
@@ -237,12 +325,17 @@ public:
     {
         int varIdx = -1;
         std::string lc_varname = amrex::toLower(varname);
-        for (int idx(0); idx<LsmVar_SLM::NumVars; ++idx) {
-            if (lc_varname == amrex::toLower(LsmVarName[idx])) {
+        for (int idx(0); idx<SLM::m_lsm_size; ++idx) {
+            if (lc_varname == amrex::toLower(Lsm_VarName(idx))) {
                 varIdx = idx;
             }
         }
         return varIdx;
+    }
+
+    std::unordered_map<std::string, std::string>&
+    Lsm_WRFInputNames() override {
+        return SLM::wrfinput_map;
     }
 
     void
@@ -353,7 +446,7 @@ public:
 
 private:
     // number of lsm variables (theta)
-    int m_lsm_size = 31;
+    int m_lsm_size = 34;
 
     // LsmVar map (state indices -> LsmVar enum)
     amrex::Vector<int> LsmVarMap;
@@ -566,10 +659,28 @@ private:
     amrex::Real time_unit = 1.0;
     bool first_step = true;
 
+    amrex::MultiFab *z_phys_cc; // input z_phys_cc from ERF
+
     // Extra MFs for output:
     amrex::MultiFab slm_diag;
 
     amrex::Vector<const amrex::MultiFab*> slm_to_rad_vars;
+
+    // Defines the WRFInput names and corresponding SLM name used to
+    // fill variables at initialization
+    inline static std::unordered_map<std::string, std::string> wrfinput_map = {
+        {"ZS", "soil_thickness"},
+        {"DZS", "node_z"},
+        {"TSLB", "tsoil"},
+        {"SMOIS", "wsoil"},
+        {"LAI", "lai"},
+        {"IVGTYP", "vegtype"}, // TODO: these two should be replaced by ERF input directly
+        {"ISLTYP", "soiltype"},
+        {"TSK", "tsurf"},
+    };
+
+    // whether to initialize SLM from inputs file or from wrfinput
+    bool use_wrfinput = false;
 
     // List of 2D output variables that are declared as 3D
     // These will only be saved at k = 0 (surface level) to save space
@@ -606,7 +717,7 @@ private:
       "SW_dw_dir_vis", "SW_dw_dir_nir", "SW_dw_dif_vis", "SW_dw_dif_nir", "LW_dw", "zenith",
       "tveg", "mv", "tsoil", "wsoil", "sand", "clay", "soil_thickness", "node_z", "interface_z",
       "soilw_nudge", "soilt_nudge", "sw_over_sat", "soil_relax_hgt", "soilt_obs", "soilw_obs", "rootF", "w_s_FC", "w_s_WP",
-      "sst_capa", "sst_cond", "poro_soil", "theta_FC", "theta_WP", "m_pot_sat", "Bconst", "ks",
+      "sst_capa", "sst_cond", "poro_soil", "theta_FC", "theta_WP", "m_pot_sat", "Bconst", "ks","lai","vegtype","soiltype",
       "surface_u", "surface_v", "surface_vapor", "surface_heat", "precip_soil"
     };
 
