@@ -681,11 +681,11 @@ private:
                            amrex::Vector<amrex::FArrayBox*> z_vel_lateral,
                            amrex::Vector<amrex::FArrayBox*> T_lateral);
 
-    amrex::Real start_bdy_time;
-    amrex::Real start_low_time;
+    static amrex::Real start_bdy_time;
+    static amrex::Real start_low_time;
 
-    amrex::Real bdy_time_interval;
-    amrex::Real low_time_interval;
+    static amrex::Real bdy_time_interval;
+    static amrex::Real low_time_interval;
 
     // *** *** FArrayBox's for holding the SURFACE data
     // amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
@@ -960,10 +960,12 @@ private:
     ////////////////
     // runtime parameters
 
-    // maximum number of steps and stop time
+    // Maximum number of steps
     int max_step = std::numeric_limits<int>::max();
-    amrex::Real start_time = 0.0;
-    amrex::Real  stop_time = std::numeric_limits<amrex::Real>::max();
+
+    // Start and stop times
+    static amrex::Real start_time;
+    static amrex::Real  stop_time;
 
     bool use_datetime = false;
     const std::string datetime_format = "%Y-%m-%d %H:%M:%S"; // ISO 8601 standard

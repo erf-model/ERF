@@ -30,13 +30,23 @@ Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
 
+Real ERF::start_time    = 0.0;
+Real ERF::stop_time     = std::numeric_limits<amrex::Real>::max();
+
+Real ERF::start_bdy_time     = 0.0;
+Real ERF::start_low_time     = 0.0;
+
+Real ERF::bdy_time_interval  = std::numeric_limits<amrex::Real>::max();
+Real ERF::low_time_interval  = std::numeric_limits<amrex::Real>::max();
+
 // Time step control
-Real ERF::cfl           =  0.8;
-Real ERF::sub_cfl       =  1.0;
-Real ERF::init_shrink   =  1.0;
-Real ERF::change_max    =  1.1;
+Real ERF::cfl            = 0.8;
+Real ERF::sub_cfl        = 1.0;
+Real ERF::init_shrink    = 1.0;
+Real ERF::change_max     = 1.1;
 Real ERF::dt_max_initial = 2.0e100;
-Real ERF:: dt_max = 1e9;
+Real ERF:: dt_max        = 1.0e9;
+
 int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output

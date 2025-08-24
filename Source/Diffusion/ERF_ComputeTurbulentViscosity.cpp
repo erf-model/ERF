@@ -162,6 +162,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 } else { // anisotropic or smag2d
                     Real CsDeltaHSqr = Cs * Cs * DeltaH * DeltaH;
                     mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaHSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+
                     if (smag2d) {
                         mu_turb(i, j, k, EddyDiff::Mom_v) = 0.0;
                     } else {
@@ -739,7 +740,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             {
                 int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i_lo,lj,lk) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && i < domlo.x && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i_lo,lj,lk,n);
@@ -750,7 +751,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             {
                 int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i_hi,lj,lk) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && i > domhi.x && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i_hi,lj,lk,n);
@@ -760,7 +761,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             ParallelFor(planey_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j_lo,lk) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && j < domlo.y && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j_lo,lk,n);
@@ -770,7 +771,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             ParallelFor(planey_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j_hi,lk) != is_notcovered)||
                     (mask_arr(i,j,k) == is_physbnd     && j > domhi.y && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j_hi,lk,n);
@@ -779,7 +780,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             });
             ParallelFor(planez_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j,k_lo) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && k < domlo.z && impose_phys_bcs)) {
                     if (mask_arr(i,j,k) == is_physbnd) {
                     }
@@ -790,7 +791,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             });
             ParallelFor(planez_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j,k_hi) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && k > domhi.z && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j,k_hi,n);
