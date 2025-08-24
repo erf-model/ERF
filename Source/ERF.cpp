@@ -33,11 +33,13 @@ SolverChoice ERF::solverChoice;
 Real ERF::start_time    = 0.0;
 Real ERF::stop_time     = std::numeric_limits<amrex::Real>::max();
 
+#ifdef ERF_USE_NETCDF
 Real ERF::start_bdy_time     = 0.0;
 Real ERF::start_low_time     = 0.0;
 
 Real ERF::bdy_time_interval  = std::numeric_limits<amrex::Real>::max();
 Real ERF::low_time_interval  = std::numeric_limits<amrex::Real>::max();
+#endif
 
 // Time step control
 Real ERF::cfl            = 0.8;
