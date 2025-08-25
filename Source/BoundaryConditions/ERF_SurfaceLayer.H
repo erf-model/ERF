@@ -14,6 +14,7 @@
 #include "ERF_MOSTStress.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
+#include "ERF_MicrophysicsUtils.H"
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
@@ -37,11 +38,9 @@ public:
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                          const TerrainType& a_terrain_type,
-                         amrex::Real start_bdy_time = 0.0,
                          amrex::Real bdy_time_interval = 0.0)
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
-    m_start_bdy_time(start_bdy_time),
     m_bdy_time_interval(bdy_time_interval),
     m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_terrain_type)
   {
@@ -404,7 +403,9 @@ public:
   void
   update_fluxes (const int& lev,
                  const amrex::Real& time,
-                 int max_iters = 500);
+                 const amrex::MultiFab& cons_in,
+                 const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                 int max_iters = 100);
 
   template <typename FluxIter>
   void compute_fluxes (const int& lev,
@@ -438,6 +439,10 @@ public:
 
   void fill_tsurf_with_sst_and_tsk (const int& lev,
                                     const amrex::Real& time);
+
+  void fill_qsurf_with_qsat (const int& lev,
+                             const amrex::MultiFab& cons_in,
+                             const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   void get_lsm_tsurf (const int& lev);
 
@@ -568,7 +573,6 @@ private:
   // Set in constructor
   amrex::Vector<amrex::Geometry> m_geom;
   bool m_rotate = false;
-  amrex::Real m_start_bdy_time;
   amrex::Real m_bdy_time_interval;
 
   bool m_include_wstar = false;

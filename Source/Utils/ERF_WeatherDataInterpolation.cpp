@@ -334,7 +334,7 @@ ERF::InterpWeatherDataOntoMesh (const Geometry& geom_weather,
 
         const Array4<Real> &crse_arr = tmp_coarse_data.array(mfi);
 
-        const Box& gbx = mfi.growntilebox(); // validbox + ghost cells
+        const Box& gbx = mfi.growntilebox(); // tilebox + ghost cells
 
         const Box &gtbx = mfi.tilebox(IntVect(1,0,0));
         const Box &gtby = mfi.tilebox(IntVect(0,1,0));

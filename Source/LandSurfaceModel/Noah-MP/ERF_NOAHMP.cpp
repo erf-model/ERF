@@ -206,9 +206,15 @@ NOAHMP::Advance_With_State (const int& lev,
             const amrex::Array4<const amrex::Real>& U_PHY = xvel_in.const_array(mfi);
             const amrex::Array4<const amrex::Real>& V_PHY = yvel_in.const_array(mfi);
             const amrex::Array4<const amrex::Real>& QV_TH = cons_in.const_array(mfi);
-            //const amrex::Array4<const amrex::Real>& SWFLUXDN = lsm_fab_vars[LsmVar_NOAHMP::sw_flux_dn]->const_array(mfi);
-            //amrex::Array4<amrex::Real> TSK = lsm_fab_vars[LsmVar_NOAHMP::t_sfc]->array(mfi);
+            const amrex::Array4<const amrex::Real>& SWDOWN = lsm_fab_vars[LsmVar_NOAHMP::sw_flux_dn]->const_array(mfi);
+            const amrex::Array4<const amrex::Real>& GLW = lsm_fab_vars[LsmVar_NOAHMP::lw_flux_dn]->const_array(mfi);
 
+            amrex::Array4<amrex::Real> TSK = lsm_fab_vars[LsmVar_NOAHMP::t_sfc]->array(mfi);
+            amrex::Array4<amrex::Real> EMISS = lsm_fab_vars[LsmVar_NOAHMP::sfc_emis]->array(mfi);
+            amrex::Array4<amrex::Real> ALBSFCDIR_VIS = lsm_fab_vars[LsmVar_NOAHMP::sfc_alb_dir_vis]->array(mfi);
+            amrex::Array4<amrex::Real> ALBSFCDIR_NIR = lsm_fab_vars[LsmVar_NOAHMP::sfc_alb_dir_nir]->array(mfi);
+            amrex::Array4<amrex::Real> ALBSFCDIF_VIS = lsm_fab_vars[LsmVar_NOAHMP::sfc_alb_dif_vis]->array(mfi);
+            amrex::Array4<amrex::Real> ALBSFCDIF_NIR = lsm_fab_vars[LsmVar_NOAHMP::sfc_alb_dif_nir]->array(mfi);
             amrex::Array4<amrex::Real> SHBXY = hfx3_out->array(mfi);
             amrex::Array4<amrex::Real> EVBXY = qfx3_out->array(mfi);
 
@@ -219,7 +225,8 @@ NOAHMP::Advance_With_State (const int& lev,
                 noahmpio->V_PHY(i,1,j) = 0.5*(V_PHY(i,j,0)+V_PHY(i,j+1,0));
                 noahmpio->T_PHY(i,1,j) = QV_TH(i,j,0,RhoTheta_comp)/QV_TH(i,j,0,Rho_comp);
                 noahmpio->QV_CURR(i,1,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
-
+                noahmpio->SWDOWN(i,j) = SWDOWN(i,j,0);
+                noahmpio->GLW(i,j) = GLW(i,j,0);
             });
 
             // Call the noahmpio driver code. This runs the land model forcing for
@@ -232,6 +239,12 @@ NOAHMP::Advance_With_State (const int& lev,
             {
                 SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
                 EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
+                TSK(i,j,0) = noahmpio->TSK(i,j);
+                EMISS(i,j,0) = noahmpio->EMISS(i,j);
+                ALBSFCDIR_VIS(i,j,0) = noahmpio->ALBSFCDIRXY(i,1,j);
+                ALBSFCDIR_NIR(i,j,0) = noahmpio->ALBSFCDIRXY(i,2,j);
+                ALBSFCDIF_VIS(i,j,0) = noahmpio->ALBSFCDIFXY(i,1,j);
+                ALBSFCDIF_NIR(i,j,0) = noahmpio->ALBSFCDIFXY(i,2,j);
             });
 
             if((nstep+1)%m_plot_int_1 == 0) {

@@ -282,6 +282,11 @@ ERF::WriteCheckpointFile () const
             MultiFab::Copy(m_var,*src,0,0,1,ng);
             VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Olen"));
 
+            // Qsurf
+            src = m_SurfaceLayer->get_q_surf(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
+            VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qsurf"));
+
             // PBLH
             src = m_SurfaceLayer->get_pblh(lev);
             MultiFab::Copy(m_var,*src,0,0,1,ng);
@@ -1048,6 +1053,14 @@ ERF::ReadCheckpointFileSurfaceLayer ()
         if (amrex::FileExists(OlenFileName)) {
             dst = m_SurfaceLayer->get_olen(lev);
             VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Olen"));
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
+        }
+
+        // Qsurf
+        std::string QsurfFileName(restart_chkfile + "/Level_0/Qsurf_H");
+        if (amrex::FileExists(QsurfFileName)) {
+            dst = m_SurfaceLayer->get_q_surf(lev);
+            VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qsurf"));
             MultiFab::Copy(*dst,m_var,0,0,1,ng);
         }
 

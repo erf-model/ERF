@@ -31,6 +31,12 @@ struct ProbParm : ProbParmDefaults {
     amrex::Real pert_periods_V = 5.0;
     amrex::Real pert_ref_height = 100.0;
 
+    // sinusoidal perturbations for regression tests
+    amrex::Real pert_deltaT = 0.0;
+    amrex::Real pert_deltaQV = 0.0;
+    amrex::Real pert_periods_T = 0.0;
+    amrex::Real pert_periods_QV = 0.0;
+
     //==============================================
     // USER-DEFINED INPUTS
     // source terms
@@ -56,6 +62,8 @@ struct ProbParm : ProbParmDefaults {
     amrex::Real bval;
     amrex::Real ufac;
     amrex::Real vfac;
+    amrex::Real cval, dval;
+    amrex::Real tfac, qvfac;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase

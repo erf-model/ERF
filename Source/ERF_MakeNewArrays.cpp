@@ -289,9 +289,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     IntVect ng  = vars_new[lev][Vars::cons].nGrowVect();
 
     if (lev == 0) {
-        mf_C1H = std::make_unique<MultiFab>(ba1d[lev],dm,1,0);
-        mf_C2H = std::make_unique<MultiFab>(ba1d[lev],dm,1,0);
-        mf_MUB = std::make_unique<MultiFab>(ba2d[lev],dm,1,0);
+        mf_C1H = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        mf_C2H = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        mf_MUB = std::make_unique<MultiFab>(ba2d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
     }
 
     mf_PSFC[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ng);

@@ -780,14 +780,15 @@ ERF::init_from_wrfinput (int lev,
     {
         //
         // Start at the earliest time (read_from_wrfbdy)
-        // Note we only have start_bdy_time if at level 0 and init_type == InitType:WRFInput
+        // Note we only have start_bdy_time if at level 0 and init_type == InitType::WRFInput or InitType::Metgrid
+        //
+        // Note that t_new and t_old carry *elapsed* time, not total time
         //
         if (lev == 0) {
-            Print() << "Setting start_time to "
-                    << std::setprecision(timeprecision) << start_bdy_time
-                    << " from wrfbdy" << std::endl;
-            t_new[lev] = start_bdy_time;
-            t_old[lev] = start_bdy_time - 1.e200;
+            Print() << "start_bdy_time is " << std::setprecision(timeprecision) << start_bdy_time
+                    << " from wrfbdy but note that time variable in simulation is elapsed time" << std::endl;
+            t_new[lev] = 0.;
+            t_old[lev] = -1.e200;
         } else {
             t_new[lev] = t_new[0];
             t_old[lev] = t_old[0];

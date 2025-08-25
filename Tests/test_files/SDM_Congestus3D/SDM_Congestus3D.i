@@ -117,8 +117,9 @@ prob.advection_moisture_rate  = 1e-6 #trapp has 1e-6 kg/(m3s)
 prob.advection_heating_rate_base   = 1e-3 #trapp has max of 3e-3 K.kg/(m3s)
 prob.advection_moisture_rate_base  = 4e-7 #trapp has 1e-6 kg/(m3s)
 
-prob.U_0_Pert_Mag = 0.1
-prob.V_0_Pert_Mag = 0.1
-prob.T_0_Pert_Mag = 0.01
-prob.Q_0_Pert_Mag = 2.5e-5
-prob.pert_ref_height = 1000
+prob.pert_deltaU = 0.1
+prob.pert_deltaV = 0.1
+prob.pert_deltaT = 0.01
+prob.pert_deltaQV = 2.5e-5
+prob.pert_periods_T = 10.0
+prob.pert_periods_QV = 10.0
