@@ -589,6 +589,13 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
         } // ivar
         Kokkos::deep_copy(lw_src, 0.0 );
     } // have lsm
+
+    // Enforce consistency between t_sfc and t_lev at bottom surface
+    Kokkos::parallel_for(Kokkos::RangePolicy(0, ncol),
+                         KOKKOS_LAMBDA (int icol)
+    {
+        t_lev_d(icol,0) = t_sfc_d(icol);
+    });
 }
 
 
