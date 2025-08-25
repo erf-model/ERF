@@ -682,7 +682,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
     if (solverChoice.rad_type != RadiationType::None)
     {
-        if (rad_datalog_int > 0 && (nstep+1) % rad_datalog_int == 0) {
+        if ( rad_datalog_int > 0 &&
+             ((nstep+1) % rad_datalog_int == 0) || (nstep==0) ) {
             if (rad[0]->hasDatalog()) {
                 rad[0]->WriteDataLog(time+start_time);
             }
