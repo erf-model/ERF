@@ -1,10 +1,26 @@
 #include <sys/time.h>
+#include "ERF_Constants.H"
 #include "ERF_SuperDropletPC.H"
 #include "ERF_SuperDropletPCCoalescence.H"
+#include <AMReX_TracerParticle_mod_K.H>
 
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+
+/*! \brief Compute dynamic viscosity */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static auto viscCoeff ( const ParticleReal a_T /*!< temperature */ )
+{
+    auto T_degC = a_T - 273.15; // [K] => [degC]
+    ParticleReal visc_coeff = 0.0;
+    if( T_degC >= 0.0 ) {
+        visc_coeff = ( 1.7180 + 4.9E-3*T_degC ) * 1.E-5;
+    } else {
+        visc_coeff = ( 1.7180 + 4.9E-3*T_degC -1.2E-5*T_degC*T_degC ) * 1.E-5;
+    }
+    return visc_coeff;
+}
 
 /*! \brief Compute coalescence rate between two superdroplets */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
@@ -84,7 +100,9 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
 void SuperDropletPC::Coalescence( int   a_lev,
                                   Real  a_dt,
                                   const MultiFab& a_pressure,
-                                  const MultiFab& a_temperature )
+                                  const MultiFab& a_moist_density,
+                                  const MultiFab& a_temperature,
+                                  const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd )
 {
     struct timeval total_start, total_end;
     gettimeofday(&total_start, NULL);
@@ -97,8 +115,15 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const auto dxi = geom.InvCellSizeArray();
     const auto domain = geom.Domain();
 
+    const auto is_periodic = geom.isPeriodic();
+    auto is_periodic_z = is_periodic[2];
+
+    const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
+
     const auto rho_w = m_species_mat[m_idx_w]->m_density;
+    const auto rho_i = (m_idx_i >= 0 ? m_species_mat[m_idx_i]->m_density : 0.0);
     const auto idx_w = m_idx_w;
+    const auto idx_i = m_idx_i;
 
     const int num_ae = m_num_aerosols;
     const int num_sp  = m_num_species;
@@ -140,6 +165,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
+        auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data();
+        auto* c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data();
 
         /* species masses */
         SDSpeciesMassArr sp_mass_ptrs;
@@ -275,12 +302,15 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
         const auto& pressure_arr = a_pressure[grid].const_array();
         const auto& temperature_arr = a_temperature[grid].const_array();
+        const auto& moist_density_arr = a_moist_density[grid].const_array();
+        auto zheight = (*z_height)[grid].array();
 
         CollisionKernel<ParticleReal,AMREX_SPACEDIM> ckernel{};
 
         Gpu::Buffer<Real> particle_collisions({0});
         auto particle_collisions_ptr = particle_collisions.data();
 
+        // initialize coalescence quantities
         Gpu::DeviceVector<int> coal_partner_idx, flag_prey, num_particles_bin;
         Gpu::DeviceVector<Real> coal_rate, coal_rmndr;
         num_particles_bin.resize(np);
@@ -306,6 +336,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
         struct timeval mcpairing_start, mcpairing_end;
         gettimeofday(&mcpairing_start, NULL);
 
+        // create pairs: note that the SD with larger multiplicity is the "prey"
         ParallelFor( bins.numBins(), [=] AMREX_GPU_DEVICE (int i_bin) noexcept
         {
             auto bin_start = offsets[i_bin];
@@ -348,41 +379,171 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto ae_rho_arr = ae_density.data();
         auto ae_sol_arr = ae_solubility.data();
 
+        // calculate collision efficiencies for each pair
         ParallelForRNG( np, [=] AMREX_GPU_DEVICE (int i, RandomEngine const& rnd_eng) noexcept
         {
             if (partner_idx_ptr[i] < 0) { return; }
             if (!flag_prey_ptr[i]) { return; }
 
-            int pi = i;
-            int pj = partner_idx_ptr[i];
+            int pi = i; // prey - higher multiplicity
+            int pj = partner_idx_ptr[i]; // predator - lower multiplicity
             AMREX_ALWAYS_ASSERT(mult_ptr[pi] >= mult_ptr[pj]);
 
-            ParticleReal k_val = 0.0;
-            if (kernel_choice == SDCoalescenceKernelType::golovin) {
+            // get phases for the two particles
+            auto phase_i = SD_phase(pi, idx_w, idx_i, sp_mass_ptrs);
+            auto phase_j = SD_phase(pj, idx_w, idx_i, sp_mass_ptrs);
 
-                k_val = ckernel.golovin(radius_ptr[pi],radius_ptr[pj]);
+            ParticleReal k_val = 0.0;
+            if ((phase_i == SDPhase::water) && (phase_j == SDPhase::water)) {
+
+                // coalescence between two water droplets
+
+                if (kernel_choice == SDCoalescenceKernelType::golovin) {
+
+                    k_val = ckernel.golovin(radius_ptr[pi],radius_ptr[pj]);
+
+                } else {
+
+                    ParticleReal v_i[AMREX_SPACEDIM], v_j[AMREX_SPACEDIM];
+                    for (int d = 0; d < AMREX_SPACEDIM; d++) {
+                        v_i[d] = v_ptr[d][pi];
+                        v_j[d] = v_ptr[d][pj];
+                    }
+                    v_i[AMREX_SPACEDIM-1] -= vterm_ptr[pi];
+                    v_j[AMREX_SPACEDIM-1] -= vterm_ptr[pj];
+
+                    if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
+                        k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                    } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
+                        k_val = ckernel.Longs(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                    } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
+                        k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                    }
+
+                    if (k_val < 0.0) {
+                        amrex::Abort("Invalid value for k_val");
+                    }
+                }
+
+            } else if ((phase_i == SDPhase::ice) && (phase_j == SDPhase::ice)) {
+
+                // aggregation between two ice particles
+
+                // ice particle 1
+                auto vz_i = v_ptr[AMREX_SPACEDIM-1][pi] - vterm_ptr[pi];
+                auto a_i = a_ptr[pi];
+                auto c_i = c_ptr[pi];
+                auto rhoi_i = ice_rho(a_i, c_i, sp_mass_ptrs[idx_i][pi]);
+                auto maxR_i = std::max(a_i, c_i);
+                auto k_i = std::exp(-ckernel.k_coeff * c_i/a_i);
+                auto area_i = PI * a_i * maxR_i * std::exp(k_i*std::log(rhoi_i/rho_i));
+
+                // ice particle 2
+                auto vz_j = v_ptr[AMREX_SPACEDIM-1][pj] - vterm_ptr[pj];
+                auto a_j = a_ptr[pj];
+                auto c_j = c_ptr[pj];
+                auto rhoi_j = ice_rho(a_j, c_j, sp_mass_ptrs[idx_i][pj]);
+                auto maxR_j = std::max(a_j, c_j);
+                auto k_j = std::exp(-ckernel.k_coeff * c_j/a_j);
+                auto area_j = PI * a_j * maxR_j * std::exp(k_j*std::log(rhoi_j/rho_i));
+
+                // velocity difference
+                auto dvz = std::sqrt((vz_i-vz_j)*(vz_i-vz_j));
+
+                // collision efficiency
+                k_val = 0.1 * (std::sqrt(area_i)+std::sqrt(area_j))*(std::sqrt(area_i)+std::sqrt(area_j)) * dvz;
+                // if (std::min(rhoi_i, rhoi_j) < 10.0) { k_val = 0.0; }
 
             } else {
 
-                ParticleReal v_i[AMREX_SPACEDIM], v_j[AMREX_SPACEDIM];
-                for (int d = 0; d < AMREX_SPACEDIM; d++) {
-                    v_i[d] = v_ptr[d][pi];
-                    v_j[d] = v_ptr[d][pj];
-                }
-                v_i[AMREX_SPACEDIM-1] -= vterm_ptr[pi];
-                v_j[AMREX_SPACEDIM-1] -= vterm_ptr[pj];
+                // riming between a water droplet and an ice particle
+                AMREX_ALWAYS_ASSERT(    ((phase_i == SDPhase::ice) && (phase_j == SDPhase::water))
+                                     || ((phase_i == SDPhase::water) && (phase_j == SDPhase::ice)) );
 
-                if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
-                    k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
-                    k_val = ckernel.Longs(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
-                    k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                // figure out which one is water, and which is ice
+                int id_w = -1, id_i = -1;
+                if (phase_i == SDPhase::water) { id_w = pi; id_i = pj; }
+                else { id_w = pj; id_i = pi; }
+
+                // water droplet
+                auto vz_w = v_ptr[AMREX_SPACEDIM-1][id_w] - vterm_ptr[id_w];
+                auto r_w = radius_ptr[id_w];
+
+                // ice particle
+                auto vz_i = v_ptr[AMREX_SPACEDIM-1][id_i] - vterm_ptr[id_i];
+                auto a_i = a_ptr[id_i];
+                auto c_i = c_ptr[id_i];
+                auto rhoi_i = ice_rho(a_i, c_i, sp_mass_ptrs[idx_i][id_i]);
+                auto eqr_i = std::exp((1.0/3.0)*std::log(a_i*a_i*c_i));
+                auto maxR_i = std::max(a_i, c_i);
+
+                // interpolate flow quantities at ice particle location
+                ParticleType& p_ice = pstruct_ptr[id_i];
+                ParticleReal temperature, moist_density;
+                if (is_periodic_z) {
+                    cic_interpolate( p_ice, plo, dxi, temperature_arr, &temperature, 1 );
+                    cic_interpolate( p_ice, plo, dxi, moist_density_arr, &moist_density, 1 );
+                } else {
+                    cic_interpolate_mapped_z( p_ice, plo, dxi, temperature_arr, zheight, &temperature, 1 );
+                    cic_interpolate_mapped_z( p_ice, plo, dxi, moist_density_arr, zheight, &moist_density, 1 );
                 }
 
-                if (k_val < 0.0) {
-                    amrex::Abort("Invalid value for k_val");
+                // dynamic viscosity
+                auto mu = viscCoeff(temperature);
+
+                // velocity difference
+                auto dvz = std::sqrt((vz_i-vz_w)*(vz_i-vz_w));
+
+                if (vz_w > vz_i) {
+
+                    // collector is water droplet
+
+                    auto size_ratio = eqr_i / r_w;
+                    auto Re = moist_density * (2.0*r_w) * vz_w / mu;
+                    auto Kn = ckernel.lambda_mfp / (2.0*eqr_i);
+                    // Cunningham slip correction factor
+                    auto C_sc = 1.0 + Kn * (ckernel.para_Asc + ckernel.para_Bsc * std::exp(-ckernel.para_Csc/Kn));
+                    // Stokes number
+                    auto St = size_ratio*size_ratio * rhoi_i * Re * C_sc / (9.0*moist_density);
+
+                    k_val = ckernel.BeardGrover1974(size_ratio, Re, St);
+
+                    // collision efficiency
+                    k_val *= (PI * (r_w+a_i) * (r_w+maxR_i) * dvz);
+
+                } else {
+
+                    // collector is ice particle
+
+                    auto size_ratio = r_w / eqr_i;
+                    auto Re = moist_density * 2*maxR_i * vz_i / mu;
+                    auto mixFr = (vz_i - vz_w) * vz_w / (maxR_i * CONST_GRAV);
+
+                    k_val = ckernel.BeardGrover1974(size_ratio, Re, mixFr);
+
+                    auto phi_i = c_i / a_i;
+                    if (phi_i < 1.0) {
+                        // oblate
+                        auto tmp = ckernel.ErfaniMitchell2017_Plate(Re, mixFr);
+                        k_val = phi_i*k_val + (1.0-phi_i)*tmp;
+                    } else {
+                        // prolate
+                        auto Re_col = moist_density * (2*a_i) * vz_i / mu;
+                        auto tmp = ckernel.ErfaniMitchell2017_Column(Re_col, mixFr);
+                        k_val = (1.0/phi_i)*k_val + (1.0-(1.0/phi_i))*tmp;
+                    }
+
+                    // circumscribed ellipse area of the particle projected to the flow direction
+                    auto area_i_ce = PI * a_i * maxR_i;
+                    // area of the particle projected to the flow direction
+                    auto k_i = std::exp(-ckernel.k_coeff * phi_i);
+                    auto area_i = area_i_ce * std::exp(k_i*std::log(rhoi_i/rho_i));
+
+                    // collision-riming kernel: E_rime*A_g*|vj-vk|
+                    k_val *= ( (PI*(r_w+a_i)*(r_w+maxR_i) - (area_i_ce-area_i)) * dvz);
+
                 }
+
             }
 
             if (include_brownian_coalescence) {

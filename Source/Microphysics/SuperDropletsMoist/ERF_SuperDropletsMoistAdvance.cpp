@@ -53,10 +53,31 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
 
     // Coalescence of super-droplets
     if (m_flag_coalescence) {
+        // Compute moist density
+        MultiFab mf_moist_density(  m_mic_fab_vars[MicVar_SD::rho]->boxArray(),
+                                    m_mic_fab_vars[MicVar_SD::rho]->DistributionMap(),
+                                    1,
+                                    m_mic_fab_vars[MicVar_SD::rho]->nGrowVect() );
+        for ( MFIter mfi(mf_moist_density); mfi.isValid(); ++mfi) {
+
+            Box bx = mfi.tilebox();
+            bx.grow(mf_moist_density.nGrowVect());
+
+            auto qv_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
+            auto rho_arr = m_mic_fab_vars[MicVar_SD::rho]->const_array(mfi);
+            auto rhom_arr = mf_moist_density.array(mfi);
+
+            ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                         { rhom_arr(i,j,k) = (1.0+qv_arr(i,j,k)) * rho_arr(i,j,k); } );
+        }
+        mf_moist_density.FillBoundary();
+
         m_super_droplets->Coalescence(  0,
                                         a_dt,
                                         *m_mic_fab_vars[MicVar_SD::pressure],
-                                        *m_mic_fab_vars[MicVar_SD::temperature] );
+                                        mf_moist_density,
+                                        *m_mic_fab_vars[MicVar_SD::temperature],
+                                        a_z );
     }
 
     // Recycle super-droplets

@@ -178,7 +178,9 @@ class SuperDropletPC : public ERFPC
         virtual void Coalescence (  int,
                                     amrex::Real,
                                     const amrex::MultiFab&,
-                                    const amrex::MultiFab& );
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::Vector<MFPtr>& );
 
         /*! \brief Recycle super-droplets */
         virtual void Recycle ( const int, const amrex::Vector<MFPtr>& );

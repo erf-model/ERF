@@ -17,6 +17,12 @@
 template<typename RT, int SPACEDIM>
 struct CollisionKernel
 {
+    const RT lambda_mfp = 6.62e-8; // mean free path of air
+    const RT para_Asc = 2.51;
+    const RT para_Bsc = 0.8;
+    const RT para_Csc = 0.55;
+    const RT k_coeff = 1.0;
+
     /*! \brief Golovin kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT golovin ( const RT a_r1, /*!< radius of droplet 1 */
@@ -307,8 +313,125 @@ struct CollisionKernel
         return k12;
     }
 
+    /*! \brief Beard & Grover, 1974 */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT BeardGrover1974 ( const RT a_sr, /*!< Size ratio */
+                         const RT a_Re, /*!< Reynolds number */
+                         const RT a_Fr  /*!< Froude number */ ) const noexcept
+    {
+        // riming efficiency of Beard and Grover (1974)
+        const RT A0 = -0.1007;
+        const RT A1 = -0.358;
+        const RT A2 =  0.0261;
+        const RT B0 =  0.1465;
+        const RT B1 =  1.302;
+        const RT B2 = -0.607;
+        const RT B3 =  0.293;
+
+        RT K0 = 0.0;
+        if ( a_Re > 400) {
+            K0 = 0.21;
+        } else {
+            auto F = std::log(a_Re);
+            auto G = A0 + A1*F + A2*F*F;
+            K0 = std::exp(G);
+        }
+
+        auto z = std::log(a_Fr/K0);
+        auto H = std::max(B0 + B1*z + B2*z*z + B3*z*z*z,0.0);
+        auto yc0 = (2.0/PI)*std::atan(H);
+
+        auto retval = (yc0+a_sr)*(yc0+a_sr) / ((1.0+a_sr)*(1.0+a_sr));
+        return retval;
+    }
+
+    /*! \brief Beard & Grover, 1974 */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT ErfaniMitchell2017_Plate ( const RT a_Re, /*!< Reynolds number */
+                                  const RT a_Fr  /*!< Froude number */ ) const noexcept
+    {
+        if (a_Re <1.0) {
+            return 0.0;
+        } else {
+
+            auto Re_l = std::min(a_Re,120.0);
+            auto Fr_l = std::min(a_Fr,35.0);
+            auto K_t = -5.07e-10*std::exp(5*std::log(Re_l))
+                       +1.73e-7 *std::exp(4*std::log(Re_l))
+                       -2.17e-5 *std::exp(3*std::log(Re_l))
+                       +0.0013  *Re_l*Re_l
+                       -0.037   *Re_l
+                       +0.8355;
+
+            RT K_c = 0.0;
+            if      (Re_l <=  10.0) { K_c = 1.250 * std::exp(-0.350*std::log(Re_l)); }
+            else if (Re_l <=  40.0) { K_c = 1.072 * std::exp(-0.301*std::log(Re_l)); }
+            else if (Re_l <= 120.0) { K_c = 0.356 * std::exp(-0.003*std::log(Re_l)); }
+
+            auto retval = 0.0;
+            if (Fr_l <= 0.35) {
+                retval = 0.787 * std::exp(std::log(Fr_l)*0.988) * std::max(0.263*std::log(Re_l)-0.264, 0.0);
+            } else if(Fr_l <= K_t) {
+                retval = (0.7475*std::log10(Fr_l)+0.620) * std::max(0.263*std::log(Re_l)-0.264, 0.0);
+            } else {
+                auto E_1 = (0.7475*std::log10(K_t)+0.620) * std::max(0.263*std::log(Re_l)-0.264, 0.0);
+                auto E_2 = std::sqrt( std::max(1.0 - 0.2*std::exp(2*std::log(std::log10(Fr_l/K_c)-std::sqrt(5.0))),
+                                               0.0) );
+                retval = std::max(E_1,E_2);
+            }
+            return retval;
+        }
+    }
+
+    /*! \brief Beard & Grover, 1974 */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT ErfaniMitchell2017_Column ( const RT a_Re, /*!< Reynolds number */
+                                   const RT a_Fr  /*!< Froude number */ ) const noexcept
+    {
+        if (a_Re < 0.2) {
+            return 0.0;
+        } else {
+
+            auto Re_l = std::min(a_Re,20.0);
+            auto Fr_l = std::min(a_Fr,20.0);
+
+            auto K_t = 0.0;
+            if (Re_l <= 2.0) {
+                K_t =   0.0251*Re_l*Re_l
+                      - 0.0144*Re_l
+                      + 0.811;
+            } else {
+                K_t = -0.0003*Re_l*Re_l*Re_l
+                      +0.0124*Re_l*Re_l
+                      -0.1634*Re_l
+                      +1.0075;
+            }
+
+            auto para_r = 0.0, K_c = 0.0;
+            if (Re_l <= 1.7) {
+                para_r = 0.7422 * std::exp(std::log(Re_l)*0.2111);
+                K_c = 0.7797 * std::exp(std::log(Re_l)*(-0.009));
+            } else {
+                para_r = 0.8025 * std::exp(std::log(Re_l)*0.0604);
+                K_c = 1.0916 * std::exp(std::log(Re_l)*(-0.635));
+            }
+
+            auto retval = 0.0;
+            if (Fr_l <= K_t) {
+                if (Re_l <= 3.0) {
+                    retval= 0.787 * std::exp(std::log(Fr_l)*0.988) * (-0.0121*Re_l*Re_l + 0.1297*Re_l + 0.0598);
+                } else {
+                    retval = 0.787 * std::exp(std::log(Fr_l)*0.988) * (-0.0005*Re_l*Re_l + 0.1028*Re_l + 0.0359);
+                }
+            } else {
+                retval = para_r * std::sqrt( std::max(1.0 - std::exp(2*std::log(std::log10(Fr_l/K_c)-std::sqrt(3.5)))/3.5,
+                                                      0.0) );
+            }
+            return retval;
+        }
+    }
+
 };
 
 #endif
 #endif
-
