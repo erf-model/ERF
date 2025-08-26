@@ -8,7 +8,8 @@ This folder contains examples for hurricane simulations from real weather data.
    For ERA5 data see the README section [here](https://github.com/erf-model/erftools/tree/main/notebooks/era5).    
    For GFS data see the README section [here](https://github.com/erf-model/erftools/tree/main/notebooks/gfs).  
 
-2. From the step above, copy the `Output/HindCastBoundaryDataDir` directory to the directory where ERF will be run.
+2. From the step above, copy the `Output/HindCastBoundaryDataDir` directory to the directory where ERF will be run.  
+   This is the boundary data for the lateral forcing of large scale meteorology.
 
 3. The python script also outputs the domain size to be used in the `inputs` file for the ERF run. For eg.
    ```
