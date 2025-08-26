@@ -182,33 +182,31 @@
 
             if (solverChoice.terrain_type == TerrainType::EB)
             {
-                // Redistribute cons states (cell-centered)
-
-                // MultiFab dUdt_tmp(ba, dm, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow(), MFInfo(), EBFactory(level));
-                // dUdt_tmp.setVal(0.);
-                // MultiFab::Copy(dUdt_tmp, F_slow[IntVars::cons], 0, 0, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow());
-
                 // Define auxiliary MultiFabs
 
-                Vector<MultiFab> dUdt(IntVars::NumTypes);
-
+                Vector<MultiFab> dUdt(IntVars::NumTypes);                
                 dUdt[IntVars::cons].define(ba, dm, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow(), MFInfo(), EBFactory(level));
-                dUdt[IntVars::cons].setVal(0.);
-                MultiFab::Copy(dUdt[IntVars::cons], F_slow[IntVars::cons], 0, 0, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow());
-                dUdt[IntVars::cons].FillBoundary(fine_geom.periodicity());
-                dUdt[IntVars::cons].setDomainBndry(1.234e10, 0, ncomp_fast[IntVars::cons], fine_geom);  
-
                 for (int i = 1; i <= AMREX_SPACEDIM; ++i) {
                     dUdt[i].define(F_slow[i].boxArray(), F_slow[i].DistributionMap(), F_slow[i].nComp(), F_slow[i].nGrow(), MFInfo());
-                    dUdt[i].setVal(0.);
-                    MultiFab::Copy(dUdt[i], F_slow[i], 0, 0, F_slow[i].nComp(), F_slow[i].nGrow());
+                }
+                for (int i = 0; i <= AMREX_SPACEDIM; ++i) {
+                    dUdt[i].setVal(0.0, 0, ncomp_fast[i], dUdt[i].nGrow());
+                    MultiFab::Copy(dUdt[i], F_slow[i], 0, 0, F_slow[i].nComp(), 0);
                     dUdt[i].FillBoundary(fine_geom.periodicity());
-                    dUdt[i].setDomainBndry(1.234e10, 0, ncomp_fast[i], fine_geom);
+                    dUdt[i].setDomainBndry(1.234e10, 0, ncomp_fast[i], fine_geom);    
                 }
 
-                for (int i = 0; i <= AMREX_SPACEDIM; ++i) {                
-                    S_old[i].FillBoundary(fine_geom.periodicity());
-                    S_old[i].setDomainBndry(1.234e10, 0, ncomp_fast[i], fine_geom);
+                for (int i = 0; i <= AMREX_SPACEDIM; ++i) {
+                    if (level==0) {
+                        S_old[i].FillBoundary(fine_geom.periodicity());
+                        S_old[i].setDomainBndry(1.234e10, 0, ncomp_fast[i], fine_geom);
+                    } else {
+                        Vector<MultiFab*> S_old_ptr(IntVars::NumTypes);
+                        for (int i = 0; i < IntVars::NumTypes; ++i) {
+                            S_old_ptr[i] = &S_old[i];
+                        }
+                        FillPatchFineLevel(level, time_for_fp, S_old_ptr, S_old_ptr, base_state[level], base_state[level], false, false);
+                    }
                 }
 
                 BCRec const* bc_ptr_d = domain_bcs_type_d.data();
