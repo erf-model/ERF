@@ -72,10 +72,16 @@
             if (solverChoice.moisture_type != MoistureType::None) {
                 is_valid_slow_var[RhoQ1_comp] = 1;
             }
-            // start_comp and num_comp
+            const int num_comp_total = S_rhs[IntVars::cons].nComp();
+            const int num_grow       = S_rhs[IntVars::cons].nGrow();
+            const int nvars          = S_data[IntVars::cons].nComp();
+
+            MultiFab dUdt_tmp(ba, dm, num_comp_total, num_grow, MFInfo(), EBFactory(level));
+            dUdt_tmp.setVal(0.);
+            
             int start_comp;
-            int   num_comp;
-            int nvars = S_data[IntVars::cons].nComp();
+            int num_comp;
+
             for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
             {
                 if (is_valid_slow_var[ivar])
@@ -87,16 +93,11 @@
                     } else if (ivar == RhoScalar_comp) {
                         num_comp = NSCALARS;
                     }
+                    MultiFab::Copy(dUdt_tmp, S_rhs[IntVars::cons], start_comp, start_comp, num_comp, num_grow);
                 }
             }
-
-            // Redistribute cons states (cell-centered)
-            const int num_comp_total{S_rhs[IntVars::cons].nComp()};
-            MultiFab dUdt_tmp(ba, dm, num_comp_total, S_rhs[IntVars::cons].nGrow(), MFInfo(), EBFactory(level));
-            dUdt_tmp.setVal(0.);
-            MultiFab::Copy(dUdt_tmp, S_rhs[IntVars::cons], start_comp, start_comp, num_comp, S_rhs[IntVars::cons].nGrow());
             dUdt_tmp.FillBoundary(fine_geom.periodicity());
-            dUdt_tmp.setDomainBndry(1.234e10, 0, num_comp_total, fine_geom);
+            dUdt_tmp.setDomainBndry(1.234e10, 0, num_comp_total, fine_geom);            
 
             S_old[IntVars::cons].FillBoundary(fine_geom.periodicity());
             S_old[IntVars::cons].setDomainBndry(1.234e10, 0, num_comp_total, fine_geom);
@@ -118,13 +119,26 @@
                 const Array4<Real>& srhs = S_rhs[IntVars::cons].array(mfi);
                 Array4<const Real> detJ_arr = EBFactory(level).getVolFrac().const_array(mfi);
 
-                ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
+                for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
                 {
-                    if (detJ_arr(i,j,k) > 0.0) {
-                        const int n = start_comp + nn;
-                        snew(i,j,k,n) = sold(i,j,k,n) + slow_dt * srhs(i,j,k,n);
+                    if (is_valid_slow_var[ivar])
+                    {
+                        start_comp = ivar;
+                        num_comp   = 1;
+                        if (ivar == RhoQ1_comp) {
+                            num_comp = nvars - RhoQ1_comp;
+                        } else if (ivar == RhoScalar_comp) {
+                            num_comp = NSCALARS;
+                        }
+                        ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
+                        {
+                            if (detJ_arr(i,j,k) > 0.0) {
+                                const int n = start_comp + nn;
+                                snew(i,j,k,n) = sold(i,j,k,n) + slow_dt * srhs(i,j,k,n);
+                            }
+                        });
                     }
-                });
+                }                
             }
         } // EB        
 
