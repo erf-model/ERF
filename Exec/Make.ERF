@@ -1,7 +1,6 @@
 AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
 EKAT_HOME  ?= $(ERF_HOME)/Submodules/ekat/build/install
-SHOC_HOME  ?= $(ERF_HOME)/external/E3SM/components/eamxx/src/physics/shoc
-P3_HOME    ?= $(ERF_HOME)/external/E3SM/components/eamxx/src/physics/p3
+EAMXX_HOME ?= $(ERF_HOME)/external/E3SM/components/eamxx/src
       
 ifeq ($(USE_MORR_FORT), TRUE)
 DEFINES += -DERF_USE_MORR_FORT
@@ -65,11 +64,6 @@ ERF_PHYSICS_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces
 include $(ERF_PHYSICS_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_PHYSICS_DIR)
 INCLUDE_LOCATIONS += $(ERF_PHYSICS_DIR)
-
-ERF_PHYSICS_SHARE_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/physics/share
-include $(ERF_PHYSICS_SHARE_DIR)/Make.package
-VPATH_LOCATIONS   += $(ERF_PHYSICS_SHARE_DIR)
-INCLUDE_LOCATIONS += $(ERF_PHYSICS_SHARE_DIR)
 
 ifeq ($(USE_PARTICLES),TRUE)
 ERF_PARTICLES_DIR = $(ERF_SOURCE_DIR)/Particles
@@ -135,47 +129,46 @@ INCLUDE_LOCATIONS += $(ERF_MOISTURE_SATADJ_DIR)
 # If using windfarm parametrization, then compile all models and choose 
 # at runtime from the inputs
 ifeq ($(USE_WINDFARM), TRUE)
-DEFINES += -DERF_USE_WINDFARM
-ERF_WINDFARM_DIR        = $(ERF_SOURCE_DIR)/WindFarmParametrization
-ERF_WINDFARM_NULL_DIR   = $(ERF_WINDFARM_DIR)/Null
-ERF_WINDFARM_FITCH_DIR = $(ERF_WINDFARM_DIR)/Fitch
-ERF_WINDFARM_EWP_DIR   = $(ERF_WINDFARM_DIR)/EWP
-ERF_WINDFARM_SIMPLEAD_DIR   = $(ERF_WINDFARM_DIR)/SimpleActuatorDisk
-ERF_WINDFARM_GENERALAD_DIR   = $(ERF_WINDFARM_DIR)/GeneralActuatorDisk
+    DEFINES += -DERF_USE_WINDFARM
+    ERF_WINDFARM_DIR        = $(ERF_SOURCE_DIR)/WindFarmParametrization
+    ERF_WINDFARM_NULL_DIR   = $(ERF_WINDFARM_DIR)/Null
+    ERF_WINDFARM_FITCH_DIR = $(ERF_WINDFARM_DIR)/Fitch
+    ERF_WINDFARM_EWP_DIR   = $(ERF_WINDFARM_DIR)/EWP
+    ERF_WINDFARM_SIMPLEAD_DIR   = $(ERF_WINDFARM_DIR)/SimpleActuatorDisk
+    ERF_WINDFARM_GENERALAD_DIR   = $(ERF_WINDFARM_DIR)/GeneralActuatorDisk
 
-include $(ERF_WINDFARM_DIR)/Make.package
-include $(ERF_WINDFARM_NULL_DIR)/Make.package
-include $(ERF_WINDFARM_FITCH_DIR)/Make.package
-include $(ERF_WINDFARM_EWP_DIR)/Make.package
-include $(ERF_WINDFARM_SIMPLEAD_DIR)/Make.package
-include $(ERF_WINDFARM_GENERALAD_DIR)/Make.package
+    include $(ERF_WINDFARM_DIR)/Make.package
+    include $(ERF_WINDFARM_NULL_DIR)/Make.package
+    include $(ERF_WINDFARM_FITCH_DIR)/Make.package
+    include $(ERF_WINDFARM_EWP_DIR)/Make.package
+    include $(ERF_WINDFARM_SIMPLEAD_DIR)/Make.package
+    include $(ERF_WINDFARM_GENERALAD_DIR)/Make.package
 
-VPATH_LOCATIONS   += $(ERF_WINDFARM_DIR)
-INCLUDE_LOCATIONS += $(ERF_WINDFARM_DIR)
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_DIR)
 
-VPATH_LOCATIONS   += $(ERF_WINDFARM_NULL_DIR)
-INCLUDE_LOCATIONS += $(ERF_WINDFARM_NULL_DIR)
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_NULL_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_NULL_DIR)
 
-VPATH_LOCATIONS   += $(ERF_WINDFARM_FITCH_DIR)
-INCLUDE_LOCATIONS += $(ERF_WINDFARM_FITCH_DIR)
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_FITCH_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_FITCH_DIR)
 
-VPATH_LOCATIONS   += $(ERF_WINDFARM_EWP_DIR)
-INCLUDE_LOCATIONS += $(ERF_WINDFARM_EWP_DIR)
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_EWP_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_EWP_DIR)
 
-VPATH_LOCATIONS   += $(ERF_WINDFARM_SIMPLEAD_DIR)
-INCLUDE_LOCATIONS += $(ERF_WINDFARM_SIMPLEAD_DIR)
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_SIMPLEAD_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_SIMPLEAD_DIR)
 
-VPATH_LOCATIONS   += $(ERF_WINDFARM_GENERALAD_DIR)
-INCLUDE_LOCATIONS += $(ERF_WINDFARM_GENERALAD_DIR)
-
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_GENERALAD_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_GENERALAD_DIR)
 endif
 
 ifeq ($(USE_FFT),TRUE)
-DEFINES += -DERF_USE_FFT
+    DEFINES += -DERF_USE_FFT
 endif
 
 ifeq ($(USE_WW3_COUPLING), TRUE)
-DEFINES += -DERF_USE_WW3_COUPLING
+    DEFINES += -DERF_USE_WW3_COUPLING
 endif
 
 ERF_LSM_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel
@@ -235,6 +228,7 @@ ifeq ($(USE_RRTMGP), TRUE)
     DEFINES += -DRRTMGP_ENABLE_KOKKOS
     
     RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
+    
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
@@ -244,6 +238,7 @@ ifeq ($(USE_RRTMGP), TRUE)
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples/all-sky
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
+
     INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/
     INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp
     INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
@@ -261,12 +256,13 @@ ifeq ($(USE_SHOC), TRUE)
 
     USE_KOKKOS = TRUE
 
+    DEFINES += -DERF_USE_KOKKOS
     DEFINES += -DERF_USE_SHOC
     DEFINES += -DSHOC_ENABLE_KOKKOS
     DEFINES += -DEKAT_ENABLE_MPI
+    DEFINES += -DSCREAM_SHOC_SMALL_KERNELS
     
     # Location of EKAT include and library
-    DEFINES   += -DERF_USE_KOKKOS
     INCLUDE_LOCATIONS += $(EKAT_HOME)/include
     INCLUDE_LOCATIONS += $(EKAT_HOME)/include/ekat
     INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/kokkos
@@ -282,12 +278,20 @@ ifeq ($(USE_SHOC), TRUE)
     INCLUDE_LOCATIONS += $(ERF_SHOC_DIR)
     
     # This directory holds the SHOC source itself
+    SHOC_HOME = $(EAMXX_HOME)/physics/shoc
     VPATH_LOCATIONS   += $(SHOC_HOME)/disp
     VPATH_LOCATIONS   += $(SHOC_HOME)/eti
     VPATH_LOCATIONS   += $(SHOC_HOME)/impl
+    INCLUDE_LOCATIONS += $(SHOC_HOME)
     INCLUDE_LOCATIONS += $(SHOC_HOME)/disp
     INCLUDE_LOCATIONS += $(SHOC_HOME)/eti
     INCLUDE_LOCATIONS += $(SHOC_HOME)/impl
+
+    # Other things we get from eamxx
+    VPATH_LOCATIONS   += $(EAMXX_HOME)/physics/share
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
 endif
     
 # If using P3, compile relevant source and headers
@@ -316,12 +320,18 @@ ifeq ($(USE_P3), TRUE)
     INCLUDE_LOCATIONS += $(ERF_P3_DIR)
     
     # This directory holds the P3 source itself
+    P3_HOME = $(EAMXX_HOME)/physics/p3
     VPATH_LOCATIONS   += $(P3_HOME)/disp
     VPATH_LOCATIONS   += $(P3_HOME)/eti
     VPATH_LOCATIONS   += $(P3_HOME)/impl
     INCLUDE_LOCATIONS += $(P3_HOME)/disp
     INCLUDE_LOCATIONS += $(P3_HOME)/eti
     INCLUDE_LOCATIONS += $(P3_HOME)/impl
+
+    # Other things we get from eamxx
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
 endif
     
     

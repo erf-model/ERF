@@ -38,11 +38,5 @@ void ERF::advance_radiation (int lev,
                       lsm_input_ptrs, lsm_output_ptrs,
                       qheating_rates[lev].get(), z_phys_nd[lev].get()   ,
                       lat_ptr, lon_ptr);
-        /*
-        // TODO: fix this - can't use set_lsm_inputs with IRadiation::Run()
-        if (solverChoice.lsm_type == LandSurfaceType::SLM) {
-        rad[lev]->set_lsm_inputs(lsm.get_model_lev<SLM>(lev));
-        }
-        */
     }
 }

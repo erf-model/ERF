@@ -30,13 +30,25 @@ Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
 
+Real ERF::start_time    = 0.0;
+Real ERF::stop_time     = std::numeric_limits<amrex::Real>::max();
+
+#ifdef ERF_USE_NETCDF
+Real ERF::start_bdy_time     = 0.0;
+Real ERF::start_low_time     = 0.0;
+
+Real ERF::bdy_time_interval  = std::numeric_limits<amrex::Real>::max();
+Real ERF::low_time_interval  = std::numeric_limits<amrex::Real>::max();
+#endif
+
 // Time step control
-Real ERF::cfl           =  0.8;
-Real ERF::sub_cfl       =  1.0;
-Real ERF::init_shrink   =  1.0;
-Real ERF::change_max    =  1.1;
+Real ERF::cfl            = 0.8;
+Real ERF::sub_cfl        = 1.0;
+Real ERF::init_shrink    = 1.0;
+Real ERF::change_max     = 1.1;
 Real ERF::dt_max_initial = 2.0e100;
-Real ERF:: dt_max = 1e9;
+Real ERF:: dt_max        = 1.0e9;
+
 int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
@@ -670,7 +682,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
     if (solverChoice.rad_type != RadiationType::None)
     {
-        if (rad_datalog_int > 0 && (nstep+1) % rad_datalog_int == 0) {
+        if ( rad_datalog_int > 0 &&
+             (((nstep+1) % rad_datalog_int == 0) || (nstep==0)) ) {
             if (rad[0]->hasDatalog()) {
                 rad[0]->WriteDataLog(time+start_time);
             }

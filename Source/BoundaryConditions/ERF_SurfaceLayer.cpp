@@ -213,7 +213,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
         const auto tvm_arr = tvm_ptr->array(mfi);
         const auto qvm_arr = qvm_ptr->array(mfi);
         const auto umm_arr = umm_ptr->array(mfi);
-        const auto z0_arr  = z_0[lev].array();
+        const auto z0_arr  = z_0[lev].array(mfi);
 
         // PBL height if we need to calculate wstar for the Beljaars correction
         // TODO: can/should we apply this in LES mode?
@@ -638,11 +638,11 @@ SurfaceLayer::read_custom_roughness (const int& lev,
 {
     // Read the file if we are on the coarsest level
     if (lev==0) {
-        // Only the ioproc reads the file and broadcasts
+        // Only the ioproc reads the file
+        Gpu::HostVector<Real> m_x,m_y,m_z0;
         if (ParallelDescriptor::IOProcessor()) {
             Print()<<"Reading MOST roughness file: "<< fname << std::endl;
             std::ifstream file(fname);
-            Gpu::HostVector<Real> m_x,m_y,m_z0;
             Real value1,value2,value3;
             while(file>>value1>>value2>>value3){
                 m_x.push_back(value1);
@@ -650,16 +650,29 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                 m_z0.push_back(value3);
             }
             file.close();
+        }
 
-            // Copy data to the GPU
-            int nnode = m_x.size();
-            Gpu::DeviceVector<Real> d_x(nnode),d_y(nnode),d_z0(nnode);
-            Gpu::copy(Gpu::hostToDevice, m_x.begin(), m_x.end(), d_x.begin());
-            Gpu::copy(Gpu::hostToDevice, m_y.begin(), m_y.end(), d_y.begin());
-            Gpu::copy(Gpu::hostToDevice, m_z0.begin(), m_z0.end(), d_z0.begin());
-            Real* xp  = d_x.data();
-            Real* yp  = d_y.data();
-            Real* z0p = d_z0.data();
+        // Broadcast the whole domain to every rank
+        int ioproc = ParallelDescriptor::IOProcessorNumber();
+        ParallelDescriptor::Barrier();
+        ParallelDescriptor::Bcast(m_x.data() , m_x.size() , ioproc);
+        ParallelDescriptor::Bcast(m_y.data() , m_x.size() , ioproc);
+        ParallelDescriptor::Bcast(m_z0.data(), m_z0.size(), ioproc);
+
+        // Copy data to the GPU
+        int nnode = m_x.size();
+        Gpu::DeviceVector<Real> d_x(nnode),d_y(nnode),d_z0(nnode);
+        Gpu::copy(Gpu::hostToDevice, m_x.begin(), m_x.end(), d_x.begin());
+        Gpu::copy(Gpu::hostToDevice, m_y.begin(), m_y.end(), d_y.begin());
+        Gpu::copy(Gpu::hostToDevice, m_z0.begin(), m_z0.end(), d_z0.begin());
+        Real* xp  = d_x.data();
+        Real* yp  = d_y.data();
+        Real* z0p = d_z0.data();
+
+        // Each rank populates it's z_0[lev] MultiFab
+        for (MFIter mfi(z_0[lev]); mfi.isValid(); ++mfi)
+        {
+            Box gtbx = mfi.growntilebox();
 
             // Populate z_phys data
             Real tol = 1.0e-4;
@@ -671,12 +684,8 @@ SurfaceLayer::read_custom_roughness (const int& lev,
             int ihi = m_geom[lev].Domain().bigEnd(0);
             int jhi = m_geom[lev].Domain().bigEnd(1);
 
-            // Grown box with no z range
-            Box xybx = z_0[lev].box();
-            xybx.setRange(2,0);
-
-            Array4<Real> const& z0_arr = z_0[lev].array();
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+            Array4<Real> const& z0_arr = z_0[lev].array(mfi);
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
             {
                 // Clip indices for ghost-cells
                 int ii = amrex::min(amrex::max(i,ilo),ihi);
@@ -705,11 +714,7 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                     z0_arr(i,j,klo) = z0loc;
                 }
             });
-        } // Is ioproc
-
-        int ioproc = ParallelDescriptor::IOProcessorNumber();
-        ParallelDescriptor::Barrier();
-        ParallelDescriptor::Bcast(z_0[lev].dataPtr(),z_0[lev].box().numPts(),ioproc);
+        } // mfi
     } else {
         // Create a BC mapper that uses FOEXTRAP at domain bndry
         Vector<int> bc_lo(3,ERFBCType::foextrap);
@@ -723,11 +728,12 @@ SurfaceLayer::read_custom_roughness (const int& lev,
         }
 
         // Create interp object and interpolate from the coarsest grid
-        Interpolater* interp = &cell_cons_interp;
+        MFInterpolater* interp = &mf_cell_cons_interp;
         interp->interp(z_0[0]  , 0,
                        z_0[lev], 0,
-                       1, z_0[lev].box(),
-                       ratio, m_geom[0], m_geom[lev],
-                       bcr, 0, 0, RunOn::Gpu);
+                       1, z_0[lev].nGrowVect(),
+                       m_geom[0], m_geom[lev],
+                       m_geom[lev].Domain(),ratio,
+                       bcr, 0);
     }
 }

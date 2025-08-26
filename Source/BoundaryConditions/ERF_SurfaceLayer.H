@@ -6,7 +6,7 @@
 #include "AMReX_FArrayBox.H"
 #include "AMReX_MultiFab.H"
 #include "AMReX_iMultiFab.H"
-#include "AMReX_Interpolater.H"
+#include "AMReX_MFInterpolater.H"
 
 #include "ERF_IndexDefines.H"
 #include "ERF_Constants.H"
@@ -340,15 +340,8 @@ public:
 
       // Z0 heights FAB
       //--------------------------------------------------------
-      amrex::Arena* Arena_Used = amrex::The_Arena();
-#ifdef AMREX_USE_GPU
-      Arena_Used = amrex::The_Pinned_Arena();
-#endif
-      amrex::Box bx = amrex::grow(m_geom[lev].Domain(), ng);
-      bx.setSmall(2, 0);
-      bx.setBig(2, 0);
-      z_0[lev].resize(bx, 1, Arena_Used);
-      z_0[lev].setVal<amrex::RunOn::Device>(z0_const);
+      z_0[lev].define(ba2d, dm, ncomp, ng);
+      z_0[lev].setVal(z0_const);
       if (read_z0) {
           read_custom_roughness(lev, fname);
       }
@@ -497,7 +490,7 @@ public:
 
   amrex::Real get_zref () { return m_ma.get_zref(); }
 
-  amrex::FArrayBox* get_z0 (const int& lev) { return &z_0[lev]; }
+  amrex::MultiFab* get_z0 (const int& lev) { return &z_0[lev]; }
 
   bool have_variable_sea_roughness () { return m_var_z0; }
 
@@ -582,7 +575,7 @@ private:
   amrex::Real cnk_a{0.0185};
   bool cnk_visc{false};
   amrex::Real depth{30.0};
-  amrex::Vector<amrex::FArrayBox> z_0;
+  amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};
 
   bool use_moisture;

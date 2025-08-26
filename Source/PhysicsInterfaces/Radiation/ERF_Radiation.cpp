@@ -492,9 +492,9 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
             p_lay_d(icol,ilay) = getPgivenRTh(rt, qv);
             t_lay_d(icol,ilay) = getTgivenRandRTh(r, rt, qv);
             z_del_d(icol,ilay) = (z_arr) ? 0.25 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
-                                                + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
-                                                + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
-                                                + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k)) ) : dz;
+                                                  + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
+                                                  + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
+                                                  + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k)) ) : dz;
             qv_lay_d(icol,ilay) = qv;
             qc_lay_d(icol,ilay) = qc;
             qi_lay_d(icol,ilay) = qi;
@@ -589,6 +589,13 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
         } // ivar
         Kokkos::deep_copy(lw_src, 0.0 );
     } // have lsm
+
+    // Enforce consistency between t_sfc and t_lev at bottom surface
+    Kokkos::parallel_for(Kokkos::RangePolicy(0, ncol),
+                         KOKKOS_LAMBDA (int icol)
+    {
+        t_lev_d(icol,0) = t_sfc_d(icol);
+    });
 }
 
 
@@ -1228,7 +1235,7 @@ Radiation::finalize_impl (Vector<MultiFab*>& lsm_output_ptrs)
     if (m_rad_write_fluxes) { write_rrtmgp_fluxes(); }
 
     // Fill output data for datalog before deallocating
-    if (datalog_int > 0 && m_step % datalog_int == 0) {
+    if (datalog_int > 0) {
         rrtmgp::compute_heating_rate(sw_clrsky_flux_up, sw_clrsky_flux_dn, r_lay, z_del, sw_clrsky_heating);
         rrtmgp::compute_heating_rate(lw_clrsky_flux_up, lw_clrsky_flux_dn, r_lay, z_del, lw_clrsky_heating);
 
