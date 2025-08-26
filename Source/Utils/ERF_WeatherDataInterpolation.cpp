@@ -505,8 +505,7 @@ ERF::WeatherDataInterpolation(const Real time)
     }
     if (time >= next_read_forecast_time) {
 
-
-        std::string folder = "WeatherData";
+        std::string folder = solverChoice.hindcast_boundary_data_dir;
 
         // Check if folder exists and is a directory
         if (!fs::exists(folder) || !fs::is_directory(folder)) {

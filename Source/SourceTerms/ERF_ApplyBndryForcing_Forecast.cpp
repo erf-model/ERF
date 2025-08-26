@@ -6,6 +6,7 @@ using namespace amrex;
 
 void
 ApplyBndryForcing_Forecast (
+  const SolverChoice& solverChoice,
   const Geometry geom,
   const Box& tbx,
   const Box& tby,
@@ -28,36 +29,6 @@ ApplyBndryForcing_Forecast (
     auto ProbHiArr = geom.ProbHiArray();
     auto ProbLoArr = geom.ProbLoArray();
 
-    Real hindcast_lateral_sponge_strength = -1.0, hindcast_lateral_sponge_length = -1.0;
-    Real hindcast_zhi_sponge_strength = -1.0, hindcast_zhi_sponge_length = -1.0;
-    bool hindcast_zhi_sponge_damping = false;
-
-    amrex::ParmParse pp("erf");
-
-    pp.query("hindcast_lateral_sponge_strength", hindcast_lateral_sponge_strength);
-    pp.query("hindcast_lateral_sponge_length", hindcast_lateral_sponge_length);
-
-    pp.query("hindcast_zhi_sponge_length", hindcast_zhi_sponge_length);
-    pp.query("hindcast_zhi_sponge_strength", hindcast_zhi_sponge_strength);
-
-    pp.query("hindcast_zhi_sponge_damping", hindcast_zhi_sponge_damping);
-
-    if (hindcast_lateral_sponge_strength < 0.0) {
-        amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_lateral_sponge_strength' or it is specified to be less than zero");
-    }
-
-    if (hindcast_lateral_sponge_length < 0.0) {
-        amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_lateral_sponge_length' or it is specified to be less than zero");
-    }
-
-    if (hindcast_zhi_sponge_strength < 0.0) {
-        amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_strength' or it is specified to be less than zero");
-    }
-
-    if (hindcast_zhi_sponge_strength < 0.0) {
-        amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_strength' or it is specified to be less than zero");
-    }
-
     amrex::ignore_unused(rho_w_initial_state);
 
     // Domain valid box
@@ -66,6 +37,13 @@ ApplyBndryForcing_Forecast (
     int domhi_x = domain.bigEnd(0) + 1;
     int domlo_y = domain.smallEnd(1);
     int domhi_y = domain.bigEnd(1) + 1;
+
+    Real hindcast_lateral_sponge_length   = solverChoice.hindcast_lateral_sponge_length;
+    Real hindcast_lateral_sponge_strength = solverChoice.hindcast_lateral_sponge_strength;
+
+    bool hindcast_zhi_sponge_damping      = solverChoice.hindcast_zhi_sponge_damping;
+    Real hindcast_zhi_sponge_length       = solverChoice.hindcast_zhi_sponge_length;
+    Real hindcast_zhi_sponge_strength     = solverChoice.hindcast_zhi_sponge_strength;
 
     Real xlo_sponge_end   = ProbLoArr[0] + hindcast_lateral_sponge_length;
     Real xhi_sponge_start = ProbHiArr[0] - hindcast_lateral_sponge_length;

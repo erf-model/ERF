@@ -623,7 +623,7 @@ void make_mom_sources (Real time,
                 const Array4<const Real>& rho_v_forecast_state  = (*forecast_state_at_lev)[IntVars::ymom].array(mfi);
                 const Array4<const Real>& rho_w_forecast_state  = (*forecast_state_at_lev)[IntVars::zmom].array(mfi);
                 const Array4<const Real>& cons_forecast_state   = (*forecast_state_at_lev)[IntVars::cons].array(mfi);
-                ApplyBndryForcing_Forecast(geom, tbx, tby, tbz, z_nd_arr,
+                ApplyBndryForcing_Forecast(solverChoice, geom, tbx, tby, tbz, z_nd_arr,
                                            xmom_src_arr, ymom_src_arr, zmom_src_arr,
                                            rho_u, rho_v, rho_w,
                                            rho_u_forecast_state, rho_v_forecast_state, rho_w_forecast_state,

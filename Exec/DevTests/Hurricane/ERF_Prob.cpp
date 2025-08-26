@@ -141,7 +141,7 @@ Problem::init_custom_pert (
     // File to read
     std::string filename;
     ParmParse pp("erf");
-    pp.query("IC_file", filename);
+    pp.query("hindcast_IC_filename", filename);
 
     if (filename.empty()) {
         if ( (sc.init_type == InitType::WRFInput) ||

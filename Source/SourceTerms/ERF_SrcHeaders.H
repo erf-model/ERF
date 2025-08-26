@@ -155,7 +155,8 @@ void ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
                                               const amrex::Array4<const amrex::Real>& rho_v,
                                               const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev);
 
-void ApplyBndryForcing_Forecast (const amrex::Geometry geom,
+void ApplyBndryForcing_Forecast (const SolverChoice& solverChoice,
+                                 const amrex::Geometry geom,
                                  const amrex::Box& tbx,
                                  const amrex::Box& tby,
                                  const amrex::Box& tbz,

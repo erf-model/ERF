@@ -551,6 +551,37 @@ struct SolverChoice {
 
         pp.query("hindcast_lateral_forcing", hindcast_lateral_forcing);
 
+        if(hindcast_lateral_forcing) {
+            pp.query("hindcast_boundary_data_dir", hindcast_boundary_data_dir);
+            if(hindcast_boundary_data_dir.empty()) {
+                amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_boundary_data_dir' for boundary data for lateral forcing");
+            }
+
+            pp.query("hindcast_lateral_sponge_strength", hindcast_lateral_sponge_strength);
+            pp.query("hindcast_lateral_sponge_length", hindcast_lateral_sponge_length);
+
+            pp.query("hindcast_zhi_sponge_length", hindcast_zhi_sponge_length);
+            pp.query("hindcast_zhi_sponge_strength", hindcast_zhi_sponge_strength);
+
+            pp.query("hindcast_zhi_sponge_damping", hindcast_zhi_sponge_damping);
+
+            if (hindcast_lateral_forcing and hindcast_lateral_sponge_strength < 0.0) {
+                amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_lateral_sponge_strength' or it is specified to be less than zero");
+            }
+
+            if (hindcast_lateral_forcing and hindcast_lateral_sponge_length < 0.0) {
+                amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_lateral_sponge_length' or it is specified to be less than zero");
+            }
+
+            if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < 0.0) {
+                amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_strength' or it is specified to be less than zero");
+            }
+
+            if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < 0.0) {
+                amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_strength' or it is specified to be less than zero");
+            }
+        }
+
         check_params(max_level);
     }
 
@@ -908,7 +939,10 @@ struct SolverChoice {
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
 
+    std::string hindcast_boundary_data_dir;
     bool hindcast_lateral_forcing = false;
-
+    amrex::Real hindcast_lateral_sponge_strength = -1.0, hindcast_lateral_sponge_length = -1.0;
+    amrex::Real hindcast_zhi_sponge_strength = -1.0, hindcast_zhi_sponge_length = -1.0;
+    bool hindcast_zhi_sponge_damping = false;
 };
 #endif
