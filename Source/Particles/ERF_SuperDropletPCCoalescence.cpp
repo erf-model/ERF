@@ -36,20 +36,20 @@ static ParticleReal coalescence_rate ( const RandomEngine& a_rnd_eng, /*!< rando
 /*! \brief Binary coalescence between two superdroplets */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 static void coal_update_attribs(const int a_i, /*!< index of particle */
-                                const int* const a_idx, /*!< index of coalescence partner */
+                                const int a_j, /*!< index of coalescence partner */
                                 const int* const a_prey, /*!< prey/predator */
                                 const ParticleReal* const a_gamma, /*!< coalescence rate */
                                 const ParticleReal* const a_rmndr, /*!< coalescence remainder*/
                                 ParticleReal* const a_mass, /*!< mass */
                                 ParticleReal* const a_radius, /*!< radius */
                                 ParticleReal* const a_mult, /*!< multiplicity */
-                                const int a_n_species, /*!< number of species */
-                                const SDSpeciesMassArr& a_species_masses, /*!< species masses*/
-                                const int a_n_aerosols, /*!< number of aerosols */
-                                const SDAerosolMassArr& a_aero_masses /*!< aerosol masses*/)
+                                const int a_n_sp, /*!< number of species */
+                                const SDSpeciesMassArr& a_sp_m, /*!< species masses*/
+                                const int a_n_ae, /*!< number of aerosols */
+                                const SDAerosolMassArr& a_ae_m /*!< aerosol masses*/)
 {
     int i = a_i;
-    int j = a_idx[a_i];
+    int j = a_j;
     auto gamma = a_gamma[i];
     AMREX_ALWAYS_ASSERT(gamma == a_gamma[j]);
     AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= 0.0);
@@ -63,11 +63,11 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
                             + a_radius[i]*a_radius[i]*a_radius[i];
             a_radius[i] = std::cbrt(r3);
             a_mass[i] += gamma*a_mass[j];
-            for (int n = 0; n < a_n_species; n++) {
-                a_species_masses[n][i] += gamma*a_species_masses[n][j];
+            for (int n = 0; n < a_n_sp; n++) {
+                a_sp_m[n][i] += gamma*a_sp_m[n][j];
             }
-            for (int n = 0; n < a_n_aerosols; n++) {
-                a_aero_masses[n][i] += gamma*a_aero_masses[n][j];
+            for (int n = 0; n < a_n_ae; n++) {
+                a_ae_m[n][i] += gamma*a_ae_m[n][j];
             }
         }
 
@@ -82,18 +82,140 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
             a_radius[i] = a_radius[j] = std::cbrt(r3);
             a_mass[j] += gamma*a_mass[i];
             a_mass[i] = a_mass[j];
-            for (int n = 0; n < a_n_species; n++) {
-                a_species_masses[n][j] += gamma*a_species_masses[n][i];
-                a_species_masses[n][i] = a_species_masses[n][j];
+            for (int n = 0; n < a_n_sp; n++) {
+                a_sp_m[n][j] += gamma*a_sp_m[n][i];
+                a_sp_m[n][i] = a_sp_m[n][j];
             }
-            for (int n = 0; n < a_n_aerosols; n++) {
-                a_aero_masses[n][j] += gamma*a_aero_masses[n][i];
-                a_aero_masses[n][i] = a_aero_masses[n][j];
+            for (int n = 0; n < a_n_ae; n++) {
+                a_ae_m[n][j] += gamma*a_ae_m[n][i];
+                a_ae_m[n][i] = a_ae_m[n][j];
             }
         }
 
     }
 
+}
+
+/*! \brief Binary aggregation between two superdroplets */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+static void aggr_update_attribs(const int a_i, /*!< index of particle */
+                                const int a_j, /*!< index of coalescence partner */
+                                const int a_sp_idx_i, /*!< species index of ice */
+                                const Real a_rho_ice, /*!< true ice density */
+                                const Real a_rho_min, /*!< minimum ice density */
+                                const int* const a_prey, /*!< prey/predator */
+                                const ParticleReal* const a_gamma, /*!< coalescence rate */
+                                const ParticleReal* const a_rmndr, /*!< coalescence remainder*/
+                                ParticleReal* const a_mass, /*!< mass */
+                                ParticleReal* const a_Tfz, /*!< freezing temperature */
+                                ParticleReal* const a_a, /*!< equatorial radius */
+                                ParticleReal* const a_c, /*!< polar radius */
+                                ParticleReal* const a_mrime, /*!< rime mass */
+                                ParticleReal* const a_nmono, /*!< number of monomers */
+                                ParticleReal* const a_mult, /*!< multiplicity */
+                                const int a_n_sp, /*!< number of species */
+                                const SDSpeciesMassArr& a_sp_m, /*!< species masses*/
+                                const int a_n_ae, /*!< number of aerosols */
+                                const SDAerosolMassArr& a_ae_m /*!< aerosol masses*/)
+{
+    AMREX_ALWAYS_ASSERT(a_gamma[a_i] == a_gamma[a_j]);
+    AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= 0.0);
+
+    auto gamma = a_gamma[a_i];
+    ParticleReal a_new = 0.0;
+    ParticleReal c_new = 0.0;
+    ParticleReal m_new = 0.0;
+
+    {
+        // i will be the prey particle index, j is the partner
+        int i = -1, j = -1;
+        if (a_prey[a_i]) {
+            AMREX_ALWAYS_ASSERT(!a_prey[a_j]);
+            i = a_i;
+            j = a_j;
+        } else {
+            AMREX_ALWAYS_ASSERT(a_prey[a_j]);
+            i = a_j;
+            j = a_i;
+        }
+
+        auto rhoi_i = ice_rho(a_a[i], a_c[i], a_sp_m[a_sp_idx_i][i]);
+        auto rhoi_j = ice_rho(a_a[j], a_c[j], a_sp_m[a_sp_idx_i][j]);
+
+        auto m_new = (4.0*PI/3.0) * (gamma*a_a[i]*a_a[i]*a_c[i]*rhoi_i + a_a[j]*a_a[j]*a_c[j]*rhoi_j);
+        auto V_new_min = (4.0*PI/3.0) * (gamma*a_a[i]*a_a[i]*a_c[i] + a_a[j]*a_a[j]*a_c[j]);
+        auto rhoi_bar = m_new / V_new_min;
+
+        auto maxR_i = std::max(a_a[i], a_c[i]);
+        auto maxR_j = std::max(a_a[j], a_c[j]);
+
+        if (maxR_i > maxR_j) {
+            if (a_a[i] > a_c[i]) {
+                a_new = a_a[i];
+                auto c_new_min = V_new_min / ((4.0*PI/3.0)*a_new*a_new);
+                auto c_new_max = a_c[i]*gamma + std::min(a_a[j],a_c[j]);
+                c_new = (a_rho_ice-a_rho_min) / ((a_rho_ice-rhoi_bar)/c_new_min + (rhoi_bar-a_rho_min)/c_new_max);
+            } else {
+                c_new = a_c[i];
+                auto a_new_min = std::sqrt(V_new_min / ((4.0*PI/3.0)*c_new));
+                auto a_new_max = std::sqrt( std::max(std::max(a_a[i],a_a[j]),a_c[j])
+                                            * (a_a[i]*gamma + std::min(a_a[j],a_c[j])) );
+                a_new = std::sqrt( (a_rho_ice - a_rho_min)
+                                    / (   (a_rho_ice-rhoi_bar)/(a_new_min*a_new_min)
+                                        + (rhoi_bar-a_rho_min)/(a_new_max*a_new_max)) );
+            }
+        } else {
+            if (a_a[j] > a_c[j]) {
+                a_new = a_a[j];
+                auto c_new_min = V_new_min / ((4.0*PI/3.0)*a_new*a_new);
+                auto c_new_max = a_c[j] + std::min(a_a[i],a_c[i])*gamma;
+                c_new = (a_rho_ice-a_rho_min) / ((a_rho_ice-rhoi_bar)/c_new_min + (rhoi_bar-a_rho_min)/c_new_max);
+            } else {
+                c_new = a_c[j];
+                auto a_new_min = std::sqrt(V_new_min / ((4.0*PI/3.0)*c_new));
+                auto a_new_max = std::sqrt( std::max(std::max(a_a[j],a_a[i]),a_c[i])
+                                            * (a_a[j] + gamma*std::min(a_a[i],a_c[i])) );
+                a_new = std::sqrt( (a_rho_ice - a_rho_min)
+                                    / (   (a_rho_ice-rhoi_bar)/(a_new_min*a_new_min)
+                                        + (rhoi_bar-a_rho_min)/(a_new_max*a_new_max)) );
+            }
+        }
+    }
+
+    if ( a_rmndr[a_i] > 0 ) {
+        if (a_prey[a_i]) {
+            a_mult[a_i] -= gamma*a_mult[a_j];
+        } else {
+            a_a[a_i] = a_new;
+            a_c[a_i] = c_new;
+            a_mrime[a_i] += gamma * a_mrime[a_j];
+            a_nmono[a_i] += gamma * a_nmono[a_j];
+            a_Tfz[a_i] = std::max(a_Tfz[a_j], a_Tfz[a_i]);
+            for (int n = 0; n < a_n_sp; n++) { a_sp_m[n][a_i] += gamma*a_sp_m[n][a_j]; }
+            for (int n = 0; n < a_n_ae; n++) { a_ae_m[n][a_i] += gamma*a_ae_m[n][a_j]; }
+            AMREX_ALWAYS_ASSERT(m_new == a_sp_m[a_sp_idx_i][a_i]);
+        }
+    } else {
+        if (a_prey[a_i]) {
+            auto dm = std::floor(a_mult[a_j]/2);
+            a_mult[a_i] = dm;
+            a_mult[a_j] -= dm;
+            a_a[a_i] = a_a[a_j] = a_new;
+            a_c[a_i] = a_c[a_j] = c_new;
+            a_mrime[a_j] += gamma * a_mrime[a_i]; a_mrime[a_i] = a_mrime[a_j];
+            a_nmono[a_j] += gamma * a_nmono[a_i]; a_nmono[a_i] = a_nmono[a_j];
+            a_Tfz[a_i] = a_Tfz[a_j] = std::max(a_Tfz[a_j], a_Tfz[a_i]);
+            for (int n = 0; n < a_n_sp; n++) {
+                a_sp_m[n][a_j] += gamma*a_sp_m[n][a_i];
+                a_sp_m[n][a_i] = a_sp_m[n][a_j];
+            }
+            for (int n = 0; n < a_n_ae; n++) {
+                a_ae_m[n][a_j] += gamma*a_ae_m[n][a_i];
+                a_ae_m[n][a_i] = a_ae_m[n][a_j];
+            }
+            AMREX_ALWAYS_ASSERT(m_new == a_sp_m[a_sp_idx_i][a_i]);
+        }
+    }
 }
 
 /*! Compute the coalescence of superdroplets in each time step */
@@ -120,10 +242,10 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
     const std::unique_ptr<MultiFab>& z_height = a_z_phys_nd[a_lev];
 
-    const auto rho_w = m_species_mat[m_idx_w]->m_density;
-    const auto rho_i = (m_idx_i >= 0 ? m_species_mat[m_idx_i]->m_density : 0.0);
-    const auto idx_w = m_idx_w;
-    const auto idx_i = m_idx_i;
+    const auto rho_water = m_species_mat[m_idx_w]->m_density;
+    const auto rho_ice = (m_idx_i >= 0 ? m_species_mat[m_idx_i]->m_density : 0.0);
+    const auto sp_idx_w = m_idx_w;
+    const auto sp_idx_i = m_idx_i;
 
     const int num_ae = m_num_aerosols;
     const int num_sp  = m_num_species;
@@ -165,8 +287,11 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
         auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
+        auto* Tfz_ptr = soa.GetRealData(idx_ice_Tfz(num_ae,num_sp)).data();
         auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data();
         auto* c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data();
+        auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data();
+        auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data();
 
         /* species masses */
         SDSpeciesMassArr sp_mass_ptrs;
@@ -311,25 +436,25 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto particle_collisions_ptr = particle_collisions.data();
 
         // initialize coalescence quantities
-        Gpu::DeviceVector<int> coal_partner_idx, flag_prey, num_particles_bin;
-        Gpu::DeviceVector<Real> coal_rate, coal_rmndr;
+        Gpu::DeviceVector<int> coll_partner_idx, flag_prey, num_particles_bin;
+        Gpu::DeviceVector<Real> coll_rate, coll_rmndr;
         num_particles_bin.resize(np);
-        coal_partner_idx.resize(np);
+        coll_partner_idx.resize(np);
         flag_prey.resize(np);
-        coal_rate.resize(np);
-        coal_rmndr.resize(np);
+        coll_rate.resize(np);
+        coll_rmndr.resize(np);
         auto np_bin_ptr = num_particles_bin.data();
-        auto partner_idx_ptr = coal_partner_idx.data();
+        auto partner_idx_ptr = coll_partner_idx.data();
         auto flag_prey_ptr = flag_prey.data();
-        auto coal_rate_ptr = coal_rate.data();
-        auto coal_rmndr_ptr = coal_rmndr.data();
+        auto coll_rate_ptr = coll_rate.data();
+        auto coll_rmndr_ptr = coll_rmndr.data();
         ParallelFor( np, [=] AMREX_GPU_DEVICE (int i) noexcept
         {
             np_bin_ptr[i] = 0;
             partner_idx_ptr[i] = -1;
             flag_prey_ptr[i] = -1;
-            coal_rate_ptr[i] = 0.0;
-            coal_rmndr_ptr[i] = 0.0;
+            coll_rate_ptr[i] = 0.0;
+            coll_rmndr_ptr[i] = 0.0;
         });
         Gpu::synchronize();
 
@@ -390,8 +515,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
             AMREX_ALWAYS_ASSERT(mult_ptr[pi] >= mult_ptr[pj]);
 
             // get phases for the two particles
-            auto phase_i = SD_phase(pi, idx_w, idx_i, sp_mass_ptrs);
-            auto phase_j = SD_phase(pj, idx_w, idx_i, sp_mass_ptrs);
+            auto phase_i = SD_phase(pi, sp_idx_w, sp_idx_i, sp_mass_ptrs);
+            auto phase_j = SD_phase(pj, sp_idx_w, sp_idx_i, sp_mass_ptrs);
 
             ParticleReal k_val = 0.0;
             if ((phase_i == SDPhase::water) && (phase_j == SDPhase::water)) {
@@ -433,19 +558,19 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 auto vz_i = v_ptr[AMREX_SPACEDIM-1][pi] - vterm_ptr[pi];
                 auto a_i = a_ptr[pi];
                 auto c_i = c_ptr[pi];
-                auto rhoi_i = ice_rho(a_i, c_i, sp_mass_ptrs[idx_i][pi]);
+                auto rhoi_i = ice_rho(a_i, c_i, sp_mass_ptrs[sp_idx_i][pi]);
                 auto maxR_i = std::max(a_i, c_i);
                 auto k_i = std::exp(-ckernel.k_coeff * c_i/a_i);
-                auto area_i = PI * a_i * maxR_i * std::exp(k_i*std::log(rhoi_i/rho_i));
+                auto area_i = PI * a_i * maxR_i * std::exp(k_i*std::log(rhoi_i/rho_ice));
 
                 // ice particle 2
                 auto vz_j = v_ptr[AMREX_SPACEDIM-1][pj] - vterm_ptr[pj];
                 auto a_j = a_ptr[pj];
                 auto c_j = c_ptr[pj];
-                auto rhoi_j = ice_rho(a_j, c_j, sp_mass_ptrs[idx_i][pj]);
+                auto rhoi_j = ice_rho(a_j, c_j, sp_mass_ptrs[sp_idx_i][pj]);
                 auto maxR_j = std::max(a_j, c_j);
                 auto k_j = std::exp(-ckernel.k_coeff * c_j/a_j);
-                auto area_j = PI * a_j * maxR_j * std::exp(k_j*std::log(rhoi_j/rho_i));
+                auto area_j = PI * a_j * maxR_j * std::exp(k_j*std::log(rhoi_j/rho_ice));
 
                 // velocity difference
                 auto dvz = std::sqrt((vz_i-vz_j)*(vz_i-vz_j));
@@ -473,7 +598,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 auto vz_i = v_ptr[AMREX_SPACEDIM-1][id_i] - vterm_ptr[id_i];
                 auto a_i = a_ptr[id_i];
                 auto c_i = c_ptr[id_i];
-                auto rhoi_i = ice_rho(a_i, c_i, sp_mass_ptrs[idx_i][id_i]);
+                auto rhoi_i = ice_rho(a_i, c_i, sp_mass_ptrs[sp_idx_i][id_i]);
                 auto eqr_i = std::exp((1.0/3.0)*std::log(a_i*a_i*c_i));
                 auto maxR_i = std::max(a_i, c_i);
 
@@ -537,7 +662,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     auto area_i_ce = PI * a_i * maxR_i;
                     // area of the particle projected to the flow direction
                     auto k_i = std::exp(-ckernel.k_coeff * phi_i);
-                    auto area_i = area_i_ce * std::exp(k_i*std::log(rhoi_i/rho_i));
+                    auto area_i = area_i_ce * std::exp(k_i*std::log(rhoi_i/rho_ice));
 
                     // collision-riming kernel: E_rime*A_g*|vj-vk|
                     k_val *= ( (PI*(r_w+a_i)*(r_w+maxR_i) - (area_i_ce-area_i)) * dvz);
@@ -567,14 +692,14 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     sd_mass_2 += sp_mass_ptrs[ia][pj];
                 }
 
-                auto r_eff_1 = SD_effective_radius( pi, idx_w,
-                                                    rho_w,
+                auto r_eff_1 = SD_effective_radius( pi, sp_idx_w,
+                                                    rho_water,
                                                     num_sp, num_ae,
                                                     sp_sol_arr, ae_sol_arr,
                                                     sp_mass_ptrs, ae_mass_ptrs,
                                                     sp_rho_arr, ae_rho_arr );
-                auto r_eff_2 = SD_effective_radius( pj, idx_w,
-                                                    rho_w,
+                auto r_eff_2 = SD_effective_radius( pj, sp_idx_w,
+                                                    rho_water,
                                                     num_sp, num_ae,
                                                     sp_sol_arr, ae_sol_arr,
                                                     sp_mass_ptrs, ae_mass_ptrs,
@@ -604,10 +729,10 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto gamma = coalescence_rate ( rnd_eng, (scaled_prob*a_dt) );
             if (gamma > 0) {
                 amrex::Gpu::Atomic::Add(particle_collisions_ptr, gamma);
-                coal_rate_ptr[pi] = std::min(gamma,std::floor(mult_ptr[pi]/mult_ptr[pj]));
-                coal_rate_ptr[pj] = coal_rate_ptr[pi];
-                coal_rmndr_ptr[pi] = mult_ptr[pi] - coal_rate_ptr[pi]*mult_ptr[pj];
-                coal_rmndr_ptr[pj] = coal_rmndr_ptr[pi];
+                coll_rate_ptr[pi] = std::min(gamma,std::floor(mult_ptr[pi]/mult_ptr[pj]));
+                coll_rate_ptr[pj] = coll_rate_ptr[pi];
+                coll_rmndr_ptr[pi] = mult_ptr[pi] - coll_rate_ptr[pi]*mult_ptr[pj];
+                coll_rmndr_ptr[pj] = coll_rmndr_ptr[pi];
             } else {
                 partner_idx_ptr[pi] = -1;
                 partner_idx_ptr[pj] = -1;
@@ -619,19 +744,57 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
         ParallelFor( np, [=] AMREX_GPU_DEVICE (int i)
         {
-            if (partner_idx_ptr[i] < 0) { return; }
-            coal_update_attribs( i,
-                                 partner_idx_ptr,
-                                 flag_prey_ptr,
-                                 coal_rate_ptr,
-                                 coal_rmndr_ptr,
-                                 mass_ptr,
-                                 radius_ptr,
-                                 mult_ptr,
-                                 num_sp,
-                                 sp_mass_ptrs,
-                                 num_ae,
-                                 ae_mass_ptrs );
+            const auto j = partner_idx_ptr[i];
+            if (j < 0) { return; }
+
+            // get phases for the two particles
+            auto phase_i = SD_phase(i, sp_idx_w, sp_idx_i, sp_mass_ptrs);
+            auto phase_j = SD_phase(j, sp_idx_w, sp_idx_i, sp_mass_ptrs);
+
+            if ((phase_i == SDPhase::water) && (phase_j == SDPhase::water)) {
+
+                // coalescence between two water droplets
+                coal_update_attribs( i, j,
+                                     flag_prey_ptr,
+                                     coll_rate_ptr,
+                                     coll_rmndr_ptr,
+                                     mass_ptr,
+                                     radius_ptr,
+                                     mult_ptr,
+                                     num_sp,
+                                     sp_mass_ptrs,
+                                     num_ae,
+                                     ae_mass_ptrs );
+
+            } else if ((phase_i == SDPhase::ice) && (phase_j == SDPhase::ice)) {
+
+                // aggregation between two ice particles
+                aggr_update_attribs( i, j,
+                                     sp_idx_i,
+                                     rho_ice,
+                                     10.0,
+                                     flag_prey_ptr,
+                                     coll_rate_ptr,
+                                     coll_rmndr_ptr,
+                                     mass_ptr,
+                                     Tfz_ptr,
+                                     a_ptr,
+                                     c_ptr,
+                                     mrime_ptr,
+                                     nmono_ptr,
+                                     mult_ptr,
+                                     num_sp,
+                                     sp_mass_ptrs,
+                                     num_ae,
+                                     ae_mass_ptrs );
+
+            } else {
+
+                // riming between a water droplet and an ice particle
+                AMREX_ALWAYS_ASSERT(    ((phase_i == SDPhase::ice) && (phase_j == SDPhase::water))
+                                     || ((phase_i == SDPhase::water) && (phase_j == SDPhase::ice)) );
+            }
+
         } );
         Gpu::synchronize();
 
