@@ -53,12 +53,6 @@ eb_::make_all_factories ([[maybe_unused]] int level,
       m_factory.get());
   }
 
-  // // SK ***************************************************
-  // if (level==1) {
-  //   Abort("eb_::make_all_factories, level=1");
-  // }
-  // // SK ***************************************************
-
   { int const idim(1);
     Print() << "making EB staggered v-factory\n";
     //m_v_factory.set_verbose();
