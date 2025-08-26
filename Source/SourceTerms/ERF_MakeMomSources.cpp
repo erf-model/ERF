@@ -307,13 +307,13 @@ void make_mom_sources (Real time,
         const Array4<const Real>& z_nd_arr =  z_phys_nd.const_array(mfi);
         const Array4<const Real>& z_cc_arr =  z_phys_cc.const_array(mfi);
 
-        const Array4<const Real>& latlon_arr = (*forecast_state_at_lev)[4].array(mfi);
 
         // *****************************************************************************
         // 1. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis && is_slow_step) {
             if(solverChoice.init_type == InitType::HindCast) {
+                const Array4<const Real>& latlon_arr = (*forecast_state_at_lev)[4].array(mfi);
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
