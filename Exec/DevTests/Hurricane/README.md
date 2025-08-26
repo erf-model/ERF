@@ -10,7 +10,7 @@ This folder contains examples for hurricane simulations from real weather data.
 
 2. From the step above, copy the `Output/HindCastBoundaryDataDir` directory to the directory where ERF will be run.
 
-3. The python script also outputs the domain size to be used in the `inputs` file for the ERF run.
+3. The python script also outputs the domain size to be used in the `inputs` file for the ERF run. For eg.
    ```
     geometry.prob_lo  =  -2593434.0 -2065213.0 0.0
     geometry.prob_hi  =  2593434.0 2328015.0 25000.0
