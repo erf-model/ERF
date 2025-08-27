@@ -400,13 +400,13 @@ void SuperDropletPC::cloudRainDensity ( MultiFab&  a_mf,  /*!< Species mass dens
     return;
 }
 
-/*! Computes the cloud/rain mass density of the particles over a mesh */
-void SuperDropletPC::iceSnowGraupelDensity (MultiFab&  a_mf,  /*!< Species mass density multifab */
-                                            const Real a_rmin, /*!< minimum rime mass ratio */
-                                            const Real a_rmax, /*!< maximum rime mass ratio */
-                                            const int  a_comp /*!< Multifab component to fill */) const
+/*! Computes the ice mass density of the particles over a mesh: ice particles that are not snow
+ *  or graupel. */
+void SuperDropletPC::iceDensity (MultiFab&  a_mf,         /*!< Species mass density multifab */
+                                 const Real a_mrime_frac, /*!< rime mass fraction threshold */
+                                 const int  a_comp        /*!< Multifab component to fill */) const
 {
-    BL_PROFILE("SuperDropletPC::iceSnowGraupelDensity()");
+    BL_PROFILE("SuperDropletPC::iceDensity()");
 
     a_mf.setVal(0.0);
     if (m_idx_i < 0) { return; }
@@ -423,6 +423,7 @@ void SuperDropletPC::iceSnowGraupelDensity (MultiFab&  a_mf,  /*!< Species mass 
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
     const auto idx = m_idx_i;
+    AMREX_ALWAYS_ASSERT(idx >= 0);
 
     ParticleToMesh( *this, a_mf, m_lev,
         [=] AMREX_GPU_DEVICE (  const SuperDropletPC::ParticleTileType::ConstParticleTileDataType& ptd,
@@ -433,20 +434,157 @@ void SuperDropletPC::iceSnowGraupelDensity (MultiFab&  a_mf,  /*!< Species mass 
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
-                    auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
                     auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
-                    if (mass == 0.0) {
-                        AMREX_ALWAYS_ASSERT(mrime == 0);
-                        return 0.0;
+                    auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
+                    auto nmono = ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i];
+                    auto frac = mrime / mass;
+                    if ((frac < a_mrime_frac) && (nmono == 1)) {
+                        auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                        return num_par*mass*inv_cell_volume;
                     } else {
-                        auto ratio = mrime / mass;
-                        if ((ratio < a_rmin) || (ratio >= a_rmax)) {
-                            return 0.0;
-                        } else {
-                            auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                            return num_par*mass*inv_cell_volume;
-                        }
+                        return 0.0;
                     }
+                });
+        });
+
+    return;
+}
+
+/*! Computes the snow mass density of the particles over a mesh: ice particles that have
+ *  multiple monomers */
+void SuperDropletPC::snowDensity (MultiFab&  a_mf,         /*!< Species mass density multifab */
+                                  const Real a_mrime_frac, /*!< rime mass fraction threshold */
+                                  const int  a_comp        /*!< Multifab component to fill */) const
+{
+    BL_PROFILE("SuperDropletPC::snowDensity()");
+
+    a_mf.setVal(0.0);
+    if (m_idx_i < 0) { return; }
+
+    AMREX_ASSERT(OK());
+    AMREX_ASSERT(numParticlesOutOfRange(*this, 0) == 0);
+
+    const auto& geom = Geom(m_lev);
+    const auto plo = geom.ProbLoArray();
+    const auto dxi = geom.InvCellSizeArray();
+
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+
+    const auto na = m_num_aerosols;
+    const auto ns = m_num_species;
+    const auto idx = m_idx_i;
+    AMREX_ALWAYS_ASSERT(idx >= 0);
+
+    ParticleToMesh( *this, a_mf, m_lev,
+        [=] AMREX_GPU_DEVICE (  const SuperDropletPC::ParticleTileType::ConstParticleTileDataType& ptd,
+                                int i, Array4<Real> const& rho)
+        {
+            auto p = ptd.m_aos[i];
+            ParticleInterpolator::Linear interp(p, plo, dxi);
+            interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
+                {
+                    auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
+                    auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
+                    auto nmono = ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i];
+                    auto frac = mrime / mass;
+                    if ((frac < a_mrime_frac) && (nmono > 1)) {
+                        auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                        return num_par*mass*inv_cell_volume;
+                    } else {
+                        return 0.0;
+                    }
+                });
+        });
+
+    return;
+}
+
+/*! Computes the graupel mass density of the particles over a mesh: ice particles where rime
+ *  mass fraction exceeds a specified threshold. */
+void SuperDropletPC::graupelDensity (MultiFab&  a_mf,         /*!< Species mass density multifab */
+                                     const Real a_mrime_frac, /*!< rime mass fraction threshold */
+                                     const int  a_comp        /*!< Multifab component to fill */) const
+{
+    BL_PROFILE("SuperDropletPC::graupelDensity()");
+
+    a_mf.setVal(0.0);
+    if (m_idx_i < 0) { return; }
+
+    AMREX_ASSERT(OK());
+    AMREX_ASSERT(numParticlesOutOfRange(*this, 0) == 0);
+
+    const auto& geom = Geom(m_lev);
+    const auto plo = geom.ProbLoArray();
+    const auto dxi = geom.InvCellSizeArray();
+
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+
+    const auto na = m_num_aerosols;
+    const auto ns = m_num_species;
+    const auto idx = m_idx_i;
+    AMREX_ALWAYS_ASSERT(idx >= 0);
+
+    ParticleToMesh( *this, a_mf, m_lev,
+        [=] AMREX_GPU_DEVICE (  const SuperDropletPC::ParticleTileType::ConstParticleTileDataType& ptd,
+                                int i, Array4<Real> const& rho)
+        {
+            auto p = ptd.m_aos[i];
+            ParticleInterpolator::Linear interp(p, plo, dxi);
+            interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
+                {
+                    auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
+                    auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
+                    auto frac = mrime / mass;
+                    if (frac > a_mrime_frac) {
+                        auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                        return num_par*mass*inv_cell_volume;
+                    } else {
+                        return 0.0;
+                    }
+                });
+        });
+
+    return;
+}
+
+/*! Computes the total frozen water mass density of the particles over a mesh:
+ *  (ice + snow + graupel) */
+void SuperDropletPC::totalIceDensity (MultiFab&  a_mf,  /*!< Species mass density multifab */
+                                      const int  a_comp /*!< Multifab component to fill */) const
+{
+    BL_PROFILE("SuperDropletPC::totalIceDensity()");
+
+    a_mf.setVal(0.0);
+    if (m_idx_i < 0) { return; }
+
+    AMREX_ASSERT(OK());
+    AMREX_ASSERT(numParticlesOutOfRange(*this, 0) == 0);
+
+    const auto& geom = Geom(m_lev);
+    const auto plo = geom.ProbLoArray();
+    const auto dxi = geom.InvCellSizeArray();
+
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+
+    const auto na = m_num_aerosols;
+    const auto ns = m_num_species;
+    const auto idx = m_idx_i;
+    AMREX_ALWAYS_ASSERT(idx >= 0);
+
+    ParticleToMesh( *this, a_mf, m_lev,
+        [=] AMREX_GPU_DEVICE (  const SuperDropletPC::ParticleTileType::ConstParticleTileDataType& ptd,
+                                int i, Array4<Real> const& rho)
+        {
+            auto p = ptd.m_aos[i];
+            ParticleInterpolator::Linear interp(p, plo, dxi);
+            interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
+                {
+                    auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
+                    auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                    return num_par*mass*inv_cell_volume;
                 });
         });
 

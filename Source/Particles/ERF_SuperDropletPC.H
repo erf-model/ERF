@@ -230,11 +230,24 @@ class SuperDropletPC : public ERFPC
                                         amrex::Real,
                                         const int a_comp = 0) const;
 
-        /*! \brief Compute the ice/snow/graupel mass density on a mesh */
-        virtual void iceSnowGraupelDensity ( amrex::MultiFab&,
-                                             amrex::Real,
-                                             amrex::Real,
-                                             const int a_comp = 0) const;
+        /*! \brief Compute the ice mass density on a mesh */
+        virtual void iceDensity ( amrex::MultiFab&,
+                                  amrex::Real,
+                                  const int a_comp = 0) const;
+
+        /*! \brief Compute the snow mass density on a mesh */
+        virtual void snowDensity ( amrex::MultiFab&,
+                                   amrex::Real,
+                                   const int a_comp = 0) const;
+
+        /*! \brief Compute the graupel mass density on a mesh */
+        virtual void graupelDensity ( amrex::MultiFab&,
+                                      amrex::Real,
+                                      const int a_comp = 0) const;
+
+        /*! \brief Compute the frozen water mass density on a mesh */
+        virtual void totalIceDensity ( amrex::MultiFab&,
+                                       const int a_comp = 0) const;
 
         /*! \brief Compute the species mass flux component on a mesh */
         virtual void speciesMassFlux ( amrex::MultiFab&, const int, const int, const int a_comp=0 ) const;

@@ -416,6 +416,7 @@ void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt, /*!< Timestep */
     auto* qv_ptr = m_mic_fab_vars[MicVar_SD::q_v].get();
     auto* qi_ptr = m_mic_fab_vars[MicVar_SD::q_i].get();
     auto* qg_ptr = m_mic_fab_vars[MicVar_SD::q_g].get();
+    auto* qs_ptr = m_mic_fab_vars[MicVar_SD::q_s].get();
     auto* qt_ptr = m_mic_fab_vars[MicVar_SD::q_t].get();
     auto* sr_ptr = m_mic_fab_vars[MicVar_SD::rh_i].get();
 
@@ -484,9 +485,10 @@ void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt, /*!< Timestep */
         auto qv_arr = qv_ptr->const_array(mfi);
         auto qi_arr = qi_ptr->const_array(mfi);
         auto qg_arr = qg_ptr->const_array(mfi);
+        auto qs_arr = qs_ptr->const_array(mfi);
 
         ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        { qt_arr(i,j,k) = qv_arr(i,j,k) + qi_arr(i,j,k) + qg_arr(i,j,k); });
+        { qt_arr(i,j,k) = qv_arr(i,j,k) + qi_arr(i,j,k) + qg_arr(i,j,k) + qs_arr(i,j,k); });
     }
 
     // Compute super-droplets mass change
@@ -514,6 +516,7 @@ void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt, /*!< Timestep */
         auto qv_arr = qv_ptr->array(mfi);
         auto qi_arr = qi_ptr->array(mfi);
         auto qg_arr = qg_ptr->array(mfi);
+        auto qs_arr = qs_ptr->array(mfi);
 
         auto theta_arr = m_mic_fab_vars[MicVar_SD::theta]->array(mfi);
         auto T_arr = m_mic_fab_vars[MicVar_SD::temperature]->const_array(mfi);
@@ -523,14 +526,19 @@ void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt, /*!< Timestep */
         ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             auto old_qv = qv_arr(i,j,k);
-            auto qw = qi_arr(i,j,k) + qg_arr(i,j,k);
+            auto qw = qi_arr(i,j,k) + qg_arr(i,j,k) + qs_arr(i,j,k);
             if (qw > qt_arr(i,j,k)) {
                 qv_arr(i,j,k) = 0.0;
-                if (qg_arr(i,j,k) > qt_arr(i,j,k)) {
+                if (qg_arr(i,j,k) + qs_arr(i,j,k) > qt_arr(i,j,k)) {
                     qi_arr(i,j,k) = 0.0;
-                    qg_arr(i,j,k) = qt_arr(i,j,k);
+                    if (qs_arr(i,j,k) > qt_arr(i,j,k)) {
+                        qg_arr(i,j,k) = 0.0;
+                        qs_arr(i,j,k) = qt_arr(i,j,k);
+                    } else {
+                        qg_arr(i,j,k) = qt_arr(i,j,k) - qs_arr(i,j,k);
+                    }
                 } else {
-                    qi_arr(i,j,k) = qt_arr(i,j,k) - qg_arr(i,j,k);
+                    qi_arr(i,j,k) = qt_arr(i,j,k) - (qg_arr(i,j,k) + qs_arr(i,j,k));
                 }
             } else {
                 qv_arr(i,j,k) = qt_arr(i,j,k) - qw;
@@ -539,6 +547,7 @@ void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt, /*!< Timestep */
             AMREX_ALWAYS_ASSERT(qv_arr(i,j,k) >= 0.0);
             AMREX_ALWAYS_ASSERT(qi_arr(i,j,k) >= 0.0);
             AMREX_ALWAYS_ASSERT(qg_arr(i,j,k) >= 0.0);
+            AMREX_ALWAYS_ASSERT(qs_arr(i,j,k) >= 0.0);
 
             auto theta_over_T = theta_arr(i,j,k)/T_arr(i,j,k);
             theta_arr(i,j,k) += theta_over_T * fac_cond * (old_qv-qv_arr(i,j,k));

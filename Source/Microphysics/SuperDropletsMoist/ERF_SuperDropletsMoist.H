@@ -231,17 +231,6 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief compute condensate mixing ratio for a non-water species */
         virtual void computeQcSpecies (const  int a_i);
 
-        /*! \brief compute condensate mixing ratio for a species */
-        virtual void computeQc (const  int a_i)
-        {
-            if (a_i == m_idx_w) {
-                computeQcQrWater();
-                computeQiQgQsWater();
-            } else {
-                computeQcSpecies(a_i);
-            }
-        }
-
         /*! \brief compute total water mixing ratio */
         virtual void computeQtWater ();
 
@@ -253,13 +242,6 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! \brief compute qt (total) for a non-water species */
         virtual void computeQtSpecies (const  int a_i);
-
-        /*! \brief compute qt (total) for a species */
-        virtual void computeQt (const  int a_i)
-        {
-            if (a_i == m_idx_w) { computeQtWater(); }
-            else                { computeQtSpecies(a_i); }
-        }
 
         /*! \brief Compute rain accumulation */
         virtual void rainAccumulation ();
