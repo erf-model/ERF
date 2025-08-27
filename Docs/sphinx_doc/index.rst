@@ -60,6 +60,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/Forcings.rst
    Particles.rst
    theory/Forest.rst
+   theory/HindCast.rst
    theory/UnitsAndConstants.rst
 
 .. toctree::
