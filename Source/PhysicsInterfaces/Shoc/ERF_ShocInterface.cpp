@@ -1,10 +1,13 @@
 #include "ERF.H"
 #include "ERF_ShocInterface.H"
 
+using namespace amrex;
+
 SHOCInterface::SHOCInterface (const int& lev,
                               SolverChoice& sc)
 {
 }
+
 
 void
 ERF::compute_shoc_tendencies (int lev,
@@ -36,6 +39,7 @@ ERF::compute_shoc_tendencies (int lev,
     amrex::Print() << "Done advancing SHOC\n";
 }
 
+
 void
 SHOCInterface::set_grids (int& level,
                           const amrex::BoxArray& ba,
@@ -45,16 +49,13 @@ SHOCInterface::set_grids (int& level,
                           amrex::MultiFab* lat,
                           amrex::MultiFab* lon)
 {
-    // using namespace ekat::units;
-
 #if 0
+    // using namespace ekat::units;
     m_grid = grids_manager->get_grid("physics");
     const auto& grid_name = m_grid->name();
-#endif
 
     // Define the different field layouts that will be used for this process
 
-#if 0
     // Layout for horiz_wind field
     FieldLayout vector3d_mid = m_grid->get_3d_vector_layout(true,2);
     add_field<Required>("omega",          scalar3d_mid, Pa/s, grid_name, ps);
@@ -150,10 +151,14 @@ SHOCInterface::set_grids (int& level,
     // Set data members that may change
     m_lev            = level;
     m_geom           = geom;
-    // m_cons_in        = cons_in;
-    // m_z_phys         = z_phys;
+    m_cons_in        = cons_in;
+    m_z_phys         = z_phys;
     // m_lat            = lat;
     // m_lon            = lon;
+
+    // Ensure the boxes span klo -> khi
+    int klo = geom.Domain().smallEnd(2);
+    int khi = geom.Domain().bigEnd(2);
 
     // Reset vector of offsets for columnar data
     m_num_layers = geom.Domain().length(2);
@@ -161,16 +166,16 @@ SHOCInterface::set_grids (int& level,
     m_num_cols = 0;
     m_col_offsets.clear();
     m_col_offsets.resize(int(ba.size()));
-
-#if 0
     for (amrex::MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
         const auto& vbx = mfi.validbox();
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
+                                         (khi == vbx.bigEnd(2)),
+                                         "Vertical decomposition with shoc is not allowed.");
         int nx = vbx.length(0);
         int ny = vbx.length(1);
-        m_col_offsets[mfi.index()] = m_ncol;
-        m_ncol += nx * ny;
+        m_col_offsets[mfi.index()] = m_num_cols;
+        m_num_cols += nx * ny;
     }
-#endif
 
     // Allocate the buffer arrays
     alloc_buffers();
@@ -181,15 +186,246 @@ SHOCInterface::set_grids (int& level,
 
 void
 SHOCInterface::alloc_buffers ()
-{}
+{
+    // SHOCPreprocess data structures
+    //=======================================================
+    phis             = view_1d("Phis"           , m_num_cols);
+    wpthlp_sfc       = view_1d("Wpthlp_sfc"     , m_num_cols);
+    wprtp_sfc        = view_1d("Wprtp_sfc"      , m_num_cols);
+    upwp_sfc         = view_1d("Upwp_sfc"       , m_num_cols);
+    vpwp_sfc         = view_1d("Vpwp_sfc"       , m_num_cols);
+    surf_sens_flux   = view_1d("Sfc sens flux"  , m_num_cols);
+    surf_evap        = view_1d("Sfc latent flux", m_num_cols);
+    surf_mom_flux    = sview_2d("Sfc mom flux"  , m_num_cols, 2);
+    wtracer_sfc      = view_2d("Wtracer_sfc"    , m_num_cols, 1);
+
+    T_mid            = view_2d("T_mid"             , m_num_cols, m_num_layers  );
+    p_mid            = view_2d("P_mid"             , m_num_cols, m_num_layers  );
+    p_int            = view_2d("P_int"             , m_num_cols, m_num_layers+1);
+    dens             = view_2d("Density"           , m_num_cols, m_num_layers  );
+    omega            = view_2d("Omega"             , m_num_cols, m_num_layers  );
+    qv               = view_2d("Qv"                , m_num_cols, m_num_layers  );
+    qc               = view_2d("Qc"                , m_num_cols, m_num_layers  );
+    qc_copy          = view_2d("Qc_copy"           , m_num_cols, m_num_layers  );
+    z_mid            = view_2d("Z_mid"             , m_num_cols, m_num_layers  );
+    z_int            = view_2d("Z_int"             , m_num_cols, m_num_layers+1);
+    shoc_s           = view_2d("Shoc_s"            , m_num_cols, m_num_layers  );
+    tke              = view_2d("Tke"               , m_num_cols, m_num_layers  );
+    tke_copy         = view_2d("Tke_copy"          , m_num_cols, m_num_layers  );
+    rrho             = view_2d("Rrho"              , m_num_cols, m_num_layers  );
+    rrho_i           = view_2d("Rrho_i"            , m_num_cols, m_num_layers  );
+    thv              = view_2d("Thv"               , m_num_cols, m_num_layers  );
+    dz               = view_2d("dz"                , m_num_cols, m_num_layers  );
+    zt_grid          = view_2d("Zt_grid"           , m_num_cols, m_num_layers  );
+    zi_grid          = view_2d("Zi_grid"           , m_num_cols, m_num_layers  );
+    wm_zt            = view_2d("wm_zt"             , m_num_cols, m_num_layers  );
+    inv_exner        = view_2d("Inv_exner"         , m_num_cols, m_num_layers  );
+    thlm             = view_2d("Thlm"              , m_num_cols, m_num_layers  );
+    qw               = view_2d("Qw"                , m_num_cols, m_num_layers  );
+    cloud_frac       = view_2d("Cld_frac"          , m_num_cols, m_num_layers  );
+    cldfrac_liq      = view_2d("Cld_frac_liq"      , m_num_cols, m_num_layers  );
+    cldfrac_liq_prev = view_2d("cld_frac_liq_prev" , m_num_cols, m_num_layers  );
+
+    //qtracers         = view_3d_strided("Qtracers"  , m_num_cols, m_num_layers, 1);
+}
 
 void
 SHOCInterface::dealloc_buffers ()
-{}
+{
+    // SHOCPreprocess data structures
+    //=======================================================
+    phis             = view_1d();
+    wpthlp_sfc       = view_1d();
+    wprtp_sfc        = view_1d();
+    upwp_sfc         = view_1d();
+    vpwp_sfc         = view_1d();
+    surf_sens_flux   = view_1d();
+    surf_evap        = view_1d();
+    surf_mom_flux    = sview_2d();
+    wtracer_sfc      = view_2d();
+
+    T_mid            = view_2d();
+    p_mid            = view_2d();
+    p_int            = view_2d();
+    dens             = view_2d();
+    omega            = view_2d();
+    qv               = view_2d();
+    qc               = view_2d();
+    qc_copy          = view_2d();
+    z_mid            = view_2d();
+    z_int            = view_2d();
+    shoc_s           = view_2d();
+    tke              = view_2d();
+    tke_copy         = view_2d();
+    rrho             = view_2d();
+    rrho_i           = view_2d();
+    thv              = view_2d();
+    dz               = view_2d();
+    zt_grid          = view_2d();
+    zi_grid          = view_2d();
+    wm_zt            = view_2d();
+    inv_exner        = view_2d();
+    thlm             = view_2d();
+    qw               = view_2d();
+    cloud_frac       = view_2d();
+    cldfrac_liq      = view_2d();
+    cldfrac_liq_prev = view_2d();
+
+    //qtracers         = view_3d_strided();
+}
 
 void
 SHOCInterface::mf_to_kokkos_buffers ()
-{}
+{
+    // Expose for device
+    auto T_mid_d            = T_mid;
+    auto p_mid_d            = p_mid;
+    auto p_int_d            = p_int;
+    auto dens_d             = dens;
+    auto omega_d            = omega;
+    auto phis_d             = phis;
+    auto surf_sens_flux_d   = surf_sens_flux;
+    auto surf_evap_d        = surf_evap;
+    auto surf_mom_flux_d    = surf_mom_flux;
+    //auto qtracers_d         = qtracers;
+    auto qv_d               = qv;
+    auto qc_d               = qc;
+    auto qc_copy_d          = qc_copy;
+    auto z_mid_d            = z_mid;
+    auto z_int_d            = z_int;
+    auto shoc_s_d           = shoc_s;
+    auto tke_d              = tke;
+    auto tke_copy_d         = tke_copy;
+    auto rrho_d             = rrho;
+    auto rrho_i_d           = rrho_i;
+    auto thv_d              = thv;
+    auto dz_d               = dz;
+    auto zt_grid_d          = zt_grid;
+    auto zi_grid_d          = zi_grid;
+    auto wpthlp_sfc_d       = wpthlp_sfc;
+    auto wprtp_sfc_d        = wprtp_sfc;
+    auto upwp_sfc_d         = upwp_sfc;
+    auto vpwp_sfc_d         = vpwp_sfc;
+    auto wtracer_sfc_d      = wtracer_sfc;
+    auto wm_zt_d            = wm_zt;
+    auto inv_exner_d        = inv_exner;
+    auto thlm_d             = thlm;
+    auto qw_d               = qw;
+    auto cloud_frac_d       = cloud_frac;
+    auto cldfrac_liq_d      = cldfrac_liq;
+    auto cldfrac_liq_prev_d = cldfrac_liq_prev;
+
+    int  ncol  = m_num_cols;
+    int  nlay  = m_num_layers;
+    Real dz    = m_geom.CellSize(2);
+    bool moist = (m_cons_in->nComp() > RhoQ1_comp);
+    bool ice   = (m_cons_in->nComp() > RhoQ3_comp);
+    auto ProbLoArr = m_geom.ProbLoArray();
+    for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
+        const auto& vbx  = mfi.validbox();
+        const int nx     = vbx.length(0);
+        const int imin   = vbx.smallEnd(0);
+        const int jmin   = vbx.smallEnd(1);
+        const int offset = m_col_offsets[mfi.index()];
+        const Array4<const Real>& cons_arr = m_cons_in->const_array(mfi);
+        const Array4<const Real>& z_arr    = (m_z_phys) ? m_z_phys->const_array(mfi) :
+                                                          Array4<const Real>{};
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            // map [i,j,k] 0-based to [icol, ilay] 0-based
+            const int icol   = (j-jmin)*nx + (i-imin) + offset;
+            const int ilay   = k;
+
+            // EOS input (at CC)
+            Real r  = cons_arr(i,j,k,Rho_comp);
+            Real rt = cons_arr(i,j,k,RhoTheta_comp);
+            Real qv = (moist) ? cons_arr(i,j,k,RhoQ1_comp)/r : 0.0;
+            Real qc = (moist) ? cons_arr(i,j,k,RhoQ2_comp)/r : 0.0;
+            Real qi = (ice)   ? cons_arr(i,j,k,RhoQ3_comp)/r : 0.0;
+
+            // EOS avg to z-face
+            Real r_lo  = cons_arr(i,j,k-1,Rho_comp);
+            Real rt_lo = cons_arr(i,j,k-1,RhoTheta_comp);
+            Real qv_lo = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : 0.0;
+            Real r_avg  = 0.5 * (r  + r_lo);
+            Real rt_avg = 0.5 * (rt + rt_lo);
+            Real qv_avg = 0.5 * (qv + qv_lo);
+
+            // Fill view1d
+            phis_d(icol)             = 0.0;
+            surf_sens_flux_d(icol)   = 0.0;
+            surf_evap_d(icol)        = 0.0;
+            surf_mom_flux_d(icol,0)  = 0.0;
+            surf_mom_flux_d(icol,1)  = 0.0;
+
+            // Fill view2d at CC
+            dens_d(icol,ilay)     = r;
+            T_mid_d(icol,ilay)    = getTgivenRandRTh(r, rt, qv);
+            p_mid_d(icol,ilay)    = getPgivenRTh(rt, qv);
+            qv_d(icol,ilay)       = qv;
+            qc_d(icol,ilay)       = qc;
+            qc_copy_d(icol,ilay)  = qc;
+            tke_d(icol,ilay)      = std::max(cons_arr(i,j,k,RhoKE_comp)/r, 0.0);
+            tke_copy_d(icol,ilay) = std::max(cons_arr(i,j,k,RhoKE_comp)/r, 0.0);
+
+            dz_d(icol,ilay)      = (z_arr) ? 0.25 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
+                                                    + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
+                                                    + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
+                                                    + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz;
+            z_mid_d(icol,ilay)   = (z_arr) ? 0.125 * ( z_arr(i  ,j  ,k+1) + z_arr(i  ,j  ,k)
+                                                     + z_arr(i+1,j  ,k+1) + z_arr(i+1,j  ,k)
+                                                     + z_arr(i  ,j+1,k+1) + z_arr(i  ,j+1,k)
+                                                     + z_arr(i+1,j+1,k+1) + z_arr(i+1,j+1,k) ) :
+                                             ProbLoArr[2] + (k + 0.5) * dz;
+
+            // Fill view2d at w-face
+            p_int_d(icol,ilay) = getPgivenRTh(rt_avg, qv_avg);
+            z_int_d(icol,ilay) = (z_arr) ? 0.25 * ( z_arr(i  ,j  ,k) + z_arr(i+1,j  ,k)
+                                                  + z_arr(i  ,j+1,k) + z_arr(i+1,j+1,k) ) :
+                                           ProbLoArr[2] + (k) * dz;
+            if (ilay==(nlay-1)) {
+                Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
+                Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
+                Real qv_hi = (moist) ? std::max(cons_arr(i,j,k+1,RhoQ1_comp)/r_hi,0.0) : 0.0;
+                r_avg  = 0.5 * (r  + r_hi);
+                rt_avg = 0.5 * (rt + rt_hi);
+                qv_avg = 0.5 * (qv + qv_hi);
+                p_int_d(icol,ilay+1) = getPgivenRTh(rt_avg, qv_avg);
+                z_int_d(icol,ilay+1) = (z_arr) ? 0.25 * ( z_arr(i  ,j  ,k+1) + z_arr(i+1,j  ,k+1)
+                                                        + z_arr(i  ,j+1,k+1) + z_arr(i+1,j+1,k+1) ) :
+                                                 ProbLoArr[2] + (k+1) * dz;
+            }
+
+            // Questionable guesses
+            zt_grid_d(icol,ilay)          = z_mid_d(icol,ilay); // Our thermo grid is the height grid?
+            zi_grid_d(icol,ilay)          = z_int_d(icol,ilay); // Heights of interface grid?
+            cloud_frac_d(icol,ilay)       = ((qc+qi)>0.0) ? 1. : 0.;
+            cldfrac_liq_d(icol,ilay)      = (qc>0.0)      ? 1. : 0.;
+            cldfrac_liq_prev_d(icol,ilay) = (qc>0.0)      ? 1. : 0.;
+
+            // Don't know
+            wpthlp_sfc_d(icol)     = 0.0;
+            wprtp_sfc_d(icol)      = 0.0;
+            upwp_sfc_d(icol)       = 0.0;
+            vpwp_sfc_d(icol)       = 0.0;
+            wtracer_sfc_d(icol,0)  = 0.0;
+
+            omega_d(icol,ilay)     = 0.0;
+            shoc_s_d(icol,ilay)    = 0.0;
+            rrho_d(icol,ilay)      = 0.0;
+            rrho_i_d(icol,ilay)    = 0.0;
+            thv_d(icol,ilay)       = 0.0;
+            wm_zt_d(icol,ilay)     = 0.0;
+            inv_exner_d(icol,ilay) = 0.0;
+            thlm_d(icol,ilay)      = 0.0;
+            qw_d(icol,ilay)        = 0.0;
+
+
+            // Fill view3d
+            //qtracers_d(icol,ilay,0) = 0.0;
+        });
+    }
+}
 
 void
 SHOCInterface::kokkos_buffers_to_mf ()
@@ -285,80 +521,6 @@ SHOCInterface::run_impl (const amrex::Real dt)
 #endif
 }
 
-#if 0
-int3d_k
-get_subcolumn_mask (const int ncol,
-                    const int nlay,
-                    const int ngpt,
-                    real2d_k& cldf,
-                    const int overlap_option,
-                    int1d_k& seeds)
-{
-    // Routine will return subcolumn mask with values of 0 indicating no cloud, 1 indicating cloud
-    int3d_k subcolumn_mask("subcolumn_mask", ncol, nlay, ngpt);
-
-    // Subcolumn generators are a means for producing a variable x(i,j,k), where
-    //
-    //     c(i,j,k) = 1 for x(i,j,k) >  1 - cldf(i,j)
-    //     c(i,j,k) = 0 for x(i,j,k) <= 1 - cldf(i,j)
-    //
-    // I am going to call this "cldx" to be just slightly less ambiguous
-    real3d_k cldx("cldx", ncol, nlay, ngpt);
-
-    // Apply overlap assumption to set cldx
-    if (overlap_option == 0) {  // Dummy mask, always cloudy
-        Kokkos::deep_copy(cldx, 1);
-    } else {  // Default case, maximum-random overlap
-        // Maximum-random overlap:
-        // Uses essentially the algorithm described in eq (14) in Raisanen et al. 2004,
-        // https://rmets.onlinelibrary.wiley.com/doi/epdf/10.1256/qj.03.99. Also the same
-        // algorithm used in RRTMG implementation of maximum-random overlap (see
-        // https://github.com/AER-RC/RRTMG_SW/blob/master/src/mcica_subcol_gen_sw.f90)
-        //
-        // First, fill cldx with random numbers.
-        Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, ngpt}),
-                             KOKKOS_LAMBDA (int icol, int ilay, int igpt)
-        {
-            conv::Random rand(seeds(icol) + ilay*ngpt + igpt);
-            cldx(icol,ilay,igpt) = rand.genFP<RealT>();
-        });
-
-        // Step down columns and apply algorithm from eq (14)
-        Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, ngpt}),
-                             KOKKOS_LAMBDA (int icol, int igpt)
-        {
-            for (int ilay = 1; ilay < nlay; ilay++) {
-                // Check cldx in level above and see if it satisfies conditions to create a cloudy subcolumn
-                if (cldx(icol,ilay-1,igpt) > 1.0 - cldf(icol,ilay-1)) {
-                    // Cloudy subcolumn above, use same random number here so that clouds in these two adjacent
-                    // layers are maximimally overlapped
-                    cldx(icol,ilay,igpt) = cldx(icol,ilay-1,igpt);
-                } else {
-                    // Cloud-less above, use new random number so that clouds are distributed
-                    // randomly in this layer. Need to scale new random number to range
-                    // [0, 1.0 - cldf(ilay-1)] because we have artificially changed the distribution
-                    // of random numbers in this layer with the above branch of the conditional,
-                    // which would otherwise inflate cloud fraction in this layer.
-                    cldx(icol,ilay,igpt) = cldx(icol,ilay  ,igpt) * (1.0 - cldf(icol,ilay-1));
-                }
-            }
-        });
-    }
-
-    // Use cldx array to create subcolumn mask
-    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0}, {ncol, nlay, ngpt}),
-                             KOKKOS_LAMBDA (int icol, int ilay, int igpt)
-    {
-        if (cldx(icol,ilay,igpt) > 1.0 - cldf(icol,ilay)) {
-            subcolumn_mask(icol,ilay,igpt) = 1;
-        } else {
-            subcolumn_mask(icol,ilay,igpt) = 0;
-        }
-    });
-    return subcolumn_mask;
-}
-
-#endif
 
 void
 SHOCInterface::initialize_impl ()

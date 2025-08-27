@@ -470,19 +470,14 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
             // EOS input (at CC)
             Real r  = cons_arr(i,j,k,Rho_comp);
             Real rt = cons_arr(i,j,k,RhoTheta_comp);
-            Real qv = (moist) ? cons_arr(i,j,k,RhoQ1_comp)/r : 0.0;
-            Real qc = (moist) ? cons_arr(i,j,k,RhoQ2_comp)/r : 0.0;
-            Real qi = (ice)   ? cons_arr(i,j,k,RhoQ3_comp)/r : 0.0;
+            Real qv = (moist) ? std::max(cons_arr(i,j,k,RhoQ1_comp)/r,0.0) : 0.0;
+            Real qc = (moist) ? std::max(cons_arr(i,j,k,RhoQ2_comp)/r,0.0) : 0.0;
+            Real qi = (ice)   ? std::max(cons_arr(i,j,k,RhoQ3_comp)/r,0.0) : 0.0;
 
             // EOS avg to z-face
-            Real r_lo  = cons_arr(i,j,k-1,Rho_comp);
-            Real rt_lo = cons_arr(i,j,k-1,RhoTheta_comp);
-            Real qv_lo = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : 0.0;
-
-            // make sure qv is >= 0 for H2O VMR
-            qv_lo = std::max(0.0, qv_lo);
-            qv = std::max(0.0, qv);
-
+            Real r_lo   = cons_arr(i,j,k-1,Rho_comp);
+            Real rt_lo  = cons_arr(i,j,k-1,RhoTheta_comp);
+            Real qv_lo  = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : 0.0;
             Real r_avg  = 0.5 * (r  + r_lo);
             Real rt_avg = 0.5 * (rt + rt_lo);
             Real qv_avg = 0.5 * (qv + qv_lo);
@@ -494,7 +489,7 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
             z_del_d(icol,ilay) = (z_arr) ? 0.25 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
                                                   + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
                                                   + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
-                                                  + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k)) ) : dz;
+                                                  + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz;
             qv_lay_d(icol,ilay) = qv;
             qc_lay_d(icol,ilay) = qc;
             qi_lay_d(icol,ilay) = qi;
@@ -514,8 +509,7 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
             if (ilay==(nlay-1)) {
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
                 Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
-                Real qv_hi = (moist) ? cons_arr(i,j,k+1,RhoQ1_comp)/r_hi : 0.0;
-                qv_hi = std::max(0.0, qv_hi);
+                Real qv_hi = (moist) ? std::max(cons_arr(i,j,k+1,RhoQ1_comp)/r_hi,0.0) : 0.0;
                 r_avg  = 0.5 * (r  + r_hi);
                 rt_avg = 0.5 * (rt + rt_hi);
                 qv_avg = 0.5 * (qv + qv_hi);
