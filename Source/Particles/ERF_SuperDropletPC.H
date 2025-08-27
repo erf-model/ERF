@@ -180,6 +180,7 @@ class SuperDropletPC : public ERFPC
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
                                     const amrex::Vector<MFPtr>& );
 
         /*! \brief Recycle super-droplets */

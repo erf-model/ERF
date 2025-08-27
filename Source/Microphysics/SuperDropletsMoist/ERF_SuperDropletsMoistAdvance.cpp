@@ -77,6 +77,7 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                                         *m_mic_fab_vars[MicVar_SD::pressure],
                                         mf_moist_density,
                                         *m_mic_fab_vars[MicVar_SD::temperature],
+                                        *m_mic_fab_vars[MicVar_SD::q_v],
                                         a_z );
     }
 
