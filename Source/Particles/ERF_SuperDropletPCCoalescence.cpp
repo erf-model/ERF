@@ -141,10 +141,7 @@ static void aggr_update_attribs(const int a_i, /*!< index of particle */
             j = a_i;
         }
 
-        auto rhoi_i = ice_rho(a_a[i], a_c[i], a_sp_m[a_sp_idx_i][i]);
-        auto rhoi_j = ice_rho(a_a[j], a_c[j], a_sp_m[a_sp_idx_i][j]);
-
-        auto m_new = (4.0*PI/3.0) * (gamma*a_a[i]*a_a[i]*a_c[i]*rhoi_i + a_a[j]*a_a[j]*a_c[j]*rhoi_j);
+        m_new = gamma * a_sp_m[a_sp_idx_i][i] + a_sp_m[a_sp_idx_i][j];
         auto V_new_min = (4.0*PI/3.0) * (gamma*a_a[i]*a_a[i]*a_c[i] + a_a[j]*a_a[j]*a_c[j]);
         auto rhoi_bar = m_new / V_new_min;
 
@@ -301,9 +298,9 @@ static auto rimeDensity_HeymsfieldPflaum1985( const ParticleReal a_radius,      
     auto mu = viscCoeff(a_T);
 
     auto maxD = 2.0 * std::max(a_a,a_c);
-    auto Re = a_rhom * maxD * a_vz_i / mu;
+    auto Re = a_rhom * maxD * std::abs(a_vz_i) / mu;
     auto eqr_i = std::cbrt(a_a*a_a*a_c);
-    auto St = 2.0*a_vz_i*a_radius*a_radius*a_rho_w/(9.0*mu*eqr_i);
+    auto St = 2.0*std::abs(a_vz_i)*a_radius*a_radius*a_rho_w/(9.0*mu*eqr_i);
 
     auto v_impact_ratio = impactVelocity_RasmussenHeymsfield1985(Re,St);
     auto v_impact = std::abs(a_vz_i - a_vz_w) * v_impact_ratio;
@@ -432,6 +429,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
             a_Tfz[a_i] = std::max(a_Tfz[a_j], a_Tfz[a_i]);
             for (int n = 0; n < a_n_sp; n++) {
                 if (n == a_sp_idx_w) { a_sp_m[n][a_i] = 0.0; }
+                else if (n == a_sp_idx_i) { a_sp_m[n][a_i] = mi_new; }
                 else { a_sp_m[n][a_i] += gamma*a_sp_m[n][a_j]; }
             }
             for (int n = 0; n < a_n_ae; n++) { a_ae_m[n][a_i] += gamma*a_ae_m[n][a_j]; }
@@ -450,6 +448,8 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
             for (int n = 0; n < a_n_sp; n++) {
                 if (n == a_sp_idx_w) {
                     a_sp_m[n][a_i] = a_sp_m[n][a_j] = 0.0;
+                } else if (n == a_sp_idx_i) {
+                    a_sp_m[n][a_i] = a_sp_m[n][a_j] = mi_new;
                 } else {
                     a_sp_m[n][a_j] += gamma*a_sp_m[n][a_i];
                     a_sp_m[n][a_i] = a_sp_m[n][a_j];
@@ -868,12 +868,12 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 // velocity difference
                 auto dvz = std::sqrt((vz_i-vz_w)*(vz_i-vz_w));
 
-                if (vz_w > vz_i) {
+                if (std::abs(vz_w) > std::abs(vz_i)) {
 
                     // collector is water droplet
 
                     auto size_ratio = eqr_i / r_w;
-                    auto Re = moist_density * (2.0*r_w) * vz_w / mu;
+                    auto Re = moist_density * (2.0*r_w) * std::abs(vz_w) / mu;
                     auto Kn = ckernel.lambda_mfp / (2.0*eqr_i);
                     // Cunningham slip correction factor
                     auto C_sc = 1.0 + Kn * (ckernel.para_Asc + ckernel.para_Bsc * std::exp(-ckernel.para_Csc/Kn));
@@ -890,8 +890,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     // collector is ice particle
 
                     auto size_ratio = r_w / eqr_i;
-                    auto Re = moist_density * 2*maxR_i * vz_i / mu;
-                    auto mixFr = (vz_i - vz_w) * vz_w / (maxR_i * CONST_GRAV);
+                    auto Re = moist_density * 2*maxR_i * std::abs(vz_i) / mu;
+                    auto mixFr = std::abs((vz_i - vz_w) * vz_w) / (maxR_i * CONST_GRAV);
 
                     k_val = ckernel.BeardGrover1974(size_ratio, Re, mixFr);
 
@@ -902,7 +902,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                         k_val = phi_i*k_val + (1.0-phi_i)*tmp;
                     } else {
                         // prolate
-                        auto Re_col = moist_density * (2*a_i) * vz_i / mu;
+                        auto Re_col = moist_density * (2*a_i) * std::abs(vz_i) / mu;
                         auto tmp = ckernel.ErfaniMitchell2017_Column(Re_col, mixFr);
                         k_val = (1.0/phi_i)*k_val + (1.0-(1.0/phi_i))*tmp;
                     }
