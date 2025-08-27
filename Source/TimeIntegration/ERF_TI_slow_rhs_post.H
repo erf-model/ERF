@@ -77,8 +77,8 @@
             const int nvars          = S_data[IntVars::cons].nComp();
 
             MultiFab dUdt_tmp(ba, dm, num_comp_total, num_grow, MFInfo(), EBFactory(level));
-            dUdt_tmp.setVal(0.);
-            
+            dUdt_tmp.setVal(0.0, 0, num_comp_total, num_grow);
+
             int start_comp;
             int num_comp;
 
@@ -93,7 +93,7 @@
                     } else if (ivar == RhoScalar_comp) {
                         num_comp = NSCALARS;
                     }
-                    MultiFab::Copy(dUdt_tmp, S_rhs[IntVars::cons], start_comp, start_comp, num_comp, num_grow);
+                    MultiFab::Copy(dUdt_tmp, S_rhs[IntVars::cons], start_comp, start_comp, num_comp, 0);
                 }
             }
             dUdt_tmp.FillBoundary(fine_geom.periodicity());
