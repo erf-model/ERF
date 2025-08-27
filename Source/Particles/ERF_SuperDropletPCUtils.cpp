@@ -437,7 +437,7 @@ void SuperDropletPC::iceDensity (MultiFab&  a_mf,         /*!< Species mass dens
                     auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
                     auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
                     auto nmono = ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i];
-                    auto frac = mrime / mass;
+                    auto frac = (mass > 0.0 ? mrime / mass : 0.0);
                     if ((frac < a_mrime_frac) && (nmono == 1)) {
                         auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                         return num_par*mass*inv_cell_volume;
@@ -487,7 +487,7 @@ void SuperDropletPC::snowDensity (MultiFab&  a_mf,         /*!< Species mass den
                     auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
                     auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
                     auto nmono = ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i];
-                    auto frac = mrime / mass;
+                    auto frac = (mass > 0.0 ? mrime / mass : 0.0);
                     if ((frac < a_mrime_frac) && (nmono > 1)) {
                         auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                         return num_par*mass*inv_cell_volume;
@@ -536,7 +536,7 @@ void SuperDropletPC::graupelDensity (MultiFab&  a_mf,         /*!< Species mass 
                 {
                     auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
                     auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
-                    auto frac = mrime / mass;
+                    auto frac = (mass > 0.0 ? mrime / mass : 0.0);
                     if (frac > a_mrime_frac) {
                         auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                         return num_par*mass*inv_cell_volume;
