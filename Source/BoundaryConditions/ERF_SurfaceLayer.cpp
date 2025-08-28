@@ -11,14 +11,28 @@ using namespace amrex;
 void
 SurfaceLayer::update_fluxes (const int& lev,
                              const Real& time,
+                             const MultiFab& cons_in,
+                             const std::unique_ptr<MultiFab>& z_phys_nd,
                              int max_iters)
 {
-    // Update SST data if we have a valid pointer
-    if (m_sst_lev[lev][0]) fill_tsurf_with_sst_and_tsk(lev, time);
+    // Update with SST/TSK data if we have a valid pointer
+    if (m_sst_lev[lev][0]) {
+        fill_tsurf_with_sst_and_tsk(lev, time);
+    }
+
+    // Apply heating rate if needed
+    if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
+        update_surf_temp(time);
+    }
+
+    // Update qsurf with qsat over sea
+    if (use_moisture && (moist_type == MoistCalcType::SURFACE_MOISTURE)) {
+        fill_qsurf_with_qsat(lev, cons_in, z_phys_nd);
+    }
 
     // TODO: we want 0 index to always be theta?
     // Update land surface temp if we have a valid pointer
-    if (m_lsm_data_lev[lev][0]) get_lsm_tsurf(lev);
+    if (m_lsm_data_lev[lev][0]) { get_lsm_tsurf(lev); }
 
     // Fill interior ghost cells
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
@@ -40,15 +54,14 @@ SurfaceLayer::update_fluxes (const int& lev,
         bool is_land = true;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
             if (rough_type_land == RoughCalcType::CONSTANT) {
-              surface_flux most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
+                surface_flux most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
             }
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-            update_surf_temp(time);
             if (rough_type_land == RoughCalcType::CONSTANT) {
-              surface_temp most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
+                surface_temp most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
                 compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
@@ -100,7 +113,6 @@ SurfaceLayer::update_fluxes (const int& lev,
             }
 
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-            update_surf_temp(time);
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
                 surface_temp_charnock most_flux(m_ma.get_zref(),
                                                 surf_temp_flux, surf_moist_flux,
@@ -201,7 +213,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
         const auto tvm_arr = tvm_ptr->array(mfi);
         const auto qvm_arr = qvm_ptr->array(mfi);
         const auto umm_arr = umm_ptr->array(mfi);
-        const auto z0_arr  = z_0[lev].array();
+        const auto z0_arr  = z_0[lev].array(mfi);
 
         // PBL height if we need to calculate wstar for the Beljaars correction
         // TODO: can/should we apply this in LES mode?
@@ -460,11 +472,10 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     if (n_times_in_sst > 1) {
         // Time interpolation
         Real dT = m_bdy_time_interval;
-        Real time_since_start = time - m_start_bdy_time;
-        int n_time = static_cast<int>( time_since_start /  dT);
+        int n_time = static_cast<int>( time /  dT);
         n_time_lo = n_time;
         n_time_hi = n_time+1;
-        alpha = (time_since_start - n_time * dT) / dT;
+        alpha = (time - n_time * dT) / dT;
         AMREX_ALWAYS_ASSERT( (n_time >= 0) && (n_time < (m_sst_lev[lev].size()-1)));
     } else {
         n_time_lo = 0;
@@ -494,7 +505,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
                                                   Array4<int> {};
 
         if (use_tsk) {
-            const auto    tsk_arr = m_tsk_lev[lev][n_time_lo]->const_array(mfi);
+            const auto tsk_arr = m_tsk_lev[lev][n_time_lo]->const_array(mfi);
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
@@ -519,6 +530,46 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
         }
     }
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
+}
+
+void
+SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
+                                    const MultiFab& cons_in,
+                                    const std::unique_ptr<MultiFab>& z_phys_nd)
+{
+    // NOTE: We have already tested a moisture model exists
+
+    // Populate q_surf with qsat over water
+    auto dz = m_geom[lev].CellSize(2);
+    for (MFIter mfi(*q_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        auto q_surf_arr = q_surf[lev]->array(mfi);
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                  Array4<int> {};
+        const auto cons_arr = cons_in.const_array(mfi);
+        const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
+                                            Array4<const Real> {};
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+            if (!is_land) {
+                auto deltaZ = (z_arr) ? Compute_Zrel_AtCellCenter(i,j,k,z_arr) :
+                                        0.5*dz;
+                auto Rho  = cons_arr(i,j,k,Rho_comp);
+                auto RTh  = cons_arr(i,j,k,RhoTheta_comp);
+                auto Qv   = cons_arr(i,j,k,RhoQ1_comp) / Rho;
+                auto P_cc = getPgivenRTh(RTh, Qv);
+                P_cc += Rho*CONST_GRAV*deltaZ;
+                P_cc *= 0.01;
+                erf_qsatw(t_surf_arr(i,j,k), P_cc, q_surf_arr(i,j,k));
+            }
+        });
+    }
+    q_surf[lev]->FillBoundary(m_geom[lev].periodicity());
 }
 
 void
@@ -587,11 +638,11 @@ SurfaceLayer::read_custom_roughness (const int& lev,
 {
     // Read the file if we are on the coarsest level
     if (lev==0) {
-        // Only the ioproc reads the file and broadcasts
+        // Only the ioproc reads the file
+        Gpu::HostVector<Real> m_x,m_y,m_z0;
         if (ParallelDescriptor::IOProcessor()) {
             Print()<<"Reading MOST roughness file: "<< fname << std::endl;
             std::ifstream file(fname);
-            Gpu::HostVector<Real> m_x,m_y,m_z0;
             Real value1,value2,value3;
             while(file>>value1>>value2>>value3){
                 m_x.push_back(value1);
@@ -599,16 +650,29 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                 m_z0.push_back(value3);
             }
             file.close();
+        }
 
-            // Copy data to the GPU
-            int nnode = m_x.size();
-            Gpu::DeviceVector<Real> d_x(nnode),d_y(nnode),d_z0(nnode);
-            Gpu::copy(Gpu::hostToDevice, m_x.begin(), m_x.end(), d_x.begin());
-            Gpu::copy(Gpu::hostToDevice, m_y.begin(), m_y.end(), d_y.begin());
-            Gpu::copy(Gpu::hostToDevice, m_z0.begin(), m_z0.end(), d_z0.begin());
-            Real* xp  = d_x.data();
-            Real* yp  = d_y.data();
-            Real* z0p = d_z0.data();
+        // Broadcast the whole domain to every rank
+        int ioproc = ParallelDescriptor::IOProcessorNumber();
+        ParallelDescriptor::Barrier();
+        ParallelDescriptor::Bcast(m_x.data() , m_x.size() , ioproc);
+        ParallelDescriptor::Bcast(m_y.data() , m_x.size() , ioproc);
+        ParallelDescriptor::Bcast(m_z0.data(), m_z0.size(), ioproc);
+
+        // Copy data to the GPU
+        int nnode = m_x.size();
+        Gpu::DeviceVector<Real> d_x(nnode),d_y(nnode),d_z0(nnode);
+        Gpu::copy(Gpu::hostToDevice, m_x.begin(), m_x.end(), d_x.begin());
+        Gpu::copy(Gpu::hostToDevice, m_y.begin(), m_y.end(), d_y.begin());
+        Gpu::copy(Gpu::hostToDevice, m_z0.begin(), m_z0.end(), d_z0.begin());
+        Real* xp  = d_x.data();
+        Real* yp  = d_y.data();
+        Real* z0p = d_z0.data();
+
+        // Each rank populates it's z_0[lev] MultiFab
+        for (MFIter mfi(z_0[lev]); mfi.isValid(); ++mfi)
+        {
+            Box gtbx = mfi.growntilebox();
 
             // Populate z_phys data
             Real tol = 1.0e-4;
@@ -620,12 +684,8 @@ SurfaceLayer::read_custom_roughness (const int& lev,
             int ihi = m_geom[lev].Domain().bigEnd(0);
             int jhi = m_geom[lev].Domain().bigEnd(1);
 
-            // Grown box with no z range
-            Box xybx = z_0[lev].box();
-            xybx.setRange(2,0);
-
-            Array4<Real> const& z0_arr = z_0[lev].array();
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+            Array4<Real> const& z0_arr = z_0[lev].array(mfi);
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
             {
                 // Clip indices for ghost-cells
                 int ii = amrex::min(amrex::max(i,ilo),ihi);
@@ -654,11 +714,7 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                     z0_arr(i,j,klo) = z0loc;
                 }
             });
-        } // Is ioproc
-
-        int ioproc = ParallelDescriptor::IOProcessorNumber();
-        ParallelDescriptor::Barrier();
-        ParallelDescriptor::Bcast(z_0[lev].dataPtr(),z_0[lev].box().numPts(),ioproc);
+        } // mfi
     } else {
         // Create a BC mapper that uses FOEXTRAP at domain bndry
         Vector<int> bc_lo(3,ERFBCType::foextrap);
@@ -672,11 +728,12 @@ SurfaceLayer::read_custom_roughness (const int& lev,
         }
 
         // Create interp object and interpolate from the coarsest grid
-        Interpolater* interp = &cell_cons_interp;
+        MFInterpolater* interp = &mf_cell_cons_interp;
         interp->interp(z_0[0]  , 0,
                        z_0[lev], 0,
-                       1, z_0[lev].box(),
-                       ratio, m_geom[0], m_geom[lev],
-                       bcr, 0, 0, RunOn::Gpu);
+                       1, z_0[lev].nGrowVect(),
+                       m_geom[0], m_geom[lev],
+                       m_geom[lev].Domain(),ratio,
+                       bcr, 0);
     }
 }

@@ -22,6 +22,7 @@ void make_buoyancy (const amrex::Vector<amrex::MultiFab>& S_data,
                     const SolverChoice& solverChoice,
                     const amrex::MultiFab& base_state,
                     const int n_qstate,
+                    const eb_& ebfact,
                     const int anelastic);
 
 void make_gradp_pert (int level,
@@ -31,7 +32,6 @@ void make_gradp_pert (int level,
                       amrex::MultiFab& p0,
                       amrex::MultiFab& z_phys_nd,
                       amrex::MultiFab& z_phys_cc,
-                      amrex::BCRec const* bcrec_ptr,
                       const eb_& ebfact,
                       amrex::Vector<amrex::MultiFab>& gradp);
 
@@ -39,7 +39,6 @@ void compute_gradp (const amrex::MultiFab& p,
                     const amrex::Geometry& geom,
                     amrex::MultiFab& z_phys_nd,
                     amrex::MultiFab& z_phys_cc,
-                    amrex::BCRec const* bcrec_ptr,
                     const eb_& ebfact,
                     amrex::Vector<amrex::MultiFab>& gradp,
                     const SolverChoice& solverChoice);
@@ -103,14 +102,15 @@ void add_thin_body_sources (amrex::MultiFab& xmom_source,
 
 #if defined(ERF_USE_NETCDF)
 void
-moist_set_rhs (const amrex::Box& tbx,
+moist_set_rhs (const amrex::Geometry& geom,
+               const amrex::Box& tbx,
                const amrex::Array4<amrex::Real const>& old_cons,
                const amrex::Array4<amrex::Real const>& new_cons,
                const amrex::Array4<amrex::Real      >& cell_rhs,
                const amrex::Real& bdy_time_interval,
-               const amrex::Real& start_bdy_time,
                const amrex::Real& new_stage_time,
                const amrex::Real& dt,
+               const amrex::Real& stop_time,
                int width, int set_width,
                const amrex::Box& domain,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,

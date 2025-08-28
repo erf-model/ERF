@@ -8,7 +8,7 @@
  * Please reference to the following paper,
  *                        https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2019MS001621
  * NOTE: we use the C++ version of RTE-RRTMGP, which is the implementation of the original Fortran
- * code using C++ YAKL for CUDA, HiP and SYCL application by E3SM ECP team, the C++ version
+ * code using C++ KOKKOS for CUDA, HiP and SYCL application by E3SM ECP team, the C++ version
  * of the rte-rrtmgp code is located at:
  *                       https://github.com/E3SM-Project/rte-rrtmgp
  * The RTE-RRTMGP uses BSD-3-Clause Open Source License, if you want to make changes,
@@ -22,7 +22,7 @@
 
 #include <mo_gas_concentrations.h>
 
-#include <YAKL.h>
+#include <Kokkos_Core.hpp>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_FArrayBox.H>
@@ -45,36 +45,72 @@
 class Radiation : public IRadiation {
 public:
 
+    #include <ERF_Kokkos.H>
+
     // Constructor
     Radiation (const int& lev,
                SolverChoice& sc);
 
     // Destructor
-    ~Radiation () = default;
-
-    virtual void Init(const amrex::Geometry& geom,
-                    const amrex::BoxArray& ba,
-                    amrex::MultiFab* cons_in) override {};
-
-    virtual void Run(int& level,
-                     int& step,
-                     amrex::Real& time,
-                     const amrex::Real& dt,
-                     const amrex::BoxArray& ba,
-                     amrex::Geometry& geom,
-                     amrex::MultiFab* cons_in,
-                     amrex::MultiFab* lsm_fluxes,
-                     amrex::MultiFab* lsm_zenith,
-                     amrex::MultiFab* qheating_rates,
-                     amrex::MultiFab* z_phys,
-                     amrex::MultiFab* lat,
-                     amrex::MultiFab* lon) override
+    ~Radiation ()
     {
-        set_grids(level, step, time, dt, ba, geom, cons_in, lsm_fluxes, lsm_zenith, qheating_rates, z_phys, lat, lon);
-        rad_run_impl();
+        // Note that Kokkos is now finalized in main.cpp
     }
 
-    // Set the grid info for columnar data in YAKL
+    virtual
+    void
+    Init (const amrex::Geometry& geom,
+          const amrex::BoxArray& ba,
+          amrex::MultiFab* cons_in) override
+    {
+        // Ensure the boxes span klo -> khi
+        int klo = geom.Domain().smallEnd(2);
+        int khi = geom.Domain().bigEnd(2);
+
+        // Reset vector of offsets for columnar data
+        m_nlay = geom.Domain().length(2);
+
+        m_ncol = 0;
+        m_col_offsets.clear();
+        m_col_offsets.resize(int(ba.size()));
+        for (amrex::MFIter mfi(*cons_in); mfi.isValid(); ++mfi) {
+            const amrex::Box& vbx = mfi.validbox();
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
+                                             (khi == vbx.bigEnd(2)),
+                                             "Vertical decomposition with radiation is not allowed.");
+            int nx = vbx.length(0);
+            int ny = vbx.length(1);
+            m_col_offsets[mfi.index()] = m_ncol;
+            m_ncol += nx * ny;
+        }
+    };
+
+    virtual
+    void
+    Run (int& level,
+         int& step,
+         amrex::Real& time,
+         const amrex::Real& dt,
+         const amrex::BoxArray& ba,
+         amrex::Geometry& geom,
+         amrex::MultiFab* cons_in,
+         amrex::MultiFab* lsm_fluxes,
+         amrex::MultiFab* lsm_zenith,
+         amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
+         amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs,
+         amrex::MultiFab* qheating_rates,
+         amrex::MultiFab* z_phys,
+         amrex::MultiFab* lat,
+         amrex::MultiFab* lon) override
+    {
+        set_grids(level, step, time, dt, ba, geom,
+                  cons_in, lsm_fluxes, lsm_zenith,
+                  lsm_input_ptrs, qheating_rates,
+                  z_phys, lat, lon);
+        rad_run_impl(lsm_output_ptrs);
+    }
+
+    // Set the grid info for columnar data in KOKKOS
     void
     set_grids (int& level,
                int& step,
@@ -85,72 +121,11 @@ public:
                amrex::MultiFab* cons_in,
                amrex::MultiFab* lsm_fluxes,
                amrex::MultiFab* lsm_zenith,
+               amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
                amrex::MultiFab* qheating_rates,
                amrex::MultiFab* z_phys,
                amrex::MultiFab* lat,
                amrex::MultiFab* lon);
-
-    template<typename LandSurfaceModelType>
-    void set_lsm_inputs(LandSurfaceModelType *model)
-    {
-        if constexpr(std::is_same_v<LandSurfaceModelType, SLM>)
-        {
-            if (!m_update_rad)
-            {
-                // skip getting LSM inputs if radiation not updating this timestep
-                return;
-            }
-
-            // get surface temperature, LW flux, and emissivities from SLM
-            /*
-            auto slm_to_rad_vars = model->export_to_RRTMGP();
-
-            for (amrex::MFIter mfi(*slm_to_rad_vars[0]); mfi.isValid(); ++mfi) {
-                const auto& vbx  = mfi.validbox();
-                const auto& sbx  = amrex::makeSlab(vbx, 2, 0);
-
-                const int nx     = vbx.length(0);
-                const int imin   = vbx.smallEnd(0);
-                const int jmin   = vbx.smallEnd(1);
-                const int offset = m_col_offsets[mfi.index()];
-
-                const auto &slm_tsurf           = slm_to_rad_vars[0]->const_array(mfi);
-                const auto &slm_alb_dir_vis_arr = slm_to_rad_vars[2]->const_array(mfi);
-                const auto &slm_alb_dir_nir_arr = slm_to_rad_vars[4]->const_array(mfi);
-                const auto &slm_IR_emis_arr     = slm_to_rad_vars[5]->const_array(mfi);
-                const auto &slm_net_rad_arr     = slm_to_rad_vars[6]->const_array(mfi);
-                amrex::ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    // map [i,j,k] 0-based to [icol, ilay] 1-based
-                    const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
-                    const int ilay = 1;
-
-                    t_sfc(icol) = slm_tsurf(i, j, k);
-
-                    sfc_alb_dir_vis(icol) = slm_alb_dir_vis_arr(i, j, k);
-                    sfc_alb_dir_nir(icol) = slm_alb_dir_nir_arr(i, j, k);
-                    sfc_alb_dif_vis(icol) = slm_alb_dir_vis_arr(i, j, k);
-                    sfc_alb_dif_nir(icol) = slm_alb_dir_nir_arr(i, j, k);
-
-                    sfc_emis(icol) = slm_IR_emis_arr(i, j, k);
-
-                    //lw_src(icol) = slm_net_rad_arr(i, j, k, SLM_NetRad::net_lwup1);
-                    lw_src(icol) = 0.0; // TODO
-                });
-            }
-
-            // expand sfc_emis and lw_src over nlwbands
-            // TODO: check if this is correct - should emissivity vary based on band?
-            yakl::fortran::parallel_for(yakl::fortran::SimpleBounds<2>(m_nlwbands, m_ncol), YAKL_LAMBDA(const int ibnd, const int icol)
-            {
-                emis_sfc(icol, ibnd) = sfc_emis(icol);
-            });
-            */
-
-            yakl::memset(emis_sfc, 0.95);
-            yakl::memset(lw_src, 0.0);
-        }
-    }
 
     // Initialize the temporary variables
     void
@@ -160,13 +135,13 @@ public:
     void
     dealloc_buffers ();
 
-    // Fill YAKL Arrays from AMReX MultiFabs
+    // Fill KOKKOS Views from AMReX MultiFabs
     void
-    mf_to_yakl_buffers();
+    mf_to_kokkos_buffers(amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs);
 
-    // Fill AMReX MultiFabs from YAKL Arrays
+    // Fill AMReX MultiFabs from KOKKOS Views
     void
-    yakl_buffers_to_mf ();
+    kokkos_buffers_to_mf (amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs);
 
     // Write the rrtmgp fluxes
     void
@@ -182,24 +157,45 @@ public:
 
     // Finalize the implementation
     void
-    finalize_impl ();
+    finalize_impl (amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs);
 
     // Wrapper for implementation steps
     void
-    rad_run_impl ()
+    rad_run_impl (amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs)
     {
         if (m_update_rad) {
             amrex::Print() << "Advancing radiation at level: " << m_lev << " ...";
             this->initialize_impl();
             this->run_impl();
-            this->finalize_impl();
+            this->finalize_impl(lsm_output_ptrs);
             amrex::Print() << "DONE\n";
         }
     }
 
-    void populateDatalogMF();
+    // Get names input varnames for lsm
+    virtual
+    amrex::Vector<std::string>
+    get_lsm_input_varnames () override
+    {
+        return m_lsm_input_names;
+    }
 
-    virtual void WriteDataLog(const amrex::Real &time) override;
+    // Get names output varnames for lsm
+    virtual
+    amrex::Vector<std::string>
+    get_lsm_output_varnames () override
+    {
+        return m_lsm_output_names;
+    }
+
+    // Populate datalog structures
+    void
+    populateDatalogMF ();
+
+    // Write datalog
+    virtual
+    void
+    WriteDataLog (const amrex::Real &time) override;
 
 private:
 
@@ -239,6 +235,17 @@ private:
     // Do we have a land surface model?
     bool m_lsm   = false;
 
+    // List of input parameter names
+    amrex::Vector<std::string> m_lsm_input_names = {"t_sfc"          , "sfc_emis"       ,
+                                                    "sfc_alb_dir_vis", "sfc_alb_dir_nir",
+                                                    "sfc_alb_dif_vis", "sfc_alb_dif_nir"};
+
+    // List of output parameter names
+    amrex::Vector<std::string> m_lsm_output_names = {"sw_flux_dn", "lw_flux_dn"};
+
+    // T surf if no LSM is available
+    amrex::Real m_rad_t_sfc = -1;
+
     // Pointer to the CC conserved vars
     amrex::MultiFab* m_cons_in = nullptr;
 
@@ -260,7 +267,7 @@ private:
     amrex::MultiFab* m_lsm_fluxes = nullptr;
     amrex::MultiFab* m_lsm_zenith = nullptr;
 
-    // Holds output from YAKL arrays used in the datalog
+    // Holds output from KOKKOS views used in the datalog
     amrex::MultiFab datalog_mf;
 
     // Path, data file, and coefficient file for K-distribution
@@ -293,9 +300,10 @@ private:
     //amrex::Real m_f12vmr = 531.2820e-12;
 
     int m_o3_size;
-    real1d    m_gas_mol_weights;
-    string1dv gas_names_yakl_offset;
-    GasConcs  m_gas_concs;
+    real1d_k  m_gas_mol_weights;
+    std::vector<std::string> gas_names_offset;
+
+    GasConcsK<amrex::Real, layout_t, KokkosDefaultDevice> m_gas_concs;
 
     // Process interface vars modeled after EAMXX
     //===================================================================================
@@ -304,7 +312,7 @@ private:
     int m_ncol;
     int m_nlay;
 
-    // Offsets for MultiFab <-> YAKL transfer
+    // Offsets for MultiFab <-> KOKKOS transfer
     amrex::Vector<int> m_col_offsets;
 
     // Whether we use aerosol forcing in radiation
@@ -353,99 +361,99 @@ private:
     bool m_do_subcol_sampling = true;
 
     // 1d size (1 or nlay)
-    real1d o3_lay;
+    real1d_k o3_lay;
 
     // 1d size (ncol)
-    real1d cosine_zenith;
-    real1d mu0;
-    real1d sfc_alb_dir_vis;
-    real1d sfc_alb_dir_nir;
-    real1d sfc_alb_dif_vis;
-    real1d sfc_alb_dif_nir;
-    real1d sfc_flux_dir_vis;
-    real1d sfc_flux_dir_nir;
-    real1d sfc_flux_dif_vis;
-    real1d sfc_flux_dif_nir;
-    real1d lat;
-    real1d lon;
-    real1d sfc_emis;
-    real1d t_sfc;
-    real1d lw_src;
+    real1d_k cosine_zenith;
+    real1d_k mu0;
+    real1d_k sfc_alb_dir_vis;
+    real1d_k sfc_alb_dir_nir;
+    real1d_k sfc_alb_dif_vis;
+    real1d_k sfc_alb_dif_nir;
+    real1d_k sfc_flux_dir_vis;
+    real1d_k sfc_flux_dir_nir;
+    real1d_k sfc_flux_dif_vis;
+    real1d_k sfc_flux_dif_nir;
+    real1d_k lat;
+    real1d_k lon;
+    real1d_k sfc_emis;
+    real1d_k t_sfc;
+    real1d_k lw_src;
 
     // 2d size (ncol, nlay)
-    real2d r_lay;
-    real2d p_lay;
-    real2d t_lay;
-    real2d z_del;
-    real2d p_del;
-    real2d qv_lay;
-    real2d qc_lay;
-    real2d qi_lay;
-    real2d cldfrac_tot;
-    real2d eff_radius_qc;
-    real2d eff_radius_qi;
-    real2d tmp2d;
-    real2d lwp;
-    real2d iwp;
-    real2d sw_heating;
-    real2d lw_heating;
-    real2d sw_clrsky_heating;
-    real2d lw_clrsky_heating;
+    real2d_k r_lay;
+    real2d_k p_lay;
+    real2d_k t_lay;
+    real2d_k z_del;
+    real2d_k p_del;
+    real2d_k qv_lay;
+    real2d_k qc_lay;
+    real2d_k qi_lay;
+    real2d_k cldfrac_tot;
+    real2d_k eff_radius_qc;
+    real2d_k eff_radius_qi;
+    real2d_k tmp2d;
+    real2d_k lwp;
+    real2d_k iwp;
+    real2d_k sw_heating;
+    real2d_k lw_heating;
+    real2d_k sw_clrsky_heating;
+    real2d_k lw_clrsky_heating;
 
     // 2d size (ncol, nlay+1)
-    real2d d_tint;
-    real2d p_lev;
-    real2d t_lev;
-    real2d sw_flux_up;
-    real2d sw_flux_dn;
-    real2d sw_flux_dn_dir;
-    real2d lw_flux_up;
-    real2d lw_flux_dn;
-    real2d sw_clnclrsky_flux_up;
-    real2d sw_clnclrsky_flux_dn;
-    real2d sw_clnclrsky_flux_dn_dir;
-    real2d sw_clrsky_flux_up;
-    real2d sw_clrsky_flux_dn;
-    real2d sw_clrsky_flux_dn_dir;
-    real2d sw_clnsky_flux_up;
-    real2d sw_clnsky_flux_dn;
-    real2d sw_clnsky_flux_dn_dir;
-    real2d lw_clnclrsky_flux_up;
-    real2d lw_clnclrsky_flux_dn;
-    real2d lw_clrsky_flux_up;
-    real2d lw_clrsky_flux_dn;
-    real2d lw_clnsky_flux_up;
-    real2d lw_clnsky_flux_dn;
+    real2d_k d_tint;
+    real2d_k p_lev;
+    real2d_k t_lev;
+    real2d_k sw_flux_up;
+    real2d_k sw_flux_dn;
+    real2d_k sw_flux_dn_dir;
+    real2d_k lw_flux_up;
+    real2d_k lw_flux_dn;
+    real2d_k sw_clnclrsky_flux_up;
+    real2d_k sw_clnclrsky_flux_dn;
+    real2d_k sw_clnclrsky_flux_dn_dir;
+    real2d_k sw_clrsky_flux_up;
+    real2d_k sw_clrsky_flux_dn;
+    real2d_k sw_clrsky_flux_dn_dir;
+    real2d_k sw_clnsky_flux_up;
+    real2d_k sw_clnsky_flux_dn;
+    real2d_k sw_clnsky_flux_dn_dir;
+    real2d_k lw_clnclrsky_flux_up;
+    real2d_k lw_clnclrsky_flux_dn;
+    real2d_k lw_clrsky_flux_up;
+    real2d_k lw_clrsky_flux_dn;
+    real2d_k lw_clnsky_flux_up;
+    real2d_k lw_clnsky_flux_dn;
 
     // 3d size (ncol, nlay+1, nswbands)
-    real3d sw_bnd_flux_up;
-    real3d sw_bnd_flux_dn;
-    real3d sw_bnd_flux_dir;
-    real3d sw_bnd_flux_dif;
+    real3d_k sw_bnd_flux_up;
+    real3d_k sw_bnd_flux_dn;
+    real3d_k sw_bnd_flux_dir;
+    real3d_k sw_bnd_flux_dif;
 
     // 3d size (ncol, nlay+1, nlwbands)
-    real3d lw_bnd_flux_up;
-    real3d lw_bnd_flux_dn;
+    real3d_k lw_bnd_flux_up;
+    real3d_k lw_bnd_flux_dn;
 
     // 2d size (ncol, nswbands)
-    real2d sfc_alb_dir;
-    real2d sfc_alb_dif;
+    real2d_k sfc_alb_dir;
+    real2d_k sfc_alb_dif;
 
     // 2d size (ncol, nlwbands)
-    real2d emis_sfc;
+    real2d_k emis_sfc;
 
     // 3d size (ncol, nlay, n[sw,lw]bands)
-    real3d aero_tau_sw;
-    real3d aero_ssa_sw;
-    real3d aero_g_sw;
-    real3d aero_tau_lw;
+    real3d_k aero_tau_sw;
+    real3d_k aero_ssa_sw;
+    real3d_k aero_g_sw;
+    real3d_k aero_tau_lw;
 
     // 3d size (ncol, nlay, n[sw,lw]bnds)
-    real3d cld_tau_sw_bnd;
-    real3d cld_tau_lw_bnd;
+    real3d_k cld_tau_sw_bnd;
+    real3d_k cld_tau_lw_bnd;
 
     // 3d size (ncol, nlay, n[sw,lw]gpts)
-    real3d cld_tau_sw_gpt;
-    real3d cld_tau_lw_gpt;
+    real3d_k cld_tau_sw_gpt;
+    real3d_k cld_tau_lw_gpt;
 };
 #endif

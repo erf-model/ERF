@@ -84,8 +84,8 @@ void erf_slow_rhs_post (int level, int finest_level,
 #if defined(ERF_USE_NETCDF)
                         const bool& moist_set_rhs_bool,
                         const Real& bdy_time_interval,
-                        const Real& start_bdy_time,
                         const Real& new_stage_time,
+                        const Real& stop_time,
                         int  width,
                         int  set_width,
                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
@@ -302,6 +302,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
+        bool l_eb_terrain_cc = false; // EB terrain on cell-centered grid
         Array4<const int> mask_arr{};
         Array4<const EBCellFlag> cfg_arr{};
         Array4<const Real> ax_arr{};
@@ -314,16 +315,20 @@ void erf_slow_rhs_post (int level, int finest_level,
         if (solverChoice.terrain_type == TerrainType::EB) {
             EBCellFlagFab const& cfg = ebfact.getMultiEBCellFlagFab()[mfi];
             cfg_arr  = cfg.const_array();
-            ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
-            ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
-            az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
-            fcx_arr  = ebfact.getFaceCent()[0]->const_array(mfi);
-            fcy_arr  = ebfact.getFaceCent()[1]->const_array(mfi);
-            fcz_arr  = ebfact.getFaceCent()[2]->const_array(mfi);
-            detJ_arr = ebfact.getVolFrac().const_array(mfi);
-            // if (!already_on_centroids) {mask_arr = physbnd_mask.const_array(mfi);}
-            mask_arr = physbnd_mask.const_array(mfi);
-        } else {
+            if (cfg.getType(tbx) == FabType::singlevalued) {
+                l_eb_terrain_cc = true;
+                ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
+                ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
+                az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
+                fcx_arr  = ebfact.getFaceCent()[0]->const_array(mfi);
+                fcy_arr  = ebfact.getFaceCent()[1]->const_array(mfi);
+                fcz_arr  = ebfact.getFaceCent()[2]->const_array(mfi);
+                detJ_arr = ebfact.getVolFrac().const_array(mfi);
+                // if (!already_on_centroids) {mask_arr = physbnd_mask.const_array(mfi);}
+                mask_arr = physbnd_mask.const_array(mfi);
+            }
+        }
+        if (!l_eb_terrain_cc) {
             ax_arr   = ax->const_array(mfi);
             ay_arr   = ay->const_array(mfi);
             az_arr   = az->const_array(mfi);
@@ -396,7 +401,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                 if (( ivar != RhoKE_comp                 ) ||
                     ((ivar == RhoKE_comp) && l_advect_KE))
                 {
-                    if (solverChoice.terrain_type != TerrainType::EB){
+                    if (!l_eb_terrain_cc){
                         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                                cur_prim, cell_rhs,
                                                detJ_arr, dxInv, mf_mx, mf_my,
@@ -459,8 +464,8 @@ void erf_slow_rhs_post (int level, int finest_level,
         {
             const Array4<const Real> & old_cons_const = S_old[IntVars::cons].const_array(mfi);
             const Array4<const Real> & new_cons_const = S_new[IntVars::cons].const_array(mfi);
-            moist_set_rhs(tbx, old_cons_const, new_cons_const, cell_rhs, bdy_time_interval,
-                          start_bdy_time, new_stage_time, dt, width, set_width, domain,
+            moist_set_rhs(geom, tbx, old_cons_const, new_cons_const, cell_rhs, bdy_time_interval,
+                          new_stage_time, dt, stop_time, width, set_width, domain,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
         }
 #endif

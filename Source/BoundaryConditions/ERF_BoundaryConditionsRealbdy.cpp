@@ -28,20 +28,37 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
 
     // Time interpolation
     Real dT = bdy_time_interval;
-    Real time_since_start = time - start_bdy_time;
+
+    //
+    // Note this is because we define "time" to be time since start_bdy_time
+    //
+    Real time_since_start = time;
+
     int n_time = static_cast<int>( time_since_start /  dT);
     Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     Real oma   = 1.0 - alpha;
 
+    int n_time_p1 = n_time + 1;
+    if ((time == stop_time) && (alpha==0)) {
+        // stop time coincides with final bdy snapshot -- don't try to read in
+        // another snapshot
+        n_time_p1 = n_time;
+    }
+
     // Flags for read vars and index mapping
+    /*
     Vector<int> cons_read = {0, 1, 0, 0,
+                             1, 0, 0,
+                             0, 0, 0};
+    */
+    Vector<int> cons_read = {0, 0, 0, 0,
                              1, 0, 0,
                              0, 0, 0};
 
     Vector<int> cons_map = {Rho_comp, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
-                            RealBdyVars::QV, RhoQ2_comp,  RhoQ3_comp,
-                            RhoQ4_comp, RhoQ5_comp,  RhoQ6_comp};
+                            RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
+                            RhoQ4_comp, RhoQ5_comp, RhoQ6_comp};
 
     Vector<Vector<int>> is_read;
     is_read.push_back( cons_read );
@@ -53,13 +70,21 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     ind_map.push_back( cons_map );
     ind_map.push_back( {RealBdyVars::U} ); // xvel
     ind_map.push_back( {RealBdyVars::V} ); // yvel
-    ind_map.push_back( {0} );             // zvel
+    ind_map.push_back( {0} );              // zvel
 
     // Nvars to loop over
     Vector<int> comp_var = {ncomp_cons, 1, 1, 1};
 
     // End of vars loop
     int var_idx_end = (cons_only) ? Vars::cons + 1 : Vars::NumTypes;
+
+    // Extrapolate w from the interior (default) or explicitly set to 0
+    bool zero_w = (!cons_only && !real_extrap_w);
+    if (zero_w) {
+        var_idx_end -= 1;
+
+        mfs[Vars::zvel]->setVal(0.0);
+    }
 
     // Loop over all variable types
     for (int var_idx = Vars::cons; var_idx < var_idx_end; ++var_idx)
@@ -78,7 +103,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
 
         // Offset only applies to cons (we may fill a subset of these vars)
         int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
-
 
         // Ghost cells to be filled
         IntVect ng_vect = (var_idx == Vars::cons) ? ngvect_cons : ngvect_vels;
@@ -100,14 +124,14 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                 // Then to interpolate, given time, we can define n = (time/dT)
                 // and alpha = (time - n*dT) / dT, then we define the data at time
                 // as  alpha * (data at time n+1) + (1 - alpha) * (data at time n)
-                const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][ivar].const_array();
-                const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][ivar].const_array();
-                const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][ivar].const_array();
-                const auto& bdatxhi_np1 = bdy_data_xhi[n_time+1][ivar].const_array();
-                const auto& bdatylo_n   = bdy_data_ylo[n_time  ][ivar].const_array();
-                const auto& bdatylo_np1 = bdy_data_ylo[n_time+1][ivar].const_array();
-                const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][ivar].const_array();
-                const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][ivar].const_array();
+                const auto& bdatxlo_n   = bdy_data_xlo[n_time   ][ivar].const_array();
+                const auto& bdatxlo_np1 = bdy_data_xlo[n_time_p1][ivar].const_array();
+                const auto& bdatxhi_n   = bdy_data_xhi[n_time   ][ivar].const_array();
+                const auto& bdatxhi_np1 = bdy_data_xhi[n_time_p1][ivar].const_array();
+                const auto& bdatylo_n   = bdy_data_ylo[n_time   ][ivar].const_array();
+                const auto& bdatylo_np1 = bdy_data_ylo[n_time_p1][ivar].const_array();
+                const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][ivar].const_array();
+                const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][ivar].const_array();
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

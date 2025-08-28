@@ -24,6 +24,7 @@ void redistribute_term (int ncomp,
                         amrex::MultiFab const& state,
                         eb_aux_ const& ebfact,
                         amrex::BCRec const* bc,
-                        amrex::Real const dt);
+                        amrex::Real const dt,
+                        int const igrid);
 
 #endif

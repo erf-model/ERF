@@ -162,6 +162,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 } else { // anisotropic or smag2d
                     Real CsDeltaHSqr = Cs * Cs * DeltaH * DeltaH;
                     mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaHSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+
                     if (smag2d) {
                         mu_turb(i, j, k, EddyDiff::Mom_v) = 0.0;
                     } else {
@@ -386,7 +387,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                                     const TurbChoice& turbChoice,
                                     const Real const_grav,
                                     std::unique_ptr<SurfaceLayer>& SurfLayer,
-                                    const FArrayBox* z_0)
+                                    const MultiFab* z_0)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const bool use_SurfLayer = (SurfLayer != nullptr);
@@ -405,9 +406,10 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
         const Real Rt_crit    = turbChoice.Rt_crit;
         const Real Rt_min     = turbChoice.Rt_min;
         const Real l_g_max    = turbChoice.l_g_max;
-
         const Real abs_g      = const_grav;
-        const Real inv_theta0 = 1.0 / turbChoice.theta_ref;
+
+        const bool use_ref_theta = (turbChoice.theta_ref > 0);
+        const Real inv_theta0  = (use_ref_theta) ? 1.0 / turbChoice.theta_ref : 1.0;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -417,7 +419,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
             Box bxcc = mfi.tilebox();
 
             const Array4<Real const>& d_arr  = wdist.const_array(mfi);
-            const Array4<Real const>& z0_arr = (use_SurfLayer) ? z_0->const_array() : Array4<Real const>{};
+            const Array4<Real const>& z0_arr = (use_SurfLayer) ? z_0->const_array(mfi) : Array4<Real const>{};
 
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& hfx_x   = Hfx1.array(mfi);
@@ -443,6 +445,11 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                 Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                        - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 Real N2 = abs_g * inv_theta0 * dtheta_dz; // Brunt–Väisälä frequency squared
+                if (!use_ref_theta) {
+                    // inv_theta0 == 1, divide by actual theta
+                    N2 *= cell_data(i,j,k,Rho_comp) /
+                          cell_data(i,j,k,RhoTheta_comp);
+                }
 
                 // Geometric length scale (AL01, Eqn. 22)
                 Real l_g = (z0_arr) ? KAPPA * (d_arr(i, j, k) + z0_arr(i, j, 0))
@@ -597,7 +604,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
                                 const std::unique_ptr<MultiFab>& z_phys_nd,
                                 const SolverChoice& solverChoice,
                                 std::unique_ptr<SurfaceLayer>& SurfLayer,
-                                const FArrayBox* z_0,
+                                const MultiFab* z_0,
                                 const bool& use_terrain_fitted_coords,
                                 const bool& use_moisture,
                                 int level,
@@ -733,7 +740,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             {
                 int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i_lo,lj,lk) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && i < domlo.x && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i_lo,lj,lk,n);
@@ -744,7 +751,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             {
                 int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i_hi,lj,lk) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && i > domhi.x && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i_hi,lj,lk,n);
@@ -754,7 +761,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             ParallelFor(planey_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j_lo,lk) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && j < domlo.y && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j_lo,lk,n);
@@ -764,7 +771,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             ParallelFor(planey_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j_hi,lk) != is_notcovered)||
                     (mask_arr(i,j,k) == is_physbnd     && j > domhi.y && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j_hi,lk,n);
@@ -773,7 +780,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             });
             ParallelFor(planez_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j,k_lo) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && k < domlo.z && impose_phys_bcs)) {
                     if (mask_arr(i,j,k) == is_physbnd) {
                     }
@@ -784,7 +791,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             });
             ParallelFor(planez_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j,k_hi) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && k > domhi.z && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j,k_hi,n);

@@ -139,19 +139,28 @@ Problem::init_custom_pert (
     Real* p   = d_p.data();
 
     // File to read
-
     std::string filename;
     ParmParse pp("erf");
     pp.query("IC_file", filename);
 
     if (filename.empty()) {
-        amrex::Abort("Error: IC_file is not specified in the input file.");
+        if ( (sc.init_type == InitType::WRFInput) ||
+             (sc.init_type == InitType::Metgrid)  ||
+             (sc.init_type == InitType::NCFile) ) {
+            return;
+        } else {
+            amrex::Abort("Error: IC_file is not specified in the input file.");
+        }
     }
 
+    Vector<Real> latvec_h, lonvec_h;
     Vector<Real> xvec_h, yvec_h, zvec_h;
     Vector<Real> rho_h, uvel_h, vvel_h, wvel_h, theta_h, qv_h, qc_h, qr_h;
 
-    ReadCustomBinaryIC(filename,xvec_h, yvec_h, zvec_h,rho_h, uvel_h, vvel_h, wvel_h, theta_h, qv_h, qc_h, qr_h);
+    ReadCustomBinaryIC(filename, latvec_h, lonvec_h,
+                       xvec_h, yvec_h, zvec_h,
+                       rho_h, uvel_h, vvel_h, wvel_h,
+                       theta_h, qv_h, qc_h, qr_h);
 
     int nx = xvec_h.size();
     int ny = yvec_h.size();

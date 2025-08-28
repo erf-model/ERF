@@ -75,7 +75,7 @@ AMREX_ENUM(WindFarmLocType,
 );
 
 AMREX_ENUM(LandSurfaceType,
-    SLM, MM5, None, NOAH
+    SLM, MM5, None, NOAHMP
 );
 
 AMREX_ENUM(RadiationType,
@@ -505,6 +505,14 @@ struct SolverChoice {
             }
         }
 
+        // Are we using SHOC?
+        pp.query("use_shoc", use_shoc);
+#ifndef ERF_USE_SHOC
+        if (use_shoc) {
+            amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
+        }
+#endif
+
         // Which type of multilevel coupling
         coupling_type = CouplingType::TwoWay; // Default
         pp.query_enum_case_insensitive("coupling_type",coupling_type);
@@ -534,6 +542,8 @@ struct SolverChoice {
         pp.query("windfarm_y_shift",windfarm_y_shift);
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
+
+        pp.query("do_hurricane_simulation", do_hurricane_simulation);
 
         check_params(max_level);
     }
@@ -586,7 +596,9 @@ struct SolverChoice {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
         for (int lev = 0; lev <= max_level; lev++) {
-            amrex::Print() << "anelastic      at level : " << lev << " is " <<     anelastic[lev] << std::endl;
+            if (anelastic[lev]) {
+                amrex::Print() << "Level " << lev << " is anelastic" << std::endl;
+            }
             if (substepping_type[lev] == SubsteppingType::None) {
                 amrex::Print() << "No substepping at level " << lev << std::endl;
             } else if (substepping_type[lev] == SubsteppingType::Explicit) {
@@ -613,6 +625,8 @@ struct SolverChoice {
             amrex::Print() << "Moisture Model: Kessler" << std::endl;
         } else if (moisture_type == MoistureType::Kessler_NoRain) {
             amrex::Print() << "Moisture Model: Kessler No Rain" << std::endl;
+        } else if (moisture_type == MoistureType::SatAdj) {
+            amrex::Print() << "Moisture Model: Saturation Adjustment" << std::endl;
         } else {
             amrex::Print() << "Moisture Model: None" << std::endl;
         }
@@ -770,8 +784,8 @@ struct SolverChoice {
 
     bool        fixed_density       = false;
     int         ncorr               = 1;
-    amrex::Real poisson_abstol      = 1e-10;
-    amrex::Real poisson_reltol      = 1e-10;
+    amrex::Real poisson_abstol      = 1e-8;
+    amrex::Real poisson_reltol      = 1e-8;
 
     bool        test_mapfactor         = false;
 
@@ -829,6 +843,9 @@ struct SolverChoice {
     // MOST stress rotations
     bool use_rotate_surface_flux = false;
 
+    // Should we use SHOC?
+    bool use_shoc = false;
+
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;
 
@@ -884,5 +901,8 @@ struct SolverChoice {
     amrex::Real const_massflux_layer_hi =  1e34;
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
+
+    bool do_hurricane_simulation = false;
+
 };
 #endif

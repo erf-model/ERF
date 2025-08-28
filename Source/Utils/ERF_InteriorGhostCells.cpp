@@ -169,13 +169,12 @@ realbdy_bc_bxs_xy (const Box& bx,
  * @param[in] bdy_data_xhi boundary data on interior of high x-face
  * @param[in] bdy_data_ylo boundary data on interior of low y-face
  * @param[in] bdy_data_yhi boundary data on interior of high y-face
- * @param[in] start_bdy_time time of the first boundary data read in
  */
 void
 realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
-                                    const Real& start_bdy_time,
                                     const Real& time,
                                     const Real& delta_t,
+                                    const Real& stop_time,
                                     int  width,
                                     int  set_width,
                                     const Geometry& geom,
@@ -203,11 +202,23 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
     // Time interpolation
     Real dT = bdy_time_interval;
-    Real time_since_start = time - start_bdy_time;
+
+    //
+    // Note this is because we define "time" to be time since start_bdy_time
+    //
+    Real time_since_start = time;
+
     int n_time = static_cast<int>( time_since_start /  dT);
     Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     Real oma   = 1.0 - alpha;
+
+    int n_time_p1 = n_time + 1;
+    if ((time == stop_time) && (alpha==0)) {
+        // stop time coincides with final bdy snapshot -- don't try to read in
+        // another snapshot
+        n_time_p1 = n_time;
+    }
 
     /*
     // UNIT TEST DEBUG
@@ -317,14 +328,14 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             }
 
             // Boundary data at fixed time intervals
-            const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][ivar].const_array();
-            const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][ivar].const_array();
-            const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][ivar].const_array();
-            const auto& bdatxhi_np1 = bdy_data_xhi[n_time+1][ivar].const_array();
-            const auto& bdatylo_n   = bdy_data_ylo[n_time  ][ivar].const_array();
-            const auto& bdatylo_np1 = bdy_data_ylo[n_time+1][ivar].const_array();
-            const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][ivar].const_array();
-            const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][ivar].const_array();
+            const auto& bdatxlo_n   = bdy_data_xlo[n_time   ][ivar].const_array();
+            const auto& bdatxlo_np1 = bdy_data_xlo[n_time_p1][ivar].const_array();
+            const auto& bdatxhi_n   = bdy_data_xhi[n_time   ][ivar].const_array();
+            const auto& bdatxhi_np1 = bdy_data_xhi[n_time_p1][ivar].const_array();
+            const auto& bdatylo_n   = bdy_data_ylo[n_time   ][ivar].const_array();
+            const auto& bdatylo_np1 = bdy_data_ylo[n_time_p1][ivar].const_array();
+            const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][ivar].const_array();
+            const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][ivar].const_array();
 
             // Current density to convert to conserved vars
             Array4<Real> r_arr = S_cur_data[IntVars::cons].array(mfi);
@@ -468,6 +479,8 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                     continue;
                 }
 
+                if (ivar == ivarT) { continue; }
+
                 realbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
                                                width, set_width_x, set_width_y,
                                                dom_lo, dom_hi,
@@ -485,15 +498,16 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
     // Compute RHS in relaxation region
     //==========================================================
     if (width > set_width) {
+        auto dx = geom.CellSizeArray();
+        auto ProbLo = geom.ProbLoArray();
+        auto ProbHi = geom.ProbHiArray();
         for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
             int ivar_idx = ivar_map[ivar];
             int icomp    = comp_map[ivar];
 
             Box domain = geom.Domain();
             domain.convert(S_cur_data[ivar_idx].boxArray().ixType());
-            const auto& dom_hi = ubound(domain);
-            const auto& dom_lo = lbound(domain);
-            IntVect ng_vect    = S_cur_data[ivar_idx].nGrowVect();
+            IntVect ng_vect = S_cur_data[ivar_idx].nGrowVect();
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -528,8 +542,10 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                     continue;
                 }
 
+                if (ivar == ivarT) { continue; }
+
                 realbdy_compute_laplacian_relaxation(icomp, 1,
-                                                     width, set_width, dom_lo, dom_hi, F1, F2,
+                                                     width, dx, ProbLo, ProbHi, F1, F2,
                                                      tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                                                      arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                                      data_arr, rhs_arr);
@@ -667,13 +683,13 @@ fine_compute_interior_ghost_rhs (const Real& time,
 #endif
             for ( MFIter mfi(fmf_p,TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                Box vbx = mfi.validbox();
+                Box tbx = mfi.tilebox();
 
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
                 const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
@@ -694,13 +710,13 @@ fine_compute_interior_ghost_rhs (const Real& time,
 #endif
             for ( MFIter mfi(fmf_p,TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                Box vbx = mfi.validbox();
+                Box tbx = mfi.tilebox();
 
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
                 const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
@@ -721,13 +737,13 @@ fine_compute_interior_ghost_rhs (const Real& time,
 #endif
             for ( MFIter mfi(fmf_p,TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                Box vbx = mfi.validbox();
+                Box tbx = mfi.tilebox();
 
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
                 const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
@@ -747,11 +763,11 @@ fine_compute_interior_ghost_rhs (const Real& time,
 #endif
         for ( MFIter mfi(rhs,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            Box vbx = mfi.validbox();
+            Box tbx = mfi.tilebox();
             const Array4<Real>& rhs_arr  = rhs.array(mfi);
             const Array4<const int>& mask_arr = mask->const_array(mfi);
 
-            ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (mask_arr(i,j,k) == set_mask_val) {
                     rhs_arr(i,j,k) = 0.0;
@@ -770,12 +786,13 @@ fine_compute_interior_ghost_rhs (const Real& time,
 #endif
         for ( MFIter mfi(fmf_p,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            Box vbx = mfi.validbox();
+            Box tbx = mfi.tilebox();
             const Array4<Real>&        rhs_arr = rhs.array(mfi);
             const Array4<const Real>& fine_arr = fmf_p.const_array(mfi);
             const Array4<const Real>& data_arr = fmf.const_array(mfi);
             const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
+            Box vbx = mfi.validbox();
             const auto& vbx_lo = lbound(vbx);
             const auto& vbx_hi = ubound(vbx);
 
@@ -783,9 +800,9 @@ fine_compute_interior_ghost_rhs (const Real& time,
 
             int Spec_z  = set_width;
             int Relax_z = width - Spec_z;
-            Real num   = Real(Spec_z + Relax_z);
-            Real denom = Real(Relax_z - 1);
-            ParallelFor(vbx, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            Real num    = Real(Spec_z + Relax_z);
+            Real denom  = Real(Relax_z - 1);
+            ParallelFor(tbx, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
                if (mask_arr(i,j,k) == relax_mask_val) {
 

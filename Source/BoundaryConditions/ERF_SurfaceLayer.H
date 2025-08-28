@@ -6,7 +6,7 @@
 #include "AMReX_FArrayBox.H"
 #include "AMReX_MultiFab.H"
 #include "AMReX_iMultiFab.H"
-#include "AMReX_Interpolater.H"
+#include "AMReX_MFInterpolater.H"
 
 #include "ERF_IndexDefines.H"
 #include "ERF_Constants.H"
@@ -14,6 +14,7 @@
 #include "ERF_MOSTStress.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
+#include "ERF_MicrophysicsUtils.H"
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
@@ -37,11 +38,9 @@ public:
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                          const TerrainType& a_terrain_type,
-                         amrex::Real start_bdy_time = 0.0,
                          amrex::Real bdy_time_interval = 0.0)
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
-    m_start_bdy_time(start_bdy_time),
     m_bdy_time_interval(bdy_time_interval),
     m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_terrain_type)
   {
@@ -341,15 +340,8 @@ public:
 
       // Z0 heights FAB
       //--------------------------------------------------------
-      amrex::Arena* Arena_Used = amrex::The_Arena();
-#ifdef AMREX_USE_GPU
-      Arena_Used = amrex::The_Pinned_Arena();
-#endif
-      amrex::Box bx = amrex::grow(m_geom[lev].Domain(), ng);
-      bx.setSmall(2, 0);
-      bx.setBig(2, 0);
-      z_0[lev].resize(bx, 1, Arena_Used);
-      z_0[lev].setVal<amrex::RunOn::Device>(z0_const);
+      z_0[lev].define(ba2d, dm, ncomp, ng);
+      z_0[lev].setVal(z0_const);
       if (read_z0) {
           read_custom_roughness(lev, fname);
       }
@@ -395,7 +387,9 @@ public:
   void
   update_fluxes (const int& lev,
                  const amrex::Real& time,
-                 int max_iters = 500);
+                 const amrex::MultiFab& cons_in,
+                 const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                 int max_iters = 100);
 
   template <typename FluxIter>
   void compute_fluxes (const int& lev,
@@ -429,6 +423,10 @@ public:
 
   void fill_tsurf_with_sst_and_tsk (const int& lev,
                                     const amrex::Real& time);
+
+  void fill_qsurf_with_qsat (const int& lev,
+                             const amrex::MultiFab& cons_in,
+                             const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   void get_lsm_tsurf (const int& lev);
 
@@ -492,7 +490,7 @@ public:
 
   amrex::Real get_zref () { return m_ma.get_zref(); }
 
-  amrex::FArrayBox* get_z0 (const int& lev) { return &z_0[lev]; }
+  amrex::MultiFab* get_z0 (const int& lev) { return &z_0[lev]; }
 
   bool have_variable_sea_roughness () { return m_var_z0; }
 
@@ -558,7 +556,6 @@ private:
   // Set in constructor
   amrex::Vector<amrex::Geometry> m_geom;
   bool m_rotate = false;
-  amrex::Real m_start_bdy_time;
   amrex::Real m_bdy_time_interval;
 
   bool m_include_wstar = false;
@@ -578,7 +575,7 @@ private:
   amrex::Real cnk_a{0.0185};
   bool cnk_visc{false};
   amrex::Real depth{30.0};
-  amrex::Vector<amrex::FArrayBox> z_0;
+  amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};
 
   bool use_moisture;
