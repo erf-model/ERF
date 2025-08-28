@@ -137,7 +137,7 @@ public:
     virtual void
     update_rhotheta_sources (const amrex::Real& /*time*/,
                              amrex::MultiFab* src,
-                             const amrex::Geometry& geom,
+                             const amrex::Geometry& /*geom*/,
                              std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {
         if (src->empty()) return;
@@ -169,7 +169,7 @@ public:
     virtual void
     update_rhoqt_sources (const amrex::Real& /*time*/,
                              amrex::MultiFab* qsrc,
-                             const amrex::Geometry& geom,
+                             const amrex::Geometry& /*geom*/,
                              std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {
         if (qsrc->empty()) return;
@@ -205,7 +205,7 @@ public:
     update_w_subsidence (const amrex::Real& /*time*/,
                          amrex::Vector<amrex::Real>& wbar,
                          amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
-                         const amrex::MultiFab& state,
+                         const amrex::MultiFab& /*state*/,
                          const amrex::Geometry& geom,
                          std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {
