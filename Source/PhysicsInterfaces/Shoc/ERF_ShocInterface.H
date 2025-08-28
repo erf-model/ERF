@@ -19,6 +19,7 @@ using  Int=int;
 #include <string>
 
 #include <Kokkos_Core.hpp>
+#include <AMReX_ParmParse.H>
 #include <AMReX_MultiFabUtil.H>
 #include <ERF_DataStruct.H>
 #include <ERF_Kokkos.H>
@@ -535,7 +536,8 @@ protected:
     Int m_num_layers;
     Int m_npbl;
     Int m_nadv;
-    Int m_num_tracers;
+    Int m_num_tracers  = 1;
+    Int m_num_vel_comp = 2;
     Int hdtime;
 
     // Grid level
@@ -607,6 +609,7 @@ protected:
     view_2d  rrho_i;
     view_2d  thv;
     view_2d  dz;
+    view_2d  dse;
     view_2d  zt_grid;
     view_2d  zi_grid;
     view_2d  wtracer_sfc;
@@ -618,155 +621,47 @@ protected:
     view_2d  cldfrac_liq;
     view_2d  cldfrac_liq_prev;
 
-    //view_3d_strided qtracers;
+    view_3d_strided qtracers;
 
-#if 0
     // SHOCPostprocess data structures
     //=======================================================
-    view_2d_const rrho;
-    view_2d qv, qc, tke;
-    view_2d_const tke_copy, qc_copy, qw;
-    view_3d_strided qtracers;
-    view_2d_const qc2;
-    view_2d cldfrac_liq;
+    view_2d shoc_ql2;
     view_2d inv_qc_relvar;
-    view_2d T_mid;
-    view_2d_const dse,z_mid;
-    view_1d_const phis;
-    view_1d_const surf_evap;
-    view_1d_const surf_sens_flux;
-    view_1d vapor_flux;
-    view_1d water_flux;
-    view_1d ice_flux;
-    view_1d heat_flux;
 
-    // SHOCInput data structures
+    // SHOC InputOutput data structures
     //=======================================================
-    // Grid spacing of host model in x direction [m]
-    view_1d<const ScalarT> dx;
-    // grid spacing of host model in y direction [m]
-    view_1d<const ScalarT> dy;
-    // heights, for thermo grid [m]
-    view_2d<const Spack>  zt_grid;
-    // heights, for interface grid [m]
-    view_2d<const Spack>  zi_grid;
-    // pressure levels on thermo grid [Pa]
-    view_2d<const Spack>  pres;
-    // pressure levels on interface grid [Pa]
-    view_2d<const Spack>  presi;
-    // Differences in pressure levels [Pa]
-    view_2d<const Spack>  pdel;
-    // virtual potential temperature [K]
-    view_2d<const Spack>  thv;
-    // large scale vertical velocity [m/s]
-    view_2d<const Spack>  w_field;
-    // Surface sensible heat flux [K m/s]
-    view_1d<const ScalarT> wthl_sfc;
-    // Surface latent heat flux [kg/kg m/s]
-    view_1d<const ScalarT> wqw_sfc;
-    // Surface momentum flux (u-direction) [m2/s2]
-    view_1d<const ScalarT> uw_sfc;
-    // Surface momentum flux (v-direction) [m2/s2]
-    view_1d<const ScalarT> vw_sfc;
-    // Surface flux for tracers [varies]
-    view_2d<const Spack>  wtracer_sfc;
-    // Inverse of the exner function [-]
-    view_2d<const Spack>  inv_exner;
-    // Host model surface geopotential height
-    view_1d<const ScalarT> phis;
+    view_2d sgs_buoy_flux;
+    view_2d tk;
+    view_3d horiz_wind;
 
-    // SHOCInputOutput data structures
+    // SHOC Output data structures
     //=======================================================
-    // prognostic temp variable of host model
-    // dry static energy [J/kg]
-    // dse = Cp*T + g*z + phis
-    view_2d<Spack>  host_dse;
-    // turbulent kinetic energy [m2/s2]
-    view_2d<Spack>  tke;
-    // liquid water potential temperature [K]
-    view_2d<Spack>  thetal;
-    // total water mixing ratio [kg/kg]
-    view_2d<Spack>  qw;
-    // Vector-valued wind (u,v) [m/s]
-    view_3d<Spack>  horiz_wind;
-    // buoyancy flux [K m/s]
-    view_2d<Spack>  wthv_sec;
-    // tracers [varies]
-    view_3d_strided<Spack>  qtracers;
-    // eddy coefficient for momentum [m2/s]
-    view_2d<Spack>  tk;
-    // Cloud fraction [-]
-    view_2d<Spack>  shoc_cldfrac;
-    // cloud liquid mixing ratio [kg/kg]
-    view_2d<Spack>  shoc_ql;
+    view_1d pblh;
+    view_1d ustar;
+    view_1d obklen;
+    view_2d tkh;
 
-    // SHOCOutput data structures
+    // SHOC HistoryOutput data structures
     //=======================================================
-    // planetary boundary layer depth [m]
-    view_1d<ScalarT> pblh;
-    // surface friction velocity [m/s]
-    view_1d<ScalarT> ustar;
-    // Monin Obukhov length [m]
-    view_1d<ScalarT> obklen;
-    // cloud liquid mixing ratio variance [kg^2/kg^2]
-    view_2d<Spack>  shoc_ql2;
-    // eddy coefficient for heat [m2/s]
-    view_2d<Spack>  tkh;
+    view_2d shoc_mix;
+    view_2d w_sec;
+    view_2d thl_sec;
+    view_2d qw_sec;
+    view_2d qwthl_sec;
+    view_2d wthl_sec;
+    view_2d wqw_sec;
+    view_2d wtke_sec;
+    view_2d uw_sec;
+    view_2d vw_sec;
+    view_2d w3;
+    view_2d wqls_sec;
+    view_2d brunt;
+    view_2d isotropy;
+    view_2d shoc_cond;
+    view_2d shoc_evap;
 
-    // SHOCHistoryOutput data structures
+    // SHOC Miscellaneous data structures
     //=======================================================
-    // Turbulent length scale [m]
-    view_2d<Spack>  shoc_mix;
-    // vertical velocity variance [m2/s2]
-    view_2d<Spack>  w_sec;
-    // temperature variance [K^2]
-    view_2d<Spack>  thl_sec;
-    // moisture variance [kg2/kg2]
-    view_2d<Spack>  qw_sec;
-    // temp moisture covariance [K kg/kg]
-    view_2d<Spack>  qwthl_sec;
-    // vertical heat flux [K m/s]
-    view_2d<Spack>  wthl_sec;
-    // vertical moisture flux [K m/s]
-    view_2d<Spack>  wqw_sec;
-    // vertical tke flux [m3/s3]
-    view_2d<Spack>  wtke_sec;
-    // vertical zonal momentum flux [m2/s2]
-    view_2d<Spack>  uw_sec;
-    // vertical meridional momentum flux [m2/s2]
-    view_2d<Spack>  vw_sec;
-    // third moment vertical velocity [m3/s3]
-    view_2d<Spack>  w3;
-    // liquid water flux [kg/kg m/s]
-    view_2d<Spack>  wqls_sec;
-    // brunt vaisala frequency [s-1]
-    view_2d<Spack>  brunt;
-    // return to isotropic timescale [s]
-    view_2d<Spack>  isotropy;
-    // shoc condensation kg/kg/s
-    view_2d<Spack>  shoc_cond;
-    // shoc evaporation kg/kg/s
-    view_2d<Spack>  shoc_evap;
 
-    // SHOCTemporaries data structures
-    //=======================================================
-    view_1d<ScalarT> se_b;
-    view_1d<ScalarT> ke_b;
-    view_1d<ScalarT> wv_b;
-    view_1d<ScalarT> wl_b;
-    view_1d<ScalarT> se_a;
-    view_1d<ScalarT> ke_a;
-    view_1d<ScalarT> wv_a;
-    view_1d<ScalarT> wl_a;
-    view_1d<ScalarT> kbfs;
-    view_1d<ScalarT> ustar2;
-    view_1d<ScalarT> wstar;
-    view_2d<Spack> rho_zt;
-    view_2d<Spack> shoc_qv;
-    view_2d<Spack> tabs;
-    view_2d<Spack> dz_zt;
-    view_2d<Spack> dz_zi;
-    view_2d<Spack> tkh;
-#endif
 }; // SHOCInterface
 #endif
