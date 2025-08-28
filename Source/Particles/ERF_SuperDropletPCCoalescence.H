@@ -375,7 +375,8 @@ struct CollisionKernel
                 retval = (0.7475*std::log10(Fr_l)+0.620) * std::max(0.263*std::log(Re_l)-0.264, 0.0);
             } else {
                 auto E_1 = (0.7475*std::log10(K_t)+0.620) * std::max(0.263*std::log(Re_l)-0.264, 0.0);
-                auto E_2 = std::sqrt( std::max(1.0 - 0.2*std::exp(2*std::log(std::log10(Fr_l/K_c)-std::sqrt(5.0))),
+                auto E_2 = std::sqrt( std::max(1.0 - 0.2*(std::log10(Fr_l/K_c)-std::sqrt(5.0))
+                                                        *(std::log10(Fr_l/K_c)-std::sqrt(5.0)),
                                                0.0) );
                 retval = std::max(E_1,E_2);
             }
