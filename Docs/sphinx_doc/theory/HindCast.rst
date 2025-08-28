@@ -50,6 +50,10 @@ The following are the inputs required for hindcast simulations.
     // If using era5 or gfs data to initialize
     // and for boundary forcing
     erf.init_type = "hindcast"
+    // Initial condition filename -
+    // obtained from running the python script
+    // with the inputs file specifying the date and
+    // geographical area
     erf.hindcast_IC_filename = "ERF_IC_2025_08_18_00_00_000.bin"
 
     // Boundary conditions
@@ -64,10 +68,15 @@ The following are the inputs required for hindcast simulations.
     // Lateral forcing with reanalysis/forecast data
     erf.hindcast_boundary_data_dir = "WeatherData"
     erf.hindcast_lateral_forcing = true
+    // Sponge strength
     erf.hindcast_lateral_sponge_strength = 0.3
+    // Sponge length of 144 km (for eg.)
     erf.hindcast_lateral_sponge_length = 144000
 
     // Sponge damping for top of domain
+    // to absorb reflections
     erf.hindcast_zhi_sponge_damping = true
+    // Sponge strnegth
     erf.hindcast_zhi_sponge_strength = 0.3
+    // Sponge length of 5 km
     erf.hindcast_zhi_sponge_length = 5000.0
