@@ -111,14 +111,6 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
         m_init_particle_box.setHi(m_init_particle_p2);
     }
 
-    // Backward compatibility
-    for (int i = 0; i < m_num_species; i++) {
-        pp.query("initial_condensate_distribution_type", m_species_init_type[i]);
-        pp.query("initial_condensate_mass_min", m_mass_species_min[i]);
-        pp.query("initial_condensate_mass_mean", m_mass_species_mean[i]);
-        pp.query("initial_condensate_min_radius", m_radius_species_min[i]);
-        pp.query("initial_condensate_max_radius", m_radius_species_max[i]);
-    }
     for (int i = 0; i < m_num_species; i++) {
         {
             std::string key = "initial_species_distribution_type_"+getEnumNameString(a_species_mat[i]->m_name);
