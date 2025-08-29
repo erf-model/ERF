@@ -162,6 +162,9 @@ void SuperDropletPC::readInputs ()
 
     pp.query("num_initializations", m_num_initializations);
     m_initializations.resize(m_num_initializations);
+    m_num_sd_per_cell = 0;
+    const auto dx_h = Geom(m_lev).CellSize();
+    const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
     for (int i = 0; i < m_num_initializations; i++) {
         m_initializations[i] = std::make_unique<SDInitialization>();
         m_initializations[i]->setDefaults(Geom(0), m_species_mat,m_aerosol_mat);
@@ -172,6 +175,7 @@ void SuperDropletPC::readInputs ()
         m_initializations[i]->readInputs(m_name, Geom(0), m_species_mat, m_aerosol_mat);
         Print() << "Querying inputs file using the string: '" << prefix << "'!\n";
         m_initializations[i]->readInputs(prefix, Geom(0), m_species_mat, m_aerosol_mat);
+        m_num_sd_per_cell += m_initializations[i]->numSDPerCell(cell_volume);
     }
 
     return;
