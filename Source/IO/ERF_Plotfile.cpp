@@ -1110,8 +1110,6 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                         const Box& bx = mfi.tilebox();
                         const Array4<Real>& derdat  = mf[lev].array(mfi);
                         const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                        const Array4<Real const>& p_arr = pressure.const_array(mfi);
-                        const int ncomp = vars_new[lev][Vars::cons].nComp();
                         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
                             Real rho = S_arr(i,j,k,Rho_comp);
