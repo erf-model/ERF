@@ -1103,8 +1103,8 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 }
             }
 
-            if (solverChoice.moisture_type == MoistureType::Morrison) {
-                if (containerHasElement(plot_var_names, "reflectivity")) {
+            if (containerHasElement(plot_var_names, "reflectivity")) {
+                if (solverChoice.moisture_type == MoistureType::Morrison) {
 
                     for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                         const Box& bx = mfi.tilebox();

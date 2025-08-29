@@ -10,7 +10,7 @@
 #define timegm _mkgmtime
 #endif
 
-AMREX_FORCE_INLINE
+AMREX_GPU_HOST AMREX_FORCE_INLINE
 std::time_t
 getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
 {

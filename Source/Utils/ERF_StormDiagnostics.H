@@ -10,7 +10,7 @@
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
-amrex::Real compute_max_reflectivity_dbz (amrex::Real rho_air, amrex::Real tmk, 
+amrex::Real compute_max_reflectivity_dbz (amrex::Real rho_air, amrex::Real tmk,
               amrex::Real qra, amrex::Real qsn, amrex::Real qgr,
               int in0r, int in0s, int in0g, int iliqskin)
 {
