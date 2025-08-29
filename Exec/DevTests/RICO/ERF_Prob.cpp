@@ -183,7 +183,7 @@ Problem::init_custom_pert (
             state_pert(i, j, k, RhoTheta_comp) = 0.0;
         }
 
-        if (use_moisture && parms_d.pert_deltaQV)
+        if (use_moisture && parms_d.pert_deltaQV != 0.0)
         {
             const Real zl = z / parms_d.pert_ref_height;
             const Real damp = std::exp(-0.5 * zl * zl);

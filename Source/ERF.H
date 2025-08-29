@@ -58,11 +58,20 @@
 #include "ERF_EulerianMicrophysics.H"
 #include "ERF_LagrangianMicrophysics.H"
 #include "ERF_LandSurface.H"
+
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
 #endif
 
 #include <ERF_RadiationModels.H>
+
+#ifdef ERF_USE_SHOC
+#include "ERF_ShocInterface.H"
+#endif
+
+#ifdef ERF_USE_P3
+#include "ERF_P3Interface.H"
+#endif
 
 #include <iostream>
 
@@ -353,6 +362,24 @@ public:
     void advance_radiation (int lev,
                             amrex::MultiFab& cons_in,
                             const amrex::Real& dt_advance);
+
+#ifdef ERF_USE_SHOC
+    void compute_shoc_tendencies (int lev,
+                                  amrex::MultiFab& cons_in,
+                                  amrex::MultiFab& xvel_in,
+                                  amrex::MultiFab& yvel_in,
+                                  amrex::MultiFab& zvel_in,
+                                  amrex::MultiFab& source,    amrex::MultiFab& xmom_src,
+                                  amrex::MultiFab& ymom_src,  amrex::MultiFab& zmom_src,
+                                  const amrex::Real& dt_advance);
+#endif
+
+#ifdef ERF_USE_P3
+    void compute_p3_tendencies (int lev,
+                                amrex::MultiFab& cons_in,
+                                amrex::MultiFab& source,
+                                const amrex::Real& dt_advance);
+#endif
 
     amrex::MultiFab& build_fine_mask (int lev);
 
@@ -654,11 +681,11 @@ private:
                            amrex::Vector<amrex::FArrayBox*> z_vel_lateral,
                            amrex::Vector<amrex::FArrayBox*> T_lateral);
 
-    amrex::Real start_bdy_time;
-    amrex::Real start_low_time;
+    static amrex::Real start_bdy_time;
+    static amrex::Real start_low_time;
 
-    amrex::Real bdy_time_interval;
-    amrex::Real low_time_interval;
+    static amrex::Real bdy_time_interval;
+    static amrex::Real low_time_interval;
 
     // *** *** FArrayBox's for holding the SURFACE data
     // amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
@@ -798,6 +825,14 @@ private:
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW)
 
+#ifdef ERF_USE_SHOC
+    amrex::Vector<std::unique_ptr<SHOCInterface>> shoc_interface; // SHOC model at each level
+#endif
+
+#ifdef ERF_USE_P3
+    amrex::Vector<std::unique_ptr<P3Interface>> p3_interface; // P3 model at each level
+#endif
+
     // Containers for additional SLM inputs
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sw_lw_fluxes; // Direct SW (visible, NIR), Diffuse SW (visible, NIR), LW flux
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> solar_zenith; // Solar zenith angle
@@ -925,10 +960,12 @@ private:
     ////////////////
     // runtime parameters
 
-    // maximum number of steps and stop time
+    // Maximum number of steps
     int max_step = std::numeric_limits<int>::max();
-    amrex::Real start_time = 0.0;
-    amrex::Real  stop_time = std::numeric_limits<amrex::Real>::max();
+
+    // Start and stop times
+    static amrex::Real start_time;
+    static amrex::Real  stop_time;
 
     bool use_datetime = false;
     const std::string datetime_format = "%Y-%m-%d %H:%M:%S"; // ISO 8601 standard
