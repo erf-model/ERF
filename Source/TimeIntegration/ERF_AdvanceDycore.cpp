@@ -93,7 +93,7 @@ void ERF::advance_dycore(int level,
     bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
     const bool use_SurfLayer = (m_SurfaceLayer != nullptr);
-    const FArrayBox* z_0     = (use_SurfLayer) ? m_SurfaceLayer->get_z0(level) : nullptr;
+    const MultiFab* z_0     = (use_SurfLayer) ? m_SurfaceLayer->get_z0(level) : nullptr;
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();

@@ -1,0 +1,9 @@
+ifeq ($(USE_SHOC), TRUE)
+    CEXE_sources += ERF_ShocInterface.cpp
+
+    CEXE_headers += ERF_ShocInterface.H
+    CEXE_headers += shoc_constants.hpp
+    CEXE_headers += shoc_functions.hpp
+    CEXE_headers += physics_constants.hpp
+    CEXE_headers += physics_functions.hpp
+endif

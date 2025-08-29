@@ -67,7 +67,20 @@ NOAHMP::Init (const int& lev,
     for (auto ivar = 0; ivar < LsmVar_NOAHMP::NumVars; ++ivar) {
         // State vars are CC
         lsm_fab_vars[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
-        lsm_fab_vars[ivar]->setVal(0.0);
+
+        // NOTE: Radiation steps first so we set values
+        //       to reasonable initialization for coupling
+        Real val_to_set = 0.0;
+        if (ivar == LsmVar_NOAHMP::t_sfc) {
+            val_to_set = 300.0;
+        } else if (iver == LsmVar_NOAHMP::sfc_emis) {
+            val_to_set = 0.9;
+        } else if ((ivar>=LsmVar_NOAHMP::sfc_alb_dir_vis) && (ivar<=LsmVar_NOAHMP::sfc_alb_dif_nir)) {
+            val_to_set = 0.06;
+        } else {
+            val_to_set = 0.0;
+        }
+        lsm_fab_vars[ivar]->setVal(val_to_set);
 
         // Fluxes are nodal in z
         lsm_fab_flux[ivar] = std::make_shared<MultiFab>(convert(ba_lsm, IntVect(0,0,1)), dm, 1, IntVect(0,0,0));
