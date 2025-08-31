@@ -291,12 +291,12 @@ public:
       for (int nt(0); nt < nt_tot_sst; ++nt) {
           m_sst_lev[lev][nt] = sst_lev[nt].get();
       }
-      int nt_tot_tsk = tsk_lev.size();
+      int nt_tot_tsk = static_cast<int>(tsk_lev.size());
       m_tsk_lev[lev].resize(nt_tot_tsk);
       for (int nt(0); nt < nt_tot_tsk; ++nt) {
           m_tsk_lev[lev][nt] = tsk_lev[nt].get();
       }
-      int nt_tot_lmask = lmask_lev.size();
+      int nt_tot_lmask = static_cast<int>(lmask_lev.size());
       m_lmask_lev[lev].resize(nt_tot_lmask);
       for (int nt(0); nt < nt_tot_lmask; ++nt) {
           m_lmask_lev[lev][nt] = lmask_lev[nt].get();
@@ -308,7 +308,7 @@ public:
       m_eddyDiffs_lev[lev] = eddyDiffs;
 
       // Get pointers to LSM data and Fluxes
-      int nvar = lsm_data.size();
+      int nvar = static_cast<int>(lsm_data.size());
       m_lsm_data_lev[lev].resize(nvar);
       m_lsm_flux_lev[lev].resize(nvar);
       for (int n(0); n < nvar; ++n) {
@@ -449,7 +449,7 @@ public:
   void update_surf_temp (const amrex::Real& time)
   {
       if (surf_heating_rate != 0) {
-          int nlevs = m_geom.size();
+          int nlevs = static_cast<int>(m_geom.size());
           for (int lev = 0; lev < nlevs; lev++) {
               t_surf[lev]->setVal(surf_temp + surf_heating_rate * time);
               amrex::Print() << "Surface temp at t=" << time << ": "

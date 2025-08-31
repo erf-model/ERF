@@ -179,7 +179,7 @@ compute_gradp (const MultiFab& p,
                 }
                 gpy_arr(i,j,k) = gpy;
             },
-            tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 Real met_h_zeta = (l_use_terrain_fitted_coords) ? Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd_arr) : 1;
                 gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) )  / met_h_zeta;

@@ -122,7 +122,7 @@ struct LineSampler
             // times appended to the same file
             pp.query("line_sampling_text_output",m_write_ascii);
             if (m_write_ascii && amrex::ParallelDescriptor::IOProcessor()) {
-                int nvar = m_varnames.size();
+                int nvar = static_cast<int>(m_varnames.size());
                 m_datastream.resize(n_line_lo * nvar);
                 int i = 0;
                 for (int iline(0); iline<n_line_lo; ++iline) {
@@ -143,9 +143,9 @@ struct LineSampler
     void
     get_line_mfs (amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
     {
-        int nlev  = vars_new.size();
-        int nline = m_bnd_bx.size();
-        int ncomp  = m_varnames.size();
+        int nlev  = static_cast<int>(vars_new.size());
+        int nline = static_cast<int>(m_bnd_bx.size());
+        int ncomp = static_cast<int>(m_varnames.size());
 
         // Loop over each line
         for (int iline(0); iline<nline; ++iline) {
@@ -305,8 +305,8 @@ struct LineSampler
         constexpr int datprecision = 6;
         constexpr int timeprecision = 13;
 
-        int nline = m_ls_mf.size();
-        int nvar = m_varnames.size();
+        int nline = static_cast<int>(m_ls_mf.size());
+        int nvar  = static_cast<int>(m_varnames.size());
         for (int iline(0); iline<nline; ++iline) {
             int dir = m_dir[iline];
             int lev = m_lev[iline];
@@ -337,7 +337,7 @@ struct LineSampler
                          amrex::Vector<amrex::IntVect>& ref_ratio,
                          amrex::Vector<amrex::Geometry>& geom)
     {
-        int nline = m_ls_mf.size();
+        int nline = static_cast<int>(m_ls_mf.size());
         for (int iline(0); iline<nline; ++iline) {
             // Data members that can be used as-is
             int dir = m_dir[iline];
@@ -482,8 +482,8 @@ struct PlaneSampler
     get_plane_mfs (amrex::Vector<amrex::Geometry>& geom,
                    amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
     {
-        int nlev   = vars_new.size();
-        int nplane = m_bnd_rbx.size();
+        int nlev   = static_cast<int>(vars_new.size());
+        int nplane = static_cast<int>(m_bnd_rbx.size());
         int ncomp  = 2;
         bool interpolate = true;
 
