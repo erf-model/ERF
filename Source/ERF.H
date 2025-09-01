@@ -498,6 +498,7 @@ public:
                               amrex::Real time);
 
 #ifdef ERF_USE_NETCDF
+    // Version in which we always set the velocity values but don't set theta
     void fill_from_realbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
                             amrex::Real time,
                             bool cons_only,
@@ -505,6 +506,15 @@ public:
                             int ncomp_cons,
                             amrex::IntVect ngvect_cons,
                             amrex::IntVect ngvect_vels);
+
+    // Version in which we only set the boundary value if inflowing, includes theta
+    void fill_from_realbdy_upwind (const amrex::Vector<amrex::MultiFab*>& mfs,
+                                   amrex::Real time,
+                                   bool cons_only,
+                                   int icomp_cons,
+                                   int ncomp_cons,
+                                   amrex::IntVect ngvect_cons,
+                                   amrex::IntVect ngvect_vels);
 #endif
 
 #ifdef ERF_USE_NETCDF
