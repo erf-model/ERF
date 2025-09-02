@@ -18,10 +18,10 @@ xhi.type = "Outflow"
 ylo.type = "Outflow"
 yhi.type = "Outflow"
 
-zlo.type = "surface_layer"
-erf.most.z0   = 0.1
-erf.most.zref = 8.0
-#zlo.type = "NoSlipWall"
+#zlo.type = "surface_layer"
+#erf.most.z0   = 0.1
+#erf.most.zref = 8.0
+zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
