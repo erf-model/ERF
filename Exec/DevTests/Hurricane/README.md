@@ -16,8 +16,8 @@ condition, lateral forcing and surface boundary fluxes for ERF. And then the ERF
 
 3. The domain extents to be used in the `inputs` are in `Output/domain_extents.txt`
 
-4. Copy the initial condition file to the ERF run directory. This can be the first file in the `ERA5Data_3D`.  
-   It can also be a file that was generated at the same time as the first file in `ERA5Data_3D`. 
+4. Copy the initial condition file (`hindcast_IC_filename` in the inputs file) to the ERF run directory. This can  
+   be the first file in the `ERA5Data_3D`. It can also be a file that was generated at the same time as the first file in `ERA5Data_3D`. 
    For eg. The initial condition can be from ERA5 data, but the boundary data can be from GFS data. But the initial condition 
    and the very first file in `ERA5Data_3D` should correspond to the same date and geographical area.
 
