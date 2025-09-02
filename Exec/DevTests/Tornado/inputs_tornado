@@ -16,8 +16,11 @@ xhi.type = "Outflow"
 ylo.type = "Outflow"
 yhi.type = "Outflow"
 
-zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
+
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 10.0
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 1.0  # fixed time step depending on grid resolution
@@ -52,11 +55,10 @@ erf.terrain_type = StaticFittedMesh
 
 erf.moisture_model = "Kessler"
 
-erf.les_type         = "None"
-erf.molec_diff_type  = "Constant"
-erf.dynamic_viscosity = 5.0
-erf.alpha_T = 5.0
-erf.alpha_C = 5.0
+erf.molec_diff_type  = "None"
+erf.pbl_type = "MYNN25"
+erf.les_type = "Smagorinsky2D"
+erf.Cs = 0.15
 
 #erf.use_coriolis = true
 #erf.abl_driver_type = "GeostrophicWind"
@@ -66,7 +68,8 @@ erf.alpha_C = 5.0
 
 # PROBLEM PARAMETERS (optional)
 prob.rho_0 = 1.0
-prob.T_0 = 300.0
+prob.T_0   = 300.0
+prob.KE_0  = 0.5
 
 # INITIALIZATION WITH ATM DATA
 erf.real_width     = 1
