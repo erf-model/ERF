@@ -662,7 +662,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         auto abl_pressure_grad    = solverChoice.abl_pressure_grad;
 
-        ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(tbx, tby,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // x-momentum equation
 
             Real gpx = gpx_arr(i,j,k) * mf_ux(i,j,0);
@@ -680,9 +681,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
               rho_u_rhs(i,j,k) *= 0.5;
               rho_u_rhs(i,j,k) += 0.5 / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
             }
-        });
-
-        ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // y-momentum equation
 
             Real gpy = gpy_arr(i,j,k) * mf_vy(i,j,0);

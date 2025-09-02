@@ -14,6 +14,9 @@ log.*
 */Testing/Temporary
 .*.swp
 
+# External clones
+/external/*
+
 /Exec/WORK/*
 ic.txt
 plt*
