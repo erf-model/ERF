@@ -349,7 +349,6 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
             if (is_read[var_idx][comp_idx])
             {
                 int ivar  = ind_map[var_idx][comp_idx];
-                // amrex::Print() << "DOING TYPE / VAR / IVAR " << var_idx << " " << comp_idx << " " << ivar << std::endl;
 
                 // We have data at fixed time intervals we will call dT
                 // Then to interpolate, given time, we can define n = (time/dT)
@@ -381,18 +380,16 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                     const Array4<Real>& u_arr = mf_u.array(mfi);
                     const Array4<Real>& v_arr = mf_v.array(mfi);
 
-                    // x-faces (includes exterior y ghost cells)
-                    if (var_idx == Vars::xvel) amrex::Print() << "BXXLO FOR U " << bx_xlo << std::endl;
-                    if (var_idx == Vars::yvel) amrex::Print() << "BXXLO FOR V " << bx_xlo << std::endl;
-                    if (var_idx == Vars::xvel) amrex::Print() << "BXXHI FOR U " << bx_xhi << std::endl;
-                    if (var_idx == Vars::yvel) amrex::Print() << "BXXHI FOR V " << bx_xhi << std::endl;
+                    // NOTE: Xlo/hi boxes own corner cells (Ylo/hi)
                     ParallelFor(bx_xlo, bx_xhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         int ii = std::max(i , dom_lo.x);
                         int jj = std::max(j , dom_lo.y);
                             jj = std::min(jj, dom_hi.y);
-                        if (u_arr(dom_lo.x,jj,k) >= 0.0) {
+                        if ( (u_arr(dom_lo.x,jj,k) >= 0.0) ||
+                             ((jj == dom_lo.y) && (v_arr(i,dom_lo.y  ,k) >= 0.0)) ||
+                             ((jj == dom_hi.y) && (v_arr(i,dom_hi.y+1,k) <= 0.0)) ) {
                             dest_arr(i,j,k,comp_idx) = oma   * bdatxlo_n  (ii,jj,k,0)
                                                      + alpha * bdatxlo_np1(ii,jj,k,0);
                             if (var_idx == Vars::cons) {
@@ -407,7 +404,9 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                         int ii = std::min(i , dom_hi.x);
                         int jj = std::max(j , dom_lo.y);
                             jj = std::min(jj, dom_hi.y);
-                        if (u_arr(dom_hi.x+1,jj,k) >= 0.0) {
+                        if ( (u_arr(dom_hi.x+1,jj,k) <= 0.0) ||
+                             ((jj == dom_lo.y) && (v_arr(i,dom_lo.y  ,k) >= 0.0)) ||
+                             ((jj == dom_hi.y) && (v_arr(i,dom_hi.y+1,k) <= 0.0)) ) {
                             dest_arr(i,j,k,comp_idx) = oma   * bdatxhi_n  (ii,jj,k,0)
                                                      + alpha * bdatxhi_np1(ii,jj,k,0);
                             if (var_idx == Vars::cons) {
@@ -420,7 +419,7 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                         }
                     });
 
-                    // y-faces (do not include exterior x ghost cells)
+                    // NOTE: Ylo/hi boxes do not own corner cells
                     ParallelFor(bx_ylo, bx_yhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
