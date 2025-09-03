@@ -50,7 +50,8 @@ Problem::init_custom_pert (const amrex::Box&  bx,
         // Geom info
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
-        const Real z = (z_cc) ? z_cc(i,j,k) : prob_lo[2] + (k + 0.5) * dx[2];
+        const Real z   = (z_cc) ? z_cc(i,j,k) : prob_lo[2] + (k + 0.5) * dx[2];
+        const Real dz  = (z_cc) ? z - z_cc(i,j,0) : z - prob_lo[2];
 
         // Base KE value
         state_pert(i,j,k,RhoKE_comp) = state(i,j,k,Rho_comp) * parms_d.KE_0;
@@ -58,7 +59,7 @@ Problem::init_custom_pert (const amrex::Box&  bx,
         // Vertical profile
         if (parms_d.KE_decay_height > 0) {
             state_pert(i, j, k, RhoKE_comp) *= max(
-                std::pow(1 - min(z/parms_d.KE_decay_height,1.0), parms_d.KE_decay_order),
+                std::pow(1 - min(dz/parms_d.KE_decay_height,1.0), parms_d.KE_decay_order),
                 1e-12);
         }
     });
