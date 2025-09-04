@@ -1,5 +1,5 @@
 #stop_time = 36000.
-max_step = 25000
+max_step = 10
 
 amrex.fpe_trap_invalid = 0
 
@@ -17,11 +17,10 @@ xlo.type = "Outflow"
 xhi.type = "Outflow"
 ylo.type = "Outflow"
 yhi.type = "Outflow"
-
-#zlo.type = "surface_layer"
-#erf.most.z0   = 0.1
-#erf.most.zref = 8.0
-zlo.type = "NoSlipWall"
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 10.0
+#zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
@@ -42,7 +41,7 @@ erf.check_int       = 1000   # number of timesteps between checkpoints
 # PLOTFILES
 erf.plotfile_type   = amrex  # prefix of plotfile name
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 500    # number of timesteps between plotfiles
+erf.plot_int_1      = 1000    # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoQ1 x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys qt qp qv qc qgraup qrain qsnow vorticity_x vorticity_y vorticity_z reflectivity max_reflectivity
 
 # SOLVER CHOICE
@@ -50,13 +49,24 @@ erf.use_gravity = true
 erf.terrain_type = StaticFittedMesh
 erf.moisture_model = "Morrison"
 
-#erf.pbl_type        = "MYNN25"
-#erf.les_type = "Smagorinsky"
-#erf.Cs = 0.15
-erf.molec_diff_type  = "Constant"
-erf.dynamicViscosity = 5.0
-erf.alpha_T = 5.0
-erf.alpha_C = 5.0
+#erf.pbl_type = "MYNN25"
+
+erf.les_type = "Smagorinsky2D"
+erf.Cs = 0.02
+erf.use_smag_stratification = false
+erf.mix_isotropic = false
+
+#erf.les_type  = "Deardorff"
+#erf.Ck        = 0.1  # Coefficient in Moeng1984, Eqn. 19
+#erf.Ce        = 0.7  # Note: Ce_lcoeff = C_e - 1.9*C_k
+#erf.Ce_wall   = 3.9  # To account for "wall effects"
+#erf.theta_ref = 300.0 # don't specify for variable theta when diagnosing stability
+
+
+#erf.molec_diff_type  = "Constant"
+#erf.dynamic_viscosity = 5.0
+#erf.alpha_T = 5.0
+#erf.alpha_C = 5.0
 
 erf.use_coriolis = true
 erf.coriolis_3d  = true
@@ -65,13 +75,13 @@ erf.latitude = 99.3826
 # PROBLEM PARAMETERS (optional)
 prob.rho_0 = 1.0
 prob.T_0 = 300.0
+prob.KE_0  = 0.1
 
 # INITIALIZATION WITH ATM DATA
 erf.use_real_bcs = true
 erf.real_width     = 4
-erf.real_set_width = 4
+erf.real_set_width = 1
 erf.init_type      = "WRFInput"
-#erf.nc_init_file_0 = "wrfvar_output"
 erf.nc_init_file_0 = "wrfinput_d01"
 erf.nc_bdy_file    = "wrfbdy_d01"
-erf.nc_low_file = "wrflowinp_d01"
+#erf.nc_low_file = "wrflowinp_d01"
