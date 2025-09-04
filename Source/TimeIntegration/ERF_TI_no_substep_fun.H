@@ -76,12 +76,6 @@
                         ssum[IntVars::cons](i,j,k,n) = dJ_old(i,j,k) *  sold[IntVars::cons](i,j,k,n)
                                                           + slow_dt * fslow[IntVars::cons](i,j,k,n);
                         ssum[IntVars::cons](i,j,k,n) /= dJ_new(i,j,k);
-                        // // SK ***************************************************
-                        // if (i==61 &&j==0 &&k==0) {
-                        //     amrex::Print() << "SK: no_substep_fun: ijkn = " << i << " " << j << " " << k << " " << n 
-                        //     << ", fslow = " << fslow[IntVars::cons](i,j,k,n) << std::endl;
-                        // }
-                        // // SK ***************************************************
                     });
 
                     // We have already scaled the slow source term to have the extra factor of dJ
@@ -194,19 +188,6 @@
                     MultiFab::Copy(dUdt[i], F_slow[i], 0, 0, F_slow[i].nComp(), 0);
                     dUdt[i].FillBoundary(fine_geom.periodicity());
                     dUdt[i].setDomainBndry(1.234e10, 0, ncomp_fast[i], fine_geom);    
-                }
-
-                for (int i = 0; i <= AMREX_SPACEDIM; ++i) {
-                    if (level==0) {
-                        S_old[i].FillBoundary(fine_geom.periodicity());
-                        S_old[i].setDomainBndry(1.234e10, 0, ncomp_fast[i], fine_geom);
-                    } else {
-                        Vector<MultiFab*> S_old_ptr(IntVars::NumTypes);
-                        for (int i = 0; i < IntVars::NumTypes; ++i) {
-                            S_old_ptr[i] = &S_old[i];
-                        }
-                        FillPatchFineLevel(level, time_for_fp, S_old_ptr, S_old_ptr, base_state[level], base_state[level], false, false);
-                    }
                 }
 
                 BCRec const* bc_ptr_d = domain_bcs_type_d.data();
