@@ -18,7 +18,7 @@ eb_aux_ ()
 
 void
 eb_aux_::
-define( int const& a_level,
+define( [[maybe_unused]] int const& a_level,
         int const& a_idim,
         Geometry            const& a_geom,
         BoxArray            const& a_grids,
@@ -163,16 +163,6 @@ define( int const& a_level,
       int const verbose=m_verbose;
 #endif
 
-//       ParallelFor(bx, [
-// #ifndef AMREX_USE_GPU
-//                   verbose,
-// #endif
-//                   dx, bx, domain, flag, afrac, bnorm, bcent,
-//                   aux_flag, aux_vfrac, aux_vcent,
-//                   aux_afrac_x, aux_afrac_y, aux_afrac_z,
-//                   aux_fcent_x, aux_fcent_y, aux_fcent_z,
-//                   aux_barea, aux_bcent, aux_bnorm,
-//                   vdim, a_level, a_idim, l_periodic]
       ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
         // defaults to covered and disconnected.
