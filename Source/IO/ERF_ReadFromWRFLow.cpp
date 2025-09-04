@@ -144,19 +144,20 @@ read_from_wrflow (const std::string& nc_low_file, const Box& domain,
     if (ParallelDescriptor::IOProcessor())
     {
         Array4<Real> fab_arr;
-        int ns2 = arrays[0].get_vshape()[2];
+        int ns3 = arrays[0].get_vshape()[2];
 
         long num_pts  = low_data_zlo[0].box().numPts();
         int ioff      = low_data_zlo[0].smallEnd()[0];
+        int joff      = low_data_zlo[0].smallEnd()[1];
 
         for (int nt(0); nt < ntimes; ++nt)
         {
             fab_arr  = low_data_zlo[nt].array();
             int n_off = nt * num_pts;
             for (int n(0); n < num_pts; ++n) {
-                int i = n / ns2;
-                int j = n - i * ns2;
-                fab_arr(ioff+i, j, 0, 0) = static_cast<Real>(*(arrays[0].get_data() + n + n_off));
+                int j  = n / ns3;
+                int i  = n - j*ns3;
+                fab_arr(ioff+i,joff+j,0) = static_cast<Real>(*(arrays[0].get_data()+n+n_off));
             }
         }
     } // if ParalleDescriptor::IOProcessor()
