@@ -179,7 +179,7 @@
                 BL_PROFILE("no_substep_fun_redistribute");
                 // Redistribute cons states (cell-centered)
 
-                Vector<MultiFab> dUdt(IntVars::NumTypes);                
+                Vector<MultiFab> dUdt(IntVars::NumTypes);
                 dUdt[IntVars::cons].define(ba, dm, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow(), MFInfo(), EBFactory(level));
                 for (int i = 1; i <= AMREX_SPACEDIM; ++i) {
                     dUdt[i].define(F_slow[i].boxArray(), F_slow[i].DistributionMap(), F_slow[i].nComp(), F_slow[i].nGrow(), MFInfo());
@@ -188,7 +188,7 @@
                     dUdt[i].setVal(0.0, 0, ncomp_fast[i], dUdt[i].nGrow());
                     MultiFab::Copy(dUdt[i], F_slow[i], 0, 0, F_slow[i].nComp(), 0);
                     dUdt[i].FillBoundary(fine_geom.periodicity());
-                    dUdt[i].setDomainBndry(1.234e10, 0, ncomp_fast[i], fine_geom);    
+                    dUdt[i].setDomainBndry(1.234e10, 0, ncomp_fast[i], fine_geom);
                 }
 
                 BCRec const* bc_ptr_d = domain_bcs_type_d.data();

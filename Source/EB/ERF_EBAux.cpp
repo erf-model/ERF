@@ -929,7 +929,7 @@ define( int const& a_level,
       // Area fraction MultiFab has one more slice at bigEnd(idim),
       // and this slice is not filled by fillBoundary(), for higher levels.
       // (Lower level might be filled by fillBoundary().)
-      // Fill the ghost region for the last slice at bigEnd(idim) 
+      // Fill the ghost region for the last slice at bigEnd(idim)
       // by the value of the nearst point. And let fillBoundary() overwrite it.
 
       Box upper_slab = makeSlab(bx_grown, a_idim, bx.bigEnd(a_idim)+1);

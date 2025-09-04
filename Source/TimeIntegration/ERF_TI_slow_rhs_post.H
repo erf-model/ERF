@@ -97,7 +97,7 @@
                 }
             }
             dUdt_tmp.FillBoundary(fine_geom.periodicity());
-            dUdt_tmp.setDomainBndry(1.234e10, 0, num_comp_total, fine_geom);            
+            dUdt_tmp.setDomainBndry(1.234e10, 0, num_comp_total, fine_geom);
 
             const BCRec* bc_ptr_d = domain_bcs_type_d.data();
 
@@ -137,7 +137,7 @@
                     }
                 }
             }
-        } // EB        
+        } // EB
 
         // Apply boundary conditions on all the state variables that have been updated
         // in both the fast and slow integrators
