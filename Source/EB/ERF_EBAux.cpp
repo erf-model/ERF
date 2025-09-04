@@ -654,24 +654,10 @@ define( int const& a_level,
             aux_afrac_y(i,j,k) = (a_idim == 1) ? lo_areaLo_y : lo_areaLo_y + hi_areaLo_y;
             aux_afrac_z(i,j,k) = (a_idim == 2) ? lo_areaLo_z : lo_areaLo_z + hi_areaLo_z;
 
-            // // SK ***************************************************
-            // if (a_level==1 && i==128 && j==0 && k==15) {
-            //   Print()<<"SK: EBAux: i, j, k   = "<<i<<", "<<j<<", "<<k <<std::endl;
-            //   Print()<<"SK: EBAux: lo_vol = "<<lo_vol<<", hi_vol = "<<hi_vol<<", aux_vfrac = "<<aux_vfrac(i,j,k)<<std::endl;
-            //   Print()<<"SK: EBAux: lo_areaLo_x = "<<lo_areaLo_x<<", hi_areaLo_x = "<<hi_areaLo_x<<", aux_afrac_x = "<<aux_afrac_x(i,j,k)<<std::endl;
-            //   Print()<<"SK: EBAux: bx.bigEnd(0) = "<<bx.bigEnd(0)<<std::endl;
-            // }
-            // // SK ***************************************************
-
             if (i==bx.bigEnd(0)) {
               Real lo_areaHi_x {lo_eb_cc.areaHi(0)};
               Real hi_areaHi_x {hi_eb_cc.areaHi(0)};
               aux_afrac_x(i+1,j,k) = (a_idim == 0) ? hi_areaHi_x : lo_areaHi_x + hi_areaHi_x;
-              // // SK ***************************************************
-              // if (a_level==1 && i==128 && j==0 && k==15) {
-              //   Print()<<"SK: lo_areaHi_x = "<<lo_areaHi_x<<", hi_areaHi_x = "<<hi_areaHi_x<<", aux_afrac_x = "<<aux_afrac_x(i+1,j,k)<<std::endl;
-              // }
-              // // SK ***************************************************
             }
             if (j==bx.bigEnd(1)) {
               Real lo_areaHi_y {lo_eb_cc.areaHi(1)};
