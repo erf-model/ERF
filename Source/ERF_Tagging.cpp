@@ -49,10 +49,6 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         //     which one is the parent of the fine region we are trying to create
         AMREX_ALWAYS_ASSERT(subdomains[levc].size() == 1);
 
-        // We assume there is only one box in the first subdomain at levc; otherwise we don't know
-        //    how to compute the offset
-        AMREX_ALWAYS_ASSERT(subdomains[levc][0].size() == 1);
-
         Box coarser_level(subdomains[levc][0].minimalBox());
         subdomain.shift(coarser_level.smallEnd());
 
