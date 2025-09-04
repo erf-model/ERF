@@ -12,6 +12,9 @@ struct ProbParm : ProbParmDefaults {
     amrex::Real T_0   = 300.0;
     amrex::Real V_0   = 1.0;
     amrex::Real KE_0  = 0.1;
+
+    amrex::Real KE_decay_height = -1;
+    amrex::Real KE_decay_order  =  1;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase

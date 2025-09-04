@@ -69,7 +69,9 @@ erf.Cs = 0.15
 # PROBLEM PARAMETERS (optional)
 prob.rho_0 = 1.0
 prob.T_0   = 300.0
-prob.KE_0  = 0.5
+prob.KE_0  = 0.5  # [m2/s2]
+prob.KE_decay_height = 250. # [m]
+prob.KE_decay_order  = 3
 
 # INITIALIZATION WITH ATM DATA
 erf.real_width     = 1
