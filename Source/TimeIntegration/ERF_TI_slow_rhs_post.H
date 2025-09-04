@@ -99,17 +99,6 @@
             dUdt_tmp.FillBoundary(fine_geom.periodicity());
             dUdt_tmp.setDomainBndry(1.234e10, 0, num_comp_total, fine_geom);            
 
-            if (level==0) {
-                S_old[IntVars::cons].FillBoundary(fine_geom.periodicity());
-                S_old[IntVars::cons].setDomainBndry(1.234e10, 0, num_comp_total, fine_geom);
-            } else {
-                Vector<MultiFab*> S_old_ptr(IntVars::NumTypes);
-                for (int i = 0; i < IntVars::NumTypes; ++i) {
-                    S_old_ptr[i] = &S_old[i];
-                }
-                FillPatchFineLevel(level, new_stage_time, S_old_ptr, S_old_ptr, base_state[level], base_state[level], false, true);
-            }
-
             const BCRec* bc_ptr_d = domain_bcs_type_d.data();
 
             // Update S_rhs by Redistribution.
