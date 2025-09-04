@@ -1,0 +1,77 @@
+#stop_time = 36000.
+max_step = 25000
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 2247000 	2037000  20543.40975
+amr.n_cell           = 749   	679      69
+#amr.blocking_factor  = 1
+
+#amr.restart = chk12000
+geometry.is_periodic = 0 0 0
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+
+#zlo.type = "surface_layer"
+#erf.most.z0   = 0.1
+#erf.most.zref = 8.0
+zlo.type = "NoSlipWall"
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.fixed_dt           = 1.0  # fixed time step depending on grid resolution
+    
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = 1000   # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plotfile_type   = amrex  # prefix of plotfile name
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 500    # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoQ1 x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys qt qp qv qc qgraup qrain qsnow vorticity_x vorticity_y vorticity_z reflectivity max_reflectivity
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.terrain_type = StaticFittedMesh
+erf.moisture_model = "Morrison"
+
+#erf.pbl_type        = "MYNN25"
+#erf.les_type = "Smagorinsky"
+#erf.Cs = 0.15
+erf.molec_diff_type  = "Constant"
+erf.dynamicViscosity = 5.0
+erf.alpha_T = 5.0
+erf.alpha_C = 5.0
+
+erf.use_coriolis = true
+erf.coriolis_3d  = true
+erf.latitude = 99.3826
+
+# PROBLEM PARAMETERS (optional)
+prob.rho_0 = 1.0
+prob.T_0 = 300.0
+
+# INITIALIZATION WITH ATM DATA
+erf.use_real_bcs = true
+erf.real_width     = 4
+erf.real_set_width = 4
+erf.init_type      = "WRFInput"
+#erf.nc_init_file_0 = "wrfvar_output"
+erf.nc_init_file_0 = "wrfinput_d01"
+erf.nc_bdy_file    = "wrfbdy_d01"
+erf.nc_low_file = "wrflowinp_d01"

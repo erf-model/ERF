@@ -651,7 +651,7 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
                                  + sfc_flux_dif_vis_d(icol) + sfc_flux_dif_nir_d(icol);
 
                 // LW flux for LSM (at bottom surface)
-                lsm_arr(i,j,k,5) = lw_flux_dn_d(icol,1);
+                lsm_arr(i,j,k,5) = lw_flux_dn_d(icol,0);
             });
         }
         if (m_lsm_zenith) {
