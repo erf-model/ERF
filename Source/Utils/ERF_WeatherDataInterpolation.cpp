@@ -358,7 +358,7 @@ ERF::InterpWeatherDataOntoMesh (const Geometry& geom_weather,
             fine_latlon_arr(i,j,k,1) = lon;
         });
 
-        ParallelFor(gtbx, gtby, gtbz,
+        ParallelFor(gtbx, gtby,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
             Real x = prob_lo_erf[0] + i       * dx_erf[0];
