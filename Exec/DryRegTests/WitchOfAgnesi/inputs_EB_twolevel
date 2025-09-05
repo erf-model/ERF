@@ -43,7 +43,7 @@ erf.refinement_indicators = box1
 erf.box1.max_level = 1
 erf.box1.in_box_lo = 150. 0. 0.
 erf.box1.in_box_hi = 450. 20. 150.
-erf.coupling_type  = "OneWay"
+erf.coupling_type  = "TwoWay"
 erf.cf_width = 0
 erf.cf_set_width = 0
     
