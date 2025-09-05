@@ -73,7 +73,7 @@ NOAHMP::Init (const int& lev,
         Real val_to_set = 0.0;
         if (ivar == LsmVar_NOAHMP::t_sfc) {
             val_to_set = 300.0;
-        } else if (iver == LsmVar_NOAHMP::sfc_emis) {
+        } else if (ivar == LsmVar_NOAHMP::sfc_emis) {
             val_to_set = 0.9;
         } else if ((ivar>=LsmVar_NOAHMP::sfc_alb_dir_vis) && (ivar<=LsmVar_NOAHMP::sfc_alb_dif_nir)) {
             val_to_set = 0.06;
