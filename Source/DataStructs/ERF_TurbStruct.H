@@ -135,14 +135,16 @@ public:
       }
     }
 
-    // Right now, solving the QKE equation is only supported when MYNN PBL is
-    // turned on
-    if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
-      use_pbl_tke = true;
-
-      query_one_or_per_level(pp, "advect_tke", advect_tke, lev, max_level);
-      query_one_or_per_level(
-        pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level);
+    // Flags for QKE/TKE euation
+    if (pbl_type == PBLType::MYJ || pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
+        // Add sources/sinks to QKE/TKE? (MYJ does this inline)
+        if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
+            use_pbl_tke = true;
+        }
+        // Advect QKE/TKE?
+        query_one_or_per_level(pp, "advect_tke"    , advect_tke    , lev, max_level);
+        // Apply numerical diffusion to QKE/TKE?
+        query_one_or_per_level(pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level);
     }
 
     // LES constants...

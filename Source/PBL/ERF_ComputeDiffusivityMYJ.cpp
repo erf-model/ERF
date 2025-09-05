@@ -35,7 +35,7 @@ ComputeDiffusivityMYJ (Real dt,
     bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].lo(5) == ERFBCType::ext_dir) );
 
     // Expose constants
-    Real d_kappa   = KAPPA;
+    Real d_kappa = KAPPA;
 
     // Closure coefficients (from Janjic (2002), NCEP Office Note 437)
     Real EPS1    = 1.0e-12;
@@ -50,7 +50,7 @@ ComputeDiffusivityMYJ (Real dt,
     Real FH      = 1.01;
 
     Real G       = CONST_GRAV;
-    Real ALPH    = 0.3;
+    Real ALPHA   = 0.3;
     Real BETA    = 1./273.;
     Real EL0MAX  = 1000.;
     Real EL0MIN  = 1.;
@@ -155,7 +155,7 @@ ComputeDiffusivityMYJ (Real dt,
                     Real q2 = 2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
                     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(q2 > 0.0, "KE must have a positive value");
                     qvel(i,j,k) = std::sqrt(q2);
-                    if (qvel(i,j,k)*qvel(i,j,k)<=EPSQ2*FH) {
+                    if (q2<=EPSQ2*FH) {
                         k_arr(i,j,0) = std::min(k,k_arr(i,j,0));
                     }
                 }
@@ -176,7 +176,7 @@ ComputeDiffusivityMYJ (Real dt,
                     Real q2 = 2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
                     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(q2 > 0.0, "KE must have a positive value");
                     qvel(i,j,k) = std::sqrt(q2);
-                    if (qvel(i,j,k)*qvel(i,j,k)<=EPSQ2*FH) {
+                    if (q2<=EPSQ2*FH) {
                         k_arr(i,j,0) = std::min(k,k_arr(i,j,0));
                     }
                 }
@@ -198,7 +198,7 @@ ComputeDiffusivityMYJ (Real dt,
             int kpbl = k_arr(i,j,0);
 
             // Compute the integral length scale
-            Real l0 = std::max(std::min(ALPH*qint(i,j,0,0)/qint(i,j,0,1),EL0MAX),EL0MIN);
+            Real l0 = std::max(std::min(ALPHA*qint(i,j,0,0)/qint(i,j,0,1),EL0MAX),EL0MIN);
 
             // Compute diffusivities in each column
             for (int k(klo); k<=khi; ++k) {
@@ -215,7 +215,9 @@ ComputeDiffusivityMYJ (Real dt,
 
                 // Calculate dimensional production terms
                 Real GML = std::max(dudz*dudz + dvdz*dvdz, EPSGM);
-                Real GHL = -dthetavdz; // NOTE: model uses BTG = beta*g in coeffs above
+                // NOTE: model uses BTG = beta*g in coeffs above
+                // NOTE: sign convention follows code but theory differs
+                Real GHL = dthetavdz;
                 if (std::fabs(GHL)<=EPSGH) { GHL=EPSGH; }
 
                 // Find the maximum mixing length
@@ -248,7 +250,7 @@ ComputeDiffusivityMYJ (Real dt,
                     L = std::min(l0*d_kappa*zval / (d_kappa*zval + l0), ELM);
                 }
 
-                // Relax qvel to equilibrium
+                // Update qvel from production and dissipation
                 Real AEQU  = (AEQM*GML+AEQH*GHL)*GHL;
                 Real BEQU  = BEQM*GML+BEQH*GHL;
 
@@ -347,16 +349,6 @@ ComputeDiffusivityMYJ (Real dt,
                 K_turb(i,j,k,EddyDiff::KE_v   ) = rho * L * qvel(i,j,k) * SQ;
                 K_turb(i,j,k,EddyDiff::Q_v    ) = rho * L * qvel(i,j,k) * SH;
                 K_turb(i,j,k,EddyDiff::Turb_lengthscale) = L;
-
-                if (i==0 && j==0) {
-                    Print() << "Diffs: " << IntVect(i,j,k) << ' '
-                            << kpbl << ' '
-                            << L << ' '
-                            << qvel(i,j,k) << ' '
-                            << std::pow(B1,(1./3.))*ustar_arr(i,j,klo) << ' '
-                            << K_turb(i,j,k,EddyDiff::Mom_v  ) << ' '
-                            << K_turb(i,j,k,EddyDiff::Theta_v) << "\n";
-                }
 
                 // NOTE: Ghost cells are handled at end of ERF_ComputeTurbulentViscosity.cpp
 
