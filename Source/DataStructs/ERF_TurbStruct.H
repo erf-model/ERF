@@ -40,7 +40,7 @@ query_one_or_per_level (
 struct TurbChoice
 {
 public:
-  void init_params(int lev, int max_level, std::string pp_prefix)
+  void init_params (int lev, int max_level, std::string pp_prefix)
   {
     amrex::ParmParse pp(pp_prefix);
 
@@ -193,7 +193,8 @@ public:
       ((les_type == LESType::Deardorff) || (rans_type == RANSType::kEqn));
     use_tke =
       ((les_type == LESType::Deardorff) || (rans_type == RANSType::kEqn) ||
-       (pbl_type == PBLType::MYNN25) || (pbl_type == PBLType::MYNNEDMF));
+       (pbl_type == PBLType::MYJ)       || (pbl_type == PBLType::MYNN25) ||
+       (pbl_type == PBLType::MYNNEDMF));
 
     // Validate inputs
     if (les_type == LESType::Smagorinsky) {
@@ -207,7 +208,7 @@ public:
     }
   }
 
-  void display(int lev)
+  void display (int lev)
   {
     amrex::Print() << "Turbulence Settings at level " << lev << std::endl;
 
@@ -229,6 +230,8 @@ public:
     } else if (rans_type == RANSType::kEqn) {
       amrex::Print()
         << "    Using Axell & Liungman one-equation RANS k model at level " << lev << std::endl;
+    } else if (pbl_type == PBLType::MYJ) {
+      amrex::Print() << "    Using MYJ PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MYNN25) {
       amrex::Print() << "    Using MYNN2.5 PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MYNNEDMF) {

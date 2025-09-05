@@ -63,9 +63,9 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         const GeometryData gdata = geom.data();
 
         const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
+        FArrayBox qturb(bx,1);
         FArrayBox qintegral(xybx,2);
         qintegral.setVal<RunOn::Device>(0.0);
-        FArrayBox qturb(bx,1); FArrayBox qturb_old(bx,1);
         const Array4<Real> qint = qintegral.array();
         const Array4<Real> qvel = qturb.array();
 
