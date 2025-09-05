@@ -17,10 +17,10 @@ ComputeDiffusivityMYJ (Real dt,
                        MultiFab& eddyViscosity,
                        const Geometry& geom,
                        const TurbChoice& /*turbChoice*/,
-                       std::unique_ptr<SurfaceLayer>& SurfLayer,
+                       std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
                        bool use_terrain_fitted_coords,
                        bool /*use_moisture*/,
-                       int level,
+                       int /*level*/,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
@@ -143,8 +143,8 @@ ComputeDiffusivityMYJ (Real dt,
         int izmax = geom.Domain().bigEnd(2);
 
         // Ustar for BC
-        MultiFab* ustar = SurfLayer->get_u_star(level);
-        const Array4<Real const>& ustar_arr = ustar->array(mfi);
+        //MultiFab* ustar = SurfLayer->get_u_star(level);
+        //const Array4<Real const>& ustar_arr = ustar->array(mfi);
 
         // Vertical integrals to compute l0
         if (use_terrain_fitted_coords) {
