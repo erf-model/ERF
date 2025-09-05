@@ -165,14 +165,14 @@ ERF::init_from_metgrid (int lev)
     auto& dm = lev_new[Vars::cons].DistributionMap();
     auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
 
-    int i_lo = geom[lev].Domain().smallEnd(0); int i_hi = geom[lev].Domain().bigEnd(0);
-    int j_lo = geom[lev].Domain().smallEnd(1); int j_hi = geom[lev].Domain().bigEnd(1);
+    int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
+    int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
 
     if (flag_sst[0]) {
         for (int itime(0); itime < ntimes; ++itime) {
             sst_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             for ( MFIter mfi(*(sst_lev[lev][itime]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-                Box tbx = mfi.tilebox();
+                Box tbx = mfi.growntilebox();
                 FArrayBox& dst = (*(sst_lev[lev][itime]))[mfi];
                 FArrayBox& src = NC_sst_fab[itime];
                 const Array4<      Real>& dst_arr = dst.array();
@@ -194,7 +194,7 @@ ERF::init_from_metgrid (int lev)
         for (int itime(0); itime < ntimes; ++itime) {
             tsk_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             for ( MFIter mfi(*(tsk_lev[lev][itime]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-                Box tbx = mfi.tilebox();
+                Box tbx = mfi.growntilebox();
                 FArrayBox& dst = (*(tsk_lev[lev][itime]))[mfi];
                 FArrayBox& src = NC_tsk_fab[itime];
                 const Array4<      Real>& dst_arr = dst.array();
@@ -216,7 +216,7 @@ ERF::init_from_metgrid (int lev)
         for (int itime(0); itime < ntimes; ++itime) {
             lmask_lev[lev][itime] = std::make_unique<iMultiFab>(ba2d[lev],dm,1,ngv);
             for ( MFIter mfi(*(lmask_lev[lev][itime]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-                Box tbx = mfi.tilebox();
+                Box tbx = mfi.growntilebox();
                 IArrayBox& dst = (*(lmask_lev[lev][itime]))[mfi];
                 IArrayBox& src = NC_lmask_iab[itime];
                 const Array4<      int>& dst_arr = dst.array();
@@ -237,7 +237,7 @@ ERF::init_from_metgrid (int lev)
     sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
     cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
     for ( MFIter mfi(*(lat_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-        Box tbx = mfi.tilebox();
+        Box tbx = mfi.growntilebox();
         FArrayBox& dst = (*(lat_m[lev]))[mfi];
         FArrayBox& src = NC_LAT_fab[0];
         const Array4<      Real>& sin_arr = (sinPhi_m[lev])->array(mfi);
@@ -258,7 +258,7 @@ ERF::init_from_metgrid (int lev)
 
     lon_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
     for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-        Box tbx = mfi.tilebox();
+        Box tbx = mfi.growntilebox();
         FArrayBox& dst = (*(lon_m[lev]))[mfi];
         FArrayBox& src = NC_LON_fab[0];
         const Array4<      Real>& dst_arr = dst.array();
@@ -271,18 +271,16 @@ ERF::init_from_metgrid (int lev)
         });
     }
 
-    if (lev == 0) {
-        for (int itime(0); itime < ntimes; itime++) {
-            // Verify that the grid size and resolution from met_em file matches that in geom (from ERF inputs file).
-            Real tol   = 1.0e-3;
-            AMREX_ALWAYS_ASSERT(std::fabs(geom[lev].CellSizeArray()[0]-NC_dx[itime]) < tol);
-            AMREX_ALWAYS_ASSERT(std::fabs(geom[lev].CellSizeArray()[1]-NC_dy[itime]) < tol);
-            // NC_nx-2 because NC_nx is the number of staggered grid points indexed from 1.
-            AMREX_ALWAYS_ASSERT(geom[lev].Domain().bigEnd(0) == NC_nx[itime]-2);
-            // NC_ny-2 because NC_ny is the number of staggered grid points indexed from 1.
-            AMREX_ALWAYS_ASSERT(geom[lev].Domain().bigEnd(1) == NC_ny[itime]-2);
-        } // itime
-    } // lev==0
+    for (int itime(0); itime < ntimes; itime++) {
+        // Verify that the grid size and resolution from met_em file matches that in geom (from ERF inputs file).
+        Real tol   = 1.0e-3;
+        AMREX_ALWAYS_ASSERT(std::fabs(geom[lev].CellSizeArray()[0]-NC_dx[itime]) < tol);
+        AMREX_ALWAYS_ASSERT(std::fabs(geom[lev].CellSizeArray()[1]-NC_dy[itime]) < tol);
+        // NC_nx-2 because NC_nx is the number of staggered grid points indexed from 1.
+        AMREX_ALWAYS_ASSERT(i_hi-i_lo == NC_nx[itime]-2);
+        // NC_ny-2 because NC_ny is the number of staggered grid points indexed from 1.
+        AMREX_ALWAYS_ASSERT(j_hi-j_lo == NC_ny[itime]-2);
+    } // itime
 
     // This makes the Jacobian.
     make_J(geom[lev],*z_phys,  *detJ_cc[lev]);

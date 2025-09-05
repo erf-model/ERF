@@ -513,17 +513,17 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         if (stag == 'M') {
             orig_z_p[k] = orig_z_full(i,j,k);
         } else if (stag == 'X') {
-            if (i == imin_orig) {
+            if (i <= imin_orig) {
                 orig_z_p[k] = orig_z_full(i,j,k);
-            } else if (i == imax_orig) {
+            } else if (i >= imax_orig) {
                 orig_z_p[k] = orig_z_full(imax_orig-1,j,k);
             } else {
                 orig_z_p[k] = 0.5*(orig_z_full(i,j,k)+orig_z_full(i-1,j,k));
             }
         } else if (stag == 'Y') {
-            if (j == jmin_orig) {
+            if (j <= jmin_orig) {
                 orig_z_p[k] = orig_z_full(i,j,k);
-            } else if (j == jmax_orig) {
+            } else if (j >= jmax_orig) {
                 orig_z_p[k] = orig_z_full(i,jmax_orig-1,k);
             } else {
                 orig_z_p[k] = 0.5*(orig_z_full(i,j,k)+orig_z_full(i,j-1,k));
