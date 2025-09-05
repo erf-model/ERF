@@ -58,7 +58,7 @@ read_from_wrflow (const std::string& nc_low_file, const Box& domain,
         for (int nt(0); nt < ntimes; nt++) {
             std::string date(&timeStamps[nt][0], &timeStamps[nt][dateStrLen-1]+1);
             auto epochTime = getEpochTime(date, dateTimeFormat);
-            Print() << "  wrfbdy datetime " << nt << " : " << date << " " << epochTime << std::endl;
+            Print() << "  wrflow datetime " << nt << " : " << date << " " << epochTime << std::endl;
             epochTimes.push_back(epochTime);
 
             if (nt == 1) {
