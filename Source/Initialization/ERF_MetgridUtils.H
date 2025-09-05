@@ -45,7 +45,8 @@ init_terrain_from_metgrid (amrex::FArrayBox& z_phys_nd_fab,
                            const amrex::Vector<amrex::FArrayBox>& NC_hgt_fab);
 
 void
-init_state_from_metgrid (const bool use_moisture,
+init_state_from_metgrid (const int lev,
+                         const bool use_moisture,
                          const bool interp_theta,
                          const bool metgrid_debug_quiescent,
                          const bool metgrid_debug_isothermal,
@@ -472,23 +473,15 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
                             const amrex::Array4<amrex::Real const>& orig_z_full,
                             const amrex::Array4<amrex::Real const>& orig_data,
                             const amrex::Array4<amrex::Real const>& new_z_full,
-                            const amrex::Array4<amrex::Real>& new_data_full,
-                            const bool& update_bc_data,
-                            const amrex::Array4<amrex::Real>& bc_data_xlo,
-                            const amrex::Array4<amrex::Real>& bc_data_xhi,
-                            const amrex::Array4<amrex::Real>& bc_data_ylo,
-                            const amrex::Array4<amrex::Real>& bc_data_yhi,
-                            const amrex::Box& bx_xlo,
-                            const amrex::Box& bx_xhi,
-                            const amrex::Box& bx_ylo,
-                            const amrex::Box& bx_yhi,
-                            const amrex::Array4<const int>& mask)
+                            const amrex::Array4<amrex::Real>& new_data_full)
 {
     // Here we closely follow WRF's vert_interp from
     // dyn_em/module_initialize_real.F, although changes have been
     // made to accommodate interpolation relative to height instead of
     // pressure.
+    int imin_orig = amrex::lbound(amrex::Box(orig_data)).x;
     int imax_orig = amrex::ubound(amrex::Box(orig_data)).x;
+    int jmin_orig = amrex::lbound(amrex::Box(orig_data)).y;
     int jmax_orig = amrex::ubound(amrex::Box(orig_data)).y;
     int kmax_orig = amrex::ubound(amrex::Box(orig_data)).z;
     int kmax_new  = amrex::ubound(amrex::Box(new_z_full)).z;
@@ -520,7 +513,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         if (stag == 'M') {
             orig_z_p[k] = orig_z_full(i,j,k);
         } else if (stag == 'X') {
-            if (i == 0) {
+            if (i == imin_orig) {
                 orig_z_p[k] = orig_z_full(i,j,k);
             } else if (i == imax_orig) {
                 orig_z_p[k] = orig_z_full(imax_orig-1,j,k);
@@ -528,7 +521,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
                 orig_z_p[k] = 0.5*(orig_z_full(i,j,k)+orig_z_full(i-1,j,k));
             }
         } else if (stag == 'Y') {
-            if (j == 0) {
+            if (j == jmin_orig) {
                 orig_z_p[k] = orig_z_full(i,j,k);
             } else if (j == jmax_orig) {
                 orig_z_p[k] = orig_z_full(i,jmax_orig-1,k);
@@ -758,10 +751,6 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
 
     // Save the interpolated data.
     for (int k=0; k < kmax_new; k++) {
-        if (mask(i,j,k) && update_bc_data && bx_xlo.contains(i,j,k)) bc_data_xlo(i,j,k,0) = new_data[k];
-        if (mask(i,j,k) && update_bc_data && bx_xhi.contains(i,j,k)) bc_data_xhi(i,j,k,0) = new_data[k];
-        if (mask(i,j,k) && update_bc_data && bx_ylo.contains(i,j,k)) bc_data_ylo(i,j,k,0) = new_data[k];
-        if (mask(i,j,k) && update_bc_data && bx_yhi.contains(i,j,k)) bc_data_yhi(i,j,k,0) = new_data[k];
         if (itime == 0) new_data_full(i,j,k,src_comp) = new_data[k];
     }
 

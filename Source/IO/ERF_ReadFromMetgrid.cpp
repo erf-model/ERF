@@ -7,6 +7,36 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 
+Box
+read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio)
+{
+    int is, js;
+    int nx, ny, nz;
+    if (ParallelDescriptor::IOProcessor()) {
+        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+        { // Global Attributes (int)
+            std::vector<int> attr;
+            ncf.get_attr("WEST-EAST_GRID_DIMENSION"  , attr); nx = attr[0]-1;
+            ncf.get_attr("SOUTH-NORTH_GRID_DIMENSION", attr); ny = attr[0]-1;
+            ncf.get_attr("BOTTOM-TOP_GRID_DIMENSION" , attr); nz = attr[0]-1;
+            Print() << "Have read (nx,ny,nz) = " << nx << " " << ny << " " << nz << std::endl;
+            ncf.get_attr("i_parent_start", attr)   ; is    = attr[0]-1;
+            ncf.get_attr("j_parent_start", attr)   ; js    = attr[0]-1;
+            ncf.get_attr("parent_grid_ratio", attr); ratio = attr[0];
+        }
+        ncf.close();
+        amrex::Print() << "Have read (parent_ilo,parent_jlo) = " << is << " " << js << std::endl;
+        amrex::Print() << "Have read refinement ratio        = " << ratio << std::endl;
+    }
+    amrex::ParallelDescriptor::Bcast(&is   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&js   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&nx   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&ny   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&nz   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    amrex::ParallelDescriptor::Bcast(&ratio,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    return Box( IntVect(ratio*is,ratio*js,0), IntVect(ratio*is+nx-1, ratio*js+ny-1, nz-1) );
+}
+
 void
 read_from_metgrid (int lev, const Box& domain, const std::string& fname,
                    std::string& NC_dateTime, Real& NC_epochTime,
@@ -50,22 +80,25 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
         ncf.close();
 
         // Verify the inputs geometry matches what the NETCDF file has
-        Real tol   = 1.0e-3;
-        Real Len_x = NC_dx * Real(NC_nx-1);
-        Real Len_y = NC_dy * Real(NC_ny-1);
-        if (std::fabs(Len_x - (geom.ProbHi(0) - geom.ProbLo(0))) > tol) {
-            Print() << "X problem extent " << (geom.ProbHi(0) - geom.ProbLo(0)) << " does not match NETCDF file "
-                    << Len_x << "!\n";
-            Print() << "dx: " << NC_dx << ' ' << "Nx: " << NC_nx-1 << "\n";
-            Abort("Domain specification error");
-        }
-        if (std::fabs(Len_y - (geom.ProbHi(1) - geom.ProbLo(1))) > tol) {
-            Print() << "Y problem extent " << (geom.ProbHi(1) - geom.ProbLo(1)) << " does not match NETCDF file "
-                    << Len_y << "!\n";
-            Print() << "dy: " << NC_dy << ' ' << "Ny: " << NC_ny-1 << "\n";
-            Abort("Domain specification error");
-        }
-    }
+        if (lev == 0) {
+            Real tol   = 1.0e-3;
+            Real Len_x = NC_dx * Real(NC_nx-1);
+            Real Len_y = NC_dy * Real(NC_ny-1);
+            if (std::fabs(Len_x - (geom.ProbHi(0) - geom.ProbLo(0))) > tol) {
+                Print() << "X problem extent " << (geom.ProbHi(0) - geom.ProbLo(0)) << " does not match NETCDF file "
+                        << Len_x << "!\n";
+                Print() << "dx: " << NC_dx << ' ' << "Nx: " << NC_nx-1 << "\n";
+                Abort("Domain specification error");
+            }
+            if (std::fabs(Len_y - (geom.ProbHi(1) - geom.ProbLo(1))) > tol) {
+                Print() << "Y problem extent " << (geom.ProbHi(1) - geom.ProbLo(1)) << " does not match NETCDF file "
+                        << Len_y << "!\n";
+                Print() << "dy: " << NC_dy << ' ' << "Ny: " << NC_ny-1 << "\n";
+                Abort("Domain specification error");
+            }
+        } // lev == 0
+    } // IOProc
+
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
     ParallelDescriptor::Bcast(&NC_nx,        1, ioproc);
     ParallelDescriptor::Bcast(&NC_ny,        1, ioproc);
