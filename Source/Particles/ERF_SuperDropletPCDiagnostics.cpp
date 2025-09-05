@@ -41,6 +41,7 @@ Vector<std::string> SuperDropletPC::meshPlotVarNames () const
                                                        "mass_flux_y",
                                                        "mass_flux_z"),
                                           "number_density",
+                                          "sd_number_density",
                                           "mass_density",
                                           "radius",
                                           ("mass_density_"+getEnumNameString(m_species_mat[m_idx_w]->m_name)),

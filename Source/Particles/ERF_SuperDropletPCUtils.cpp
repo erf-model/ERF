@@ -17,6 +17,8 @@ void SuperDropletPC::computeMeshVar( const std::string&  a_var_name,
     if (a_lev == 0) {
         if (a_var_name == "number_density") {
             numberDensity( a_mf );
+        } else if (a_var_name == "sd_number_density") {
+            SDNumberDensity( a_mf );
         } else if (a_var_name == "mass_density") {
             massDensity( a_mf );
         } else if (a_var_name == ("mass_density_"+getEnumNameString(m_species_mat[m_idx_w]->m_name))) {
@@ -120,6 +122,36 @@ Long SuperDropletPC::NumSDDeactivated ()
                             } );
     ParallelDescriptor::ReduceLongSum(&count, 1, ParallelDescriptor::IOProcessorNumber());
     return count;
+}
+
+/*! Computes the number density of the SDs over a mesh */
+void SuperDropletPC::SDNumberDensity ( MultiFab& a_mf,  /*!< Number density multifab */
+                                       const int a_comp /*!< Multifab component to fill with number density */) const
+{
+    BL_PROFILE("SuperDropletPC::SDNumberDensity()");
+
+    AMREX_ASSERT(OK());
+    AMREX_ASSERT(numParticlesOutOfRange(*this, 0) == 0);
+
+    const auto& geom = Geom(m_lev);
+    const auto plo = geom.ProbLoArray();
+    const auto dxi = geom.InvCellSizeArray();
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+
+    a_mf.setVal(0.0);
+
+    ParticleToMesh( *this, a_mf, m_lev,
+        [=] AMREX_GPU_DEVICE (  const SuperDropletPC::ParticleTileType::ConstParticleTileDataType& ptd,
+                                int i, Array4<Real> const& rho)
+        {
+            auto p = ptd.m_aos[i];
+            ParticleInterpolator::Linear interp(p, plo, dxi);
+            interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
+                { return inv_cell_volume; });
+        });
+
+    return;
 }
 
 /*! Computes the number density of the particles over a mesh */

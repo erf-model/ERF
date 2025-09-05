@@ -191,6 +191,8 @@ class SuperDropletPC : public ERFPC
         virtual void ComputeBinnedDistributionsCell ( int, amrex::Real );
 #endif
 
+        /*! \brief Compute the SD number density on a mesh */
+        virtual void SDNumberDensity ( amrex::MultiFab&, const int a_comp=0 ) const;
         /*! \brief Compute the particle number density on a mesh */
         virtual void numberDensity ( amrex::MultiFab&, const int a_comp=0 ) const;
         /*! \brief Compute the particle mass density on a mesh */
