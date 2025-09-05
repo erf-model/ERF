@@ -6,7 +6,7 @@
 #include "AMReX_FArrayBox.H"
 #include "AMReX_MultiFab.H"
 #include "AMReX_iMultiFab.H"
-#include "AMReX_Interpolater.H"
+#include "AMReX_MFInterpolater.H"
 
 #include "ERF_IndexDefines.H"
 #include "ERF_Constants.H"
@@ -291,12 +291,12 @@ public:
       for (int nt(0); nt < nt_tot_sst; ++nt) {
           m_sst_lev[lev][nt] = sst_lev[nt].get();
       }
-      int nt_tot_tsk = tsk_lev.size();
+      int nt_tot_tsk = static_cast<int>(tsk_lev.size());
       m_tsk_lev[lev].resize(nt_tot_tsk);
       for (int nt(0); nt < nt_tot_tsk; ++nt) {
           m_tsk_lev[lev][nt] = tsk_lev[nt].get();
       }
-      int nt_tot_lmask = lmask_lev.size();
+      int nt_tot_lmask = static_cast<int>(lmask_lev.size());
       m_lmask_lev[lev].resize(nt_tot_lmask);
       for (int nt(0); nt < nt_tot_lmask; ++nt) {
           m_lmask_lev[lev][nt] = lmask_lev[nt].get();
@@ -308,7 +308,7 @@ public:
       m_eddyDiffs_lev[lev] = eddyDiffs;
 
       // Get pointers to LSM data and Fluxes
-      int nvar = lsm_data.size();
+      int nvar = static_cast<int>(lsm_data.size());
       m_lsm_data_lev[lev].resize(nvar);
       m_lsm_flux_lev[lev].resize(nvar);
       for (int n(0); n < nvar; ++n) {
@@ -340,15 +340,8 @@ public:
 
       // Z0 heights FAB
       //--------------------------------------------------------
-      amrex::Arena* Arena_Used = amrex::The_Arena();
-#ifdef AMREX_USE_GPU
-      Arena_Used = amrex::The_Pinned_Arena();
-#endif
-      amrex::Box bx = amrex::grow(m_geom[lev].Domain(), ng);
-      bx.setSmall(2, 0);
-      bx.setBig(2, 0);
-      z_0[lev].resize(bx, 1, Arena_Used);
-      z_0[lev].setVal<amrex::RunOn::Device>(z0_const);
+      z_0[lev].define(ba2d, dm, ncomp, ng);
+      z_0[lev].setVal(z0_const);
       if (read_z0) {
           read_custom_roughness(lev, fname);
       }
@@ -456,7 +449,7 @@ public:
   void update_surf_temp (const amrex::Real& time)
   {
       if (surf_heating_rate != 0) {
-          int nlevs = m_geom.size();
+          int nlevs = static_cast<int>(m_geom.size());
           for (int lev = 0; lev < nlevs; lev++) {
               t_surf[lev]->setVal(surf_temp + surf_heating_rate * time);
               amrex::Print() << "Surface temp at t=" << time << ": "
@@ -497,7 +490,7 @@ public:
 
   amrex::Real get_zref () { return m_ma.get_zref(); }
 
-  amrex::FArrayBox* get_z0 (const int& lev) { return &z_0[lev]; }
+  amrex::MultiFab* get_z0 (const int& lev) { return &z_0[lev]; }
 
   bool have_variable_sea_roughness () { return m_var_z0; }
 
@@ -582,7 +575,7 @@ private:
   amrex::Real cnk_a{0.0185};
   bool cnk_visc{false};
   amrex::Real depth{30.0};
-  amrex::Vector<amrex::FArrayBox> z_0;
+  amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};
 
   bool use_moisture;

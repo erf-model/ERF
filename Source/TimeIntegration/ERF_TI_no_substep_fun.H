@@ -176,6 +176,7 @@
 
             if (solverChoice.terrain_type == TerrainType::EB)
             {
+                BL_PROFILE("no_substep_fun_redistribute");
                 // Redistribute cons states (cell-centered)
 
                 MultiFab dUdt_tmp(ba, dm, F_slow[IntVars::cons].nComp(), F_slow[IntVars::cons].nGrow(), MFInfo(), EBFactory(level));

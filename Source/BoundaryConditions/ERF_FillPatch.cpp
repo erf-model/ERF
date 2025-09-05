@@ -75,10 +75,19 @@ ERF::FillPatchFineLevel (int lev, Real time,
     IntVect ngvect_cons = mfs_vel[Vars::cons]->nGrowVect();
     IntVect ngvect_vels = mfs_vel[Vars::xvel]->nGrowVect();
 
-    Vector<Real> ftime    = {t_old[lev  ]-start_time, t_new[lev  ]-start_time};
-    Vector<Real> ctime    = {t_old[lev-1]-start_time, t_new[lev-1]-start_time};
+    Vector<Real> ftime    = {t_old[lev  ], t_new[lev  ]};
+    Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
 
-    Vector<MultiFab*> fmf = {&vars_old[lev  ][Vars::cons], &vars_new[lev  ][Vars::cons]};
+    amrex::Real small_dt = 1.e-8 * (ftime[1] - ftime[0]);
+
+    Vector<MultiFab*> fmf;
+    if ( amrex::almostEqual(time,ftime[0]) || (time-ftime[0]) < small_dt ) {
+        fmf = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::cons]};
+    } else if (amrex::almostEqual(time,ftime[1])) {
+        fmf = {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::cons]};
+    } else {
+        fmf = {&vars_old[lev][Vars::cons], &vars_new[lev][Vars::cons]};
+    }
     Vector<MultiFab*> cmf = {&vars_old[lev-1][Vars::cons], &vars_new[lev-1][Vars::cons]};
 
     // We must fill a temporary then copy it back so we don't double add/subtract
@@ -190,26 +199,37 @@ ERF::FillPatchFineLevel (int lev, Real time,
             MultiFab& mf_v = *mfs_vel[Vars::yvel];
             MultiFab& mf_w = *mfs_vel[Vars::zvel];
 
+            Vector<MultiFab*> fmf_u; Vector<MultiFab*> fmf_v; Vector<MultiFab*> fmf_w;
+            Vector<MultiFab*> cmf_u; Vector<MultiFab*> cmf_v; Vector<MultiFab*> cmf_w;
+
             // **********************************************************************
 
-            fmf = {&vars_old[lev  ][Vars::xvel], &vars_new[lev  ][Vars::xvel]};
-            cmf = {&vars_old[lev-1][Vars::xvel], &vars_new[lev-1][Vars::xvel]};
+            if ( amrex::almostEqual(time,ftime[0]) || (time-ftime[0]) < small_dt ) {
+                fmf_u = {&vars_old[lev][Vars::xvel], &vars_old[lev][Vars::xvel]};
+                fmf_v = {&vars_old[lev][Vars::yvel], &vars_old[lev][Vars::yvel]};
+                fmf_w = {&vars_old[lev][Vars::zvel], &vars_old[lev][Vars::zvel]};
+            } else if ( amrex::almostEqual(time,ftime[1]) ) {
+                fmf_u = {&vars_new[lev][Vars::xvel], &vars_new[lev][Vars::xvel]};
+                fmf_v = {&vars_new[lev][Vars::yvel], &vars_new[lev][Vars::yvel]};
+                fmf_w = {&vars_new[lev][Vars::zvel], &vars_new[lev][Vars::zvel]};
+            } else {
+                fmf_u = {&vars_old[lev][Vars::xvel], &vars_new[lev][Vars::xvel]};
+                fmf_v = {&vars_old[lev][Vars::yvel], &vars_new[lev][Vars::yvel]};
+                fmf_w = {&vars_old[lev][Vars::zvel], &vars_new[lev][Vars::zvel]};
+            }
+            cmf_u = {&vars_old[lev-1][Vars::xvel], &vars_new[lev-1][Vars::xvel]};
+            cmf_v = {&vars_old[lev-1][Vars::yvel], &vars_new[lev-1][Vars::yvel]};
+            cmf_w = {&vars_old[lev-1][Vars::zvel], &vars_new[lev-1][Vars::zvel]};
 
             // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mf_u, ngvect_vels, IntVect(0,0,0),
-                               time, cmf, ctime, fmf, ftime,
+                               time, cmf_u, ctime, fmf_u, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BCVars::xvel_bc);
 
-            // **********************************************************************
-
-            fmf = {&vars_old[lev  ][Vars::yvel], &vars_new[lev  ][Vars::yvel]};
-            cmf = {&vars_old[lev-1][Vars::yvel], &vars_new[lev-1][Vars::yvel]};
-
-            // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mf_v, ngvect_vels, IntVect(0,0,0),
-                               time, cmf, ctime, fmf, ftime,
+                               time, cmf_v, ctime, fmf_v, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BCVars::yvel_bc);
@@ -224,12 +244,9 @@ ERF::FillPatchFineLevel (int lev, Real time,
 
             // **********************************************************************
 
-            fmf = {&vars_old[lev  ][Vars::zvel], &vars_new[lev  ][Vars::zvel]};
-            cmf = {&vars_old[lev-1][Vars::zvel], &vars_new[lev-1][Vars::zvel]};
-
             // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mf_w, ngvect_vels, IntVect(0,0,0),
-                               time, cmf, ctime, fmf, ftime,
+                               time, cmf_w, ctime, fmf_w, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BCVars::zvel_bc);
@@ -250,6 +267,8 @@ ERF::FillPatchFineLevel (int lev, Real time,
     (*physbcs_cons[lev])(*mfs_vel[Vars::cons],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
                          icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc, do_fb);
     if (!cons_only) {
+        // Note that we need to fill u and v in the case of terrain because we will use
+        //      these in the call of WFromOmega in lateral ghost cells of the fine grid
         // (*physbcs_u[lev])(*mfs_vel[Vars::xvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
         //                   ngvect_vels,time,BCVars::xvel_bc, do_fb);
         // (*physbcs_v[lev])(*mfs_vel[Vars::yvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
@@ -277,23 +296,45 @@ ERF::FillPatchCrseLevel (int lev, Real time,
     // Below we call FillPatchSingleLevel which does NOT fill ghost cells outside the domain
     //
 
-    Vector<MultiFab*> fmf = {&vars_old[lev][Vars::cons], &vars_new[lev][Vars::cons]};
+    Vector<MultiFab*> fmf;
+    Vector<MultiFab*> fmf_u;
+    Vector<MultiFab*> fmf_v;
+    Vector<MultiFab*> fmf_w;
+
+    if (amrex::almostEqual(time,ftime[0])) {
+        fmf = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::cons]};
+    } else if (amrex::almostEqual(time,ftime[1])) {
+        fmf = {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::cons]};
+    } else {
+        fmf = {&vars_old[lev][Vars::cons], &vars_new[lev][Vars::cons]};
+    }
+
     const int  ncomp = mfs_vel[Vars::cons]->nComp();
 
     FillPatchSingleLevel(*mfs_vel[Vars::cons], ngvect_cons, time, fmf, IntVect(0,0,0), ftime,
                          0, 0, ncomp, geom[lev]);
 
     if (!cons_only) {
-        fmf = {&vars_old[lev][Vars::xvel], &vars_new[lev][Vars::xvel]};
-        FillPatchSingleLevel(*mfs_vel[Vars::xvel], ngvect_vels, time, fmf,
+        if (amrex::almostEqual(time,ftime[0])) {
+            fmf_u = {&vars_old[lev][Vars::xvel], &vars_old[lev][Vars::xvel]};
+            fmf_v = {&vars_old[lev][Vars::yvel], &vars_old[lev][Vars::yvel]};
+            fmf_w = {&vars_old[lev][Vars::zvel], &vars_old[lev][Vars::zvel]};
+        } else if (amrex::almostEqual(time,ftime[1])) {
+            fmf_u = {&vars_new[lev][Vars::xvel], &vars_new[lev][Vars::xvel]};
+            fmf_v = {&vars_new[lev][Vars::yvel], &vars_new[lev][Vars::yvel]};
+            fmf_w = {&vars_new[lev][Vars::zvel], &vars_new[lev][Vars::zvel]};
+        } else {
+            fmf_u = {&vars_old[lev][Vars::xvel], &vars_new[lev][Vars::xvel]};
+            fmf_v = {&vars_old[lev][Vars::yvel], &vars_new[lev][Vars::yvel]};
+            fmf_w = {&vars_old[lev][Vars::zvel], &vars_new[lev][Vars::zvel]};
+        }
+        FillPatchSingleLevel(*mfs_vel[Vars::xvel], ngvect_vels, time, fmf_u,
                              IntVect(0,0,0), ftime,  0, 0, 1, geom[lev]);
 
-        fmf = {&vars_old[lev][Vars::yvel], &vars_new[lev][Vars::yvel]};
-        FillPatchSingleLevel(*mfs_vel[Vars::yvel], ngvect_vels, time, fmf,
+        FillPatchSingleLevel(*mfs_vel[Vars::yvel], ngvect_vels, time, fmf_v,
                              IntVect(0,0,0), ftime,  0, 0, 1, geom[lev]);
 
-        fmf = {&vars_old[lev][Vars::zvel], &vars_new[lev][Vars::zvel]};
-        FillPatchSingleLevel(*mfs_vel[Vars::zvel], ngvect_vels, time, fmf,
+        FillPatchSingleLevel(*mfs_vel[Vars::zvel], ngvect_vels, time, fmf_w,
                              IntVect(0,0,0), ftime,  0, 0, 1, geom[lev]);
     } // !cons_only
 
@@ -307,8 +348,12 @@ ERF::FillPatchCrseLevel (int lev, Real time,
 
 #ifdef ERF_USE_NETCDF
     // We call this here because it is an ERF routine
-    if (solverChoice.use_real_bcs && (lev==0)) {
-        fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
+    if(solverChoice.use_real_bcs && (lev==0)) {
+        if (solverChoice.upwind_real_bcs) {
+            fill_from_realbdy_upwind(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
+        } else {
+            fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
+        }
         do_fb = false;
     }
 #endif

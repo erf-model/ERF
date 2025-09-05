@@ -599,6 +599,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 
       if (solverChoice.terrain_type == TerrainType::EB)
       {
+          BL_PROFILE("rhs_post_eb_redistribute");
           // start_comp and num_comp
           for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
           {

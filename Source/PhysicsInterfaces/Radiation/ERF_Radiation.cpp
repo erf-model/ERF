@@ -19,8 +19,7 @@ using namespace amrex;
 Radiation::Radiation (const int& lev,
                       SolverChoice& sc)
 {
-    // Initialize kokkos
-    if (!Kokkos::is_initialized()) { Kokkos::initialize(); }
+    // Note that Kokkos is now initialized in main.cpp
 
     // Check if we have a valid moisture model
     if (sc.moisture_type != MoistureType::None) { m_moist = true; }
@@ -471,14 +470,14 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
             // EOS input (at CC)
             Real r  = cons_arr(i,j,k,Rho_comp);
             Real rt = cons_arr(i,j,k,RhoTheta_comp);
-            Real qv = (moist) ? cons_arr(i,j,k,RhoQ1_comp)/r : 0.0;
-            Real qc = (moist) ? cons_arr(i,j,k,RhoQ2_comp)/r : 0.0;
-            Real qi = (ice)   ? cons_arr(i,j,k,RhoQ3_comp)/r : 0.0;
+            Real qv = (moist) ? std::max(cons_arr(i,j,k,RhoQ1_comp)/r,0.0) : 0.0;
+            Real qc = (moist) ? std::max(cons_arr(i,j,k,RhoQ2_comp)/r,0.0) : 0.0;
+            Real qi = (ice)   ? std::max(cons_arr(i,j,k,RhoQ3_comp)/r,0.0) : 0.0;
 
             // EOS avg to z-face
-            Real r_lo  = cons_arr(i,j,k-1,Rho_comp);
-            Real rt_lo = cons_arr(i,j,k-1,RhoTheta_comp);
-            Real qv_lo = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : 0.0;
+            Real r_lo   = cons_arr(i,j,k-1,Rho_comp);
+            Real rt_lo  = cons_arr(i,j,k-1,RhoTheta_comp);
+            Real qv_lo  = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : 0.0;
             Real r_avg  = 0.5 * (r  + r_lo);
             Real rt_avg = 0.5 * (rt + rt_lo);
             Real qv_avg = 0.5 * (qv + qv_lo);
@@ -488,9 +487,9 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
             p_lay_d(icol,ilay) = getPgivenRTh(rt, qv);
             t_lay_d(icol,ilay) = getTgivenRandRTh(r, rt, qv);
             z_del_d(icol,ilay) = (z_arr) ? 0.25 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
-                                                + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
-                                                + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
-                                                + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k)) ) : dz;
+                                                  + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
+                                                  + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
+                                                  + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz;
             qv_lay_d(icol,ilay) = qv;
             qc_lay_d(icol,ilay) = qc;
             qi_lay_d(icol,ilay) = qi;
@@ -510,7 +509,7 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
             if (ilay==(nlay-1)) {
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
                 Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
-                Real qv_hi = (moist) ? cons_arr(i,j,k+1,RhoQ1_comp)/r_hi : 0.0;
+                Real qv_hi = (moist) ? std::max(cons_arr(i,j,k+1,RhoQ1_comp)/r_hi,0.0) : 0.0;
                 r_avg  = 0.5 * (r  + r_hi);
                 rt_avg = 0.5 * (rt + rt_hi);
                 qv_avg = 0.5 * (qv + qv_hi);
@@ -584,6 +583,13 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
         } // ivar
         Kokkos::deep_copy(lw_src, 0.0 );
     } // have lsm
+
+    // Enforce consistency between t_sfc and t_lev at bottom surface
+    Kokkos::parallel_for(Kokkos::RangePolicy(0, ncol),
+                         KOKKOS_LAMBDA (int icol)
+    {
+        t_lev_d(icol,0) = t_sfc_d(icol);
+    });
 }
 
 
@@ -645,7 +651,7 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
                                  + sfc_flux_dif_vis_d(icol) + sfc_flux_dif_nir_d(icol);
 
                 // LW flux for LSM (at bottom surface)
-                lsm_arr(i,j,k,5) = lw_flux_dn_d(icol,1);
+                lsm_arr(i,j,k,5) = lw_flux_dn_d(icol,0);
             });
         }
         if (m_lsm_zenith) {
@@ -1223,7 +1229,7 @@ Radiation::finalize_impl (Vector<MultiFab*>& lsm_output_ptrs)
     if (m_rad_write_fluxes) { write_rrtmgp_fluxes(); }
 
     // Fill output data for datalog before deallocating
-    if (datalog_int > 0 && m_step % datalog_int == 0) {
+    if (datalog_int > 0) {
         rrtmgp::compute_heating_rate(sw_clrsky_flux_up, sw_clrsky_flux_dn, r_lay, z_del, sw_clrsky_heating);
         rrtmgp::compute_heating_rate(lw_clrsky_flux_up, lw_clrsky_flux_dn, r_lay, z_del, lw_clrsky_heating);
 

@@ -30,13 +30,25 @@ Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
 
+Real ERF::start_time    = 0.0;
+Real ERF::stop_time     = std::numeric_limits<amrex::Real>::max();
+
+#ifdef ERF_USE_NETCDF
+Real ERF::start_bdy_time     = 0.0;
+Real ERF::start_low_time     = 0.0;
+
+Real ERF::bdy_time_interval  = std::numeric_limits<amrex::Real>::max();
+Real ERF::low_time_interval  = std::numeric_limits<amrex::Real>::max();
+#endif
+
 // Time step control
-Real ERF::cfl           =  0.8;
-Real ERF::sub_cfl       =  1.0;
-Real ERF::init_shrink   =  1.0;
-Real ERF::change_max    =  1.1;
+Real ERF::cfl            = 0.8;
+Real ERF::sub_cfl        = 1.0;
+Real ERF::init_shrink    = 1.0;
+Real ERF::change_max     = 1.1;
 Real ERF::dt_max_initial = 2.0e100;
-Real ERF:: dt_max = 1e9;
+Real ERF:: dt_max        = 1.0e9;
+
 int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
@@ -473,9 +485,8 @@ ERF::Evolve ()
     for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step)
     {
         if (use_datetime) {
-            Print() << "\n" << getTimestamp(cur_time, datetime_format)
-                    << " (" << cur_time-start_time << " s elapsed)"
-                    << std::endl;
+            Print() << "\n" << getTimestamp(start_time+cur_time, datetime_format)
+                    << " (" << cur_time << " s elapsed)" << std::endl;
         }
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
@@ -671,7 +682,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
     if (solverChoice.rad_type != RadiationType::None)
     {
-        if (rad_datalog_int > 0 && (nstep+1) % rad_datalog_int == 0) {
+        if ( rad_datalog_int > 0 &&
+             (((nstep+1) % rad_datalog_int == 0) || (nstep==0)) ) {
             if (rad[0]->hasDatalog()) {
                 rad[0]->WriteDataLog(time+start_time);
             }
@@ -785,10 +797,11 @@ ERF::InitData_pre ()
     last_check_file_step  = -1;
 
     if (restart_chkfile.empty()) {
-        // start simulation from the beginning
 
+        // Start simulation from the beginning
         const Real time = start_time;
         InitFromScratch(time);
+
     } else {
         // For initialization this is done in init_only; it is done here for restart
         init_bcs();
@@ -915,11 +928,12 @@ ERF::InitData_post ()
 
             int n_time_old = static_cast<int>(t_new[0] /  dT);
 
-            // I don't think this works if lev > 0 ...?
-            AMREX_ALWAYS_ASSERT(finest_level == 0);
             int lev = 0;
             bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-            for (int itime = n_time_old; itime < n_time_old+3; itime++)
+
+            int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
+
+            for (int itime = n_time_old; itime < ntimes; itime++)
             {
                 read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
                                  bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
@@ -1114,8 +1128,13 @@ ERF::InitData_post ()
             bool cons_only = false;
             Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
                                          &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
-            fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
-                              ncomp_cons,ngvect_cons,ngvect_vels);
+            if (solverChoice.upwind_real_bcs) {
+                fill_from_realbdy_upwind(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                                         ncomp_cons,ngvect_cons,ngvect_vels);
+            } else {
+                fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
+                                  ncomp_cons,ngvect_cons,ngvect_vels);
+            }
             do_fb = false;
     }
 #endif
@@ -1693,15 +1712,19 @@ ERF::init_only (int lev, Real time)
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
+
         init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
+
         if (lev==0) {
-            if ((start_time > 0) && (start_time != t_new[lev])) {
+            if ((start_time > 0) && (start_time != start_bdy_time)) {
                 Print() << "Ignoring specified start_time="
                         << std::setprecision(timeprecision) << start_time
                         << std::endl;
             }
-            start_time = t_new[lev];
         }
+
+        start_time = start_bdy_time;
+
         use_datetime = true;
 
         // The physbc's need the terrain but are needed for initHSE

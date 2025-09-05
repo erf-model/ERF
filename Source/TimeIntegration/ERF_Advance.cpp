@@ -120,6 +120,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     }
 
 #if defined(ERF_USE_WINDFARM)
+    // **************************************************************************************
+    // Update the windfarm sources
+    // **************************************************************************************
     if (solverChoice.windfarm_type != WindFarmType::None) {
         advance_windfarm(Geom(lev), dt_lev, S_old,
                          U_old, V_old, W_old, vars_windfarm[lev],
@@ -127,6 +130,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     }
 
 #endif
+
+    // **************************************************************************************
+    // Update the radiation sources
+    // **************************************************************************************
+    advance_radiation(lev, S_new, dt_lev);
 
     const BoxArray&            ba = S_old.boxArray();
     const DistributionMapping& dm = S_old.DistributionMap();
@@ -189,11 +197,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // Update the land surface model
     // **************************************************************************************
     advance_lsm(lev, S_new, U_new, V_new, dt_lev);
-
-    // **************************************************************************************
-    // Update the radiation
-    // **************************************************************************************
-    advance_radiation(lev, S_new, dt_lev);
 
 #ifdef ERF_USE_PARTICLES
     // **************************************************************************************

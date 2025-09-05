@@ -293,14 +293,8 @@ ERF::WriteCheckpointFile () const
             VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PBLH"));
 
             // Z0
-            for (MFIter mfi(m_var); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.growntilebox();
-                Array4<const Real> const& fab_arr = m_SurfaceLayer->get_z0(lev)->const_array();
-                Array4<      Real> const&  mv_arr = m_var.array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    mv_arr(i,j,k) = fab_arr(i,j,k);
-                });
-            }
+            src = m_SurfaceLayer->get_z0(lev);
+            MultiFab::Copy(m_var,*src,0,0,1,ng);
             VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0"));
         }
 
@@ -1075,12 +1069,9 @@ ERF::ReadCheckpointFileSurfaceLayer ()
         // Z0
         std::string Z0FileName(restart_chkfile + "/Level_0/Z0_H");
         if (amrex::FileExists(Z0FileName)) {
+            dst = m_SurfaceLayer->get_z0(lev);
             VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0"));
-            for (amrex::MFIter mfi(m_var); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.growntilebox();
-                FArrayBox* most_z0 = (m_SurfaceLayer->get_z0(lev));
-                most_z0->copy<RunOn::Device>(m_var[mfi], bx);
-            }
+            MultiFab::Copy(*dst,m_var,0,0,1,ng);
         }
     }
 }

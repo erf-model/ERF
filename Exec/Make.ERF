@@ -1,4 +1,7 @@
-AMREX_HOME      ?= $(ERF_HOME)/Submodules/AMReX
+AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
+EKAT_HOME  ?= $(ERF_HOME)/Submodules/ekat/build/install
+EAMXX_HOME ?= $(ERF_HOME)/external/E3SM/components/eamxx/src
+      
 ifeq ($(USE_MORR_FORT), TRUE)
 DEFINES += -DERF_USE_MORR_FORT
 BL_NO_FORT = FALSE
@@ -126,47 +129,46 @@ INCLUDE_LOCATIONS += $(ERF_MOISTURE_SATADJ_DIR)
 # If using windfarm parametrization, then compile all models and choose 
 # at runtime from the inputs
 ifeq ($(USE_WINDFARM), TRUE)
-DEFINES += -DERF_USE_WINDFARM
-ERF_WINDFARM_DIR        = $(ERF_SOURCE_DIR)/WindFarmParametrization
-ERF_WINDFARM_NULL_DIR   = $(ERF_WINDFARM_DIR)/Null
-ERF_WINDFARM_FITCH_DIR = $(ERF_WINDFARM_DIR)/Fitch
-ERF_WINDFARM_EWP_DIR   = $(ERF_WINDFARM_DIR)/EWP
-ERF_WINDFARM_SIMPLEAD_DIR   = $(ERF_WINDFARM_DIR)/SimpleActuatorDisk
-ERF_WINDFARM_GENERALAD_DIR   = $(ERF_WINDFARM_DIR)/GeneralActuatorDisk
+    DEFINES += -DERF_USE_WINDFARM
+    ERF_WINDFARM_DIR        = $(ERF_SOURCE_DIR)/WindFarmParametrization
+    ERF_WINDFARM_NULL_DIR   = $(ERF_WINDFARM_DIR)/Null
+    ERF_WINDFARM_FITCH_DIR = $(ERF_WINDFARM_DIR)/Fitch
+    ERF_WINDFARM_EWP_DIR   = $(ERF_WINDFARM_DIR)/EWP
+    ERF_WINDFARM_SIMPLEAD_DIR   = $(ERF_WINDFARM_DIR)/SimpleActuatorDisk
+    ERF_WINDFARM_GENERALAD_DIR   = $(ERF_WINDFARM_DIR)/GeneralActuatorDisk
 
-include $(ERF_WINDFARM_DIR)/Make.package
-include $(ERF_WINDFARM_NULL_DIR)/Make.package
-include $(ERF_WINDFARM_FITCH_DIR)/Make.package
-include $(ERF_WINDFARM_EWP_DIR)/Make.package
-include $(ERF_WINDFARM_SIMPLEAD_DIR)/Make.package
-include $(ERF_WINDFARM_GENERALAD_DIR)/Make.package
+    include $(ERF_WINDFARM_DIR)/Make.package
+    include $(ERF_WINDFARM_NULL_DIR)/Make.package
+    include $(ERF_WINDFARM_FITCH_DIR)/Make.package
+    include $(ERF_WINDFARM_EWP_DIR)/Make.package
+    include $(ERF_WINDFARM_SIMPLEAD_DIR)/Make.package
+    include $(ERF_WINDFARM_GENERALAD_DIR)/Make.package
 
-VPATH_LOCATIONS   += $(ERF_WINDFARM_DIR)
-INCLUDE_LOCATIONS += $(ERF_WINDFARM_DIR)
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_DIR)
 
-VPATH_LOCATIONS   += $(ERF_WINDFARM_NULL_DIR)
-INCLUDE_LOCATIONS += $(ERF_WINDFARM_NULL_DIR)
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_NULL_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_NULL_DIR)
 
-VPATH_LOCATIONS   += $(ERF_WINDFARM_FITCH_DIR)
-INCLUDE_LOCATIONS += $(ERF_WINDFARM_FITCH_DIR)
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_FITCH_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_FITCH_DIR)
 
-VPATH_LOCATIONS   += $(ERF_WINDFARM_EWP_DIR)
-INCLUDE_LOCATIONS += $(ERF_WINDFARM_EWP_DIR)
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_EWP_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_EWP_DIR)
 
-VPATH_LOCATIONS   += $(ERF_WINDFARM_SIMPLEAD_DIR)
-INCLUDE_LOCATIONS += $(ERF_WINDFARM_SIMPLEAD_DIR)
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_SIMPLEAD_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_SIMPLEAD_DIR)
 
-VPATH_LOCATIONS   += $(ERF_WINDFARM_GENERALAD_DIR)
-INCLUDE_LOCATIONS += $(ERF_WINDFARM_GENERALAD_DIR)
-
+    VPATH_LOCATIONS   += $(ERF_WINDFARM_GENERALAD_DIR)
+    INCLUDE_LOCATIONS += $(ERF_WINDFARM_GENERALAD_DIR)
 endif
 
 ifeq ($(USE_FFT),TRUE)
-DEFINES += -DERF_USE_FFT
+    DEFINES += -DERF_USE_FFT
 endif
 
 ifeq ($(USE_WW3_COUPLING), TRUE)
-DEFINES += -DERF_USE_WW3_COUPLING
+    DEFINES += -DERF_USE_WW3_COUPLING
 endif
 
 ERF_LSM_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel
@@ -226,6 +228,7 @@ ifeq ($(USE_RRTMGP), TRUE)
     DEFINES += -DRRTMGP_ENABLE_KOKKOS
     
     RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
+    
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
@@ -235,6 +238,7 @@ ifeq ($(USE_RRTMGP), TRUE)
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples/all-sky
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
     VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
+
     INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/
     INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp
     INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
@@ -252,21 +256,82 @@ ifeq ($(USE_SHOC), TRUE)
 
     USE_KOKKOS = TRUE
 
+    DEFINES += -DERF_USE_KOKKOS
     DEFINES += -DERF_USE_SHOC
     DEFINES += -DSHOC_ENABLE_KOKKOS
+    DEFINES += -DEKAT_ENABLE_MPI
+    DEFINES += -DSCREAM_SHOC_SMALL_KERNELS
+    
+    # Location of EKAT include and library
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include/ekat
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/kokkos
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/pack
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/algorithm
+    LIBRARY_LOCATIONS += $(EKAT_HOME)/lib
+    LIBRARIES += -lekat_core -lspdlog
 
+    # This directory holds the ERF-SHOC interface routines
     ERF_SHOC_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Shoc
     include $(ERF_SHOC_DIR)/Make.package
     VPATH_LOCATIONS   += $(ERF_SHOC_DIR)
     INCLUDE_LOCATIONS += $(ERF_SHOC_DIR)
     
-    SHOC_HOME         ?= $(ERF_HOME)/external/E3SM/components/eamxx/src/physics/shoc/
-    VPATH_LOCATIONS   += $(SHOC_HOME)/disp/
+    # This directory holds the SHOC source itself
+    SHOC_HOME = $(EAMXX_HOME)/physics/shoc
+    VPATH_LOCATIONS   += $(SHOC_HOME)/disp
     VPATH_LOCATIONS   += $(SHOC_HOME)/eti
     VPATH_LOCATIONS   += $(SHOC_HOME)/impl
+    INCLUDE_LOCATIONS += $(SHOC_HOME)
     INCLUDE_LOCATIONS += $(SHOC_HOME)/disp
     INCLUDE_LOCATIONS += $(SHOC_HOME)/eti
     INCLUDE_LOCATIONS += $(SHOC_HOME)/impl
+
+    # Other things we get from eamxx
+    VPATH_LOCATIONS   += $(EAMXX_HOME)/physics/share
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
+endif
+    
+# If using P3, compile relevant source and headers
+ifeq ($(USE_P3), TRUE)
+
+    USE_KOKKOS = TRUE
+
+    DEFINES += -DERF_USE_P3
+    DEFINES += -DP3_ENABLE_KOKKOS
+    DEFINES += -DEKAT_ENABLE_MPI
+    
+    # Location of EKAT include and library
+    DEFINES   += -DERF_USE_KOKKOS
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include
+    INCLUDE_LOCATIONS += $(EKAT_HOME)/include/ekat
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/kokkos
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/pack
+    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/algorithm
+    LIBRARY_LOCATIONS += $(EKAT_HOME)/lib
+    LIBRARIES += -lekat_core -lspdlog
+    
+    # This directory holds the ERF-P3 interface routines
+    ERF_P3_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/P3
+    include $(ERF_P3_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_P3_DIR)
+    INCLUDE_LOCATIONS += $(ERF_P3_DIR)
+    
+    # This directory holds the P3 source itself
+    P3_HOME = $(EAMXX_HOME)/physics/p3
+    VPATH_LOCATIONS   += $(P3_HOME)/disp
+    VPATH_LOCATIONS   += $(P3_HOME)/eti
+    VPATH_LOCATIONS   += $(P3_HOME)/impl
+    INCLUDE_LOCATIONS += $(P3_HOME)/disp
+    INCLUDE_LOCATIONS += $(P3_HOME)/eti
+    INCLUDE_LOCATIONS += $(P3_HOME)/impl
+
+    # Other things we get from eamxx
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics
+    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
 endif
     
     
@@ -306,15 +371,15 @@ ifeq ($(USE_MULTIBLOCK), TRUE)
   DEFINES += -DERF_USE_MULTIBLOCK
 endif
 
+# NOTE: EKAT provides KOKKOS
 ifeq ($(USE_KOKKOS), TRUE)
-  KOKKOS_HOME ?= $(ERF_HOME)/Submodules/ekat/extern/kokkos
-  DEFINES += -DERF_USE_KOKKOS
-  INCLUDE_LOCATIONS += $(KOKKOS_HOME)/include
-  LIBRARY_LOCATIONS += $(KOKKOS_HOME)/lib
+  DEFINES   += -DERF_USE_KOKKOS
+  INCLUDE_LOCATIONS += $(EKAT_HOME)/include/kokkos
+  LIBRARY_LOCATIONS += $(EKAT_HOME)/lib
   LIBRARIES += -lkokkoscore
 endif
 
-#turn on NetCDF macro define
+# Turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
   has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)

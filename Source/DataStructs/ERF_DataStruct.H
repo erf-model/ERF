@@ -254,6 +254,7 @@ struct SolverChoice {
             amrex::Warning("erf.init_type = Real is deprecated; please replace Real by WRFInput");
             init_type = InitType::WRFInput;
             use_real_bcs = true;
+            pp.query("upwind_real_bcs",upwind_real_bcs);
         } else if ( (init_type_temp_string == "Ideal") || (init_type_temp_string == "ideal") ) {
             amrex::Warning("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
             init_type = InitType::WRFInput;
@@ -261,6 +262,9 @@ struct SolverChoice {
         } else {
             pp.query_enum_case_insensitive("init_type",init_type);
             use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
+            if (use_real_bcs) {
+                pp.query("upwind_real_bcs",upwind_real_bcs);
+            }
         }
 
         if ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) ) {
@@ -283,6 +287,9 @@ struct SolverChoice {
             pp.query("use_real_bcs", use_real_bcs_temp);
             if (use_real_bcs && !use_real_bcs_temp) {
                 use_real_bcs = false;
+            }
+            if (use_real_bcs) {
+                pp.query("upwind_real_bcs",upwind_real_bcs);
             }
         }
 
@@ -504,6 +511,14 @@ struct SolverChoice {
                 }
             }
         }
+
+        // Are we using SHOC?
+        pp.query("use_shoc", use_shoc);
+#ifndef ERF_USE_SHOC
+        if (use_shoc) {
+            amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
+        }
+#endif
 
         // Which type of multilevel coupling
         coupling_type = CouplingType::TwoWay; // Default
@@ -756,6 +771,9 @@ struct SolverChoice {
     bool use_real_bcs = false;
 
     inline static
+    bool upwind_real_bcs = false;
+
+    inline static
     MeshType mesh_type = MeshType::ConstantDz;
 
     static
@@ -834,6 +852,9 @@ struct SolverChoice {
 
     // MOST stress rotations
     bool use_rotate_surface_flux = false;
+
+    // Should we use SHOC?
+    bool use_shoc = false;
 
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;

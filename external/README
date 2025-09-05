@@ -1,0 +1,4 @@
+In this directory we want to have symbolic links to the actual P3 and shoc directories in E3SM,e.g.
+
+P3   -> /my_workdir/E3SM/components/eamxx/src/physics/p3/
+shoc -> /my_workdir/E3SM/components/eamxx/src/physics/shoc
