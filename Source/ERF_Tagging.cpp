@@ -48,9 +48,45 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             amrex::Abort("These must be the same -- please edit your inputs file and try again.");
         }
 
+<<<<<<< HEAD
         if (solverChoice.init_type == InitType::WRFInput) {
             if ( (ref_ratio[levc][2]) != 1) {
                 amrex::Abort("The ref_ratio specified in the inputs file must have 1 in the z direction; please use ref_ratio_vect rather than ref_ratio");
+=======
+        if ( (ref_ratio[levc][2]) != 1) {
+            amrex::Abort("The ref_ratio specified in the inputs file must have 1 in the z direction; please use ref_ratio_vect rather than ref_ratio");
+        }
+        subdomain.coarsen(IntVect(ratio,ratio,1));
+
+        // We assume there is only one subdomain at levc; otherwise we don't know
+        //     which one is the parent of the fine region we are trying to create
+        AMREX_ALWAYS_ASSERT(subdomains[levc].size() == 1);
+
+        // We assume there is only one box in the first subdomain at levc; otherwise we don't know
+        //    how to compute the offset
+        AMREX_ALWAYS_ASSERT(subdomains[levc][0].size() == 1);
+
+        Box coarser_level(subdomains[levc][0].minimalBox());
+        subdomain.shift(coarser_level.smallEnd());
+
+        if (verbose > 0) {
+            amrex::Print() << " Crse subdomain to be tagged is" << subdomain << std::endl;
+        }
+
+        Box new_fine(subdomain); new_fine.refine(IntVect(ratio,ratio,1));
+        num_boxes_at_level[levc+1] = 1;
+        boxes_at_level[levc+1].push_back(new_fine);
+
+        for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
+            auto tag_arr = tags.array(mfi);  // Get device-accessible array
+
+            Box bx = mfi.validbox(); bx &= subdomain;
+
+            if (!bx.isEmpty()) {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    tag_arr(i,j,k) = TagBox::SET;
+                });
+>>>>>>> 1a669445 (WIP cleaned up the multilevel metgrid pathway to take advantage of existing code in the wrfinput pathway. Adjusted assertions to reflect different expectations for level 0 and deeper levels.)
             }
             subdomain.coarsen(IntVect(ratio,ratio,1));
         } else if (solverChoice.init_type == InitType::Metgrid) {
