@@ -25,6 +25,9 @@ ERF::init_from_metgrid (int lev)
 #endif
 
     int ntimes = num_files_at_level[lev];
+#ifndef AMREX_USE_GPU
+    Print() << ntimes << " met_em.d0" << lev+1 << "*.nc files are listed" << std::endl;
+#endif
 
     if (nc_init_file.empty())
         Error("NetCDF initialization file name must be provided via input");
@@ -33,7 +36,8 @@ ERF::init_from_metgrid (int lev)
         Error("NetCDF initialization file name must be provided via input");
 
     // At least two met_em files are necessary to calculate tendency terms.
-    AMREX_ALWAYS_ASSERT(ntimes >= 2);
+    if (lev == 0)
+        AMREX_ALWAYS_ASSERT(ntimes >= 2);
 
     // At least three points are necessary if there is a relaxation zone.
     if (real_width > real_set_width)
@@ -132,16 +136,18 @@ ERF::init_from_metgrid (int lev)
     t_new[lev] = 0.;
     t_old[lev] = -1.e200;
 
-    // Determine the spacing between met_em files.
-    bdy_time_interval = NC_epochTime[1]-NC_epochTime[0];
+    if (lev == 0) {
+        // Determine the spacing between met_em files.
+        bdy_time_interval = NC_epochTime[1]-NC_epochTime[0];
 
-    // Verify that met_em files have even spacing in time.
-    for (int itime(1); itime < ntimes; itime++) {
-        Real NC_dt = NC_epochTime[itime]-NC_epochTime[itime-1];
-#ifndef AMREX_USE_GPU
-        Print() << " " << nc_init_file[lev][itime-1] << " / " << nc_init_file[lev][itime] << " are " << NC_dt << " seconds apart" << std::endl;
-#endif
-        if (NC_dt != bdy_time_interval) Error("Time interval between consecutive met_em files must be consistent.");
+        // Verify that met_em files have even spacing in time.
+        for (int itime(1); itime < ntimes; itime++) {
+            Real NC_dt = NC_epochTime[itime]-NC_epochTime[itime-1];
+    #ifndef AMREX_USE_GPU
+            Print() << " " << nc_init_file[lev][itime-1] << " / " << nc_init_file[lev][itime] << " are " << NC_dt << " seconds apart" << std::endl;
+    #endif
+            if (NC_dt != bdy_time_interval) Error("Time interval between consecutive met_em files must be consistent.");
+        }
     }
 
     auto& lev_new = vars_new[lev];
