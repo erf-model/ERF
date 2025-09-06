@@ -23,6 +23,7 @@ Problem::Problem ()
 
   pp.query("hmax", parms.hmax);
   pp.query("L", parms.L);
+  pp.query("z_offset", parms.z_offset);
 
   init_base_parms(parms.rho_0, parms.T_0);
 }
@@ -135,6 +136,7 @@ Problem::init_custom_terrain (
     // if hm is nonzero, then use alternate hill definition
     Real hm = parms.hmax;
     Real L = parms.L;
+    Real z_offset = parms.z_offset;
 
     // Populate bottom plane
     int k0 = domlo_z;
@@ -187,7 +189,7 @@ Problem::init_custom_terrain (
                 z_arr(i,j,k0) = num / (x*x + 4 * a * a);
             } else {
                 Real x_L = x / L;
-                z_arr(i,j,k0) = hm / (1 + x_L*x_L);
+                z_arr(i,j,k0) = hm / (1 + x_L*x_L) + z_offset;
             }
         });
 #endif
