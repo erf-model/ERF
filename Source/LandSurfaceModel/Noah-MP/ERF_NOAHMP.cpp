@@ -13,30 +13,37 @@ using namespace amrex;
 /* Initialize lsm data structures */
 void
 NOAHMP::Init (const int& lev,
-            const MultiFab& cons_in,
-            const Geometry& geom,
-            const Real& dt)
+              const MultiFab& cons_in,
+              const Geometry& geom,
+              const Real& dt)
 {
 
-    m_dt = dt;
+    m_dt   = dt;
     m_geom = geom;
 
     Box domain = geom.Domain();
     khi_lsm    = domain.smallEnd(2) - 1;
 
-    LsmVarMap.resize(m_lsm_size);
-    LsmVarMap = {LsmVar_NOAHMP::t_sfc, LsmVar_NOAHMP::sfc_emis,
-                 LsmVar_NOAHMP::sfc_alb_dir_vis, LsmVar_NOAHMP::sfc_alb_dir_nir,
-                 LsmVar_NOAHMP::sfc_alb_dif_vis, LsmVar_NOAHMP::sfc_alb_dif_nir,
-                 LsmVar_NOAHMP::sw_flux_dn , LsmVar_NOAHMP::lw_flux_dn };
+    LsmDataMap.resize(m_lsm_data_size);
+    LsmDataMap = {LsmData_NOAHMP::t_sfc          , LsmData_NOAHMP::sfc_emis       ,
+                  LsmData_NOAHMP::sfc_alb_dir_vis, LsmData_NOAHMP::sfc_alb_dir_nir,
+                  LsmData_NOAHMP::sfc_alb_dif_vis, LsmData_NOAHMP::sfc_alb_dif_nir,
+                  LsmData_NOAHMP::sw_flux_dn     , LsmData_NOAHMP::lw_flux_dn     };
+    LsmDataName.resize(m_lsm_data_size);
+    LsmDataName = {"t_sfc"          , "sfc_emis"        ,
+                  "sfc_alb_dir_vis" , "sfc_alb_dir_nir" ,
+                  "sfc_alb_dif_vis" , "sfc_alb_dif_nir" ,
+                   "sw_flux_dn"     , "lw_flux_dn"      };
 
-    LsmVarName.resize(m_lsm_size);
-    LsmVarName = {"t_sfc"      , "sfc_emis"   ,
-                  "sfc_alb_dir_vis", "sfc_alb_dir_nir",
-                  "sfc_alb_dif_vis", "sfc_alb_dif_nir",
-                  "sw_flux_dn" , "lw_flux_dn" };
 
-    amrex::ParmParse pp("erf");
+    LsmFluxMap.resize(m_lsm_flux_size);
+    LsmFluxMap = {LsmFlux_NOAHMP::q_flux         , LsmFlux_NOAHMP::t_flux         ,
+                  LsmFlux_NOAHMP::tau13          , LsmFlux_NOAHMP::tau23          };
+    LsmFluxName.resize(m_lsm_flux_size);
+    LsmFluxName = {"t_flux"         , "q_flux"         ,
+                   "tau13"          , "tau23"          };
+
+    ParmParse pp("erf");
     pp.query("plot_int_1" , m_plot_int_1);
 
     // NOTE: All boxes in ba extend from zlo to zhi, so this transform is valid.
@@ -63,31 +70,35 @@ NOAHMP::Init (const int& lev,
     lsm_rb.setHi(2,lsm_z_hi); lsm_rb.setLo(2,lsm_z_lo);
     m_lsm_geom.define( ba_lsm.minimalBox(), lsm_rb, m_geom.Coord(), m_geom.isPeriodic() );
 
-    // Create the data and fluxes
-    for (auto ivar = 0; ivar < LsmVar_NOAHMP::NumVars; ++ivar) {
+    // Create the data
+    for (auto ivar = 0; ivar < LsmData_NOAHMP::NumVars; ++ivar) {
         // State vars are CC
-        lsm_fab_vars[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
+        lsm_fab_data[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
 
         // NOTE: Radiation steps first so we set values
         //       to reasonable initialization for coupling
         Real val_to_set = 0.0;
-        if (ivar == LsmVar_NOAHMP::t_sfc) {
+        if (ivar == LsmData_NOAHMP::t_sfc) {
             val_to_set = 300.0;
-        } else if (ivar == LsmVar_NOAHMP::sfc_emis) {
+        } else if (ivar == LsmData_NOAHMP::sfc_emis) {
             val_to_set = 0.9;
-        } else if ((ivar>=LsmVar_NOAHMP::sfc_alb_dir_vis) && (ivar<=LsmVar_NOAHMP::sfc_alb_dif_nir)) {
+        } else if ( (ivar>=LsmData_NOAHMP::sfc_alb_dir_vis) &&
+                    (ivar<=LsmData_NOAHMP::sfc_alb_dif_nir) ) {
             val_to_set = 0.06;
         } else {
             val_to_set = 0.0;
         }
-        lsm_fab_vars[ivar]->setVal(val_to_set);
+        lsm_fab_data[ivar]->setVal(val_to_set);
+    }
 
-        // Fluxes are nodal in z
-        lsm_fab_flux[ivar] = std::make_shared<MultiFab>(convert(ba_lsm, IntVect(0,0,1)), dm, 1, IntVect(0,0,0));
+    // Create the fluxes
+    for (auto ivar = 0; ivar < LsmFlux_NOAHMP::NumVars; ++ivar) {
+        // NOTE: Fluxes are CC with ghost cells for averaging
+        lsm_fab_flux[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, IntVect(1,1,0));
         lsm_fab_flux[ivar]->setVal(0.);
     }
 
-    amrex::Print() << "Noah-MP initialization started" << std::endl;
+    Print() << "Noah-MP initialization started" << std::endl;
 
     // Set noahmpio_vect to the size of local blocks (boxes)
     noahmpio_vect.resize(cons_in.local_size(), lev);
@@ -95,10 +106,10 @@ NOAHMP::Init (const int& lev,
     // Iterate over multifab and noahmpio object together. Multifabs is
     // used to extract size of blocks and set bounds for noahmpio objects.
     int idb = 0;
-    for (amrex::MFIter mfi(cons_in, false); mfi.isValid(); ++mfi, ++idb) {
+    for (MFIter mfi(cons_in, false); mfi.isValid(); ++mfi, ++idb) {
 
         // Get bounds for the tile
-        const amrex::Box& bx = mfi.tilebox();
+        const Box& bx = mfi.tilebox();
 
         // Check if tile is at the lower boundary in lower z direction
         if (bx.smallEnd(2) == domain.smallEnd(2)) {
@@ -116,10 +127,10 @@ NOAHMP::Init (const int& lev,
             noahmpio->ScalarInitDefault();
 
             // Store the rank of process for noahmp
-            noahmpio->rank = amrex::ParallelDescriptor::MyProc();
+            noahmpio->rank = ParallelDescriptor::MyProc();
 
             // Store parallel communicator for noahmp
-            noahmpio->comm = MPI_Comm_c2f(amrex::ParallelDescriptor::Communicator());
+            noahmpio->comm = MPI_Comm_c2f(ParallelDescriptor::Communicator());
 
             // Read namelist.erf file. This file contains
             // noahmpio specific parameters and is read by
@@ -136,9 +147,9 @@ NOAHMP::Init (const int& lev,
             // This will be changed later if we want to do special memory
             // management for expensive use cases.
             noahmpio->xstart = bx.smallEnd(0);
-            noahmpio->xend = bx.bigEnd(0);
+            noahmpio->xend   = bx.bigEnd(0);
             noahmpio->ystart = bx.smallEnd(1);
-            noahmpio->yend = bx.bigEnd(1);
+            noahmpio->yend   = bx.bigEnd(1);
 
             // Domain bounds
             noahmpio->ids = noahmpio->xstart;
@@ -181,65 +192,73 @@ NOAHMP::Init (const int& lev,
             noahmpio->InitMain();
 
             // Write initial plotfile for land with the tag 0
-            amrex::Print() << "Noah-MP writing lnd.nc file at lev: " << lev << std::endl;
+            Print() << "Noah-MP writing lnd.nc file at lev: " << lev << std::endl;
             noahmpio->WriteLand(0);
         }
   }
 
-  amrex::Print() << "Noah-MP initialization completed" << std::endl;
+  Print() << "Noah-MP initialization completed" << std::endl;
 
 };
 
 void
 NOAHMP::Advance_With_State (const int& lev,
-                          MultiFab& cons_in,
-                          MultiFab& xvel_in,
-                          MultiFab& yvel_in,
-                          MultiFab* hfx3_out,
-                          MultiFab* qfx3_out,
-                          const amrex::Real& dt,
-                          const int& nstep) {
+                            MultiFab& cons_in,
+                            MultiFab& xvel_in,
+                            MultiFab& yvel_in,
+                            MultiFab* /*hfx3_out*/,
+                            MultiFab* /*qfx3_out*/,
+                            const amrex::Real& dt,
+                            const int& nstep)
+{
 
     Box domain = m_geom.Domain();
 
-    amrex::Print () << "Noah-MP driver started at time step: " << nstep+1 << std::endl;
+    Print () << "Noah-MP driver started at time step: " << nstep+1 << std::endl;
 
     // Loop over blocks to copy forcing data to Noahmp, drive the land model,
     // and copy data back to ERF Multifabs.
     int idb = 0;
-    for (amrex::MFIter mfi(cons_in, false); mfi.isValid(); ++mfi, ++idb) {
+    for (MFIter mfi(cons_in, false); mfi.isValid(); ++mfi, ++idb) {
 
-        const amrex::Box& bx = mfi.tilebox();
+        const Box& bx = mfi.tilebox();
 
         // Check if tile is at the lower boundary in lower z direction
         if (bx.smallEnd(2) == domain.smallEnd(2)) {
 
             NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
 
-            const amrex::Array4<const amrex::Real>& U_PHY = xvel_in.const_array(mfi);
-            const amrex::Array4<const amrex::Real>& V_PHY = yvel_in.const_array(mfi);
-            const amrex::Array4<const amrex::Real>& QV_TH = cons_in.const_array(mfi);
-            const amrex::Array4<const amrex::Real>& SWDOWN = lsm_fab_vars[LsmVar_NOAHMP::sw_flux_dn]->const_array(mfi);
-            const amrex::Array4<const amrex::Real>& GLW = lsm_fab_vars[LsmVar_NOAHMP::lw_flux_dn]->const_array(mfi);
+            const Array4<const Real>& U_PHY  = xvel_in.const_array(mfi);
+            const Array4<const Real>& V_PHY  = yvel_in.const_array(mfi);
+            const Array4<const Real>& QV_TH  = cons_in.const_array(mfi);
 
-            amrex::Array4<amrex::Real> TSK = lsm_fab_vars[LsmVar_NOAHMP::t_sfc]->array(mfi);
-            amrex::Array4<amrex::Real> EMISS = lsm_fab_vars[LsmVar_NOAHMP::sfc_emis]->array(mfi);
-            amrex::Array4<amrex::Real> ALBSFCDIR_VIS = lsm_fab_vars[LsmVar_NOAHMP::sfc_alb_dir_vis]->array(mfi);
-            amrex::Array4<amrex::Real> ALBSFCDIR_NIR = lsm_fab_vars[LsmVar_NOAHMP::sfc_alb_dir_nir]->array(mfi);
-            amrex::Array4<amrex::Real> ALBSFCDIF_VIS = lsm_fab_vars[LsmVar_NOAHMP::sfc_alb_dif_vis]->array(mfi);
-            amrex::Array4<amrex::Real> ALBSFCDIF_NIR = lsm_fab_vars[LsmVar_NOAHMP::sfc_alb_dif_nir]->array(mfi);
-            amrex::Array4<amrex::Real> SHBXY = hfx3_out->array(mfi);
-            amrex::Array4<amrex::Real> EVBXY = qfx3_out->array(mfi);
+            // Into NOAH-MP
+            const Array4<const Real>& SWDOWN = lsm_fab_data[LsmData_NOAHMP::sw_flux_dn]->const_array(mfi);
+            const Array4<const Real>& GLW    = lsm_fab_data[LsmData_NOAHMP::lw_flux_dn]->const_array(mfi);
+
+            // Out of NOAH-MP
+            Array4<Real> TSK           = lsm_fab_data[LsmData_NOAHMP::t_sfc]->array(mfi);
+            Array4<Real> EMISS         = lsm_fab_data[LsmData_NOAHMP::sfc_emis]->array(mfi);
+            Array4<Real> ALBSFCDIR_VIS = lsm_fab_data[LsmData_NOAHMP::sfc_alb_dir_vis]->array(mfi);
+            Array4<Real> ALBSFCDIR_NIR = lsm_fab_data[LsmData_NOAHMP::sfc_alb_dir_nir]->array(mfi);
+            Array4<Real> ALBSFCDIF_VIS = lsm_fab_data[LsmData_NOAHMP::sfc_alb_dif_vis]->array(mfi);
+            Array4<Real> ALBSFCDIF_NIR = lsm_fab_data[LsmData_NOAHMP::sfc_alb_dif_nir]->array(mfi);
+
+            // NOTE: Need to expose stresses and get stresses from NOAHMP
+            Array4<Real> q_flux_arr    = lsm_fab_flux[LsmFlux_NOAHMP::q_flux]->array(mfi);
+            Array4<Real> t_flux_arr    = lsm_fab_flux[LsmFlux_NOAHMP::t_flux]->array(mfi);
+            //Array4<Real> tau13_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau13]->array(mfi);
+            //Array4<Real> tau23_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau23]->array(mfi);
 
             // Copy forcing data from ERF to Noahmp.
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
             {
-                noahmpio->U_PHY(i,1,j) = 0.5*(U_PHY(i,j,0)+U_PHY(i+1,j,0));
-                noahmpio->V_PHY(i,1,j) = 0.5*(V_PHY(i,j,0)+V_PHY(i,j+1,0));
-                noahmpio->T_PHY(i,1,j) = QV_TH(i,j,0,RhoTheta_comp)/QV_TH(i,j,0,Rho_comp);
+                noahmpio->U_PHY(i,1,j)   = 0.5*(U_PHY(i,j,0)+U_PHY(i+1,j  ,0));
+                noahmpio->V_PHY(i,1,j)   = 0.5*(V_PHY(i,j,0)+V_PHY(i  ,j+1,0));
+                noahmpio->T_PHY(i,1,j)   = QV_TH(i,j,0,RhoTheta_comp)/QV_TH(i,j,0,Rho_comp);
                 noahmpio->QV_CURR(i,1,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
-                noahmpio->SWDOWN(i,j) = SWDOWN(i,j,0);
-                noahmpio->GLW(i,j) = GLW(i,j,0);
+                noahmpio->SWDOWN(i,j)    = SWDOWN(i,j,0);
+                noahmpio->GLW(i,j)       = GLW(i,j,0);
             });
 
             // Call the noahmpio driver code. This runs the land model forcing for
@@ -250,10 +269,10 @@ NOAHMP::Advance_With_State (const int& lev,
             // Copy forcing data from Noahmp to ERF
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
             {
-                SHBXY(i,j,0) = noahmpio->SHBXY(i,j);
-                EVBXY(i,j,0) = noahmpio->EVBXY(i,j);
-                TSK(i,j,0) = noahmpio->TSK(i,j);
-                EMISS(i,j,0) = noahmpio->EMISS(i,j);
+                q_flux_arr(i,j,0) = noahmpio->SHBXY(i,j);
+                t_flux_arr(i,j,0) = noahmpio->EVBXY(i,j);
+                TSK(i,j,0)        = noahmpio->TSK(i,j);
+                EMISS(i,j,0)      = noahmpio->EMISS(i,j);
                 ALBSFCDIR_VIS(i,j,0) = noahmpio->ALBSFCDIRXY(i,1,j);
                 ALBSFCDIR_NIR(i,j,0) = noahmpio->ALBSFCDIRXY(i,2,j);
                 ALBSFCDIF_VIS(i,j,0) = noahmpio->ALBSFCDIFXY(i,1,j);
