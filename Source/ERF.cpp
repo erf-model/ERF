@@ -12,6 +12,7 @@
 #include "ERF.H"
 #include "AMReX_buildInfo.H"
 #include "AMReX_Random.H"
+#include "AMReX_EB2_IF_Box.H"
 #include "AMReX_EB2_IF_Sphere.H"
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
@@ -454,8 +455,16 @@ ERF::ERF_shared ()
             FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
             Real dummy_time = 0.0;
             prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
-            TerrainIF terrain_if(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
-            auto gshop = EB2::makeShop(terrain_if);
+            TerrainIF implicit_fun(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
+            auto gshop = EB2::makeShop(implicit_fun);
+            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+        } else if (geometry == "box") {
+            RealArray box_lo{0.0, 0.0, 0.0};
+            RealArray box_hi{0.0, 0.0, 0.0};
+            pp.query("box_lo", box_lo);
+            pp.query("box_hi", box_hi);
+            EB2::BoxIF implicit_fun(box_lo, box_hi, false);
+            auto gshop = EB2::makeShop(implicit_fun);
             amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
         } else if (geometry == "sphere") {
             auto ProbLoArr = geom[max_level].ProbLoArray();
@@ -463,8 +472,8 @@ ERF::ERF_shared ()
             const Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
             const Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
             RealArray sphere_center = {xcen, ycen, 0.0};
-            EB2::SphereIF sphere_if(0.5, sphere_center, false);
-            auto gshop = EB2::makeShop(sphere_if);
+            EB2::SphereIF implicit_fun(0.5, sphere_center, false);
+            auto gshop = EB2::makeShop(implicit_fun);
             amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
         }
     }
