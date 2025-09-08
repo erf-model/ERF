@@ -32,7 +32,7 @@ amr.v              = 1       # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
 amr.max_level = 4
-amr.ref_ratio = 2 2
+amr.ref_ratio = 2 2 2 2
 erf.refinement_indicators = box1 box2 box3 box4
 
 erf.box1.max_level = 1
@@ -63,7 +63,7 @@ erf.terrain_smoothing = 0
 # EB GEOMETRY
 eb2.geometry = "box"
 eb2.small_volfrac = 1.e-4
-eb2.box_lo = -0.5 -0.5 0.0
+eb2.box_lo = -0.5 -0.5 -1.0
 eb2.box_hi = 0.5 0.5 2.0
 
 # CHECKPOINT FILES
