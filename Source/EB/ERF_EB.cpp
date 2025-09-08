@@ -69,7 +69,7 @@ eb_::make_all_factories ([[maybe_unused]] int level,
       m_factory.get());
   }
 
-  Print() << "\nDone making EB factory.\n\n";
+  Print() << "\nDone making EB factory at level " << level << ".\n\n";
 }
 
 void
@@ -87,7 +87,7 @@ eb_::make_cc_factory ([[maybe_unused]] int level,
   eb_::WriteEBSurface(ba, dm, a_geom, m_factory.get(), level);
 #endif
 
-  Print() << "\nDone making EB factory.\n\n";
+  Print() << "\nDone making EB factory at level " << level << ".\n\n";
 }
 
 
