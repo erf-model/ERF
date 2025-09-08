@@ -55,6 +55,17 @@ erf.coupling_type  = "TwoWay"
 erf.cf_width = 0
 erf.cf_set_width = 0
 
+# TERRRAIN GRID TYPE
+erf.terrain_type = "EB"
+erf.write_eb_surface = TRUE
+erf.terrain_smoothing = 0
+
+# EB GEOMETRY
+eb2.geometry = "box"
+eb2.small_volfrac = 1.e-4
+eb2.box_lo = -0.5 -0.5 0.0
+eb2.box_hi = 0.5 0.5 2.0
+
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
 erf.check_int       = 1000       # number of timesteps between checkpoints
@@ -62,7 +73,7 @@ erf.check_int       = 1000       # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 100        # number of timesteps between plotfiles
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity volfrac
 
 # SOLVER CHOICE
 erf.use_gravity            = false
