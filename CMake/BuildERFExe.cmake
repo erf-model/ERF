@@ -297,6 +297,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SatAdj/ERF_InitSatAdj.cpp
        ${SRC_DIR}/Microphysics/SatAdj/ERF_SatAdj.cpp
        ${SRC_DIR}/Microphysics/SatAdj/ERF_UpdateSatAdj.cpp
+       ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYJ.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNN25.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
