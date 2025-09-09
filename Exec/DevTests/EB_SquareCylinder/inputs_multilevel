@@ -83,7 +83,7 @@ erf.alpha_C = 0.0
 
 erf.les_type          = "None"
 erf.molec_diff_type   = "Constant"
-erf.dynamic_viscosity = 0.1
+erf.dynamic_viscosity = 0.004
 
 erf.use_coriolis = false
 erf.abl_driver_type = "None"
