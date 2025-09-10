@@ -376,7 +376,7 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             auto dry_r = std::exp(tmp);
             a_mass[n] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
             auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(2.0*sigma*sigma));
-            a_mult[n] += 1.0 / (sigma*std::sqrt(2*PI)) * term;
+            a_mult[n] += 1e6 / (sigma*std::sqrt(2*PI)) * term;
         }
     } else if (a_init_type == SupDropInit::attrib_init_lnr_auto) {
         std::uniform_real_distribution<> urd(0.0, 1.0);
@@ -384,7 +384,7 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         auto mu = a_radius_mean;
         // automatically find the min and max radius of superdroplets, using Dziekan & Pawlowska 2017
         auto rmin = 1e-9;
-        auto rmax = 1e-3;
+        auto rmax = 1.0;
         auto dlnr = (std::log(rmax) - std::log(rmin)) / a_np;
         auto P_min = 0.0;
         auto P_max = 1.0;
@@ -418,7 +418,7 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
 
         // initialize the tail using approximate erfinv
         amrex::Print() << "Initializing tail: " << a_np_tail << " particles\n";
-        auto tail_mult = std::exp(-std::log(rmax/mu)*std::log(rmax/mu)/(2.0*sigma*sigma)) / (sigma*std::sqrt(2*PI)*rmax);
+        auto tail_mult = std::exp(-std::log(rmax/mu)*std::log(rmax/mu)/(2.0*sigma*sigma)) / (sigma*std::sqrt(2*PI));
         for (int n = 0; n < a_np_tail; n++) {
             int sd_id = static_cast<int>(std::round(urd(a_rng) * a_np));
             auto tmp = P_max + (1.0 - P_max) * urd(a_rng);
@@ -426,7 +426,7 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             auto dry_r = mu * std::exp(sigma * std::sqrt(2) * tmp2);
             a_mass[sd_id] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
             // set the multiplicity to the same as for the 99th percentile aerosol
-            a_mult[sd_id] = tail_mult;
+            a_mult[sd_id] = 1e6 * tail_mult;
         }
         amrex::Print() << "Done sampling\n";
     } else {
