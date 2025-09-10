@@ -85,7 +85,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const bool& moist_set_rhs_bool,
                         const Real& bdy_time_interval,
                         const Real& new_stage_time,
-                        const Real& stop_time,
+                        const Real& stop_time_elapsed,
                         int  width,
                         int  set_width,
                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
@@ -466,7 +466,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             const Array4<const Real> & old_cons_const = S_old[IntVars::cons].const_array(mfi);
             const Array4<const Real> & new_cons_const = S_new[IntVars::cons].const_array(mfi);
             moist_set_rhs(geom, tbx, old_cons_const, new_cons_const, cell_rhs, bdy_time_interval,
-                          new_stage_time, dt, stop_time, width, set_width, domain,
+                          new_stage_time, dt, stop_time_elapsed, width, set_width, domain,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
         }
 #endif
