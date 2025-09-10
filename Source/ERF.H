@@ -214,8 +214,8 @@ public:
     void restart ();
 
     // Is it time to write a plotfile or checkpoint?
-    bool writeNow (const amrex::Real cur_time, const amrex::Real dt, const int nstep,
-                   const int plot_int, const amrex::Real plot_per);
+    bool writeNow (const amrex::Real cur_time, const int nstep, const int plot_int,
+                   const amrex::Real plot_per, const amrex::Real dt_0, amrex::Real& last_file_time);
 
     // Called after every level 0 timestep
     void post_timestep (int nstep, amrex::Real time, amrex::Real dt_lev);
@@ -829,8 +829,10 @@ private:
 #endif
 
     LandSurface lsm;
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Components: theta, q1, q2
+    amrex::Vector<std::string> lsm_data_name;                // (ncomp)
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp)
+    amrex::Vector<std::string> lsm_flux_name;                // (ncomp)
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp)
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW)
@@ -952,14 +954,21 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
 
-    int last_plot3d_file_step_1;
-    int last_plot3d_file_step_2;
-    int last_plot2d_file_step_1;
-    int last_plot2d_file_step_2;
-    int last_subvol;
+    static int last_plot3d_file_step_1;
+    static int last_plot3d_file_step_2;
+    static int last_plot2d_file_step_1;
+    static int last_plot2d_file_step_2;
+    static int last_check_file_step;
+    static int last_subvol_step;
 
-    int last_check_file_step;
-    int plot_file_on_restart = 1;
+    static amrex::Real last_plot3d_file_time_1;
+    static amrex::Real last_plot3d_file_time_2;
+    static amrex::Real last_plot2d_file_time_1;
+    static amrex::Real last_plot2d_file_time_2;
+    static amrex::Real last_check_file_time;
+    static amrex::Real last_subvol_time;
+
+    static bool plot_file_on_restart;
 
     // Output control
     const int datwidth = 14;
