@@ -482,7 +482,7 @@ ERF::Evolve ()
 
     // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
     //      for finer levels (with or without subcycling)
-    for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step)
+    for (int step = istep[0]; step < max_step && start_time+cur_time < stop_time; ++step)
     {
         if (use_datetime) {
             Print() << "\n" << getTimestamp(start_time+cur_time, datetime_format)
