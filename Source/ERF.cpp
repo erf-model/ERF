@@ -62,6 +62,22 @@ Real ERF::sum_per       = -1.0;
 
 int  ERF::pert_interval = -1;
 
+int ERF::last_plot3d_file_step_1 = -1;
+int ERF::last_plot3d_file_step_2 = -1;
+int ERF::last_plot2d_file_step_1 = -1;
+int ERF::last_plot2d_file_step_2 = -1;
+int ERF::last_check_file_step    = -1;
+int ERF::last_subvol_step        = -1;
+
+Real ERF::last_plot3d_file_time_1 = 0.0;
+Real ERF::last_plot3d_file_time_2 = 0.0;
+Real ERF::last_plot2d_file_time_1 = 0.0;
+Real ERF::last_plot2d_file_time_2 = 0.0;
+Real ERF::last_check_file_time    = 0.0;
+Real ERF::last_subvol_time        = 0.0;
+
+bool ERF::plot_file_on_restart = true;
+
 // Native AMReX vs NetCDF
 PlotFileType ERF::plotfile3d_type_1  = PlotFileType::None;
 PlotFileType ERF::plotfile3d_type_2  = PlotFileType::None;
@@ -517,33 +533,39 @@ ERF::Evolve ()
 
         post_timestep(step, cur_time, dt[0]);
 
-        if (writeNow(cur_time, dt[0], step+1, m_plot3d_int_1, m_plot3d_per_1)) {
+        if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
             last_plot3d_file_step_1 = step+1;
             Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+            if (m_plot3d_per_1 > 0.) {last_plot3d_file_time_1 += m_plot3d_per_1;}
         }
-        if (writeNow(cur_time, dt[0], step+1, m_plot3d_int_2, m_plot3d_per_2)) {
+        if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
             last_plot3d_file_step_2 = step+1;
             Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+            if (m_plot3d_per_2 > 0.) {last_plot3d_file_time_2 += m_plot3d_per_2;}
         }
 
-        if (writeNow(cur_time, dt[0], step+1, m_plot2d_int_1, m_plot2d_per_1)) {
+        if (writeNow(cur_time, step+1, m_plot2d_int_1, m_plot2d_per_1, dt[0], last_plot2d_file_time_1)) {
             last_plot2d_file_step_1 = step+1;
             Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+            if (m_plot2d_per_1 > 0.) {last_plot2d_file_time_1 += m_plot2d_per_1;}
         }
 
-        if (writeNow(cur_time, dt[0], step+1, m_plot2d_int_2, m_plot2d_per_2)) {
+        if (writeNow(cur_time, step+1, m_plot2d_int_2, m_plot2d_per_2, dt[0], last_plot2d_file_time_2)) {
             last_plot2d_file_step_2 = step+1;
             Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
+            if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
         }
 
-        if (writeNow(cur_time, dt[0], step+1, m_subvol_int, m_subvol_per)) {
-            last_subvol = step+1;
+        if (writeNow(cur_time, step+1, m_subvol_int, m_subvol_per, dt[0], last_subvol_time)) {
+            last_subvol_step = step+1;
             WriteSubvolume();
+            if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
         }
 
-        if (writeNow(cur_time, dt[0], step+1, m_check_int, m_check_per)) {
+        if (writeNow(cur_time, step+1, m_check_int, m_check_per, dt[0], last_check_file_time)) {
             last_check_file_step = step+1;
             WriteCheckpointFile();
+            if (m_check_per > 0.) {last_check_file_time += m_check_per;}
         }
 
 #ifdef AMREX_MEM_PROFILING
@@ -560,22 +582,28 @@ ERF::Evolve ()
     // Write plotfiles at final time
     if ( (m_plot3d_int_1 > 0 || m_plot3d_per_1 > 0.) && istep[0] > last_plot3d_file_step_1 ) {
         Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        if (m_plot3d_per_1 > 0.) {last_plot3d_file_time_1 += m_plot3d_per_1;}
     }
     if ( (m_plot3d_int_2 > 0 || m_plot3d_per_2 > 0.) && istep[0] > last_plot3d_file_step_2) {
         Write3DPlotFile(2,plotfile3d_type_1,plot3d_var_names_2);
+        if (m_plot3d_per_2 > 0.) {last_plot3d_file_time_2 += m_plot3d_per_2;}
     }
     if ( (m_plot2d_int_1 > 0 || m_plot2d_per_1 > 0.) && istep[0] > last_plot2d_file_step_1 ) {
         Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+        if (m_plot2d_per_1 > 0.) {last_plot2d_file_time_1 += m_plot2d_per_1;}
     }
     if ( (m_plot2d_int_2 > 0 || m_plot2d_per_2 > 0.) && istep[0] > last_plot2d_file_step_2) {
         Write2DPlotFile(2,plotfile2d_type_1,plot2d_var_names_2);
+        if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
     }
-    if ( (m_subvol_int > 0 || m_subvol_per > 0.) && istep[0] > last_subvol) {
+    if ( (m_subvol_int > 0 || m_subvol_per > 0.) && istep[0] > last_subvol_step) {
         WriteSubvolume();
+        if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
     }
 
     if ( (m_check_int > 0 || m_check_per > 0.) && istep[0] > last_check_file_step) {
         WriteCheckpointFile();
+        if (m_check_per > 0.) {last_check_file_time += m_check_per;}
     }
 
     BL_PROFILE_VAR_STOP(evolve);
@@ -789,12 +817,6 @@ ERF::InitData_pre ()
         Print() << "Defining r2d for the first time " << std::endl;
         m_r2d = std::make_unique<ReadBndryPlanes>(geom[0], solverChoice.rdOcp);
     }
-
-    last_plot3d_file_step_1 = -1;
-    last_plot3d_file_step_2 = -1;
-    last_plot2d_file_step_1 = -1;
-    last_plot2d_file_step_2 = -1;
-    last_check_file_step  = -1;
 
     if (restart_chkfile.empty()) {
 
@@ -1426,6 +1448,7 @@ ERF::InitData_post ()
     {
         WriteCheckpointFile();
         last_check_file_step = 0;
+        if (m_check_per > 0.) {last_check_file_time += m_check_per;}
     }
 
     if ( (restart_chkfile.empty()) ||
@@ -1434,26 +1457,31 @@ ERF::InitData_post ()
         if (m_plot3d_int_1 > 0 || m_plot3d_per_1 > 0.)
         {
             Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+            if (m_plot3d_per_1 > 0.) {last_plot3d_file_time_1 += m_plot3d_per_1;}
             last_plot3d_file_step_1 = istep[0];
         }
         if (m_plot3d_int_2 > 0 || m_plot3d_per_2 > 0.)
         {
             Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+            if (m_plot3d_per_2 > 0.) {last_plot3d_file_time_2 += m_plot3d_per_2;}
             last_plot3d_file_step_2 = istep[0];
         }
         if (m_plot2d_int_1 > 0 || m_plot2d_per_1 > 0.)
         {
             Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+            if (m_plot2d_per_1 > 0.) {last_plot2d_file_time_1 += m_plot2d_per_1;}
             last_plot2d_file_step_1 = istep[0];
         }
         if (m_plot2d_int_2 > 0 || m_plot2d_per_2 > 0.)
         {
             Write2DPlotFile(2,plotfile2d_type_2,plot2d_var_names_2);
+            if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
             last_plot2d_file_step_2 = istep[0];
         }
         if (m_subvol_int > 0 || m_subvol_per > 0.) {
             WriteSubvolume();
-            last_subvol = istep[0];
+            last_subvol_step = istep[0];
+            if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
         }
     }
 
@@ -2445,45 +2473,22 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 #endif
 
 bool
-ERF::writeNow(const Real cur_time, const Real dt_lev, const int nstep, const int plot_int, const Real plot_per)
+ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Real plot_per,
+              const Real dt_0, Real& next_file_time)
 {
     bool write_now = false;
 
-    if ( plot_int > 0 && (nstep % plot_int == 0) ) {
-        write_now = true;
+    if ( plot_int > 0) {
+
+        write_now = (nstep % plot_int == 0);
 
     } else if (plot_per > 0.0) {
 
-        // Check to see if we've crossed a plot_per interval by comparing
-        // the number of intervals that have elapsed for both the current
-        // time and the time at the beginning of this timestep.
+        amrex::Print() << "CUR NEXT PER " << cur_time << " " << next_file_time << " " << plot_per << std::endl;
 
-        const Real eps = std::numeric_limits<Real>::epsilon() * Real(10.0) * std::abs(cur_time);
-
-        int num_per_old = static_cast<int>(std::floor((cur_time-eps-dt_lev) / plot_per));
-        int num_per_new = static_cast<int>(std::floor((cur_time-eps       ) / plot_per));
-
-        // Before using these, however, we must test for the case where we're
-        // within machine epsilon of the next interval. In that case, increment
-        // the counter, because we have indeed reached the next plot_per interval
-        // at this point.
-
-        const Real next_plot_time = (num_per_old + 1) * plot_per;
-
-        if ((num_per_new == num_per_old) && std::abs(cur_time - next_plot_time) <= eps)
-        {
-            num_per_new += 1;
-        }
-
-        // Similarly, we have to account for the case where the old time is within
-        // machine epsilon of the beginning of this interval, so that we don't double
-        // count that time threshold -- we already plotted at that time on the last timestep.
-
-        if ((num_per_new != num_per_old) && std::abs((cur_time - dt_lev) - next_plot_time) <= eps)
-            num_per_old += 1;
-
-        if (num_per_old != num_per_new)
-            write_now = true;
+        // Only write now if nstep newly matches the number of elapsed periods
+        write_now = (cur_time > (next_file_time - Real(0.1)*dt_0));
     }
+
     return write_now;
 }
