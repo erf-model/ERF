@@ -802,9 +802,9 @@ tslist output from WRF but output is provided only from the finest domain that c
 the entire requested sampling line; velocities are also destaggered.
 
 The sampled variables can be selected with the ``erf.line_sampling_vars`` option and
-includes a subset of the plotfile outputs: "x_velocity", "y_velocity", "z_velocity",
-"magvel", "theta", "qv", and "pressure". Velocities are output at cell centers only. The
-water vapor mixing ratio "qv" will only output valid values if a moisture model is used.
+includes a subset of the plotfile outputs: "density", "x_velocity", "y_velocity", "z_velocity",
+"magvel", "theta", "qv", "qc", and "pressure". Velocities are output at cell centers only.
+The water vapor mixing ratio "qv" will only output valid values if a moisture model is used.
 Pressure is calculated from rho*theta and will account for moisture if qv is requested.
 
 .. _list-of-parameters-10b:
