@@ -159,12 +159,12 @@ struct LineSampler
             // Write one text file per level
             std::ofstream outfile;
             if (amrex::ParallelDescriptor::IOProcessor()) {
-                std::ostringstream fname;
-                fname << "plt_line_lev" << lev << ".zcc";
-                outfile.open(fname.str());
+                std::string fname = amrex::Concatenate("plt_line_lev", lev, 1);
+                fname += ".zcc";
+                outfile.open(fname);
 
                 if (!outfile.is_open()) {
-                    amrex::AllPrint() << "Could not open " << fname.str() << std::endl;
+                    amrex::AllPrint() << "Could not open " << fname << std::endl;
                 }
             }
 
