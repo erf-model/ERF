@@ -327,7 +327,8 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static amrex::Real SD_erfinv(const amrex::Real x) {
     amrex::Real a = 0.147;
-    amrex::Real term = std::log(1 - x * x);
+    amrex::Real eps = std::numeric_limits<amrex::Real>::epsilon();
+    amrex::Real term = std::log(1 - x * x + eps);
     amrex::Real p1 = 2 / (PI * a) + term / 2.0;
     amrex::Real p2 = term / a;
     return std::sqrt(std::sqrt(p1 * p1 - p2) - p1);
