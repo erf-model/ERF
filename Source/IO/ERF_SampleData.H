@@ -149,6 +149,56 @@ struct LineSampler
     }
 
     void
+    write_line_coords (amrex::Vector<std::unique_ptr<amrex::MultiFab> >& z_phys_cc)
+    {
+        if (!m_write_ascii) return;
+
+        amrex::Print() << "Writing out line coordinates to text" << std::endl;
+
+        for (int lev(0); lev < z_phys_cc.size(); ++lev) {
+            // Write one text file per level
+            std::ofstream outfile;
+            if (amrex::ParallelDescriptor::IOProcessor()) {
+                std::ostringstream fname;
+                fname << "plt_line_lev" << lev << ".zcc";
+                outfile.open(fname.str());
+
+                if (!outfile.is_open()) {
+                    amrex::AllPrint() << "Could not open " << fname.str() << std::endl;
+                }
+            }
+
+            // Loop over each line
+            int nline = static_cast<int>(m_ls_mf.size());
+            for (int iline(0); iline<nline; ++iline) {
+                int dir = m_dir[iline];
+                amrex::Box bnd_bx = m_bnd_bx[iline];
+                amrex::IntVect first_cell = bnd_bx.smallEnd();
+
+                // Create multifab with "sampled" z_phys values
+                amrex::MultiFab line_coords_mf = get_line_data(
+                    *z_phys_cc[lev], dir, first_cell, bnd_bx
+                );
+
+                // Convert multifab to vector
+                amrex::Gpu::HostVector<amrex::Real> vec = sumToLine(
+                    line_coords_mf, 0, 1, bnd_bx, dir
+                );
+
+                // Append to file
+                if (amrex::ParallelDescriptor::IOProcessor()) {
+                    for (const auto& zval : vec) {
+                        outfile << " " << zval;
+                    }
+                    outfile << std::endl;
+                }
+            } // line loop
+
+            outfile.close();
+        } // level loop
+    }
+
+    void
     get_line_mfs (amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
     {
         int nlev  = static_cast<int>(vars_new.size());
@@ -638,6 +688,12 @@ public:
     {
         if(do_line)  m_ls = std::make_unique<LineSampler >();
         if(do_plane) m_ps = std::make_unique<PlaneSampler>();
+    }
+
+    void
+    write_coords (amrex::Vector<std::unique_ptr<amrex::MultiFab> >& z_phys_cc)
+    {
+        if (m_ls) m_ls->write_line_coords(z_phys_cc);
     }
 
     void
