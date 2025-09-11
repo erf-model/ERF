@@ -19,7 +19,7 @@ public:
     explicit SurfaceModel(int nlevs,
                           const amrex::Vector<amrex::BoxArray> &ba,
                           const amrex::Vector<amrex::Geometry> &geom,
-                          const amrex::DistributionMapping &dm,
+                          const amrex::Vector<amrex::DistributionMapping> &dm,
                           const SolverChoice &solverChoice) 
         : m_nlevs(nlevs), m_ba(ba), m_geom(geom), m_dmap(dm) {
         
@@ -44,10 +44,10 @@ public:
 
             amrex::IntVect ng(1,1,0);
             // Create output arrays for surface boundary condition
-            u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap, 2, ng);
-            t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap, 1, ng);
-            q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap, 1, ng);
-            t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap, 1, ng);
+            u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap[lev], 2, ng);
+            t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap[lev], 1, ng);
+            q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap[lev], 1, ng);
+            t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap[lev], 1, ng);
 
             u_star[lev]->setVal(0.0);
             t_star[lev]->setVal(0.0);
@@ -55,7 +55,7 @@ public:
             t_surf[lev]->setVal(300.0);
 
             // Initialize storage for weight average factors
-            wavg[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap, 2, ng);
+            wavg[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap[lev], 2, ng);
             //  - default to land=1, urban=0 (i.e, 100% land, no urban fraction)
             wavg[lev]->setVal(1.0, SurfaceModelType::LAND, 1, 0);
             wavg[lev]->setVal(0.0, SurfaceModelType::URBAN, 1, 0);
@@ -167,7 +167,7 @@ private:
     
     amrex::Vector<amrex::BoxArray> m_ba;
     amrex::Vector<amrex::Geometry> m_geom;
-    amrex::DistributionMapping m_dmap;
+    amrex::Vector<amrex::DistributionMapping> m_dmap;
 
     // Pointers to LSM and Urban model data
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  urban_frac_lev; // Urban fraction for each level [0-1.0]
