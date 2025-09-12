@@ -336,6 +336,7 @@ static amrex::Real SD_erfinv(const amrex::Real x) {
 
 void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
                                          amrex::Vector<amrex::Real>& a_mult,
+                                         const amrex::Real a_dV,
                                          const int a_np,
                                          const amrex::Real a_density,
                                          const std::string& a_init_type,
@@ -364,7 +365,7 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         for (int n = 0; n < a_np; n++) {
             auto tmp = lnmin + urd(a_rng) * lnrng;
             a_mass[n] = std::exp(tmp);
-            a_mult[n] += std::exp(-a_mass[n] / delta);
+            a_mult[n] += (m_numdens_init * a_dV) * std::exp(-a_mass[n] / delta);
         }
     } else if (a_init_type == SupDropInit::attrib_init_lnr) {
         std::uniform_real_distribution<> urd(0.0, 1.0);
@@ -372,12 +373,14 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         auto mu = a_radius_mean;
         auto lnrng = std::log(a_radius_max) - std::log(a_radius_min);
         auto lnmin = std::log(a_radius_min);
+        //amrex::Print() << "radius_log_normal initialization! Using cell vol "<< a_dV
+        //<<" m^3 for "<< m_numdens_init*a_dV<< " real particles\n";
         for (int n = 0; n < a_np; n++) {
             auto tmp = lnmin + urd(a_rng) * lnrng;
             auto dry_r = std::exp(tmp);
             a_mass[n] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
             auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(2.0*sigma*sigma));
-            a_mult[n] += 1e6 / (sigma*std::sqrt(2*PI)) * term;
+            a_mult[n] += ( m_numdens_init * a_dV ) / (sigma*std::sqrt(2*PI)) * term;
         }
     } else if (a_init_type == SupDropInit::attrib_init_lnr_auto) {
         std::uniform_real_distribution<> urd(0.0, 1.0);
@@ -389,9 +392,10 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         auto dlnr = (std::log(rmax) - std::log(rmin)) / a_np;
         auto P_min = 0.0;
         auto P_max = 1.0;
-        auto dV = 1e3;  // also an approximation for now -- ideally will use real cell volume
-        auto tol = 1.0 / (m_numdens_init * dV);
+        auto tol = 1.0 / (m_numdens_init * a_dV);
         int a_np_tail = static_cast<int>(std::ceil(0.01*a_np)); // this is an approximation for now; saves 1% of SDs for the tail
+        amrex::Vector<amrex::Real> tmp_mass(a_np);
+        amrex::Vector<amrex::Real> tmp_mult(a_np);
         amrex::Print() << "Finding aerosol radius sampling range\n";
         while ((P_max >= 1.0 - tol) || (P_min <= tol)) {
             if (P_max >= 1.0 - tol) {
@@ -412,9 +416,11 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         for (int n = 0; n < a_np; n++) {
             auto tmp = lnrmin + urd(a_rng)*dlnr;
             auto dry_r = std::exp(tmp);
-            a_mass[n] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
+            tmp_mass[n] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
             auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(2.0*sigma*sigma));
-            a_mult[n] = 1.0 / (sigma*std::sqrt(2*PI)) * term;
+            tmp_mult[n] =  (m_numdens_init * a_dV)/ (sigma*std::sqrt(2*PI)) * term;
+            //amrex::Print() << " mainSD #"<< n <<" dry radius (m) =" << dry_r <<
+            //", mult = " << tmp_mult[n] << "\n";
         }
 
         // initialize the tail using approximate erfinv
@@ -425,9 +431,16 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             auto tmp = P_max + (1.0 - P_max) * urd(a_rng);
             auto tmp2 = SD_erfinv(2 * tmp - 1);
             auto dry_r = mu * std::exp(sigma * std::sqrt(2) * tmp2);
-            a_mass[sd_id] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
+            tmp_mass[sd_id] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
             // set the multiplicity to the same as for the 99th percentile aerosol
-            a_mult[sd_id] = 1e6 * tail_mult;
+            tmp_mult[sd_id] = (m_numdens_init * a_dV) * tail_mult;
+            //amrex::Print() << " tailSD #"<< sd_id<<" dry radius (m) =" << dry_r <<
+            //", mult = " << tmp_mult[sd_id] << "\n";
+        }
+        // Update SD multiplicity and mass with the initialized main + tail distribution
+        for (int n = 0; n < a_np; n++) {
+            a_mult[n] += tmp_mult[n];
+            a_mass[n] += tmp_mass[n];
         }
         amrex::Print() << "Done sampling\n";
     } else {
