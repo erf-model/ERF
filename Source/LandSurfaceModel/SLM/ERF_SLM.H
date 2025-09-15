@@ -85,6 +85,17 @@ namespace LsmVar_SLM {
   };
 }
 
+namespace LsmFlux_SLM {
+    enum {
+      // 2D SurfaceLayer flux vars
+      q_flux,
+      t_flux,
+      tau13,
+      tau23,
+      NumVars
+    };
+}
+
 namespace SLM_NetRad {
    enum {
      net_swup1 = 0,
@@ -291,8 +302,8 @@ public:
     amrex::MultiFab*
     Lsm_Data_Ptr (const int& varIdx) override
     {
-        AMREX_ALWAYS_ASSERT(varIdx < SLM::m_lsm_size && varIdx >= 0);
-        int lsmIdx = LsmVarMap[varIdx];
+        AMREX_ALWAYS_ASSERT(varIdx < SLM::m_lsm_data_size && varIdx >= 0);
+        int lsmIdx = LsmDataMap[varIdx];
         AMREX_ALWAYS_ASSERT(lsmIdx < LsmVar_SLM::NumVars && lsmIdx>=0);
         return lsm_fab_vars[lsmIdx].get();
     }
@@ -301,9 +312,9 @@ public:
     amrex::MultiFab*
     Lsm_Flux_Ptr (const int& varIdx) override
     {
-        AMREX_ALWAYS_ASSERT(varIdx < SLM::m_lsm_size && varIdx >= 0);
-        int lsmIdx = LsmVarMap[varIdx];
-        AMREX_ALWAYS_ASSERT(lsmIdx < LsmVar_SLM::NumVars && lsmIdx>=0);
+        AMREX_ALWAYS_ASSERT(varIdx < SLM::m_lsm_flux_size && varIdx >= 0);
+        int lsmIdx = LsmFluxMap[varIdx];
+        AMREX_ALWAYS_ASSERT(lsmIdx < LsmFlux_SLM::NumVars && lsmIdx>=0);
         return lsm_fab_flux[lsmIdx].get();
     }
 
@@ -313,23 +324,48 @@ public:
 
     // Get number of vars lsm class contains
     int
-    Lsm_Data_Size () override { return SLM::m_lsm_size; }
+    Lsm_Data_Size () override { return SLM::m_lsm_data_size; }
+
+    // Get number of vars lsm class contains
+    int
+    Lsm_Flux_Size () override { return SLM::m_lsm_flux_size; }
 
     // Get variable names
     std::string
     Lsm_DataName (const int& varIdx) override
     {
-        AMREX_ALWAYS_ASSERT(varIdx < SLM::m_lsm_size && varIdx >= 0);
-        return LsmVarName[varIdx];
+        AMREX_ALWAYS_ASSERT(varIdx < SLM::m_lsm_data_size && varIdx >= 0);
+        return LsmDataName[varIdx];
     }
 
     int
-    Lsm_VarIndex (std::string varname) override
+    Lsm_DataIndex (std::string varname) override
     {
         int varIdx = -1;
         std::string lc_varname = amrex::toLower(varname);
-        for (int idx(0); idx<SLM::m_lsm_size; ++idx) {
-            if (lc_varname == amrex::toLower(Lsm_VarName(idx))) {
+        for (int idx(0); idx<SLM::m_lsm_data_size; ++idx) {
+            if (lc_varname == amrex::toLower(Lsm_DataName(idx))) {
+                varIdx = idx;
+            }
+        }
+        return varIdx;
+    }
+
+    // Get flux variable names
+    std::string
+    Lsm_FluxName (const int& varIdx) override
+    {
+        AMREX_ALWAYS_ASSERT(varIdx < SLM::m_lsm_flux_size && varIdx >= 0);
+        return LsmFluxName[varIdx];
+    }
+
+    int
+    Lsm_FluxIndex (std::string varname) override
+    {
+        int varIdx = -1;
+        std::string lc_varname = amrex::toLower(varname);
+        for (int idx(0); idx<SLM::m_lsm_flux_size; ++idx) {
+            if (lc_varname == amrex::toLower(Lsm_FluxName(idx))) {
                 varIdx = idx;
             }
         }
@@ -449,13 +485,18 @@ public:
 
 private:
     // number of lsm variables (theta)
-    int m_lsm_size = 34;
+    int m_lsm_data_size = 34;
+
+    // number of flux variables (qflux, tflux, uflux, vflux)
+    int m_lsm_flux_size = 4;
 
     // LsmVar map (state indices -> LsmVar enum)
-    amrex::Vector<int> LsmVarMap;
+    amrex::Vector<int> LsmDataMap;
+    amrex::Vector<int> LsmFluxMap;
 
     // Lsm varnames
-    amrex::Vector<std::string> LsmVarName;
+    amrex::Vector<std::string> LsmDataName;
+    amrex::Vector<std::string> LsmFluxName;
 
     // geometry for atmosphere
     amrex::Geometry m_geom;
@@ -483,7 +524,7 @@ private:
     amrex::Array<FabPtr, LsmVar_SLM::NumVars> lsm_fab_vars;
 
     // flux array for conjugate transfer
-    amrex::Array<FabPtr, LsmVar_SLM::NumVars> lsm_fab_flux;
+    amrex::Array<FabPtr, LsmFlux_SLM::NumVars> lsm_fab_flux;
 
     // Vars that should be parsed
     // ==========================

@@ -321,9 +321,10 @@ public:
       for (int n(0); n < ndata; ++n) {
           m_lsm_data_name[n]     = lsm_data_name[n];
           m_lsm_data_lev[lev][n] = lsm_data[n];
-          if (amrex::toLower(lsm_data_name[n]) == "theta") {
+          if (amrex::toLower(lsm_data_name[n]) == "tsurf") {
               m_has_lsm_tsurf  = true;
               m_lsm_tsurf_indx = n;
+              amrex::Print() << "  SurfaceLayer: Using LSM tsurf index = " << m_lsm_tsurf_indx << std::endl;
           }
       }
       for (int n(0); n < nflux; ++n) {

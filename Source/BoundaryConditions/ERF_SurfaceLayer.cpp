@@ -480,8 +480,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
 
         const bool use_lsm = use_lsm_most;
-        auto lsm_flbu_arr = (use_lsm_most && m_lsm_data_lev[lev][11]) ? m_lsm_data_lev[lev][11]->array(mfi) : Array4<Real> {};
-        auto lsm_flbv_arr = (use_lsm_most && m_lsm_data_lev[lev][12]) ? m_lsm_data_lev[lev][12]->array(mfi) : Array4<Real> {};
+        //auto lsm_flbu_arr = (use_lsm_most && m_lsm_data_lev[lev][11]) ? m_lsm_data_lev[lev][11]->array(mfi) : Array4<Real> {};
+        //auto lsm_flbv_arr = (use_lsm_most && m_lsm_data_lev[lev][12]) ? m_lsm_data_lev[lev][12]->array(mfi) : Array4<Real> {};
 
         if (use_sfc_fluxes) {
             amrex::Real d_sfc_tflux = sfc_tflux;
@@ -579,7 +579,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
                 jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
                 //stressx = lsm_flbu_arr(ic, jc, -1);
-                stressx = 0.5*(lsm_tau13_arr(ic-1, jc, -1) + lsm_tau13_arr(ic, jc, -1));
+                stressx = 0.5*(lsm_tau13_arr(ic-1, jc, k) + lsm_tau13_arr(ic, jc, k));
                 //stressx = 0.5*(lsm_flbu_arr(i-1, j, -1) + lsm_flbu_arr(i, j, -1));
             } else {
                 stressx = flux_comp.compute_u_flux(i, j, k,
@@ -622,7 +622,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
                     jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
                     //stressy = lsm_flbv_arr(ic, jc, -1);
-                    stressy = 0.5 * (lsm_tau23_arr(ic, jc-1, -1) + lsm_tau23_arr(ic, jc, -1));
+                    stressy = 0.5 * (lsm_tau23_arr(ic, jc-1, k) + lsm_tau23_arr(ic, jc, k));
                     //stressy = 0.5 * (lsm_flbv_arr(i, j-1, -1) + lsm_flbv_arr(i, j, -1));
                 } else {
                     stressy = flux_comp.compute_v_flux(i, j, k,

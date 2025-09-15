@@ -533,7 +533,7 @@ ERF::init_from_wrfinput (int lev,
                   if (var_name == var.first) {
                       bool is_3d = var_fab.box().length(2) > 1;
                       amrex::Print() << "   Reading " << ((is_3d) ? "3D" : "2D") << " LSM variable '" << var.first << "' (" << var.second << ")" << std::endl;
-                      int lsm_idx = lsm.Get_VarIdx(lev, var.second);
+                      int lsm_idx = lsm.Get_DataIdx(lev, var.second);
                       AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_idx != -1, "LSM variable mapping invalid!");
                       AMREX_ALWAYS_ASSERT(lsm_data[lev][lsm_idx]);
 
