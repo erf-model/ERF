@@ -807,11 +807,11 @@ ERF::init_from_wrfinput (int lev,
         int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
 
         int ntimes = low_data_zlo.size();
-
+/*
         // We can possibly run out of memory if we load all of wrfbdy and all of wrflow
         // Thus we only load the first two time slices here and load more only if needed
         ntimes = 2;
-
+*/
         sst_lev[lev].resize(ntimes);
         tsk_lev[lev].resize(ntimes);
 
