@@ -160,9 +160,71 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                            domain_bcs_type);
     }
 
+    // Multiply momenta by EB volume fraction
+    if (SolverChoice::terrain_type == TerrainType::EB) {
+        for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
+            for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                const Box& tbx = surroundingNodes(bx,0);
+                const Box& tby = surroundingNodes(bx,1);
+                const Box& tbz = surroundingNodes(bx,2);
+
+                Array4<Real> const& momx = rU_new[lev].array(mfi);
+                Array4<Real> const& momy = rV_new[lev].array(mfi);
+                Array4<Real> const& momz = rW_new[lev].array(mfi);
+
+                Array4<const Real> u_vfrac = (get_eb(lev).get_u_const_factory())->getVolFrac().const_array(mfi);
+                Array4<const Real> v_vfrac = (get_eb(lev).get_v_const_factory())->getVolFrac().const_array(mfi);
+                Array4<const Real> w_vfrac = (get_eb(lev).get_w_const_factory())->getVolFrac().const_array(mfi);
+                
+                ParallelFor(tbx, tby, tbz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    momx(i,j,k) *= u_vfrac(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    momy(i,j,k) *= v_vfrac(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    momz(i,j,k) *= w_vfrac(i,j,k);
+                });
+            } // mfi
+        } // lev
+    }
+
     average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
     average_down_faces(rV_new[crse_lev+1], rV_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
     average_down_faces(rW_new[crse_lev+1], rW_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+
+    // Divide momenta by EB volume fraction
+    if (SolverChoice::terrain_type == TerrainType::EB) {
+        for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
+            for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                const Box& tbx = surroundingNodes(bx,0);
+                const Box& tby = surroundingNodes(bx,1);
+                const Box& tbz = surroundingNodes(bx,2);
+
+                Array4<Real> const& momx = rU_new[lev].array(mfi);
+                Array4<Real> const& momy = rV_new[lev].array(mfi);
+                Array4<Real> const& momz = rW_new[lev].array(mfi);
+
+                Array4<const Real> u_vfrac = (get_eb(lev).get_u_const_factory())->getVolFrac().const_array(mfi);
+                Array4<const Real> v_vfrac = (get_eb(lev).get_v_const_factory())->getVolFrac().const_array(mfi);
+                Array4<const Real> w_vfrac = (get_eb(lev).get_w_const_factory())->getVolFrac().const_array(mfi);
+                
+                ParallelFor(tbx, tby, tbz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    momx(i,j,k) /= u_vfrac(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    momy(i,j,k) /= v_vfrac(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    momz(i,j,k) /= w_vfrac(i,j,k);
+                });
+            } // mfi
+        } // lev
+    }
 
     for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
         MomentumToVelocity(vars_new[lev][Vars::xvel],
