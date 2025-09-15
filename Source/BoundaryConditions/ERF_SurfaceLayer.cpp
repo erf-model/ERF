@@ -490,8 +490,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             // Valid theta flux from LSM and over land
             Real Tflux;
             int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
-            if (lsm_t_flux_arr && is_land) {
-                Tflux = lsm_t_flux_arr(i,j,k);
+            if (surf_tflux_arr && is_land) {
+                // use the flux directly from LSM+Urban
+                Tflux = surf_tflux_arr(i,j,klo);
             } else {
                 Tflux = flux_comp.compute_t_flux(i, j, k,
                                                  cons_arr, velx_arr, vely_arr,
@@ -505,11 +506,6 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 rotate_scalar_flux(i, j, k, Tflux, dxInv, zphys_arr,
                                    hfx1_arr, hfx2_arr, hfx3_arr);
             } else {
-                if (surf_tflux_arr) {
-                    // use the flux directly from LSM+Urban
-                    Tflux = surf_tflux_arr(i,j,klo);
-                }
-
                 hfx3_arr(i,j,klo) = Tflux;
             }
         });
@@ -522,8 +518,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // Valid qv flux from LSM and over land
                 Real Qflux;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
-                if (lsm_q_flux_arr && is_land) {
-                    Qflux = lsm_q_flux_arr(i,j,k);
+                if (surf_qflux_arr && is_land) {
+                    // use the flux directly from LSM+Urban
+                    Qflux = surf_qflux_arr(i,j,k);
                 } else {
                     Qflux = flux_comp.compute_q_flux(i, j, k,
                                                      cons_arr, velx_arr, vely_arr,
@@ -536,10 +533,6 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     rotate_scalar_flux(i, j, k, Qflux, dxInv, zphys_arr,
                                        qfx1_arr, qfx2_arr, qfx3_arr);
                 } else {
-                    if (surf_qflux_arr) {
-                        // use the flux directly from LSM+Urban
-                        Qflux = surf_qflux_arr(i,j,k);
-                    }
                     qfx3_arr(i,j,k) = Qflux;
                 }
             });
@@ -553,22 +546,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             // Valid tau13 from LSM and over land
             Real stressx;
             int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
-            if (lsm_tau13_arr && is_land) {
-                //stressx = lsm_tau13_arr(i,j,k);
-                int ic, jc;
-                ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
-                jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
-                ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
-                jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
-                //stressx = lsm_flbu_arr(ic, jc, -1);
-                stressx = 0.5*(lsm_tau13_arr(ic-1, jc, k) + lsm_tau13_arr(ic, jc, k));
-                //stressx = 0.5*(lsm_flbu_arr(i-1, j, -1) + lsm_flbu_arr(i, j, -1));
+            if (surf_uflux_arr && is_land) {
+                // use the flux directly from LSM+Urban
+                stressx = surf_uflux_arr(i,j,k);
             } else {
                 stressx = flux_comp.compute_u_flux(i, j, k,
                                                    cons_arr, velx_arr, vely_arr,
                                                    umm_arr, um_arr, u_star_arr);
-
-
             }
 
             // Do stress rotations?
@@ -580,10 +564,6 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                      t13_arr, t31_arr,
                                      t23_arr, t32_arr);
             } else {
-                if (surf_uflux_arr) {
-                    // use the flux directly from LSM+Urban
-                    stressx = surf_uflux_arr(i,j,k);
-                }
                 t13_arr(i,j,k) = stressx;
                 if (t31_arr) { t31_arr(i,j,k) = stressx; }
             }
@@ -600,16 +580,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // Valid tau13 from LSM and over land
                 Real stressy;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
-                if (lsm_tau23_arr && is_land) {
-                    //stressy = lsm_tau23_arr(i,j,k);
-                    int ic, jc;
-                    ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
-                    jc = j  < lbound(cons_arr).y+1 ? lbound(cons_arr).y+1 : j;
-                    ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
-                    jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
-                    //stressy = lsm_flbv_arr(ic, jc, -1);
-                    stressy = 0.5 * (lsm_tau23_arr(ic, jc-1, k) + lsm_tau23_arr(ic, jc, k));
-                    //stressy = 0.5 * (lsm_flbv_arr(i, j-1, -1) + lsm_flbv_arr(i, j, -1));
+                if (surf_vflux_arr && is_land) {
+                    // use the flux directly from LSM+Urban
+                    stressy = surf_vflux_arr(i,j,k);
                 } else {
                     stressy = flux_comp.compute_v_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
@@ -753,8 +726,7 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                   Array4<int> {};
-
-        //const auto lsm_arr = m_lsm_data_lev[lev][m_lsm_tsurf_indx]->const_array(mfi);
+        //const auto lsm_arr = m_lsm_data_lev[lev][0]->const_array(mfi);
         const auto surf_arr = m_surf_model->get_tsurf(lev)->const_array(mfi);
         // get the top-most index of the LSM to use as the surface temperature
         // this is -1 for SLM, but could be different for other models?

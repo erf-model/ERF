@@ -428,7 +428,7 @@ public:
       q_surf[lev]->setVal(default_land_surf_moist);
 
       // TODO: Do we want an enum struct for indexing?
-      if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_has_lsm_tsurf) {
+      if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_has_lsm_tsurf || use_surface_model) {
           // Valid SST, TSK or LSM data; t_surf set before computing fluxes (avoids
           // extended lambda capture) Note that land temp will be set from m_tsk_lev
           //      while sea temp will be set from m_sst_lev
@@ -663,9 +663,9 @@ private:
 
   std::vector<std::vector<amrex::Real>> sfc;
 
-  bool use_surface_model;
-  bool surf_model_fluxes;
-  SurfaceModel* m_surf_model;
+  bool use_surface_model = false;
+  bool surf_model_fluxes = false;
+  SurfaceModel* m_surf_model = nullptr;
 };
 
 #endif /* SURFACELAYER_H */
