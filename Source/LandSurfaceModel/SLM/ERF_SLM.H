@@ -339,7 +339,7 @@ public:
     }
 
     int
-    Lsm_DataIndex (std::string varname) override
+    Lsm_DataIndex (const std::string &varname) override
     {
         int varIdx = -1;
         std::string lc_varname = amrex::toLower(varname);
@@ -348,6 +348,7 @@ public:
                 varIdx = idx;
             }
         }
+        AMREX_ASSERT(varIdx != -1); // no name found
         return varIdx;
     }
 
@@ -360,7 +361,7 @@ public:
     }
 
     int
-    Lsm_FluxIndex (std::string varname) override
+    Lsm_FluxIndex (const std::string &varname) override
     {
         int varIdx = -1;
         std::string lc_varname = amrex::toLower(varname);
@@ -369,6 +370,7 @@ public:
                 varIdx = idx;
             }
         }
+        AMREX_ASSERT(varIdx != -1); // no name found
         return varIdx;
     }
 
