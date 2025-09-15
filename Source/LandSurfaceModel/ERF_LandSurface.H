@@ -98,13 +98,13 @@ public:
     Get_DataName (const int& varIdx) { return m_lsm_model[0]->Lsm_DataName(varIdx); }
 
     int
-    Get_DataIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_DataIndex(varname); }
+    Get_DataIdx (const int& lev, const std::string& varname) { return m_lsm_model[lev]->Lsm_DataIndex(varname); }
 
     std::string
     Get_FluxName (const int& varIdx) { return m_lsm_model[0]->Lsm_FluxName(varIdx); }
 
     int
-    Get_FluxIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_FluxIndex(varname); }
+    Get_FluxIdx (const int& lev, const std::string& varname) { return m_lsm_model[lev]->Lsm_FluxIndex(varname); }
 
     void
     Plot_Lsm_Data (amrex::Real time,

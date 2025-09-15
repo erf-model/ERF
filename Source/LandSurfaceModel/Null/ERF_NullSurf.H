@@ -89,14 +89,14 @@ class NullSurf {
 
     virtual
     int
-    Lsm_DataIndex (std::string /*varname*/)
+    Lsm_DataIndex (const std::string& /*varname*/)
     {
         return (-1);
     }
 
     virtual
     int
-    Lsm_FluxIndex (std::string /*varname*/)
+    Lsm_FluxIndex (const std::string& /*varname*/)
     {
         return (-1);
     }
