@@ -1422,10 +1422,11 @@ ERF::InitData_post ()
             //m_SurfaceModel->set_model_data(lev, urban_data[lev], SurfaceModelType::URBAN);
         }
         // For SLM:
-        m_SurfaceModel->set_model_fields(SurfaceModelType::LAND, amrex::Vector<int>{LsmVar_SLM::ustar,
-                                                                                    LsmVar_SLM::tstar,
-                                                                                    LsmVar_SLM::qstar,
-                                                                                    LsmVar_SLM::tsurf}, false);
+        m_SurfaceModel->set_model_fields(SurfaceModelType::LAND, amrex::Vector<int>{lsm.Get_DataIdx(0, "surface_u"),
+                                                                                    lsm.Get_DataIdx(0, "surface_v"),
+                                                                                    lsm.Get_DataIdx(0, "surface_heat"),
+                                                                                    lsm.Get_DataIdx(0, "surface_vapor"),
+                                                                                    lsm.Get_DataIdx(0, "tsurf")}, true);
     }
 
     // Configure SurfaceLayer params if used
