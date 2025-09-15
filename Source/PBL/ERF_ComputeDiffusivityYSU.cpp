@@ -49,7 +49,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             const auto& uvel = xvel.const_array(mfi);
             const auto& vvel = yvel.const_array(mfi);
 
-            const auto& z0_arr        = SurfLayer->get_z0(level)->const_array();
+            const auto& z0_arr        = SurfLayer->get_z0(level)->const_array(mfi);
             const auto& ws10av_arr    = SurfLayer->get_mac_avg(level,5)->const_array(mfi);
             const auto& t10av_arr     = SurfLayer->get_mac_avg(level,2)->const_array(mfi);
             const auto& t_surf_arr    = SurfLayer->get_t_surf(level)->const_array(mfi);

@@ -33,8 +33,8 @@ SLM::Init (const int& /*lev*/,
     khi_lsm    = domain.smallEnd(2) - 1; // index of z_r
     klo_lsm    = khi_lsm - m_nz_lsm + 1;
 
-    LsmVarMap.resize(m_lsm_size);
-    LsmVarMap = {
+    LsmDataMap.resize(m_lsm_data_size);
+    LsmDataMap = {
       LsmVar_SLM::tsurf,         LsmVar_SLM::ustar,        LsmVar_SLM::tstar,       LsmVar_SLM::qstar,
       LsmVar_SLM::tv,            LsmVar_SLM::mv,           LsmVar_SLM::soilt,       LsmVar_SLM::soilw,
       LsmVar_SLM::sand,          LsmVar_SLM::clay,         LsmVar_SLM::s_depth,
@@ -47,8 +47,8 @@ SLM::Init (const int& /*lev*/,
       LsmVar_SLM::soilt_nudge,   LsmVar_SLM::soilw_nudge,  LsmVar_SLM::lai,
       LsmVar_SLM::vegtype,       LsmVar_SLM::soiltype};
 
-    LsmVarName.resize(m_lsm_size);
-    LsmVarName = {"tsurf",         "ustar",          "tstar",
+    LsmDataName.resize(m_lsm_data_size);
+    LsmDataName = {"tsurf",         "ustar",          "tstar",
                   "qstar",         "tveg",           "mv",
                   "tsoil",         "wsoil",          "sand",
                   "clay",          "soil_thickness", "surface_u",
@@ -61,8 +61,17 @@ SLM::Init (const int& /*lev*/,
                   "soilw_nudge",   "lai",            "vegtype",
                   "soiltype"};
 
-    AMREX_ALWAYS_ASSERT(LsmVarMap.size() == LsmVarName.size());
-    AMREX_ALWAYS_ASSERT(LsmVarMap.size() == m_lsm_size);
+    AMREX_ALWAYS_ASSERT(LsmDataMap.size() == LsmDataName.size());
+    AMREX_ALWAYS_ASSERT(LsmDataMap.size() == m_lsm_data_size);
+
+    LsmFluxMap.resize(m_lsm_flux_size);
+    LsmFluxMap = {LsmFlux_SLM::q_flux, LsmFlux_SLM::t_flux, LsmFlux_SLM::tau13, LsmFlux_SLM::tau23};
+
+    LsmFluxName.resize(m_lsm_flux_size);
+    LsmFluxName = {"tstar", "qstar", "tau13", "tau23"};
+
+    AMREX_ALWAYS_ASSERT(LsmFluxMap.size() == LsmFluxName.size());
+    AMREX_ALWAYS_ASSERT(LsmFluxMap.size() == m_lsm_flux_size);
 
     // NOTE: All boxes in ba extend from zlo to zhi, so this transform is valid.
     //       If that were to change, the dm and new ba are no longer valid and
@@ -92,16 +101,25 @@ SLM::Init (const int& /*lev*/,
     lsm_rb.setHi(2,lsm_z_hi); lsm_rb.setLo(2,lsm_z_lo);
     m_lsm_geom.define( ba_lsm.minimalBox(), lsm_rb, m_geom.Coord(), m_geom.isPeriodic() );
 
-    // Create the data and fluxes
+    BoxList bl_lsm_2d = ba_lsm.boxList();
+    for (auto& b : bl_lsm_2d) {
+        b.setRange(2, 0, 1);
+    }
+    ba_lsm_2d = BoxArray(std::move(bl_lsm_2d));
+    IntVect ng_2d(0, 0, 0);
+
+    // Create the data
     for (auto ivar = 0; ivar < LsmVar_SLM::NumVars; ++ivar) {
         // State vars are CC
-        Real theta_0 = m_theta_dir;
         lsm_fab_vars[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
         lsm_fab_vars[ivar]->setVal(0.0);
+    }
 
-        // Fluxes are nodal in z
-        //lsm_fab_flux[ivar] = std::make_shared<MultiFab>(convert(ba_lsm, IntVect(0,0,1)), dm, 1, IntVect(0,0,0));
-        //lsm_fab_flux[ivar]->setVal(0.);
+    // Create the fluxes
+    for (auto ivar = 0; ivar < LsmFlux_SLM::NumVars; ++ivar) {
+        // NOTE: Fluxes are CC with ghost cells for averaging
+        lsm_fab_flux[ivar] = std::make_shared<MultiFab>(ba_lsm_2d, dm, 1, IntVect(1,1,0));
+        lsm_fab_flux[ivar]->setVal(0.0);
     }
 
     // packed temporary 1D arrays in soil water and soil temperature
@@ -111,13 +129,6 @@ SLM::Init (const int& /*lev*/,
     soilw_vars.setVal(0.0);
 
     // Create local 2D data
-    BoxList bl_lsm_2d = ba_lsm.boxList();
-    for (auto& b : bl_lsm_2d) {
-        b.setRange(2, 0, 1);
-    }
-    ba_lsm_2d = BoxArray(std::move(bl_lsm_2d));
-    IntVect ng_2d(0, 0, 0);
-
     // TODO: Placeholder landmask array - fix!
     landmask.define(ba_lsm_2d, dm, 1, ng_2d);
     landmask.setVal(1);
@@ -722,213 +733,218 @@ void SLM::init_landtype()
                     // TODO: should this landmask be ERF's lmask_lev variable?
                     landmask_arr(i, j, 0) = 0;
                     vegetype_arr(i, j, 0) = 0;
+                    // set albedo for water so that it is populated for RRTMGP
+                    albedovis_v_arr(i, j, 0) = 0.06;
+                    albedonir_v_arr(i, j, 0) = 0.06;
+                    albedovis_s_arr(i, j, 0) = 0.06;
+                    albedonir_s_arr(i, j, 0) = 0.06;
                     break;
                 case 1: // evergreen needleaf forest
-                    albedovis_v_arr(i, j, 0) = 0.04;
-                    albedonir_v_arr(i, j, 0) = 0.20;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
+                    albedovis_v_arr(i, j, 0) = 0.094;
+                    albedonir_v_arr(i, j, 0) = 0.161;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
                     ztop_arr(i, j, 0) = 20.;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
                     z0_sfc_arr(i, j, 0) = 1.09;
                     Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
+                    rootL_arr(i, j, 0) = 1.8;
+                    root_a_arr(i, j, 0) = 6.706;
+                    root_b_arr(i, j, 0) = 2.175;
                     Rc_min_arr(i, j, 0) = 100.;
                     Rgl_arr(i, j, 0) = 30.;
                     hs_rc_arr(i, j, 0) = 54.53;
-                    BAI_arr(i, j, 0) = 100.;
+                    BAI_arr(i, j, 0) = 200.;
                     vegetype_arr(i, j, 0) = 1;
                     break;
                 case 2: // evergreen broadleaf forest
-                    albedovis_v_arr(i, j, 0) = 0.04;
-                    albedonir_v_arr(i, j, 0) = 0.20;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
+                    albedovis_v_arr(i, j, 0) = 0.086;
+                    albedonir_v_arr(i, j, 0) = 0.146;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
                     ztop_arr(i, j, 0) = 20.;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 2.65;
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
+                    z0_sfc_arr(i, j, 0) = 1.00;
                     Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
-                    Rc_min_arr(i, j, 0) = 150.;
+                    rootL_arr(i, j, 0) = 3.0;
+                    root_a_arr(i, j, 0) = 7.344;
+                    root_b_arr(i, j, 0) = 1.303;
+                    Rc_min_arr(i, j, 0) = 100.;
                     Rgl_arr(i, j, 0) = 30.;
                     hs_rc_arr(i, j, 0) = 54.53;
-                    BAI_arr(i, j, 0) = 100.;
+                    BAI_arr(i, j, 0) = 200.;
                     vegetype_arr(i, j, 0) = 1;
                     break;
                 case 3: // deciduous needleaf forest
-                    albedovis_v_arr(i, j, 0) = 0.05;
-                    albedonir_v_arr(i, j, 0) = 0.23;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
+                    albedovis_v_arr(i, j, 0) = 0.102;
+                    albedonir_v_arr(i, j, 0) = 0.198;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
                     ztop_arr(i, j, 0) = 20.;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.85;
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
+                    z0_sfc_arr(i, j, 0) = 1.10;
                     Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
+                    rootL_arr(i, j, 0) = 2.0;
+                    root_a_arr(i, j, 0) = 7.066;
+                    root_b_arr(i, j, 0) = 1.953;
                     Rc_min_arr(i, j, 0) = 100.;
                     Rgl_arr(i, j, 0) = 30.;
                     hs_rc_arr(i, j, 0) = 54.53;
-                    BAI_arr(i, j, 0) = 100.;
+                    BAI_arr(i, j, 0) = 200.;
                     vegetype_arr(i, j, 0) = 1;
                     break;
                 case 4: // deciduous broadleaf forest
-                    albedovis_v_arr(i, j, 0) = 0.07;
-                    albedonir_v_arr(i, j, 0) = 0.24;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
+                    albedovis_v_arr(i, j, 0) = 0.056;
+                    albedonir_v_arr(i, j, 0) = 0.151;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
                     ztop_arr(i, j, 0) = 20.;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
                     z0_sfc_arr(i, j, 0) = 0.8;
                     Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
+                    rootL_arr(i, j, 0) = 2.0;
+                    root_a_arr(i, j, 0) = 5.990;
+                    root_b_arr(i, j, 0) = 1.955;
                     Rc_min_arr(i, j, 0) = 100.;
                     Rgl_arr(i, j, 0) = 30.;
                     hs_rc_arr(i, j, 0) = 54.53;
-                    BAI_arr(i, j, 0) = 100.;
+                    BAI_arr(i, j, 0) = 200.;
                     vegetype_arr(i, j, 0) = 1;
                     break;
                 case 5: // mixed forest
-                    albedovis_v_arr(i, j, 0) = 0.06;
-                    albedonir_v_arr(i, j, 0) = 0.24;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
+                    albedovis_v_arr(i, j, 0) = 0.093;
+                    albedonir_v_arr(i, j, 0) = 0.179;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
                     ztop_arr(i, j, 0) = 20.;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
                     z0_sfc_arr(i, j, 0) = 0.8;
                     Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
+                    rootL_arr(i, j, 0) = 2.4;
+                    root_a_arr(i, j, 0) = 4.453;
+                    root_b_arr(i, j, 0) = 1.631;
+                    Rc_min_arr(i, j, 0) = 100.;
+                    Rgl_arr(i, j, 0) = 30.;
+                    hs_rc_arr(i, j, 0) = 54.53;
+                    BAI_arr(i, j, 0) = 200.;
+                    vegetype_arr(i, j, 0) = 1;
+                    break;
+                case 6: // closed shrublands
+                    albedovis_v_arr(i, j, 0) = 0.069;
+                    albedonir_v_arr(i, j, 0) = 0.121;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
+                    ztop_arr(i, j, 0) = 1.;
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
+                    z0_sfc_arr(i, j, 0) = 0.2;
+                    Khai_L_arr(i, j, 0) = 0.25;
+                    rootL_arr(i, j, 0) = 2.5;
+                    root_a_arr(i, j, 0) = 6.326;
+                    root_b_arr(i, j, 0) = 1.567;
+                    Rc_min_arr(i, j, 0) = 100.;
+                    Rgl_arr(i, j, 0) = 30.;
+                    hs_rc_arr(i, j, 0) = 54.53;
+                    BAI_arr(i, j, 0) = 60.;
+                    vegetype_arr(i, j, 0) = 1;
+                    break;
+                case 7: // open shrublands
+                    albedovis_v_arr(i, j, 0) = 0.079;
+                    albedonir_v_arr(i, j, 0) = 0.226;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
+                    ztop_arr(i, j, 0) = 1.;
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
+                    z0_sfc_arr(i, j, 0) = 0.1;
+                    Khai_L_arr(i, j, 0) = 0.25;
+                    rootL_arr(i, j, 0) = 3.1;
+                    root_a_arr(i, j, 0) = 7.718;
+                    root_b_arr(i, j, 0) = 1.262;
+                    Rc_min_arr(i, j, 0) = 50.;
+                    Rgl_arr(i, j, 0) = 30.;
+                    hs_rc_arr(i, j, 0) = 54.53;
+                    BAI_arr(i, j, 0) = 60.;
+                    vegetype_arr(i, j, 0) = 1;
+                    break;
+                case 8: // woody savannas
+                    albedovis_v_arr(i, j, 0) = 0.071;
+                    albedonir_v_arr(i, j, 0) = 0.085;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
+                    ztop_arr(i, j, 0) = 5.;
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
+                    z0_sfc_arr(i, j, 0) = 0.86;
+                    Khai_L_arr(i, j, 0) = 0.25;
+                    rootL_arr(i, j, 0) = 1.7;
+                    root_a_arr(i, j, 0) = 7.604;
+                    root_b_arr(i, j, 0) = 2.300;
                     Rc_min_arr(i, j, 0) = 100.;
                     Rgl_arr(i, j, 0) = 30.;
                     hs_rc_arr(i, j, 0) = 54.53;
                     BAI_arr(i, j, 0) = 100.;
                     vegetype_arr(i, j, 0) = 1;
                     break;
-                case 6: // closed shrublands
-                    albedovis_v_arr(i, j, 0) = 0.07;
-                    albedonir_v_arr(i, j, 0) = 0.26;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
-                    ztop_arr(i, j, 0) = 1.;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.03;
-                    Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
-                    Rc_min_arr(i, j, 0) = 100.;
-                    Rgl_arr(i, j, 0) = 30.;
-                    hs_rc_arr(i, j, 0) = 54.53;
-                    BAI_arr(i, j, 0) = 30.;
-                    vegetype_arr(i, j, 0) = 1;
-                    break;
-                case 7: // open shrublands
-                    albedovis_v_arr(i, j, 0) = 0.14;
-                    albedonir_v_arr(i, j, 0) = 0.32;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
-                    ztop_arr(i, j, 0) = 1.;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.03;
-                    Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
-                    Rc_min_arr(i, j, 0) = 50.;
-                    Rgl_arr(i, j, 0) = 30.;
-                    hs_rc_arr(i, j, 0) = 54.53;
-                    BAI_arr(i, j, 0) = 30.;
-                    vegetype_arr(i, j, 0) = 1;
-                    break;
-                case 8: // woody savannas
-                    albedovis_v_arr(i, j, 0) = 0.06;
-                    albedonir_v_arr(i, j, 0) = 0.21;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
-                    ztop_arr(i, j, 0) = 5.;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.86;
-                    Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
-                    Rc_min_arr(i, j, 0) = 100.;
-                    Rgl_arr(i, j, 0) = 30.;
-                    hs_rc_arr(i, j, 0) = 54.53;
-                    BAI_arr(i, j, 0) = 50.;
-                    vegetype_arr(i, j, 0) = 1;
-                    break;
                 case 9: // savannas
-                    albedovis_v_arr(i, j, 0) = 0.07;
-                    albedonir_v_arr(i, j, 0) = 0.26;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
+                    albedovis_v_arr(i, j, 0) = 0.061;
+                    albedonir_v_arr(i, j, 0) = 0.227;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
                     ztop_arr(i, j, 0) = 5.;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
                     z0_sfc_arr(i, j, 0) = 0.86;
                     Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
+                    rootL_arr(i, j, 0) = 2.4;
+                    root_a_arr(i, j, 0) = 8.235;
+                    root_b_arr(i, j, 0) = 1.627;
                     Rc_min_arr(i, j, 0) = 100.;
                     Rgl_arr(i, j, 0) = 30.;
                     hs_rc_arr(i, j, 0) = 54.53;
-                    BAI_arr(i, j, 0) = 50.;
+                    BAI_arr(i, j, 0) = 100.;
                     vegetype_arr(i, j, 0) = 1;
                     break;
                 case 10: // grasslands
-                    albedovis_v_arr(i, j, 0) = 0.07;
-                    albedonir_v_arr(i, j, 0) = 0.25;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
+                    albedovis_v_arr(i, j, 0) = 0.09;
+                    albedonir_v_arr(i, j, 0) = 0.269;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
                     ztop_arr(i, j, 0) = 0.5;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.08;
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
+                    z0_sfc_arr(i, j, 0) = 0.2;
                     Khai_L_arr(i, j, 0) = -0.3;
                     rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
+                    root_a_arr(i, j, 0) = 10.74;
+                    root_b_arr(i, j, 0) = 2.608;
                     Rc_min_arr(i, j, 0) = 170.;
                     Rgl_arr(i, j, 0) = 100.;
                     hs_rc_arr(i, j, 0) = 39.18;
-                    BAI_arr(i, j, 0) = 30.;
+                    BAI_arr(i, j, 0) = 20.;
                     vegetype_arr(i, j, 0) = 1;
                     break;
                 case 11: // permanent wetlands
-                    albedovis_v_arr(i, j, 0) = 0.06;
+                    albedovis_v_arr(i, j, 0) = 0.081;
                     albedonir_v_arr(i, j, 0) = 0.18;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
                     ztop_arr(i, j, 0) = 0.5;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.04;
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
+                    z0_sfc_arr(i, j, 0) = 0.2;
                     Khai_L_arr(i, j, 0) = -0.3;
                     rootL_arr(i, j, 0) = 1.5;
                     root_a_arr(i, j, 0) = 5.558;
                     root_b_arr(i, j, 0) = 2.614;
-                    Rc_min_arr(i, j, 0) = 0.0;
-                    Rgl_arr(i, j, 0) = 0.0;
-                    hs_rc_arr(i, j, 0) = 0.0;
-                    BAI_arr(i, j, 0) = 0.0;
-                    vegetype_arr(i, j, 0) = 0;
+                    Rc_min_arr(i, j, 0) = 170.0;
+                    Rgl_arr(i, j, 0) = 100.0;
+                    hs_rc_arr(i, j, 0) = 39.18;
+                    BAI_arr(i, j, 0) = 20.0;
+                    vegetype_arr(i, j, 0) =1;
                     break;
                 case 12: // croplands
-                    albedovis_v_arr(i, j, 0) = 0.06;
-                    albedonir_v_arr(i, j, 0) = 0.24;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
+                    albedovis_v_arr(i, j, 0) = 0.084;
+                    albedonir_v_arr(i, j, 0) = 0.193;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
                     ztop_arr(i, j, 0) = 0.5;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.075;
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
+                    z0_sfc_arr(i, j, 0) = 0.25;
                     Khai_L_arr(i, j, 0) = -0.3;
                     rootL_arr(i, j, 0) = 1.5;
                     root_a_arr(i, j, 0) = 5.558;
@@ -936,16 +952,16 @@ void SLM::init_landtype()
                     Rc_min_arr(i, j, 0) = 100.;
                     Rgl_arr(i, j, 0) = 100.;
                     hs_rc_arr(i, j, 0) = 39.18;
-                    BAI_arr(i, j, 0) = 50.;
+                    BAI_arr(i, j, 0) = 60.;
                     vegetype_arr(i, j, 0) = 1;
                     break;
                 case 13: // urban
-                    albedovis_v_arr(i, j, 0) = 0.06;
-                    albedonir_v_arr(i, j, 0) = 0.22;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
+                    albedovis_v_arr(i, j, 0) = 0.102;
+                    albedonir_v_arr(i, j, 0) = 0.164;
+                    albedovis_s_arr(i, j, 0) = 0.15;
+                    albedonir_s_arr(i, j, 0) = 0.25;
                     ztop_arr(i, j, 0) = 10.;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
                     z0_sfc_arr(i, j, 0) = 1.0;
                     Khai_L_arr(i, j, 0) = -0.3;
                     rootL_arr(i, j, 0) = 1.5;
@@ -958,13 +974,13 @@ void SLM::init_landtype()
                     vegetype_arr(i, j, 0) = 0;
                     break;
                 case 14: // croplands/natural mozaics
-                    albedovis_v_arr(i, j, 0) = 0.06;
-                    albedonir_v_arr(i, j, 0) = 0.22;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
+                    albedovis_v_arr(i, j, 0) = 0.071;
+                    albedonir_v_arr(i, j, 0) = 0.169;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
                     ztop_arr(i, j, 0) = 0.5;
-                    disp_hgt_arr(i, j, 0) = 0.68 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.07;
+                    disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
+                    z0_sfc_arr(i, j, 0) = 0.1;
                     Khai_L_arr(i, j, 0) = -0.3;
                     rootL_arr(i, j, 0) = 1.5;
                     root_a_arr(i, j, 0) = 5.558;
@@ -972,17 +988,17 @@ void SLM::init_landtype()
                     Rc_min_arr(i, j, 0) = 100.;
                     Rgl_arr(i, j, 0) = 100.;
                     hs_rc_arr(i, j, 0) = 39.18;
-                    BAI_arr(i, j, 0) = 50.;
+                    BAI_arr(i, j, 0) = 20.;
                     vegetype_arr(i, j, 0) = 1;
                     break;
                 case 15: // snow/ice
                     albedovis_v_arr(i, j, 0) = 0.0; // actually depends on moisture content
                     albedonir_v_arr(i, j, 0) = 0.0;
-                    albedovis_s_arr(i, j, 0) = 0.95;
+                    albedovis_s_arr(i, j, 0) = 0.91;
                     albedonir_s_arr(i, j, 0) = 0.65;
                     ztop_arr(i, j, 0) = 0.0;
                     disp_hgt_arr(i, j, 0) = 0.0;
-                    z0_sfc_arr(i, j, 0) = 0.01;
+                    z0_sfc_arr(i, j, 0) = 0.001;
                     Khai_L_arr(i, j, 0) = 0.0;
                     rootL_arr(i, j, 0) = 0.0;
                     root_a_arr(i, j, 0) = 0.0;
@@ -996,8 +1012,8 @@ void SLM::init_landtype()
                 case 16: // baresoil
                     albedovis_v_arr(i, j, 0) = 0.0; // actually depends on moisture content
                     albedonir_v_arr(i, j, 0) = 0.0;
-                    albedovis_s_arr(i, j, 0) = 0.19;
-                    albedonir_s_arr(i, j, 0) = 0.38;
+                    albedovis_s_arr(i, j, 0) = 0.208;
+                    albedonir_s_arr(i, j, 0) = 0.344;
                     ztop_arr(i, j, 0) = 0.;
                     disp_hgt_arr(i, j, 0) = 0.0;
                     z0_sfc_arr(i, j, 0) = d_z0_soil;
@@ -1420,14 +1436,20 @@ SLM::AdvanceSLM ()
         auto r_d_arr = r_d.const_array(mfi);
         auto r_soil_arr = r_soil.const_array(mfi);
 
-        //auto flbu_arr  = lsm_fab_vars[LsmVar_SLM::flbu]->array(mfi);
-        //auto flbv_arr  = lsm_fab_vars[LsmVar_SLM::flbv]->array(mfi);
+        auto flbu_arr  = lsm_fab_vars[LsmVar_SLM::flbu]->array(mfi);
+        auto flbv_arr  = lsm_fab_vars[LsmVar_SLM::flbv]->array(mfi);
         auto flbq_arr  = lsm_fab_vars[LsmVar_SLM::flbq]->array(mfi);
         auto flbt_arr  = lsm_fab_vars[LsmVar_SLM::flbt]->array(mfi);
         auto prsfc_arr  = lsm_fab_vars[LsmVar_SLM::prsfc]->const_array(mfi);
 
         auto net_rad_arr = net_rad.const_array(mfi);
         auto wet_canop_arr = wet_canop.const_array(mfi);
+
+        // TODO: Copies for MOST
+        auto fluxq_arr = lsm_fab_flux[LsmFlux_SLM::q_flux]->array(mfi);
+        auto fluxt_arr = lsm_fab_flux[LsmFlux_SLM::t_flux]->array(mfi);
+        auto tau13_arr = lsm_fab_flux[LsmFlux_SLM::tau13]->array(mfi);
+        auto tau23_arr = lsm_fab_flux[LsmFlux_SLM::tau23]->array(mfi);
 
         // Calculate net radiation absorbed by canopy and soil surface
         radiative_fluxes(mfi);
@@ -1584,14 +1606,19 @@ SLM::AdvanceSLM ()
 
                 // Output variables
                 tsurf_arr(i, j, d_khi_lsm) = t_skin_arr(i, j, 0); // TODO: ts in SLM is input and output - check how this should be coupled back to ERF
+                tsurf_arr(i, j, 0) = tsurf_arr(i, j, d_khi_lsm); // make sure this is set at k=0 for radiation coupling
                 flbq_arr(i, j, d_khi_lsm) = lhf_air_arr(i, j, 0) / (lcond*rhow);
                 flbt_arr(i, j, d_khi_lsm) = shf_air_arr(i, j, 0) / (Cp_d*rhow);
 
                 //qstar_arr(i, j, 0) = -1.0 * lhf_air_arr(i, j, 0) / (lcond*rhow) / ustar_arr(i, j, 0);
                 qstar_arr(i, j, 0) = lhf_air_arr(i, j, 0) / (lcond*rhow);
                 qstar_arr(i, j, d_khi_lsm) = qstar_arr(i, j, 0);
-                // Collect 2D stat variables
-                // collect_2D_stat_vars(i, j);
+
+                // TODO: fix - copies SLM boundary into flux array for MOST
+                fluxq_arr(i,j,0) = flbq_arr(i, j, d_khi_lsm);
+                fluxt_arr(i,j,0) = flbt_arr(i, j, d_khi_lsm);
+                tau13_arr(i,j,0) = flbu_arr(i, j, d_khi_lsm);
+                tau23_arr(i,j,0) = flbv_arr(i, j, d_khi_lsm);
             }
         });
     }
@@ -1602,6 +1629,12 @@ SLM::AdvanceSLM ()
     lsm_fab_vars[LsmVar_SLM::qstar]->FillBoundary(m_geom.periodicity());
     lsm_fab_vars[LsmVar_SLM::flbu]->FillBoundary(m_geom.periodicity());
     lsm_fab_vars[LsmVar_SLM::flbv]->FillBoundary(m_geom.periodicity());
+
+    // TODO: fix;
+    lsm_fab_flux[LsmFlux_SLM::q_flux]->FillBoundary(m_geom.periodicity());
+    lsm_fab_flux[LsmFlux_SLM::t_flux]->FillBoundary(m_geom.periodicity());
+    lsm_fab_flux[LsmFlux_SLM::tau13]->FillBoundary(m_geom.periodicity());
+    lsm_fab_flux[LsmFlux_SLM::tau23]->FillBoundary(m_geom.periodicity());
 }
 
 void SLM::radiative_fluxes(const amrex::MFIter &mfi)

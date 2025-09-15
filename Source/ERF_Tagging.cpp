@@ -39,15 +39,15 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             amrex::Abort("These must be the same -- please edit your inputs file and try again.");
         }
 
+        if ( (ref_ratio[levc][2]) != 1) {
+            amrex::Abort("The ref_ratio specified in the inputs file must have 1 in the z direction; please use ref_ratio_vect rather than ref_ratio");
+        }
+
         subdomain.coarsen(IntVect(ratio,ratio,1));
 
         // We assume there is only one subdomain at levc; otherwise we don't know
         //     which one is the parent of the fine region we are trying to create
         AMREX_ALWAYS_ASSERT(subdomains[levc].size() == 1);
-
-        // We assume there is only one box in the first subdomain at levc; otherwise we don't know
-        //    how to compute the offset
-        AMREX_ALWAYS_ASSERT(subdomains[levc][0].size() == 1);
 
         Box coarser_level(subdomains[levc][0].minimalBox());
         subdomain.shift(coarser_level.smallEnd());
@@ -86,11 +86,11 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     MultiFab& W_new = vars_new[levc][Vars::zvel];
     //
     if (levc == 0) {
-        FillPatch(levc, time, {&S_new, &U_new, &V_new, &W_new});
+        FillPatchCrseLevel(levc, time, {&S_new, &U_new, &V_new, &W_new});
     } else {
-        FillPatch(levc, time, {&S_new, &U_new, &V_new, &W_new},
-                              {&S_new, &rU_new[levc], &rV_new[levc], &rW_new[levc]},
-                              base_state[levc], base_state[levc],
+        FillPatchFineLevel(levc, time, {&S_new, &U_new, &V_new, &W_new},
+                           {&S_new, &rU_new[levc], &rV_new[levc], &rW_new[levc]},
+                           base_state[levc], base_state[levc],
                               false, true);
     }
 

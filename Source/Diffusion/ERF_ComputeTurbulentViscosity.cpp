@@ -162,6 +162,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 } else { // anisotropic or smag2d
                     Real CsDeltaHSqr = Cs * Cs * DeltaH * DeltaH;
                     mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaHSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+
                     if (smag2d) {
                         mu_turb(i, j, k, EddyDiff::Mom_v) = 0.0;
                     } else {
@@ -386,7 +387,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                                     const TurbChoice& turbChoice,
                                     const Real const_grav,
                                     std::unique_ptr<SurfaceLayer>& SurfLayer,
-                                    const FArrayBox* z_0)
+                                    const MultiFab* z_0)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const bool use_SurfLayer = (SurfLayer != nullptr);
@@ -418,7 +419,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
             Box bxcc = mfi.tilebox();
 
             const Array4<Real const>& d_arr  = wdist.const_array(mfi);
-            const Array4<Real const>& z0_arr = (use_SurfLayer) ? z_0->const_array() : Array4<Real const>{};
+            const Array4<Real const>& z0_arr = (use_SurfLayer) ? z_0->const_array(mfi) : Array4<Real const>{};
 
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& hfx_x   = Hfx1.array(mfi);
@@ -592,9 +593,10 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
  * @param[in]  most pointer to Monin-Obukhov class if instantiated
  * @param[in]  vert_only flag for vertical components of eddyViscosity
  */
-void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
+void ComputeTurbulentViscosity (Real dt,
+                                const MultiFab& xvel, const MultiFab& yvel,
                                 Vector<std::unique_ptr<MultiFab>>& Tau_lev,
-                                const MultiFab& cons_in,
+                                MultiFab& cons_in,
                                 const MultiFab& wdist,
                                 MultiFab& eddyViscosity,
                                 MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
@@ -603,7 +605,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
                                 const std::unique_ptr<MultiFab>& z_phys_nd,
                                 const SolverChoice& solverChoice,
                                 std::unique_ptr<SurfaceLayer>& SurfLayer,
-                                const FArrayBox* z_0,
+                                const MultiFab* z_0,
                                 const bool& use_terrain_fitted_coords,
                                 const bool& use_moisture,
                                 int level,
@@ -653,7 +655,13 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
                                       SurfLayer, z_0);
     }
 
-    if (turbChoice.pbl_type == PBLType::MYNN25) {
+    if (turbChoice.pbl_type == PBLType::MYJ) {
+        ComputeDiffusivityMYJ(dt, xvel, yvel, cons_in, eddyViscosity,
+                              geom, turbChoice, SurfLayer,
+                              use_terrain_fitted_coords, use_moisture,
+                              level, bc_ptr, vert_only, z_phys_nd,
+                              solverChoice.moisture_indices);
+    } else if (turbChoice.pbl_type == PBLType::MYNN25) {
         ComputeDiffusivityMYNN25(xvel, yvel, cons_in, eddyViscosity,
                                  geom, turbChoice, SurfLayer,
                                  use_terrain_fitted_coords, use_moisture,
@@ -671,8 +679,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
                               use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd,
                               solverChoice.moisture_indices);
-    }
-    else if (turbChoice.pbl_type == PBLType::MRF) {
+    } else if (turbChoice.pbl_type == PBLType::MRF) {
         ComputeDiffusivityMRF(xvel, yvel, cons_in, eddyViscosity,
                               geom, turbChoice, SurfLayer,
                               use_terrain_fitted_coords, use_moisture,
@@ -739,7 +746,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             {
                 int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i_lo,lj,lk) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && i < domlo.x && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i_lo,lj,lk,n);
@@ -750,7 +757,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             {
                 int lj = amrex::min(amrex::max(j, domlo.y), domhi.y);
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i_hi,lj,lk) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && i > domhi.x && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i_hi,lj,lk,n);
@@ -760,7 +767,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             ParallelFor(planey_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j_lo,lk) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && j < domlo.y && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j_lo,lk,n);
@@ -770,7 +777,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             ParallelFor(planey_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int lk = amrex::min(amrex::max(k, domlo.z), domhi.z);
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j_hi,lk) != is_notcovered)||
                     (mask_arr(i,j,k) == is_physbnd     && j > domhi.y && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j_hi,lk,n);
@@ -779,7 +786,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             });
             ParallelFor(planez_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j,k_lo) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && k < domlo.z && impose_phys_bcs)) {
                     if (mask_arr(i,j,k) == is_physbnd) {
                     }
@@ -790,7 +797,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
             });
             ParallelFor(planez_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if ((mask_arr(i,j,k) == is_notcovered) ||
+                if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j,k_hi) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd     && k > domhi.z && impose_phys_bcs)) {
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j,k_hi,n);

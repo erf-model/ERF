@@ -246,8 +246,8 @@
         // Populate RHS for relaxation zones if using real bcs
         if (solverChoice.use_real_bcs && (level == 0)) {
             if (real_width>0) {
-                realbdy_compute_interior_ghost_rhs(bdy_time_interval, start_bdy_time,
-                                                   new_stage_time, slow_dt, stop_time,
+                realbdy_compute_interior_ghost_rhs(bdy_time_interval,
+                                                   new_stage_time, slow_dt, stop_time-start_time,
                                                    real_width, real_set_width, fine_geom,
                                                    S_rhs, S_old, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,

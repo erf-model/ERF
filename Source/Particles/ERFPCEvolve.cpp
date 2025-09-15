@@ -55,6 +55,8 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
 
+    auto domlo = lbound(geom.Domain());
+
     Vector<std::unique_ptr<MultiFab> > raii_umac(AMREX_SPACEDIM);
     Vector<MultiFab*> umac_pointer(AMREX_SPACEDIM);
     if (OnSameGrids(a_lev, a_umac[0]))
@@ -75,6 +77,8 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
             umac_pointer[i]->ParallelCopy(a_umac[i],0,0,a_umac[i].nComp(),ng,ng);
         }
     }
+
+    bool periodic_in_z = (geom.isPeriodic(2));
 
     for (int ipass = 0; ipass < 2; ipass++)
     {
@@ -126,17 +130,44 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                         v_ptr[dim][i] = p.pos(dim);
                         p.pos(dim) += static_cast<ParticleReal>(ParticleReal(0.5)*a_dt*v[dim]);
                     }
-                    // Update z-coordinate carried by the particle
-                    update_location_idata(p,plo,dxi,zheight);
                 } else {
                     for (int dim=0; dim < AMREX_SPACEDIM; dim++)
                     {
                         p.pos(dim) = v_ptr[dim][i] + static_cast<ParticleReal>(a_dt*v[dim]);
                         v_ptr[dim][i] = v[dim];
                     }
-                    // Update z-coordinate carried by the particle
-                    update_location_idata(p,plo,dxi,zheight);
                 }
+
+                // Update z-coordinate carried by the particle
+                update_location_idata(p,plo,dxi,zheight);
+
+                // If the particle crossed below the bottom surface, move it up to 0.2*dz above the surface
+                if (!periodic_in_z) {
+                    if (p.idata(ERFParticlesIntIdxAoS::k) < 0) {
+                        int ii = domlo.x + int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0]));
+                        int jj = domlo.y + int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1]));
+                        int kk = 0;
+
+                        // Update the stored particle location
+                        p.idata(ERFParticlesIntIdxAoS::k) = kk;
+
+                        if (zheight) {
+                            Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<amrex::Real>(ii);
+                            Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<amrex::Real>(jj);
+                            auto zlo = zheight(ii  ,jj  ,kk  ) * (1.0-lx) * (1.0-ly) +
+                                       zheight(ii+1,jj  ,kk  ) *      lx  * (1.0-ly) +
+                                       zheight(ii  ,jj+1,kk  ) * (1.0-lx) * ly +
+                                       zheight(ii+1,jj+1,kk  ) *      lx  * ly;
+                            auto zhi = zheight(ii  ,jj  ,kk+1) * (1.0-lx) * (1.0-ly) +
+                                       zheight(ii+1,jj  ,kk+1) *      lx  * (1.0-ly) +
+                                       zheight(ii  ,jj+1,kk+1) * (1.0-lx) * ly +
+                                       zheight(ii+1,jj+1,kk+1) *      lx  * ly;
+                            p.pos(2) = zlo + 0.2 * (zhi - zlo);
+                        } else {
+                            p.pos(2) = plo[2] + 0.2 / dxi[2];
+                        }
+                    } // k < 0
+                } // !periodic
             });
         }
     }

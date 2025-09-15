@@ -278,7 +278,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         // Link the new MultiFabs to the FABs in the original MultiFabs (no copy required)
         for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
             int orig_index = index_map[mfi.index()];
-            amrex::Print() << " INDEX        " << orig_index << " TO " << mfi.index() << std::endl;
+            // amrex::Print() << " INDEX        " << orig_index << " TO " << mfi.index() << std::endl;
             rhs_sub[0].setFab(mfi, FArrayBox(rhs[0][orig_index], amrex::make_alias, 0, 1));
             phi_sub[0].setFab(mfi, FArrayBox(phi[0][orig_index], amrex::make_alias, 0, 1));
             fluxes_sub[0][0].setFab(mfi,FArrayBox(fluxes[0][0][orig_index], amrex::make_alias, 0, 1));

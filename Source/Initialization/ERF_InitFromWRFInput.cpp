@@ -211,7 +211,6 @@ ERF::init_from_wrfinput (int lev,
             {
                 for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
                 {
-                    FArrayBox& cons_fab = lev_new[Vars::cons][mfi];
                     FArrayBox* cur_fab;
                     if (var_name == "U") {
                       cur_fab  = &lev_new[Vars::xvel][mfi];
@@ -534,7 +533,7 @@ ERF::init_from_wrfinput (int lev,
                   if (var_name == var.first) {
                       bool is_3d = var_fab.box().length(2) > 1;
                       amrex::Print() << "   Reading " << ((is_3d) ? "3D" : "2D") << " LSM variable '" << var.first << "' (" << var.second << ")" << std::endl;
-                      int lsm_idx = lsm.Get_VarIdx(lev, var.second);
+                      int lsm_idx = lsm.Get_DataIdx(lev, var.second);
                       AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_idx != -1, "LSM variable mapping invalid!");
                       AMREX_ALWAYS_ASSERT(lsm_data[lev][lsm_idx]);
 
@@ -883,14 +882,15 @@ ERF::init_from_wrfinput (int lev,
     {
         //
         // Start at the earliest time (read_from_wrfbdy)
-        // Note we only have start_bdy_time if at level 0 and init_type == InitType:WRFInput
+        // Note we only have start_bdy_time if at level 0 and init_type == InitType::WRFInput or InitType::Metgrid
+        //
+        // Note that t_new and t_old carry *elapsed* time, not total time
         //
         if (lev == 0) {
-            Print() << "Setting start_time to "
-                    << std::setprecision(timeprecision) << start_bdy_time
-                    << " from wrfbdy" << std::endl;
-            t_new[lev] = start_bdy_time;
-            t_old[lev] = start_bdy_time - 1.e200;
+            Print() << "start_bdy_time is " << std::setprecision(timeprecision) << start_bdy_time
+                    << " from wrfbdy but note that time variable in simulation is elapsed time" << std::endl;
+            t_new[lev] = 0.;
+            t_old[lev] = -1.e200;
         } else {
             t_new[lev] = t_new[0];
             t_old[lev] = t_old[0];
@@ -910,22 +910,25 @@ ERF::init_from_wrfinput (int lev,
 
         int ntimes = low_data_zlo.size();
 
-        // HACK HACK HACK
-        // For right now we run out of memory if we load all of wrfbdy and all of wrflow
-        // Thus for now we are only loading the first two time slices
+        // We can possibly run out of memory if we load all of wrfbdy and all of wrflow
+        // Thus we only load the first two time slices here and load more only if needed
         ntimes = 2;
 
         sst_lev[lev].resize(ntimes);
+        tsk_lev[lev].resize(ntimes);
 
         for (int itime(0); itime < ntimes; ++itime) {
             if (itime > 0) {
                 sst_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+                tsk_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             }
             for ( MFIter mfi(*(sst_lev[lev][itime]), false); mfi.isValid(); ++mfi ) {
                 Box gtbx = mfi.growntilebox();
                 FArrayBox& src = low_data_zlo[itime];
-                FArrayBox& dst = (*(sst_lev[lev][itime]))[mfi];
-                const Array4<      Real>& dst_arr = dst.array();
+                FArrayBox& sst_fab = (*(sst_lev[lev][itime]))[mfi];
+                FArrayBox& tsk_fab = (*(tsk_lev[lev][itime]))[mfi];
+                const Array4<      Real>& sst_arr = sst_fab.array();
+                const Array4<      Real>& tsk_arr = tsk_fab.array();
                 const Array4<const Real>& src_arr = src.const_array();
                 const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
                 ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
@@ -935,10 +938,12 @@ ERF::init_from_wrfinput (int lev,
                     // NOTE: we convert to potential temperature for the surface
                     // layer scheme using the initial surface pressure since it's
                     // not available in the wrflowinp file
-                    dst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
+                    sst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
+                    tsk_arr(i,j,0) = sst_arr(i,j,0);
                 });
             }
             sst_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
+            tsk_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
         }
     } // lev == 0 && nc_low_file exists
 }

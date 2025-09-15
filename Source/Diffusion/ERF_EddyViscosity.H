@@ -11,10 +11,11 @@
 #include "ERF_EOS.H"
 
 void
-ComputeTurbulentViscosity (const amrex::MultiFab& xvel ,
+ComputeTurbulentViscosity (amrex::Real dt,
+                           const amrex::MultiFab& xvel ,
                            const amrex::MultiFab& yvel ,
                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
-                           const amrex::MultiFab& cons_in,
+                           amrex::MultiFab& cons_in,
                            const amrex::MultiFab& wdist,
                            amrex::MultiFab& eddyViscosity,
                            amrex::MultiFab& Hfx1,
@@ -26,7 +27,7 @@ ComputeTurbulentViscosity (const amrex::MultiFab& xvel ,
                            const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                            const SolverChoice& solverChoice,
                            std::unique_ptr<SurfaceLayer>& SurfLayer,
-                           const amrex::FArrayBox* z_0,
+                           const amrex::MultiFab* z_0,
                            const bool& use_terrain_fitted_coords,
                            const bool& use_moisture,
                            int level,

@@ -11,6 +11,10 @@
 #include <AMReX_MPMD.H>
 #endif
 
+#ifdef ERF_USE_KOKKOS
+#include <Kokkos_Core.hpp>
+#endif
+
 std::string inputs_name;
 
 using namespace amrex;
@@ -107,6 +111,11 @@ int main (int argc, char* argv[])
     amrex::Initialize(argc,argv,true,MPI_COMM_WORLD,add_par);
 #endif
 
+#ifdef ERF_USE_KOKKOS
+    // Initialize kokkos
+    if (!Kokkos::is_initialized()) { Kokkos::initialize(); }
+#endif
+
     // Save the inputs file name for later.
     if (!strchr(argv[1], '=')) {
       inputs_name = argv[1];
@@ -144,6 +153,11 @@ int main (int argc, char* argv[])
 #ifdef ERF_USE_WW3_COUPLING
     MPI_Barrier(MPI_COMM_WORLD);
 #endif
+
+#ifdef ERF_USE_KOKKOS
+    Kokkos::finalize();
+#endif
+
     amrex::Finalize();
 #ifdef AMREX_USE_MPI
 #ifdef ERF_USE_WW3_COUPLING

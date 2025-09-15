@@ -123,8 +123,14 @@ ERF::init_from_metgrid (int lev)
 
     // Start at the earliest time in nc_init_file[lev].
     start_bdy_time = NC_epochTime[0];
-    t_new[lev] = start_bdy_time;
-    t_old[lev] = start_bdy_time - 1.e200;
+
+    //
+    // Note that t_new and t_old carry *elapsed* time, not total time
+    //
+    Print() << "start_bdy_time is " << std::setprecision(timeprecision) << start_bdy_time
+            << " from metgrid file but note that time variable in simulation is elapsed time" << std::endl;
+    t_new[lev] = 0.;
+    t_old[lev] = -1.e200;
 
     // Determine the spacing between met_em files.
     bdy_time_interval = NC_epochTime[1]-NC_epochTime[0];

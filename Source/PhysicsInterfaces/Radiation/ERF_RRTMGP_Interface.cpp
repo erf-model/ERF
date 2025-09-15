@@ -249,7 +249,7 @@ rrtmgp_initialize (gas_concs_t& gas_concs_k,
     load_cld_lutcoeff(*cloud_optics_sw_k, cloud_optics_file_sw);
     load_cld_lutcoeff(*cloud_optics_lw_k, cloud_optics_file_lw);
 
-    // initialize kokkos rrtmgp pool allocator
+    // Initialize kokkos rrtmgp pool allocator
     const size_t nvar = 300;
     const size_t nbnd = std::max(k_dist_sw_k->get_nband(),k_dist_sw_k->get_nband());
     const size_t ncol = gas_concs_k.ncol;

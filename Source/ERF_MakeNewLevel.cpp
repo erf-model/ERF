@@ -55,7 +55,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
     if (verbose) {
         amrex::Print() <<            "BA FROM SCRATCH AT LEVEL " << lev << " " << ba << std::endl;
-        amrex::Print() <<" SIMPLIFIED BA FROM SCRATCH AT LEVEL " << lev << " " << ba.simplified_list() << std::endl;
+        // amrex::Print() <<" SIMPLIFIED BA FROM SCRATCH AT LEVEL " << lev << " " << ba.simplified_list() << std::endl;
     }
 
     subdomains.resize(lev+1);
@@ -103,9 +103,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 	// Because z_phys_cc is used inside SLM to define the reference height
     // NOTE: moved back to original place because lsm data needs to be defined before WRFInput
     // *******************************************************************************************
-    int lsm_size  = lsm.Get_Data_Size();
-    lsm_data[lev].resize(lsm_size);
-    lsm_flux[lev].resize(lsm_size);
+    int lsm_data_size  = lsm.Get_Data_Size();
+    int lsm_flux_size  = lsm.Get_Flux_Size();
+    lsm_data[lev].resize(lsm_data_size);
+    lsm_data_name.resize(lsm_data_size);
+    lsm_flux[lev].resize(lsm_flux_size);
+    lsm_flux_name.resize(lsm_flux_size);
     lsm.Define(lev, solverChoice);
     if (solverChoice.lsm_type != LandSurfaceType::None)
     {
@@ -113,8 +116,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
-        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
     }
+    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+    }
+
+
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -342,7 +351,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 #ifdef ERF_USE_PARTICLES
     if (restart_chkfile.empty()) {
         if (lev == 0) {
-            initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd);
+            initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,time);
         } else {
             particleData.Redistribute();
         }
@@ -506,7 +515,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                                                    mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                    Qr_prim[lev], z_phys_nd[lev],
                                                    Hwave[lev].get(), Lwave[lev].get(), eddyDiffs_lev[lev].get(),
-                                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+                                                   lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
+                                                   sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
     }
 
 #ifdef ERF_USE_PARTICLES
@@ -627,10 +637,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         // NOTE: we must create the new base state before calling FillPatch because we will
         //       interpolate perturbational quantities
         // *************************************************************************************************
-        FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
-                              &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
-                             {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                             base_state[lev], temp_base_state, false);
+        FillPatchFineLevel(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
+                           &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
+                          {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                           base_state[lev], temp_base_state, false);
     } else {
         temp_base_state.ParallelCopy(base_state[lev],0,0,base_state[lev].nComp(),
                                      base_state[lev].nGrowVect(),base_state[lev].nGrowVect());
@@ -719,7 +729,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                                                    mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                    Qr_prim[lev], z_phys_nd[lev],
                                                    Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                                   lsm_data[lev], lsm_flux[lev], sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+                                                   lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
+                                                   sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
     }
 
     // These calls are done in AmrCore::regrid if this is a regrid at lev > 0

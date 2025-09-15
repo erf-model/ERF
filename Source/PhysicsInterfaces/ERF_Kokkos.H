@@ -1,5 +1,5 @@
-#ifndef ERF_KOKKOS_RADIATION_H
-#define ERF_KOKKOS_RADIATION_H
+#ifndef ERF_KOKKOS_H
+#define ERF_KOKKOS_H
 using KokkosHostDevice    = Kokkos::Device<Kokkos::Serial, Kokkos::HostSpace>;
 #if defined(ERF_USE_CUDA)
 using KokkosDefaultDevice = Kokkos::Device<Kokkos::Cuda, Kokkos::CudaSpace>;

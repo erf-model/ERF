@@ -440,7 +440,8 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                         delta_z*l_bc_neumann_vals_d[bc_comp][2]*dest_arr(i,j,dom_lo.z,Rho_comp);
                 } else if (l_bc_type == ERFBCType::hoextrap) {
                     Real delta_k = (dom_lo.z - k);
-                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_k)*dest_arr(i,j,dom_lo.z,dest_comp) - delta_k*dest_arr(i,j,dom_lo.z+1,dest_comp);
+                    dest_arr(i,j,k,dest_comp) = (1.0 + delta_k) * dest_arr(i,j,dom_lo.z  ,dest_comp) -
+                                                       delta_k  * dest_arr(i,j,dom_lo.z+1,dest_comp);
                 }
             },
             bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
