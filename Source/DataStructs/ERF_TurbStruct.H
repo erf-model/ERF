@@ -7,7 +7,7 @@ AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
 AMREX_ENUM(RANSType, None, kEqn);
 
-AMREX_ENUM(PBLType, None, MYNN25, MYNNEDMF, YSU, MRF);
+AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF);
 
 AMREX_ENUM(StratType, theta, thetav, thetal);
 
@@ -40,7 +40,7 @@ query_one_or_per_level (
 struct TurbChoice
 {
 public:
-  void init_params(int lev, int max_level, std::string pp_prefix)
+  void init_params (int lev, int max_level, std::string pp_prefix)
   {
     amrex::ParmParse pp(pp_prefix);
 
@@ -135,14 +135,16 @@ public:
       }
     }
 
-    // Right now, solving the QKE equation is only supported when MYNN PBL is
-    // turned on
-    if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
-      use_pbl_tke = true;
-
-      query_one_or_per_level(pp, "advect_tke", advect_tke, lev, max_level);
-      query_one_or_per_level(
-        pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level);
+    // Flags for QKE/TKE euation
+    if (pbl_type == PBLType::MYJ || pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
+        // Add sources/sinks to QKE/TKE? (MYJ does this inline)
+        if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
+            use_pbl_tke = true;
+        }
+        // Advect QKE/TKE?
+        query_one_or_per_level(pp, "advect_tke"    , advect_tke    , lev, max_level);
+        // Apply numerical diffusion to QKE/TKE?
+        query_one_or_per_level(pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level);
     }
 
     // LES constants...
@@ -193,7 +195,8 @@ public:
       ((les_type == LESType::Deardorff) || (rans_type == RANSType::kEqn));
     use_tke =
       ((les_type == LESType::Deardorff) || (rans_type == RANSType::kEqn) ||
-       (pbl_type == PBLType::MYNN25) || (pbl_type == PBLType::MYNNEDMF));
+       (pbl_type == PBLType::MYJ)       || (pbl_type == PBLType::MYNN25) ||
+       (pbl_type == PBLType::MYNNEDMF));
 
     // Validate inputs
     if (les_type == LESType::Smagorinsky) {
@@ -207,7 +210,7 @@ public:
     }
   }
 
-  void display(int lev)
+  void display (int lev)
   {
     amrex::Print() << "Turbulence Settings at level " << lev << std::endl;
 
@@ -229,6 +232,8 @@ public:
     } else if (rans_type == RANSType::kEqn) {
       amrex::Print()
         << "    Using Axell & Liungman one-equation RANS k model at level " << lev << std::endl;
+    } else if (pbl_type == PBLType::MYJ) {
+      amrex::Print() << "    Using MYJ PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MYNN25) {
       amrex::Print() << "    Using MYNN2.5 PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MYNNEDMF) {

@@ -208,8 +208,8 @@ public:
     void restart ();
 
     // Is it time to write a plotfile or checkpoint?
-    bool writeNow (const amrex::Real cur_time, const amrex::Real dt, const int nstep,
-                   const int plot_int, const amrex::Real plot_per);
+    bool writeNow (const amrex::Real cur_time, const int nstep, const int plot_int,
+                   const amrex::Real plot_per, const amrex::Real dt_0, amrex::Real& last_file_time);
 
     // Called after every level 0 timestep
     void post_timestep (int nstep, amrex::Real time, amrex::Real dt_lev);
@@ -499,6 +499,7 @@ public:
                               amrex::Real time);
 
 #ifdef ERF_USE_NETCDF
+    // Version in which we always set the velocity values but don't set theta
     void fill_from_realbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
                             amrex::Real time,
                             bool cons_only,
@@ -506,6 +507,15 @@ public:
                             int ncomp_cons,
                             amrex::IntVect ngvect_cons,
                             amrex::IntVect ngvect_vels);
+
+    // Version in which we only set the boundary value if inflowing, includes theta
+    void fill_from_realbdy_upwind (const amrex::Vector<amrex::MultiFab*>& mfs,
+                                   amrex::Real time,
+                                   bool cons_only,
+                                   int icomp_cons,
+                                   int ncomp_cons,
+                                   amrex::IntVect ngvect_cons,
+                                   amrex::IntVect ngvect_vels);
 #endif
 
 #ifdef ERF_USE_NETCDF
@@ -820,8 +830,10 @@ private:
 #endif
 
     LandSurface lsm;
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Components: theta, q1, q2
+    amrex::Vector<std::string> lsm_data_name;                // (ncomp)
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp)
+    amrex::Vector<std::string> lsm_flux_name;                // (ncomp)
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp)
 
     // Containers for additional SLM inputs
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> precip; // Rate of precipitation fall to surface
@@ -965,14 +977,21 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
 
-    int last_plot3d_file_step_1;
-    int last_plot3d_file_step_2;
-    int last_plot2d_file_step_1;
-    int last_plot2d_file_step_2;
-    int last_subvol;
+    static int last_plot3d_file_step_1;
+    static int last_plot3d_file_step_2;
+    static int last_plot2d_file_step_1;
+    static int last_plot2d_file_step_2;
+    static int last_check_file_step;
+    static int last_subvol_step;
 
-    int last_check_file_step;
-    int plot_file_on_restart = 1;
+    static amrex::Real last_plot3d_file_time_1;
+    static amrex::Real last_plot3d_file_time_2;
+    static amrex::Real last_plot2d_file_time_1;
+    static amrex::Real last_plot2d_file_time_2;
+    static amrex::Real last_check_file_time;
+    static amrex::Real last_subvol_time;
+
+    static bool plot_file_on_restart;
 
     // Output control
     const int datwidth = 14;
@@ -1084,7 +1103,7 @@ private:
                                                     "diss",
                                                     // moisture vars
                                                     "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup", "qt", "qn", "qp", "qsat",
-                                                    "rain_accum", "snow_accum", "graup_accum",
+                                                    "rain_accum", "snow_accum", "graup_accum", "reflectivity", "max_reflectivity",
                                                     "qsrc",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",

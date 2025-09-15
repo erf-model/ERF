@@ -63,9 +63,9 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         const GeometryData gdata = geom.data();
 
         const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
+        FArrayBox qturb(bx,1);
         FArrayBox qintegral(xybx,2);
         qintegral.setVal<RunOn::Device>(0.0);
-        FArrayBox qturb(bx,1); FArrayBox qturb_old(bx,1);
         const Array4<Real> qint = qintegral.array();
         const Array4<Real> qvel = qturb.array();
 
@@ -77,7 +77,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             {
                 // q^2 / 2 is the TKE
                 qvel(i,j,k) = std::sqrt(2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
-                AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
 
                 Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
                 const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
@@ -90,7 +90,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             {
                 // q^2 / 2 is the TKE
                 qvel(i,j,k) = std::sqrt(2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
-                AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
 
                 // Not multiplying by dz: it's constant and would fall out when we divide qint0/qint1 anyway
 

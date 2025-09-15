@@ -262,6 +262,7 @@ struct SolverChoice {
             amrex::Warning("erf.init_type = Real is deprecated; please replace Real by WRFInput");
             init_type = InitType::WRFInput;
             use_real_bcs = true;
+            pp.query("upwind_real_bcs",upwind_real_bcs);
         } else if ( (init_type_temp_string == "Ideal") || (init_type_temp_string == "ideal") ) {
             amrex::Warning("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
             init_type = InitType::WRFInput;
@@ -269,6 +270,9 @@ struct SolverChoice {
         } else {
             pp.query_enum_case_insensitive("init_type",init_type);
             use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
+            if (use_real_bcs) {
+                pp.query("upwind_real_bcs",upwind_real_bcs);
+            }
         }
 
         if ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) ) {
@@ -291,6 +295,9 @@ struct SolverChoice {
             pp.query("use_real_bcs", use_real_bcs_temp);
             if (use_real_bcs && !use_real_bcs_temp) {
                 use_real_bcs = false;
+            }
+            if (use_real_bcs) {
+                pp.query("upwind_real_bcs",upwind_real_bcs);
             }
         }
 
@@ -808,6 +815,9 @@ struct SolverChoice {
 
     inline static
     bool use_real_bcs = false;
+
+    inline static
+    bool upwind_real_bcs = false;
 
     inline static
     MeshType mesh_type = MeshType::ConstantDz;

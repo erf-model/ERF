@@ -593,9 +593,10 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
  * @param[in]  most pointer to Monin-Obukhov class if instantiated
  * @param[in]  vert_only flag for vertical components of eddyViscosity
  */
-void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
+void ComputeTurbulentViscosity (Real dt,
+                                const MultiFab& xvel, const MultiFab& yvel,
                                 Vector<std::unique_ptr<MultiFab>>& Tau_lev,
-                                const MultiFab& cons_in,
+                                MultiFab& cons_in,
                                 const MultiFab& wdist,
                                 MultiFab& eddyViscosity,
                                 MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
@@ -654,7 +655,13 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
                                       SurfLayer, z_0);
     }
 
-    if (turbChoice.pbl_type == PBLType::MYNN25) {
+    if (turbChoice.pbl_type == PBLType::MYJ) {
+        ComputeDiffusivityMYJ(dt, xvel, yvel, cons_in, eddyViscosity,
+                              geom, turbChoice, SurfLayer,
+                              use_terrain_fitted_coords, use_moisture,
+                              level, bc_ptr, vert_only, z_phys_nd,
+                              solverChoice.moisture_indices);
+    } else if (turbChoice.pbl_type == PBLType::MYNN25) {
         ComputeDiffusivityMYNN25(xvel, yvel, cons_in, eddyViscosity,
                                  geom, turbChoice, SurfLayer,
                                  use_terrain_fitted_coords, use_moisture,
@@ -672,8 +679,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel,
                               use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd,
                               solverChoice.moisture_indices);
-    }
-    else if (turbChoice.pbl_type == PBLType::MRF) {
+    } else if (turbChoice.pbl_type == PBLType::MRF) {
         ComputeDiffusivityMRF(xvel, yvel, cons_in, eddyViscosity,
                               geom, turbChoice, SurfLayer,
                               use_terrain_fitted_coords, use_moisture,

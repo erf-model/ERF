@@ -28,17 +28,17 @@ void ERF::advance_radiation (int lev,
             // TODO: no lsm_output_ptrs defined, existing coupling via sw_lw_fluxes and solar_zenith works for now
         } else {
             Vector<std::string> lsm_input_names = rad[lev]->get_lsm_input_varnames();
-            lsm_input_ptrs = Vector<const MultiFab*>(lsm_input_names.size(),nullptr);
+            Vector<MultiFab*> lsm_input_ptrs(lsm_input_names.size(),nullptr);
             for (int i(0); i<lsm_input_ptrs.size(); ++i) {
-                int varIdx = lsm.Get_VarIdx(lev,lsm_input_names[i]);
+                int varIdx = lsm.Get_DataIdx(lev,lsm_input_names[i]);
                 lsm_input_ptrs[i] = lsm.Get_Data_Ptr(lev,varIdx);
             }
 
             // RRTMGP output names and pointers
             Vector<std::string> lsm_output_names = rad[lev]->get_lsm_output_varnames();
-            lsm_output_ptrs = Vector<MultiFab*>(lsm_output_names.size(),nullptr);
+            Vector<MultiFab*> lsm_output_ptrs(lsm_output_names.size(),nullptr);
             for (int i(0); i<lsm_output_ptrs.size(); ++i) {
-                int varIdx = lsm.Get_VarIdx(lev,lsm_output_names[i]);
+                int varIdx = lsm.Get_DataIdx(lev,lsm_output_names[i]);
                 lsm_output_ptrs[i] = lsm.Get_Data_Ptr(lev,varIdx);
             }
         }
