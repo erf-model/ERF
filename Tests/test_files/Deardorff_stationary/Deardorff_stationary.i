@@ -65,6 +65,7 @@ erf.theta_ref = 290.0 # used in buoyancy term
 # INITIAL PROFILES
 erf.init_type = "input_sounding"
 erf.input_sounding_file = "input_sounding" # with linear wind profile
+erf.sounding_type = ConstantDensity
 
 # exact soln in uniform density field
 #   e = Ck/Ce*(dUdz*delta)**2,

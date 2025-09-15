@@ -40,6 +40,9 @@ struct DiffChoice {
             pp.query("alpha_C", alpha_C);
             pp.query("dynamic_viscosity", dynamic_viscosity);
             pp.query("rho0_trans", rho0_trans);
+            pp.query("eb_diff_constraint_x", eb_diff_constraint_x);
+            pp.query("eb_diff_constraint_y", eb_diff_constraint_y);
+            pp.query("eb_diff_constraint_z", eb_diff_constraint_z);
         }
 
         // Compute relevant forms of diffusion parameters
@@ -91,5 +94,8 @@ struct DiffChoice {
     amrex::Real rhoAlpha_T = 0.0;
     amrex::Real rhoAlpha_C = 0.0;
     amrex::Real dynamic_viscosity = 0.0;
+    bool eb_diff_constraint_x = false;
+    bool eb_diff_constraint_y = false;
+    bool eb_diff_constraint_z = false;
 };
 #endif

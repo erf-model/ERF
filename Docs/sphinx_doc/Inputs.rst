@@ -914,10 +914,6 @@ List of Parameters
 |                                  | advection scheme   |                     |              |
 |                                  | for scalars        |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.use_mono_adv**             | Use order reduction| true/false          | false        |
-|                                  | for scalar         |                     |              |
-|                                  | boundedness        |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
 
 The allowed advection types for the dycore variables are
 "Centered_2nd", "Upwind_3rd", "Blended_3rd4th", "Centered_4th", "Upwind_5th", "Blended_5th6th",
@@ -942,13 +938,6 @@ the scalar advection routine, the approximate computational savings for the scal
 schemes are as follows when using efficient advection option: roughly 30% for Centered_4th
 and Centered_6th, 35% for Upwind_5th, roughly 45% for WENO5 and WENOZ5, and roughly 60% for
 Upwind_3rd, WENO3, WENOZ3, and WENOMZQ3.
-
-The monotonic advection option is an order reduction technique adapted from the PINACLES
-software developed at PNNL by K. Pressel et al.; see `pnnl/pinacles github <https://github.com/pnnl/pinacles>`_.
-When this flag is enabled, ERF will compute global mins and maxes for the scalar variables
-and then test whether the selected advection operator (e.g., centered, upwind, or WENO)
-will break these bounds. If boundedness is broken, the fluxes are recomputed with a
-0-th order upwind approach.
 
 
 Diffusive Physics
@@ -987,6 +976,12 @@ List of Parameters
 | **erf.Cs**                       | Constant           | Real                | 0.0          |
 |                                  | Smagorinsky coeff. |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
+| **erf.use_smag_stratification**  | Enable             | Boolean             | true         |
+|                                  | stratification     |                     |              |
+|                                  | effects (dry and   |                     |              |
+|                                  | moist) in          |                     |              |
+|                                  | Smagorinsky model  |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
 | **erf.Ck**                       | Constant           | Real                | 0.1          |
 |                                  | Deardorff k coeff. |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
@@ -1005,11 +1000,15 @@ List of Parameters
 |                                  | downgradient       |                     |              |
 |                                  | diffusion term     |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.theta_ref**                | Reference potential| Real                | 300.0        |
+| **erf.theta_ref**                | Reference potential| Real                | 0.0          |
 |                                  | temperature used   |                     |              |
 |                                  | to characterize    |                     |              |
 |                                  | stable             |                     |              |
-|                                  | stratficiation     |                     |              |
+|                                  | stratficiation;    |                     |              |
+|                                  | constant if > 0,   |                     |              |
+|                                  | otherwise the      |                     |              |
+|                                  | instantaneous local|                     |              |
+|                                  | value is used      |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.Pr_t**                     | Turbulent Prandtl  | Real                | 1.0          |
 |                                  | Number             |                     |              |
@@ -1081,6 +1080,10 @@ List of Parameters
 | **erf.pbl_mynn_C4**                     | MYNN Constant C4   | Real                | 0.0         |
 +-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_C5**                     | MYNN Constant C5   | Real                | 0.2         |
++-----------------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_mynn_SQfactor**               | MYNN ratio of      | Real                | 3.0         |
+|                                         | stability functions|                     |             |
+|                                         | SQ / SM            |                     |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_diffuse_moistvars**      | Diffuse moisture   | bool                | 0           |
 |                                         | variables using    |                     |             |
@@ -1186,9 +1189,32 @@ List of Parameters
 |                                     | geostrophic wind       |                   |                     |
 |                                     | profile                |                   |                     |
 |                                     | (with z, Ug, and       |                   |                     |
-|                                     |  Vg whtiespace         |                   |                     |
+|                                     |  Vg whitespace         |                   |                     |
 |                                     |  delimited             |                   |                     |
 |                                     |  columns)              |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.const_massflux_u**            | Include a momentum     | Real              | 0.                  |
+| **erf.const_massflux_v**            | source at each time,   |                   |                     |
+|                                     | (e.g., representing a  |                   |                     |
+|                                     | background driving     |                   |                     |
+|                                     | pressure gradient),    |                   |                     |
+|                                     | to obtain a desired    |                   |                     |
+|                                     | mass flux with the     |                   |                     |
+|                                     | specified bulk velocity|                   |                     |
+|                                     | in x,y                 |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.const_massflux_layer_lo**     | Two heights defining   | Real              | None                |
+| **erf.const_massflux_layer_hi**     | the layer over which   |                   |                     |
+|                                     | the mass flux is       |                   |                     |
+|                                     | integrated and compared|                   |                     |
+|                                     | to the desired input(s)|                   |                     |
+|                                     | specified above        |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.const_massflux_tau**          | Timescale over which   | Real              | None                |
+|                                     | to adjust the          |                   |                     |
+|                                     | background pressure    |                   |                     |
+|                                     | gradient to match the  |                   |                     |
+|                                     | specified mass flux    |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.use_gravity**                 | Include gravity        | true / false      | false               |
 |                                     | in momentum            |                   |                     |
@@ -1337,10 +1363,11 @@ List of Parameters
 |                                  | input sounding      |                    |                       |
 |                                  | file                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.init_sounding_ideal**      | Perform             |  true or false     | false                 |
-|                                  | initialization      |                    |                       |
-|                                  | like WRF's          |                    |                       |
-|                                  | ideal.exe           |                    |                       |
+| **erf.sounding_type**            | How to interpret    | "Ideal",           | Ideal                 |
+|                                  | the sounding        | "Isentropic",      |                       |
+|                                  | provided with       | "DryIsentropic",   |                       |
+|                                  | init_type =         | "ConstantDensity"  |                       |
+|                                  | "input_sounding"    |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.use_real_bcs**             | If init_type is     | true or false      | true if               |
 |                                  | WRFInput or Metgrid |                    | if init_type          |
@@ -1367,6 +1394,15 @@ List of Parameters
 | **erf.real_set_width**           | Lateral boundary    |  Integer           | 0                     |
 |                                  | specified zone      |                    |                       |
 |                                  | width if            |                    |                       |
+|                                  | use_real_bcs is     |                    |                       |
+|                                  | true                |                    |                       |
++----------------------------------+---------------------+--------------------+-----------------------+
+| **erf.real_extrap_w**            | First-order         | bool               | true                  |
+|                                  | extrapolation of    |                    |                       |
+|                                  | vertical velocities |                    |                       |
+|                                  | on lateral          |                    |                       |
+|                                  | boundaries (instead |                    |                       |
+|                                  | of setting to 0) if |                    |                       |
 |                                  | use_real_bcs is     |                    |                       |
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
@@ -1574,23 +1610,35 @@ The following run-time options control how the full moisture model is used.
 List of Parameters
 ------------------
 
-+-----------------------------+--------------------------+-----------------------+------------+
-| Parameter                   | Definition               | Acceptable            | Default    |
-|                             |                          | Values                |            |
-+=============================+==========================+=======================+============+
-| **erf.moisture_model**      | Name of moisture model   |  "None", "SAM",       | "None"     |
-|                             |                          |  "Kessler", "SatAdj"  |            |
-|                             |                          |  "Kessler_NoRain",    |            |
-|                             |                          |  "Morrison",          |            |
-|                             |                          |  "Morrison_NoIce",    |            |
-|                             |                          |  "SAM_NoPrecip_NoIce",|            |
-|                             |                          |  "SAM_NoIce"          |            |
-+-----------------------------+--------------------------+-----------------------+------------+
++---------------------------------+--------------------------+-----------------------+------------+
+| Parameter                       | Definition               | Acceptable            | Default    |
+|                                 |                          | Values                |            |
++=================================+==========================+=======================+============+
+| **erf.moisture_model**          | Name of moisture model   |  "None", "SAM",       | "None"     |
+|                                 |                          |  "Kessler", "SatAdj"  |            |
+|                                 |                          |  "Kessler_NoRain",    |            |
+|                                 |                          |  "Morrison",          |            |
+|                                 |                          |  "Morrison_NoIce",    |            |
+|                                 |                          |  "SAM_NoPrecip_NoIce",|            |
+|                                 |                          |  "SAM_NoIce"          |            |
++---------------------------------+--------------------------+-----------------------+------------+
+| **erf.moisture_tight_coupling** | If true, advance         |  Bool                 | false      |
+|                                 | microphysics after every |                       |            |
+|                                 | slow step in the dycore; |                       |            |
+|                                 | otherwise, update after  |                       |            |
+|                                 | the dycore has been      |                       |            |
+|                                 | advanced at each timestep|                       |            |
++---------------------------------+--------------------------+-----------------------+------------+
 
 Radiation
 =========
 
-ERF allows for radiative heating computations with the RRTMGP library. Source code must be compiled with CMAKE and the following flags enabled: ``-DERF_ENABLE_RRTMGP:BOOL=ON``, ``-DERF_ENABLE_NETCDF:BOOL=ON``, and ``-DERF_ENABLE_HDF5:BOOL=ON``; see **ERF/Build/cmake_with_radiation.sh**.
+ERF allows for radiative heating computations with the RRTMGP library.
+If building with cmake, the following flags must be enabled:
+``-DERF_ENABLE_RRTMGP:BOOL=ON``, ``-DERF_ENABLE_NETCDF:BOOL=ON``, and ``-DERF_ENABLE_HDF5:BOOL=ON``;
+see **ERF/Build/cmake_with_radiation.sh**.
+
+If building with gmake, set ``USE_RRTMGP = TRUE`` and ``USE_NETCDF = TRUE`` in the GNUmakefile.
 
 List of Parameters
 ------------------

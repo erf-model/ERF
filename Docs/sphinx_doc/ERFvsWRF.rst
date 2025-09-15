@@ -57,7 +57,7 @@ wrfinput files).
 
 Key Differences
 --------------------
-ERF provides **performance portability** on different computing architectures **including GPUs from all major vendors** (Nvidia, AMD, and Intel).
+ERF provides **performance portability** on different computing architectures **including GPUs from all major vendors** (NVIDIA, AMD, and Intel).
 
 **Vertical Coordinates**: Unlike WRF, ERF uses a height-based vertical coordinate, with vertical grid stretching permitted.
 
@@ -66,7 +66,8 @@ ERF provides **performance portability** on different computing architectures **
 **Time Integration**: ERF supports using a 3rd-order Runge-Kutta scheme with explicit acoustic substepping or no substepping
 (in addition to the implicit acoustic substepping in WRF).
 
-**Representation of Surface Features**: Terrain and urban geometries may be simulated with immersed forcing or embedded (immersed) boundary techniques.
+**Representation of Surface Features**: Terrain and urban geometries may be simulated with immersed forcing or embedded (immersed) boundary techniques,
+in addition to the terrain-fitted coordinates approach.
 
 **Interface with AMR-Wind**: ERF may be tightly coupled with AMR-Wind, an incompressible ABL solver with integrated turbine aeroservoelastic dynamics modeling and two-phase flow capabilities.
 
@@ -75,42 +76,4 @@ ERF provides **performance portability** on different computing architectures **
 **User-Defined Functions**: ERF provides templates to customize initialization and/or impose spatiotemporally varying source terms.
 
 ERF does *not* have the capability for global simulation
-
-
-
-Workflows
---------------------
-For real-data simulations, ERF supports a variety of workflows and can work with existing WRF Preprocessing System (WPS) or initial/boundary condition data.
-
-.. list-table:: Simulation Workflows
-   :header-rows: 1
-
-   * -
-     - Large-Scale Data (reanalysis, HRRR, ...)
-     - Intermediate Processing
-     - Weather Simulation
-   * - WRF
-     - Manual download
-     - WPS + ``real.exe``
-     - ``wrf.exe``
-   * - WRF --> ERF
-     - Manual download
-     - WPS + ``real.exe``
-     - ``erf_abl`` (init from wrfinput)
-   * -
-     - Manual download
-     - ``ndown.exe``
-     - ``erf_abl`` (init from wrfinput)
-   * - WPS --> ERF
-     - Manual download
-     - WPS
-     - ``erf_abl`` (init from metgrid)
-   * - E3SM --> ERF
-     - ``run_e3sm``
-     -  *Under development*
-     - ``erf_abl``
-   * - ERF standalone
-     - Python tools
-     - Python tools *(under development)*
-     - ``erf_abl``
 

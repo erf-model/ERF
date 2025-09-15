@@ -94,18 +94,19 @@ erf.molec_diff_type = "None"
 ##### erf.les_type = "Smagorinsky"
 ##### erf.Cs       = 0.18
 
-erf.les_type = "Deardorff"
-erf.Ck       = 0.1
-erf.sigma_k  = 0.5
-erf.Ce       = 0.93
-erf.Ce_wall  = 3.9
+erf.les_type  = "Deardorff"
+erf.Ck        = 0.1
+erf.sigma_k   = 0.5
+erf.Ce        = 0.93
+erf.Ce_wall   = 3.9
+erf.theta_ref = 300.0 # don't specify for variable theta when diagnosing stability
 
 
 #
 # INITIAL CONDITIONS
 #
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
+erf.sounding_type = Ideal
 
 
 #

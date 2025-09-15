@@ -1,0 +1,37 @@
+CEXE_headers += ERF_RadiationInterface.H
+CEXE_headers += ERF_RadiationModels.H
+
+ifeq ($(USE_RRTMGP), TRUE)
+    CEXE_headers += ERF_RRTMGP_Interface.H
+    CEXE_headers += ERF_RRTMGP_Utils.H
+    CEXE_headers += ERF_Radiation.H
+    CEXE_headers += ERF_OrbCosZenith.H
+
+    CEXE_sources += ERF_RRTMGP_Interface.cpp
+    CEXE_sources += ERF_Radiation.cpp 
+
+    # RRTMGP SUBMODULE FILES
+    #CEXE_sources += mo_rrtmgp_util_reorder.cpp
+    #CEXE_sources += mo_gas_optics_kernels.cpp
+    #CEXE_sources += expand_and_transpose.cpp
+    #CEXE_sources += mo_fluxes_broadband_kernels.cpp
+    #CEXE_sources += mo_optical_props_kernels.cpp
+    #CEXE_sources += mo_rte_solver_kernels.cpp
+    #CEXE_sources += mo_load_coefficients.cpp
+    #CEXE_sources += mo_garand_atmos_io.cpp
+    #CEXE_sources += mo_load_cloud_coefficients.cpp
+    #CEXE_sources += mo_fluxes_byband_kernels.cpp
+
+    #CEXE_headers += mo_gas_concentrations.h
+    #CEXE_headers += mo_gas_optics_rrtmgp.h
+    #CEXE_headers += mo_cloud_optics.h
+    #CEXE_headers += mo_fluxes_byband.h
+    #CEXE_headers += mo_load_coefficients.h
+    #CEXE_headers += rrtmgp_const.h
+    #CEXE_headers += mo_cloud_optics.h
+    #CEXE_headers += mo_rte_sw.h
+    #CEXE_headers += mo_rte_lw.h
+    #CEXE_headers += mo_load_cloud_coefficients.h
+    #CEXE_headers += rrtmgp_const.h
+    #CEXE_headers += rrtmgp_conversion.h
+endif

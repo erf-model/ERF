@@ -141,7 +141,6 @@ ERF::initHSE (int lev)
 void
 ERF::initHSE ()
 {
-    AMREX_ALWAYS_ASSERT(!init_sounding_ideal);
     for (int lev = 0; lev <= finest_level; lev++)
     {
         initHSE(lev);

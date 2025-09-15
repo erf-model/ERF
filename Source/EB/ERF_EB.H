@@ -27,7 +27,13 @@ class eb_ {
                  amrex::EB2::Level const* a_eb_level,
                  bool is_anelastic);
 
-    void make_factory ( int level,
+    void make_all_factories ( int level,
+                        amrex::Geometry   const& a_geom,
+                        amrex::BoxArray            const& ba,
+                        amrex::DistributionMapping const& dm,
+                        amrex::EB2::Level const& a_eb_level);
+
+    void make_cc_factory ( int level,
                         amrex::Geometry   const& a_geom,
                         amrex::BoxArray            const& ba,
                         amrex::DistributionMapping const& dm,

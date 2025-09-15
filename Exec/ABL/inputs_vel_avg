@@ -43,6 +43,7 @@ erf.les_type = "Deardorff"
 erf.Ck       = 0.1  # Coefficient in Moeng1984, Eqn. 19
 erf.Ce       = 0.7  # Note: Ce_lcoeff = C_e - 1.9*C_k
 erf.Ce_wall  = 3.9  # To account for "wall effects"
+erf.theta_ref = 300.0 # don't specify for variable theta when diagnosing stability
 
 erf.init_type = "uniform"
 

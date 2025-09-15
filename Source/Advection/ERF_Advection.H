@@ -34,18 +34,13 @@ void AdvectionSrcForRho (const amrex::Box& bx,
                          const bool fixed_rho);
 
 /** Compute advection tendency for all scalars other than density and potential temperature */
-void AdvectionSrcForScalars (const amrex::Real& dt,
-                             const amrex::Box& bx,
+void AdvectionSrcForScalars (const amrex::Box& bx,
                              const int icomp, const int ncomp,
                              const amrex::Array4<const amrex::Real>& avg_xmom,
                              const amrex::Array4<const amrex::Real>& avg_ymom,
                              const amrex::Array4<const amrex::Real>& avg_zmom,
-                             const amrex::Array4<const amrex::Real>& cur_cons,
                              const amrex::Array4<const amrex::Real>& cell_prim,
                              const amrex::Array4<amrex::Real>& src,
-                             const bool& use_mono_adv,
-                             amrex::Real* max_s_ptr,
-                             amrex::Real* min_s_ptr,
                              const amrex::Array4<const amrex::Real>& vf_arr,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                              const amrex::Array4<const amrex::Real>& mf_mx,
@@ -53,7 +48,6 @@ void AdvectionSrcForScalars (const amrex::Real& dt,
                              const AdvType horiz_adv_type, const AdvType vert_adv_type,
                              const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
                              const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr,
-                             const amrex::GpuArray<      amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_tmp_arr,
                              const amrex::Box& domain,
                              const amrex::BCRec* bc_ptr_h);
 

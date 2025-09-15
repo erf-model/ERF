@@ -23,6 +23,7 @@ erf.most.radius     = 0
 erf.most.zref       = 10.0
 erf.most.z0         = 0.1
 erf.most.surf_temp  = 300.0
+erf.most.surf_moist = 0.0
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.5  # fixed time step depending on grid resolution
@@ -45,8 +46,6 @@ erf.plot_int_1      = 1       # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoQ1 x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys qt qp qv qc
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
 
 erf.terrain_type = StaticFittedMesh
@@ -67,7 +66,7 @@ erf.rotational_time_period = 86164.0900027328
 
 # PROBLEM PARAMETERS (optional)
 prob.rho_0 = 1.0
-prob.T_0 = 300.0
+prob.T_0   = 300.0
 
 # INITIALIZATION WITH ATM DATA
 erf.real_width     = 1

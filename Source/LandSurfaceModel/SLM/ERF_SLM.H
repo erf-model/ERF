@@ -45,7 +45,8 @@ public:
 
     // Initialize data structures
     void
-    Init (const amrex::MultiFab& cons_in,
+    Init (const int& /*lev*/,
+          const amrex::MultiFab& cons_in,
           const amrex::Geometry& geom,
           const amrex::Real& dt) override;
 
@@ -99,7 +100,7 @@ public:
 
     // Get variable names
     std::string
-    Lsm_VarName (const int& varIdx) override
+    Lsm_DataName (const int& varIdx) override
     {
         int lsmIdx = LsmVarMap[varIdx];
         AMREX_ALWAYS_ASSERT(lsmIdx < SLM::m_lsm_size && lsmIdx>=0);

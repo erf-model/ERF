@@ -1,3 +1,33 @@
+#25.08
+    -- 2D plotfile capability (#2463)
+
+    -- Couple RRTMGP & NOAH-MP (#2442)
+
+    -- GMRES fixes (#2439)
+
+    -- Init from WRFInput fixes (#2436)
+
+    -- Add kokkos and remove yakl submodule (#2429)
+
+    -- Multi-level FFT (#2433)
+
+    -- Moist stratification effect on turbulence models (#2407)
+    
+#25.07
+    -- Enable initialization from netcdf file (#2390)
+
+    -- Read & interpolate weather data onto ERF mesh (#2391, 2377)
+
+    -- EB diffusion progress (#2379)
+
+    -- Fix WENO conservation (#2387)
+
+    -- Correction to Bomex (#2384)
+
+    -- Correct Poisson solve with terrain (#2371)
+
+    -- Surface layer moisture fluxes (#2360)
+
 #25.06
     -- Optimize diffusion (#2356, 2355, 2351, 2349, 2348, 2346)
 

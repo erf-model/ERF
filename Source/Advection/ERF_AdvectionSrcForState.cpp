@@ -117,19 +117,14 @@ AdvectionSrcForRho (const Box& bx,
  */
 
 void
-AdvectionSrcForScalars (const Real& dt,
-                        const Box& bx,
+AdvectionSrcForScalars (const Box& bx,
                         const int icomp,
                         const int ncomp,
                         const Array4<const Real>& avg_xmom,
                         const Array4<const Real>& avg_ymom,
                         const Array4<const Real>& avg_zmom,
-                        const Array4<const Real>& cur_cons,
                         const Array4<const Real>& cell_prim,
                         const Array4<Real>& advectionSrc,
-                        const bool& use_mono_adv,
-                        Real* max_s_ptr,
-                        Real* min_s_ptr,
                         const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                         const Array4<const Real>& mf_mx,
@@ -139,12 +134,11 @@ AdvectionSrcForScalars (const Real& dt,
                         const Real horiz_upw_frac,
                         const Real vert_upw_frac,
                         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr,
-                        const GpuArray<      Array4<Real>, AMREX_SPACEDIM>& flx_tmp_arr,
                         const Box& domain,
                         const BCRec* bc_ptr_h)
 {
     BL_PROFILE_VAR("AdvectionSrcForScalars", AdvectionSrcForScalars);
-    auto dxInv =     cellSizeInv[0], dyInv =     cellSizeInv[1], dzInv =     cellSizeInv[2];
+    auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
@@ -212,6 +206,11 @@ AdvectionSrcForScalars (const Real& dt,
                                                 avg_xmom, avg_ymom, avg_zmom,
                                                 horiz_upw_frac, vert_upw_frac, vert_adv_type);
             break;
+        case AdvType::Upwind_3rd_SL:
+             AdvectionSrcForScalarsVert<UPWIND3SL>(bx, cons_index, flx_arr, cell_prim,
+                                                  avg_xmom, avg_ymom, avg_zmom,
+                                                  horiz_upw_frac, vert_upw_frac, vert_adv_type);
+             break;
         case AdvType::Centered_4th:
             AdvectionSrcForScalarsVert<CENTERED4>(bx, cons_index, flx_arr, cell_prim,
                                                   avg_xmom, avg_ymom, avg_zmom,
@@ -265,94 +264,6 @@ AdvectionSrcForScalars (const Real& dt,
         default:
             AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
         }
-    }
-
-    /* =======================================================================
-       Monotonicity preserving order reduction for scalars (0-th upwind).
-
-       NOTE:
-       The following order reduction operations for scalar advection have been
-       adapted from the PINACLES code developed at PPNL by K. Pressel et al.;
-       see https://github.com/pnnl/pinacles.git and  This version utilizes global
-       min/max values for simplicity rather than the local average around each
-       cell. Motivation for this modification is the compressible dycore in ERF
-       as opposed to incompressible/analestic in PINACLES.
-       ======================================================================= */
-    if (use_mono_adv) {
-        // Copy flux data to flx_arr to avoid race condition on GPU
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            (flx_tmp_arr[0])(i,j,k) = (flx_arr[0])(i,j,k);
-            (flx_tmp_arr[1])(i,j,k) = (flx_arr[1])(i,j,k);
-            (flx_tmp_arr[2])(i,j,k) = (flx_arr[2])(i,j,k);
-        });
-
-        // Mono limiting
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            const int prim_index = cons_index - 1;
-
-            Real max_val = max_s_ptr[cons_index];
-            Real min_val = min_s_ptr[cons_index];
-
-            Real invdetJ = (detJ(i,j,k) > 0.) ?  1. / detJ(i,j,k) : 1.;
-            Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
-
-            Real RHS = - invdetJ * mfsq * (
-                ( (flx_arr[0])(i+1,j  ,k  ) - (flx_arr[0])(i,j,k) ) * dxInv +
-                ( (flx_arr[1])(i  ,j+1,k  ) - (flx_arr[1])(i,j,k) ) * dyInv +
-                ( (flx_arr[2])(i  ,j  ,k+1) - (flx_arr[2])(i,j,k) ) * dzInv );
-
-            // NOTE: This forward prediction uses the `cur_cons` as opposed to `old_cons` since
-            //       source terms may cause increase/decrease in a variable each RK stage. We
-            //       want to ensure the advection operator does not induce over/under-shoot
-            //       from the current state. If the `old_cons` is used and significant forcing is
-            //       present, we could trip an order reduction just due to the source terms.
-            Real tmp_upd = cur_cons(i,j,k,cons_index) + RHS*dt;
-            if (tmp_upd<min_val || tmp_upd>max_val) {
-                // HI
-                if (avg_xmom(i+1,j,k)>0.0) {
-                    (flx_tmp_arr[0])(i+1,j,k) = avg_xmom(i+1,j,k) * cell_prim(i  ,j,k,prim_index);
-                } else {
-                    (flx_tmp_arr[0])(i+1,j,k) = avg_xmom(i+1,j,k) * cell_prim(i+1,j,k,prim_index);
-                }
-                if (avg_ymom(i,j+1,k)>0.0) {
-                    (flx_tmp_arr[1])(i,j+1,k) = avg_ymom(i,j+1,k) * cell_prim(i,j  ,k,prim_index);
-                } else {
-                    (flx_tmp_arr[1])(i,j+1,k) = avg_ymom(i,j+1,k) * cell_prim(i,j+1,k,prim_index);
-                }
-                if (avg_zmom(i,j,k+1)>0.0) {
-                    (flx_tmp_arr[2])(i,j,k+1) = avg_zmom(i,j,k+1) * cell_prim(i,j,k  ,prim_index);
-                } else {
-                    (flx_tmp_arr[2])(i,j,k+1) = avg_zmom(i,j,k+1) * cell_prim(i,j,k+1,prim_index);
-                }
-
-                // LO
-                if (avg_xmom(i,j,k)>0.0) {
-                    (flx_tmp_arr[0])(i,j,k) = avg_xmom(i,j,k) * cell_prim(i-1,j,k,prim_index);
-                } else {
-                    (flx_tmp_arr[0])(i,j,k) = avg_xmom(i,j,k) * cell_prim(i  ,j,k,prim_index);
-                }
-                if (avg_ymom(i,j,k)>0.0) {
-                    (flx_tmp_arr[1])(i,j,k) = avg_ymom(i,j,k) * cell_prim(i,j-1,k,prim_index);
-                } else {
-                    (flx_tmp_arr[1])(i,j,k) = avg_ymom(i,j,k) * cell_prim(i,j  ,k,prim_index);
-                }
-                if (avg_zmom(i,j,k)>0.0) {
-                    (flx_tmp_arr[2])(i,j,k) = avg_zmom(i,j,k) * cell_prim(i,j,k-1,prim_index);
-                } else {
-                    (flx_tmp_arr[2])(i,j,k) = avg_zmom(i,j,k) * cell_prim(i,j,k  ,prim_index);
-                }
-            }
-        });
-
-        // Copy back to flx_arr to avoid race condition on GPU
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            (flx_arr[0])(i,j,k) = (flx_tmp_arr[0])(i,j,k);
-            (flx_arr[1])(i,j,k) = (flx_tmp_arr[1])(i,j,k);
-            (flx_arr[2])(i,j,k) = (flx_tmp_arr[2])(i,j,k);
-        });
     }
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

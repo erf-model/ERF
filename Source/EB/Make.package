@@ -17,5 +17,6 @@ CEXE_headers += ERF_EBIF.H
 CEXE_headers += ERF_EBIFTerrain.H
 CEXE_headers += ERF_EBPolygon.H
 CEXE_headers += ERF_EBRedistribute.H
+CEXE_headers += ERF_EBSlopes.H
 CEXE_headers += ERF_EBToPVD.H
 CEXE_headers += ERF_EBUtils.H

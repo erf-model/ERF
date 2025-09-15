@@ -1,0 +1,93 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.anelastic = 1
+erf.use_fft   = true
+
+stop_time = 14400.0
+stop_time = 21600.0
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent    = 400   400   400 
+amr.n_cell              = 128   128   128  # Δ=3.125 m
+
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY (default is adiabatic)
+zlo.type                    = "surface_layer"
+erf.most.z0                 = 0.1  # from Beare et al. 2006
+erf.most.surf_temp          = 265.0 # initial value, should match input_sounding
+erf.most.surf_heating_rate  = -0.25 # [K/h] from Beare et al. 2006
+
+zhi.type        = "SlipWall"
+zhi.theta_grad  = 0.01  # [K/m] to match the input sounding
+
+# TIME STEP CONTROL
+erf.cfl             = 0.5
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval    = 1     # timesteps between computing mass
+erf.v               = 1     # verbosity in ERF.cpp
+amr.v               = 1     # verbosity in Amr.cpp
+
+# planar averaging
+erf.data_log        = surf_hist.dat mean_profiles.dat covar_profiles.dat sfs_profiles.dat
+erf.profile_int     = 10
+erf.destag_profiles = false
+  
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 10000    # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt       # prefix of plotfile name
+erf.plot_int_1      = 1000
+erf.plot_vars_1     = theta x_velocity y_velocity z_velocity 
+
+# SOLVER CHOICES
+erf.dycore_horiz_adv_type  = "Upwind_5th"
+erf.dycore_vert_adv_type   = "Upwind_3rd"
+erf.dryscal_horiz_adv_type = "Upwind_5th"
+erf.dryscal_vert_adv_type  = "Upwind_3rd"
+
+erf.use_gravity = true
+
+# Coriolis parameter f = 1.39e-4 s^-1, from Beare et al. 2006
+erf.use_coriolis = true
+erf.coriolis_3d = 0
+erf.latitude = 73.0
+erf.rotational_time_period = 86455.2516813368
+
+#erf.abl_driver_type = "GeostrophicWind"
+#erf.abl_geo_wind = 8. 0. 0.
+
+# drive towards a specified mass flux in the rotor layer
+erf.const_massflux_layer_lo = 25.5 # HH=89, D=127
+erf.const_massflux_layer_hi = 152.5
+erf.const_massflux_u = 8.0
+erf.const_massflux_tau = 3600.0
+
+erf.molec_diff_type = "None"
+erf.les_type  = "Deardorff"
+erf.Ck        = 0.1
+erf.Ce        = 0.7
+erf.Ce_wall   = 3.9
+erf.sigma_k   = 0.5
+erf.theta_ref = 300.0 # don't specify for variable theta when diagnosing stability
+
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+
+# Rayleigh damping
+erf.rayleigh_damp_W   = true
+erf.rayleigh_dampcoef = 0.2
+erf.rayleigh_zdamp    = 100.
+
+# PROBLEM PARAMETERS
+# Initial conditions from Beare et al. 2006
+prob.KE_0            = 0.4 # [m2/s2]
+prob.KE_decay_height = 250. # [m]
+prob.KE_decay_order  = 1
+prob.T_0_Pert_Mag    = 0.1 # [K]
+prob.pert_ref_height = 50. # [m]

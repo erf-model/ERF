@@ -101,7 +101,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     {
         Real mfy = mf_uy(i,j,0);
 
-        Real met_h_zeta = 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
+        Real met_h_zeta = (k == 0) ? dz_ptr[k]*dxInv[2] : 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
 
         Real mu_tot = 0.25 * ( rhoAlpha(i-1, j  , k  ) + rhoAlpha(i  , j  , k  )
                              + rhoAlpha(i-1, j  , k-1) + rhoAlpha(i  , j  , k-1) );
@@ -113,7 +113,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     {
         Real mfx = mf_vx(i,j,0);
 
-        Real met_h_zeta = 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
+        Real met_h_zeta = (k == 0) ? dz_ptr[k]*dxInv[2] : 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
 
         Real mu_tot = 0.25 * ( rhoAlpha(i  , j-1, k  ) + rhoAlpha(i  , j  , k  )
                              + rhoAlpha(i  , j-1, k-1) + rhoAlpha(i  , j  , k-1) );
@@ -226,7 +226,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     {
         Real mfy = mf_uy(i,j,0);
 
-        Real met_h_zeta = 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
+        Real met_h_zeta = (k == 0) ? dz_ptr[k]*dxInv[2] : 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
 
         Real mu_bar = 0.25*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                            + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
@@ -241,7 +241,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     {
         Real mfx = mf_vx(i,j,0);
 
-        Real met_h_zeta = 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
+        Real met_h_zeta = (k == 0) ? dz_ptr[k]*dxInv[2] : 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
 
         Real mu_bar = 0.25*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                            + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );

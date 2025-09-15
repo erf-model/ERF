@@ -17,7 +17,6 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
               const Real zsurf,
               const Real dz0)
 {
-    amrex::Print() <<" IN Z LEVELS " << std::endl;
     int max_level = zlevels_stag.size()-1;
 
     for (int lev = 0; lev <= max_level; lev++)

@@ -7,11 +7,13 @@ AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
 AMREX_ENUM(RANSType, None, kEqn);
 
-AMREX_ENUM(PBLType, None, MYNN25, MYNNEDMF, YSU, MRF);
+AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF);
+
+AMREX_ENUM(StratType, theta, thetav, thetal);
 
 template <typename T>
 void
-query_one_or_per_level(
+query_one_or_per_level (
   const amrex::ParmParse& pp,
   const char* query_string,
   T& query_var,
@@ -38,7 +40,7 @@ query_one_or_per_level(
 struct TurbChoice
 {
 public:
-  void init_params(int lev, int max_level, std::string pp_prefix)
+  void init_params (int lev, int max_level, std::string pp_prefix)
   {
     amrex::ParmParse pp(pp_prefix);
 
@@ -48,8 +50,8 @@ public:
 
     // Handle 2-D Smag
     if (les_type == LESType::Smagorinsky2D) {
-      les_type = LESType::Smagorinsky;
-      smag2d = true;
+        les_type = LESType::Smagorinsky;
+        smag2d = true;
     }
 
     // Which RANS closure?
@@ -57,7 +59,7 @@ public:
     query_one_or_per_level(pp, "rans_type", rans_type, lev, max_level);
 
     if ((rans_type != RANSType::None) && (les_type != LESType::None)) {
-      amrex::Error("Hybrid RANS-LES not implemented");
+        amrex::Error("Hybrid RANS-LES not implemented");
     }
 
     // Which PBL Closure
@@ -105,6 +107,8 @@ public:
           pp, "pbl_mynn_SHmin", pbl_mynn.SHmin, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mynn_SHmax", pbl_mynn.SHmax, lev, max_level);
+        query_one_or_per_level(
+          pp, "pbl_mynn_SQfactor", pbl_mynn.SQfac, lev, max_level);
       } else if (pbl_type == PBLType::YSU) {
         query_one_or_per_level(
           pp, "pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq, lev, max_level);
@@ -131,14 +135,16 @@ public:
       }
     }
 
-    // Right now, solving the QKE equation is only supported when MYNN PBL is
-    // turned on
-    if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
-      use_pbl_tke = true;
-
-      query_one_or_per_level(pp, "advect_tke", advect_tke, lev, max_level);
-      query_one_or_per_level(
-        pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level);
+    // Flags for QKE/TKE euation
+    if (pbl_type == PBLType::MYJ || pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
+        // Add sources/sinks to QKE/TKE? (MYJ does this inline)
+        if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
+            use_pbl_tke = true;
+        }
+        // Advect QKE/TKE?
+        query_one_or_per_level(pp, "advect_tke"    , advect_tke    , lev, max_level);
+        // Apply numerical diffusion to QKE/TKE?
+        query_one_or_per_level(pp, "diffuse_tke_3D", diffuse_tke_3D, lev, max_level);
     }
 
     // LES constants...
@@ -151,11 +157,20 @@ public:
     Pr_t_inv = amrex::Real(1.0) / Pr_t;
     Sc_t_inv = amrex::Real(1.0) / Sc_t;
 
-    query_one_or_per_level(pp, "Ce", Ce, lev, max_level);
-    query_one_or_per_level(pp, "Ce_wall", Ce_wall, lev, max_level);
-
     if (les_type == LESType::Deardorff) {
-      query_one_or_per_level(pp, "Ck", Ck, lev, max_level);
+        query_one_or_per_level(pp, "Ck", Ck, lev, max_level);
+        query_one_or_per_level(pp, "Ce", Ce, lev, max_level);
+        query_one_or_per_level(pp, "Ce_wall", Ce_wall, lev, max_level);
+    }
+
+    // To quantify atmospheric stability for subgrid modeling
+    query_one_or_per_level(pp, "thermal_stratification", strat_type, lev, max_level);
+    if (strat_type == StratType::theta) {
+        amrex::Print() << "Thermal stratification based on gradient of potential temperature" << std::endl;
+    } else if (strat_type == StratType::thetav) {
+        amrex::Print() << "Thermal stratification based on gradient of virtual potential temperature" << std::endl;
+    } else if (strat_type == StratType::thetal) {
+        amrex::Print() << "Thermal stratification based on gradient of linearized liquid-water potential temperature" << std::endl;
     }
 
     // k-eqn constants
@@ -170,6 +185,7 @@ public:
     query_one_or_per_level(pp, "theta_ref", theta_ref, lev, max_level);
 
     query_one_or_per_level(pp, "mix_isotropic", mix_isotropic, lev, max_level);
+    query_one_or_per_level(pp, "use_smag_stratification", use_smag_stratification, lev, max_level);
 
     // Set common flags
     use_kturb =
@@ -179,7 +195,8 @@ public:
       ((les_type == LESType::Deardorff) || (rans_type == RANSType::kEqn));
     use_tke =
       ((les_type == LESType::Deardorff) || (rans_type == RANSType::kEqn) ||
-       (pbl_type == PBLType::MYNN25) || (pbl_type == PBLType::MYNNEDMF));
+       (pbl_type == PBLType::MYJ)       || (pbl_type == PBLType::MYNN25) ||
+       (pbl_type == PBLType::MYNNEDMF));
 
     // Validate inputs
     if (les_type == LESType::Smagorinsky) {
@@ -187,14 +204,13 @@ public:
         amrex::Error("Need to specify Cs for Smagorsinky LES");
       }
       if (smag2d && mix_isotropic) {
-        amrex::Print() << "Turning off mix_isotropic for 2-D Smagorinsky"
-                       << std::endl;
+        amrex::Print() << "Turning off mix_isotropic for 2-D Smagorinsky" << std::endl;
         mix_isotropic = false;
       }
     }
   }
 
-  void display(int lev)
+  void display (int lev)
   {
     amrex::Print() << "Turbulence Settings at level " << lev << std::endl;
 
@@ -204,25 +220,24 @@ public:
       amrex::Print() << "    Using DNS model at level " << lev << std::endl;
     } else if (les_type == LESType::Smagorinsky) {
       if (smag2d) {
-        amrex::Print() << "    Using 2D Smagorinsky LES model at level " << lev
-                       << std::endl;
+        amrex::Print() << "    Using 2D Smagorinsky LES model at level " << lev << std::endl;
       } else {
-        amrex::Print() << "    Using Smagorinsky LES model at level " << lev
-                       << std::endl;
+        amrex::Print() << "    Using Smagorinsky LES model at level " << lev << std::endl;
+      }
+      if (use_smag_stratification) {
+        amrex::Print() << "    Smagorinsky accounts for moist stratification" << std::endl;
       }
     } else if (les_type == LESType::Deardorff) {
-      amrex::Print() << "    Using Deardorff LES model at level " << lev
-                     << std::endl;
+      amrex::Print() << "    Using Deardorff LES model at level " << lev << std::endl;
     } else if (rans_type == RANSType::kEqn) {
       amrex::Print()
-        << "    Using Axell & Liungman one-equation RANS k model at level "
-        << lev << std::endl;
+        << "    Using Axell & Liungman one-equation RANS k model at level " << lev << std::endl;
+    } else if (pbl_type == PBLType::MYJ) {
+      amrex::Print() << "    Using MYJ PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MYNN25) {
-      amrex::Print() << "    Using MYNN2.5 PBL model at level " << lev
-                     << std::endl;
+      amrex::Print() << "    Using MYNN2.5 PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MYNNEDMF) {
-      amrex::Print() << "    Using MYNNEDMF PBL model at level " << lev
-                     << std::endl;
+      amrex::Print() << "    Using MYNNEDMF PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::YSU) {
       amrex::Print() << "    Using YSU PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MRF) {
@@ -233,46 +248,47 @@ public:
 
     if (les_type != LESType::None) {
       if (les_type == LESType::Smagorinsky) {
-        amrex::Print() << "Cs                          : " << Cs << std::endl;
+        amrex::Print() << "    Cs                      : " << Cs << std::endl;
       }
       if (les_type == LESType::Deardorff) {
-        amrex::Print() << "Ce                          : " << Ce << std::endl;
-        amrex::Print() << "Ce at wall                  : " << Ce_wall
-                       << std::endl;
-        amrex::Print() << "Ck                          : " << Ck << std::endl;
-        amrex::Print() << "sigma_k                     : " << sigma_k
-                       << std::endl;
-        amrex::Print() << "reference theta             : " << theta_ref
-                       << std::endl;
+        amrex::Print() << "    Ce                      : " << Ce      << std::endl;
+        amrex::Print() << "    Ce at wall              : " << Ce_wall << std::endl;
+        amrex::Print() << "    Ck                      : " << Ck      << std::endl;
+        amrex::Print() << "    sigma_k                 : " << sigma_k << std::endl;
+
         // Sullivan et al 1994, Eqn 14
         amrex::Real Cs_equiv = std::sqrt(Ck * std::sqrt(Ck / Ce));
-        amrex::Print() << "equivalent Cs               : " << Cs_equiv
+        amrex::Print() << "    equivalent Cs           : " << Cs_equiv
                        << std::endl;
       }
-      amrex::Print() << "isotropic mixing            : " << mix_isotropic
+      amrex::Print() << "    isotropic mixing        : " << mix_isotropic
                      << std::endl;
     }
 
     if (rans_type != RANSType::None) {
       if (rans_type == RANSType::kEqn) {
         amrex::Print() << "Cmu0                        : " << Cmu0 << std::endl;
-        amrex::Print() << "sigma_k                     : " << sigma_k
-                       << std::endl;
+        amrex::Print() << "sigma_k                     : " << sigma_k << std::endl;
         amrex::Print() << "Cb                          : " << Cb << std::endl;
-        amrex::Print() << "Rt_crit                     : " << Rt_crit
-                       << std::endl;
-        amrex::Print() << "Rt_min                      : " << Rt_min
-                       << std::endl;
-        amrex::Print() << "max_geom_lscale             : " << l_g_max
-                       << std::endl;
-        amrex::Print() << "reference theta             : " << theta_ref
-                       << std::endl;
+        amrex::Print() << "Rt_crit                     : " << Rt_crit << std::endl;
+        amrex::Print() << "Rt_min                      : " << Rt_min << std::endl;
+        amrex::Print() << "max_geom_lscale             : " << l_g_max << std::endl;
+      }
+    }
+
+    if ((les_type  == LESType::Deardorff)                              ||
+        (les_type  == LESType::Smagorinsky && use_smag_stratification) ||
+        (rans_type == RANSType::kEqn)) {
+      if (theta_ref > 0) {
+        amrex::Print() << "    reference theta         : " << theta_ref << std::endl;
+      } else {
+        amrex::Print() << "    reference theta         : n/a" << std::endl;
       }
     }
 
     if ((les_type != LESType::None) || (rans_type != RANSType::None)) {
-      amrex::Print() << "Pr_t                        : " << Pr_t << std::endl;
-      amrex::Print() << "Sc_t                        : " << Sc_t << std::endl;
+      amrex::Print() << "    Pr_t                    : " << Pr_t << std::endl;
+      amrex::Print() << "    Sc_t                    : " << Sc_t << std::endl;
     }
 
     if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
@@ -342,10 +358,15 @@ public:
   amrex::Real sigma_k = 0.5;
   // - reference potential temperature used to quantify the stratification in
   //   a stable region
-  amrex::Real theta_ref = 300.0;
+  amrex::Real theta_ref = 0.0;
+  // - how to quantify stratification effects
+  StratType strat_type = StratType::theta;
 
   // Anistropic length scales
   bool mix_isotropic = true;
+
+  // Use the stratification adjustment for the Smagorinsky Scheme
+  bool use_smag_stratification = true;
 
   // RANS type
   RANSType rans_type;

@@ -123,8 +123,14 @@ ERF::init_from_metgrid (int lev)
 
     // Start at the earliest time in nc_init_file[lev].
     start_bdy_time = NC_epochTime[0];
-    t_new[lev] = start_bdy_time;
-    t_old[lev] = start_bdy_time - 1.e200;
+
+    //
+    // Note that t_new and t_old carry *elapsed* time, not total time
+    //
+    Print() << "start_bdy_time is " << std::setprecision(timeprecision) << start_bdy_time
+            << " from metgrid file but note that time variable in simulation is elapsed time" << std::endl;
+    t_new[lev] = 0.;
+    t_old[lev] = -1.e200;
 
     // Determine the spacing between met_em files.
     bdy_time_interval = NC_epochTime[1]-NC_epochTime[0];
@@ -780,7 +786,7 @@ init_state_from_metgrid (const bool use_moisture,
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    theta(i,j,k) = getThgivenPandT(temp(i,j,k),pres(i,j,k),l_rdOcp);
+                    theta(i,j,k) = getThgivenTandP(temp(i,j,k),pres(i,j,k),l_rdOcp);
                 });
             }
 
@@ -927,7 +933,7 @@ init_state_from_metgrid (const bool use_moisture,
 
             ParallelFor(tbxc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real Calc_Val = getThgivenPandT(temp(i,j,k),pres(i,j,k),l_rdOcp);
+                Real Calc_Val = getThgivenTandP(temp(i,j,k),pres(i,j,k),l_rdOcp);
                 if (metgrid_debug_isothermal) Calc_Val = 300.0; // Debugging option to run isothermal.
                 if (mask_c_arr(i,j,k) && bx_xlo.contains(i,j,k)) bc_data_xlo(i,j,k,0) = Calc_Val;
                 if (mask_c_arr(i,j,k) && bx_xhi.contains(i,j,k)) bc_data_xhi(i,j,k,0) = Calc_Val;

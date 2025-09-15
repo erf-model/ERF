@@ -12,7 +12,7 @@ get_fft_bc (Geometry const& lev_geom,
 {
     Array<std::pair<FFT::Boundary,FFT::Boundary>,AMREX_SPACEDIM> r;
 
-    for (int dir = 0; dir <= 1; dir++)
+    for (int dir = 0; dir <= 2; dir++)
     {
         auto bc_type_lo = l_domain_bc_type[Orientation(dir,Orientation::low)];
         auto bc_type_hi = l_domain_bc_type[Orientation(dir,Orientation::high)];
@@ -61,11 +61,6 @@ get_fft_bc (Geometry const& lev_geom,
             // amrex::Print() << "SETTING " << dir << " TO EVEN EVEN " << std::endl;
         }
     } // dir
-
-    //
-    // Always Neumann in the vertical
-    //
-    r[2] = std::make_pair(FFT::Boundary::even,FFT::Boundary::even);
 
     return r;
 }

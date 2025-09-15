@@ -173,7 +173,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfx = mf_ux(i,j,0);
 
-            Real dz_inv = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+            Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
             if (!need_to_test || u(dom_lo.x,j,k) <= 0.) {
                  tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dz_inv
@@ -195,7 +195,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfx = mf_ux(i,j,0);
 
-            Real dz_inv = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+            Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
             if (!need_to_test || u(dom_hi.x+1,j,k) <= 0.) {
                 tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dz_inv
@@ -256,7 +256,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = mf_vy(i,j,0);
 
-            Real dz_inv = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+            Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
             if (!need_to_test || v(i,dom_lo.y,k) >= 0.) {
                 tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dz_inv
@@ -276,7 +276,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = mf_vy(i,j,0);
 
-            Real dz_inv = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+            Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
             if (!need_to_test || v(i,dom_hi.y+1,k) >= 0.) {
                 tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dz_inv
@@ -417,7 +417,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfx = mf_ux(i,j,0);
 
-            Real dz_inv = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+            Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
             tau13(i,j,k) = 0.5 *  (u(i, j, k) - u(i  , j, k-1))*dz_inv
                                +  (w(i, j, k) - w(i-1, j, k  ))*dxInv[0] * mfx;
@@ -430,7 +430,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = mf_vy(i,j,0);
 
-            Real dz_inv = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+            Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
             tau23(i,j,k) = 0.5 * (v(i, j, k) - v(i, j  , k-1))*dz_inv
                                + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1] * mfy;
@@ -447,7 +447,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfx = mf_ux(i,j,0);
 
-            Real dz_inv = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+            Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
             tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j, k-1))*dz_inv
                                  + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]*mfx );
@@ -460,7 +460,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = mf_vy(i,j,0);
 
-            Real dz_inv = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+            Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
             tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j  , k-1))*dz_inv
                                  + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]*mfy );
@@ -496,7 +496,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real mfx = mf_ux(i,j,0);
 
-        Real dz_inv = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+        Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
         tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j, k-1))*dz_inv
                              + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]) * mfx;
@@ -505,7 +505,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real mfy = mf_vy(i,j,0);
 
-        Real dz_inv = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+        Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
         tau23(i,j,k) = 0.5 * (v(i, j, k) - v(i, j  , k-1))*dz_inv
                           +  (w(i, j, k) - w(i, j-1, k  ))*dxInv[1] * mfy;

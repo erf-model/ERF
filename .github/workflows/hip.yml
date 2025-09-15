@@ -44,6 +44,9 @@ jobs:
       with:
         submodules: true
 
+    - name: Free up disk space
+      uses: ./.github/actions/free-space-ubuntu
+
     - name: Dependencies
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_hip.sh
 

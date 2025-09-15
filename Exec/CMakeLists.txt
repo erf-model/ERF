@@ -41,7 +41,14 @@ else ()
   add_subdirectory(DevTests/LandSurfaceModel)
   add_subdirectory(DevTests/MovingTerrain)
   add_subdirectory(DevTests/Radiation)
+  add_subdirectory(DevTests/Shoc)
   add_subdirectory(DevTests/TemperatureSource)
   add_subdirectory(DevTests/TropicalCyclone)
 endif()
+
+if(ERF_ENABLE_TOOLS)
+  message(STATUS "Building additional ERF tools")
+  add_subdirectory(Tools)
 endif()
+
+endif() # NOT ERF_BUILD_LIBRARY_ONLY

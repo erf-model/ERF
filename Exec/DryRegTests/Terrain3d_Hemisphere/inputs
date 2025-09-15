@@ -14,7 +14,7 @@ amr.n_cell           = 128  128   128
 geometry.is_periodic = 0 1 0
 
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
+erf.sounding_type = Ideal
 
 xlo.type = "Outflow"
 xhi.type = "Outflow"

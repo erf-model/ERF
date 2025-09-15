@@ -25,8 +25,8 @@ zhi.type              = "SlipWall"
 zhi.theta_grad        = 0.003  # [K/m] to match the input sounding
 
 # INITIALIZATION
-erf.init_type           = "input_sounding"
-erf.init_sounding_ideal = 1
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.5

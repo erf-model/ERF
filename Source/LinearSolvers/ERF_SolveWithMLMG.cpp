@@ -8,7 +8,7 @@ using namespace amrex;
 
 /**
  * Define the domain boundary conditions for the (optional) Poisson solve
- * if we want to enforce incompressibility of the initial conditions
+ * if we want to enforce that the initial conditions satisfy the constraint
  */
 
 using BCType = LinOpBCType;
@@ -95,5 +95,5 @@ void ERF::solve_with_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi
     // ****************************************************************************
     // Impose bc's on pprime
     // ****************************************************************************
-    ImposeBCsOnPhi(lev, phi[0]);
+    ImposeBCsOnPhi(lev, phi[0], geom[lev].Domain());
 }

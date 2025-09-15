@@ -41,6 +41,12 @@ class polygon_ {
 
     AMREX_GPU_HOST_DEVICE
     void add_vertex ( amrex::RealVect const& a_v ) {
+      for ( int i(0); i<m_vertices; ++i) {
+        if ( amrex::almostEqual(m_vertex[i][0],a_v[0]) && amrex::almostEqual(m_vertex[i][1],a_v[1])
+          && amrex::almostEqual(m_vertex[i][2],a_v[2]) ) {
+          return;
+        }
+      }
       AMREX_ASSERT( m_vertices < m_max_vertices );
       m_vertex[m_vertices] = a_v;
       m_vertices++;
@@ -187,6 +193,16 @@ class polygon_ {
                      << "\nvolume:   " << dist*m_area
       << "\n==================================================\n\n";
 #endif
+    }
+
+    void debug( int const a_id ) {
+      amrex::Print() << "EBPolygon: id = " << a_id << ", m_vertices = " << m_vertices << '\n';
+      for (int i(0); i<m_vertices; ++i) {
+        amrex::Print() << "EBPolygon: v" << i << ":  " << m_vertex[i] << '\n';
+      }
+    }
+    void debug() {
+      debug(-1);
     }
 
   private:

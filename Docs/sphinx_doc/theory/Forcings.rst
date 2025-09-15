@@ -30,7 +30,7 @@ If
 
       use_gravity == true
 
-then buoyancy is included in the momentum equations.  See :ref:`sec:Buoyancy` for more detail
+then buoyancy is included in the momentum equations.  See :ref:`Buoyancy` for more detail
 about the possible formulations of the buoyancy term.
 
 Coriolis Forcing

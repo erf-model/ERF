@@ -52,7 +52,6 @@ In addition to this documentation, there is API documentation for ERF generated 
    :maxdepth: 1
 
    theory/GoverningEquations.rst
-   theory/Anelastic.rst
    theory/BaseState.rst
    theory/Buoyancy.rst
    theory/Microphysics.rst

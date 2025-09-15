@@ -15,7 +15,8 @@ class eb_aux_
     eb_aux_ ();
     ~eb_aux_ ();
 
-    void define ( int const& a_idim,
+    void define ( int const& a_level,
+                  int const& a_idim,
                   amrex::Geometry            const& a_geom,
                   amrex::BoxArray            const& a_grids,
                   amrex::DistributionMapping const& a_dmap,

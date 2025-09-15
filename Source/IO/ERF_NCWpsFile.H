@@ -16,8 +16,7 @@ using PlaneVector = amrex::Vector<amrex::FArrayBox>;
  // Read from metgrid
  NetCDF variables of dimensions Time_BT_SN_WE: "UU", "VV", "TT", "RH", "PRES", "GHT"
  NetCDF variables of dimensions Time_SN_WE   : "HGT", "MAPFAC_U",  "MAPFAC_V",  "MAPFAC_M", "PSFC"
- NetCDF global attributes of type int        : "FLAG_PSFC", "FLAG_MAPFAC_U", "FLAG_MAPFAC_V", "FLAG_MAPFAC_M",
-                                               "FLAG_HGT_M", "WEST-EAST_GRID_DIMENSION", "SOUTH-NORTH_GRID_DIMENSION"
+ NetCDF global attributes of type int        : "WEST-EAST_GRID_DIMENSION", "SOUTH-NORTH_GRID_DIMENSION"
  NetCDF global attributes of type string     : "SIMULATION_START_DATE"
  NetCDF global attributes of type real       : "DX", "DY"
 

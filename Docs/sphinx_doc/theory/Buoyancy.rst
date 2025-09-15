@@ -12,18 +12,9 @@ ERF has several options for how to define the buoyancy force.
 Buoyancy
 =========
 
-When using the anelastic formulation, the expression for buoyancy used by ERF is
-
-.. math::
-     \mathbf{B} = -\rho^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} ( \frac{\theta_v^\prime}{\overline{\theta_0}}
-
-where we define
-
-.. math::
-     \theta_v = \theta_d (1 - (1 - \frac{R_v}{R_d}) (q_v + q_c) - \frac{R_v}{R_d} q_c)
-
-
-When using the compressible formulation, the following choices are available.
+The following are a list of the buoyancy models available in ERF. All models may be employed
+with the compressible formulation but those applicable to the anelastic formulation will be
+explicitly stated in the description.
 
 
 Density of the mixture
@@ -133,3 +124,14 @@ Since the background values of cloud water and precipitate mass mixing ratios --
     \rho'\approx -\rho\Bigg(\frac{T'}{T} + 0.61 q_v' - q_c - q_p - \frac{p'}{p}\Bigg),
     \end{equation}
 
+Type 5
+------
+Utilizing :math:`\theta_d` and neglecting the pressure term in Type 4 leads to:
+
+.. math::
+
+    \begin{equation}
+    \rho'\approx -\rho\Bigg(\frac{\theta_d'}{\theta} + 0.61 q_v' - q_c' - q_p'\Bigg).
+    \end{equation}
+
+We note that this buoyancy model is employed when utilizing the anelastic formulation.

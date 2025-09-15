@@ -48,7 +48,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
     // First do cell-centered quantities
     // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
     // m is the map scale factor at cell centers
-    // Here we pre-divide (rho S) by m^2 before average down
+    // Here we multiply (rho S) by detJ and divide (rho S) by m^2 before average down
     // ******************************************************************************************
     for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
       for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -114,7 +114,9 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
 
     vars_new[crse_lev][Vars::cons].FillBoundary(geom[crse_lev].periodicity());
 
-    // Here we multiply (rho S) by m^2 after average down
+    // ******************************************************************************************
+    // Here we multiply (rho S) by m^2 and divide by detJ after average down
+    // ******************************************************************************************
     for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
       for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
@@ -125,12 +127,12 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
             const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
             ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
-                cons_arr(i,j,k,scomp+n) *= detJ_arr(i,j,k) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                cons_arr(i,j,k,scomp+n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0)) / detJ_arr(i,j,k);
             });
         } else {
             ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
-                cons_arr(i,j,k,scomp+n) /= (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                cons_arr(i,j,k,scomp+n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0));
             });
         }
       } // mfi

@@ -6,7 +6,7 @@
 #include "AMReX_FArrayBox.H"
 #include "AMReX_MultiFab.H"
 #include "AMReX_iMultiFab.H"
-#include "AMReX_Interpolater.H"
+#include "AMReX_MFInterpolater.H"
 
 #include "ERF_IndexDefines.H"
 #include "ERF_Constants.H"
@@ -15,6 +15,7 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
 #include "ERF_SurfaceModel.H"
+#include "ERF_MicrophysicsUtils.H"
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
@@ -39,11 +40,9 @@ public:
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                          const TerrainType& a_terrain_type,
                          SurfaceModel* surf_model = nullptr,
-                         amrex::Real start_bdy_time = 0.0,
                          amrex::Real bdy_time_interval = 0.0)
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
-    m_start_bdy_time(start_bdy_time),
     m_bdy_time_interval(bdy_time_interval),
     m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_terrain_type),
     m_surf_model(surf_model)
@@ -121,6 +120,7 @@ public:
           pp.query("most.ustar", custom_ustar);
           pp.query("most.tstar", custom_tstar);
           pp.query("most.qstar", custom_qstar);
+          pp.query("most.rhosurf", custom_rhosurf);
           if (custom_qstar != 0) {
               AMREX_ASSERT_WITH_MESSAGE(use_moisture,
               "Specified custom MOST qv flux without moisture model!");
@@ -240,7 +240,9 @@ public:
                                    amrex::MultiFab* Lwave,
                                    amrex::MultiFab* eddyDiffs,
                                    amrex::Vector<amrex::MultiFab*> lsm_data,
+                                   amrex::Vector<std::string>      lsm_data_name,
                                    amrex::Vector<amrex::MultiFab*> lsm_flux,
+                                   amrex::Vector<std::string>      lsm_flux_name,
                                    amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_lev,
                                    amrex::Vector<std::unique_ptr<amrex::MultiFab>>& tsk_lev,
                                    amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev)
@@ -300,12 +302,12 @@ public:
       for (int nt(0); nt < nt_tot_sst; ++nt) {
           m_sst_lev[lev][nt] = sst_lev[nt].get();
       }
-      int nt_tot_tsk = tsk_lev.size();
+      int nt_tot_tsk = static_cast<int>(tsk_lev.size());
       m_tsk_lev[lev].resize(nt_tot_tsk);
       for (int nt(0); nt < nt_tot_tsk; ++nt) {
           m_tsk_lev[lev][nt] = tsk_lev[nt].get();
       }
-      int nt_tot_lmask = lmask_lev.size();
+      int nt_tot_lmask = static_cast<int>(lmask_lev.size());
       m_lmask_lev[lev].resize(nt_tot_lmask);
       for (int nt(0); nt < nt_tot_lmask; ++nt) {
           m_lmask_lev[lev][nt] = lmask_lev[nt].get();
@@ -317,11 +319,22 @@ public:
       m_eddyDiffs_lev[lev] = eddyDiffs;
 
       // Get pointers to LSM data and Fluxes
-      int nvar = lsm_data.size();
-      m_lsm_data_lev[lev].resize(nvar);
-      m_lsm_flux_lev[lev].resize(nvar);
-      for (int n(0); n < nvar; ++n) {
+      int ndata = static_cast<int>(lsm_data.size());
+      int nflux = static_cast<int>(lsm_flux.size());
+      m_lsm_data_name.resize(ndata);
+      m_lsm_data_lev[lev].resize(ndata);
+      m_lsm_flux_name.resize(nflux);
+      m_lsm_flux_lev[lev].resize(nflux);
+      for (int n(0); n < ndata; ++n) {
+          m_lsm_data_name[n]     = lsm_data_name[n];
           m_lsm_data_lev[lev][n] = lsm_data[n];
+          if (amrex::toLower(lsm_data_name[n]) == "theta") {
+              m_has_lsm_tsurf  = true;
+              m_lsm_tsurf_indx = n;
+          }
+      }
+      for (int n(0); n < nflux; ++n) {
+          m_lsm_flux_name[n]     = lsm_flux_name[n];
           m_lsm_flux_lev[lev][n] = lsm_flux[n];
       }
 
@@ -349,15 +362,8 @@ public:
 
       // Z0 heights FAB
       //--------------------------------------------------------
-      amrex::Arena* Arena_Used = amrex::The_Arena();
-#ifdef AMREX_USE_GPU
-      Arena_Used = amrex::The_Pinned_Arena();
-#endif
-      amrex::Box bx = amrex::grow(m_geom[lev].Domain(), ng);
-      bx.setSmall(2, 0);
-      bx.setBig(2, 0);
-      z_0[lev].resize(bx, 1, Arena_Used);
-      z_0[lev].setVal<amrex::RunOn::Device>(z0_const);
+      z_0[lev].define(ba2d, dm, ncomp, ng);
+      z_0[lev].setVal(z0_const);
       if (read_z0) {
           read_custom_roughness(lev, fname);
       }
@@ -388,9 +394,8 @@ public:
       q_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
       q_surf[lev]->setVal(default_land_surf_moist);
 
-      // TODO: Do we want lsm_data to have theta at 0 index always?
-      //       Do we want an external enum struct for indexing?
-      if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_lsm_data_lev[lev][0]) {
+      // TODO: Do we want an enum struct for indexing?
+      if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_has_lsm_tsurf || m_surf_model) {
           // Valid SST, TSK or LSM data; t_surf set before computing fluxes (avoids
           // extended lambda capture) Note that land temp will be set from m_tsk_lev
           //      while sea temp will be set from m_sst_lev
@@ -403,7 +408,9 @@ public:
   void
   update_fluxes (const int& lev,
                  const amrex::Real& time,
-                 int max_iters = 500);
+                 const amrex::MultiFab& cons_in,
+                 const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                 int max_iters = 100);
 
   template <typename FluxIter>
   void compute_fluxes (const int& lev,
@@ -438,24 +445,24 @@ public:
   void fill_tsurf_with_sst_and_tsk (const int& lev,
                                     const amrex::Real& time);
 
+  void fill_qsurf_with_qsat (const int& lev,
+                             const amrex::MultiFab& cons_in,
+                             const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
   void get_lsm_tsurf (const int& lev);
 
   /* wrapper around compute_pblh */
   void update_pblh (const int& lev,
                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                     amrex::MultiFab* z_phys_cc,
-                    const int RhoQv_comp,
-                    const int RhoQc_comp,
-                    const int RhoQr_comp);
+                    const MoistureComponentIndices& moisture_indices);
 
   template <typename PBLHeightEstimator>
   void compute_pblh (const int& lev,
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                      amrex::MultiFab* z_phys_cc,
                      const PBLHeightEstimator& est,
-                     const int RhoQv_comp,
-                     const int RhoQc_comp,
-                     const int RhoQr_comp);
+                     const MoistureComponentIndices& moisture_indice);
 
   void read_custom_roughness (const int& lev,
                               const std::string& fname);
@@ -463,7 +470,7 @@ public:
   void update_surf_temp (const amrex::Real& time)
   {
       if (surf_heating_rate != 0) {
-          int nlevs = m_geom.size();
+          int nlevs = static_cast<int>(m_geom.size());
           for (int lev = 0; lev < nlevs; lev++) {
               t_surf[lev]->setVal(surf_temp + surf_heating_rate * time);
               amrex::Print() << "Surface temp at t=" << time << ": "
@@ -504,7 +511,7 @@ public:
 
   amrex::Real get_zref () { return m_ma.get_zref(); }
 
-  amrex::FArrayBox* get_z0 (const int& lev) { return &z_0[lev]; }
+  amrex::MultiFab* get_z0 (const int& lev) { return &z_0[lev]; }
 
   bool have_variable_sea_roughness () { return m_var_z0; }
 
@@ -570,7 +577,6 @@ private:
   // Set in constructor
   amrex::Vector<amrex::Geometry> m_geom;
   bool m_rotate = false;
-  amrex::Real m_start_bdy_time;
   amrex::Real m_bdy_time_interval;
 
   bool m_include_wstar = false;
@@ -585,13 +591,17 @@ private:
   amrex::Real custom_ustar{0};
   amrex::Real custom_tstar{0};
   amrex::Real custom_qstar{0};
+  amrex::Real custom_rhosurf{0}; // use specified value instead of rho from first cell
+  bool specified_rho_surf{false};
   amrex::Real cnk_a{0.0185};
   bool cnk_visc{false};
   amrex::Real depth{30.0};
-  amrex::Vector<amrex::FArrayBox> z_0;
+  amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};
 
   bool use_moisture;
+  bool m_has_lsm_tsurf  = false;
+  int  m_lsm_tsurf_indx = -1;
 
   MOSTAverage m_ma;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
@@ -608,6 +618,8 @@ private:
   amrex::Vector<amrex::Vector<amrex::iMultiFab*>> m_lmask_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_data_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_flux_lev;
+  amrex::Vector<std::string> m_lsm_data_name;
+  amrex::Vector<std::string> m_lsm_flux_name;
   amrex::Vector<amrex::MultiFab*> m_Hwave_lev;
   amrex::Vector<amrex::MultiFab*> m_Lwave_lev;
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;
