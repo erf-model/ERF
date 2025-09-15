@@ -627,6 +627,12 @@ ERF::update_terrain_arrays (int lev)
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
+    } else { // MeshType::ConstantDz
+        if (SolverChoice::terrain_type == TerrainType::EB) {
+            const auto& volfrac = (*eb[lev]->get_const_factory()).getVolFrac();
+            detJ_cc[lev] = std::make_unique<amrex::MultiFab>(
+                            volfrac, amrex::make_alias, 0, volfrac.nComp());
+        }
     }
 }
 
