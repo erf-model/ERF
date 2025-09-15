@@ -30,10 +30,11 @@ NOAHMP::Init (const int& lev,
                   LsmData_NOAHMP::sfc_alb_dif_vis, LsmData_NOAHMP::sfc_alb_dif_nir,
                   LsmData_NOAHMP::sw_flux_dn     , LsmData_NOAHMP::lw_flux_dn     };
     LsmDataName.resize(m_lsm_data_size);
-    LsmDataName = {"t_sfc"          , "sfc_emis"        ,
-                  "sfc_alb_dir_vis" , "sfc_alb_dir_nir" ,
-                  "sfc_alb_dif_vis" , "sfc_alb_dif_nir" ,
-                   "sw_flux_dn"     , "lw_flux_dn"      };
+    LsmDataName = {"t_sfc"          , "sfc_emis"         ,
+                   "sfc_alb_dir_vis" , "sfc_alb_dir_nir" ,
+                   "sfc_alb_dif_vis" , "sfc_alb_dif_nir" ,
+                   "cos_zenith_angle", "sw_flux_dn"      ,
+                   "lw_flux_dn"      };
 
 
     LsmFluxMap.resize(m_lsm_flux_size);
@@ -208,7 +209,7 @@ NOAHMP::Advance_With_State (const int& lev,
                             MultiFab& yvel_in,
                             MultiFab* /*hfx3_out*/,
                             MultiFab* /*qfx3_out*/,
-                            const amrex::Real& dt,
+                            const Real& dt,
                             const int& nstep)
 {
 
@@ -284,5 +285,5 @@ NOAHMP::Advance_With_State (const int& lev,
             }
         }
     }
-    amrex::Print () << "Noah-MP driver completed" << std::endl;
+    Print () << "Noah-MP driver completed" << std::endl;
 };

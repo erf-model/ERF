@@ -213,7 +213,6 @@ Radiation::alloc_buffers ()
     Kokkos::deep_copy(o3_lay, o3_lay_h);
 
     // 1d size (ncol)
-    cosine_zenith    = real1d_k("cosine_zenith"   , m_ncol);
     mu0              = real1d_k("mu0"             , m_ncol);
     sfc_alb_dir_vis  = real1d_k("sfc_alb_dir_vis" , m_ncol);
     sfc_alb_dir_nir  = real1d_k("sfc_alb_dir_nir" , m_ncol);
@@ -316,7 +315,6 @@ Radiation::dealloc_buffers ()
     o3_lay = real1d_k();
 
     // 1d size (ncol)
-    cosine_zenith    = real1d_k();
     mu0              = real1d_k();
     sfc_alb_dir_vis  = real1d_k();
     sfc_alb_dir_nir  = real1d_k();
@@ -669,14 +667,25 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
             auto rrtmgp_for_fill = rrtmgp_out_vars[ivar];
             if (lsm_output_ptrs[ivar]) {
                 const Array4<Real>& lsm_out_arr = lsm_output_ptrs[ivar]->array(mfi);
-                ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    // map [i,j,k] 0-based to [icol, ilay] 0-based
-                    const int icol   = (j-jmin)*nx + (i-imin) + offset;
+                if (ivar==0) {
+                    ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        // map [i,j,k] 0-based to [icol, ilay] 0-based
+                        const int icol   = (j-jmin)*nx + (i-imin) + offset;
 
-                    // export the desired variable at surface
-                    lsm_out_arr(i,j,k) = rrtmgp_for_fill(icol,0);
-                });
+                        // export the desired variable at surface
+                        lsm_out_arr(i,j,k) = mu0_d(icol);
+                    });
+                } else {
+                    ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        // map [i,j,k] 0-based to [icol, ilay] 0-based
+                        const int icol   = (j-jmin)*nx + (i-imin) + offset;
+
+                        // export the desired variable at surface
+                        lsm_out_arr(i,j,k) = rrtmgp_for_fill(icol,0);
+                    });
+                } // ivar
             } // valid ptr
         } // ivar
     }// mfi
