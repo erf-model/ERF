@@ -36,8 +36,11 @@ ERF::init_from_metgrid (int lev)
         Error("NetCDF initialization file name must be provided via input");
 
     // At least two met_em files are necessary to calculate tendency terms.
-    if (lev == 0)
+    if (lev == 0) {
         AMREX_ALWAYS_ASSERT(ntimes >= 2);
+    } else {
+        AMREX_ALWAYS_ASSERT(ntimes == 1);
+    }
 
     // At least three points are necessary if there is a relaxation zone.
     if (real_width > real_set_width)
@@ -122,21 +125,21 @@ ERF::init_from_metgrid (int lev)
                           NC_lmask_iab[itime], geom[lev]);
     } // itime
 
-    // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
-    for (int itime(1); itime < ntimes; itime++) AMREX_ALWAYS_ASSERT(NC_epochTime[itime] > NC_epochTime[itime-1]);
-
-    // Start at the earliest time in nc_init_file[lev].
-    start_bdy_time = NC_epochTime[0];
-
-    //
-    // Note that t_new and t_old carry *elapsed* time, not total time
-    //
-    Print() << "start_bdy_time is " << std::setprecision(timeprecision) << start_bdy_time
-            << " from metgrid file but note that time variable in simulation is elapsed time" << std::endl;
-    t_new[lev] = 0.;
-    t_old[lev] = -1.e200;
-
     if (lev == 0) {
+        // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
+        for (int itime(1); itime < ntimes; itime++) AMREX_ALWAYS_ASSERT(NC_epochTime[itime] > NC_epochTime[itime-1]);
+
+        // Start at the earliest time in nc_init_file[lev].
+        start_bdy_time = NC_epochTime[0];
+
+        //
+        // Note that t_new and t_old carry *elapsed* time, not total time
+        //
+        Print() << "start_bdy_time is " << std::setprecision(timeprecision) << start_bdy_time
+                << " from metgrid file but note that time variable in simulation is elapsed time" << std::endl;
+        t_new[lev] = 0.;
+        t_old[lev] = -1.e200;
+
         // Determine the spacing between met_em files.
         bdy_time_interval = NC_epochTime[1]-NC_epochTime[0];
 
@@ -148,7 +151,7 @@ ERF::init_from_metgrid (int lev)
     #endif
             if (NC_dt != bdy_time_interval) Error("Time interval between consecutive met_em files must be consistent.");
         }
-    }
+    } // lev==0
 
     auto& lev_new = vars_new[lev];
 
@@ -166,6 +169,12 @@ ERF::init_from_metgrid (int lev)
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
     make_terrain_fitted_coords(lev, geom[lev], *z_phys, zlevels_stag[lev], phys_bc_type);
+
+    #ifndef AMREX_USE_GPU
+    for (int k(0); k < zlevels_stag[lev].size(); ++k) {
+        Print() << "zlevels_stag[" << lev << "][" << k << "] = " << zlevels_stag[lev][k] << std::endl;
+    }
+    #endif
 
     // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
     auto& dm = lev_new[Vars::cons].DistributionMap();
