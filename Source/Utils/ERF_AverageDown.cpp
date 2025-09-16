@@ -56,7 +56,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
         const Array4<const Real> mfx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
         const Array4<const Real> mfy_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
-        if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        if (SolverChoice::mesh_type != MeshType::ConstantDz || SolverChoice::terrain_type == TerrainType::EB) {
             const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
             ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
@@ -120,20 +120,32 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
     for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
       for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
-        const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
+        const Array4<      Real> cons_arr = vars_new[lev][Vars::cons].array(mfi);
         const Array4<const Real> mfx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
         const Array4<const Real> mfy_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
         if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-            const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
+            const Array4<const Real> detJ_arr = detJ_cc[lev]->const_array(mfi);
             ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
                 cons_arr(i,j,k,scomp+n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0)) / detJ_arr(i,j,k);
             });
-        } else {
-            ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                cons_arr(i,j,k,scomp+n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0));
-            });
+        } else { // MeshType::ConstantDz
+            if (SolverChoice::terrain_type != TerrainType::EB) {
+                ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                {
+                    cons_arr(i,j,k,scomp+n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                });
+            } else {
+                const Array4<const Real> detJ_arr = detJ_cc[lev]->const_array(mfi);
+                ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                {
+                    if (detJ_arr(i,j,k) > 0.0) {
+                        cons_arr(i,j,k,scomp+n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0)) / detJ_arr(i,j,k);
+                    } else {
+                        cons_arr(i,j,k,scomp+n) = 0.0;
+                    }
+                });
+            }
         }
       } // mfi
     } // lev
@@ -214,13 +226,25 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                 
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momx(i,j,k) /= u_vfrac(i,j,k);
+                    if (u_vfrac(i,j,k) > 0.0) {
+                        momx(i,j,k) /= u_vfrac(i,j,k);
+                    } else {
+                        momx(i,j,k) = 0.0;
+                    }
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momy(i,j,k) /= v_vfrac(i,j,k);
+                    if (v_vfrac(i,j,k) > 0.0) {
+                        momy(i,j,k) /= v_vfrac(i,j,k);
+                    } else {
+                        momy(i,j,k) = 0.0;
+                    }
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momz(i,j,k) /= w_vfrac(i,j,k);
+                    if (w_vfrac(i,j,k) > 0.0) {
+                        momz(i,j,k) /= w_vfrac(i,j,k);
+                    } else {
+                        momz(i,j,k) = 0.0;
+                    }
                 });
             } // mfi
         } // lev
