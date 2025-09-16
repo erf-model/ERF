@@ -664,7 +664,6 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
             });
         }
         for (int ivar(0); ivar<lsm_output_ptrs.size(); ivar++) {
-            auto rrtmgp_for_fill = rrtmgp_out_vars[ivar];
             if (lsm_output_ptrs[ivar]) {
                 const Array4<Real>& lsm_out_arr = lsm_output_ptrs[ivar]->array(mfi);
                 if (ivar==0) {
@@ -677,6 +676,7 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
                         lsm_out_arr(i,j,k) = mu0_d(icol);
                     });
                 } else {
+                    auto rrtmgp_for_fill = rrtmgp_out_vars[ivar-1];
                     ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         // map [i,j,k] 0-based to [icol, ilay] 0-based
