@@ -31,7 +31,7 @@ enum TauType {
 };
 
 AMREX_ENUM(InitType,
-    None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform
+    None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform, HindCast
 );
 
 AMREX_ENUM(SoundingType,
@@ -259,7 +259,11 @@ struct SolverChoice {
             amrex::Warning("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
             init_type = InitType::WRFInput;
             use_real_bcs = false;
-        } else {
+        } else if (init_type_temp_string == "hindcast") {
+            init_type = InitType::HindCast;
+            use_real_bcs = false;
+        }
+        else {
             pp.query_enum_case_insensitive("init_type",init_type);
             use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
             if (use_real_bcs) {
@@ -272,6 +276,8 @@ struct SolverChoice {
                 amrex::Abort("Only terrain_type = StaticFittedMesh are allowed with init_type = WRFInput or Metgrid");
             }
         }
+
+
 
         if (init_type == InitType::WRFInput) {
             if (moisture_type == MoistureType::None) {
@@ -550,7 +556,38 @@ struct SolverChoice {
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
 
-        pp.query("do_hurricane_simulation", do_hurricane_simulation);
+        pp.query("hindcast_lateral_forcing", hindcast_lateral_forcing);
+
+        if(hindcast_lateral_forcing) {
+            pp.query("hindcast_boundary_data_dir", hindcast_boundary_data_dir);
+            if(hindcast_boundary_data_dir.empty()) {
+                amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_boundary_data_dir' for boundary data for lateral forcing");
+            }
+
+            pp.query("hindcast_lateral_sponge_strength", hindcast_lateral_sponge_strength);
+            pp.query("hindcast_lateral_sponge_length", hindcast_lateral_sponge_length);
+
+            pp.query("hindcast_zhi_sponge_length", hindcast_zhi_sponge_length);
+            pp.query("hindcast_zhi_sponge_strength", hindcast_zhi_sponge_strength);
+
+            pp.query("hindcast_zhi_sponge_damping", hindcast_zhi_sponge_damping);
+
+            if (hindcast_lateral_forcing and hindcast_lateral_sponge_strength < 0.0) {
+                amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_lateral_sponge_strength' or it is specified to be less than zero");
+            }
+
+            if (hindcast_lateral_forcing and hindcast_lateral_sponge_length < 0.0) {
+                amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_lateral_sponge_length' or it is specified to be less than zero");
+            }
+
+            if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < 0.0) {
+                amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_strength' or it is specified to be less than zero");
+            }
+
+            if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < 0.0) {
+                amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_strength' or it is specified to be less than zero");
+            }
+        }
 
         check_params(max_level);
     }
@@ -912,7 +949,10 @@ struct SolverChoice {
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
 
-    bool do_hurricane_simulation = false;
-
+    std::string hindcast_boundary_data_dir;
+    bool hindcast_lateral_forcing = false;
+    amrex::Real hindcast_lateral_sponge_strength = -1.0, hindcast_lateral_sponge_length = -1.0;
+    amrex::Real hindcast_zhi_sponge_strength = -1.0, hindcast_zhi_sponge_length = -1.0;
+    bool hindcast_zhi_sponge_damping = false;
 };
 #endif
