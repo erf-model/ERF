@@ -487,7 +487,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             Box bxxy = convert(bx, IntVect(1,1,0));
             ParallelFor(bxxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real stresst = -cons_arr(i,j,k,Rho_comp)*u_star_arr(i,j,k)*u_star_arr(i,j,k);
+                Real stresst = flux_comp.compute_u_flux(i, j, k,
+                                                       cons_arr, velx_arr, vely_arr,
+                                                       umm_arr, um_arr, u_star_arr);
                 rotate_stress_tensor(i, j, k, stresst, dxInv, zphys_arr,
                                      velx_arr, vely_arr, velz_arr,
                                      t11_arr, t22_arr, t33_arr,
