@@ -670,13 +670,13 @@ rotate_stress_tensor (const int& i,
 
     // Populate the normal vector
     amrex::Real Inormn = 1./std::sqrt(1.0 + h_xi*h_xi + h_eta*h_eta);
-    n_hat(0) = -Inormn*h_xi; n_hat(1) = -Inormn*h_eta; n_hat(2) = Inormn;
+    n_hat(0) = Inormn*h_xi; n_hat(1) = Inormn*h_eta; n_hat(2) = -Inormn;
 
     // Populate the tangent vectors
     amrex::Real Inorm1 = 1./std::sqrt(1.0 + h_xi*h_xi);
     amrex::Real Inorm2 = 1./std::sqrt(1.0 + h_eta*h_eta);
-    t_hat_1(0) = Inorm1;      t_hat_2(1) = Inorm2;
-    t_hat_1(2) = Inorm1*h_xi; t_hat_2(2) = Inorm2*h_eta;
+    t_hat_1(0) = -Inorm1;      t_hat_2(1) = -Inorm2;
+    t_hat_1(2) = -Inorm1*h_xi; t_hat_2(2) = -Inorm2*h_eta;
 
     // Populate the u_t vector
     amrex::Real Norm_u_t = 0.0;

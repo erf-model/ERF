@@ -441,43 +441,29 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             });
         } // custom
 
-        // Rho*u flux
-        //============================================================================
-        Box bxx = surroundingNodes(bx,0);
-        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            // Valid tau13 from LSM and over land
-            Real stressx;
-            int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
-            if (lsm_tau13_arr && is_land) {
-                stressx = lsm_tau13_arr(i,j,k);
-            } else {
-                stressx = flux_comp.compute_u_flux(i, j, k,
-                                                   cons_arr, velx_arr, vely_arr,
-                                                   umm_arr, um_arr, u_star_arr);
+        if (!rotate) {
+            // Rho*u flux
+            //============================================================================
+            Box bxx = surroundingNodes(bx,0);
+            ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                // Valid tau13 from LSM and over land
+                Real stressx;
+                int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
+                if (lsm_tau13_arr && is_land) {
+                    stressx = lsm_tau13_arr(i,j,k);
+                } else {
+                    stressx = flux_comp.compute_u_flux(i, j, k,
+                                                       cons_arr, velx_arr, vely_arr,
+                                                       umm_arr, um_arr, u_star_arr);
+                }
 
-
-            }
-
-            // Do stress rotations?
-            if (rotate) {
-                rotate_stress_tensor(i, j, k, stressx, dxInv, zphys_arr,
-                                     velx_arr, vely_arr, velz_arr,
-                                     t11_arr, t22_arr, t33_arr,
-                                     t12_arr, t21_arr,
-                                     t13_arr, t31_arr,
-                                     t23_arr, t32_arr);
-            } else {
                 t13_arr(i,j,k) = stressx;
                 if (t31_arr) { t31_arr(i,j,k) = stressx; }
-            }
+            });
 
-        });
-
-        // Rho*v flux
-        //============================================================================
-        // NOTE: One stress rotation for ALL the stress components
-        if (!rotate) {
+            // Rho*v flux
+            //============================================================================
             Box bxy = surroundingNodes(bx,1);
             ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
@@ -494,6 +480,20 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
                 t23_arr(i,j,k) = stressy;
                 if (t32_arr) { t32_arr(i,j,k) = stressy; }
+            });
+        } else {
+            // All fluxes with rotation
+            //============================================================================
+            Box bxxy = convert(bx, IntVect(1,1,0));
+            ParallelFor(bxxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                Real stresst = -cons_arr(i,j,k,Rho_comp)*u_star_arr(i,j,k)*u_star_arr(i,j,k);
+                rotate_stress_tensor(i, j, k, stresst, dxInv, zphys_arr,
+                                     velx_arr, vely_arr, velz_arr,
+                                     t11_arr, t22_arr, t33_arr,
+                                     t12_arr, t21_arr,
+                                     t13_arr, t31_arr,
+                                     t23_arr, t32_arr);
             });
         }
     } // mfiter
