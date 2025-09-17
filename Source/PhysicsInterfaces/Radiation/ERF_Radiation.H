@@ -164,7 +164,8 @@ public:
     rad_run_impl (amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs)
     {
         if (m_update_rad) {
-            amrex::Print() << "Advancing radiation at level: " << m_lev << " ...";
+            amrex::Print() << "Radiation advancing level " << m_lev << " at (YY-MM-DD SS) " << m_orbital_year << '-'
+                << m_orbital_mon << '-' << m_orbital_day << ' ' << m_orbital_sec << " ...";
             this->initialize_impl();
             this->run_impl();
             this->finalize_impl(lsm_output_ptrs);
