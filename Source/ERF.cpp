@@ -819,11 +819,8 @@ ERF::InitData_pre ()
     }
 
     if (restart_chkfile.empty()) {
-
         // Start simulation from the beginning
-        const Real time = start_time;
-        InitFromScratch(time);
-
+        InitFromScratch(0.0);
     } else {
         // For initialization this is done in init_only; it is done here for restart
         init_bcs();
