@@ -1655,6 +1655,14 @@ see **ERF/Build/cmake_with_radiation.sh**.
 
 If building with gmake, set ``USE_RRTMGP = TRUE`` and ``USE_NETCDF = TRUE`` in the GNUmakefile.
 
+Notes
+-----------------
+
+-  | A rule of thumb for the radiation update frequency is 1 min per km of grid spacing (e.g., every 10 min on a 10-km grid)
+
+-  | For idealized studies, constant latitude/longitude may be specified through **erf.rad_cons_lat**
+   | and **erf.rad_cons_lon**.
+
 List of Parameters
 ------------------
 
@@ -1680,7 +1688,7 @@ List of Parameters
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.co2vmr**                 | CO2 volume mixing ratio  |  Real              | 388.717e-6                        |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.o3 vmr**                 | O3 volume mixing ratio   |  Real              |   1.887e-7                        |
+| **erf.o3vmr**                  | O3 volume mixing ratio   |  Real              |   1.887e-7                        |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.n2ovmr**                 | N2O volume mixing ratio  |  Real              | 323.141e-9                        |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
