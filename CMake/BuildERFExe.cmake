@@ -304,6 +304,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMRF.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
+       ${SRC_DIR}/SourceTerms/ERF_ApplyBndryForcing_Forecast.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeBuoyancy.cpp
        ${SRC_DIR}/SourceTerms/ERF_AddThinBodySources.cpp
        ${SRC_DIR}/SourceTerms/ERF_MakeGradP.cpp
@@ -337,6 +338,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
        ${SRC_DIR}/Utils/ERF_ThinBodyWallDist.cpp
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
+       ${SRC_DIR}/Utils/ERF_WeatherDataInterpolation.cpp
        ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
        ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
        ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp

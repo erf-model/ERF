@@ -1605,7 +1605,10 @@ ERF::InitData_post ()
     // Create object to do line and plane sampling if needed
     bool do_line = false; bool do_plane = false;
     pp.query("do_line_sampling",do_line); pp.query("do_plane_sampling",do_plane);
-    if (do_line || do_plane) { data_sampler = std::make_unique<SampleData>(do_line, do_plane); }
+    if (do_line || do_plane) {
+        data_sampler = std::make_unique<SampleData>(do_line, do_plane);
+        data_sampler->write_coords(z_phys_cc);
+    }
 
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing)

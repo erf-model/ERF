@@ -87,6 +87,10 @@ struct LineSampler
                 amrex::Vector<std::string> requested_vars;
                 pp.queryarr("line_sampling_vars",requested_vars);
                 amrex::Print() << "Selected line sampling vars :";
+                if (containerHasElement(requested_vars, "density")) {
+                    m_varnames.push_back("density");
+                    amrex::Print() << " " << "density";
+                }
                 if (containerHasElement(requested_vars, "x_velocity")) {
                     m_varnames.push_back("x_velocity");
                     amrex::Print() << " " << "x_velocity";
@@ -110,6 +114,10 @@ struct LineSampler
                 if (containerHasElement(requested_vars, "qv")) {
                     m_varnames.push_back("qv");
                     amrex::Print() << " " << "qv";
+                }
+                if (containerHasElement(requested_vars, "qc")) {
+                    m_varnames.push_back("qc");
+                    amrex::Print() << " " << "qc";
                 }
                 if (containerHasElement(requested_vars, "pressure")) {
                     m_varnames.push_back("pressure");
@@ -141,11 +149,63 @@ struct LineSampler
     }
 
     void
+    write_line_coords (amrex::Vector<std::unique_ptr<amrex::MultiFab> >& z_phys_cc)
+    {
+        if (!m_write_ascii) return;
+
+        amrex::Print() << "Writing out line coordinates to text" << std::endl;
+
+        for (int lev(0); lev < z_phys_cc.size(); ++lev) {
+            // Write one text file per level
+            std::ofstream outfile;
+            if (amrex::ParallelDescriptor::IOProcessor()) {
+                std::string fname = amrex::Concatenate("plt_line_lev", lev, 1);
+                fname += ".zcc";
+                outfile.open(fname);
+
+                if (!outfile.is_open()) {
+                    amrex::AllPrint() << "Could not open " << fname << std::endl;
+                }
+            }
+
+            // Loop over each line
+            int nline = static_cast<int>(m_ls_mf.size());
+            for (int iline(0); iline<nline; ++iline) {
+                int dir = m_dir[iline];
+                amrex::Box bnd_bx = m_bnd_bx[iline];
+                amrex::IntVect first_cell = bnd_bx.smallEnd();
+
+                // Create multifab with "sampled" z_phys values
+                amrex::MultiFab line_coords_mf = get_line_data(
+                    *z_phys_cc[lev], dir, first_cell, bnd_bx
+                );
+
+                // Convert multifab to vector
+                amrex::Gpu::HostVector<amrex::Real> vec = sumToLine(
+                    line_coords_mf, 0, 1, bnd_bx, dir
+                );
+
+                // Append to file
+                if (amrex::ParallelDescriptor::IOProcessor()) {
+                    for (const auto& zval : vec) {
+                        outfile << " " << zval;
+                    }
+                    outfile << std::endl;
+                }
+            } // line loop
+
+            outfile.close();
+        } // level loop
+    }
+
+    void
     get_line_mfs (amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
     {
         int nlev  = static_cast<int>(vars_new.size());
         int nline = static_cast<int>(m_bnd_bx.size());
         int ncomp = static_cast<int>(m_varnames.size());
+
+        int qv_comp = -1;
 
         // Loop over each line
         for (int iline(0); iline<nline; ++iline) {
@@ -171,6 +231,11 @@ struct LineSampler
                 mf_cc_data.define(ba, dm, ncomp, 1);
 
                 int mf_comp = 0;
+
+                if (containerHasElement(m_varnames, "density")) {
+                    amrex::MultiFab::Copy(mf_cc_data, vars_new[ilev][Vars::cons], Rho_comp, mf_comp, 1, 0);
+                    mf_comp += 1;
+                }
 
                 if (containerHasElement(m_varnames, "x_velocity")) {
                     amrex::MultiFab::Copy(mf_cc_data, mf_cc_vel, 0, mf_comp, 1, 0);
@@ -221,8 +286,10 @@ struct LineSampler
                     mf_comp += 1;
                 }
 
-                if (containerHasElement(m_varnames, "qv") && containerHasElement(m_varnames, "pressure")) {
+                if (containerHasElement(m_varnames, "qv")) {
                     // if qv is requested, assume that we have moisture
+                    if (qv_comp >= 0) AMREX_ALWAYS_ASSERT(qv_comp == mf_comp);
+                    qv_comp = mf_comp;
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -233,29 +300,47 @@ struct LineSampler
 
                         amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                         {
-                            dfab(i,j,k,mf_comp  ) = cfab(i,j,k,RhoQ1_comp) / cfab(i,j,k,Rho_comp);
-                            dfab(i,j,k,mf_comp+1) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp),
-                                                                 dfab(i,j,k,mf_comp));
-                        });
-                    }
-                    mf_comp += 2;
-                } else if (containerHasElement(m_varnames, "qv")) {
-                    // if qv is requested, assume that we have moisture
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                        const amrex::Box& tbx = mfi.tilebox();
-                        auto const& dfab = mf_cc_data.array(mfi);
-                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
-
-                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                        {
-                            dfab(i,j,k,mf_comp  ) = cfab(i,j,k,RhoQ1_comp) / cfab(i,j,k,Rho_comp);
+                            dfab(i,j,k,mf_comp) = cfab(i,j,k,RhoQ1_comp) / cfab(i,j,k,Rho_comp);
                         });
                     }
                     mf_comp += 1;
-                } else if (containerHasElement(m_varnames, "pressure")) {
+                }
+                if (containerHasElement(m_varnames, "qc")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const amrex::Box& tbx = mfi.tilebox();
+                        auto const& dfab = mf_cc_data.array(mfi);
+                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
+
+                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                        {
+                            dfab(i,j,k,mf_comp) = cfab(i,j,k,RhoQ2_comp) / cfab(i,j,k,Rho_comp);
+                        });
+                    }
+                    mf_comp += 1;
+                }
+
+                if (containerHasElement(m_varnames, "pressure") && (qv_comp >= 0)) {
+                    // if qv is requested, assume that we have moisture
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const amrex::Box& tbx = mfi.tilebox();
+                        auto const& dfab = mf_cc_data.array(mfi);
+                        auto const& cfab = vars_new[ilev][Vars::cons].array(mfi);
+
+                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                        {
+                            dfab(i,j,k,mf_comp) = getPgivenRTh(cfab(i,j,k,RhoTheta_comp),
+                                                               dfab(i,j,k,qv_comp));
+                        });
+                    }
+                    mf_comp += 1;
+                }
+                else if (containerHasElement(m_varnames, "pressure")) {
                     // pressure requested w/o qv, assume dry
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -603,6 +688,12 @@ public:
     {
         if(do_line)  m_ls = std::make_unique<LineSampler >();
         if(do_plane) m_ps = std::make_unique<PlaneSampler>();
+    }
+
+    void
+    write_coords (amrex::Vector<std::unique_ptr<amrex::MultiFab> >& z_phys_cc)
+    {
+        if (m_ls) m_ls->write_line_coords(z_phys_cc);
     }
 
     void

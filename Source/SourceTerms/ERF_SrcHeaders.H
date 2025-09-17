@@ -87,6 +87,7 @@ void make_mom_sources (amrex::Real time,
                        const amrex::Real* dptr_wbar_sub,
                        const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                        const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev,
+                       const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
                              InputSoundingData& input_sounding_data,
                              bool is_slow_step);
 
@@ -153,4 +154,22 @@ void ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
                                               const amrex::Array4<const amrex::Real>& rho_u,
                                               const amrex::Array4<const amrex::Real>& rho_v,
                                               const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev);
+
+void ApplyBndryForcing_Forecast (const SolverChoice& solverChoice,
+                                 const amrex::Geometry geom,
+                                 const amrex::Box& tbx,
+                                 const amrex::Box& tby,
+                                 const amrex::Box& tbz,
+                                 const amrex::Array4<const amrex::Real>& z_phys_nd,
+                                 const amrex::Array4<amrex::Real>& rho_u_rhs,
+                                 const amrex::Array4<amrex::Real>& rho_v_rhs,
+                                 const amrex::Array4<amrex::Real>& rho_w_rhs,
+                                 const amrex::Array4<const amrex::Real>& rho_u,
+                                 const amrex::Array4<const amrex::Real>& rho_v,
+                                 const amrex::Array4<const amrex::Real>& rho_w,
+                                 const amrex::Array4<const amrex::Real>& rho_u_initial_state,
+                                 const amrex::Array4<const amrex::Real>& rho_v_initial_state,
+                                 const amrex::Array4<const amrex::Real>& rho_w_initial_state,
+                                 const amrex::Array4<const amrex::Real>& cons_initial_state);
+
 #endif
