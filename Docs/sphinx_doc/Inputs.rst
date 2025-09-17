@@ -1696,12 +1696,14 @@ List of Parameters
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.rrtmgp_coeffs_sw**       | path to NC files         |  String            | rrtmgp-data-sw-g224-2018-12-04.nc |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.rrtmgp_coeffs_lw**       | path to NC files         |  String            | rrtmgp-data-lw-g224-2018-12-04.nc |
+| **erf.rrtmgp_coeffs_lw**       | path to NC files         |  String            | rrtmgp-data-lw-g256-2018-12-04.nc |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.rrtmgp_cloud_optics_sw** | path to NC files         |  String            | rrtmgp-cloud-optics-coeffs-sw.nc  |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.rrtmgp_cloud_optics_lw** | path to NC files         |  String            | rrtmgp-cloud-optics-coeffs-lw.nc  |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
+
+The lookup data may be downloaded as a package from `here <https://doi.org/10.22002/ppv8a-4q131>`_.
 
 Runtime Error Checking
 ======================
