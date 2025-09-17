@@ -44,7 +44,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
     bool use_thetav_grad = (turbChoice.strat_type == StratType::thetav);
     bool use_thetal_grad = (turbChoice.strat_type == StratType::thetal);
 
-    bool isotropic   = turbChoice.mix_isotropic;
+    bool isotropic = turbChoice.mix_isotropic;
 
     // SMAGORINSKY: Fill Kturb for momentum in horizontal and vertical
     //***********************************************************************************
@@ -56,8 +56,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         // Define variables that need to be captured in the lambda
         Real l_abs_g = const_grav;
         const bool use_ref_theta = (turbChoice.theta_ref > 0);
-        bool l_use_moisture = moisture_indices.qv > 0;
-        int  l_rho_qv_comp = moisture_indices.qv;
+        bool l_use_moisture = (moisture_indices.qv > 0);
+        int  l_rho_qv_comp  = moisture_indices.qv;
         bool l_use_smag_stratification = turbChoice.use_smag_stratification;
 
     #ifdef _OPENMP
@@ -162,19 +162,14 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 } else { // anisotropic or smag2d
                     Real CsDeltaHSqr = Cs * Cs * DeltaH * DeltaH;
                     mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaHSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
-
-                    if (smag2d) {
-                        mu_turb(i, j, k, EddyDiff::Mom_v) = 0.0;
-                    } else {
-                        mu_turb(i, j, k, EddyDiff::Mom_v) = CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
-                    }
+                    mu_turb(i, j, k, EddyDiff::Mom_v) = CsDeltaSqr  * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
                 }
 
                 // =====================================================================
                 // HEAT FLUX CALCULATION
                 // =====================================================================
                 Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                    - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
+                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 hfx_x(i,j,k) = 0.0;
                 hfx_y(i,j,k) = 0.0;
                 hfx_z(i,j,k) = -inv_Pr_t*mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz;
