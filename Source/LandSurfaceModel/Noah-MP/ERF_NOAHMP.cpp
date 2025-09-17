@@ -28,8 +28,8 @@ NOAHMP::Init (const int& lev,
     LsmDataMap = {LsmData_NOAHMP::t_sfc           , LsmData_NOAHMP::sfc_emis       ,
                   LsmData_NOAHMP::sfc_alb_dir_vis , LsmData_NOAHMP::sfc_alb_dir_nir,
                   LsmData_NOAHMP::sfc_alb_dif_vis , LsmData_NOAHMP::sfc_alb_dif_nir,
-		  LsmData_NOAHMP::cos_zenith_angle, LsmData_NOAHMP::sw_flux_dn     ,
-		  LsmData_NOAHMP::lw_flux_dn                                        };
+                  LsmData_NOAHMP::cos_zenith_angle, LsmData_NOAHMP::sw_flux_dn     ,
+                  LsmData_NOAHMP::lw_flux_dn                                        };
     LsmDataName.resize(m_lsm_data_size);
     LsmDataName = {"t_sfc"          , "sfc_emis"         ,
                    "sfc_alb_dir_vis" , "sfc_alb_dir_nir" ,
@@ -262,7 +262,7 @@ NOAHMP::Advance_With_State (const int& lev,
                 noahmpio->QV_CURR(i,1,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
                 noahmpio->SWDOWN(i,j)    = SWDOWN(i,j,0);
                 noahmpio->GLW(i,j)       = GLW(i,j,0);
-		noahmpio->COSZEN(i,j)    = COSZEN(i,j,0);
+                noahmpio->COSZEN(i,j)    = COSZEN(i,j,0);
             });
 
             // Call the noahmpio driver code. This runs the land model forcing for
