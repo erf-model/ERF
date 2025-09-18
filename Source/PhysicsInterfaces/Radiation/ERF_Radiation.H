@@ -274,7 +274,7 @@ private:
     // Path, data file, and coefficient file for K-distribution
     std::string rrtmgp_file_path       = ".";
     std::string rrtmgp_coeffs_sw       = "rrtmgp-data-sw-g224-2018-12-04.nc";
-    std::string rrtmgp_coeffs_lw       = "rrtmgp-data-lw-g224-2018-12-04.nc";
+    std::string rrtmgp_coeffs_lw       = "rrtmgp-data-lw-g256-2018-12-04.nc";
     std::string rrtmgp_cloud_optics_sw = "rrtmgp-cloud-optics-coeffs-sw.nc";
     std::string rrtmgp_cloud_optics_lw = "rrtmgp-cloud-optics-coeffs-lw.nc";
     std::string rrtmgp_coeffs_file_sw;
@@ -352,8 +352,8 @@ private:
     // TODO: find a better way of configuring this
     int m_nswbands = 14;
     int m_nlwbands = 16;
-    int m_nswgpts  = 112;
-    int m_nlwgpts  = 128;
+    int m_nswgpts  = 224;
+    int m_nlwgpts  = 256;
 
     // Rad frequency in number of steps
     int m_rad_freq_in_steps = 1;
