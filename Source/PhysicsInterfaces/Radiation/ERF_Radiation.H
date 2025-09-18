@@ -348,12 +348,11 @@ private:
     // This is only used if a positive value is supplied
     amrex::Real m_fixed_solar_zenith_angle = -9999.;
 
-    // Need to hard-code some dimension sizes for now.
-    // TODO: find a better way of configuring this
-    int m_nswbands = 14;
-    int m_nlwbands = 16;
-    int m_nswgpts  = 224;
-    int m_nlwgpts  = 256;
+    // Dimensions to be read from lookup data
+    int m_nswbands;
+    int m_nlwbands;
+    int m_nswgpts;
+    int m_nlwgpts;
 
     // Rad frequency in number of steps
     int m_rad_freq_in_steps = 1;
