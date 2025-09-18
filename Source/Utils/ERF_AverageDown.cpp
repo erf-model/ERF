@@ -135,14 +135,12 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                 {
                     cons_arr(i,j,k,scomp+n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0));
                 });
-            } else {
+            } else { // TerrainType::EB
                 const Array4<const Real> detJ_arr = detJ_cc[lev]->const_array(mfi);
                 ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                 {
                     if (detJ_arr(i,j,k) > 0.0) {
                         cons_arr(i,j,k,scomp+n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0)) / detJ_arr(i,j,k);
-                    } else {
-                        cons_arr(i,j,k,scomp+n) = 0.0;
                     }
                 });
             }
@@ -161,15 +159,34 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         // FillBoundary for density so we can go back and forth between velocity and momentum
         vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
 
-        VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect(0,0,0),
-                           vars_new[lev][Vars::yvel], IntVect(0,0,0),
-                           vars_new[lev][Vars::zvel], IntVect(0,0,0),
-                           vars_new[lev][Vars::cons],
-                             rU_new[lev],
-                             rV_new[lev],
-                             rW_new[lev],
-                           Geom(lev).Domain(),
-                           domain_bcs_type);
+        if (SolverChoice::terrain_type != TerrainType::EB) {
+            VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect(0,0,0),
+                            vars_new[lev][Vars::yvel], IntVect(0,0,0),
+                            vars_new[lev][Vars::zvel], IntVect(0,0,0),
+                            vars_new[lev][Vars::cons],
+                                rU_new[lev],
+                                rV_new[lev],
+                                rW_new[lev],
+                            Geom(lev).Domain(),
+                            domain_bcs_type);            
+        } else {
+            const MultiFab& c_vfrac = (get_eb(lev).get_const_factory())->getVolFrac();
+            const MultiFab& u_vfrac = (get_eb(lev).get_u_const_factory())->getVolFrac();
+            const MultiFab& v_vfrac = (get_eb(lev).get_v_const_factory())->getVolFrac();
+            const MultiFab& w_vfrac = (get_eb(lev).get_w_const_factory())->getVolFrac();
+
+            VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect(0,0,0),
+                            vars_new[lev][Vars::yvel], IntVect(0,0,0),
+                            vars_new[lev][Vars::zvel], IntVect(0,0,0),
+                            vars_new[lev][Vars::cons],
+                                rU_new[lev],
+                                rV_new[lev],
+                                rW_new[lev],
+                            Geom(lev).Domain(),
+                            domain_bcs_type,
+                            &c_vfrac, &u_vfrac, &v_vfrac, &w_vfrac);
+        }
+
     }
 
     // Multiply momenta by EB volume fraction
@@ -185,21 +202,21 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                 Array4<Real> const& momy = rV_new[lev].array(mfi);
                 Array4<Real> const& momz = rW_new[lev].array(mfi);
 
-                Array4<const Real> u_vfrac = (get_eb(lev).get_u_const_factory())->getVolFrac().const_array(mfi);
-                Array4<const Real> v_vfrac = (get_eb(lev).get_v_const_factory())->getVolFrac().const_array(mfi);
-                Array4<const Real> w_vfrac = (get_eb(lev).get_w_const_factory())->getVolFrac().const_array(mfi);
+                Array4<const Real> u_vfrac_arr = (get_eb(lev).get_u_const_factory())->getVolFrac().const_array(mfi);
+                Array4<const Real> v_vfrac_arr = (get_eb(lev).get_v_const_factory())->getVolFrac().const_array(mfi);
+                Array4<const Real> w_vfrac_arr = (get_eb(lev).get_w_const_factory())->getVolFrac().const_array(mfi);
                 
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momx(i,j,k) *= u_vfrac(i,j,k);
+                    momx(i,j,k) *= u_vfrac_arr(i,j,k);
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momy(i,j,k) *= v_vfrac(i,j,k);
+                    momy(i,j,k) *= v_vfrac_arr(i,j,k);
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momz(i,j,k) *= w_vfrac(i,j,k);
+                    momz(i,j,k) *= w_vfrac_arr(i,j,k);
                 });
-            } // mfi
+            } // mfi            
         } // lev
     }
 
@@ -220,45 +237,57 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                 Array4<Real> const& momy = rV_new[lev].array(mfi);
                 Array4<Real> const& momz = rW_new[lev].array(mfi);
 
-                Array4<const Real> u_vfrac = (get_eb(lev).get_u_const_factory())->getVolFrac().const_array(mfi);
-                Array4<const Real> v_vfrac = (get_eb(lev).get_v_const_factory())->getVolFrac().const_array(mfi);
-                Array4<const Real> w_vfrac = (get_eb(lev).get_w_const_factory())->getVolFrac().const_array(mfi);
+                Array4<const Real> u_vfrac_arr = (get_eb(lev).get_u_const_factory())->getVolFrac().const_array(mfi);
+                Array4<const Real> v_vfrac_arr = (get_eb(lev).get_v_const_factory())->getVolFrac().const_array(mfi);
+                Array4<const Real> w_vfrac_arr = (get_eb(lev).get_w_const_factory())->getVolFrac().const_array(mfi);
                 
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (u_vfrac(i,j,k) > 0.0) {
-                        momx(i,j,k) /= u_vfrac(i,j,k);
-                    } else {
-                        momx(i,j,k) = 0.0;
+                    if (u_vfrac_arr(i,j,k) > 0.0) {
+                        momx(i,j,k) /= u_vfrac_arr(i,j,k);
                     }
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (v_vfrac(i,j,k) > 0.0) {
-                        momy(i,j,k) /= v_vfrac(i,j,k);
-                    } else {
-                        momy(i,j,k) = 0.0;
+                    if (v_vfrac_arr(i,j,k) > 0.0) {
+                        momy(i,j,k) /= v_vfrac_arr(i,j,k);
                     }
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (w_vfrac(i,j,k) > 0.0) {
-                        momz(i,j,k) /= w_vfrac(i,j,k);
-                    } else {
-                        momz(i,j,k) = 0.0;
+                    if (w_vfrac_arr(i,j,k) > 0.0) {
+                        momz(i,j,k) /= w_vfrac_arr(i,j,k);
                     }
-                });
+                });               
             } // mfi
         } // lev
     }
 
     for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
-        MomentumToVelocity(vars_new[lev][Vars::xvel],
-                           vars_new[lev][Vars::yvel],
-                           vars_new[lev][Vars::zvel],
-                           vars_new[lev][Vars::cons],
-                             rU_new[lev],
-                             rV_new[lev],
-                             rW_new[lev],
-                           Geom(lev).Domain(),
-                           domain_bcs_type);
+        if (SolverChoice::terrain_type != TerrainType::EB) {
+            MomentumToVelocity(vars_new[lev][Vars::xvel],
+                            vars_new[lev][Vars::yvel],
+                            vars_new[lev][Vars::zvel],
+                            vars_new[lev][Vars::cons],
+                                rU_new[lev],
+                                rV_new[lev],
+                                rW_new[lev],
+                            Geom(lev).Domain(),
+                            domain_bcs_type);
+        } else {
+            const MultiFab& c_vfrac = (get_eb(lev).get_const_factory())->getVolFrac();
+            const MultiFab& u_vfrac = (get_eb(lev).get_u_const_factory())->getVolFrac();
+            const MultiFab& v_vfrac = (get_eb(lev).get_v_const_factory())->getVolFrac();
+            const MultiFab& w_vfrac = (get_eb(lev).get_w_const_factory())->getVolFrac();
+
+            MomentumToVelocity(vars_new[lev][Vars::xvel],
+                            vars_new[lev][Vars::yvel],
+                            vars_new[lev][Vars::zvel],
+                            vars_new[lev][Vars::cons],
+                                rU_new[lev],
+                                rV_new[lev],
+                                rW_new[lev],
+                            Geom(lev).Domain(),
+                            domain_bcs_type,
+                            &c_vfrac, &u_vfrac, &v_vfrac, &w_vfrac);           
+        }
     }
 }
