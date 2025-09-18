@@ -372,8 +372,10 @@ public:
                                   amrex::MultiFab& xvel_in,
                                   amrex::MultiFab& yvel_in,
                                   amrex::MultiFab& zvel_in,
-                                  amrex::MultiFab& source,    amrex::MultiFab& xmom_src,
-                                  amrex::MultiFab& ymom_src,  amrex::MultiFab& zmom_src,
+                                  amrex::MultiFab& source,
+                                  amrex::MultiFab& xmom_src,
+                                  amrex::MultiFab& ymom_src,
+                                  amrex::MultiFab& zmom_src,
                                   const amrex::Real& dt_advance);
 #endif
 
