@@ -888,6 +888,16 @@ ERF::InitData_post ()
         }
     }
 
+    // 
+    // Copy vars_new into vars_old, then use vars_old to fill covered cells in vars_new during AverageDown
+    // 
+    if (SolverChoice::terrain_type == TerrainType::EB) {
+        for (int lev = 0; lev <= finest_level; lev++) {
+            int ncomp_cons = vars_new[lev][Vars::cons].nComp();
+            MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,ncomp_cons,vars_new[lev][Vars::cons].nGrowVect());
+        }
+    }
+
     if (restart_chkfile.empty()) {
         if (solverChoice.coupling_type == CouplingType::TwoWay) {
             AverageDown();
