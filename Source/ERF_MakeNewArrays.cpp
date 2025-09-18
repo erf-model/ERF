@@ -131,8 +131,13 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // New solution data containers
     // ********************************************************************************************
-    lev_new[Vars::cons].define(ba, dm, ncomp, ngrow_state);
-    lev_old[Vars::cons].define(ba, dm, ncomp, ngrow_state);
+    if (solverChoice.terrain_type != TerrainType::EB) {
+        lev_new[Vars::cons].define(ba, dm, ncomp, ngrow_state);
+        lev_old[Vars::cons].define(ba, dm, ncomp, ngrow_state);
+    } else {
+        lev_new[Vars::cons].define(ba, dm, ncomp, ngrow_state, MFInfo(), *get_eb(lev).get_const_factory());
+        lev_old[Vars::cons].define(ba, dm, ncomp, ngrow_state, MFInfo(), *get_eb(lev).get_const_factory());
+    }
 
     lev_new[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
     lev_old[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
