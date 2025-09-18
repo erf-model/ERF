@@ -151,7 +151,10 @@ public:
 
     // Hurricane track line output as VTKPolyline
     amrex::Vector<std::array<amrex::Real, 2>> hurricane_track_xy;
-    amrex::Vector<amrex::Vector<amrex::MultiFab>> initial_state;
+    amrex::Vector<amrex::MultiFab> weather_forecast_data_1, weather_forecast_data_2;
+    amrex::Vector<amrex::Vector<amrex::MultiFab>> forecast_state_1,
+                                                  forecast_state_2,
+                                                  forecast_state_interp;
     std::string MakeVTKFilename(int nstep);
     void WriteVTKPolyline(const std::string& filename,
                           amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
@@ -214,8 +217,8 @@ public:
     void restart ();
 
     // Is it time to write a plotfile or checkpoint?
-    bool writeNow (const amrex::Real cur_time, const amrex::Real dt, const int nstep,
-                   const int plot_int, const amrex::Real plot_per);
+    bool writeNow (const amrex::Real cur_time, const int nstep, const int plot_int,
+                   const amrex::Real plot_per, const amrex::Real dt_0, amrex::Real& last_file_time);
 
     // Called after every level 0 timestep
     void post_timestep (int nstep, amrex::Real time, amrex::Real dt_lev);
@@ -453,7 +456,10 @@ public:
                                  amrex::Vector<amrex::MultiFab>& weather_forecast_data);
 
     void InterpWeatherDataOntoMesh(const amrex::Geometry& geom_weather,
-                                       amrex::MultiFab& weather_forecast_interp);
+                                   amrex::MultiFab& weather_forecast_interp,
+                                   amrex::Vector<amrex::Vector<amrex::MultiFab>>& forecast_state);
+
+    void CreateForecastStateMultiFabs(amrex::Vector<amrex::Vector<amrex::MultiFab>>& forecast_state);
 
     void WeatherDataInterpolation(const amrex::Real time);
 
@@ -498,6 +504,7 @@ public:
                               amrex::Real time);
 
 #ifdef ERF_USE_NETCDF
+    // Version in which we always set the velocity values but don't set theta
     void fill_from_realbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
                             amrex::Real time,
                             bool cons_only,
@@ -505,6 +512,15 @@ public:
                             int ncomp_cons,
                             amrex::IntVect ngvect_cons,
                             amrex::IntVect ngvect_vels);
+
+    // Version in which we only set the boundary value if inflowing, includes theta
+    void fill_from_realbdy_upwind (const amrex::Vector<amrex::MultiFab*>& mfs,
+                                   amrex::Real time,
+                                   bool cons_only,
+                                   int icomp_cons,
+                                   int ncomp_cons,
+                                   amrex::IntVect ngvect_cons,
+                                   amrex::IntVect ngvect_vels);
 #endif
 
 #ifdef ERF_USE_NETCDF
@@ -819,8 +835,10 @@ private:
 #endif
 
     LandSurface lsm;
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Components: theta, q1, q2
+    amrex::Vector<std::string> lsm_data_name;                // (ncomp)
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp)
+    amrex::Vector<std::string> lsm_flux_name;                // (ncomp)
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp)
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW)
@@ -942,14 +960,21 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
 
-    int last_plot3d_file_step_1;
-    int last_plot3d_file_step_2;
-    int last_plot2d_file_step_1;
-    int last_plot2d_file_step_2;
-    int last_subvol;
+    static int last_plot3d_file_step_1;
+    static int last_plot3d_file_step_2;
+    static int last_plot2d_file_step_1;
+    static int last_plot2d_file_step_2;
+    static int last_check_file_step;
+    static int last_subvol_step;
 
-    int last_check_file_step;
-    int plot_file_on_restart = 1;
+    static amrex::Real last_plot3d_file_time_1;
+    static amrex::Real last_plot3d_file_time_2;
+    static amrex::Real last_plot2d_file_time_1;
+    static amrex::Real last_plot2d_file_time_2;
+    static amrex::Real last_check_file_time;
+    static amrex::Real last_subvol_time;
+
+    static bool plot_file_on_restart;
 
     // Output control
     const int datwidth = 14;
@@ -1066,6 +1091,7 @@ private:
 #ifdef ERF_USE_PARTICLES
                                                     "qv_sdm","qc_sdm","qrain_sdm",
 #endif
+                                                    "reflectivity", "max_reflectivity",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
                                                     // EB variables

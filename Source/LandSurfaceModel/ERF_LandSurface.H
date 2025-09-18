@@ -91,11 +91,20 @@ public:
     int
     Get_Data_Size () { return m_lsm_model[0]->Lsm_Data_Size(); }
 
+    int
+    Get_Flux_Size () { return m_lsm_model[0]->Lsm_Flux_Size(); }
+
     std::string
-    Get_VarName (const int& varIdx) { return m_lsm_model[0]->Lsm_VarName(varIdx); }
+    Get_DataName (const int& varIdx) { return m_lsm_model[0]->Lsm_DataName(varIdx); }
 
     int
-    Get_VarIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_VarIndex(varname); }
+    Get_DataIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_DataIndex(varname); }
+
+    std::string
+    Get_FluxName (const int& varIdx) { return m_lsm_model[0]->Lsm_FluxName(varIdx); }
+
+    int
+    Get_FluxIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_FluxIndex(varname); }
 
     void
     Plot_Lsm_Data (amrex::Real time,
@@ -123,7 +132,7 @@ public:
                 for (int n(0); n<nvar; ++n) {
                     mf_lsm = this->Get_Data_Ptr(lev,n);
                     amrex::MultiFab::Copy(m_lsm_data_lev[lev],*(mf_lsm),0,n,1,0);
-                    if (lev==0) varnames[n] = this->Get_VarName(n);
+                    if (lev==0) varnames[n] = this->Get_DataName(n);
                 }
             }
             WriteMultiLevelPlotfile (plotfilename, nlev, GetVecOfConstPtrs(m_lsm_data_lev),

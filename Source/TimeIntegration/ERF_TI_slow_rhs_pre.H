@@ -126,6 +126,7 @@
                          (solverChoice.have_geo_wind_profile) ? d_u_geos[level].data(): nullptr,
                          (solverChoice.have_geo_wind_profile) ? d_v_geos[level].data(): nullptr,
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                         (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
                          input_sounding_data, true);
 
         // *****************************************************************************
@@ -247,7 +248,7 @@
         if (solverChoice.use_real_bcs && (level == 0)) {
             if (real_width>0) {
                 realbdy_compute_interior_ghost_rhs(bdy_time_interval,
-                                                   new_stage_time, slow_dt, stop_time,
+                                                   new_stage_time, slow_dt, stop_time-start_time,
                                                    real_width, real_set_width, fine_geom,
                                                    S_rhs, S_old, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
