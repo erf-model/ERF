@@ -70,15 +70,33 @@ class NullSurf {
     Lsm_Data_Size () { return NullSurf::m_lsm_size; }
 
     virtual
+    int
+    Lsm_Flux_Size () { return NullSurf::m_lsm_size; }
+
+    virtual
     std::string
-    Lsm_VarName (const int& /*varIdx*/)
+    Lsm_DataName (const int& /*varIdx*/)
     {
-        return varname;
+        return dataname;
+    }
+
+    virtual
+    std::string
+    Lsm_FluxName (const int& /*varIdx*/)
+    {
+        return fluxname;
     }
 
     virtual
     int
-    Lsm_VarIndex (std::string /*varname*/)
+    Lsm_DataIndex (std::string /*varname*/)
+    {
+        return (-1);
+    }
+
+    virtual
+    int
+    Lsm_FluxIndex (std::string /*varname*/)
     {
         return (-1);
     }
@@ -86,6 +104,7 @@ class NullSurf {
  private:
     int m_lsm_size = 1;
     amrex::Geometry m_lsm_geom;
-    std::string varname = " ";
+    std::string dataname = " ";
+    std::string fluxname = " ";
 };
 #endif

@@ -18,7 +18,8 @@ eb_aux_ ()
 
 void
 eb_aux_::
-define( int const& a_idim,
+define( [[maybe_unused]] int const& a_level,
+        int const& a_idim,
         Geometry            const& a_geom,
         BoxArray            const& a_grids,
         DistributionMapping const& a_dmap,
@@ -158,17 +159,11 @@ define( int const& a_idim,
         });
       }
 
-      ParallelFor(bx, [
 #ifndef AMREX_USE_GPU
-                  verbose=m_verbose,
+      int const verbose=m_verbose;
 #endif
-                  dx, bx, domain, flag, afrac, bnorm, bcent,
-                  aux_flag, aux_vfrac, aux_vcent,
-                  aux_afrac_x, aux_afrac_y, aux_afrac_z,
-                  aux_fcent_x, aux_fcent_y, aux_fcent_z,
-                  aux_barea, aux_bcent, aux_bnorm,
-                  vdim, idim=a_idim, l_periodic]
-      AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+
+      ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
         // defaults to covered and disconnected.
         aux_flag(i,j,k).setCovered();
@@ -188,16 +183,34 @@ define( int const& a_idim,
         aux_fcent_z(i,j,k,0) = 0.0; aux_fcent_z(i,j,k,1) = 0.0;
 
         if (i==bx.bigEnd(0)) {
+          aux_flag(i+1,j,k).setCovered();
+          aux_vfrac(i+1,j,k) = 0.0;
+          aux_vcent(i+1,j,k,0) = 0.0;
+          aux_vcent(i+1,j,k,1) = 0.0;
+          aux_vcent(i+1,j,k,2) = 0.0;
+
           aux_afrac_x(i+1,j,k) = 0.0;
           aux_fcent_x(i+1,j,k,0) = 0.0;
           aux_fcent_x(i+1,j,k,1) = 0.0;
         }
         if (j==bx.bigEnd(1)) {
+          aux_flag(i,j+1,k).setCovered();
+          aux_vfrac(i,j+1,k) = 0.0;
+          aux_vcent(i,j+1,k,0) = 0.0;
+          aux_vcent(i,j+1,k,1) = 0.0;
+          aux_vcent(i,j+1,k,2) = 0.0;
+
           aux_afrac_y(i,j+1,k) = 0.0;
           aux_fcent_y(i,j+1,k,0) = 0.0;
           aux_fcent_y(i,j+1,k,1) = 0.0;
         }
         if (k==bx.bigEnd(2)) {
+          aux_flag(i,j,k+1).setCovered();
+          aux_vfrac(i,j,k+1) = 0.0;
+          aux_vcent(i,j,k+1,0) = 0.0;
+          aux_vcent(i,j,k+1,1) = 0.0;
+          aux_vcent(i,j,k+1,2) = 0.0;
+
           aux_afrac_z(i,j,k+1) = 0.0;
           aux_fcent_z(i,j,k+1,0) = 0.0;
           aux_fcent_z(i,j,k+1,1) = 0.0;
@@ -224,8 +237,8 @@ define( int const& a_idim,
         bool lo_isSingleValued = flag(iv_lo).isSingleValued();
         bool hi_isSingleValued = flag(iv_hi).isSingleValued();
 
-        const bool at_lo_boundary = (!l_periodic && iv_hi[idim]==domain.smallEnd(idim));
-        const bool at_hi_boundary = (!l_periodic && iv_hi[idim]==domain.bigEnd(idim));
+        const bool at_lo_boundary = (!l_periodic && iv_hi[a_idim]==domain.smallEnd(a_idim));
+        const bool at_hi_boundary = (!l_periodic && iv_hi[a_idim]==domain.bigEnd(a_idim));
 
         // Treatment of lower boundary
 
@@ -339,7 +352,7 @@ define( int const& a_idim,
           RealVect lo_normal(bnorm(iv_lo,0), bnorm(iv_lo,1), bnorm(iv_lo,2));
 
           if (at_lo_boundary) { // At lower boundary
-            lo_point[idim] += 1.0; // Move the boundary centroid upward in the idim direction.
+            lo_point[a_idim] += 1.0; // Move the boundary centroid upward in the a_idim direction.
           }
 
           if (lo_isSingleValued ) {
@@ -355,8 +368,8 @@ define( int const& a_idim,
           }
 
           // High side of low cell
-          lo_arr[idim] = 0.0;
-          hi_arr[idim] = 0.5;
+          lo_arr[a_idim] = 0.0;
+          hi_arr[a_idim] = 0.5;
           RealBox lo_rbx(lo_arr.data(), hi_arr.data());
 
           eb_cut_cell_ lo_eb_cc(flag(iv_lo), lo_rbx, lo_point, lo_normal);
@@ -374,7 +387,7 @@ define( int const& a_idim,
           RealVect hi_normal(bnorm(iv_hi,0), bnorm(iv_hi,1), bnorm(iv_hi,2));
 
           if (at_hi_boundary) {
-            hi_point[idim] += -1.0; // Move the boundary centroid downward in the idim direction.
+            hi_point[a_idim] += -1.0; // Move the boundary centroid downward in the a_idim direction.
           }
 
           if (hi_isSingleValued ) {
@@ -390,8 +403,8 @@ define( int const& a_idim,
           }
 
           // Low side of high cell
-          lo_arr[idim] = -0.5;
-          hi_arr[idim] =  0.0;
+          lo_arr[a_idim] = -0.5;
+          hi_arr[a_idim] =  0.0;
           RealBox hi_rbx(lo_arr.data(), hi_arr.data());
 
           eb_cut_cell_ hi_eb_cc(flag(iv_hi), hi_rbx, hi_point, hi_normal);
@@ -437,17 +450,17 @@ define( int const& a_idim,
             // normal we used to compute them.
             if ( hi_isSingleValued ) {
 
-              Real const adx = (idim == 0)
+              Real const adx = (a_idim == 0)
                              ? (hi_eb_cc.areaLo(0) - hi_hi_eb_cc.areaHi(0)) * dx[1] * dx[2]
                              : (hi_eb_cc.areaLo(0) + hi_hi_eb_cc.areaLo(0)) * dx[1] * dx[2]
                              - (hi_eb_cc.areaHi(0) + hi_hi_eb_cc.areaHi(0)) * dx[1] * dx[2];
 
-              Real const ady = (idim == 1)
+              Real const ady = (a_idim == 1)
                              ? (hi_eb_cc.areaLo(1) - hi_hi_eb_cc.areaHi(1)) * dx[0] * dx[2]
                              : (hi_eb_cc.areaLo(1) + hi_hi_eb_cc.areaLo(1)) * dx[0] * dx[2]
                              - (hi_eb_cc.areaHi(1) + hi_hi_eb_cc.areaHi(1)) * dx[0] * dx[2];
 
-              Real const adz = (idim == 2)
+              Real const adz = (a_idim == 2)
                              ? (hi_eb_cc.areaLo(2) - hi_hi_eb_cc.areaHi(2)) * dx[0] * dx[1]
                              : (hi_eb_cc.areaLo(2) + hi_hi_eb_cc.areaLo(2)) * dx[0] * dx[1]
                              - (hi_eb_cc.areaHi(2) + hi_hi_eb_cc.areaHi(2)) * dx[0] * dx[1];
@@ -475,15 +488,15 @@ define( int const& a_idim,
               AMREX_ALWAYS_ASSERT( amrex::almostEqual(dot_normals, 1.0) );
             }
 
-            // The idim area of hi_eb_cc.areaHi() should equal hi_hi_eb_cc.areaLo()
+            // The a_idim area of hi_eb_cc.areaHi() should equal hi_hi_eb_cc.areaLo()
             {
 #ifndef AMREX_USE_GPU
-            Real const abs_err = std::abs( hi_eb_cc.areaHi(idim) - hi_hi_eb_cc.areaLo(idim) );
+            Real const abs_err = std::abs( hi_eb_cc.areaHi(a_idim) - hi_hi_eb_cc.areaLo(a_idim) );
             Real machine_tol = 10.0*std::numeric_limits<amrex::Real>::epsilon();
             if ( abs_err >= machine_tol ) {
                 Print() << "\nFail: check-2 area abs_err: " << abs_err
-                        << "\n  hi_eb_cc.areaHi " << hi_eb_cc.areaHi(idim)
-                        << "\n  hi_hi_eb_cc.areaLo " << hi_hi_eb_cc.areaLo(idim)
+                        << "\n  hi_eb_cc.areaHi " << hi_eb_cc.areaHi(a_idim)
+                        << "\n  hi_hi_eb_cc.areaLo " << hi_hi_eb_cc.areaLo(a_idim)
                         << '\n';
             } else if (verbose) {
                 Print() << "Pass: hi_eb_cc.areaHi = hi_hi_eb_cc.areaLo"
@@ -493,16 +506,16 @@ define( int const& a_idim,
 #endif
             }
 
-            // The low-side area of hi_eb_cc should equal idim afrac.
-            { Real const abs_err = amrex::max(std::abs(lo_eb_cc.areaHi(idim) - afrac(iv_hi)),
-                                              std::abs(hi_eb_cc.areaLo(idim) - afrac(iv_hi)));
+            // The low-side area of hi_eb_cc should equal a_idim afrac.
+            { Real const abs_err = amrex::max(std::abs(lo_eb_cc.areaHi(a_idim) - afrac(iv_hi)),
+                                              std::abs(hi_eb_cc.areaLo(a_idim) - afrac(iv_hi)));
               Real compare_tol = 5.0e-6;
 #ifndef AMREX_USE_GPU
               if ( abs_err >= compare_tol ) {
                 //hi_eb_cc.debug();
                 Print() << "\nFail: check-3 area abs_err " << abs_err
-                        << "\n  hi_eb_cc.areaLo(" << idim << ") = " << hi_eb_cc.areaLo(idim)
-                        << "\n  lo_eb_cc.areaHi(" << idim << ") = " << lo_eb_cc.areaHi(idim)
+                        << "\n  hi_eb_cc.areaLo(" << a_idim << ") = " << hi_eb_cc.areaLo(a_idim)
+                        << "\n  lo_eb_cc.areaHi(" << a_idim << ") = " << lo_eb_cc.areaHi(a_idim)
                         << "\n  afrac" << iv_hi << " =  " << afrac(iv_hi)
                         << '\n';
               } else if (verbose) {
@@ -600,18 +613,18 @@ define( int const& a_idim,
             // 2. Volume Centroid
 
             /* centVol() returns the coordinates based on m_rbx.
-              The coordinates in the idim direction are in [0.0,0.5] for the low cell and in [-0.5,0.0] for the hi cell.
+              The coordinates in the a_idim direction are in [0.0,0.5] for the low cell and in [-0.5,0.0] for the hi cell.
               Therefore, they need to be mapped to the eb_aux space, by shifting:
-              x' = x - 0.5 (low cell), x + 0.5 (hi cell) if idim = 0
-              y' = y - 0.5 (low cell), y + 0.5 (hi cell) if idim = 1
-              z' = z - 0.5 (low cell), z + 0.5 (hi cell) if idim = 2
+              x' = x - 0.5 (low cell), x + 0.5 (hi cell) if a_idim = 0
+              y' = y - 0.5 (low cell), y + 0.5 (hi cell) if a_idim = 1
+              z' = z - 0.5 (low cell), z + 0.5 (hi cell) if a_idim = 2
             */
 
             RealVect lo_vcent {lo_eb_cc.centVol()};
             RealVect hi_vcent {hi_eb_cc.centVol()};
 
-            lo_vcent[idim] = lo_vcent[idim] - 0.5;
-            hi_vcent[idim] = hi_vcent[idim] + 0.5;
+            lo_vcent[a_idim] = lo_vcent[a_idim] - 0.5;
+            hi_vcent[a_idim] = hi_vcent[a_idim] + 0.5;
 
             aux_vcent(i,j,k,0) = ( lo_vol * lo_vcent[0] + hi_vol * hi_vcent[0] ) / aux_vfrac(i,j,k);
             aux_vcent(i,j,k,1) = ( lo_vol * lo_vcent[1] + hi_vol * hi_vcent[1] ) / aux_vfrac(i,j,k);
@@ -627,34 +640,34 @@ define( int const& a_idim,
             Real hi_areaLo_y {hi_eb_cc.areaLo(1)};
             Real hi_areaLo_z {hi_eb_cc.areaLo(2)};
 
-            aux_afrac_x(i,j,k) = (idim == 0) ? lo_areaLo_x : lo_areaLo_x + hi_areaLo_x;
-            aux_afrac_y(i,j,k) = (idim == 1) ? lo_areaLo_y : lo_areaLo_y + hi_areaLo_y;
-            aux_afrac_z(i,j,k) = (idim == 2) ? lo_areaLo_z : lo_areaLo_z + hi_areaLo_z;
+            aux_afrac_x(i,j,k) = (a_idim == 0) ? lo_areaLo_x : lo_areaLo_x + hi_areaLo_x;
+            aux_afrac_y(i,j,k) = (a_idim == 1) ? lo_areaLo_y : lo_areaLo_y + hi_areaLo_y;
+            aux_afrac_z(i,j,k) = (a_idim == 2) ? lo_areaLo_z : lo_areaLo_z + hi_areaLo_z;
 
             if (i==bx.bigEnd(0)) {
               Real lo_areaHi_x {lo_eb_cc.areaHi(0)};
               Real hi_areaHi_x {hi_eb_cc.areaHi(0)};
-              aux_afrac_x(i+1,j,k) = (idim == 0) ? hi_areaHi_x : lo_areaHi_x + hi_areaHi_x;
+              aux_afrac_x(i+1,j,k) = (a_idim == 0) ? hi_areaHi_x : lo_areaHi_x + hi_areaHi_x;
             }
             if (j==bx.bigEnd(1)) {
               Real lo_areaHi_y {lo_eb_cc.areaHi(1)};
               Real hi_areaHi_y {hi_eb_cc.areaHi(1)};
-              aux_afrac_y(i,j+1,k) = (idim == 1) ? hi_areaHi_y : lo_areaHi_y + hi_areaHi_y;
+              aux_afrac_y(i,j+1,k) = (a_idim == 1) ? hi_areaHi_y : lo_areaHi_y + hi_areaHi_y;
             }
             if (k==bx.bigEnd(2)) {
               Real lo_areaHi_z {lo_eb_cc.areaHi(2)};
               Real hi_areaHi_z {hi_eb_cc.areaHi(2)};
-              aux_afrac_z(i,j,k+1) = (idim == 2) ? hi_areaHi_z : lo_areaHi_z + hi_areaHi_z;
+              aux_afrac_z(i,j,k+1) = (a_idim == 2) ? hi_areaHi_z : lo_areaHi_z + hi_areaHi_z;
             }
 
             // 4. Face Centroid
 
             /* fcentLo returns the coordinates based on m_rbx.
-              The coordinates in the idim direction are in [0.0,0.5] for the low cell and in [-0.5,0.0] for the hi cell.
+              The coordinates in the a_idim direction are in [0.0,0.5] for the low cell and in [-0.5,0.0] for the hi cell.
               Therefore, they need to be mapped to the eb_aux space, by shifting:
-              x' = x - 0.5 (low cell), x + 0.5 (hi cell) if idim = 0
-              y' = y - 0.5 (low cell), y + 0.5 (hi cell) if idim = 1
-              z' = z - 0.5 (low cell), z + 0.5 (hi cell) if idim = 2
+              x' = x - 0.5 (low cell), x + 0.5 (hi cell) if a_idim = 0
+              y' = y - 0.5 (low cell), y + 0.5 (hi cell) if a_idim = 1
+              z' = z - 0.5 (low cell), z + 0.5 (hi cell) if a_idim = 2
             */
 
             RealVect lo_centLo_x {lo_eb_cc.centLo(0)};
@@ -665,7 +678,7 @@ define( int const& a_idim,
             RealVect hi_centLo_y {hi_eb_cc.centLo(1)};
             RealVect hi_centLo_z {hi_eb_cc.centLo(2)};
 
-            if (idim == 0) {
+            if (a_idim == 0) {
               aux_fcent_x(i,j,k,0) = lo_centLo_x[1];      // y
               aux_fcent_x(i,j,k,1) = lo_centLo_x[2];      // z
               aux_fcent_y(i,j,k,0) = (aux_afrac_y(i,j,k) > 0.0)   // x (mapped)
@@ -684,7 +697,7 @@ define( int const& a_idim,
                                     ? ( lo_areaLo_z * lo_centLo_z[1]
                                       + hi_areaLo_z * hi_centLo_z[1] ) / aux_afrac_z(i,j,k)
                                     : 0.0;
-            } else if (idim == 1) {
+            } else if (a_idim == 1) {
               aux_fcent_x(i,j,k,0) = (aux_afrac_x(i,j,k) > 0.0)   // y (mapped)
                                     ? ( lo_areaLo_x * (lo_centLo_x[1] - 0.5)
                                       + hi_areaLo_x * (hi_centLo_x[1] + 0.5) ) / aux_afrac_x(i,j,k)
@@ -703,7 +716,7 @@ define( int const& a_idim,
                                     ? ( lo_areaLo_z * (lo_centLo_z[1] - 0.5)
                                       + hi_areaLo_z * (hi_centLo_z[1] + 0.5) ) / aux_afrac_z(i,j,k)
                                     : 0.0;
-            } else if (idim == 2) {
+            } else if (a_idim == 2) {
               aux_fcent_x(i,j,k,0) = (aux_afrac_x(i,j,k) > 0.0)   // y
                                     ? ( lo_areaLo_x * lo_centLo_x[1]
                                       + hi_areaLo_x * hi_centLo_x[1] ) / aux_afrac_x(i,j,k)
@@ -729,10 +742,10 @@ define( int const& a_idim,
               Real hi_areaHi_x {hi_eb_cc.areaHi(0)};
               RealVect lo_centHi_x {lo_eb_cc.centHi(0)};
               RealVect hi_centHi_x {hi_eb_cc.centHi(0)};
-              if (idim == 0) {
+              if (a_idim == 0) {
                 aux_fcent_x(i+1,j,k,0) = hi_centHi_x[1];      // y
                 aux_fcent_x(i+1,j,k,1) = hi_centHi_x[2];      // z
-              } else if (idim == 1) {
+              } else if (a_idim == 1) {
                 aux_fcent_x(i+1,j,k,0) = (aux_afrac_x(i+1,j,k) > 0.0)   // y (mapped)
                                       ? ( lo_areaHi_x * (lo_centHi_x[1] - 0.5)
                                         + hi_areaHi_x * (hi_centHi_x[1] + 0.5) ) / aux_afrac_x(i+1,j,k)
@@ -741,7 +754,7 @@ define( int const& a_idim,
                                       ? ( lo_areaHi_x * lo_centHi_x[2]
                                         + hi_areaHi_x * hi_centHi_x[2] ) / aux_afrac_x(i+1,j,k)
                                       : 0.0;
-              } else if (idim == 2) {
+              } else if (a_idim == 2) {
                 aux_fcent_x(i+1,j,k,0) = (aux_afrac_x(i+1,j,k) > 0.0)   // y
                                       ? ( lo_areaHi_x * lo_centHi_x[1]
                                         + hi_areaHi_x * hi_centHi_x[1] ) / aux_afrac_x(i+1,j,k)
@@ -757,7 +770,7 @@ define( int const& a_idim,
               Real hi_areaHi_y {hi_eb_cc.areaHi(1)};
               RealVect lo_centHi_y {lo_eb_cc.centHi(1)};
               RealVect hi_centHi_y {hi_eb_cc.centHi(1)};
-              if (idim == 0) {
+              if (a_idim == 0) {
                 aux_fcent_y(i,j+1,k,0) = (aux_afrac_y(i,j+1,k) > 0.0)   // x (mapped)
                                       ? ( lo_areaHi_y * (lo_centHi_y[0] - 0.5)
                                         + hi_areaHi_y * (hi_centHi_y[0] + 0.5) ) / aux_afrac_y(i,j+1,k)
@@ -766,10 +779,10 @@ define( int const& a_idim,
                                       ? ( lo_areaHi_y * lo_centHi_y[2]
                                         + hi_areaHi_y * hi_centHi_y[2] ) / aux_afrac_y(i,j+1,k)
                                       : 0.0;
-              } else if (idim == 1) {
+              } else if (a_idim == 1) {
                 aux_fcent_y(i,j+1,k,0) = lo_centHi_y[0];      // x
                 aux_fcent_y(i,j+1,k,1) = lo_centHi_y[2];      // z
-              } else if (idim == 2) {
+              } else if (a_idim == 2) {
                 aux_fcent_y(i,j+1,k,0) = (aux_afrac_y(i,j+1,k) > 0.0)   // x
                                       ? ( lo_areaHi_y * lo_centHi_y[0]
                                         + hi_areaHi_y * hi_centHi_y[0] ) / aux_afrac_y(i,j+1,k)
@@ -785,7 +798,7 @@ define( int const& a_idim,
               Real hi_areaHi_z {hi_eb_cc.areaHi(2)};
               RealVect lo_centHi_z {lo_eb_cc.centHi(2)};
               RealVect hi_centHi_z {hi_eb_cc.centHi(2)};
-              if (idim == 0) {
+              if (a_idim == 0) {
                 aux_fcent_z(i,j,k+1,0) = (aux_afrac_z(i,j,k+1) > 0.0)   // x (mapped)
                                       ? ( lo_areaHi_z * (lo_centHi_z[0] - 0.5)
                                         + hi_areaHi_z * (hi_centHi_z[0] + 0.5) ) / aux_afrac_z(i,j,k+1)
@@ -794,7 +807,7 @@ define( int const& a_idim,
                                       ? ( lo_areaHi_z * lo_centHi_z[1]
                                         + hi_areaHi_z * hi_centHi_z[1] ) / aux_afrac_z(i,j,k+1)
                                       : 0.0;
-              } else if (idim == 1) {
+              } else if (a_idim == 1) {
                 aux_fcent_z(i,j,k+1,0) = (aux_afrac_z(i,j,k+1) > 0.0)   // x
                                       ? ( lo_areaHi_z * lo_centHi_z[0]
                                         + hi_areaHi_z * hi_centHi_z[0] ) / aux_afrac_z(i,j,k+1)
@@ -803,7 +816,7 @@ define( int const& a_idim,
                                       ? ( lo_areaHi_z * (lo_centHi_z[1] - 0.5)
                                         + hi_areaHi_z * (hi_centHi_z[1] + 0.5) ) / aux_afrac_z(i,j,k+1)
                                       : 0.0;
-              } else if (idim == 2) {
+              } else if (a_idim == 2) {
                 aux_fcent_z(i,j,k+1,0) = lo_centHi_z[0];      // x
                 aux_fcent_z(i,j,k+1,1) = lo_centHi_z[1];      // y
               }
@@ -821,15 +834,15 @@ define( int const& a_idim,
             RealVect lo_centBoun {lo_eb_cc.centBoun()};
             RealVect hi_centBoun {hi_eb_cc.centBoun()};
 
-            if (idim == 0) {
+            if (a_idim == 0) {
               aux_bcent(i,j,k,0) = ( lo_areaBoun * (lo_centBoun[0]-0.5) + hi_areaBoun * (hi_centBoun[0]+0.5) ) / aux_barea(i,j,k);  // x (mapped)
               aux_bcent(i,j,k,1) = ( lo_areaBoun * lo_centBoun[1] + hi_areaBoun * hi_centBoun[1] ) / aux_barea(i,j,k);              // y
               aux_bcent(i,j,k,2) = ( lo_areaBoun * lo_centBoun[2] + hi_areaBoun * hi_centBoun[2] ) / aux_barea(i,j,k);              // z
-            } else if (idim == 1) {
+            } else if (a_idim == 1) {
               aux_bcent(i,j,k,0) = ( lo_areaBoun * lo_centBoun[0] + hi_areaBoun * hi_centBoun[0] ) / aux_barea(i,j,k);              // x
               aux_bcent(i,j,k,1) = ( lo_areaBoun * (lo_centBoun[1]-0.5) + hi_areaBoun * (hi_centBoun[1]+0.5) ) / aux_barea(i,j,k);  // y (mapped)
               aux_bcent(i,j,k,2) = ( lo_areaBoun * lo_centBoun[2] + hi_areaBoun * hi_centBoun[2] ) / aux_barea(i,j,k);              // z
-            } else if (idim == 2) {
+            } else if (a_idim == 2) {
               aux_bcent(i,j,k,0) = ( lo_areaBoun * lo_centBoun[0] + hi_areaBoun * hi_centBoun[0] ) / aux_barea(i,j,k);              // x
               aux_bcent(i,j,k,1) = ( lo_areaBoun * lo_centBoun[1] + hi_areaBoun * hi_centBoun[1] ) / aux_barea(i,j,k);              // y
               aux_bcent(i,j,k,2) = ( lo_areaBoun * (lo_centBoun[2]-0.5) + hi_areaBoun * (hi_centBoun[2]+0.5) ) / aux_barea(i,j,k);  // z (mapped)
@@ -902,6 +915,28 @@ define( int const& a_idim,
         if (aux_bcent(i,j,k,1) < small_value) aux_bcent(i,j,k,1) = 0.0;
         if (aux_bcent(i,j,k,2) < small_value) aux_bcent(i,j,k,2) = 0.0;
       });
+
+      // Area fraction MultiFab has one more slice at bigEnd(idim),
+      // and this slice is not filled by fillBoundary(), for higher levels.
+      // (Lower level might be filled by fillBoundary().)
+      // Fill the ghost region for the last slice at bigEnd(idim)
+      // by the value of the nearst point. And let fillBoundary() overwrite it.
+
+      Box upper_slab = makeSlab(bx_grown, a_idim, bx.bigEnd(a_idim)+1);
+      Box bx_grown_1 = bx; bx_grown_1.grow(a_idim,1);
+      BoxList slab_diffList = boxDiff(upper_slab, bx_grown_1);
+
+      for (const Box& b : slab_diffList) {
+        ParallelFor(b, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+          IntVect iv(AMREX_D_DECL(i,j,k));
+          IntVect iv_nearest = iv;
+          for (int d=0; d<AMREX_SPACEDIM; ++d) {
+              iv_nearest[d] = Clamp(iv[d], bx_grown_1.smallEnd(d), bx_grown_1.bigEnd(d));
+          }
+          aux_afrac_x(iv) = aux_afrac_x(iv_nearest);
+        });
+      }
 
     } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued )
 

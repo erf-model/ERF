@@ -10,18 +10,60 @@
 #define timegm _mkgmtime
 #endif
 
-AMREX_FORCE_INLINE
-std::time_t getEpochTime(const std::string& dateTime, const std::string& dateTimeFormat) {
+AMREX_GPU_HOST AMREX_FORCE_INLINE
+std::time_t
+getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
+{
     std::tm tmTime{};
+    const char* dt  = dateTime.c_str();
+    const char* fmt = dateTimeFormat.c_str();
 
-    std::istringstream ss(dateTime);
-    ss >> std::get_time(&tmTime, dateTimeFormat.c_str());
-
-    if (ss.fail()) {
-        amrex::Error("Failed to parse datetime");
+    // Walk both the format string and the date string together
+    while (*fmt && *dt) {
+        if (*fmt == '%') {
+            ++fmt;
+            switch (*fmt) {
+            case 'Y': // 4-digit year
+                tmTime.tm_year = (dt[0]-'0')*1000 + (dt[1]-'0')*100
+                               + (dt[2]-'0')*10   + (dt[3]-'0');
+                tmTime.tm_year -= 1900;
+                dt += 4;
+                break;
+            case 'm': // 2-digit month
+                tmTime.tm_mon = (dt[0]-'0')*10 + (dt[1]-'0');
+                tmTime.tm_mon -= 1; // struct tm expects 0-11
+                dt += 2;
+                break;
+            case 'd': // 2-digit day
+                tmTime.tm_mday = (dt[0]-'0')*10 + (dt[1]-'0');
+                dt += 2;
+                break;
+            case 'H': // 2-digit hour
+                tmTime.tm_hour = (dt[0]-'0')*10 + (dt[1]-'0');
+                dt += 2;
+                break;
+            case 'M': // 2-digit minute
+                tmTime.tm_min = (dt[0]-'0')*10 + (dt[1]-'0');
+                dt += 2;
+                break;
+            case 'S': // 2-digit second
+                tmTime.tm_sec = (dt[0]-'0')*10 + (dt[1]-'0');
+                dt += 2;
+                break;
+            default:
+                // Unsupported format specifier
+                return -1;
+            }
+        } else {
+            // Literal character, must match
+            if (*fmt != *dt) {
+                return -1; // mismatch
+            }
+            ++dt;
+        }
+        ++fmt;
     }
 
-    // Convert to epoch time (UTC)
     return timegm(&tmTime);
 }
 
