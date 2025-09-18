@@ -148,6 +148,25 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
       } // mfi
     } // lev
 
+    // Fill EB covered cells by old values
+    if (SolverChoice::terrain_type == TerrainType::EB) {
+        for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
+            for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                const Array4<      Real> cons_new = vars_new[lev][Vars::cons].array(mfi);
+                const Array4<const Real> cons_old = vars_old[lev][Vars::cons].array(mfi);
+                const Array4<const Real> detJ_arr = detJ_cc[lev]->const_array(mfi);
+                ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                {
+                    if (detJ_arr(i,j,k) == 0.0) {
+                        cons_new(i,j,k,scomp+n) = cons_old(i,j,k,scomp+n);
+                    }
+                });                
+            } // mfi
+        } // lev
+    }
+
+
     // ******************************************************************************************
     // Now average down momenta.
     // Note that vars_new holds velocities not momenta, but we want to do conservative
