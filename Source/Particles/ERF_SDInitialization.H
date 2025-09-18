@@ -139,6 +139,7 @@ struct SDInitialization
     /*! Get a distribution with sampled multiplicity */
     void getDistribution( amrex::Vector<amrex::Real>&,
                           amrex::Vector<amrex::Real>&,
+                          const amrex::Real,
                           const int,
                           const amrex::Real,
                           const std::string&,
@@ -175,6 +176,7 @@ struct SDInitialization
     /*! Compute the mass distribution (sampled multiplicity) */
     void getAerosolDistribution ( amrex::Vector<amrex::Real>& a_mass,
                                   amrex::Vector<amrex::Real>& a_mult,
+                                  amrex::Real a_dV,
                                   int a_idx,
                                   int a_np,
                                   amrex::Real a_density,
@@ -182,6 +184,7 @@ struct SDInitialization
     {
         getDistribution( a_mass,
                          a_mult,
+                         a_dV,
                          a_np,
                          a_density,
                          m_aerosol_init_type[a_idx],
@@ -219,6 +222,7 @@ struct SDInitialization
     /*! Compute the mass distribution (sampled multiplicity) */
     void getSpeciesDistribution ( amrex::Vector<amrex::Real>& a_mass,
                                   amrex::Vector<amrex::Real>& a_mult,
+                                  amrex::Real a_dV,
                                   int a_idx,
                                   int a_np,
                                   amrex::Real a_density,
@@ -226,6 +230,7 @@ struct SDInitialization
     {
         getDistribution( a_mass,
                          a_mult,
+                         a_dV,
                          a_np,
                          a_density,
                          m_species_init_type[a_idx],

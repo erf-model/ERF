@@ -525,6 +525,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 if (sampled_multiplicity) {
                     a_init.getSpeciesDistribution( species_mass_h,
                                                    multiplicity_h,
+                                                   cell_volume,
                                                    i,
                                                    np,
                                                    m_species_mat[i]->m_density,
@@ -551,6 +552,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 if (sampled_multiplicity) {
                     a_init.getAerosolDistribution( aerosol_mass_h,
                                                    multiplicity_h,
+                                                   cell_volume,
                                                    i,
                                                    np,
                                                    m_aerosol_mat[i]->m_density,
@@ -637,6 +639,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 int start = offset_arr(i,j,k);
                 for (int n = start; n < start+num_sd_this_cell; n++) { mult_sum += mult_arr[n]; }
                 mult_scale = num_par_per_cell / mult_sum;
+                //Print()<<"initializeParticles: Scale mult by mult_scale "<<mult_scale<<" based on mult_sum "<<mult_sum<< "\n";
             }
 
             int start = offset_arr(i,j,k);
@@ -669,6 +672,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                     mult_ptr[n] = mult_this_sd;
                 } else {
                     mult_ptr[n] = num_to_add;
+                    //Print() << " scaling SD# "<<n<< " : replace mult_ptr with num_to_add "<<num_to_add<<"\n";
                 }
                 num_to_add -= mult_ptr[n];
                 if (mult_ptr[n] == 0) { mult_ptr[n] = 1; }
@@ -686,6 +690,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                                                      sp_sol_arr, ae_sol_arr,
                                                      sp_mass_ptrs, ae_mass_ptrs,
                                                      sp_rho_arr, ae_rho_arr );
+                //Print()<<" SD# "<<n<<" with radius="<<radius_ptr[n]<< " m\n";
                 mass_ptr[n] = SD_total_mass( n, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
 
                 vterm_ptr[n] = 0.0;
