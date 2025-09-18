@@ -11,7 +11,7 @@ eb2.small_volfrac = 1.e-4
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = 0.   0.  0. 
 geometry.prob_hi     = 10  10  10
-amr.n_cell           = 128  128  128
+amr.n_cell           = 128 128 128
 
 geometry.is_periodic = 0 1 0
 
@@ -56,7 +56,15 @@ erf.v              = 1        # verbosity in ERF.cpp
 amr.v              = 1        # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
-amr.max_level       = 0       # maximum level number allowed
+amr.max_level = 1
+amr.ref_ratio_vect = 2 2 2
+erf.refinement_indicators = box1
+erf.box1.max_level = 1
+erf.box1.in_box_lo = 2.5 2.5 0.0
+erf.box1.in_box_hi = 7.5 7.5 10.0
+erf.coupling_type  = "TwoWay"
+erf.cf_width = 0
+erf.cf_set_width = 0
 
 # CHECKPOINT FILES
 erf.check_file      = chk     # root name of checkpoint file
@@ -71,15 +79,6 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pr
 erf.use_gravity = true
 erf.use_coriolis = false
 erf.les_type = "None"
-
-# MULTILEVEL
-amr.max_level = 0
-amr.ref_ratio_vect = 2 2 1
-
-erf.refinement_indicators = box1
-erf.box1.max_level = 1
-erf.box1.in_box_lo =  2. 0.25
-erf.box1.in_box_hi =  8. 0.75
 
 # TERRRAIN GRID TYPE
 erf.terrain_type = "EB"

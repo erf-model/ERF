@@ -802,9 +802,9 @@ tslist output from WRF but output is provided only from the finest domain that c
 the entire requested sampling line; velocities are also destaggered.
 
 The sampled variables can be selected with the ``erf.line_sampling_vars`` option and
-includes a subset of the plotfile outputs: "x_velocity", "y_velocity", "z_velocity",
-"magvel", "theta", "qv", and "pressure". Velocities are output at cell centers only. The
-water vapor mixing ratio "qv" will only output valid values if a moisture model is used.
+includes a subset of the plotfile outputs: "density", "x_velocity", "y_velocity", "z_velocity",
+"magvel", "theta", "qv", "qc", and "pressure". Velocities are output at cell centers only.
+The water vapor mixing ratio "qv" will only output valid values if a moisture model is used.
 Pressure is calculated from rho*theta and will account for moisture if qv is requested.
 
 .. _list-of-parameters-10b:
@@ -915,14 +915,29 @@ List of Parameters
 |                                  | for scalars        |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 
-The allowed advection types for the dycore variables are
-"Centered_2nd", "Upwind_3rd", "Blended_3rd4th", "Centered_4th", "Upwind_5th", "Blended_5th6th",
-and "Centered_6th".
+The allowed advection types for the dycore variables are:
 
-The allowed advection types for the dry and moist scalars are
-"Centered_2nd", "Upwind_3rd", "Blended_3rd4th", "Centered_4th", "Upwind_5th", "Blended_5th6th",
-"Centered_6th" and in addition,
-"WENO3", "WENOZ3", "WENOMZQ3", "WENO5", "WENOZ5", "WENO7", and "WENOZ7."
+* From WRF:
+  "Centered_2nd",
+  "Upwind_3rd",
+  "Centered_4th",
+  "Upwind_5th", and
+  "Centered_6th"
+* Blended schemes:
+  "Blended_3rd4th" and
+  "Blended_5th6th"
+* WENO-JS schemes:
+  "WENO3"
+  "WENO5", and
+  "WENO7"
+* WENO-Z schemes:
+  "WENOZ3"
+  "WENOZ5", and
+  "WENOZ7"
+
+In addition to the above advection schemes for dycore variables, dry and moist
+scalars also have the option of using "Upwind_3rd_SL" (slope-limited) and
+"WENOMZQ3."
 
 To use the blended schemes, ``erf.[vartype]_[horiz|vert]_upw_frac`` for the corresponding
 ``erf.[vartype]_[horiz|vert]_adv_type`` should be set to a scalar between 0 and 1, where 1 is fully

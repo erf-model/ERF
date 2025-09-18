@@ -132,6 +132,14 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 #endif
 
     // **************************************************************************************
+    // Weather data interpolation
+    // **************************************************************************************
+    if(solverChoice.init_type == InitType::HindCast and
+       solverChoice.hindcast_lateral_forcing){
+       WeatherDataInterpolation(time);
+    }
+
+    // **************************************************************************************
     // Update the radiation sources
     // **************************************************************************************
     advance_radiation(lev, S_new, dt_lev);

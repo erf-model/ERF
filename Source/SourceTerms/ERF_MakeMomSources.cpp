@@ -54,6 +54,7 @@ void make_mom_sources (Real time,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
+                       const Vector<MultiFab>* forecast_state_at_lev,
                              InputSoundingData& input_sounding_data,
                              bool is_slow_step)
 {
@@ -306,11 +307,37 @@ void make_mom_sources (Real time,
         const Array4<const Real>& z_nd_arr =  z_phys_nd.const_array(mfi);
         const Array4<const Real>& z_cc_arr =  z_phys_cc.const_array(mfi);
 
+
         // *****************************************************************************
         // 1. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis && is_slow_step) {
-            if (var_coriolis && has_lat_lon) {
+            if(solverChoice.init_type == InitType::HindCast) {
+                const Array4<const Real>& latlon_arr = (*forecast_state_at_lev)[4].array(mfi);
+                ParallelFor(tbx, tby, tbz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
+                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
+                    Real latitude = latlon_arr(i,j,k,0);
+                    Real sphi_loc = std::sin(latitude*PI/180.0);
+                    Real cphi_loc = std::cos(latitude*PI/180.0);
+                    xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sphi_loc - rho_w_loc * cphi_loc);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
+                    Real latitude = latlon_arr(i,j,k,0);
+                    Real sphi_loc = std::sin(latitude*PI/180.0);
+                    ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sphi_loc;
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
+                    Real latitude = latlon_arr(i,j,k,0);
+                    Real cphi_loc = std::cos(latitude*PI/180.0);
+                    zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cphi_loc;
+                });
+            }
+            else if (var_coriolis && has_lat_lon) {
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
@@ -405,17 +432,18 @@ void make_mom_sources (Real time,
         // 3a. Add constant GEOSTROPHIC forcing
         // *****************************************************************************
         if (is_slow_step) {
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            ParallelFor(tbx, tby, tbz,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
                 xmom_src_arr(i, j, k) += rho_on_u_face * abl_geo_forcing[0];
-            });
-            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
                 ymom_src_arr(i, j, k) += rho_on_v_face * abl_geo_forcing[1];
-            });
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                 zmom_src_arr(i, j, k) += rho_on_w_face * abl_geo_forcing[2];
@@ -426,12 +454,13 @@ void make_mom_sources (Real time,
         // 3b. Add height-dependent GEOSTROPHIC forcing
         // *****************************************************************************
         if (geo_wind_profile && is_slow_step) {
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            ParallelFor(tbx, tby,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
                 xmom_src_arr(i, j, k) -= coriolis_factor * rho_on_u_face * dptr_v_geos[k] * sinphi;
-            });
-            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
                 ymom_src_arr(i, j, k) += coriolis_factor * rho_on_v_face * dptr_u_geos[k] * sinphi;
@@ -444,7 +473,8 @@ void make_mom_sources (Real time,
         if (solverChoice.custom_w_subsidence && is_slow_step && solverChoice.do_mom_advection) {
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
-                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(tbx, tby,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     Real dzInv = 0.5*dxInv[2];
                     if (z_nd_arr) {
@@ -459,8 +489,8 @@ void make_mom_sources (Real time,
                     Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
                     Real wbar_xf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     xmom_src_arr(i, j, k) -= rho_on_u_face * wbar_xf * (U_hi - U_lo) * dzInv;
-                });
-                ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     Real dzInv = 0.5*dxInv[2];
                     if (z_nd_arr) {
@@ -477,7 +507,8 @@ void make_mom_sources (Real time,
                     ymom_src_arr(i, j, k) -= rho_on_v_face * wbar_yf * (V_hi - V_lo) * dzInv;
                 });
             } else {
-                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(tbx, tby,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     Real dzInv = 0.5*dxInv[2];
                     if (z_nd_arr) {
@@ -491,8 +522,8 @@ void make_mom_sources (Real time,
                     Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
                     Real wbar_xf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
                     xmom_src_arr(i, j, k) -= wbar_xf * (U_hi - U_lo) * dzInv;
-                });
-                ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     Real dzInv = 0.5*dxInv[2];
                     if (z_nd_arr) {
@@ -540,16 +571,16 @@ void make_mom_sources (Real time,
 
             const Real* u_inp_sound_n   = input_sounding_data.U_inp_sound_d[itime_n].dataPtr();
             const Real* u_inp_sound_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr();
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            const Real* v_inp_sound_n   = input_sounding_data.V_inp_sound_d[itime_n].dataPtr();
+            const Real* v_inp_sound_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr();
+            ParallelFor(tbx, tby,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real nudge_u = (coeff_n*u_inp_sound_n[k] + coeff_np1*u_inp_sound_np1[k]) - (dptr_u_plane(k)/dptr_r_plane(k));
                 nudge_u *= tau_inv;
                 xmom_src_arr(i, j, k) += cell_data(i, j, k, nr) * nudge_u;
-            });
-
-            const Real* v_inp_sound_n   = input_sounding_data.V_inp_sound_d[itime_n].dataPtr();
-            const Real* v_inp_sound_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr();
-            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real nudge_v = (coeff_n*v_inp_sound_n[k] + coeff_np1*v_inp_sound_np1[k]) - (dptr_v_plane(k)/dptr_r_plane(k));
                 nudge_v *= tau_inv;
@@ -589,6 +620,19 @@ void make_mom_sources (Real time,
                                         xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w,
                                         r0, z_nd_arr, z_cc_arr);
             }
+
+            if(solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_lateral_forcing){
+
+                const Array4<const Real>& rho_u_forecast_state  = (*forecast_state_at_lev)[IntVars::xmom].array(mfi);
+                const Array4<const Real>& rho_v_forecast_state  = (*forecast_state_at_lev)[IntVars::ymom].array(mfi);
+                const Array4<const Real>& rho_w_forecast_state  = (*forecast_state_at_lev)[IntVars::zmom].array(mfi);
+                const Array4<const Real>& cons_forecast_state   = (*forecast_state_at_lev)[IntVars::cons].array(mfi);
+                ApplyBndryForcing_Forecast(solverChoice, geom, tbx, tby, tbz, z_nd_arr,
+                                           xmom_src_arr, ymom_src_arr, zmom_src_arr,
+                                           rho_u, rho_v, rho_w,
+                                           rho_u_forecast_state, rho_v_forecast_state, rho_w_forecast_state,
+                                           cons_forecast_state);
+            }
         }
 
         // *****************************************************************************
@@ -596,7 +640,8 @@ void make_mom_sources (Real time,
         // *****************************************************************************
         if (solverChoice.do_forest_drag &&
            ((is_slow_step && !use_canopy_fast) || (!is_slow_step && use_canopy_fast))) {
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(tbx, tby, tbz,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = u(i, j, k);
                 const Real uy = 0.25 * ( v(i, j  , k  ) + v(i-1, j  , k  )
@@ -606,8 +651,8 @@ void make_mom_sources (Real time,
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real f_drag = 0.5 * (f_drag_arr(i, j, k) + f_drag_arr(i-1, j, k));
                 xmom_src_arr(i, j, k) -= f_drag * ux * windspeed;
-            });
-            ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = 0.25 * ( u(i  , j  , k  ) + u(i  , j-1, k  )
                                        + u(i+1, j  , k  ) + u(i+1, j-1, k  ) );
@@ -617,8 +662,8 @@ void make_mom_sources (Real time,
                 const amrex::Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real f_drag = 0.5 * (f_drag_arr(i, j, k) + f_drag_arr(i, j-1, k));
                 ymom_src_arr(i, j, k) -= f_drag * uy * windspeed;
-            });
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const amrex::Real ux = 0.25 * ( u(i  , j  , k  ) + u(i+1, j  , k  )
                                               + u(i  , j  , k-1) + u(i+1, j  , k-1) );
@@ -637,7 +682,8 @@ void make_mom_sources (Real time,
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
             const Real drag_coefficient=10.0/dz;
             const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(tbx, tby, tbz,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = u(i, j, k);
                 const Real uy = 0.25 * ( v(i, j  , k  ) + v(i-1, j  , k  )
@@ -648,8 +694,8 @@ void make_mom_sources (Real time,
                 const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
                 xmom_src_arr(i, j, k) -= t_blank * CdM * ux * windspeed;
-            });
-            ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = 0.25 * ( u(i  , j  , k  ) + u(i  , j-1, k  )
                                        + u(i+1, j  , k  ) + u(i+1, j-1, k  ) );
@@ -660,8 +706,8 @@ void make_mom_sources (Real time,
                 const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
                 ymom_src_arr(i, j, k) -= t_blank * CdM * uy * windspeed;
-            });
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const amrex::Real ux = 0.25 * ( u(i  , j  , k  ) + u(i+1, j  , k  )
                                               + u(i  , j  , k-1) + u(i+1, j  , k-1) );

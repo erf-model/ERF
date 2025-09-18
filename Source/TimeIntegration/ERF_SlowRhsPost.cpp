@@ -85,7 +85,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const bool& moist_set_rhs_bool,
                         const Real& bdy_time_interval,
                         const Real& new_stage_time,
-                        const Real& stop_time,
+                        const Real& stop_time_elapsed,
                         int  width,
                         int  set_width,
                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
@@ -126,6 +126,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_use_turb       = ( tc.les_type  == LESType::Smagorinsky ||
                                     tc.les_type  == LESType::Deardorff   ||
                                     tc.rans_type == RANSType::kEqn       ||
+                                    tc.pbl_type  == PBLType::MYJ         ||
                                     tc.pbl_type  == PBLType::MYNN25      ||
                                     tc.pbl_type  == PBLType::MYNNEDMF    ||
                                     tc.pbl_type  == PBLType::YSU ||
@@ -465,7 +466,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             const Array4<const Real> & old_cons_const = S_old[IntVars::cons].const_array(mfi);
             const Array4<const Real> & new_cons_const = S_new[IntVars::cons].const_array(mfi);
             moist_set_rhs(geom, tbx, old_cons_const, new_cons_const, cell_rhs, bdy_time_interval,
-                          new_stage_time, dt, stop_time, width, set_width, domain,
+                          new_stage_time, dt, stop_time_elapsed, width, set_width, domain,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
         }
 #endif
@@ -596,61 +597,5 @@ void erf_slow_rhs_post (int level, int finest_level,
         } // two-way coupling
         } // end profile
       } // mfi
-
-      if (solverChoice.terrain_type == TerrainType::EB)
-      {
-          // start_comp and num_comp
-          for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
-          {
-              if (is_valid_slow_var[ivar])
-              {
-                  start_comp = ivar;
-                  num_comp   = 1;
-                  if (ivar == RhoQ1_comp) {
-                      num_comp = nvars - RhoQ1_comp;
-                  } else if (ivar == RhoScalar_comp) {
-                      num_comp = NSCALARS;
-                  }
-              }
-          }
-
-          // Redistribute cons states (cell-centered)
-          const int num_comp_total{S_rhs[IntVars::cons].nComp()};
-          MultiFab dUdt_tmp(ba, dm, num_comp_total, S_rhs[IntVars::cons].nGrow(), MFInfo(), ebfact);
-          dUdt_tmp.setVal(0.);
-          MultiFab::Copy(dUdt_tmp, S_rhs[IntVars::cons], start_comp, start_comp, num_comp, S_rhs[IntVars::cons].nGrow());
-          dUdt_tmp.FillBoundary(geom.periodicity());
-          dUdt_tmp.setDomainBndry(1.234e10, 0, num_comp_total, geom);
-
-          S_old[IntVars::cons].FillBoundary(geom.periodicity());
-          S_old[IntVars::cons].setDomainBndry(1.234e10, 0, num_comp_total, geom);
-
-          // Update S_rhs by Redistribution.
-          // To-do: Currently, redistributing all the scalar variables.
-          //        This needs to be redistributed only for num_comp variables starting from ivar, for efficiency.
-          redistribute_term ( num_comp_total, geom, S_rhs[IntVars::cons], dUdt_tmp,
-                              S_old[IntVars::cons], ebfact, bc_ptr_d, dt);
-
-          // Update state using the updated S_rhs. (NOTE: redistribute_term returns RHS not state variables.)
-          for ( MFIter mfi(S_new[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-          {
-            Box tbx  = mfi.tilebox();
-            const Array4<Real>& snew = S_new[IntVars::cons].array(mfi);
-            const Array4<Real>& sold = S_old[IntVars::cons].array(mfi);
-            const Array4<Real>& srhs = S_rhs[IntVars::cons].array(mfi);
-            Array4<const Real> detJ_arr = ebfact.getVolFrac().const_array(mfi);
-
-            ParallelFor(tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn)
-            {
-                if (detJ_arr(i,j,k) > 0.0) {
-                    const int n = start_comp + nn;
-                    snew(i,j,k,n) = sold(i,j,k,n) + dt * srhs(i,j,k,n);
-                }
-            });
-          }
-
-          // Redistribute momentum states (face-centered) will be added here.
-      } // EB
-
     } // OMP
 }

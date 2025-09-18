@@ -6,6 +6,24 @@ using namespace amrex;
 SHOCInterface::SHOCInterface (const int& lev,
                               SolverChoice& sc)
 {
+    // Construct parser object for following reads
+    ParmParse pp("erf.shoc");
+
+    // Parse runtime inputs at start up
+    pp.get("lambda_low"      , runtime_options.lambda_low    );
+    pp.get("lambda_high"     , runtime_options.lambda_high   );
+    pp.get("lambda_slope"    , runtime_options.lambda_slope  );
+    pp.get("lambda_thresh"   , runtime_options.lambda_thresh );
+    pp.get("thl2tune"        , runtime_options.thl2tune      );
+    pp.get("qw2tune"         , runtime_options.qw2tune       );
+    pp.get("qwthl2tune"      , runtime_options.qwthl2tune    );
+    pp.get("w2tune"          , runtime_options.w2tune        );
+    pp.get("length_fac"      , runtime_options.length_fac    );
+    pp.get("c_diag_3rd_mom"  , runtime_options.c_diag_3rd_mom);
+    pp.get("coeff_kh"        , runtime_options.Ckh           );
+    pp.get("coeff_km"        , runtime_options.Ckm           );
+    pp.get("shoc_1p5tke"     , runtime_options.shoc_1p5tke   );
+    pp.get("extra_shoc_diags", runtime_options.extra_diags   );
 }
 
 
@@ -49,112 +67,11 @@ SHOCInterface::set_grids (int& level,
                           amrex::MultiFab* lat,
                           amrex::MultiFab* lon)
 {
-#if 0
-    // using namespace ekat::units;
-    m_grid = grids_manager->get_grid("physics");
-    const auto& grid_name = m_grid->name();
-
-    // Define the different field layouts that will be used for this process
-
-    // Layout for horiz_wind field
-    FieldLayout vector3d_mid = m_grid->get_3d_vector_layout(true,2);
-    add_field<Required>("omega",          scalar3d_mid, Pa/s, grid_name, ps);
-
-    // Layout for 2D (1d horiz X 1d vertical) variable
-    // Layout for surf_mom_flux
-    FieldLayout vector2d = m_grid->get_2d_vector_layout(2);
-
-    // Layout for 3D (2d horiz X 1d vertical) variable defined at mid-level and interfaces
-    FieldLayout scalar2d = m_grid->get_2d_scalar_layout();
-    FieldLayout scalar3d_mid = m_grid->get_3d_scalar_layout(true);
-    FieldLayout scalar3d_int = m_grid->get_3d_scalar_layout(false);
-
-    // Define fields needed in SHOC.
-    // Note: shoc_main is organized by a set of 5 structures, variables below are organized
-    //       using the same approach to make it easier to follow.
-
-    constexpr int ps = Spack::n;
-
-    const auto nondim = Units::nondimensional();
-    const auto m2 = pow(m,2);
-    const auto s2 = pow(s,2);
-
-    // These variables are needed by the interface, but not actually passed to shoc_main.
-    add_field<Required>("surf_sens_flux", scalar2d    , W/m2, grid_name);
-    add_field<Required>("surf_mom_flux",  vector2d    , N/m2, grid_name);
-
-    add_field<Updated>("surf_evap",       scalar2d    , kg/(m2*s), grid_name);
-    add_field<Updated> ("T_mid",          scalar3d_mid, K,         grid_name, ps);
-    add_tracer<Updated>("qv", m_grid, kg/kg, ps);
-
-    // If TMS is a process, add surface drag coefficient to required fields
-    if (m_params.get<bool>("apply_tms", false)) {
-      add_field<Required>("surf_drag_coeff_tms", scalar2d,  kg/(m2*s), grid_name);
-  }
-
-    // Input variables
-    add_field<Required>("p_mid",          scalar3d_mid, Pa,    grid_name, ps);
-    add_field<Required>("p_int",          scalar3d_int, Pa,    grid_name, ps);
-    add_field<Required>("pseudo_density", scalar3d_mid, Pa,    grid_name, ps);
-    add_field<Required>("phis",           scalar2d    , m2/s2, grid_name, ps);
-
-    // Input/Output variables
-    add_field<Updated>("horiz_winds",   vector3d_mid,   m/s,     grid_name, ps);
-    add_field<Updated>("sgs_buoy_flux", scalar3d_mid, K*(m/s), grid_name, ps);
-    add_field<Updated>("eddy_diff_mom", scalar3d_mid, m2/s,    grid_name, ps);
-    add_field<Updated>("cldfrac_liq",   scalar3d_mid, nondim,  grid_name, ps);
-    add_tracer<Updated>("tke", m_grid, m2/s2, ps);
-    add_tracer<Updated>("qc",  m_grid, kg/kg, ps);
-
-    // Output variables
-    add_field<Computed>("pbl_height",    scalar2d    , m,            grid_name);
-    add_field<Computed>("inv_qc_relvar", scalar3d_mid, pow(kg/kg,2), grid_name, ps);
-    add_field<Computed>("eddy_diff_heat",   scalar3d_mid, m2/s,        grid_name, ps);
-    add_field<Computed>("w_variance",       scalar3d_mid, m2/s2,       grid_name, ps);
-    add_field<Computed>("cldfrac_liq_prev", scalar3d_mid, nondim,      grid_name, ps);
-    add_field<Computed>("ustar",            scalar2d,     m/s,         grid_name, ps);
-    add_field<Computed>("obklen",           scalar2d,     m,           grid_name, ps);
-
-    // Extra SHOC output diagnostics
-    if (m_params.get<bool>("extra_shoc_diags", false)) {
-
-        // Diagnostic output - mid point grid
-        add_field<Computed>("brunt", scalar3d_mid, pow(s,-1), grid_name, ps);
-        add_field<Computed>("shoc_mix", scalar3d_mid, m, grid_name, ps);
-        add_field<Computed>("isotropy", scalar3d_mid, s, grid_name, ps);
-        add_field<Computed>("shoc_cond", scalar3d_mid, kg/kg/s, grid_name, ps);
-        add_field<Computed>("shoc_evap", scalar3d_mid, kg/kg/s, grid_name, ps);
-
-        // Diagnostic output - interface grid
-        add_field<Computed>("wthl_sec", scalar3d_int, K*(m/s), grid_name, ps);
-        add_field<Computed>("thl_sec", scalar3d_int, pow(K,2), grid_name, ps);
-        add_field<Computed>("wqw_sec", scalar3d_int, (kg/kg)*(m/s), grid_name, ps);
-        add_field<Computed>("qw_sec", scalar3d_int, pow(kg/kg,2), grid_name, ps);
-        add_field<Computed>("uw_sec", scalar3d_int, pow(m/s,2), grid_name, ps);
-        add_field<Computed>("vw_sec", scalar3d_int, pow(m/s,2), grid_name, ps);
-        add_field<Computed>("w3", scalar3d_int, pow(m/s,3), grid_name, ps);
-
-    } // Extra SHOC output diagnostics
-
-    // Tracer group
-    add_group<Updated>("turbulence_advected_tracers", grid_name, ps, MonolithicAlloc::Required);
-
-    // Boundary flux fields for energy and mass conservation checks
-    if (has_column_conservation_check()) {
-      add_field<Computed>("vapor_flux", scalar2d, kg/(m2*s), grid_name);
-      add_field<Computed>("water_flux", scalar2d, m/s,     grid_name);
-      add_field<Computed>("ice_flux",   scalar2d, m/s,     grid_name);
-      add_field<Computed>("heat_flux",  scalar2d, W/m2,    grid_name);
-    }
-#endif
-
     // Set data members that may change
     m_lev            = level;
     m_geom           = geom;
     m_cons_in        = cons_in;
     m_z_phys         = z_phys;
-    // m_lat            = lat;
-    // m_lon            = lon;
 
     // Ensure the boxes span klo -> khi
     int klo = geom.Domain().smallEnd(2);
@@ -184,6 +101,7 @@ SHOCInterface::set_grids (int& level,
     mf_to_kokkos_buffers();
 }
 
+
 void
 SHOCInterface::alloc_buffers ()
 {
@@ -196,8 +114,8 @@ SHOCInterface::alloc_buffers ()
     vpwp_sfc         = view_1d("Vpwp_sfc"       , m_num_cols);
     surf_sens_flux   = view_1d("Sfc sens flux"  , m_num_cols);
     surf_evap        = view_1d("Sfc latent flux", m_num_cols);
-    surf_mom_flux    = sview_2d("Sfc mom flux"  , m_num_cols, 2);
-    wtracer_sfc      = view_2d("Wtracer_sfc"    , m_num_cols, 1);
+    surf_mom_flux    = sview_2d("Sfc mom flux"  , m_num_cols, m_num_vel_comp);
+    wtracer_sfc      = view_2d("Wtracer_sfc"    , m_num_cols, m_num_tracers );
 
     T_mid            = view_2d("T_mid"             , m_num_cols, m_num_layers  );
     p_mid            = view_2d("P_mid"             , m_num_cols, m_num_layers  );
@@ -216,6 +134,7 @@ SHOCInterface::alloc_buffers ()
     rrho_i           = view_2d("Rrho_i"            , m_num_cols, m_num_layers  );
     thv              = view_2d("Thv"               , m_num_cols, m_num_layers  );
     dz               = view_2d("dz"                , m_num_cols, m_num_layers  );
+    dse              = view_2d("dse"               , m_num_cols, m_num_layers  );
     zt_grid          = view_2d("Zt_grid"           , m_num_cols, m_num_layers  );
     zi_grid          = view_2d("Zi_grid"           , m_num_cols, m_num_layers  );
     wm_zt            = view_2d("wm_zt"             , m_num_cols, m_num_layers  );
@@ -226,8 +145,57 @@ SHOCInterface::alloc_buffers ()
     cldfrac_liq      = view_2d("Cld_frac_liq"      , m_num_cols, m_num_layers  );
     cldfrac_liq_prev = view_2d("cld_frac_liq_prev" , m_num_cols, m_num_layers  );
 
-    //qtracers         = view_3d_strided("Qtracers"  , m_num_cols, m_num_layers, 1);
+    // NOTE: Use layoutright format
+    Kokkos::LayoutStride layout(m_num_cols   , m_num_cols*m_num_layers,   // stride for dim0
+                                m_num_layers , m_num_layers,              // stride for dim1
+                                m_num_tracers, 1                          // stride for dim2
+                                );
+    qtracers         = view_3d_strided("Qtracers"  , layout);
+
+
+    // SHOCPostprocess data structures
+    //=======================================================
+    shoc_ql2      = view_2d("qc^2"         , m_num_cols, m_num_layers);
+    inv_qc_relvar = view_2d("inv_qc_relvar", m_num_cols, m_num_layers);
+
+    // SHOC InputOutput data structures
+    //=======================================================
+    sgs_buoy_flux = view_2d("sgs_buoy_flux", m_num_cols, m_num_layers);
+    tk            = view_2d("eddy_diff_mom", m_num_cols, m_num_layers);
+
+    horiz_wind    = view_3d("horiz_wind"   , m_num_cols, m_num_layers, m_num_vel_comp);
+
+    // SHOC Output data structures
+    //=======================================================
+    pblh   = view_1d("pbl_height", m_num_cols);
+    ustar  = view_1d("ustar"     , m_num_cols);
+    obklen = view_1d("obklen"    , m_num_cols);
+
+    tkh    = view_2d("eddy_diff_heat", m_num_cols, m_num_layers);
+
+    // SHOC HistoryOutput data structures
+    //=======================================================
+    shoc_mix  = view_2d("shoc_mix" , m_num_cols, m_num_layers);
+    w_sec     = view_2d("w_sec"    , m_num_cols, m_num_layers);
+    thl_sec   = view_2d("thl_sec"  , m_num_cols, m_num_layers);
+    qw_sec    = view_2d("qw_sec"   , m_num_cols, m_num_layers);
+    qwthl_sec = view_2d("qwthl_sec", m_num_cols, m_num_layers);
+    wthl_sec  = view_2d("wthl_sec" , m_num_cols, m_num_layers);
+    wqw_sec   = view_2d("wqw_sec"  , m_num_cols, m_num_layers);
+    wtke_sec  = view_2d("wtke_sec" , m_num_cols, m_num_layers);
+    uw_sec    = view_2d("uw_sec"   , m_num_cols, m_num_layers);
+    vw_sec    = view_2d("vw_sec"   , m_num_cols, m_num_layers);
+    w3        = view_2d("w3"       , m_num_cols, m_num_layers);
+    wqls_sec  = view_2d("wqls_sec" , m_num_cols, m_num_layers);
+    brunt     = view_2d("brunt"    , m_num_cols, m_num_layers);
+    isotropy  = view_2d("isotropy" , m_num_cols, m_num_layers);
+    shoc_cond = view_2d("shoc_cond", m_num_cols, m_num_layers);
+    shoc_evap = view_2d("shoc_evap", m_num_cols, m_num_layers);
+
+    // SHOC Miscellaneous data structures
+    //=======================================================
 }
+
 
 void
 SHOCInterface::dealloc_buffers ()
@@ -261,6 +229,7 @@ SHOCInterface::dealloc_buffers ()
     rrho_i           = view_2d();
     thv              = view_2d();
     dz               = view_2d();
+    dse              = view_2d();
     zt_grid          = view_2d();
     zi_grid          = view_2d();
     wm_zt            = view_2d();
@@ -271,13 +240,57 @@ SHOCInterface::dealloc_buffers ()
     cldfrac_liq      = view_2d();
     cldfrac_liq_prev = view_2d();
 
-    //qtracers         = view_3d_strided();
+    qtracers         = view_3d_strided();
+
+    // SHOCPostprocess data structures
+    //=======================================================
+    shoc_ql2      = view_2d();
+    inv_qc_relvar = view_2d();
+
+    // SHOC InputOutput data structures
+    //=======================================================
+    sgs_buoy_flux = view_2d();
+    tk            = view_2d();
+
+    horiz_wind    = view_3d();
+
+    // SHOC Output data structures
+    //=======================================================
+    pblh   = view_1d();
+    ustar  = view_1d();
+    obklen = view_1d();
+
+    tkh    = view_2d();
+
+    // SHOC HistoryOutput data structures
+    //=======================================================
+    shoc_mix  = view_2d();
+    w_sec     = view_2d();
+    thl_sec   = view_2d();
+    qw_sec    = view_2d();
+    qwthl_sec = view_2d();
+    wthl_sec  = view_2d();
+    wqw_sec   = view_2d();
+    wtke_sec  = view_2d();
+    uw_sec    = view_2d();
+    vw_sec    = view_2d();
+    w3        = view_2d();
+    wqls_sec  = view_2d();
+    brunt     = view_2d();
+    isotropy  = view_2d();
+    shoc_cond = view_2d();
+    shoc_evap = view_2d();
+
+    // SHOC Miscellaneous data structures
+    //=======================================================
 }
+
 
 void
 SHOCInterface::mf_to_kokkos_buffers ()
 {
-    // Expose for device
+    // Expose for device (shoc preprocess)
+    //=======================================================
     auto T_mid_d            = T_mid;
     auto p_mid_d            = p_mid;
     auto p_int_d            = p_int;
@@ -287,7 +300,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
     auto surf_sens_flux_d   = surf_sens_flux;
     auto surf_evap_d        = surf_evap;
     auto surf_mom_flux_d    = surf_mom_flux;
-    //auto qtracers_d         = qtracers;
+    auto qtracers_d         = qtracers;
     auto qv_d               = qv;
     auto qc_d               = qc;
     auto qc_copy_d          = qc_copy;
@@ -300,6 +313,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
     auto rrho_i_d           = rrho_i;
     auto thv_d              = thv;
     auto dz_d               = dz;
+    auto dse_d              = dse;
     auto zt_grid_d          = zt_grid;
     auto zi_grid_d          = zi_grid;
     auto wpthlp_sfc_d       = wpthlp_sfc;
@@ -419,112 +433,94 @@ SHOCInterface::mf_to_kokkos_buffers ()
             inv_exner_d(icol,ilay) = 0.0;
             thlm_d(icol,ilay)      = 0.0;
             qw_d(icol,ilay)        = 0.0;
+            dse(icol,ilay)         = 0.0;
 
 
             // Fill view3d
-            //qtracers_d(icol,ilay,0) = 0.0;
+            qtracers_d(icol,ilay,0) = 0.0;
         });
     }
 }
+
 
 void
 SHOCInterface::kokkos_buffers_to_mf ()
 {}
 
-void
-SHOCInterface::run_impl (const amrex::Real dt)
-{
-  EKAT_REQUIRE_MSG (dt<=300,
-      "Error! SHOC is intended to run with a timestep no longer than 5 minutes.\n"
-      "       Please, reduce timestep (perhaps increasing subcycling iterations).\n");
-
-#if 0
-  const auto nlev_packs  = ekat::npack<Spack>(m_num_layers);
-  const auto scan_policy    = ekat::ExeSpaceUtils<KT::ExeSpace>::get_thread_range_parallel_scan_team_policy(m_num_cols, nlev_packs);
-  const auto default_policy = ekat::ExeSpaceUtils<KT::ExeSpace>::get_default_team_policy(m_num_cols, nlev_packs);
-
-  // Preprocessing of SHOC inputs. Kernel contains a parallel_scan,
-  // so a special TeamPolicy is required.
-  Kokkos::parallel_for("shoc_preprocess",
-                       scan_policy,
-                       shoc_preprocess);
-  Kokkos::fence();
-
-  auto wtracer_sfc = shoc_preprocess.wtracer_sfc;
-  Kokkos::deep_copy(wtracer_sfc, 0);
-
-  if (m_params.get<bool>("apply_tms", false)) {
-    apply_turbulent_mountain_stress();
-  }
-
-  if (m_params.get<bool>("check_flux_state_consistency", false)) {
-    check_flux_state_consistency(dt);
-  }
-
-  // For now set the host timestep to the shoc timestep. This forces
-  // number of SHOC timesteps (nadv) to be 1.
-  // TODO: input parameter?
-  hdtime = dt;
-  m_nadv = std::max(static_cast<int>(round(hdtime/dt)),1);
-
-  // Reset internal WSM variables.
-  workspace_mgr.reset_internals();
-
-  // Run shoc main
-  SHF::shoc_main(m_num_cols, m_num_layers, m_num_layers+1, m_npbl, m_nadv, m_num_tracers, dt,
-                 workspace_mgr,runtime_options,input,input_output,output,history_output
-#ifdef SCREAM_SHOC_SMALL_KERNELS
-                 , temporaries
-#endif
-                 );
-
-  // Postprocessing of SHOC outputs
-  Kokkos::parallel_for("shoc_postprocess",
-                       default_policy,
-                       shoc_postprocess);
-  Kokkos::fence();
-
-  // Extra SHOC output diagnostics
-  if (m_params.get<bool>("extra_shoc_diags", false)) {
-
-    const auto& shoc_mix = get_field_out("shoc_mix").get_view<Spack**>();
-    Kokkos::deep_copy(shoc_mix,history_output.shoc_mix);
-
-    const auto& brunt = get_field_out("brunt").get_view<Spack**>();
-    Kokkos::deep_copy(brunt,history_output.brunt);
-
-    const auto& w3 = get_field_out("w3").get_view<Spack**>();
-    Kokkos::deep_copy(w3,history_output.w3);
-
-    const auto& isotropy = get_field_out("isotropy").get_view<Spack**>();
-    Kokkos::deep_copy(isotropy,history_output.isotropy);
-
-    const auto& wthl_sec = get_field_out("wthl_sec").get_view<Spack**>();
-    Kokkos::deep_copy(wthl_sec,history_output.wthl_sec);
-
-    const auto& wqw_sec = get_field_out("wqw_sec").get_view<Spack**>();
-    Kokkos::deep_copy(wqw_sec,history_output.wqw_sec);
-
-    const auto& uw_sec = get_field_out("uw_sec").get_view<Spack**>();
-    Kokkos::deep_copy(uw_sec,history_output.uw_sec);
-
-    const auto& vw_sec = get_field_out("vw_sec").get_view<Spack**>();
-    Kokkos::deep_copy(vw_sec,history_output.vw_sec);
-
-    const auto& qw_sec = get_field_out("qw_sec").get_view<Spack**>();
-    Kokkos::deep_copy(qw_sec,history_output.qw_sec);
-
-    const auto& thl_sec = get_field_out("thl_sec").get_view<Spack**>();
-    Kokkos::deep_copy(thl_sec,history_output.thl_sec);
-
-  } // Extra SHOC output diagnostics
-#endif
-}
-
 
 void
 SHOCInterface::initialize_impl ()
 {
+    // For now, set z_int(i,nlevs) = z_surf = 0
+    const Real z_surf = 0.0;
+
+    // Set preprocess variables
+    shoc_preprocess.set_variables(m_num_cols, m_num_layers, z_surf,
+                                  T_mid, p_mid, p_int, dens, omega, phis, surf_sens_flux, surf_evap,
+                                  surf_mom_flux, qtracers, qv, qc, qc_copy, tke, tke_copy, z_mid, z_int,
+                                  dse, rrho, rrho_i, thv, dz, zt_grid, zi_grid, wpthlp_sfc, wprtp_sfc, upwp_sfc,
+                                  vpwp_sfc, wtracer_sfc, wm_zt, inv_exner, thlm, qw, cldfrac_liq, cldfrac_liq_prev);
+
+    // Input Variables:
+    input.zt_grid     = zt_grid;
+    input.zi_grid     = zi_grid;
+    input.pres        = p_mid;
+    input.presi       = p_int;
+    input.pdel        = dens;
+    input.thv         = thv;
+    input.w_field     = wm_zt;
+    input.wthl_sfc    = wpthlp_sfc;
+    input.wqw_sfc     = wprtp_sfc;
+    input.uw_sfc      = upwp_sfc;
+    input.vw_sfc      = vpwp_sfc;
+    input.wtracer_sfc = wtracer_sfc;
+    input.inv_exner   = inv_exner;
+    input.phis        = phis;
+
+    // Input/Output Variables
+    input_output.host_dse     = shoc_s;
+    input_output.tke          = tke_copy;
+    input_output.thetal       = thlm;
+    input_output.qw           = qw;
+    input_output.horiz_wind   = horiz_wind;
+    input_output.wthv_sec     = sgs_buoy_flux;
+    input_output.qtracers     = qtracers;
+    input_output.tk           = tk;
+    input_output.shoc_cldfrac = cldfrac_liq;
+    input_output.shoc_ql      = qc_copy;
+
+    // Output Variables
+    output.pblh     = pblh;
+    output.shoc_ql2 = shoc_ql2;
+    output.tkh      = tkh;
+    output.ustar    = ustar;
+    output.obklen   = obklen;
+
+    // Output (diagnostic)
+    history_output.shoc_mix  = shoc_mix;
+    history_output.isotropy  = isotropy;
+    history_output.shoc_cond = shoc_cond;
+    history_output.shoc_evap = shoc_evap;
+    history_output.w_sec     = w_sec;
+    history_output.thl_sec   = thl_sec;
+    history_output.qw_sec    = qw_sec;
+    history_output.qwthl_sec = qwthl_sec;
+    history_output.wthl_sec  = wthl_sec;
+    history_output.wqw_sec   = wqw_sec;
+    history_output.wtke_sec  = wtke_sec;
+    history_output.uw_sec    = uw_sec;
+    history_output.vw_sec    = vw_sec;
+    history_output.w3        = w3;
+    history_output.wqls_sec  = wqls_sec;
+    history_output.brunt     = brunt;
+
+    // Set postprocess variables
+    shoc_postprocess.set_variables(m_num_cols, m_num_layers,
+                                   rrho, qv, qw, qc, qc_copy, tke,
+                                   tke_copy, qtracers, shoc_ql2,
+                                   cldfrac_liq, inv_qc_relvar,
+                                   T_mid, dse, z_mid, phis);
+
 #if 0
   // Gather runtime options
   runtime_options.lambda_low    = m_params.get<double>("lambda_low");
@@ -770,6 +766,98 @@ SHOCInterface::initialize_impl ()
     initialized = true;
 #endif
 }
+
+
+void
+SHOCInterface::run_impl (const amrex::Real dt)
+{
+  EKAT_REQUIRE_MSG (dt<=300,
+      "Error! SHOC is intended to run with a timestep no longer than 5 minutes.\n"
+      "       Please, reduce timestep (perhaps increasing subcycling iterations).\n");
+
+#if 0
+  const auto nlev_packs  = ekat::npack<Spack>(m_num_layers);
+  const auto scan_policy    = ekat::ExeSpaceUtils<KT::ExeSpace>::get_thread_range_parallel_scan_team_policy(m_num_cols, nlev_packs);
+  const auto default_policy = ekat::ExeSpaceUtils<KT::ExeSpace>::get_default_team_policy(m_num_cols, nlev_packs);
+
+  // Preprocessing of SHOC inputs. Kernel contains a parallel_scan,
+  // so a special TeamPolicy is required.
+  Kokkos::parallel_for("shoc_preprocess",
+                       scan_policy,
+                       shoc_preprocess);
+  Kokkos::fence();
+
+  auto wtracer_sfc = shoc_preprocess.wtracer_sfc;
+  Kokkos::deep_copy(wtracer_sfc, 0);
+
+  if (m_params.get<bool>("apply_tms", false)) {
+    apply_turbulent_mountain_stress();
+  }
+
+  if (m_params.get<bool>("check_flux_state_consistency", false)) {
+    check_flux_state_consistency(dt);
+  }
+
+  // For now set the host timestep to the shoc timestep. This forces
+  // number of SHOC timesteps (nadv) to be 1.
+  // TODO: input parameter?
+  hdtime = dt;
+  m_nadv = std::max(static_cast<int>(round(hdtime/dt)),1);
+
+  // Reset internal WSM variables.
+  workspace_mgr.reset_internals();
+
+  // Run shoc main
+  SHF::shoc_main(m_num_cols, m_num_layers, m_num_layers+1, m_npbl, m_nadv, m_num_tracers, dt,
+                 workspace_mgr,runtime_options,input,input_output,output,history_output
+#ifdef SCREAM_SHOC_SMALL_KERNELS
+                 , temporaries
+#endif
+                 );
+
+  // Postprocessing of SHOC outputs
+  Kokkos::parallel_for("shoc_postprocess",
+                       default_policy,
+                       shoc_postprocess);
+  Kokkos::fence();
+
+  // Extra SHOC output diagnostics
+  if (m_params.get<bool>("extra_shoc_diags", false)) {
+
+    const auto& shoc_mix = get_field_out("shoc_mix").get_view<Spack**>();
+    Kokkos::deep_copy(shoc_mix,history_output.shoc_mix);
+
+    const auto& brunt = get_field_out("brunt").get_view<Spack**>();
+    Kokkos::deep_copy(brunt,history_output.brunt);
+
+    const auto& w3 = get_field_out("w3").get_view<Spack**>();
+    Kokkos::deep_copy(w3,history_output.w3);
+
+    const auto& isotropy = get_field_out("isotropy").get_view<Spack**>();
+    Kokkos::deep_copy(isotropy,history_output.isotropy);
+
+    const auto& wthl_sec = get_field_out("wthl_sec").get_view<Spack**>();
+    Kokkos::deep_copy(wthl_sec,history_output.wthl_sec);
+
+    const auto& wqw_sec = get_field_out("wqw_sec").get_view<Spack**>();
+    Kokkos::deep_copy(wqw_sec,history_output.wqw_sec);
+
+    const auto& uw_sec = get_field_out("uw_sec").get_view<Spack**>();
+    Kokkos::deep_copy(uw_sec,history_output.uw_sec);
+
+    const auto& vw_sec = get_field_out("vw_sec").get_view<Spack**>();
+    Kokkos::deep_copy(vw_sec,history_output.vw_sec);
+
+    const auto& qw_sec = get_field_out("qw_sec").get_view<Spack**>();
+    Kokkos::deep_copy(qw_sec,history_output.qw_sec);
+
+    const auto& thl_sec = get_field_out("thl_sec").get_view<Spack**>();
+    Kokkos::deep_copy(thl_sec,history_output.thl_sec);
+
+  } // Extra SHOC output diagnostics
+#endif
+}
+
 
 void
 SHOCInterface::finalize_impl ()

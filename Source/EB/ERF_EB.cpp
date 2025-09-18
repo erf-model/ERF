@@ -48,7 +48,7 @@ eb_::make_all_factories ([[maybe_unused]] int level,
 
     Print() << "making EB staggered u-factory\n";
     //m_u_factory.set_verbose();
-    m_u_factory.define(idim, a_geom, ba, dm,
+    m_u_factory.define(level, idim, a_geom, ba, dm,
       Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
       m_factory.get());
   }
@@ -56,7 +56,7 @@ eb_::make_all_factories ([[maybe_unused]] int level,
   { int const idim(1);
     Print() << "making EB staggered v-factory\n";
     //m_v_factory.set_verbose();
-    m_v_factory.define(idim, a_geom, ba, dm,
+    m_v_factory.define(level, idim, a_geom, ba, dm,
       Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
       m_factory.get());
   }
@@ -64,12 +64,12 @@ eb_::make_all_factories ([[maybe_unused]] int level,
   { int const idim(2);
     Print() << "making EB staggered w-factory\n";
     //m_w_factory.set_verbose();
-    m_w_factory.define(idim, a_geom, ba, dm,
+    m_w_factory.define(level, idim, a_geom, ba, dm,
       Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
       m_factory.get());
   }
 
-  Print() << "\nDone making EB factory.\n\n";
+  Print() << "\nDone making EB factory at level = " << level << ".\n\n";
 }
 
 void

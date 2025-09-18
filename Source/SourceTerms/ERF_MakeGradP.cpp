@@ -116,7 +116,8 @@ compute_gradp (const MultiFab& p,
 
         if (solverChoice.terrain_type != TerrainType::EB) {
 
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(tbx, tby, tbz,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 //Note : mx/my == 1, so no map factor needed here
                 Real gpx = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
@@ -146,9 +147,8 @@ compute_gradp (const MultiFab& p,
                     gpx -= gpx_metric;
                 }
                 gpx_arr(i,j,k) = gpx;
-            });
-
-            ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 //Note : mx/my == 1, so no map factor needed here
                 Real gpy = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
@@ -178,9 +178,8 @@ compute_gradp (const MultiFab& p,
                     gpy -= gpy_metric;
                 }
                 gpy_arr(i,j,k) = gpy;
-            });
-
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 Real met_h_zeta = (l_use_terrain_fitted_coords) ? Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd_arr) : 1;
                 gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) )  / met_h_zeta;
@@ -279,7 +278,8 @@ compute_gradp (const MultiFab& p,
 
                 // Simple calculation: assuming pressures at cell centers
 
-                ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                ParallelFor(tbx, tby, tbz,
+                [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (u_volfrac(i,j,k) > 0.0) {
                         if (!cellflg(i-1,j,k).isCovered()) {
@@ -294,9 +294,8 @@ compute_gradp (const MultiFab& p,
                     } else {
                         gpx_arr(i,j,k) = 0.0;
                     }
-                });
-
-                ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                },
+                [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (v_volfrac(i,j,k) > 0.0) {
                         if (!cellflg(i,j-1,k).isCovered()) {
@@ -311,9 +310,8 @@ compute_gradp (const MultiFab& p,
                     } else {
                         gpy_arr(i,j,k) = 0.0;
                     }
-                });
-
-                ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                },
+                [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (w_volfrac(i,j,k) > 0.0) {
                         if (!cellflg(i,j,k-1).isCovered()) {

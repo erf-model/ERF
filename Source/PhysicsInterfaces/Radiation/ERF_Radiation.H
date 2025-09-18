@@ -241,7 +241,7 @@ private:
                                                     "sfc_alb_dif_vis", "sfc_alb_dif_nir"};
 
     // List of output parameter names
-    amrex::Vector<std::string> m_lsm_output_names = {"sw_flux_dn", "lw_flux_dn"};
+    amrex::Vector<std::string> m_lsm_output_names = {"cos_zenith_angle", "sw_flux_dn", "lw_flux_dn"};
 
     // T surf if no LSM is available
     amrex::Real m_rad_t_sfc = -1;
@@ -364,7 +364,6 @@ private:
     real1d_k o3_lay;
 
     // 1d size (ncol)
-    real1d_k cosine_zenith;
     real1d_k mu0;
     real1d_k sfc_alb_dir_vis;
     real1d_k sfc_alb_dir_nir;

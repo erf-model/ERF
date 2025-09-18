@@ -35,16 +35,16 @@ using namespace amrex;
  * @param[in] old_time old time for this time advance
  */
 
-void ERF::advance_dycore(int level,
-                         Vector<MultiFab>& state_old,
-                         Vector<MultiFab>& state_new,
-                         MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
-                         MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
-                         MultiFab&   cc_src, MultiFab& xmom_src,
-                         MultiFab& ymom_src, MultiFab& zmom_src,
-                         MultiFab& buoyancy,
-                         const Geometry fine_geom,
-                         const Real dt_advance, const Real old_time)
+void ERF::advance_dycore (int level,
+                          Vector<MultiFab>& state_old,
+                          Vector<MultiFab>& state_new,
+                          MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
+                          MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
+                          MultiFab&   cc_src, MultiFab& xmom_src,
+                          MultiFab& ymom_src, MultiFab& zmom_src,
+                          MultiFab& buoyancy,
+                          const Geometry fine_geom,
+                          const Real dt_advance, const Real old_time)
 {
     BL_PROFILE_VAR("erf_advance_dycore()",erf_advance_dycore);
 
@@ -221,7 +221,7 @@ void ERF::advance_dycore(int level,
     {
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
         const BCRec* bc_ptr_h = domain_bcs_type.data();
-        ComputeTurbulentViscosity(xvel_old, yvel_old,Tau[level],
+        ComputeTurbulentViscosity(dt_advance, xvel_old, yvel_old,Tau[level],
                                   state_old[IntVars::cons],
                                   *walldist[level].get(),
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
