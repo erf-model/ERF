@@ -1,3 +1,14 @@
-This problem setup is the evolution of a radiation, this case requires to build 
-ERF with moisture and radiation model. This case is used to test ERF moisture 
-and radiation physics.
+This problem setup tests the build of the radiation capability.
+
+To build with RRTMGP using gmake:
+
+   export ERF_DIR=/path/to/ERF
+   source /path/to/ERF/Build/GNU_Ekat/ekat_build_commands.sh
+
+(Note that this only needs to be done once after the clone of this repo.)
+
+Then type "make" here, after verifying that the GNUmakfile
+contains the lines
+
+   USE_RRTMGP = TRUE
+   USE_NETCDF = TRUE
