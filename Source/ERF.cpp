@@ -1833,6 +1833,9 @@ ERF::ReadParameters ()
     {
         ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
         pp.query("max_step", max_step);
+        if (max_step < 0) {
+            max_step = std::numeric_limits<int>::max();
+        }
 
         std::string start_datetime, stop_datetime;
         if (pp.query("start_datetime", start_datetime)) {

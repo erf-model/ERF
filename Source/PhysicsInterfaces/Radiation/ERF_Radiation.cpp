@@ -12,7 +12,8 @@
  * and modifications to the code, please refer to BSD-3-Clause Open Source License.
  */
 
-#include <ERF_Radiation.H>
+#include "ERF_NCInterface.H"
+#include "ERF_Radiation.H"
 
 using namespace amrex;
 
@@ -82,12 +83,6 @@ Radiation::Radiation (const int& lev,
     pp.query("rad_extra_clnclrsky_diag", m_extra_clnclrsky_diag);
     pp.query("rad_extra_clnsky_diag"   , m_extra_clnsky_diag);
 
-    // Parse the band and gauss pt sizes
-    pp.query("nswbands", m_nswbands);
-    pp.query("nlwbands", m_nlwbands);
-    pp.query("nswgpts" , m_nswgpts );
-    pp.query("nlwgpts" , m_nlwgpts );
-
     // Parse path and file names
     pp.query("rrtmgp_file_path"      , rrtmgp_file_path);
     pp.query("rrtmgp_coeffs_sw"      , rrtmgp_coeffs_sw  );
@@ -101,6 +96,24 @@ Radiation::Radiation (const int& lev,
     rrtmgp_cloud_optics_file_sw = rrtmgp_file_path + "/" + rrtmgp_cloud_optics_sw;
     rrtmgp_cloud_optics_file_lw = rrtmgp_file_path + "/" + rrtmgp_cloud_optics_lw;
 
+    // Get dimensions from lookup data
+    if (ParallelDescriptor::IOProcessor()) {
+        auto ncf_sw = ncutils::NCFile::open(rrtmgp_coeffs_file_sw, NC_CLOBBER | NC_NETCDF4);
+        m_nswbands = ncf_sw.dim("bnd").len();
+        m_nswgpts  = ncf_sw.dim("gpt").len();
+        ncf_sw.close();
+
+        auto ncf_lw = ncutils::NCFile::open(rrtmgp_coeffs_file_lw, NC_CLOBBER | NC_NETCDF4);
+        m_nlwbands = ncf_lw.dim("bnd").len();
+        m_nlwgpts  = ncf_lw.dim("gpt").len();
+        ncf_lw.close();
+    }
+    int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+    ParallelDescriptor::Bcast(&m_nswbands, 1, ioproc);
+    ParallelDescriptor::Bcast(&m_nlwbands, 1, ioproc);
+    ParallelDescriptor::Bcast(&m_nswgpts,  1, ioproc);
+    ParallelDescriptor::Bcast(&m_nlwgpts,  1, ioproc);
+
     // Output for user
     if (lev == 0) {
         Print() << "Radiation interface constructed:\n";
@@ -109,6 +122,10 @@ Radiation::Radiation (const int& lev,
         Print() << "Coeff LW file: " << rrtmgp_coeffs_file_lw << "\n";
         Print() << "Cloud SW file: " << rrtmgp_cloud_optics_file_sw << "\n";
         Print() << "Cloud LW file: " << rrtmgp_cloud_optics_file_lw << "\n";
+        Print() << "Number of short/longwave bands: "
+                << m_nswbands << " " << m_nlwbands << "\n";
+        Print() << "Number of short/longwave gauss points: "
+                << m_nswgpts  << " " << m_nlwgpts  << "\n";
         Print() << "========================================================\n";
     }
 }

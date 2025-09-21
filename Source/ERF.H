@@ -988,7 +988,7 @@ private:
     // runtime parameters
 
     // Maximum number of steps
-    int max_step = std::numeric_limits<int>::max();
+    int max_step = -1;
 
     // Start and stop times
     static amrex::Real start_time;
