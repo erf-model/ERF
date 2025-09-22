@@ -9,6 +9,7 @@
 
 void
 read_from_metgrid (int lev,
+                   int itime,
                    const amrex::Box& domain,
                    const std::string& fname,
                    std::string& NC_dateTime,
@@ -42,10 +43,11 @@ read_from_metgrid (int lev,
 
 void
 init_terrain_from_metgrid (amrex::FArrayBox& z_phys_nd_fab,
-                           const amrex::Vector<amrex::FArrayBox>& NC_hgt_fab);
+                           amrex::FArrayBox& NC_hgt_fab);
 
 void
 init_state_from_metgrid (const int lev,
+                         const int itime,
                          const bool use_moisture,
                          const bool interp_theta,
                          const bool metgrid_debug_quiescent,
@@ -67,13 +69,12 @@ init_state_from_metgrid (const int lev,
                          amrex::FArrayBox& y_vel_fab,
                          amrex::FArrayBox& z_vel_fab,
                          amrex::FArrayBox& z_phys_nd_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_hgt_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_ght_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_xvel_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_temp_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_rhum_fab,
-                         const amrex::Vector<amrex::FArrayBox>& NC_pres_fab,
+                         const amrex::FArrayBox& NC_ght_fab,
+                         const amrex::FArrayBox& NC_xvel_fab,
+                         const amrex::FArrayBox& NC_yvel_fab,
+                         const amrex::FArrayBox& NC_temp_fab,
+                         const amrex::FArrayBox& NC_rhum_fab,
+                         const amrex::FArrayBox& NC_pres_fab,
                          amrex::FArrayBox& p_interp_fab,
                          amrex::FArrayBox& t_interp_fab,
                          amrex::FArrayBox& theta_fab,
@@ -92,16 +93,16 @@ init_msfs_from_metgrid (const bool metgrid_debug_msf,
                         amrex::FArrayBox& msfv_fab,
                         amrex::FArrayBox& msfm_fab,
                         const int& flag_msf,
-                        const amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab,
-                        const amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
-                        const amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab);
+                        amrex::FArrayBox& NC_MSFU_fab,
+                        amrex::FArrayBox& NC_MSFV_fab,
+                        amrex::FArrayBox& NC_MSFM_fab);
 
 void
 init_base_state_from_metgrid (const bool use_moisture,
                               const bool metgrid_debug_psfc,
                               const amrex::Real l_rdOcp,
                               const amrex::Box& valid_bx,
-                              const amrex::Vector<int>& flag_psfc,
+                              const int& flag_psfc,
                               amrex::FArrayBox& state,
                               amrex::FArrayBox& r_hse_fab,
                               amrex::FArrayBox& p_hse_fab,
@@ -109,7 +110,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               amrex::FArrayBox& th_hse_fab,
                               amrex::FArrayBox& qv_hse_fab,
                               amrex::FArrayBox& z_phys_cc_fab,
-                              const amrex::Vector<amrex::FArrayBox>& NC_psfc_fab);
+                              const amrex::FArrayBox& NC_psfc_fab);
 
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
