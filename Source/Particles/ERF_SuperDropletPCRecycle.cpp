@@ -9,7 +9,7 @@ using namespace amrex;
  *  recycled by resetting them to dry aerosol particles and placing them randomly
  *  in the domain. */
 void SuperDropletPC::Recycle ( const int             a_lev,
-                               const Vector<MFPtr>&  /*a_z_phys_nd*/ )
+                               const Vector<MFPtr>&  a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletPC::Recycle()");
 
@@ -238,6 +238,27 @@ void SuperDropletPC::Recycle ( const int             a_lev,
     Print() << "    recycled " << np_recycle_total << " super-droplets.\n";
 
     Redistribute();
+
+    const MFPtr& z_height = a_z_phys_nd[a_lev];
+    const auto plo = Geom(m_lev).ProbLoArray();
+    const auto dxi = Geom(m_lev).InvCellSizeArray();
+    for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
+        int grid    = pti.index();
+        auto& ptile = ParticlesAt(a_lev, pti);
+        auto& aos  = ptile.GetArrayOfStructs();
+        const int n = aos.numParticles();
+        auto *p_pbox = aos().data();
+        auto zheight = (*z_height)[grid].array();
+
+        ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
+        {
+            ParticleType& p = p_pbox[i];
+            if (p.id() <= 0) { return; }
+            update_location_idata(p,plo,dxi,zheight);
+
+        });
+        Gpu::synchronize();
+    }
 }
 
 #endif
