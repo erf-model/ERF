@@ -208,7 +208,7 @@ Radiation::alloc_buffers ()
     gas_names_offset.clear(); gas_names_offset.resize(m_ngas);
     std::string* gas_names_offset_p = gas_names_offset.data();
     Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, m_ngas),
-                         KOKKOS_LAMBDA (int igas)
+                         [&] (int igas)
     {
         m_gas_mol_weights_h(igas) = mol_weight_gas_p[igas];
         gas_names_offset_p[igas]  = gas_names_p[igas];
@@ -223,7 +223,7 @@ Radiation::alloc_buffers ()
     o3_lay = real1d_k("o3_lay", m_o3_size);
     realHost1d_k o3_lay_h("o3_lay_h", m_o3_size);
     Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, m_o3_size),
-                         KOKKOS_LAMBDA (int io3)
+                         [&] (int io3)
     {
         o3_lay_h(io3) = o3vmr_p[io3];
     });
@@ -1007,7 +1007,6 @@ Radiation::run_impl ()
     orbital_params(orbital_year, eccen, obliq,
                    mvelp, obliqr, lambm0, mvelpp);
 
-
     // Use the orbital parameters to calculate the solar declination and eccentricity factor
     double delta, eccf;
     // Want day + fraction; calday 1 == Jan 1 0Z
@@ -1039,7 +1038,7 @@ Radiation::run_impl ()
             Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
                                  KOKKOS_LAMBDA (int icol, int ilay)
             {
-                tmp2d_d(icol,ilay) = qv_lay_d(icol,ilay) * mwdair/ gas_mol_weight;
+                tmp2d_d(icol,ilay) = qv_lay_d(icol,ilay) * mwdair/gas_mol_weight;
             });
         } else if (name == "CO2") {
             Kokkos::deep_copy(tmp2d, m_co2vmr);
@@ -1083,7 +1082,7 @@ Radiation::run_impl ()
         double dt  = double(m_dt);
         auto rad_freq_in_steps = m_rad_freq_in_steps;
         Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, ncol),
-                             KOKKOS_LAMBDA (int icol)
+                             [&] (int icol)
         {
             // Convert lat/lon to radians
             double lat_col = h_lat(icol)*PI/180.0;
@@ -1115,7 +1114,6 @@ Radiation::run_impl ()
                                                  sfc_alb_dir_vis, sfc_alb_dir_nir,
                                                  sfc_alb_dif_vis, sfc_alb_dif_nir,
                                                  sfc_alb_dir    , sfc_alb_dif);
-
     // Run RRTMGP driver
     rrtmgp::rrtmgp_main(ncol, m_nlay,
                         p_lay, t_lay,

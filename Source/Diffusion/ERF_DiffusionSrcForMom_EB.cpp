@@ -57,6 +57,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                     const eb_& ebfact,
                    [[maybe_unused]] const BCRec* d_bcrec_ptr)
 {
+#if 0
     BL_PROFILE_VAR("DiffusionSrcForMom_EB()",DiffusionSrcForMom_EB);
 
     DiffChoice dc = solverChoice.diffChoice;
@@ -356,5 +357,5 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
             }
         }
     });
-
+#endif
 }
