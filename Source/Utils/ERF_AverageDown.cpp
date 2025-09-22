@@ -91,7 +91,10 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                            BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
     }
 
-    if (SolverChoice::terrain_type == TerrainType::EB) {
+    if (SolverChoice::terrain_type != TerrainType::EB) {
+        average_down(vars_new[crse_lev+1][Vars::cons],vars_new[crse_lev  ][Vars::cons],
+                    scomp, ncomp, refRatio(crse_lev));
+    } else {
         const auto dx = geom[fine_lev].CellSize();
         const Real cell_vol = dx[0]*dx[1]*dx[2];
         const BoxArray& ba = vars_new[fine_lev][IntVars::cons].boxArray();
@@ -101,12 +104,8 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         EB_average_down(vars_new[fine_lev][Vars::cons],vars_new[crse_lev][Vars::cons],
                     *detJ_cc[fine_lev], vol_fine,
                     scomp, ncomp, refRatio(crse_lev));
-    } else {
-        average_down(vars_new[crse_lev+1][Vars::cons],vars_new[crse_lev  ][Vars::cons],
-                    scomp, ncomp, refRatio(crse_lev));
     }
     
-
     if (interpolation_type == StateInterpType::Perturbational) {
         // Restore the fine data to what it was
         MultiFab::Add(vars_new[fine_lev][Vars::cons],base_state[fine_lev],
@@ -152,6 +151,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
     } // lev
 
     // Fill EB covered cells by old values
+    // (This won't be needed because EB_average_down copyies the covered value.)
     if (SolverChoice::terrain_type == TerrainType::EB) {
         for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
             for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -164,11 +164,10 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                     if (detJ_arr(i,j,k) == 0.0) {
                         cons_new(i,j,k,scomp+n) = cons_old(i,j,k,scomp+n);
                     }
-                });                
+                });          
             } // mfi
         } // lev
     }
-
 
     // ******************************************************************************************
     // Now average down momenta.
@@ -208,79 +207,16 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                             domain_bcs_type,
                             &c_vfrac, &u_vfrac, &v_vfrac, &w_vfrac);
         }
-
     }
 
-    // Multiply momenta by EB volume fraction
-    if (SolverChoice::terrain_type == TerrainType::EB) {
-        for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
-            for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                Box bx = mfi.tilebox();
-                const Box& tbx = surroundingNodes(bx,0);
-                const Box& tby = surroundingNodes(bx,1);
-                const Box& tbz = surroundingNodes(bx,2);
-
-                Array4<Real> const& momx = rU_new[lev].array(mfi);
-                Array4<Real> const& momy = rV_new[lev].array(mfi);
-                Array4<Real> const& momz = rW_new[lev].array(mfi);
-
-                Array4<const Real> u_vfrac_arr = (get_eb(lev).get_u_const_factory())->getVolFrac().const_array(mfi);
-                Array4<const Real> v_vfrac_arr = (get_eb(lev).get_v_const_factory())->getVolFrac().const_array(mfi);
-                Array4<const Real> w_vfrac_arr = (get_eb(lev).get_w_const_factory())->getVolFrac().const_array(mfi);
-                
-                ParallelFor(tbx, tby, tbz,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momx(i,j,k) *= u_vfrac_arr(i,j,k);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momy(i,j,k) *= v_vfrac_arr(i,j,k);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    momz(i,j,k) *= w_vfrac_arr(i,j,k);
-                });
-            } // mfi            
-        } // lev
-    }
-
-    average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-    average_down_faces(rV_new[crse_lev+1], rV_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-    average_down_faces(rW_new[crse_lev+1], rW_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-
-    // Divide momenta by EB volume fraction
-    if (SolverChoice::terrain_type == TerrainType::EB) {
-        for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
-            for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                Box bx = mfi.tilebox();
-                const Box& tbx = surroundingNodes(bx,0);
-                const Box& tby = surroundingNodes(bx,1);
-                const Box& tbz = surroundingNodes(bx,2);
-
-                Array4<Real> const& momx = rU_new[lev].array(mfi);
-                Array4<Real> const& momy = rV_new[lev].array(mfi);
-                Array4<Real> const& momz = rW_new[lev].array(mfi);
-
-                Array4<const Real> u_vfrac_arr = (get_eb(lev).get_u_const_factory())->getVolFrac().const_array(mfi);
-                Array4<const Real> v_vfrac_arr = (get_eb(lev).get_v_const_factory())->getVolFrac().const_array(mfi);
-                Array4<const Real> w_vfrac_arr = (get_eb(lev).get_w_const_factory())->getVolFrac().const_array(mfi);
-                
-                ParallelFor(tbx, tby, tbz,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (u_vfrac_arr(i,j,k) > 0.0) {
-                        momx(i,j,k) /= u_vfrac_arr(i,j,k);
-                    }
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (v_vfrac_arr(i,j,k) > 0.0) {
-                        momy(i,j,k) /= v_vfrac_arr(i,j,k);
-                    }
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    if (w_vfrac_arr(i,j,k) > 0.0) {
-                        momz(i,j,k) /= w_vfrac_arr(i,j,k);
-                    }
-                });               
-            } // mfi
-        } // lev
+    if (SolverChoice::terrain_type != TerrainType::EB) {
+        average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+        average_down_faces(rV_new[crse_lev+1], rV_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+        average_down_faces(rW_new[crse_lev+1], rW_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+    } else {
+        EB_average_down_faces({&rU_new[crse_lev+1], &rV_new[crse_lev+1], &rW_new[crse_lev+1]},
+                            {&rU_new[crse_lev], &rV_new[crse_lev], &rW_new[crse_lev]},
+                            refRatio(crse_lev), 0);
     }
 
     for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
@@ -309,7 +245,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                                 rW_new[lev],
                             Geom(lev).Domain(),
                             domain_bcs_type,
-                            &c_vfrac, &u_vfrac, &v_vfrac, &w_vfrac);           
+                            &c_vfrac, &u_vfrac, &v_vfrac, &w_vfrac);
         }
     }
 }
