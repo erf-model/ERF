@@ -138,6 +138,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 if (sampled_multiplicity) {
                     init_r.getAerosolDistribution( aerosol_mass_h,
                                                    multiplicity_h,
+                                                   cell_volume,
                                                    i,
                                                    np,
                                                    m_aerosol_mat[i]->m_density,
