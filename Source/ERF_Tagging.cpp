@@ -27,19 +27,13 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
 
 #ifdef ERF_USE_NETCDF
-    if ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) {
+    if (solverChoice.init_type == InitType::WRFInput) {
         int ratio;
         Box subdomain;
         if (!nc_init_file[levc+1].empty()) {
-            if (solverChoice.init_type == InitType::WRFInput) {
-                amrex::Print() << "WRFIinput file to read: " << nc_init_file[levc+1][0] << std::endl;
-                subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][0], ratio);
-                amrex::Print() << " WRFInput subdomain at level " << levc+1 << " is " << subdomain << std::endl;
-            } else if (solverChoice.init_type == InitType::Metgrid) {
-                amrex::Print() << "met_em file to read: " << nc_init_file[levc+1][0] << std::endl;
-                subdomain = read_subdomain_from_metgrid(levc, nc_init_file[levc+1][0], ratio);
-                amrex::Print() << " met_em subdomain at level " << levc+1 << " is " << subdomain << std::endl;
-            }
+            amrex::Print() << "WRFIinput file to read: " << nc_init_file[levc+1][0] << std::endl;
+            subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][0], ratio);
+            amrex::Print() << " WRFInput subdomain at level " << levc+1 << " is " << subdomain << std::endl;
         }
 
         if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
@@ -48,11 +42,6 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             amrex::Abort("These must be the same -- please edit your inputs file and try again.");
         }
 
-<<<<<<< HEAD
-        if (solverChoice.init_type == InitType::WRFInput) {
-            if ( (ref_ratio[levc][2]) != 1) {
-                amrex::Abort("The ref_ratio specified in the inputs file must have 1 in the z direction; please use ref_ratio_vect rather than ref_ratio");
-=======
         if ( (ref_ratio[levc][2]) != 1) {
             amrex::Abort("The ref_ratio specified in the inputs file must have 1 in the z direction; please use ref_ratio_vect rather than ref_ratio");
         }
@@ -86,16 +75,33 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
                     tag_arr(i,j,k) = TagBox::SET;
                 });
->>>>>>> 1a669445 (WIP cleaned up the multilevel metgrid pathway to take advantage of existing code in the wrfinput pathway. Adjusted assertions to reflect different expectations for level 0 and deeper levels.)
             }
-            subdomain.coarsen(IntVect(ratio,ratio,1));
-        } else if (solverChoice.init_type == InitType::Metgrid) {
-            subdomain.coarsen(ref_ratio[levc]);
         }
+        return;
+    } else if (solverChoice.init_type == InitType::Metgrid) {
+        int ratio;
+        Box subdomain;
+        if (!nc_init_file[levc+1].empty()) {
+            amrex::Print() << "met_em file to read: " << nc_init_file[levc+1][0] << std::endl;
+            subdomain = read_subdomain_from_metgrid(levc, nc_init_file[levc+1][0], ratio);
+            amrex::Print() << " met_em subdomain at level " << levc+1 << " is " << subdomain << std::endl;
+        }
+
+        if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
+            amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
+            amrex::Print() << "The inputs file has refinement ratio = " << ref_ratio[levc] << std::endl;
+            amrex::Abort("These must be the same -- please edit your inputs file and try again.");
+        }
+
+        subdomain.coarsen(ref_ratio[levc]);
 
         // We assume there is only one subdomain at levc; otherwise we don't know
         //     which one is the parent of the fine region we are trying to create
         AMREX_ALWAYS_ASSERT(subdomains[levc].size() == 1);
+
+        // We assume there is only one box in the first subdomain at levc; otherwise we don't know
+        //    how to compute the offset
+        AMREX_ALWAYS_ASSERT(subdomains[levc][0].size() == 1);
 
         Box coarser_level(subdomains[levc][0].minimalBox());
         subdomain.shift(coarser_level.smallEnd());
@@ -104,12 +110,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             amrex::Print() << " Crse subdomain to be tagged is" << subdomain << std::endl;
         }
 
-        Box new_fine(subdomain);
-        if (solverChoice.init_type == InitType::WRFInput) {
-            new_fine.refine(IntVect(ratio,ratio,1));
-        } else if (solverChoice.init_type == InitType::Metgrid) {
-            new_fine.refine(ref_ratio[levc]);
-        }
+        Box new_fine(subdomain); new_fine.refine(ref_ratio[levc]);
         num_boxes_at_level[levc+1] = 1;
         boxes_at_level[levc+1].push_back(new_fine);
 
