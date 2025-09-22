@@ -363,7 +363,7 @@ struct LineSampler
 
                 // We can stop if we got the entire line
                 auto min_bnd_bx = m_ls_mf[iline].boxArray().minimalBox();
-                if (bnd_bx == min_bnd_bx) { continue; }
+                if (bnd_bx == min_bnd_bx) { break; }
 
             } // ilev
         }// iline
@@ -619,7 +619,7 @@ struct PlaneSampler
                 // We can stop if we got the entire plane
                 auto min_bnd_bx   = m_ps_mf[iplane]->boxArray().minimalBox();
                 amrex::Box bnd_bx = getIndexBox(bnd_rbx, geom[ilev]);
-                if (bnd_bx == min_bnd_bx) { continue; }
+                if (bnd_bx == min_bnd_bx) { break; }
 
             } // ilev
         }// iplane
