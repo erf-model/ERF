@@ -9,6 +9,16 @@ else
 BL_NO_FORT = TRUE
 endif
 
+ifeq ($(USE_CUDA), TRUE)
+    DEFINES += -DERF_USE_CUDA
+endif
+ifeq ($(USE_HIP), TRUE)
+    DEFINES += -DERF_USE_HIP
+endif
+ifeq ($(USE_SYCL), TRUE)
+    DEFINES += -DERF_USE_SYCL
+endif
+
 USE_EB = TRUE
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs
@@ -281,10 +291,7 @@ ifeq ($(USE_SHOC), TRUE)
     SHOC_HOME = $(EAMXX_HOME)/physics/shoc
     VPATH_LOCATIONS   += $(SHOC_HOME)/disp
     VPATH_LOCATIONS   += $(SHOC_HOME)/eti
-    VPATH_LOCATIONS   += $(SHOC_HOME)/impl
     INCLUDE_LOCATIONS += $(SHOC_HOME)
-    INCLUDE_LOCATIONS += $(SHOC_HOME)/disp
-    INCLUDE_LOCATIONS += $(SHOC_HOME)/eti
     INCLUDE_LOCATIONS += $(SHOC_HOME)/impl
 
     # Other things we get from eamxx
@@ -376,7 +383,7 @@ ifeq ($(USE_KOKKOS), TRUE)
   DEFINES   += -DERF_USE_KOKKOS
   INCLUDE_LOCATIONS += $(EKAT_HOME)/include/kokkos
   LIBRARY_LOCATIONS += $(EKAT_HOME)/lib
-  LIBRARIES += -lkokkoscore
+  LIBRARIES += -lkokkoscore -ldl
 endif
 
 # Turn on NetCDF macro define

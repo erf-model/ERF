@@ -18,6 +18,7 @@ struct ProbParm : ProbParmDefaults {
   // hill parameters
   amrex::Real hmax = 0.0;   // full hill height, can be negative to simulate valleys
   amrex::Real L = 0.0;      // hill length at half-height
+  amrex::Real z_offset = 0.0;  // shift in height
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
