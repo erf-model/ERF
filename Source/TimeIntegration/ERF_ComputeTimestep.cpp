@@ -229,14 +229,14 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      TurbChoice tc = solverChoice.turbChoice[level];
      MultiFab nu(grids[level],dmap[level],1,0);
      if ( (tc.les_type == LESType::None) ||
-          (dc.pbl_type == PBLType::None) ) {
+          (tc.pbl_type == PBLType::None) ) {
 
          MultiFab::Copy(nu, *eddyDiffs_lev[level], EddyDiff::Mom_v, 0, 1, 0);
          MultiFab::Divide(nu, S_new, Rho_comp, 0, 1, 0);
      } else {
          nu.setVal(dc.dynamic_viscosity / dc.rho0_trans);
      }
-     estdt_diff = ReduceMax(nu, *z_phys_nd[level], 0,
+     Real estdt_diff = ReduceMax(nu, *z_phys_nd[level], 0,
          [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                     Array4<Real const> const& visc,
                                     Array4<Real const> const& z_nd) -> Real
