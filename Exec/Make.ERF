@@ -9,6 +9,16 @@ else
 BL_NO_FORT = TRUE
 endif
 
+ifeq ($(USE_CUDA), TRUE)
+    DEFINES += -DERF_USE_CUDA
+endif
+ifeq ($(USE_HIP), TRUE)
+    DEFINES += -DERF_USE_HIP
+endif
+ifeq ($(USE_SYCL), TRUE)
+    DEFINES += -DERF_USE_SYCL
+endif
+
 USE_EB = TRUE
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs
