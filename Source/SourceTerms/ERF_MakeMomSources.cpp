@@ -54,6 +54,7 @@ void make_mom_sources (Real time,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
+                       const Vector<MultiFab>* forecast_state_at_lev,
                              InputSoundingData& input_sounding_data,
                              bool is_slow_step)
 {
@@ -306,11 +307,37 @@ void make_mom_sources (Real time,
         const Array4<const Real>& z_nd_arr =  z_phys_nd.const_array(mfi);
         const Array4<const Real>& z_cc_arr =  z_phys_cc.const_array(mfi);
 
+
         // *****************************************************************************
         // 1. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis && is_slow_step) {
-            if (var_coriolis && has_lat_lon) {
+            if(solverChoice.init_type == InitType::HindCast) {
+                const Array4<const Real>& latlon_arr = (*forecast_state_at_lev)[4].array(mfi);
+                ParallelFor(tbx, tby, tbz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
+                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
+                    Real latitude = latlon_arr(i,j,k,0);
+                    Real sphi_loc = std::sin(latitude*PI/180.0);
+                    Real cphi_loc = std::cos(latitude*PI/180.0);
+                    xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sphi_loc - rho_w_loc * cphi_loc);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
+                    Real latitude = latlon_arr(i,j,k,0);
+                    Real sphi_loc = std::sin(latitude*PI/180.0);
+                    ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sphi_loc;
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
+                    Real latitude = latlon_arr(i,j,k,0);
+                    Real cphi_loc = std::cos(latitude*PI/180.0);
+                    zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cphi_loc;
+                });
+            }
+            else if (var_coriolis && has_lat_lon) {
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
@@ -592,6 +619,19 @@ void make_mom_sources (Real time,
                 ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
                                         xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w,
                                         r0, z_nd_arr, z_cc_arr);
+            }
+
+            if(solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_lateral_forcing){
+
+                const Array4<const Real>& rho_u_forecast_state  = (*forecast_state_at_lev)[IntVars::xmom].array(mfi);
+                const Array4<const Real>& rho_v_forecast_state  = (*forecast_state_at_lev)[IntVars::ymom].array(mfi);
+                const Array4<const Real>& rho_w_forecast_state  = (*forecast_state_at_lev)[IntVars::zmom].array(mfi);
+                const Array4<const Real>& cons_forecast_state   = (*forecast_state_at_lev)[IntVars::cons].array(mfi);
+                ApplyBndryForcing_Forecast(solverChoice, geom, tbx, tby, tbz, z_nd_arr,
+                                           xmom_src_arr, ymom_src_arr, zmom_src_arr,
+                                           rho_u, rho_v, rho_w,
+                                           rho_u_forecast_state, rho_v_forecast_state, rho_w_forecast_state,
+                                           cons_forecast_state);
             }
         }
 

@@ -40,7 +40,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     Real oma   = 1.0 - alpha;
 
     int n_time_p1 = n_time + 1;
-    if ((time == stop_time) && (alpha==0)) {
+    if ((time == stop_time-start_time) && (alpha==0)) {
         // stop time coincides with final bdy snapshot -- don't try to read in
         // another snapshot
         n_time_p1 = n_time;
@@ -272,7 +272,7 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
     Real oma   = 1.0 - alpha;
 
     int n_time_p1 = n_time + 1;
-    if ((time == stop_time) && (alpha==0)) {
+    if ((time == stop_time-start_time) && (alpha==0)) {
         // stop time coincides with final bdy snapshot -- don't try to read in
         // another snapshot
         n_time_p1 = n_time;

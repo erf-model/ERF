@@ -1,25 +1,11 @@
-1) In ERF,make sure to first do "git submodule --init --recursive" to make sure you 
-checkout the ekat repo, and all the repos included from ekat.
 
-2) You will need to build and install the kokkos library which is inside Submodules/ekat.
+To build with SHOC using gmake:
 
-From Submodules/ekat/extern/kokkos, type
+   export ERF_DIR=/path/to/ERF
+   source /path/to/ERF/Build/GNU_Ekat/eamxx_clone.sh
+   source /path/to/ERF/Build/GNU_Ekat/ekat_build_commands.sh
 
-mkdir build
-cd build
-cmake ../  -DCMAKE_CXX_COMPILER=g++ -DKokkos_ROOT=../install
+Then type "make" here in ERF/Exec/DevTests/Shoc, after verifying that the GNUmakfile
+contains the line 
 
-3) Somewhere other than in ERF, let's call it WORK_DIR, type
-
-git clone git@github.com:E3SM-Project/E3SM.git
-
-4) In ERF/external, type
-
-ln -s WORK_DIR/E3SM/components/eamxx/src/physics/shoc/  shoc
-
-5) In ERF/Exec/DevTests/Shoc, type
-
-make
-
-
-
+   USE_SHOC = TRUE

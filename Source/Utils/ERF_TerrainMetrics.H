@@ -664,18 +664,19 @@ rotate_stress_tensor (const int& i,
     amrex::Array2D<amrex::Real,0,2,0,2> R_mat;
 
     // Metric data
-    amrex::Real h_xi  = Compute_h_xi_AtIface(i, j, klo, dxInv, zphys_arr);
-    amrex::Real h_eta = Compute_h_eta_AtIface(i, j, klo, dxInv, zphys_arr);
+    amrex::Real h_xi   = Compute_h_xi_AtIface(i, j, klo, dxInv, zphys_arr);
+    amrex::Real h_eta  = Compute_h_eta_AtIface(i, j, klo, dxInv, zphys_arr);
+    amrex::Real h_zeta = Compute_h_zeta_AtIface(i, j, klo, dxInv, zphys_arr);
 
     // Populate the normal vector
     amrex::Real Inormn = 1./std::sqrt(1.0 + h_xi*h_xi + h_eta*h_eta);
-    n_hat(0) = -Inormn*h_xi; n_hat(1) = -Inormn*h_eta; n_hat(2) = Inormn;
+    n_hat(0) = Inormn*h_xi; n_hat(1) = Inormn*h_eta; n_hat(2) = -Inormn;
 
     // Populate the tangent vectors
     amrex::Real Inorm1 = 1./std::sqrt(1.0 + h_xi*h_xi);
     amrex::Real Inorm2 = 1./std::sqrt(1.0 + h_eta*h_eta);
-    t_hat_1(0) = Inorm1;      t_hat_2(1) = Inorm2;
-    t_hat_1(2) = Inorm1*h_xi; t_hat_2(2) = Inorm2*h_eta;
+    t_hat_1(0) = -Inorm1;      t_hat_2(1) = -Inorm2;
+    t_hat_1(2) = -Inorm1*h_xi; t_hat_2(2) = -Inorm2*h_eta;
 
     // Populate the u_t vector
     amrex::Real Norm_u_t = 0.0;
@@ -692,7 +693,7 @@ rotate_stress_tensor (const int& i,
     // Populate the a_hat vector
     a_hat(0) =   n_hat(1)*u_t_hat(2) - n_hat(2)*u_t_hat(1);
     a_hat(1) = -(n_hat(0)*u_t_hat(2) - n_hat(2)*u_t_hat(0));
-    a_hat(2) =   n_hat(1)*u_t_hat(1) - n_hat(1)*u_t_hat(0);
+    a_hat(2) =   n_hat(0)*u_t_hat(1) - n_hat(1)*u_t_hat(0);
 
     // Copy column vectors into R_mat
     int jrow;
@@ -709,18 +710,26 @@ rotate_stress_tensor (const int& i,
         R_mat(icol,jrow) = n_hat(icol);
     }
 
-    // Assign the stresses
-    tau11_arr(i,j,klo) = 2.0*R_mat(0,0)*R_mat(2,0)*flux;
-    tau22_arr(i,j,klo) = 2.0*R_mat(0,1)*R_mat(2,1)*flux;
-    tau33_arr(i,j,klo) = 2.0*R_mat(0,2)*R_mat(2,2)*flux;
+    // Body-fixed tau
+    amrex::Real T11    = 2.0*R_mat(0,0)*R_mat(2,0)*flux;
+    amrex::Real T22    = 2.0*R_mat(0,1)*R_mat(2,1)*flux;
+    amrex::Real T33    = 2.0*R_mat(0,2)*R_mat(2,2)*flux;
+    amrex::Real T12    = (R_mat(0,0)*R_mat(2,1) + R_mat(2,0)*R_mat(0,1))*flux;
+    amrex::Real T13    = (R_mat(0,0)*R_mat(2,2) + R_mat(0,2)*R_mat(2,0))*flux;
+    amrex::Real T23    = (R_mat(0,1)*R_mat(2,2) + R_mat(0,2)*R_mat(2,1))*flux;
 
-    tau12_arr(i,j,klo) = (R_mat(0,0)*R_mat(2,1) + R_mat(2,0)*R_mat(0,1))*flux;
-    tau21_arr(i,j,klo) = tau12_arr(i,j,klo);
+    // Rotated stress fluxes
+    tau11_arr(i,j,klo) = h_zeta*T11;
+    tau22_arr(i,j,klo) = h_zeta*T22;
+    tau33_arr(i,j,klo) = -h_xi*T13 - h_eta*T23 + T33;
 
-    tau13_arr(i,j,klo) = (R_mat(0,0)*R_mat(2,2) + R_mat(0,2)*R_mat(2,0))*flux;
-    tau31_arr(i,j,klo) = tau13_arr(i,j,klo);
+    tau12_arr(i,j,klo) = h_zeta*T12;
+    tau21_arr(i,j,klo) = tau21_arr(i,j,klo);
 
-    tau23_arr(i,j,klo) = (R_mat(0,1)*R_mat(2,2) + R_mat(0,2)*R_mat(2,1))*flux;
-    tau32_arr(i,j,klo) = tau23_arr(i,j,klo);
+    tau13_arr(i,j,klo) = -h_xi*T11 - h_eta*T12 + T13;
+    tau31_arr(i,j,klo) = h_zeta*T13;
+
+    tau23_arr(i,j,klo) = -h_xi*T12 - h_eta*T22 + T23;
+    tau32_arr(i,j,klo) = h_zeta*T23;
 }
 #endif

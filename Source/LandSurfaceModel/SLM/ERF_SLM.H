@@ -100,7 +100,7 @@ public:
 
     // Get variable names
     std::string
-    Lsm_VarName (const int& varIdx) override
+    Lsm_DataName (const int& varIdx) override
     {
         int lsmIdx = LsmVarMap[varIdx];
         AMREX_ALWAYS_ASSERT(lsmIdx < SLM::m_lsm_size && lsmIdx>=0);

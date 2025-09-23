@@ -231,7 +231,9 @@ public:
                                    amrex::MultiFab* Lwave,
                                    amrex::MultiFab* eddyDiffs,
                                    amrex::Vector<amrex::MultiFab*> lsm_data,
+                                   amrex::Vector<std::string>      lsm_data_name,
                                    amrex::Vector<amrex::MultiFab*> lsm_flux,
+                                   amrex::Vector<std::string>      lsm_flux_name,
                                    amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_lev,
                                    amrex::Vector<std::unique_ptr<amrex::MultiFab>>& tsk_lev,
                                    amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev)
@@ -308,11 +310,22 @@ public:
       m_eddyDiffs_lev[lev] = eddyDiffs;
 
       // Get pointers to LSM data and Fluxes
-      int nvar = static_cast<int>(lsm_data.size());
-      m_lsm_data_lev[lev].resize(nvar);
-      m_lsm_flux_lev[lev].resize(nvar);
-      for (int n(0); n < nvar; ++n) {
+      int ndata = static_cast<int>(lsm_data.size());
+      int nflux = static_cast<int>(lsm_flux.size());
+      m_lsm_data_name.resize(ndata);
+      m_lsm_data_lev[lev].resize(ndata);
+      m_lsm_flux_name.resize(nflux);
+      m_lsm_flux_lev[lev].resize(nflux);
+      for (int n(0); n < ndata; ++n) {
+          m_lsm_data_name[n]     = lsm_data_name[n];
           m_lsm_data_lev[lev][n] = lsm_data[n];
+          if (amrex::toLower(lsm_data_name[n]) == "theta") {
+              m_has_lsm_tsurf  = true;
+              m_lsm_tsurf_indx = n;
+          }
+      }
+      for (int n(0); n < nflux; ++n) {
+          m_lsm_flux_name[n]     = lsm_flux_name[n];
           m_lsm_flux_lev[lev][n] = lsm_flux[n];
       }
 
@@ -372,9 +385,8 @@ public:
       q_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, dm, ncomp, ng);
       q_surf[lev]->setVal(default_land_surf_moist);
 
-      // TODO: Do we want lsm_data to have theta at 0 index always?
-      //       Do we want an external enum struct for indexing?
-      if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_lsm_data_lev[lev][0]) {
+      // TODO: Do we want an enum struct for indexing?
+      if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_has_lsm_tsurf) {
           // Valid SST, TSK or LSM data; t_surf set before computing fluxes (avoids
           // extended lambda capture) Note that land temp will be set from m_tsk_lev
           //      while sea temp will be set from m_sst_lev
@@ -579,6 +591,8 @@ private:
   bool m_var_z0{false};
 
   bool use_moisture;
+  bool m_has_lsm_tsurf  = false;
+  int  m_lsm_tsurf_indx = -1;
 
   MOSTAverage m_ma;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
@@ -595,6 +609,8 @@ private:
   amrex::Vector<amrex::Vector<amrex::iMultiFab*>> m_lmask_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_data_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_flux_lev;
+  amrex::Vector<std::string> m_lsm_data_name;
+  amrex::Vector<std::string> m_lsm_flux_name;
   amrex::Vector<amrex::MultiFab*> m_Hwave_lev;
   amrex::Vector<amrex::MultiFab*> m_Lwave_lev;
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;

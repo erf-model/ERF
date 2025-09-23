@@ -802,9 +802,9 @@ tslist output from WRF but output is provided only from the finest domain that c
 the entire requested sampling line; velocities are also destaggered.
 
 The sampled variables can be selected with the ``erf.line_sampling_vars`` option and
-includes a subset of the plotfile outputs: "x_velocity", "y_velocity", "z_velocity",
-"magvel", "theta", "qv", and "pressure". Velocities are output at cell centers only. The
-water vapor mixing ratio "qv" will only output valid values if a moisture model is used.
+includes a subset of the plotfile outputs: "density", "x_velocity", "y_velocity", "z_velocity",
+"magvel", "theta", "qv", "qc", and "pressure". Velocities are output at cell centers only.
+The water vapor mixing ratio "qv" will only output valid values if a moisture model is used.
 Pressure is calculated from rho*theta and will account for moisture if qv is requested.
 
 .. _list-of-parameters-10b:
@@ -915,14 +915,29 @@ List of Parameters
 |                                  | for scalars        |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 
-The allowed advection types for the dycore variables are
-"Centered_2nd", "Upwind_3rd", "Blended_3rd4th", "Centered_4th", "Upwind_5th", "Blended_5th6th",
-and "Centered_6th".
+The allowed advection types for the dycore variables are:
 
-The allowed advection types for the dry and moist scalars are
-"Centered_2nd", "Upwind_3rd", "Blended_3rd4th", "Centered_4th", "Upwind_5th", "Blended_5th6th",
-"Centered_6th" and in addition,
-"WENO3", "WENOZ3", "WENOMZQ3", "WENO5", "WENOZ5", "WENO7", and "WENOZ7."
+* From WRF:
+  "Centered_2nd",
+  "Upwind_3rd",
+  "Centered_4th",
+  "Upwind_5th", and
+  "Centered_6th"
+* Blended schemes:
+  "Blended_3rd4th" and
+  "Blended_5th6th"
+* WENO-JS schemes:
+  "WENO3"
+  "WENO5", and
+  "WENO7"
+* WENO-Z schemes:
+  "WENOZ3"
+  "WENOZ5", and
+  "WENOZ7"
+
+In addition to the above advection schemes for dycore variables, dry and moist
+scalars also have the option of using "Upwind_3rd_SL" (slope-limited) and
+"WENOMZQ3."
 
 To use the blended schemes, ``erf.[vartype]_[horiz|vert]_upw_frac`` for the corresponding
 ``erf.[vartype]_[horiz|vert]_adv_type`` should be set to a scalar between 0 and 1, where 1 is fully
@@ -1640,6 +1655,14 @@ see **ERF/Build/cmake_with_radiation.sh**.
 
 If building with gmake, set ``USE_RRTMGP = TRUE`` and ``USE_NETCDF = TRUE`` in the GNUmakefile.
 
+Notes
+-----------------
+
+-  | A rule of thumb for the radiation update frequency is 1 min per km of grid spacing (e.g., every 10 min on a 10-km grid)
+
+-  | For idealized studies, constant latitude/longitude may be specified through **erf.rad_cons_lat**
+   | and **erf.rad_cons_lon**.
+
 List of Parameters
 ------------------
 
@@ -1655,17 +1678,9 @@ List of Parameters
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.rad_cons_lon**           | Constant longitude       |  Real              |    -98.5                          |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.nswbands**               | Number sw bands          |  int               |    14                             |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.nlwbands**               | Number lw bands          |  int               |    16                             |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.nswgpts**                | Number sw gauss pts      |  int               |    112                            |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.nlwgpts**                | Number lw gaiss pts      |  int               |    128                            |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.co2vmr**                 | CO2 volume mixing ratio  |  Real              | 388.717e-6                        |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.o3 vmr**                 | O3 volume mixing ratio   |  Real              |   1.887e-7                        |
+| **erf.o3vmr**                  | O3 volume mixing ratio   |  Real              |   1.887e-7                        |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.n2ovmr**                 | N2O volume mixing ratio  |  Real              | 323.141e-9                        |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
@@ -1681,12 +1696,14 @@ List of Parameters
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.rrtmgp_coeffs_sw**       | path to NC files         |  String            | rrtmgp-data-sw-g224-2018-12-04.nc |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.rrtmgp_coeffs_lw**       | path to NC files         |  String            | rrtmgp-data-lw-g224-2018-12-04.nc |
+| **erf.rrtmgp_coeffs_lw**       | path to NC files         |  String            | rrtmgp-data-lw-g256-2018-12-04.nc |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.rrtmgp_cloud_optics_sw** | path to NC files         |  String            | rrtmgp-cloud-optics-coeffs-sw.nc  |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.rrtmgp_cloud_optics_lw** | path to NC files         |  String            | rrtmgp-cloud-optics-coeffs-lw.nc  |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
+
+The lookup data may be downloaded as a package from `here <https://doi.org/10.22002/ppv8a-4q131>`_.
 
 Runtime Error Checking
 ======================
