@@ -183,6 +183,15 @@ ERF::ERF_shared ()
     initializeWindFarm(nlevs_max);
 #endif
 
+#ifdef ERF_USE_SHOC
+    shoc_interface.resize(nlevs_max);
+    if (solverChoice.use_shoc) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            shoc_interface[lev] = std::make_unique<SHOCInterface>(lev, solverChoice);
+        }
+    }
+#endif
+
     rad.resize(nlevs_max);
     for (int lev = 0; lev <= max_level; ++lev) {
         if (solverChoice.rad_type == RadiationType::RRTMGP) {
@@ -1677,9 +1686,6 @@ ERF::restart ()
 {
     ReadCheckpointFile();
 
-    // We set this here so that we don't over-write the checkpoint file we just started from
-    last_check_file_step = istep[0];
-
     if (regrid_level_0_on_restart) {
         //
         // Coarsening before we split the grids ensures that each resulting
@@ -1709,6 +1715,19 @@ ERF::restart ()
     // We call this here without knowing whether the particles have already been initialized or not
     initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,t_new[0]);
 #endif
+
+    Real cur_time = t_new[0];
+    if (m_check_per    > 0.) {last_check_file_time    = cur_time;}
+    if (m_plot2d_per_1 > 0.) {last_plot2d_file_time_1 = std::floor(cur_time/m_plot2d_per_1) * m_plot2d_per_1;}
+    if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 = std::floor(cur_time/m_plot2d_per_2) * m_plot2d_per_2;}
+    if (m_plot3d_per_1 > 0.) {last_plot3d_file_time_1 = std::floor(cur_time/m_plot3d_per_1) * m_plot3d_per_1;}
+    if (m_plot3d_per_2 > 0.) {last_plot3d_file_time_2 = std::floor(cur_time/m_plot3d_per_2) * m_plot3d_per_2;}
+
+    if (m_check_int    > 0.) {last_check_file_step    = istep[0];}
+    if (m_plot2d_int_1 > 0.) {last_plot2d_file_step_1 = istep[0];}
+    if (m_plot2d_int_2 > 0.) {last_plot2d_file_step_2 = istep[0];}
+    if (m_plot3d_int_1 > 0.) {last_plot3d_file_step_1 = istep[0];}
+    if (m_plot3d_int_2 > 0.) {last_plot3d_file_step_2 = istep[0];}
 }
 
 // This is called only if starting from scratch (from ERF::MakeNewLevelFromScratch)
