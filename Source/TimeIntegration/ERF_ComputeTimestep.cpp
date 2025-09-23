@@ -79,6 +79,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
     Real estdt_comp_inv;
 
+    //================================================
+    // Advection Operator
+    //================================================
     if (solverChoice.terrain_type == TerrainType::EB)
     {
         const eb_& eb_lev = get_eb(level);
@@ -218,8 +221,31 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
        });
 
      ParallelDescriptor::ReduceRealMax(estdt_lowM_inv);
-     if (estdt_lowM_inv > 0.0_rt)
-         estdt_lowM = cfl / estdt_lowM_inv;
+     if (estdt_lowM_inv > 0.0_rt) { estdt_lowM = cfl / estdt_lowM_inv; }
+
+     //================================================
+     // Diffusion Operator
+     //================================================
+     MultiFab nu(grids[level],dmap[level],1,0);
+     MultiFab::Copy(nu, *eddyDiffs_lev[level], EddyDiff::Mom_v, 0, 1, 0);
+     MultiFab::Divide(nu, S_new, Rho_comp, 0, 1, 0);
+     estdt_diff = ReduceMax(nu, *z_phys_nd[level], 0,
+         [=] AMREX_GPU_HOST_DEVICE (Box const& b,
+                                    Array4<Real const> const& visc,
+                                    Array4<Real const> const& z_nd) -> Real
+         {
+             Real new_visc_dt = -1.e100;
+             amrex::Loop(b, [=,&new_visc_dt] (int i, int j, int k) noexcept
+             {
+                 Real dz = 0.25 * ( z_nd(i  ,j  ,k) - z_nd(i  ,j  ,k+1)
+                                  + z_nd(i+1,j  ,k) - z_nd(i+1,j  ,k+1)
+                                  + z_nd(i  ,j+1,k) - z_nd(i  ,j+1,k+1)
+                                  + z_nd(i+1,j+1,k) - z_nd(i+1,j+1,k+1) );
+                 Real dt = 0.5 * dz * dz / (amrex::Math::abs(visc(i,j,k)) + 1.0e-15);
+                 new_visc_dt = amrex::max(dt, new_visc_dt);
+             });
+             return new_visc_dt;
+         });
 
      if (verbose) {
          if (fixed_dt[level] <= 0.0) {
@@ -246,6 +272,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                  Print() << "Fixed fast dt at level " << level << "       is:  " << fixed_fast_dt[level] << std::endl;
              }
          }
+
+         Print() << "Viscous dt at level " << level << ":  " << estdt_diff << std::endl;
      }
 
      if (solverChoice.substepping_type[level] != SubsteppingType::None) {
