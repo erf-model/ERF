@@ -72,10 +72,8 @@ public:
     set_grids (int& level,
                const amrex::BoxArray& ba,
                amrex::Geometry& geom,
-               amrex::MultiFab* cons_in,
-               amrex::MultiFab* z_phys,
-               amrex::MultiFab* lat,
-               amrex::MultiFab* lon);
+               amrex::MultiFab* cons,
+               amrex::MultiFab* z_phys);
 
     // Initialize the implementation
     void
@@ -556,7 +554,7 @@ protected:
     amrex::BoxArray m_ba;
 
     // Pointer to the CC conserved vars
-    amrex::MultiFab* m_cons_in = nullptr;
+    amrex::MultiFab* m_cons = nullptr;
 
     // Pointer to the terrain heights
     amrex::MultiFab* m_z_phys = nullptr;
