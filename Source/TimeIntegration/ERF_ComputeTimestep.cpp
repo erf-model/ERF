@@ -226,6 +226,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      //================================================
      // Diffusion Operator
      //================================================
+     DiffChoice dc = solverChoice.diffChoice;
      TurbChoice tc = solverChoice.turbChoice[level];
      MultiFab nu(grids[level],dmap[level],1,0);
      if ( (tc.les_type == LESType::None) ||
