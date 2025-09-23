@@ -372,8 +372,10 @@ public:
                                   amrex::MultiFab& xvel_in,
                                   amrex::MultiFab& yvel_in,
                                   amrex::MultiFab& zvel_in,
-                                  amrex::MultiFab& source,    amrex::MultiFab& xmom_src,
-                                  amrex::MultiFab& ymom_src,  amrex::MultiFab& zmom_src,
+                                  amrex::MultiFab& source,
+                                  amrex::MultiFab& xmom_src,
+                                  amrex::MultiFab& ymom_src,
+                                  amrex::MultiFab& zmom_src,
                                   const amrex::Real& dt_advance);
 #endif
 
@@ -986,7 +988,7 @@ private:
     // runtime parameters
 
     // Maximum number of steps
-    int max_step = std::numeric_limits<int>::max();
+    int max_step = -1;
 
     // Start and stop times
     static amrex::Real start_time;

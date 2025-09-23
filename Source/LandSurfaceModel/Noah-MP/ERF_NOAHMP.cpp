@@ -25,10 +25,11 @@ NOAHMP::Init (const int& lev,
     khi_lsm    = domain.smallEnd(2) - 1;
 
     LsmDataMap.resize(m_lsm_data_size);
-    LsmDataMap = {LsmData_NOAHMP::t_sfc          , LsmData_NOAHMP::sfc_emis       ,
-                  LsmData_NOAHMP::sfc_alb_dir_vis, LsmData_NOAHMP::sfc_alb_dir_nir,
-                  LsmData_NOAHMP::sfc_alb_dif_vis, LsmData_NOAHMP::sfc_alb_dif_nir,
-                  LsmData_NOAHMP::sw_flux_dn     , LsmData_NOAHMP::lw_flux_dn     };
+    LsmDataMap = {LsmData_NOAHMP::t_sfc           , LsmData_NOAHMP::sfc_emis       ,
+                  LsmData_NOAHMP::sfc_alb_dir_vis , LsmData_NOAHMP::sfc_alb_dir_nir,
+                  LsmData_NOAHMP::sfc_alb_dif_vis , LsmData_NOAHMP::sfc_alb_dif_nir,
+                  LsmData_NOAHMP::cos_zenith_angle, LsmData_NOAHMP::sw_flux_dn     ,
+                  LsmData_NOAHMP::lw_flux_dn                                        };
     LsmDataName.resize(m_lsm_data_size);
     LsmDataName = {"t_sfc"          , "sfc_emis"         ,
                    "sfc_alb_dir_vis" , "sfc_alb_dir_nir" ,
@@ -236,6 +237,7 @@ NOAHMP::Advance_With_State (const int& lev,
             // Into NOAH-MP
             const Array4<const Real>& SWDOWN = lsm_fab_data[LsmData_NOAHMP::sw_flux_dn]->const_array(mfi);
             const Array4<const Real>& GLW    = lsm_fab_data[LsmData_NOAHMP::lw_flux_dn]->const_array(mfi);
+            const Array4<const Real>& COSZEN = lsm_fab_data[LsmData_NOAHMP::cos_zenith_angle]->const_array(mfi);
 
             // Out of NOAH-MP
             Array4<Real> TSK           = lsm_fab_data[LsmData_NOAHMP::t_sfc]->array(mfi);
@@ -260,6 +262,7 @@ NOAHMP::Advance_With_State (const int& lev,
                 noahmpio->QV_CURR(i,1,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
                 noahmpio->SWDOWN(i,j)    = SWDOWN(i,j,0);
                 noahmpio->GLW(i,j)       = GLW(i,j,0);
+                noahmpio->COSZEN(i,j)    = COSZEN(i,j,0);
             });
 
             // Call the noahmpio driver code. This runs the land model forcing for
