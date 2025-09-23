@@ -81,7 +81,7 @@ MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
 
             ParallelFor(tbx, tby, tbz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                if (u_vfrac_arr(i,j,k) > 0.0) {
+                if (c_vfrac_arr(i,j,k) > 0.0 || c_vfrac_arr(i-1,j,k) > 0.0) {
                     Real rho = (c_vfrac_arr(i,j,k) * dens_arr(i,j,k,Rho_comp) 
                             + c_vfrac_arr(i-1,j,k) * dens_arr(i-1,j,k,Rho_comp)) 
                             / (c_vfrac_arr(i,j,k) + c_vfrac_arr(i-1,j,k));
@@ -89,7 +89,7 @@ MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                if (v_vfrac_arr(i,j,k) > 0.0) {
+                if (c_vfrac_arr(i,j,k) > 0.0 || c_vfrac_arr(i,j-1,k) > 0.0) {
                     Real rho = (c_vfrac_arr(i,j,k) * dens_arr(i,j,k,Rho_comp) 
                             + c_vfrac_arr(i,j-1,k) * dens_arr(i,j-1,k,Rho_comp)) 
                             / (c_vfrac_arr(i,j,k) + c_vfrac_arr(i,j-1,k));
@@ -97,7 +97,7 @@ MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                if (w_vfrac_arr(i,j,k) > 0.0) {
+                if (c_vfrac_arr(i,j,k) > 0.0 || c_vfrac_arr(i,j,k-1) > 0.0) {
                     Real rho = (c_vfrac_arr(i,j,k) * dens_arr(i,j,k,Rho_comp) 
                             + c_vfrac_arr(i,j,k-1) * dens_arr(i,j,k-1,Rho_comp)) 
                             / (c_vfrac_arr(i,j,k) + c_vfrac_arr(i,j,k-1));
