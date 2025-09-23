@@ -1655,6 +1655,14 @@ see **ERF/Build/cmake_with_radiation.sh**.
 
 If building with gmake, set ``USE_RRTMGP = TRUE`` and ``USE_NETCDF = TRUE`` in the GNUmakefile.
 
+Notes
+-----------------
+
+-  | A rule of thumb for the radiation update frequency is 1 min per km of grid spacing (e.g., every 10 min on a 10-km grid)
+
+-  | For idealized studies, constant latitude/longitude may be specified through **erf.rad_cons_lat**
+   | and **erf.rad_cons_lon**.
+
 List of Parameters
 ------------------
 
@@ -1670,17 +1678,9 @@ List of Parameters
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.rad_cons_lon**           | Constant longitude       |  Real              |    -98.5                          |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.nswbands**               | Number sw bands          |  int               |    14                             |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.nlwbands**               | Number lw bands          |  int               |    16                             |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.nswgpts**                | Number sw gauss pts      |  int               |    112                            |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.nlwgpts**                | Number lw gaiss pts      |  int               |    128                            |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.co2vmr**                 | CO2 volume mixing ratio  |  Real              | 388.717e-6                        |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.o3 vmr**                 | O3 volume mixing ratio   |  Real              |   1.887e-7                        |
+| **erf.o3vmr**                  | O3 volume mixing ratio   |  Real              |   1.887e-7                        |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.n2ovmr**                 | N2O volume mixing ratio  |  Real              | 323.141e-9                        |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
@@ -1696,12 +1696,14 @@ List of Parameters
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.rrtmgp_coeffs_sw**       | path to NC files         |  String            | rrtmgp-data-sw-g224-2018-12-04.nc |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.rrtmgp_coeffs_lw**       | path to NC files         |  String            | rrtmgp-data-lw-g224-2018-12-04.nc |
+| **erf.rrtmgp_coeffs_lw**       | path to NC files         |  String            | rrtmgp-data-lw-g256-2018-12-04.nc |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.rrtmgp_cloud_optics_sw** | path to NC files         |  String            | rrtmgp-cloud-optics-coeffs-sw.nc  |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.rrtmgp_cloud_optics_lw** | path to NC files         |  String            | rrtmgp-cloud-optics-coeffs-lw.nc  |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
+
+The lookup data may be downloaded as a package from `here <https://doi.org/10.22002/ppv8a-4q131>`_.
 
 Runtime Error Checking
 ======================

@@ -822,11 +822,8 @@ ERF::InitData_pre ()
     }
 
     if (restart_chkfile.empty()) {
-
         // Start simulation from the beginning
-        const Real time = start_time;
-        InitFromScratch(time);
-
+        InitFromScratch(0.0);
     } else {
         // For initialization this is done in init_only; it is done here for restart
         init_bcs();
@@ -1858,6 +1855,9 @@ ERF::ReadParameters ()
     {
         ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
         pp.query("max_step", max_step);
+        if (max_step < 0) {
+            max_step = std::numeric_limits<int>::max();
+        }
 
         std::string start_datetime, stop_datetime;
         if (pp.query("start_datetime", start_datetime)) {

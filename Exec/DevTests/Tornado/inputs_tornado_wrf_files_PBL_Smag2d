@@ -1,5 +1,5 @@
 #stop_time = 36000.
-max_step = 10
+max_step = 10000
 
 amrex.fpe_trap_invalid = 0
 
@@ -23,8 +23,12 @@ erf.most.zref = 10.0
 #zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
+erf.substepping_type = "Implicit"
+erf.fixed_dt = 8.0
+erf.fixed_mri_dt_ratio = 4
+
 # TIME STEP CONTROL
-erf.fixed_dt           = 1.0  # fixed time step depending on grid resolution
+#erf.fixed_dt           = 2.0  # fixed time step depending on grid resolution
     
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -41,7 +45,7 @@ erf.check_int       = 1000   # number of timesteps between checkpoints
 # PLOTFILES
 erf.plotfile_type   = amrex  # prefix of plotfile name
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 1000    # number of timesteps between plotfiles
+erf.plot_int_1      = 100    # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoQ1 x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys qt qp qv qc qgraup qrain qsnow vorticity_x vorticity_y vorticity_z reflectivity max_reflectivity
 
 # SOLVER CHOICE
@@ -49,7 +53,11 @@ erf.use_gravity = true
 erf.terrain_type = StaticFittedMesh
 erf.moisture_model = "Morrison"
 
-#erf.pbl_type = "MYNN25"
+erf.pbl_type = "MYNN25"
+erf.pbl_type         = MYJ
+prob.KE_0            = 0.4
+prob.KE_decay_height = 500.
+prob.KE_decay_order  = 3
 
 erf.les_type = "Smagorinsky2D"
 erf.Cs = 0.02
@@ -62,11 +70,10 @@ erf.mix_isotropic = false
 #erf.Ce_wall   = 3.9  # To account for "wall effects"
 #erf.theta_ref = 300.0 # don't specify for variable theta when diagnosing stability
 
-
-#erf.molec_diff_type  = "Constant"
-#erf.dynamic_viscosity = 5.0
-#erf.alpha_T = 5.0
-#erf.alpha_C = 5.0
+erf.molec_diff_type  = "Constant"
+erf.dynamic_viscosity = 5.0
+erf.alpha_T = 5.0
+erf.alpha_C = 5.0
 
 erf.use_coriolis = true
 erf.coriolis_3d  = true
@@ -75,7 +82,6 @@ erf.latitude = 99.3826
 # PROBLEM PARAMETERS (optional)
 prob.rho_0 = 1.0
 prob.T_0 = 300.0
-prob.KE_0  = 0.1
 
 # INITIALIZATION WITH ATM DATA
 erf.use_real_bcs = true

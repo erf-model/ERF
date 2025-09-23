@@ -12,6 +12,9 @@
 
 #include "ekat_subview_utils.hpp"
 #include "ekat_parameter_list.hpp"
+#include "ekat_assert.hpp"
+#include "ekat_team_policy_utils.hpp"
+#include "ekat_reduction_utils.hpp"
 
 using Real=amrex::Real;
 using  Int=int;
@@ -581,6 +584,11 @@ protected:
     // WSM for internal local variables
     ekat::WorkspaceManager<Spack, KT::Device> workspace_mgr;
 
+    // Runtime options
+    //=======================================================
+    bool apply_tms = false;
+    bool check_flux_state = false;
+
     // SHOCPreprocess data structures
     //=======================================================
     view_1d  phis;
@@ -662,6 +670,23 @@ protected:
 
     // SHOC Miscellaneous data structures
     //=======================================================
-
+    // Small kernels
+    view_1d se_b;
+    view_1d ke_b;
+    view_1d wv_b;
+    view_1d wl_b;
+    view_1d se_a;
+    view_1d ke_a;
+    view_1d wv_a;
+    view_1d wl_a;
+    view_1d kbfs;
+    view_1d ustar2;
+    view_1d wstar;
+    view_1d surf_drag_coeff_tms;
+    view_2d rho_zt;
+    view_2d shoc_qv;
+    view_2d tabs;
+    view_2d dz_zt;
+    view_2d dz_zi;
 }; // SHOCInterface
 #endif
