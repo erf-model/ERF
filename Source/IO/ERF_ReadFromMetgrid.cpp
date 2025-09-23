@@ -156,10 +156,10 @@ read_from_metgrid (int lev, int itime,
     Vector<int> success; success.resize(NC_fabs.size());
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs, success);
     for (int i = 0; i < success.size(); i++) {
-        flag_psfc = (NC_fnames[i] == "PSFC"     && success[i] == 1) ? 1 : 0;
-        flag_sst  = (NC_fnames[i] == "SST"      && success[i] == 1) ? 1 : 0;
-        flag_tsk  = (NC_fnames[i] == "SKINTEMP" && success[i] == 1) ? 1 : 0;
-        flag_msf  = (NC_fnames[i] == "MAPFAC_M" && success[i] == 1) ? 1 : 0;
+        if (NC_fnames[i] == "PSFC"     && success[i] == 1) {flag_psfc = 1;}
+        if (NC_fnames[i] == "SST"      && success[i] == 1) {flag_sst = 1;}
+        if (NC_fnames[i] == "SKINTEMP" && success[i] == 1) {flag_tsk = 1;}
+        if (NC_fnames[i] == "MAPFAC_M" && success[i] == 1) {flag_msf = 1;}
     }
 
     // Read the netcdf file and fill these IABs
@@ -169,7 +169,7 @@ read_from_metgrid (int lev, int itime,
     Vector<int> success_i; success_i.resize(NC_iabs.size());
     BuildFABsFromNetCDFFile<IArrayBox,int>(domain, fname, NC_inames, NC_idim_types, NC_iabs, success_i);
     for (int i = 0; i < success_i.size(); i++) {
-        flag_lmask = (NC_inames[i] == "LANDMASK" && success[i] == 1) ? 1 : 0;
+        if (NC_inames[i] == "LANDMASK" && success[i] == 1) {flag_lmask = 1;}
     }
 
 #ifndef AMREX_USE_GPU
