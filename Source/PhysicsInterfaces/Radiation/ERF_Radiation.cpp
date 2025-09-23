@@ -257,7 +257,6 @@ Radiation::alloc_buffers ()
     cldfrac_tot   = real2d_k("cldfrac_tot"  , m_ncol, m_nlay);
     eff_radius_qc = real2d_k("eff_radius_qc", m_ncol, m_nlay);
     eff_radius_qi = real2d_k("eff_radius_qi", m_ncol, m_nlay);
-    tmp2d         = real2d_k("tmp2d"        , m_ncol, m_nlay);
     lwp           = real2d_k("lwp"          , m_ncol, m_nlay);
     iwp           = real2d_k("iwp"          , m_ncol, m_nlay);
     sw_heating    = real2d_k("sw_heating"   , m_ncol, m_nlay);
@@ -359,7 +358,6 @@ Radiation::dealloc_buffers ()
     cldfrac_tot       = real2d_k();
     eff_radius_qc     = real2d_k();
     eff_radius_qi     = real2d_k();
-    tmp2d             = real2d_k();
     lwp               = real2d_k();
     iwp               = real2d_k();
     sw_heating        = real2d_k();
@@ -1030,7 +1028,7 @@ Radiation::run_impl ()
     // O3 may be a constant or a 1D vector
     // All other comps are set to constants for now
     for (int igas(0); igas < m_ngas; ++igas) {
-        auto tmp2d_d = tmp2d;
+        auto tmp2d = Kokkos::View<RealT**,layout_t,KokkosDefaultMem>("tmp2d", ncol, nlay);
         auto name = m_gas_names[igas];
         auto gas_mol_weight = m_mol_weight_gas[igas];
         if (name == "H2O") {
@@ -1038,7 +1036,7 @@ Radiation::run_impl ()
             Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
                                  KOKKOS_LAMBDA (int icol, int ilay)
             {
-                tmp2d_d(icol,ilay) = qv_lay_d(icol,ilay) * mwdair/gas_mol_weight;
+                tmp2d(icol,ilay) = qv_lay_d(icol,ilay) * mwdair/gas_mol_weight;
             });
         } else if (name == "CO2") {
             Kokkos::deep_copy(tmp2d, m_co2vmr);
@@ -1050,7 +1048,7 @@ Radiation::run_impl ()
                 Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
                                      KOKKOS_LAMBDA (int icol, int ilay)
                 {
-                    tmp2d_d(icol,ilay) = o3_lay_d(ilay);
+                    tmp2d(icol,ilay) = o3_lay_d(ilay);
                 });
             }
         } else if (name == "N2O") {
@@ -1069,6 +1067,7 @@ Radiation::run_impl ()
 
         // Populate GasConcs object
         m_gas_concs.set_vmr(name, tmp2d);
+        Kokkos::fence();
     }
 
     // Populate mu0 1D array
