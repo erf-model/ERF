@@ -53,10 +53,7 @@ void MomentumToVelocity (amrex::MultiFab& xvel_out,
                          const amrex::MultiFab& zmom_in,
                          const amrex::Box& domain,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
-                         const amrex::MultiFab* c_vfrac = nullptr, // optional
-                         const amrex::MultiFab* u_vfrac = nullptr, // optional
-                         const amrex::MultiFab* v_vfrac = nullptr, // optional
-                         const amrex::MultiFab* w_vfrac = nullptr  // optional
+                         const amrex::MultiFab* c_vfrac = nullptr // optional
                         );
 
 /*
@@ -74,10 +71,7 @@ void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          amrex::MultiFab& zmom_out,
                          const amrex::Box& domain,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
-                         const amrex::MultiFab* c_vfrac = nullptr, // optional
-                         const amrex::MultiFab* u_vfrac = nullptr, // optional
-                         const amrex::MultiFab* v_vfrac = nullptr, // optional
-                         const amrex::MultiFab* w_vfrac = nullptr  // optional
+                         const amrex::MultiFab* c_vfrac = nullptr // optional
                         );
 
 /*

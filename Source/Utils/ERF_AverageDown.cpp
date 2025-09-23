@@ -192,9 +192,6 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                             domain_bcs_type);
         } else {
             const MultiFab& c_vfrac = (get_eb(lev).get_const_factory())->getVolFrac();
-            const MultiFab& u_vfrac = (get_eb(lev).get_u_const_factory())->getVolFrac();
-            const MultiFab& v_vfrac = (get_eb(lev).get_v_const_factory())->getVolFrac();
-            const MultiFab& w_vfrac = (get_eb(lev).get_w_const_factory())->getVolFrac();
 
             VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect(0,0,0),
                             vars_new[lev][Vars::yvel], IntVect(0,0,0),
@@ -205,7 +202,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                                 rW_new[lev],
                             Geom(lev).Domain(),
                             domain_bcs_type,
-                            &c_vfrac, &u_vfrac, &v_vfrac, &w_vfrac);
+                            &c_vfrac);
         }
     }
 
@@ -232,9 +229,6 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                             domain_bcs_type);
         } else {
             const MultiFab& c_vfrac = (get_eb(lev).get_const_factory())->getVolFrac();
-            const MultiFab& u_vfrac = (get_eb(lev).get_u_const_factory())->getVolFrac();
-            const MultiFab& v_vfrac = (get_eb(lev).get_v_const_factory())->getVolFrac();
-            const MultiFab& w_vfrac = (get_eb(lev).get_w_const_factory())->getVolFrac();
 
             MomentumToVelocity(vars_new[lev][Vars::xvel],
                             vars_new[lev][Vars::yvel],
@@ -245,7 +239,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                                 rW_new[lev],
                             Geom(lev).Domain(),
                             domain_bcs_type,
-                            &c_vfrac, &u_vfrac, &v_vfrac, &w_vfrac);
+                            &c_vfrac);
         }
     }
 }

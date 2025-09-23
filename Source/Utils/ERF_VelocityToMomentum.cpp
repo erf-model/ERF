@@ -38,10 +38,7 @@ void VelocityToMomentum (const MultiFab& xvel_in,
                          MultiFab& xmom, MultiFab& ymom, MultiFab& zmom,
                          const Box& domain,
                          const Vector<BCRec>& domain_bcs_type_h,
-                         const MultiFab* c_vfrac, // optional
-                         const MultiFab* u_vfrac, // optional
-                         const MultiFab* v_vfrac, // optional
-                         const MultiFab* w_vfrac // optional
+                         const MultiFab* c_vfrac // optional
 ) {
     BL_PROFILE_VAR("VelocityToMomentum()",VelocityToMomentum);
 
@@ -80,7 +77,7 @@ void VelocityToMomentum (const MultiFab& xvel_in,
 
         // ********************************************************************************************
 
-        if (c_vfrac==nullptr && u_vfrac == nullptr && v_vfrac == nullptr && w_vfrac == nullptr) {
+        if (c_vfrac==nullptr) {
             ParallelFor(tbx, tby, tbz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 momx(i,j,k) = velx(i,j,k) * 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
@@ -94,9 +91,6 @@ void VelocityToMomentum (const MultiFab& xvel_in,
         } else {
             // EB
             const Array4<const Real>& c_vfrac_arr = c_vfrac->const_array(mfi);
-            const Array4<const Real>& u_vfrac_arr = u_vfrac->const_array(mfi);
-            const Array4<const Real>& v_vfrac_arr = v_vfrac->const_array(mfi);
-            const Array4<const Real>& w_vfrac_arr = w_vfrac->const_array(mfi);
 
             ParallelFor(tbx, tby, tbz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {

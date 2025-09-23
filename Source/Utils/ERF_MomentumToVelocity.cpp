@@ -27,10 +27,7 @@ MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                     const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in,
                     const Box& domain,
                     const Vector<BCRec>& domain_bcs_type_h,
-                    const MultiFab* c_vfrac, // optional
-                    const MultiFab* u_vfrac, // optional
-                    const MultiFab* v_vfrac, // optional
-                    const MultiFab* w_vfrac // optional
+                    const MultiFab* c_vfrac // optional
 ) {
     BL_PROFILE_VAR("MomentumToVelocity()",MomentumToVelocity);
 
@@ -61,7 +58,7 @@ MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
         const Array4<Real>& vely = yvel.array(mfi);
         const Array4<Real>& velz = zvel.array(mfi);
 
-        if (c_vfrac==nullptr && u_vfrac == nullptr && v_vfrac == nullptr && w_vfrac == nullptr) {
+        if (c_vfrac==nullptr) {
             ParallelFor(tbx, tby, tbz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 velx(i,j,k) = momx(i,j,k) * 2.0 / (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
@@ -75,9 +72,6 @@ MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
         } else {
             // EB
             const Array4<const Real>& c_vfrac_arr = c_vfrac->const_array(mfi);
-            const Array4<const Real>& u_vfrac_arr = u_vfrac->const_array(mfi);
-            const Array4<const Real>& v_vfrac_arr = v_vfrac->const_array(mfi);
-            const Array4<const Real>& w_vfrac_arr = w_vfrac->const_array(mfi);
 
             ParallelFor(tbx, tby, tbz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
