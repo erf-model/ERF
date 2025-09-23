@@ -105,7 +105,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                     *detJ_cc[fine_lev], vol_fine,
                     scomp, ncomp, refRatio(crse_lev));
     }
-    
+
     if (interpolation_type == StateInterpType::Perturbational) {
         // Restore the fine data to what it was
         MultiFab::Add(vars_new[fine_lev][Vars::cons],base_state[fine_lev],
@@ -164,7 +164,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                     if (detJ_arr(i,j,k) == 0.0) {
                         cons_new(i,j,k,scomp+n) = cons_old(i,j,k,scomp+n);
                     }
-                });          
+                });
             } // mfi
         } // lev
     }
@@ -189,7 +189,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                                 rV_new[lev],
                                 rW_new[lev],
                             Geom(lev).Domain(),
-                            domain_bcs_type);            
+                            domain_bcs_type);
         } else {
             const MultiFab& c_vfrac = (get_eb(lev).get_const_factory())->getVolFrac();
             const MultiFab& u_vfrac = (get_eb(lev).get_u_const_factory())->getVolFrac();

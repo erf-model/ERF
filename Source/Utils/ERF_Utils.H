@@ -57,7 +57,7 @@ void MomentumToVelocity (amrex::MultiFab& xvel_out,
                          const amrex::MultiFab* u_vfrac = nullptr, // optional
                          const amrex::MultiFab* v_vfrac = nullptr, // optional
                          const amrex::MultiFab* w_vfrac = nullptr  // optional
-                        );                         
+                        );
 
 /*
  * Convert velocity to momentum by multiplying by density averaged onto faces

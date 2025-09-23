@@ -138,7 +138,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         // EB: Define the MultiFabs with the EBFactory
         lev_new[Vars::cons].define(ba, dm, ncomp, ngrow_state, MFInfo(), EBFactory(lev));
         lev_old[Vars::cons].define(ba, dm, ncomp, ngrow_state, MFInfo(), EBFactory(lev));
-    }       
+    }
     lev_new[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
     lev_old[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
 
@@ -180,7 +180,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels, MFInfo(), EBFactory(lev));
 
         rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels, MFInfo(), EBFactory(lev));
-        rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels, MFInfo(), EBFactory(lev));       
+        rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels, MFInfo(), EBFactory(lev));
     }
 
     if (lev > 0) {
