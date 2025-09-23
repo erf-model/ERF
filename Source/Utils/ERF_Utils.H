@@ -52,7 +52,9 @@ void MomentumToVelocity (amrex::MultiFab& xvel_out,
                          const amrex::MultiFab& ymom_in,
                          const amrex::MultiFab& zmom_in,
                          const amrex::Box& domain,
-                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
+                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
+                         const amrex::MultiFab* c_vfrac = nullptr // optional
+                        );
 
 /*
  * Convert velocity to momentum by multiplying by density averaged onto faces
@@ -68,7 +70,9 @@ void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          amrex::MultiFab& ymom_out,
                          amrex::MultiFab& zmom_out,
                          const amrex::Box& domain,
-                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
+                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
+                         const amrex::MultiFab* c_vfrac = nullptr // optional
+                        );
 
 /*
  * Convert (den_div u) to (den_mlt u) by multiplying by (den_mlt/den_div)

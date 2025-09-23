@@ -22,13 +22,13 @@ stages:
 ##############################################################################
 # UTILITIES
 
-.on_tioga:
+.on_tuolumne:
   tags:
     - shell
-    - tioga
+    - tuolumne
   rules:
     # Runs except if we explicitly deactivate this system
-    - if: '$ON_TIOGA == "OFF"'
+    - if: '$ON_TUOLUMNE == "OFF"'
       when: never
     # Test the default branch
     - if: $CI_COMMIT_BRANCH == $DEFAULT_BRANCH
@@ -47,8 +47,8 @@ stages:
     # Default is to allow jobs to run
     - when: on_success
 
-.job_on_tioga:
-  extends: .on_tioga
+.job_on_tuolumne:
+  extends: .on_tuolumne
   stage: jobs-stage-1
   variables:
     # Note: "flux" gets expanded to "flux run" inside build script
@@ -59,6 +59,9 @@ stages:
     - echo -e "### Allocation name is ${ALLOC_NAME}"
     - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
     - echo -e "### Job ID is ${JOBID}"
+    - export AMD_LOG_LEVEL=2
+    - export MPICH_GPU_SUPPORT_ENABLED=1
+    - export HSA_XNACK=1
     - flux proxy $( [[ -n "${JOBID}" ]] && echo "${JOBID}" ) flux run -N 1 -n 1 -c 16 -vv ${TEST_SCRIPT}
 
 ##############################################################################
@@ -86,19 +89,19 @@ is_machine_up:
 allocate_resources:
   variables:
     GIT_STRATEGY: none
-    ALLOC_TIME: 30
-  extends: .on_tioga
+    ALLOC_TIME: 60
+  extends: .on_tuolumne
   stage: allocate-resources
   script:
     - echo -e "Allocating resources for ${ALLOC_NAME} on the ${ALLOC_QUEUE} queue for ${ALLOC_TIME} minutes"
-    - flux alloc -N 1 -q ${ALLOC_QUEUE} -t=${ALLOC_TIME} --bg --exclusive --job-name=${ALLOC_NAME}
+    - flux alloc -N 1 -q ${ALLOC_QUEUE} -t=${ALLOC_TIME} --bg --exclusive --job-name=${ALLOC_NAME} --setattr=thp=always
 
 # Deallocate resources for build and test
 # Note: in the rules above this is always run
 release_resources:
   variables:
     GIT_STRATEGY: none
-  extends: .on_tioga
+  extends: .on_tuolumne
   stage: release-resources
   script:
     - echo -e "Deallocating resources for ${ALLOC_NAME}"
