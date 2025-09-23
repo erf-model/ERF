@@ -24,48 +24,47 @@ SHOCInterface::SHOCInterface (const int& lev,
     pp.get("coeff_km"        , runtime_options.Ckm           );
     pp.get("shoc_1p5tke"     , runtime_options.shoc_1p5tke   );
     pp.get("extra_shoc_diags", runtime_options.extra_diags   );
+
+    pp.get("apply_tms", apply_tms);
+    pp.get("check_flux_state", check_flux_state);
+
 }
 
 
 void
 ERF::compute_shoc_tendencies (int lev,
-                              amrex::MultiFab& cons_in,
-                              amrex::MultiFab& xvel_in,
-                              amrex::MultiFab& yvel_in,
-                              amrex::MultiFab& zvel_in,
-                              amrex::MultiFab& source,    amrex::MultiFab& xmom_src,
-                              amrex::MultiFab& ymom_src,  amrex::MultiFab& zmom_src,
-                              const amrex::Real& dt_advance)
+                              MultiFab& cons_in,
+                              MultiFab& xvel_in,
+                              MultiFab& yvel_in,
+                              MultiFab& zvel_in,
+                              MultiFab& source,
+                              MultiFab& xmom_src,
+                              MultiFab& ymom_src,
+                              MultiFab& zmom_src,
+                              const Real& dt_advance)
 {
-#ifdef ERF_USE_NETCDF
-    amrex::MultiFab *lat_ptr = lat_m[lev].get();
-    amrex::MultiFab *lon_ptr = lon_m[lev].get();
-#else
-    amrex::MultiFab *lat_ptr = nullptr;
-    amrex::MultiFab *lon_ptr = nullptr;
-#endif
-
-    amrex::Print() << "Advancing SHOC at level: " << lev << " ...";
+    Print() << "Advancing SHOC at level: " << lev << " ...";
 
     shoc_interface[lev]->set_grids(lev, cons_in.boxArray(), Geom(lev),
-                                   &cons_in, z_phys_nd[lev].get(), lat_ptr, lon_ptr);
+                                   &cons_in, z_phys_nd[lev].get(),
+                                   lat_m[lev].get(), lon_m[lev].get());
 
     shoc_interface[lev]->initialize_impl();
     shoc_interface[lev]->run_impl(dt_advance);
     shoc_interface[lev]->finalize_impl();
 
-    amrex::Print() << "Done advancing SHOC\n";
+    Print() << "DONE\n";
 }
 
 
 void
 SHOCInterface::set_grids (int& level,
-                          const amrex::BoxArray& ba,
-                          amrex::Geometry& geom,
-                          amrex::MultiFab* cons_in,
-                          amrex::MultiFab* z_phys,
-                          amrex::MultiFab* lat,
-                          amrex::MultiFab* lon)
+                          const BoxArray& ba,
+                          Geometry& geom,
+                          MultiFab* cons_in,
+                          MultiFab* z_phys,
+                          MultiFab* lat,
+                          MultiFab* lon)
 {
     // Set data members that may change
     m_lev            = level;
@@ -163,7 +162,7 @@ SHOCInterface::alloc_buffers ()
     sgs_buoy_flux = view_2d("sgs_buoy_flux", m_num_cols, m_num_layers);
     tk            = view_2d("eddy_diff_mom", m_num_cols, m_num_layers);
 
-    horiz_wind    = view_3d("horiz_wind"   , m_num_cols, m_num_layers, m_num_vel_comp);
+    horiz_wind    = view_3d("horiz_wind"   , m_num_cols, m_num_vel_comp, m_num_layers);
 
     // SHOC Output data structures
     //=======================================================
@@ -194,6 +193,25 @@ SHOCInterface::alloc_buffers ()
 
     // SHOC Miscellaneous data structures
     //=======================================================
+    // Small kernels
+    se_b   = view_1d("se_b"  , m_num_cols);
+    ke_b   = view_1d("ke_b"  , m_num_cols);
+    wv_b   = view_1d("wv_b"  , m_num_cols);
+    wl_b   = view_1d("wl_b"  , m_num_cols);
+    se_a   = view_1d("se_a"  , m_num_cols);
+    ke_a   = view_1d("ke_a"  , m_num_cols);
+    wv_a   = view_1d("wv_a"  , m_num_cols);
+    wl_a   = view_1d("wl_a"  , m_num_cols);
+    kbfs   = view_1d("kbfs"  , m_num_cols);
+    ustar2 = view_1d("ustar2", m_num_cols);
+    wstar  = view_1d("wstar" , m_num_cols);
+    if (apply_tms) { surf_drag_coeff_tms = view_1d("surf_drag_coeff"   , m_num_cols); }
+
+    rho_zt  = view_2d("rho_zt"  , m_num_cols, m_num_layers);
+    shoc_qv = view_2d("shoc_qv" , m_num_cols, m_num_layers);
+    tabs    = view_2d("tabs"    , m_num_cols, m_num_layers);
+    dz_zt   = view_2d("dz_zt"   , m_num_cols, m_num_layers);
+    dz_zi   = view_2d("dz_zi"   , m_num_cols, m_num_layers+1);
 }
 
 
@@ -283,6 +301,25 @@ SHOCInterface::dealloc_buffers ()
 
     // SHOC Miscellaneous data structures
     //=======================================================
+    // Small kernels
+    se_b   = view_1d();
+    ke_b   = view_1d();
+    wv_b   = view_1d();
+    wl_b   = view_1d();
+    se_a   = view_1d();
+    ke_a   = view_1d();
+    wv_a   = view_1d();
+    wl_a   = view_1d();
+    kbfs   = view_1d();
+    ustar2 = view_1d();
+    wstar  = view_1d();
+    surf_drag_coeff_tms = view_1d();
+
+    rho_zt  = view_2d();
+    shoc_qv = view_2d();
+    tabs    = view_2d();
+    dz_zt   = view_2d();
+    dz_zi   = view_2d();
 }
 
 
@@ -514,6 +551,24 @@ SHOCInterface::initialize_impl ()
     history_output.wqls_sec  = wqls_sec;
     history_output.brunt     = brunt;
 
+    // Shoc small kernels
+    temporaries.se_b    = se_b;
+    temporaries.ke_b    = ke_b;
+    temporaries.wv_b    = wv_b;
+    temporaries.wl_b    = wl_b;
+    temporaries.se_a    = se_a;
+    temporaries.ke_a    = ke_a;
+    temporaries.wv_a    = wv_a;
+    temporaries.wl_a    = wl_a;
+    temporaries.kbfs    = kbfs;
+    temporaries.ustar2  = ustar2;
+    temporaries.wstar   = wstar;
+    temporaries.rho_zt  = rho_zt;
+    temporaries.shoc_qv = shoc_qv;
+    temporaries.tabs    = tabs;
+    temporaries.dz_zt   = dz_zt;
+    temporaries.dz_zi   = dz_zi;
+
     // Set postprocess variables
     shoc_postprocess.set_variables(m_num_cols, m_num_layers,
                                    rrho, qv, qw, qc, qc_copy, tke,
@@ -521,341 +576,96 @@ SHOCInterface::initialize_impl ()
                                    cldfrac_liq, inv_qc_relvar,
                                    T_mid, dse, z_mid, phis);
 
-#if 0
-  // Gather runtime options
-  runtime_options.lambda_low    = m_params.get<double>("lambda_low");
-  runtime_options.lambda_high   = m_params.get<double>("lambda_high");
-  runtime_options.lambda_slope  = m_params.get<double>("lambda_slope");
-  runtime_options.lambda_thresh = m_params.get<double>("lambda_thresh");
-  runtime_options.thl2tune      = m_params.get<double>("thl2tune");
-  runtime_options.qw2tune       = m_params.get<double>("qw2tune");
-  runtime_options.qwthl2tune    = m_params.get<double>("qwthl2tune");
-  runtime_options.w2tune        = m_params.get<double>("w2tune");
-  runtime_options.length_fac    = m_params.get<double>("length_fac");
-  runtime_options.c_diag_3rd_mom = m_params.get<double>("c_diag_3rd_mom");
-  runtime_options.Ckh           = m_params.get<double>("coeff_kh");
-  runtime_options.Ckm           = m_params.get<double>("coeff_km");
-  runtime_options.shoc_1p5tke   = m_params.get<bool>("shoc_1p5tke");
-  runtime_options.extra_diags   = m_params.get<bool>("extra_shoc_diags");
-
-  // Initialize all of the structures that are passed to shoc_main in run_impl.
-  // Note: Some variables in the structures are not stored in the field manager.  For these
-  //       variables a local view is constructed.
-
-  const auto& T_mid               = get_field_out("T_mid").get_view<Spack**>();
-  const auto& p_mid               = get_field_in("p_mid").get_view<const Spack**>();
-  const auto& p_int               = get_field_in("p_int").get_view<const Spack**>();
-  const auto& pseudo_density      = get_field_in("pseudo_density").get_view<const Spack**>();
-  const auto& omega               = get_field_in("omega").get_view<const Spack**>();
-  const auto& surf_sens_flux      = get_field_in("surf_sens_flux").get_view<const Real*>();
-  const auto& surf_evap           = get_field_in("surf_evap").get_view<const Real*>();
-  const auto& surf_mom_flux       = get_field_in("surf_mom_flux").get_view<const Real**>();
-  const auto& qtracers            = get_group_out("turbulence_advected_tracers").m_monolithic_field->get_strided_view<Spack***>();
-  const auto& qc                  = get_field_out("qc").get_view<Spack**>();
-  const auto& qv                  = get_field_out("qv").get_view<Spack**>();
-  const auto& tke                 = get_field_out("tke").get_view<Spack**>();
-  const auto& cldfrac_liq         = get_field_out("cldfrac_liq").get_view<Spack**>();
-  const auto& cldfrac_liq_prev    = get_field_out("cldfrac_liq_prev").get_view<Spack**>();
-  const auto& sgs_buoy_flux       = get_field_out("sgs_buoy_flux").get_view<Spack**>();
-  const auto& tk                  = get_field_out("eddy_diff_mom").get_view<Spack**>();
-  const auto& inv_qc_relvar       = get_field_out("inv_qc_relvar").get_view<Spack**>();
-  const auto& phis                = get_field_in("phis").get_view<const Real*>();
-
-  // Alias local variables from temporary buffer
-  auto z_mid       = m_buffer.z_mid;
-  auto z_int       = m_buffer.z_int;
-  auto wpthlp_sfc  = m_buffer.wpthlp_sfc;
-  auto wprtp_sfc   = m_buffer.wprtp_sfc;
-  auto upwp_sfc    = m_buffer.upwp_sfc;
-  auto vpwp_sfc    = m_buffer.vpwp_sfc;
-  auto rrho        = m_buffer.rrho;
-  auto rrho_i      = m_buffer.rrho_i;
-  auto thv         = m_buffer.thv;
-  auto dz          = m_buffer.dz;
-  auto zt_grid     = m_buffer.zt_grid;
-  auto zi_grid     = m_buffer.zi_grid;
-  auto wtracer_sfc = m_buffer.wtracer_sfc;
-  auto wm_zt       = m_buffer.wm_zt;
-  auto inv_exner   = m_buffer.inv_exner;
-  auto thlm        = m_buffer.thlm;
-  auto qw          = m_buffer.qw;
-  auto dse         = m_buffer.dse;
-  auto tke_copy    = m_buffer.tke_copy;
-  auto qc_copy     = m_buffer.qc_copy;
-  auto shoc_ql2    = m_buffer.shoc_ql2;
-
-  // For now, set z_int(i,nlevs) = z_surf = 0
-  const Real z_surf = 0.0;
-
-  // Some SHOC variables should be initialized uniformly if an Initial run
-  if (run_type==RunType::Initial){
-    Kokkos::deep_copy(sgs_buoy_flux,0.0);
-    Kokkos::deep_copy(tk,0.0);
-    Kokkos::deep_copy(tke,0.0004);
-    Kokkos::deep_copy(tke_copy,0.0004);
-    Kokkos::deep_copy(cldfrac_liq,0.0);
-  }
-
-  shoc_preprocess.set_variables(m_num_cols,m_num_layers,z_surf,
-                                T_mid,p_mid,p_int,pseudo_density,omega,phis,surf_sens_flux,surf_evap,
-                                surf_mom_flux,qtracers,qv,qc,qc_copy,tke,tke_copy,z_mid,z_int,
-                                dse,rrho,rrho_i,thv,dz,zt_grid,zi_grid,wpthlp_sfc,wprtp_sfc,upwp_sfc,vpwp_sfc,
-                                wtracer_sfc,wm_zt,inv_exner,thlm,qw, cldfrac_liq, cldfrac_liq_prev);
-
-  // Input Variables:
-  input.zt_grid     = shoc_preprocess.zt_grid;
-  input.zi_grid     = shoc_preprocess.zi_grid;
-  input.pres        = p_mid;
-  input.presi       = p_int;
-  input.pdel        = pseudo_density;
-  input.thv         = shoc_preprocess.thv;
-  input.w_field     = shoc_preprocess.wm_zt;
-  input.wthl_sfc    = shoc_preprocess.wpthlp_sfc;
-  input.wqw_sfc     = shoc_preprocess.wprtp_sfc;
-  input.uw_sfc      = shoc_preprocess.upwp_sfc;
-  input.vw_sfc      = shoc_preprocess.vpwp_sfc;
-  input.wtracer_sfc = shoc_preprocess.wtracer_sfc;
-  input.inv_exner   = shoc_preprocess.inv_exner;
-  input.phis        = phis;
-
-  // Input/Output Variables
-  input_output.host_dse     = shoc_preprocess.shoc_s;
-  input_output.tke          = shoc_preprocess.tke_copy;
-  input_output.thetal       = shoc_preprocess.thlm;
-  input_output.qw           = shoc_preprocess.qw;
-  input_output.horiz_wind   = get_field_out("horiz_winds").get_view<Spack***>();
-  input_output.wthv_sec     = sgs_buoy_flux;
-  input_output.qtracers     = shoc_preprocess.qtracers;
-  input_output.tk           = tk;
-  input_output.shoc_cldfrac = cldfrac_liq;
-  input_output.shoc_ql      = qc_copy;
-
-  // Output Variables
-  output.pblh     = get_field_out("pbl_height").get_view<Real*>();
-  output.shoc_ql2 = shoc_ql2;
-  output.tkh      = get_field_out("eddy_diff_heat").get_view<Spack**>();
-  output.ustar    = get_field_out("ustar").get_view<Real*>();
-  output.obklen   = get_field_out("obklen").get_view<Real*>();
-
-  // Output (diagnostic)
-  history_output.shoc_mix  = m_buffer.shoc_mix;
-  history_output.isotropy  = m_buffer.isotropy;
-  if (m_params.get<bool>("extra_shoc_diags", false)) {
-    history_output.shoc_cond = get_field_out("shoc_cond").get_view<Spack**>();
-    history_output.shoc_evap = get_field_out("shoc_evap").get_view<Spack**>();
-  } else {
-    history_output.shoc_cond = m_buffer.unused;
-    history_output.shoc_evap = m_buffer.unused;
-  }
-  history_output.w_sec     = get_field_out("w_variance").get_view<Spack**>();
-  history_output.thl_sec   = m_buffer.thl_sec;
-  history_output.qw_sec    = m_buffer.qw_sec;
-  history_output.qwthl_sec = m_buffer.qwthl_sec;
-  history_output.wthl_sec  = m_buffer.wthl_sec;
-  history_output.wqw_sec   = m_buffer.wqw_sec;
-  history_output.wtke_sec  = m_buffer.wtke_sec;
-  history_output.uw_sec    = m_buffer.uw_sec;
-  history_output.vw_sec    = m_buffer.vw_sec;
-  history_output.w3        = m_buffer.w3;
-  history_output.wqls_sec  = m_buffer.wqls_sec;
-  history_output.brunt     = m_buffer.brunt;
-
-#ifdef SCREAM_SHOC_SMALL_KERNELS
-  temporaries.se_b = m_buffer.se_b;
-  temporaries.ke_b = m_buffer.ke_b;
-  temporaries.wv_b = m_buffer.wv_b;
-  temporaries.wl_b = m_buffer.wl_b;
-  temporaries.se_a = m_buffer.se_a;
-  temporaries.ke_a = m_buffer.ke_a;
-  temporaries.wv_a = m_buffer.wv_a;
-  temporaries.wl_a = m_buffer.wl_a;
-  temporaries.kbfs = m_buffer.kbfs;
-  temporaries.ustar2 = m_buffer.ustar2;
-  temporaries.wstar = m_buffer.wstar;
-
-  temporaries.rho_zt = m_buffer.rho_zt;
-  temporaries.shoc_qv = m_buffer.shoc_qv;
-  temporaries.tabs = m_buffer.tabs;
-  temporaries.dz_zt = m_buffer.dz_zt;
-  temporaries.dz_zi = m_buffer.dz_zi;
-#endif
-
-  shoc_postprocess.set_variables(m_num_cols,m_num_layers,
-                                 rrho,qv,qw,qc,qc_copy,tke,tke_copy,qtracers,shoc_ql2,
-                                 cldfrac_liq,inv_qc_relvar,
-                                 T_mid, dse, z_mid, phis);
-
-  if (has_column_conservation_check()) {
-    const auto& vapor_flux = get_field_out("vapor_flux").get_view<Real*>();
-    const auto& water_flux = get_field_out("water_flux").get_view<Real*>();
-    const auto& ice_flux   = get_field_out("ice_flux").get_view<Real*>();
-    const auto& heat_flux  = get_field_out("heat_flux").get_view<Real*>();
-    shoc_postprocess.set_mass_and_energy_fluxes (surf_evap, surf_sens_flux,
-                                                 vapor_flux, water_flux,
-                                                 ice_flux, heat_flux);
-  }
-
-  // Set field property checks for the fields in this process
-  using Interval = FieldWithinIntervalCheck;
-  using LowerBound = FieldLowerBoundCheck;
-  add_postcondition_check<Interval>(get_field_out("T_mid"),m_grid,100.0,500.0,false);
-  add_postcondition_check<Interval>(get_field_out("qc"),m_grid,0.0,0.1,false);
-  add_postcondition_check<Interval>(get_field_out("horiz_winds"),m_grid,-400.0,400.0,false);
-  add_postcondition_check<LowerBound>(get_field_out("pbl_height"),m_grid,0);
-  add_postcondition_check<Interval>(get_field_out("cldfrac_liq"),m_grid,0.0,1.0,false);
-  add_postcondition_check<LowerBound>(get_field_out("tke"),m_grid,0);
-  // For qv, ensure it doesn't get negative, by allowing repair of any neg value.
-  // TODO: use a repairable lb that clips only "small" negative values
-  add_postcondition_check<Interval>(get_field_out("qv"),m_grid,0,0.2,true);
-
-  // Setup WSM for internal local variables
-  const auto nlev_packs  = ekat::npack<Spack>(m_num_layers);
-  const auto nlevi_packs = ekat::npack<Spack>(m_num_layers+1);
-  const int n_wind_slots = ekat::npack<Spack>(2)*Spack::n;
-  const int n_trac_slots = ekat::npack<Spack>(m_num_tracers+3)*Spack::n;
-  const auto default_policy = ekat::ExeSpaceUtils<KT::ExeSpace>::get_default_team_policy(m_num_cols, nlev_packs);
-  workspace_mgr.setup(m_buffer.wsm_data, nlevi_packs, 14+(n_wind_slots+n_trac_slots), default_policy);
-
-  // Calculate pref_mid, and use that to calculate
-  // maximum number of levels in pbl from surface
-  const auto pref_mid = m_buffer.pref_mid;
-  const auto s_pref_mid = ekat::scalarize(pref_mid);
-  const auto hyam = m_grid->get_geometry_data("hyam").get_view<const Real*>();
-  const auto hybm = m_grid->get_geometry_data("hybm").get_view<const Real*>();
-  const auto ps0 = C::P0;
-  const auto psref = ps0;
-  Kokkos::parallel_for(Kokkos::RangePolicy<>(0, m_num_layers), KOKKOS_LAMBDA (const int lev) {
-    s_pref_mid(lev) = ps0*hyam(lev) + psref*hybm(lev);
-  });
-  Kokkos::fence();
-
-  const int ntop_shoc = 0;
-  const int nbot_shoc = m_num_layers;
-  m_npbl = SHF::shoc_init(nbot_shoc,ntop_shoc,pref_mid);
-
-  // Compute cell length for input dx and dy.
-  const auto ncols = m_num_cols;
-  view_1d cell_length("cell_length", ncols);
-  if (m_grid->has_geometry_data("dx_short")) {
-    // In this case IOP is running with a planar geometry
-    auto dx = m_grid->get_geometry_data("dx_short").get_view<const Real,Host>()();
-    Kokkos::deep_copy(cell_length, dx*1000); // convert km -> m
-  } else {
-    const auto area = m_grid->get_geometry_data("area").get_view<const Real*>();
-    const auto lat  = m_grid->get_geometry_data("lat").get_view<const Real*>();
-    Kokkos::parallel_for(ncols, KOKKOS_LAMBDA (const int icol) {
-      // For now, we are considering dy=dx. Here, we
-      // will need to compute dx/dy instead of cell_length
-      // if we have dy!=dx.
-      cell_length(icol) = PF::calculate_dx_from_area(area(icol),lat(icol));;
+    // Maximum number of levels in pbl from surface
+    const int ntop_shoc = 0;
+    const int nbot_shoc = m_num_layers;
+    view_1d pref_mid("pref_mid", m_num_layers);
+    Spack* s_mem = reinterpret_cast<Spack*>(pref_mid.data());
+    uview_1d<Spack> pref_mid_um(s_mem, m_num_layers);
+    Kokkos::parallel_for(Kokkos::RangePolicy<>(0, m_num_layers), KOKKOS_LAMBDA (const int ilev)
+    {
+        pref_mid_um(ilev) = p_mid(0,ilev);
     });
-  }
-  input.dx = cell_length;
-  input.dy = cell_length;
+    Kokkos::fence();
+    m_npbl = SHF::shoc_init(nbot_shoc,ntop_shoc,pref_mid_um);
 
-    // Initialize Kokkos SHOC pool allocator
-    // const size_t nvar = 300;
-    // const size_t nbnd = std::max(k_dist_sw_k->get_nband(),k_dist_sw_k->get_nband());
-    // const size_t ncol = gas_concs_k.ncol;
-    // const size_t nlay = gas_concs_k.nlay;
-    // auto my_size_ref = static_cast<unsigned long>(nvar * ncol * nlay * nbnd);
-
-    // pool_t::init(my_size_ref);
-
-    // We are now initialized!
-    initialized = true;
-#endif
+    // Cell length for input dx and dy
+    view_1d cell_length_x("cell_length_x", m_num_cols);
+    view_1d cell_length_y("cell_length_y", m_num_cols);
+    Kokkos::deep_copy(cell_length_x, m_geom.CellSize(0));
+    Kokkos::deep_copy(cell_length_y, m_geom.CellSize(1));
+    input.dx = cell_length_x;
+    input.dy = cell_length_y;
 }
 
 
 void
-SHOCInterface::run_impl (const amrex::Real dt)
+SHOCInterface::run_impl (const Real dt)
 {
-  EKAT_REQUIRE_MSG (dt<=300,
-      "Error! SHOC is intended to run with a timestep no longer than 5 minutes.\n"
-      "       Please, reduce timestep (perhaps increasing subcycling iterations).\n");
+    using TPF = ekat::TeamPolicyFactory<KT::ExeSpace>;
 
-#if 0
-  const auto nlev_packs  = ekat::npack<Spack>(m_num_layers);
-  const auto scan_policy    = ekat::ExeSpaceUtils<KT::ExeSpace>::get_thread_range_parallel_scan_team_policy(m_num_cols, nlev_packs);
-  const auto default_policy = ekat::ExeSpaceUtils<KT::ExeSpace>::get_default_team_policy(m_num_cols, nlev_packs);
+    EKAT_REQUIRE_MSG (dt<=300,
+                      "Error! SHOC is intended to run with a timestep no longer than 5 minutes.\n"
+                      "       Please, reduce timestep (perhaps increasing subcycling iterations).\n");
 
-  // Preprocessing of SHOC inputs. Kernel contains a parallel_scan,
-  // so a special TeamPolicy is required.
-  Kokkos::parallel_for("shoc_preprocess",
-                       scan_policy,
-                       shoc_preprocess);
-  Kokkos::fence();
+    const auto nlev_packs     = ekat::npack<Spack>(m_num_layers);
+    const auto scan_policy    = TPF::get_thread_range_parallel_scan_team_policy(m_num_cols, nlev_packs);
+    const auto default_policy = TPF::get_default_team_policy(m_num_cols, nlev_packs);
 
-  auto wtracer_sfc = shoc_preprocess.wtracer_sfc;
-  Kokkos::deep_copy(wtracer_sfc, 0);
+    // Preprocessing of SHOC inputs. Kernel contains a parallel_scan,
+    // so a special TeamPolicy is required.
+    Kokkos::parallel_for("shoc_preprocess",
+                         scan_policy,
+                         shoc_preprocess);
+    Kokkos::fence();
 
-  if (m_params.get<bool>("apply_tms", false)) {
-    apply_turbulent_mountain_stress();
-  }
+    auto wtracer_sfc = shoc_preprocess.wtracer_sfc;
+    Kokkos::deep_copy(wtracer_sfc, 0);
 
-  if (m_params.get<bool>("check_flux_state_consistency", false)) {
-    check_flux_state_consistency(dt);
-  }
+    if (apply_tms) {
+        apply_turbulent_mountain_stress();
+    }
 
-  // For now set the host timestep to the shoc timestep. This forces
-  // number of SHOC timesteps (nadv) to be 1.
-  // TODO: input parameter?
-  hdtime = dt;
-  m_nadv = std::max(static_cast<int>(round(hdtime/dt)),1);
+    if (check_flux_state) {
+        check_flux_state_consistency(dt);
+    }
 
-  // Reset internal WSM variables.
-  workspace_mgr.reset_internals();
+    // For now set the host timestep to the shoc timestep. This forces
+    // number of SHOC timesteps (nadv) to be 1.
+    // TODO: input parameter?
+    hdtime = dt;
+    m_nadv = std::max(static_cast<int>(round(hdtime/dt)),1);
 
-  // Run shoc main
-  SHF::shoc_main(m_num_cols, m_num_layers, m_num_layers+1, m_npbl, m_nadv, m_num_tracers, dt,
-                 workspace_mgr,runtime_options,input,input_output,output,history_output
+    // Reset internal WSM variables.
+    workspace_mgr.reset_internals();
+
+    // Run shoc main
+    SHF::shoc_main(m_num_cols, m_num_layers, m_num_layers+1, m_npbl, m_nadv, m_num_tracers, dt,
+                   workspace_mgr,runtime_options,input,input_output,output,history_output
 #ifdef SCREAM_SHOC_SMALL_KERNELS
-                 , temporaries
+                   , temporaries
 #endif
-                 );
+                   );
 
-  // Postprocessing of SHOC outputs
-  Kokkos::parallel_for("shoc_postprocess",
-                       default_policy,
-                       shoc_postprocess);
-  Kokkos::fence();
+    // Postprocessing of SHOC outputs
+    Kokkos::parallel_for("shoc_postprocess",
+                         default_policy,
+                         shoc_postprocess);
+    Kokkos::fence();
 
-  // Extra SHOC output diagnostics
-  if (m_params.get<bool>("extra_shoc_diags", false)) {
-
-    const auto& shoc_mix = get_field_out("shoc_mix").get_view<Spack**>();
-    Kokkos::deep_copy(shoc_mix,history_output.shoc_mix);
-
-    const auto& brunt = get_field_out("brunt").get_view<Spack**>();
-    Kokkos::deep_copy(brunt,history_output.brunt);
-
-    const auto& w3 = get_field_out("w3").get_view<Spack**>();
-    Kokkos::deep_copy(w3,history_output.w3);
-
-    const auto& isotropy = get_field_out("isotropy").get_view<Spack**>();
-    Kokkos::deep_copy(isotropy,history_output.isotropy);
-
-    const auto& wthl_sec = get_field_out("wthl_sec").get_view<Spack**>();
-    Kokkos::deep_copy(wthl_sec,history_output.wthl_sec);
-
-    const auto& wqw_sec = get_field_out("wqw_sec").get_view<Spack**>();
-    Kokkos::deep_copy(wqw_sec,history_output.wqw_sec);
-
-    const auto& uw_sec = get_field_out("uw_sec").get_view<Spack**>();
-    Kokkos::deep_copy(uw_sec,history_output.uw_sec);
-
-    const auto& vw_sec = get_field_out("vw_sec").get_view<Spack**>();
-    Kokkos::deep_copy(vw_sec,history_output.vw_sec);
-
-    const auto& qw_sec = get_field_out("qw_sec").get_view<Spack**>();
-    Kokkos::deep_copy(qw_sec,history_output.qw_sec);
-
-    const auto& thl_sec = get_field_out("thl_sec").get_view<Spack**>();
-    Kokkos::deep_copy(thl_sec,history_output.thl_sec);
-
-  } // Extra SHOC output diagnostics
-#endif
+    // Extra SHOC output diagnostics
+    if (runtime_options.extra_diags) {
+        Kokkos::deep_copy(shoc_mix,history_output.shoc_mix);
+        Kokkos::deep_copy(brunt,history_output.brunt);
+        Kokkos::deep_copy(w3,history_output.w3);
+        Kokkos::deep_copy(isotropy,history_output.isotropy);
+        Kokkos::deep_copy(wthl_sec,history_output.wthl_sec);
+        Kokkos::deep_copy(wqw_sec,history_output.wqw_sec);
+        Kokkos::deep_copy(uw_sec,history_output.uw_sec);
+        Kokkos::deep_copy(vw_sec,history_output.vw_sec);
+        Kokkos::deep_copy(qw_sec,history_output.qw_sec);
+        Kokkos::deep_copy(thl_sec,history_output.thl_sec);
+    }
 }
 
 
@@ -871,3 +681,73 @@ SHOCInterface::finalize_impl ()
     dealloc_buffers();
 }
 
+
+void
+SHOCInterface::apply_turbulent_mountain_stress()
+{
+    const int nlev_v  = (m_num_layers-1)/Spack::n;
+    const int nlev_p  = (m_num_layers-1)%Spack::n;
+    const int nlevi_v = m_num_layers/Spack::n;
+    const int nlevi_p = m_num_layers%Spack::n;
+
+    Kokkos::parallel_for("apply_tms", KT::RangePolicy(0, m_num_cols), KOKKOS_LAMBDA (const int i)
+    {
+        upwp_sfc(i) -= surf_drag_coeff_tms(i)*horiz_wind(i,0,nlev_v)[nlev_p]/rrho_i(i,nlevi_v)[nlevi_p];
+        vpwp_sfc(i) -= surf_drag_coeff_tms(i)*horiz_wind(i,1,nlev_v)[nlev_p]/rrho_i(i,nlevi_v)[nlevi_p];
+    });
+}
+
+
+void
+SHOCInterface::check_flux_state_consistency(const double dt)
+{
+    using PC  = scream::physics::Constants<Real>;
+    using RU  = ekat::ReductionUtils<KT::ExeSpace>;
+    using TPF = ekat::TeamPolicyFactory<KT::ExeSpace>;
+
+    const Real gravit = PC::gravit;
+    const Real qmin   = 1e-12; // minimum permitted constituent concentration (kg/kg)
+
+    const auto& pseudo_density = dens;
+
+    const auto nlevs           = m_num_layers;
+    const auto nlev_packs      = ekat::npack<Spack>(nlevs);
+    const auto last_pack_idx   = (nlevs-1)/Spack::n;
+    const auto last_pack_entry = (nlevs-1)%Spack::n;
+    const auto policy          = TPF::get_default_team_policy(m_num_cols, nlev_packs);
+    Kokkos::parallel_for("check_flux_state_consistency",
+                       policy,
+                       KOKKOS_LAMBDA (const KT::MemberType& team)
+    {
+        const auto i = team.league_rank();
+
+        const auto& pseudo_density_i = ekat::subview(pseudo_density, i);
+        const auto& qv_i             = ekat::subview(qv, i);
+
+        // reciprocal of pseudo_density at the bottom layer
+        const auto rpdel = 1.0/pseudo_density_i(last_pack_idx)[last_pack_entry];
+
+        // Check if the negative surface latent heat flux can exhaust
+        // the moisture in the lowest model level. If so, apply fixer.
+        const auto condition = surf_evap(i) - (qmin - qv_i(last_pack_idx)[last_pack_entry])/(dt*gravit*rpdel);
+        if (condition < 0) {
+            const auto cc = std::fabs(surf_evap(i)*dt*gravit);
+
+            auto tracer_mass = [&](const int k)
+            {
+                return qv_i(k)*pseudo_density_i(k);
+            };
+            Real mm = RU::view_reduction(team, 0, nlevs, tracer_mass);
+
+            EKAT_KERNEL_ASSERT_MSG(mm >= cc, "Error! Total mass of column vapor should be greater than mass of surf_evap.\n");
+
+            Kokkos::parallel_for(Kokkos::TeamVectorRange(team, nlev_packs), [&](const int& k)
+            {
+                const auto adjust = cc*qv_i(k)*pseudo_density_i(k)/mm;
+                qv_i(k) = (qv_i(k)*pseudo_density_i(k) - adjust)/pseudo_density_i(k);
+            });
+
+            surf_evap(i) = 0;
+        }
+    });
+}
