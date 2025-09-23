@@ -229,8 +229,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      DiffChoice dc = solverChoice.diffChoice;
      TurbChoice tc = solverChoice.turbChoice[level];
      MultiFab nu(grids[level],dmap[level],1,0);
-     if ( (tc.les_type == LESType::None) ||
-          (tc.pbl_type == PBLType::None) ) {
+     if ( (tc.les_type != LESType::None) ||
+          (tc.pbl_type != PBLType::None) ) {
 
          MultiFab::Copy(nu, *eddyDiffs_lev[level], EddyDiff::Mom_v, 0, 1, 0);
          MultiFab::Divide(nu, S_new, Rho_comp, 0, 1, 0);
