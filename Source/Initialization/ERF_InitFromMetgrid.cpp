@@ -79,11 +79,11 @@ ERF::init_from_metgrid (int lev)
     IArrayBox NC_lmask_iab;
 
     // *** Variables at this level for holding metgrid file global attributes
-    int flag_psfc;
-    int flag_msf;
-    int flag_sst;
-    int flag_tsk;
-    int flag_lmask;
+    int flag_psfc = 0;
+    int flag_msf = 0;
+    int flag_sst = 0;
+    int flag_tsk = 0;
+    int flag_lmask = 0;
     int NC_nx;
     int NC_ny;
     Real NC_dx;
