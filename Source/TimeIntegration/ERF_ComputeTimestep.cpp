@@ -254,6 +254,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              });
              return new_visc_dt;
          });
+     ParallelDescriptor::ReduceRealMin(estdt_diff);
 
      if (verbose) {
          if (fixed_dt[level] <= 0.0) {
