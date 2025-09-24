@@ -42,7 +42,7 @@ read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio)
 }
 
 void
-read_from_metgrid (int lev, int itime, 
+read_from_metgrid (int lev, int itime,
                    const Box& domain, const std::string& fname,
                    std::string& NC_dateTime, Real& NC_epochTime,
                    int& flag_psfc, int& flag_msf,
@@ -134,20 +134,22 @@ read_from_metgrid (int lev, int itime,
     NC_fabs.push_back(&NC_rhum_fab);      NC_fnames.push_back("RH");        NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
     NC_fabs.push_back(&NC_pres_fab);      NC_fnames.push_back("PRES");      NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
     NC_fabs.push_back(&NC_ght_fab);       NC_fnames.push_back("GHT");       NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-    NC_fabs.push_back(&NC_LAT_fab);       NC_fnames.push_back("XLAT_M");    NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
-    NC_fabs.push_back(&NC_LON_fab);       NC_fnames.push_back("XLONG_M");   NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
-    NC_fabs.push_back(&NC_hgt_fab);       NC_fnames.push_back("HGT_M");     NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
 
     if (itime == 0) {
+        // Variables necessary only for gridding and calculating the base state.
+        // Only read for initialization.
+        NC_fabs.push_back(&NC_hgt_fab);   NC_fnames.push_back("HGT_M");     NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+        NC_fabs.push_back(&NC_LAT_fab);   NC_fnames.push_back("XLAT_M");    NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+        NC_fabs.push_back(&NC_LON_fab);   NC_fnames.push_back("XLONG_M");   NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+        NC_fabs.push_back(&NC_msfu_fab);  NC_fnames.push_back("MAPFAC_U");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+        NC_fabs.push_back(&NC_msfv_fab);  NC_fnames.push_back("MAPFAC_V");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+        NC_fabs.push_back(&NC_msfm_fab);  NC_fnames.push_back("MAPFAC_M");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
         NC_fabs.push_back(&NC_psfc_fab);  NC_fnames.push_back("PSFC");      NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     }
-    NC_fabs.push_back(&NC_msfu_fab);      NC_fnames.push_back("MAPFAC_U");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
-    NC_fabs.push_back(&NC_msfv_fab);      NC_fnames.push_back("MAPFAC_V");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
-    NC_fabs.push_back(&NC_msfm_fab);      NC_fnames.push_back("MAPFAC_M");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+
     NC_fabs.push_back(&NC_sst_fab);       NC_fnames.push_back("SST");       NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     NC_fabs.push_back(&NC_tsk_fab);       NC_fnames.push_back("SKINTEMP");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
-
-    NC_iabs.push_back(&NC_lmask_iab);     NC_inames.push_back("LANDMASK");   NC_idim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+    NC_iabs.push_back(&NC_lmask_iab);     NC_inames.push_back("LANDMASK");  NC_idim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
 
     // Read the netcdf file and fill these FABs
 #ifndef AMREX_USE_GPU
@@ -157,9 +159,9 @@ read_from_metgrid (int lev, int itime,
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs, success);
     for (int i = 0; i < success.size(); i++) {
         if (NC_fnames[i] == "PSFC"     && success[i] == 1) {flag_psfc = 1;}
-        if (NC_fnames[i] == "SST"      && success[i] == 1) {flag_sst = 1;}
-        if (NC_fnames[i] == "SKINTEMP" && success[i] == 1) {flag_tsk = 1;}
-        if (NC_fnames[i] == "MAPFAC_M" && success[i] == 1) {flag_msf = 1;}
+        if (NC_fnames[i] == "SST"      && success[i] == 1) {flag_sst  = 1;}
+        if (NC_fnames[i] == "SKINTEMP" && success[i] == 1) {flag_tsk  = 1;}
+        if (NC_fnames[i] == "MAPFAC_M" && success[i] == 1) {flag_msf  = 1;}
     }
 
     // Read the netcdf file and fill these IABs
@@ -169,16 +171,8 @@ read_from_metgrid (int lev, int itime,
     Vector<int> success_i; success_i.resize(NC_iabs.size());
     BuildFABsFromNetCDFFile<IArrayBox,int>(domain, fname, NC_inames, NC_idim_types, NC_iabs, success_i);
     for (int i = 0; i < success_i.size(); i++) {
-        if (NC_inames[i] == "LANDMASK" && success[i] == 1) {flag_lmask = 1;}
+        if (NC_inames[i] == "LANDMASK" && success_i[i] == 1) {flag_lmask = 1;}
     }
-
-#ifndef AMREX_USE_GPU
-    Print() << " flag_psfc:  " << flag_psfc << std::endl;
-    Print() << " flag_sst:   " << flag_sst << std::endl;
-    Print() << " flag_tsk:   " << flag_tsk << std::endl;
-    Print() << " flag_msf:   " << flag_msf << std::endl;
-    Print() << " flag_lmask: " << flag_lmask << std::endl;
-#endif
 
     // TODO: FIND OUT IF WE NEED TO DIVIDE VELS BY MAPFAC
     //
