@@ -245,10 +245,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              Real new_visc_dt = 1.e100;
              amrex::Loop(b, [=,&new_visc_dt] (int i, int j, int k) noexcept
              {
-                 Real dz = 0.25 * ( z_nd(i  ,j  ,k) - z_nd(i  ,j  ,k+1)
-                                  + z_nd(i+1,j  ,k) - z_nd(i+1,j  ,k+1)
-                                  + z_nd(i  ,j+1,k) - z_nd(i  ,j+1,k+1)
-                                  + z_nd(i+1,j+1,k) - z_nd(i+1,j+1,k+1) );
+                 Real dz = 0.25 * ( z_nd(i  ,j  ,k+1) - z_nd(i  ,j  ,k)
+                                  + z_nd(i+1,j  ,k+1) - z_nd(i+1,j  ,k)
+                                  + z_nd(i  ,j+1,k+1) - z_nd(i  ,j+1,k)
+                                  + z_nd(i+1,j+1,k+1) - z_nd(i+1,j+1,k) );
                  Real dt = 0.5 * dz * dz / (amrex::Math::abs(visc(i,j,k)) + 1.0e-15);
                  new_visc_dt = amrex::min(dt, new_visc_dt);
              });
