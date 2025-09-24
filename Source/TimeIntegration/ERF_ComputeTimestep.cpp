@@ -226,6 +226,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      //================================================
      // Diffusion Operator
      //================================================
+     auto dx = geom[level].CellSize(0);
+     auto dy = geom[level].CellSize(1);
      DiffChoice dc = solverChoice.diffChoice;
      TurbChoice tc = solverChoice.turbChoice[level];
      MultiFab nu(grids[level],dmap[level],1,0);
@@ -248,8 +250,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                   + z_nd(i+1,j  ,k+1) - z_nd(i+1,j  ,k)
                                   + z_nd(i  ,j+1,k+1) - z_nd(i  ,j+1,k)
                                   + z_nd(i+1,j+1,k+1) - z_nd(i+1,j+1,k) );
-                 Real dt = 0.5 * dz * dz / (amrex::Math::abs(visc(i,j,k)) + 1.0e-15);
-                 new_visc_dt = amrex::min(dt, new_visc_dt);
+                 Real delta = std::min({dx, dy, dz});
+                 Real loc_dt = 0.5 * delta * delta / (amrex::Math::abs(visc(i,j,k)) + 1.0e-15);
+                 new_visc_dt = amrex::min(loc_dt, new_visc_dt);
              });
              return new_visc_dt;
          });
