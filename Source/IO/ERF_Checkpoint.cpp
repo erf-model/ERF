@@ -25,6 +25,8 @@ ERF::GotoNextLine (std::istream& is)
 void
 ERF::WriteCheckpointFile () const
 {
+    auto dCheckTime0 = amrex::second();
+
     // chk00010            write a checkpoint file with this root directory
     // chk00010/Header     this contains information you need to save (e.g., finest_level, t_new, etc.) and also
     //                     the BoxArrays at each level
@@ -430,6 +432,12 @@ ERF::WriteCheckpointFile () const
 #endif
 #endif
 
+    if (verbose > 0)
+    {
+        auto dCheckTime = amrex::second() - dCheckTime0;
+        ParallelDescriptor::ReduceRealMax(dCheckTime,ParallelDescriptor::IOProcessorNumber());
+        amrex::Print() << "Checkpoint write time = " << dCheckTime << " seconds." << '\n';
+    }
 }
 
 /**
