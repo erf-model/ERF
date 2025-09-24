@@ -965,6 +965,7 @@ ERF::InitData_post ()
 #ifdef ERF_USE_NETCDF
         //
         // Create the needed bdy_data_xlo etc ... since we don't read it in from checkpoint any more
+        // This follows init_from_wrfinput()
         //
         if (solverChoice.use_real_bcs) {
 
@@ -990,7 +991,60 @@ ERF::InitData_post ()
                                         vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
                                         geom[lev], use_moist);
             } // itime
-        } // use_real_bcs && lev == 0
+        } // use_real_bcs
+
+        if (!nc_low_file.empty())
+        {
+            low_time_interval = read_times_from_wrflow(nc_low_file,
+                                                       low_data_zlo,
+                                                       start_low_time);
+            sst_lev[lev].resize(low_data_zlo.size());
+            tsk_lev[lev].resize(low_data_zlo.size());
+
+            Real dT = low_time_interval;
+
+            int n_time_old = static_cast<int>(t_new[0] /  dT);
+
+            int lev = 0;
+            bool use_moist = (solverChoice.moisture_type != MoistureType::None);
+
+            int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
+            int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
+
+            int ntimes = std::min(n_time_old+2, static_cast<int>(low_data_zlo.size()));
+
+            for (int itime = n_time_old; itime < ntimes; itime++)
+            {
+                read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);
+
+                sst_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+                tsk_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+
+                for ( MFIter mfi(*(sst_lev[lev][itime]), false); mfi.isValid(); ++mfi ) {
+                    Box gtbx = mfi.growntilebox();
+                    FArrayBox& src = low_data_zlo[itime];
+                    FArrayBox& sst_fab = (*(sst_lev[lev][itime]))[mfi];
+                    FArrayBox& tsk_fab = (*(tsk_lev[lev][itime]))[mfi];
+                    const Array4<      Real>& sst_arr = sst_fab.array();
+                    const Array4<      Real>& tsk_arr = tsk_fab.array();
+                    const Array4<const Real>& src_arr = src.const_array();
+                    const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
+                    ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                    {
+                        int li = min(max(i, i_lo), i_hi);
+                        int lj = min(max(j, j_lo), j_hi);
+                        // NOTE: we convert to potential temperature for the surface
+                        // layer scheme using the initial surface pressure since it's
+                        // not available in the wrflowinp file
+                        sst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
+                        tsk_arr(i,j,0) = sst_arr(i,j,0);
+                    });
+                }
+
+                sst_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
+                tsk_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
+            } // itime
+        }
 #endif
     } // end restart
 

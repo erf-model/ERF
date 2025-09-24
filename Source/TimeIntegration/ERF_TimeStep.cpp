@@ -27,8 +27,8 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
 #ifdef ERF_USE_NETCDF
     //
-    // Since we now only read in a subset of the time slices in wrfbdy we need to check
-    //       whether it's time to read in more
+    // Since we now only read in a subset of the time slices in wrfbdy and
+    //     wrflowinp, we need to check whether it's time to read in more.
     //
     if (solverChoice.use_real_bcs && (lev==0)) {
         Real dT = bdy_time_interval;
@@ -59,18 +59,71 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
             //if (need_itime) amrex::Print()  << "NEED  DATA AT TIME " << itime << std::endl;
 
             if (bdy_data_xlo[itime].size() == 0 && need_itime) {
-               read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
-                                bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                real_width);
+                read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
+                                 bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                 real_width);
 
-               bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-               convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                   *mf_MUB, *mf_C1H, *mf_C2H,
-                                   vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                   geom[lev], use_moist);
+                bool use_moist = (solverChoice.moisture_type != MoistureType::None);
+                convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                    *mf_MUB, *mf_C1H, *mf_C2H,
+                                    vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                    geom[lev], use_moist);
            }
         } // itime
     } // use_real_bcs && lev == 0
+
+    if (!nc_low_file.empty() && (lev==0)) {
+        Real dT = low_time_interval;
+
+        int n_time_old = static_cast<int>( (time        ) /  dT);
+        int n_time_new = static_cast<int>( (time+dt[lev]) /  dT);
+
+        int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
+        int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
+
+        int ntimes = bdy_data_xlo.size();
+        for (int itime = 0; itime < ntimes; itime++)
+        {
+            bool clear_itime = (itime < n_time_old);
+
+            if (clear_itime && low_data_zlo[itime].size() > 0) {
+                low_data_zlo[itime].clear();
+            }
+
+            bool need_itime = (itime >= n_time_old && itime <= n_time_new+1);
+
+            if (low_data_zlo[itime].size() == 0 && need_itime) {
+                read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);
+
+                sst_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+                tsk_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+
+                for ( MFIter mfi(*(sst_lev[lev][itime]), false); mfi.isValid(); ++mfi ) {
+                    Box gtbx = mfi.growntilebox();
+                    FArrayBox& src = low_data_zlo[itime];
+                    FArrayBox& sst_fab = (*(sst_lev[lev][itime]))[mfi];
+                    FArrayBox& tsk_fab = (*(tsk_lev[lev][itime]))[mfi];
+                    const Array4<      Real>& sst_arr = sst_fab.array();
+                    const Array4<      Real>& tsk_arr = tsk_fab.array();
+                    const Array4<const Real>& src_arr = src.const_array();
+                    const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
+                    ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                    {
+                        int li = min(max(i, i_lo), i_hi);
+                        int lj = min(max(j, j_lo), j_hi);
+                        // NOTE: we convert to potential temperature for the surface
+                        // layer scheme using the initial surface pressure since it's
+                        // not available in the wrflowinp file
+                        sst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
+                        tsk_arr(i,j,0) = sst_arr(i,j,0);
+                    });
+                }
+
+                sst_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
+                tsk_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
+            }
+        } // itime
+    } // have nc_low_file && lev == 0
 #endif
 
     //
