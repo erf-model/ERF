@@ -759,9 +759,9 @@ ERF::init_from_wrfinput (int lev,
         int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
         for (int itime = 0; itime < ntimes; itime++)
         {
-           read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
-                            bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                            real_width);
+            read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
+                             bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                             real_width);
 
             if (itime == 0) {
                 Print() << "Read in boundary data with width "  << real_width << std::endl;
