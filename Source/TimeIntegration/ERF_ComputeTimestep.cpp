@@ -242,7 +242,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                     Array4<Real const> const& visc,
                                     Array4<Real const> const& z_nd) -> Real
          {
-             Real new_visc_dt = -1.e100;
+             Real new_visc_dt = 1.e100;
              amrex::Loop(b, [=,&new_visc_dt] (int i, int j, int k) noexcept
              {
                  Real dz = 0.25 * ( z_nd(i  ,j  ,k) - z_nd(i  ,j  ,k+1)
@@ -250,7 +250,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                   + z_nd(i  ,j+1,k) - z_nd(i  ,j+1,k+1)
                                   + z_nd(i+1,j+1,k) - z_nd(i+1,j+1,k+1) );
                  Real dt = 0.5 * dz * dz / (amrex::Math::abs(visc(i,j,k)) + 1.0e-15);
-                 new_visc_dt = amrex::max(dt, new_visc_dt);
+                 new_visc_dt = amrex::min(dt, new_visc_dt);
              });
              return new_visc_dt;
          });
