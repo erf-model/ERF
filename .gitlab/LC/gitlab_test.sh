@@ -29,10 +29,15 @@ echo ${host}
 
 build_dir=build_${host}_${CI_PIPELINE_ID}_$(date +%F_%H_%M_%S)
 
+echo "============="
+echo "Setup modules"
+echo "============="
+
 if [[ -n ${modules} ]]
 then
     module load ${modules}
 fi
+module list
 
 # Temporary workaround for CUDA builds:
 #  AMReX fcompare seems to not work as expected if compiled with CUDA.
@@ -70,6 +75,10 @@ then
     echo "====================================================="
 fi
 
+echo "==========================="
+echo "Clone gold files repository"
+echo "==========================="
+
 # Clone LC gold files repo -- note that we need to grant this repo job
 # token permissions to the gold file repo
 rm -rf erf-llnl-gold-files
@@ -94,8 +103,16 @@ then
     echo "====================================================="
     echo "Using gold files at: ${ERF_TEST_GOLD_FILES_DIRECTORY}"
     echo "====================================================="
+else
+    echo "============================"
+    echo "Using default ERF gold files"
+    echo "============================"
 fi
 cd -
+
+echo "============="
+echo "Configure ERF"
+echo "============="
 
 mkdir ${build_dir}
 cd ${build_dir}
@@ -125,5 +142,15 @@ time cmake \
      -DERF_TEST_FCOMPARE_ATOL="${ERF_TEST_FCOMPARE_ATOL:-"2.0e-10"}" \
      -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
      ..
+
+echo "========="
+echo "Build ERF"
+echo "========="
+
 time make -j ${OMP_NUM_THREADS:-16}
+
+echo "========"
+echo "Test ERF"
+echo "========"
+
 time ctest -VV --output-on-failure

@@ -185,6 +185,15 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     state_new.push_back(MultiFab(rV_new[lev], amrex::make_alias, 0,     1)); // ymom
     state_new.push_back(MultiFab(rW_new[lev], amrex::make_alias, 0,     1)); // zmom
 
+#ifdef ERF_USE_SHOC
+    // **************************************************************************************
+    // Update the "old" state using SHOC
+    // **************************************************************************************
+    if (solverChoice.use_shoc) {
+        compute_shoc_tendencies(lev, S_old, U_old, V_old, W_old, dt_lev);
+    }
+#endif
+
     // **************************************************************************************
     // Update the dycore
     // **************************************************************************************
