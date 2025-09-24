@@ -49,6 +49,9 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
             if (clear_itime && bdy_data_xlo[itime].size() > 0) {
                 bdy_data_xlo[itime].clear();
+                bdy_data_xhi[itime].clear();
+                bdy_data_ylo[itime].clear();
+                bdy_data_yhi[itime].clear();
                 //amrex::Print() << "CLEAR  DATA AT TIME " << itime << std::endl;
             }
 
