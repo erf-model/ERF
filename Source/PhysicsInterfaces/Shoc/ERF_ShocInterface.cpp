@@ -6,54 +6,105 @@ using namespace amrex;
 SHOCInterface::SHOCInterface (const int& lev,
                               SolverChoice& sc)
 {
+    //
+    // Defaults set from E3SM/components/eamxx/cime_config/namelist_defaults_eamxx.xml
+    //
+    bool def_check_flux_state = false;
+    bool def_enable_column_conservation = false;
+    // Extra SHOC diagnostics
+    bool def_extra_diags = false;
+    // Turn off SGS variability in SHOC, effectively reducing it to a 1.5 TKE closure?
+    bool def_shoc_1p5tke = false;
+    // Minimum value of stability correction
+    Real def_lambda_low = 0.001;
+    // Maximum value of stability correction
+    Real def_lambda_high = 0.08;
+    // Slope of change from lambda_low to lambda_high
+    Real def_lambda_slope = 0.08;
+    // stability threshold for which to apply more stability correction
+    Real def_lambda_thresh = 0.02;
+    // Temperature variance tuning factor
+    Real def_thl2tune = 1.0;
+    // Moisture variance tuning factor
+    Real def_qw2tune = 1.0;
+    // Temperature moisture covariance
+    Real def_qwthl2tune = 1.0;
+    // Vertical velocity variance
+    Real def_w2tune = 1.0;
+    // Length scale factor
+    Real def_length_fac = 0.5;
+    // Third moment vertical velocity damping factor
+    Real def_c_diag_3rd_mom = 7.0;
+    // Eddy diffusivity coefficient for heat
+    Real def_coeff_kh = 0.1;
+    // Eddy diffusivity coefficient for momentum
+    Real def_coeff_km = 0.1;
+
+    // From E3SM/components/eamxx/src/control/atmospheric_driver.cpp
+    bool def_apply_tms = true;
+
+    runtime_options.lambda_low    = def_lambda_low;
+    runtime_options.lambda_high   = def_lambda_high;
+    runtime_options.lambda_slope  = def_lambda_slope;
+    runtime_options.lambda_thresh = def_lambda_thresh;
+
+    runtime_options.thl2tune   = def_thl2tune;
+    runtime_options.qwthl2tune = def_qwthl2tune;
+    runtime_options.qw2tune    = def_qw2tune;
+    runtime_options.w2tune     = def_w2tune;
+
+    runtime_options.length_fac     = def_length_fac;
+    runtime_options.c_diag_3rd_mom = def_c_diag_3rd_mom;
+    runtime_options.Ckh            = def_coeff_kh;
+    runtime_options.Ckm            = def_coeff_km;
+    runtime_options.shoc_1p5tke    = def_shoc_1p5tke;
+    runtime_options.extra_diags    = def_extra_diags;
+
     // Construct parser object for following reads
     ParmParse pp("erf.shoc");
 
     // Parse runtime inputs at start up
-    pp.get("lambda_low"      , runtime_options.lambda_low    );
-    pp.get("lambda_high"     , runtime_options.lambda_high   );
-    pp.get("lambda_slope"    , runtime_options.lambda_slope  );
-    pp.get("lambda_thresh"   , runtime_options.lambda_thresh );
-    pp.get("thl2tune"        , runtime_options.thl2tune      );
-    pp.get("qw2tune"         , runtime_options.qw2tune       );
-    pp.get("qwthl2tune"      , runtime_options.qwthl2tune    );
-    pp.get("w2tune"          , runtime_options.w2tune        );
-    pp.get("length_fac"      , runtime_options.length_fac    );
-    pp.get("c_diag_3rd_mom"  , runtime_options.c_diag_3rd_mom);
-    pp.get("coeff_kh"        , runtime_options.Ckh           );
-    pp.get("coeff_km"        , runtime_options.Ckm           );
-    pp.get("shoc_1p5tke"     , runtime_options.shoc_1p5tke   );
-    pp.get("extra_shoc_diags", runtime_options.extra_diags   );
+    pp.query("lambda_low"      , runtime_options.lambda_low    );
+    pp.query("lambda_high"     , runtime_options.lambda_high   );
+    pp.query("lambda_slope"    , runtime_options.lambda_slope  );
+    pp.query("lambda_thresh"   , runtime_options.lambda_thresh );
+    pp.query("thl2tune"        , runtime_options.thl2tune      );
+    pp.query("qw2tune"         , runtime_options.qw2tune       );
+    pp.query("qwthl2tune"      , runtime_options.qwthl2tune    );
+    pp.query("w2tune"          , runtime_options.w2tune        );
+    pp.query("length_fac"      , runtime_options.length_fac    );
+    pp.query("c_diag_3rd_mom"  , runtime_options.c_diag_3rd_mom);
+    pp.query("coeff_kh"        , runtime_options.Ckh           );
+    pp.query("coeff_km"        , runtime_options.Ckm           );
+    pp.query("shoc_1p5tke"     , runtime_options.shoc_1p5tke   );
+    pp.query("extra_shoc_diags", runtime_options.extra_diags   );
 
-    pp.get("apply_tms", apply_tms);
-    pp.get("check_flux_state", check_flux_state);
+    // Set to default but allow us to change it through the inputs file
+    apply_tms = def_apply_tms;
+    pp.query("apply_tms", apply_tms);
 
+    pp.query("check_flux_state", check_flux_state);
 }
 
 
 void
 ERF::compute_shoc_tendencies (int lev,
-                              MultiFab& cons_in,
-                              MultiFab& xvel_in,
-                              MultiFab& yvel_in,
-                              MultiFab& zvel_in,
-                              MultiFab& source,
-                              MultiFab& xmom_src,
-                              MultiFab& ymom_src,
-                              MultiFab& zmom_src,
+                              MultiFab& cons,
+                              MultiFab& xvel,
+                              MultiFab& yvel,
+                              MultiFab& zvel,
                               const Real& dt_advance)
 {
     Print() << "Advancing SHOC at level: " << lev << " ...";
 
-    shoc_interface[lev]->set_grids(lev, cons_in.boxArray(), Geom(lev),
-                                   &cons_in, z_phys_nd[lev].get(),
-                                   lat_m[lev].get(), lon_m[lev].get());
+    shoc_interface[lev]->set_grids(lev, cons.boxArray(), Geom(lev),
+                                   &cons, z_phys_nd[lev].get());
 
     shoc_interface[lev]->initialize_impl();
     shoc_interface[lev]->run_impl(dt_advance);
     shoc_interface[lev]->finalize_impl();
 
-    Print() << "DONE\n";
+    Print() << "Done advancing SHOC\n";
 }
 
 
@@ -61,15 +112,13 @@ void
 SHOCInterface::set_grids (int& level,
                           const BoxArray& ba,
                           Geometry& geom,
-                          MultiFab* cons_in,
-                          MultiFab* z_phys,
-                          MultiFab* lat,
-                          MultiFab* lon)
+                          MultiFab* cons,
+                          MultiFab* z_phys)
 {
     // Set data members that may change
     m_lev            = level;
     m_geom           = geom;
-    m_cons_in        = cons_in;
+    m_cons           = cons;
     m_z_phys         = z_phys;
 
     // Ensure the boxes span klo -> khi
@@ -82,7 +131,7 @@ SHOCInterface::set_grids (int& level,
     m_num_cols = 0;
     m_col_offsets.clear();
     m_col_offsets.resize(int(ba.size()));
-    for (amrex::MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
+    for (amrex::MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
         const auto& vbx = mfi.validbox();
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
                                          (khi == vbx.bigEnd(2)),
@@ -369,16 +418,16 @@ SHOCInterface::mf_to_kokkos_buffers ()
     int  ncol  = m_num_cols;
     int  nlay  = m_num_layers;
     Real dz    = m_geom.CellSize(2);
-    bool moist = (m_cons_in->nComp() > RhoQ1_comp);
-    bool ice   = (m_cons_in->nComp() > RhoQ3_comp);
+    bool moist = (m_cons->nComp() > RhoQ1_comp);
+    bool ice   = (m_cons->nComp() > RhoQ3_comp);
     auto ProbLoArr = m_geom.ProbLoArray();
-    for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
         const auto& vbx  = mfi.validbox();
         const int nx     = vbx.length(0);
         const int imin   = vbx.smallEnd(0);
         const int jmin   = vbx.smallEnd(1);
         const int offset = m_col_offsets[mfi.index()];
-        const Array4<const Real>& cons_arr = m_cons_in->const_array(mfi);
+        const Array4<const Real>& cons_arr = m_cons->const_array(mfi);
         const Array4<const Real>& z_arr    = (m_z_phys) ? m_z_phys->const_array(mfi) :
                                                           Array4<const Real>{};
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)

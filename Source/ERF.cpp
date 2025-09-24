@@ -12,6 +12,7 @@
 #include "ERF.H"
 #include "AMReX_buildInfo.H"
 #include "AMReX_Random.H"
+#include "AMReX_EB2_IF_Box.H"
 #include "AMReX_EB2_IF_Sphere.H"
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
@@ -180,6 +181,15 @@ ERF::ERF_shared ()
 
 #ifdef ERF_USE_WINDFARM
     initializeWindFarm(nlevs_max);
+#endif
+
+#ifdef ERF_USE_SHOC
+    shoc_interface.resize(nlevs_max);
+    if (solverChoice.use_shoc) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            shoc_interface[lev] = std::make_unique<SHOCInterface>(lev, solverChoice);
+        }
+    }
 #endif
 
     rad.resize(nlevs_max);
@@ -470,8 +480,16 @@ ERF::ERF_shared ()
             FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
             Real dummy_time = 0.0;
             prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
-            TerrainIF terrain_if(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
-            auto gshop = EB2::makeShop(terrain_if);
+            TerrainIF implicit_fun(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
+            auto gshop = EB2::makeShop(implicit_fun);
+            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+        } else if (geometry == "box") {
+            RealArray box_lo{0.0, 0.0, 0.0};
+            RealArray box_hi{0.0, 0.0, 0.0};
+            pp.query("box_lo", box_lo);
+            pp.query("box_hi", box_hi);
+            EB2::BoxIF implicit_fun(box_lo, box_hi, false);
+            auto gshop = EB2::makeShop(implicit_fun);
             amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
         } else if (geometry == "sphere") {
             auto ProbLoArr = geom[max_level].ProbLoArray();
@@ -479,8 +497,8 @@ ERF::ERF_shared ()
             const Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
             const Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
             RealArray sphere_center = {xcen, ycen, 0.0};
-            EB2::SphereIF sphere_if(0.5, sphere_center, false);
-            auto gshop = EB2::makeShop(sphere_if);
+            EB2::SphereIF implicit_fun(0.5, sphere_center, false);
+            auto gshop = EB2::makeShop(implicit_fun);
             amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
         }
     }
@@ -895,6 +913,16 @@ ERF::InitData_post ()
             average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
               detJ_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
             z_phys_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
+        }
+    }
+
+    //
+    // Copy vars_new into vars_old, then use vars_old to fill covered cells in vars_new during AverageDown
+    //
+    if (SolverChoice::terrain_type == TerrainType::EB) {
+        for (int lev = 0; lev <= finest_level; lev++) {
+            int ncomp_cons = vars_new[lev][Vars::cons].nComp();
+            MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,ncomp_cons,vars_new[lev][Vars::cons].nGrowVect());
         }
     }
 
@@ -1637,9 +1665,6 @@ ERF::restart ()
 {
     ReadCheckpointFile();
 
-    // We set this here so that we don't over-write the checkpoint file we just started from
-    last_check_file_step = istep[0];
-
     if (regrid_level_0_on_restart) {
         //
         // Coarsening before we split the grids ensures that each resulting
@@ -1669,6 +1694,19 @@ ERF::restart ()
     // We call this here without knowing whether the particles have already been initialized or not
     initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,t_new[0]);
 #endif
+
+    Real cur_time = t_new[0];
+    if (m_check_per    > 0.) {last_check_file_time    = cur_time;}
+    if (m_plot2d_per_1 > 0.) {last_plot2d_file_time_1 = std::floor(cur_time/m_plot2d_per_1) * m_plot2d_per_1;}
+    if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 = std::floor(cur_time/m_plot2d_per_2) * m_plot2d_per_2;}
+    if (m_plot3d_per_1 > 0.) {last_plot3d_file_time_1 = std::floor(cur_time/m_plot3d_per_1) * m_plot3d_per_1;}
+    if (m_plot3d_per_2 > 0.) {last_plot3d_file_time_2 = std::floor(cur_time/m_plot3d_per_2) * m_plot3d_per_2;}
+
+    if (m_check_int    > 0.) {last_check_file_step    = istep[0];}
+    if (m_plot2d_int_1 > 0.) {last_plot2d_file_step_1 = istep[0];}
+    if (m_plot2d_int_2 > 0.) {last_plot2d_file_step_2 = istep[0];}
+    if (m_plot3d_int_1 > 0.) {last_plot3d_file_step_1 = istep[0];}
+    if (m_plot3d_int_2 > 0.) {last_plot3d_file_step_2 = istep[0];}
 }
 
 // This is called only if starting from scratch (from ERF::MakeNewLevelFromScratch)
