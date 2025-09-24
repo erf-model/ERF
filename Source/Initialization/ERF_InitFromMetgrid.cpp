@@ -277,7 +277,7 @@ ERF::init_from_metgrid (int lev)
 
             // This defines z at w-cell faces.
             make_zcc(geom[lev],*z_phys,*z_phys_cc[lev]);
-        
+
         } // itime==0
 
         // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
@@ -453,7 +453,9 @@ ERF::init_from_metgrid (int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
+
         if (itime == 0) {
+
             // Use map scale factors directly from the met_em files
             for ( MFIter mfi(*mapfac[lev][MapFacType::u_x], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                 // Define fabs for holding the initial data
@@ -465,29 +467,30 @@ ERF::init_from_metgrid (int lev)
                                        msfu_fab, msfv_fab, msfm_fab, flag_msf,
                                        NC_MSFU_fab, NC_MSFV_fab, NC_MSFM_fab);
             } // mf
+
+            for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+                FArrayBox&     p_hse_fab = p_hse[mfi];
+                FArrayBox&    pi_hse_fab = pi_hse[mfi];
+                FArrayBox&    th_hse_fab = th_hse[mfi];
+                FArrayBox&    qv_hse_fab = qv_hse[mfi];
+                FArrayBox&     r_hse_fab = r_hse[mfi];
+                FArrayBox&      cons_fab = lev_new[Vars::cons][mfi];
+                FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
+
+                // Fill base state data using origin data
+                //     p_hse     calculate moist hydrostatic pressure
+                //     r_hse     calculate moist hydrostatic density
+                //     pi_hse    calculate Exner term given pressure
+                //     th_hse    calculate potential temperature
+                //     qv_hse    calculate qv
+                const Box valid_bx = mfi.validbox();
+                init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc, l_rdOcp,
+                                             valid_bx, flag_psfc,
+                                             cons_fab, r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
+                                             qv_hse_fab, z_phys_nd_fab, NC_psfc_fab);
+            } // mf
+
         } // itime==0
-
-        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-            FArrayBox&     p_hse_fab = p_hse[mfi];
-            FArrayBox&    pi_hse_fab = pi_hse[mfi];
-            FArrayBox&    th_hse_fab = th_hse[mfi];
-            FArrayBox&    qv_hse_fab = qv_hse[mfi];
-            FArrayBox&     r_hse_fab = r_hse[mfi];
-            FArrayBox&      cons_fab = lev_new[Vars::cons][mfi];
-            FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
-
-            // Fill base state data using origin data (initialization and BC arrays)
-            //     p_hse     calculate moist hydrostatic pressure
-            //     r_hse     calculate moist hydrostatic density
-            //     pi_hse    calculate Exner term given pressure
-            //     th_hse    calculate potential temperature
-            //     qv_hse    calculate qv
-            const Box valid_bx = mfi.validbox();
-            init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc, l_rdOcp,
-                                         valid_bx, flag_psfc,
-                                         cons_fab, r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
-                                         qv_hse_fab, z_phys_nd_fab, NC_psfc_fab);
-        } // mf
 
     } // itime
 
@@ -519,8 +522,8 @@ ERF::init_from_metgrid (int lev)
                 ParallelAllReduce::Sum(bdy_data_yhi[itime][nvar].dataPtr(),
                                        bdy_data_yhi[itime][nvar].size(),
                                        ParallelContext::CommunicatorAll());
-            }
-        }
+            } // nvar
+        } // itime
     } // lev==0
 
     // NOTE: We must guarantee one halo cell in the bdy file.
@@ -808,7 +811,6 @@ init_state_from_metgrid (const int  lev,
         auto const new_z     = z_phys_nd_fab.const_array();
 
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-        const amrex::Array4<amrex::Real> bc_data_xlo, bc_data_xhi, bc_data_ylo, bc_data_yhi;
 
         int kmax = ubound(tbxc).z;
 
@@ -842,7 +844,6 @@ init_state_from_metgrid (const int  lev,
         auto const new_z     = z_phys_nd_fab.const_array();
 
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-        const amrex::Array4<amrex::Real> bc_data_xlo, bc_data_xhi, bc_data_ylo, bc_data_yhi;
 
         int kmax = ubound(tbxc).z;
 
