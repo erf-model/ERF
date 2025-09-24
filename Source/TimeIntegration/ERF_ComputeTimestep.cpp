@@ -237,7 +237,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      } else {
          nu.setVal(dc.dynamic_viscosity / dc.rho0_trans);
      }
-     Real estdt_diff = ReduceMax(nu, *z_phys_nd[level], 0,
+     Real estdt_diff = ReduceMin(nu, *z_phys_nd[level], 0,
          [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                     Array4<Real const> const& visc,
                                     Array4<Real const> const& z_nd) -> Real
