@@ -185,6 +185,10 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
                 theta_extrap(i,j,k) = old_drho_theta(i,j,k) + beta_d *
                   ( old_drho_theta(i,j,k) - lagged_delta_rt(i,j,k,RhoTheta_comp) );
             }
+
+            // NOTE: qv is not changing over the fast steps so we use the stage data
+            Real qv = (l_use_moisture) ? stage_cons(i,j,k,RhoQ1_comp)/stage_cons(i,j,k,Rho_comp) : 0.0;
+            theta_extrap(i,j,k) *= (1.0 + RvOverRd*qv);
         });
     } // mfi
 
@@ -304,7 +308,7 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
                 Real gp_eta = (theta_extrap(i,j,k) -theta_extrap(i,j-1,k)) * dyi;
                 Real gp_zeta_on_jface = (k == 0) ?
                     0.5  * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
-                                 -theta_extrap(i,j,k  ) - theta_extrap(i,j-1,k  ) ) :
+                                  -theta_extrap(i,j,k  ) - theta_extrap(i,j-1,k  ) ) :
                     0.25 * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
                                   -theta_extrap(i,j,k-1) - theta_extrap(i,j-1,k-1) );
                 Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
@@ -429,7 +433,7 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
 
             Real h_zeta_cc_xface_lo = 0.5 * dzi *
               (  z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)
-            -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) );
+                -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) );
 
             Real h_zeta_cc_yface_hi = 0.5 * dzi *
               (  z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1)
@@ -667,13 +671,13 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
               // so we don't update avg_zmom at k=vbx_hi.z+1
               avg_zmom(i,j,k)      += facinv*zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
               if (l_reflux) {
-                  (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
+                  (flx_arr[2])(i,j,k,0) =    zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
               }
 
               if (k == vbx_hi.z) {
                   avg_zmom(i,j,k+1)      += facinv * zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
                   if (l_reflux) {
-                      (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
+                      (flx_arr[2])(i,j,k+1,0) =      zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
                       (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
                   }
               }
