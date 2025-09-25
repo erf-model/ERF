@@ -42,6 +42,7 @@ void make_fast_coeffs (int /*level*/,
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
     Real c_v = c_p - R_d;
+    Real RvOverRd = R_v / R_d;
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     Real dzi = dxInv[2];
