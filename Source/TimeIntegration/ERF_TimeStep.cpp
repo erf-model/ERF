@@ -78,9 +78,6 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
         int n_time_old = static_cast<int>( (time        ) /  dT);
         int n_time_new = static_cast<int>( (time+dt[lev]) /  dT);
 
-        int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
-        int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
-
         int ntimes = bdy_data_xlo.size();
         for (int itime = 0; itime < ntimes; itime++)
         {
@@ -95,32 +92,9 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
             if (low_data_zlo[itime].size() == 0 && need_itime) {
                 read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);
 
-                sst_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
-                tsk_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
-
-                for ( MFIter mfi(*(sst_lev[lev][itime]), false); mfi.isValid(); ++mfi ) {
-                    Box gtbx = mfi.growntilebox();
-                    FArrayBox& src = low_data_zlo[itime];
-                    FArrayBox& sst_fab = (*(sst_lev[lev][itime]))[mfi];
-                    FArrayBox& tsk_fab = (*(tsk_lev[lev][itime]))[mfi];
-                    const Array4<      Real>& sst_arr = sst_fab.array();
-                    const Array4<      Real>& tsk_arr = tsk_fab.array();
-                    const Array4<const Real>& src_arr = src.const_array();
-                    const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
-                    ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
-                    {
-                        int li = min(max(i, i_lo), i_hi);
-                        int lj = min(max(j, j_lo), j_hi);
-                        // NOTE: we convert to potential temperature for the surface
-                        // layer scheme using the initial surface pressure since it's
-                        // not available in the wrflowinp file
-                        sst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
-                        tsk_arr(i,j,0) = sst_arr(i,j,0);
-                    });
-                }
-
-                sst_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
-                tsk_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
+                update_sst_tsk(itime, geom[lev], ba2d[lev],
+                               sst_lev[lev], tsk_lev[lev], low_data_zlo,
+                               S_new, *mf_PSFC[0], solverChoice.rdOcp);
             }
         } // itime
     } // have nc_low_file && lev == 0

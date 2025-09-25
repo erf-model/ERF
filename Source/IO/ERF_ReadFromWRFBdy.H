@@ -54,6 +54,17 @@ void
 read_from_wrflow (const int itime,
                   const std::string& nc_low_file,
                   const amrex::Box& domain,
-                  amrex::Vector<amrex::FArrayBox>& low_data_zlo);
+                  amrex::Vector<amrex::Vector<amrex::FArrayBox>>& low_data_zlo);
+
+void
+update_sst_tsk (const int itime,
+                const amrex::Geometry& geom,
+                const amrex::BoxArray& ba2d_lev,
+                amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_lev,
+                amrex::Vector<std::unique_ptr<amrex::MultiFab>>& tsk_lev,
+                const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& low_data_zlo,
+                const amrex::MultiFab& cons,
+                const amrex::MultiFab& mf_PSFC_lev,
+                const amrex::Real rdOcp);
 
 #endif // ERF_USE_NETCDF

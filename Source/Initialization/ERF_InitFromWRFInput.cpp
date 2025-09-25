@@ -816,37 +816,11 @@ ERF::init_from_wrfinput (int lev,
         ntimes = amrex::min(ntimes, 2);
 
         for (int itime(0); itime < ntimes; ++itime) {
-            read_from_wrflow(itime,nc_low_file,geom[0].Domain(),
-                             low_data_zlo,
-                             real_width);
+            read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);
 
-            if (itime > 0) {
-                sst_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
-                tsk_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
-            }
-
-            for ( MFIter mfi(*(sst_lev[lev][itime]), false); mfi.isValid(); ++mfi ) {
-                Box gtbx = mfi.growntilebox();
-                FArrayBox& src = low_data_zlo[itime];
-                FArrayBox& sst_fab = (*(sst_lev[lev][itime]))[mfi];
-                FArrayBox& tsk_fab = (*(tsk_lev[lev][itime]))[mfi];
-                const Array4<      Real>& sst_arr = sst_fab.array();
-                const Array4<      Real>& tsk_arr = tsk_fab.array();
-                const Array4<const Real>& src_arr = src.const_array();
-                const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
-                ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
-                {
-                    int li = min(max(i, i_lo), i_hi);
-                    int lj = min(max(j, j_lo), j_hi);
-                    // NOTE: we convert to potential temperature for the surface
-                    // layer scheme using the initial surface pressure since it's
-                    // not available in the wrflowinp file
-                    sst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
-                    tsk_arr(i,j,0) = sst_arr(i,j,0);
-                });
-            }
-            sst_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
-            tsk_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
+            update_sst_tsk(itime, geom[0], ba2d[0],
+                           sst_lev[0], tsk_lev[0], low_data_zlo,
+                           lev_new[Vars::cons], *mf_PSFC[0], l_rdOcp);
         }
     } // lev == 0 && nc_low_file exists
 }

@@ -719,7 +719,7 @@ private:
     // Maximum value of terrain read in from wrfinput at level 0
     amrex::Real z_top = 0.;
 
-    amrex::Vector<amrex::FArrayBox> low_data_zlo;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> low_data_zlo;
 
 #endif // ERF_USE_NETCDF
 

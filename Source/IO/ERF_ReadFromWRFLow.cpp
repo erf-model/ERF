@@ -1,5 +1,6 @@
 #include "AMReX_FArrayBox.H"
 #include "ERF_NCWpsFile.H"
+#include "ERF_NCInterface.H"
 #include "ERF_IndexDefines.H"
 
 #include <sstream>
@@ -8,8 +9,7 @@
 #include <atomic>
 
 #include "ERF_DataStruct.H"
-#include "ERF_NCInterface.H"
-#include "AMReX_FArrayBox.H"
+#include "ERF_EOS.H"
 #include "AMReX_Print.H"
 
 using namespace amrex;
@@ -17,7 +17,7 @@ using namespace amrex;
 #ifdef ERF_USE_NETCDF
 
 Real
-read_times_from_wrflow (const std::string& nc_bdy_file,
+read_times_from_wrflow (const std::string& nc_low_file,
                         Vector<Vector<FArrayBox>>& low_data_zlo,
                         Real& start_low_time)
 {
@@ -85,7 +85,7 @@ read_times_from_wrflow (const std::string& nc_bdy_file,
 
 void
 read_from_wrflow (const int itime, const std::string& nc_low_file, const Box& domain,
-                  Vector<FArrayBox>& low_data_zlo)
+                  Vector<Vector<FArrayBox>>& low_data_zlo)
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
                                                            //
@@ -134,14 +134,14 @@ read_from_wrflow (const int itime, const std::string& nc_low_file, const Box& do
 
         if (ParallelDescriptor::IOProcessor())
         {
-            Array4<Real> fab_arr = low_data_zlo[itime].array();
+            Array4<Real> fab_arr = low_data_zlo[itime][iv].array();
 
             // dims: (Time, south_north, west_east)
             int ns2 = tslice[iv].get_vshape()[2];
 
-            long num_pts  = low_data_zlo[0].box().numPts();
-            int ioff      = low_data_zlo[0].smallEnd()[0];
-            int joff      = low_data_zlo[0].smallEnd()[1];
+            long num_pts  = low_data_zlo[itime][iv].box().numPts();
+            int ioff      = low_data_zlo[itime][iv].smallEnd()[0];
+            int joff      = low_data_zlo[itime][iv].smallEnd()[1];
 
             for (int n(0); n < num_pts; ++n) {
                 int j  = n / ns2;
@@ -163,4 +163,61 @@ read_from_wrflow (const int itime, const std::string& nc_low_file, const Box& do
     }
 }
 
+void
+update_sst_tsk (const int itime,
+                const Geometry& geom,
+                const BoxArray& ba2d_lev,
+                Vector<std::unique_ptr<MultiFab>>& sst_lev,
+                Vector<std::unique_ptr<MultiFab>>& tsk_lev,
+                const Vector<Vector<FArrayBox>>& low_data_zlo,
+                const MultiFab& cons,
+                const MultiFab& mf_PSFC_lev,
+                const Real rdOcp)
+{
+    auto& domain = geom.Domain();
+
+    // Temporary MFs for derived quantities
+    auto& dm    = cons.DistributionMap();
+    IntVect ng  = cons.nGrowVect();
+    IntVect ngv = ng; ngv[2] = 0;
+
+    // Bounds limiting
+    int ilo = domain.smallEnd()[0];
+    int ihi = domain.bigEnd()[0];
+    int jlo = domain.smallEnd()[1];
+    int jhi = domain.bigEnd()[1];
+
+    if (itime > 0) {
+        sst_lev[itime] = std::make_unique<MultiFab>(ba2d_lev,dm,1,ngv);
+        tsk_lev[itime] = std::make_unique<MultiFab>(ba2d_lev,dm,1,ngv);
+    }
+
+    for ( MFIter mfi(*(sst_lev[itime]), false); mfi.isValid(); ++mfi ) {
+        Box gtbx = mfi.growntilebox();
+
+        const FArrayBox& src = low_data_zlo[itime][0];
+        FArrayBox& sst_fab = (*(sst_lev[itime]))[mfi];
+        FArrayBox& tsk_fab = (*(tsk_lev[itime]))[mfi];
+
+        const Array4<      Real>& sst_arr = sst_fab.array();
+        const Array4<      Real>& tsk_arr = tsk_fab.array();
+        const Array4<const Real>& src_arr = src.const_array();
+        const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            int li = min(max(i, ilo), ihi);
+            int lj = min(max(j, jlo), jhi);
+
+            // NOTE: we convert to potential temperature for the surface
+            // layer scheme using the initial surface pressure since it's
+            // not available in the wrflowinp file
+            sst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), rdOcp);
+            tsk_arr(i,j,0) = sst_arr(i,j,0);
+        });
+    }
+
+    sst_lev[itime]->FillBoundary(geom.periodicity());
+    tsk_lev[itime]->FillBoundary(geom.periodicity());
+}
 #endif // ERF_USE_NETCDF
