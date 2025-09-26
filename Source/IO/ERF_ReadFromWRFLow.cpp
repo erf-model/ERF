@@ -144,8 +144,8 @@ read_from_wrflow (const int itime, const std::string& nc_low_file, const Box& do
             int joff      = low_data_zlo[itime][iv].smallEnd()[1];
 
             for (int n(0); n < num_pts; ++n) {
-                int j  = n / ns2;
-                int i  = n - j*ns2;
+                int j = n / ns2;
+                int i = n - j*ns2;
                 fab_arr(ioff+i,joff+j,0) = static_cast<Real>(*(tslice[iv].get_data() + n));
             }
         } // if ParalleDescriptor::IOProcessor()
@@ -172,7 +172,8 @@ update_sst_tsk (const int itime,
                 const Vector<Vector<FArrayBox>>& low_data_zlo,
                 const MultiFab& cons,
                 const MultiFab& mf_PSFC_lev,
-                const Real rdOcp)
+                const Real rdOcp,
+                const bool /*use_moist*/)
 {
     auto& domain = geom.Domain();
 
@@ -203,16 +204,28 @@ update_sst_tsk (const int itime,
         const Array4<      Real>& tsk_arr = tsk_fab.array();
         const Array4<const Real>& src_arr = src.const_array();
         const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
+      //const Array4<const Real>& con_arr = cons.const_array(mfi);
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             int li = min(max(i, ilo), ihi);
             int lj = min(max(j, jlo), jhi);
 
+            // For simplicity, assume constant surface pressure = p0
+            // ==> surface theta == SST
+//            sst_arr(i,j,0) = src_arr(li,lj,0);
+
+            // Use local density to convert to potential temperature -- but
+            // this should be averaged over the lowinput time interval
+//            Real rho = con_arr(li, lj, 0, Rho_comp);
+//            Real qv = (use_moist) con_arr(li, lj, 0, RhoQ1_comp) / rho : 0.0;
+//            sst_arr(i,j,0) = getThgivenRandT(rho, src_arr(li,lj,0), rdOcp, qv);
+
             // NOTE: we convert to potential temperature for the surface
             // layer scheme using the initial surface pressure since it's
             // not available in the wrflowinp file
             sst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), rdOcp);
+
             tsk_arr(i,j,0) = sst_arr(i,j,0);
         });
     }

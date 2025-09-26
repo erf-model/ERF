@@ -19,6 +19,7 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_EBIFTerrain.H"
 #ifdef ERF_USE_NETCDF
+#include "ERF_ReadFromWRFInput.H"
 #include "ERF_ReadFromWRFBdy.H"
 #endif
 
@@ -967,6 +968,7 @@ ERF::InitData_post ()
         // Create the needed bdy_data_xlo etc ... since we don't read it in from checkpoint any more
         // This follows init_from_wrfinput()
         //
+        bool use_moist = (solverChoice.moisture_type != MoistureType::None);
         if (solverChoice.use_real_bcs) {
 
             bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
@@ -977,7 +979,6 @@ ERF::InitData_post ()
             int n_time_old = static_cast<int>(t_new[0] /  dT);
 
             int lev = 0;
-            bool use_moist = (solverChoice.moisture_type != MoistureType::None);
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
 
@@ -1010,11 +1011,31 @@ ERF::InitData_post ()
 
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
-                read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);
+                read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
+
+                // Need to read PSFC
+                FArrayBox NC_fab_var_file;
+                for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
+                    int success, use_theta_m;
+                    read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][0],
+                                       NC_fab_var_file, "PSFC", geom[lev],
+                                       use_theta_m, success);
+                    auto& var_fab = NC_fab_var_file;
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for ( MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi )
+                    {
+                        FArrayBox &cur_fab = (*mf_PSFC[lev])[mfi];
+                        cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                    }
+                    var_fab.clear();
+                }
 
                 update_sst_tsk(itime, geom[lev], ba2d[lev],
                                sst_lev[lev], tsk_lev[lev], low_data_zlo,
-                               vars_new[lev][Vars::cons], *mf_PSFC[lev], solverChoice.rdOcp);
+                               vars_new[lev][Vars::cons], *mf_PSFC[lev],
+                               solverChoice.rdOcp, use_moist);
             } // itime
         }
 #endif

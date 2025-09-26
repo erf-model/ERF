@@ -9,21 +9,12 @@
 #include <ERF_ProbCommon.H>
 #include <ERF_DataStruct.H>
 
+#include <ERF_ReadFromWRFInput.H>
 #include <ERF_ReadFromWRFBdy.H>
 
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
-
-void
-read_from_wrfinput (int lev,
-                    const Box& subdomain,
-                    const std::string& fname,
-                    FArrayBox& NC_fab,
-                    const std::string& NC_name,
-                    Geometry& geom,
-                    int& use_theta_m,
-                    int& success);
 
 void
 compute_terrain_top_and_bottom (Real& terrain_bottom_min,
@@ -804,9 +795,6 @@ ERF::init_from_wrfinput (int lev,
                                                    low_data_zlo,
                                                    start_low_time);
 
-        int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
-        int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
-
         int ntimes = low_data_zlo.size();
         sst_lev[lev].resize(ntimes);
         tsk_lev[lev].resize(ntimes);
@@ -818,9 +806,10 @@ ERF::init_from_wrfinput (int lev,
         for (int itime(0); itime < ntimes; ++itime) {
             read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);
 
-            update_sst_tsk(itime, geom[0], ba2d[0],
-                           sst_lev[0], tsk_lev[0], low_data_zlo,
-                           lev_new[Vars::cons], *mf_PSFC[0], l_rdOcp);
+            update_sst_tsk(itime, geom[lev], ba2d[lev],
+                           sst_lev[lev], tsk_lev[lev], low_data_zlo,
+                           lev_new[Vars::cons], *mf_PSFC[lev],
+                           l_rdOcp, use_moist);
         }
     } // lev == 0 && nc_low_file exists
 }
