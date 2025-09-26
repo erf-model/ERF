@@ -142,8 +142,9 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
     AMREX_ALWAYS_ASSERT(m_qmoist_size == m_mic_var_map.size());
 
     /* allocate microphysics multifabs */
-    m_mic_fab_vars.resize( MicVar_SD::NumVars
-                          +(m_num_nonmoist_sp)*MicVar_SD_Species::NumVars);
+    m_mic_fab_vars.resize(  MicVar_SD::NumVars
+                          + m_num_nonmoist_sp * MicVar_SD_Species::NumVars
+                          + m_num_aerosols * MicVar_SD_Aerosols::NumVars );
     for (auto i(0); i < m_mic_fab_vars.size(); i++) {
       m_mic_fab_vars[i] = std::make_shared<MultiFab> ( a_cons_vars.boxArray(),
                                                        a_cons_vars.DistributionMap(),
