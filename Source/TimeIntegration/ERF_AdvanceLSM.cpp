@@ -40,7 +40,7 @@ void ERF::advance_lsm (int lev,
             lsm.set_LSM_precip_input(lev, precip[lev].get());
         }
 
-        lsm.set_LSM_terrain_inputs(lev, sst_lev, lmask_lev);
+        lsm.set_LSM_terrain_inputs(lev, tsk_lev, lmask_lev);
         if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
             lsm.Advance(lev, cons_in, xvel_in, yvel_in, SFS_hfx3_lev[lev].get(), SFS_q1fx3_lev[lev].get(), dt_advance, istep[lev]);
         } else {

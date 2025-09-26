@@ -229,23 +229,32 @@ public:
                     auto in_soiltype_arr = lsm_fab_vars[LsmVar_SLM::soiltype]->const_array(mfi);
                     auto in_lai_arr = lsm_fab_vars[LsmVar_SLM::lai]->const_array(mfi);
                     auto in_tsk_arr = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
+                    auto in_tsoil_arr = lsm_fab_vars[LsmVar_SLM::soilt]->array(mfi);
 
                     auto landmask_arr = landmask.array(mfi);
                     auto landtype_arr = landtype.array(mfi);
                     auto lai_arr = LAI.array(mfi);
 
                     auto sstxy_arr = sstxy.array(mfi);
+                    auto tskin_arr = t_skin.array(mfi);
 
                     amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
                         landtype_arr(i,j,0) = vegtype_arr(i,j,d_khi_lsm);
                         //soiltype_arr(i,j,0) = in_soiltype_arr(i,j,d_khi_lsm);
                         lai_arr(i,j,0) = in_lai_arr(i,j,d_khi_lsm);
 
-                        sstxy_arr(i,j,0) = in_tsk_arr(i,j,d_khi_lsm);
+                        //sstxy_arr(i,j,0) = in_tsk_arr(i,j,d_khi_lsm);
 
-                        in_tsk_arr(i,j,0) = in_tsk_arr(i,j,d_khi_lsm);
+                        //in_tsk_arr(i,j,0) = in_tsk_arr(i,j,d_khi_lsm);
 
+                        //tskin_arr(i,j,0) = in_tsk_arr(i,j,d_khi_lsm);
                         //amrex::Print() << " i = " << i << " j = " << j << ": landtype = " << landtype_arr(i,j,0) << " soiltype = " << in_soiltype_arr(i,j,d_khi_lsm) << " LAI = " << lai_arr(i, j, 0) << std::endl;
+
+                        // TODO: initialize surface to soil temperature for now, check
+                        sstxy_arr(i,j,0) = in_tsoil_arr(i,j,d_khi_lsm);
+                        in_tsk_arr(i,j,0) = in_tsoil_arr(i,j,d_khi_lsm);
+                        tskin_arr(i,j,0) = in_tsoil_arr(i,j,d_khi_lsm);
+
 
                         if (landtype_arr(i,j,0) == 17) {
                             //amrex::Print() << "     -- water cell - setting landtype=0 landmask=0" << std::endl;
@@ -713,8 +722,8 @@ private:
     // Defines the WRFInput names and corresponding SLM name used to
     // fill variables at initialization
     inline static std::unordered_map<std::string, std::string> wrfinput_map = {
-        {"ZS", "soil_thickness"},
-        {"DZS", "node_z"},
+        {"DZS", "soil_thickness"},
+        {"ZS", "node_z"},
         {"TSLB", "tsoil"},
         {"SMOIS", "wsoil"},
         {"LAI", "lai"},

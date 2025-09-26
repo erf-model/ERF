@@ -1321,6 +1321,7 @@ void SLM::init_slm_vars()
         auto qref_arr  = lsm_fab_vars[LsmVar_SLM::qref]->const_array(mfi);
         auto pref_arr  = lsm_fab_vars[LsmVar_SLM::pref]->const_array(mfi);
 
+        //auto landtype_arr = landtype.const_array(mfi);
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             if (landmask_arr(i, j, 0) == 1)
@@ -1339,8 +1340,11 @@ void SLM::init_slm_vars()
                 q_gr *= soilw_arr(i, j, d_khi_lsm);
 
                 // canopy temperature: initialize as (ref level temperature + soil surf temperature)/2
-                t_canop_arr(i, j, 0) = 0.5*(tref_arr(i, j, 0) + tsurf_arr(i, j, 0));
-                t_cas_arr(i, j, 0) = 0.5*(tref_arr(i, j, 0) + tsurf_arr(i, j, 0));
+                //t_canop_arr(i, j, 0) = 0.5*(tref_arr(i, j, 0) + tsurf_arr(i, j, 0));
+                //t_cas_arr(i, j, 0) = 0.5*(tref_arr(i, j, 0) + tsurf_arr(i, j, 0));
+
+                t_canop_arr(i, j, 0) = tref_arr(i, j, 0);
+                t_cas_arr(i, j, 0) = tref_arr(i, j, 0);
 
                 // specific humidity in canopy air space
                 q_cas_arr(i, j, 0) = 0.5*(qref_arr(i, j, 0) + q_gr);
@@ -3157,9 +3161,11 @@ SLM::set_terrain_inputs(const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& s
             auto slm_sst   = sstxy.array(mfi);
             auto slm_lmask   = landmask.array(mfi);
 
+            auto slm_tsk   = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
             ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 slm_sst(i, j, k) = sst_array(i, j, k, 0);
+                slm_tsk(i, j, k) = sst_array(i, j, k, 0);
                 slm_lmask(i, j, k) = lmask_array(i, j, k, 0);
             });
         }
@@ -3297,13 +3303,14 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     IntVect ng(0, 0, 0);
 
     // Total number of output MFs: net_rad components + mf_data size - 1
-    const int output_size = SLM_NetRad::NumVars + mf_data.size() - 1;
+    const int output_size = SLM_NetRad::NumVars + mf_data.size() - 1 + slm_diag.nComp();
     MultiFab fab(ba_lsm_2d, net_rad.DistributionMap(), output_size, ng);
     MultiFab::Copy(fab, *(mf_data[0]), 0, 0, SLM_NetRad::NumVars, 0);
     for (int i = 1; i < mf_data.size(); i++)
     {
         MultiFab::Copy(fab, *(mf_data[i]), 0, i + SLM_NetRad::NumVars - 1, 1, 0);
     }
+    MultiFab::Copy(fab, slm_diag, 0, output_size - slm_diag.nComp(), slm_diag.nComp(), 0);
 
 
     amrex::Vector<std::string> varnames;
@@ -3352,6 +3359,11 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     varnames.push_back("r_soil");
 
     varnames.push_back("wet_canop");
+
+    for (int i = 0; i < diag_names.size(); i++)
+    {
+        varnames.push_back(diag_names[i]);
+    }
 
     AMREX_ALWAYS_ASSERT(varnames.size() == output_size);
 
