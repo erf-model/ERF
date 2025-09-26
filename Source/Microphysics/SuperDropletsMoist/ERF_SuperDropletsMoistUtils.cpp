@@ -202,6 +202,7 @@ void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars)
     computeQcSpecies();
     computeQtSpecies();
     speciesAccumulation();
+    aerosolAccumulation();
 
     if (!m_kinematic_mode) { Copy_Micro_to_State(a_cons_vars); }
 }
@@ -394,6 +395,39 @@ void SuperDropletsMoist::speciesAccumulation ()
             Box bx = mfi.tilebox();
             const Array4<Real const>& zflux_arr = mf_zflux.const_array(mfi);
             const Array4<Real>& accum_arr = m_mic_fab_vars[s_accum_idx(is)]->array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                if (k == k_lo) {
+                    auto accum = std::max(0.0, -zflux_arr(i,j,k)*dt*dx[0]*dx[1]);
+                    accum_arr(i,j,k) += accum;
+                }
+            });
+        }
+    }
+}
+
+/*! Compute ground accumulation for non-water species */
+void SuperDropletsMoist::aerosolAccumulation ()
+{
+    BL_PROFILE("SuperDropletsMoist::aerosolAccumulation()");
+    auto domain = m_geom.Domain();
+    const auto dx = m_geom.CellSizeArray();
+    int k_lo = domain.smallEnd(2);
+    auto dt = m_dt;
+
+    for (int ia = 0; ia < m_num_aerosols; ia++) {
+        MultiFab mf_zflux( m_mic_fab_vars[MicVar_SD::rain_accum]->boxArray(),
+                           m_mic_fab_vars[MicVar_SD::rain_accum]->DistributionMap(),
+                           1,
+                           m_mic_fab_vars[MicVar_SD::rain_accum]->nGrowVect() );
+        m_super_droplets->aerosolMassFlux(mf_zflux, ia, 2);
+
+        for ( MFIter mfi((*m_mic_fab_vars[MicVar_SD::rain_accum]),TilingIfNotGPU());
+              mfi.isValid(); ++mfi ) {
+            Box bx = mfi.tilebox();
+            const Array4<Real const>& zflux_arr = mf_zflux.const_array(mfi);
+            const Array4<Real>& accum_arr = m_mic_fab_vars[a_accum_idx(m_num_species,ia)]->array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {

@@ -1,0 +1,4 @@
+dane_gcc_12_1_1:
+  variables:
+    MODULE_LIST: cmake gcc/12.1.1
+  extends: .job_on_dane

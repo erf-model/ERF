@@ -43,6 +43,7 @@ erf.plot_vars_1     = density \
                       qc \
                       qrain \
                       rain_accum \
+                      accum_NaCl \
                       x_velocity \
                       y_velocity \
                       z_velocity \

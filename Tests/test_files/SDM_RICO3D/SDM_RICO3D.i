@@ -68,6 +68,7 @@ erf.plot_vars_1     = density \
                       qsat \
                       qrain \
                       rain_accum \
+                      accum_NH4HSO4 \
                       rel_humidity \
                       super_droplets_moisture_number_density \
                       super_droplets_moisture_mass_flux_x \

@@ -58,6 +58,7 @@ erf.plot_vars_1     = density \
                       qrain \
                       rel_humidity \
                       rain_accum \
+                      accum_NaCl \
                       qv_water \
                       qc_water \
                       qt_water \
