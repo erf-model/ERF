@@ -94,7 +94,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int a_accum_idx (const int a_ns, /*!< number of species */
                         const int a_i /*!< aerosol index */ )
 {
-    AMREX_ALWAYS_ASSERT(a_i > 0);
+    AMREX_ALWAYS_ASSERT(a_i >= 0);
     return      MicVar_SD::NumVars
             +   (a_ns-1)*MicVar_SD_Species::NumVars
             +   a_i*MicVar_SD_Aerosols::NumVars
@@ -350,7 +350,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     std::string varname = "accum_" + getEnumNameString(m_aerosols[v]);
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_accum_idx(v)],
+                                        *m_mic_fab_vars[a_accum_idx(m_num_species,v)],
                                         0, 0, 1, IntVect::TheZeroVector() );
                         return;
                     }

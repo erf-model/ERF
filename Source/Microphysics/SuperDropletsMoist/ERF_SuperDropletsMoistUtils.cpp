@@ -202,6 +202,7 @@ void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars)
     computeQcSpecies();
     computeQtSpecies();
     speciesAccumulation();
+    aerosolAccumulation();
 
     if (!m_kinematic_mode) { Copy_Micro_to_State(a_cons_vars); }
 }
