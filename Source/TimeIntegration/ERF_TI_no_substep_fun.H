@@ -117,6 +117,8 @@
                         if (dJ_old(i,j,k) > 0.0) {
                             ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
                                ( fslow[IntVars::cons](i,j,k,n) );
+                        } else {
+                            ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n);
                         }
                     });
 

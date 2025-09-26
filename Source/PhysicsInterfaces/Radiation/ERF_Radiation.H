@@ -391,7 +391,6 @@ private:
     real2d_k cldfrac_tot;
     real2d_k eff_radius_qc;
     real2d_k eff_radius_qi;
-    real2d_k tmp2d;
     real2d_k lwp;
     real2d_k iwp;
     real2d_k sw_heating;
