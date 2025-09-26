@@ -186,7 +186,6 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
         const Array4<Real>& theta_extrap = extrap.array(mfi);
-        const Array4<const Real>& prim   = S_stage_prim.const_array(mfi);
 
         // Map factors
         const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
