@@ -170,12 +170,15 @@ void make_fast_coeffs (int /*level*/,
 
                  Real pi_c =  0.5 * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
 
-                 Real coeff_P = -Gamma * R_d * dzi
+                 Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : 0.0;
+                 Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : 0.0;
+
+                 Real coeff_P = -Gamma * R_d * dzi * (1.0 + RvOverRd*qv_p)
                               +  halfg * R_d * rhobar_hi /
                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
                  coeff_P *= pi_c;
 
-                 Real coeff_Q = Gamma * R_d * dzi
+                 Real coeff_Q = Gamma * R_d * dzi * (1.0 + RvOverRd*qv_q)
                               + halfg * R_d * rhobar_lo /
                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
                  coeff_Q *= pi_c;

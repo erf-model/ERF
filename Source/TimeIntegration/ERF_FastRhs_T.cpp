@@ -177,6 +177,7 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
         });
 
         const Array4<Real>& theta_extrap = extrap.array(mfi);
+        const Array4<const Real>& prim   = S_stage_prim.const_array(mfi);
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
@@ -189,7 +190,7 @@ void erf_fast_rhs_T (int step, int /*nrk*/,
             }
 
             // NOTE: qv is not changing over the fast steps so we use the stage data
-            Real qv = (l_use_moisture) ? stage_cons(i,j,k,RhoQ1_comp)/stage_cons(i,j,k,Rho_comp) : 0.0;
+            Real qv = (l_use_moisture) ? prim(i,j,k,PrimQ1_comp) : 0.0;
             theta_extrap(i,j,k) *= (1.0 + RvOverRd*qv);
         });
     } // mfi

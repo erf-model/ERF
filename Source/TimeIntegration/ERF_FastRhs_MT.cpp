@@ -87,6 +87,8 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
     // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
     Real beta_d = 0.1;
 
+    Real RvOverRd = R_v / R_d;
+
     const Real* dx = geom.CellSize();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
@@ -184,6 +186,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
         const Array4<Real>& theta_extrap = extrap.array(mfi);
+        const Array4<const Real>& prim   = S_stage_prim.const_array(mfi);
 
         // Map factors
         const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
@@ -208,6 +211,10 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
                 Real delta_rt  =  cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
                 theta_extrap(i,j,k) = delta_rt;
 
+                // NOTE: qv is not changing over the fast steps so we use the stage data
+                Real qv = (l_use_moisture) ? prim(i,j,k,PrimQ1_comp) : 0.0;
+                theta_extrap(i,j,k) *= (1.0 + RvOverRd*qv);
+
                 // We define lagged_delta_rt for our next step as the current delta_rt
                 lagged_delta_rt(i,j,k,RhoTheta_comp) = delta_rt;
             });
@@ -218,6 +225,10 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
                 Real delta_rt = cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
                 theta_extrap(i,j,k) = delta_rt + beta_d * (delta_rt - lagged_delta_rt(i,j,k,RhoTheta_comp));
 
+                // NOTE: qv is not changing over the fast steps so we use the stage data
+                Real qv = (l_use_moisture) ? prim(i,j,k,PrimQ1_comp) : 0.0;
+                theta_extrap(i,j,k) *= (1.0 + RvOverRd*qv);
+
                 // We define lagged_delta_rt for our next step as the current delta_rt
                 lagged_delta_rt(i,j,k,RhoTheta_comp) = delta_rt;
             });
@@ -226,6 +237,10 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
             ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 theta_extrap(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
+
+                // NOTE: qv is not changing over the fast steps so we use the stage data
+                Real qv = (l_use_moisture) ? prim(i,j,k,PrimQ1_comp) : 0.0;
+                theta_extrap(i,j,k) *= (1.0 + RvOverRd*qv);
             });
         } // if step
         } // end profile
