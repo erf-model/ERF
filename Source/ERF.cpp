@@ -1644,10 +1644,16 @@ ERF::InitData_post ()
     bool do_line = false; bool do_plane = false;
     pp.query("do_line_sampling",do_line); pp.query("do_plane_sampling",do_plane);
     if (do_line) {
+        if (line_sampling_interval < 0 && line_sampling_per < 0) {
+            Abort("Need to specify line_sampling_interval or line_sampling_per");
+        }
         line_sampler = std::make_unique<LineSampler>();
         line_sampler->write_coords(z_phys_cc);
     }
     if (do_plane) {
+        if (plane_sampling_interval < 0 && plane_sampling_per < 0) {
+            Abort("Need to specify plane_sampling_interval or plane_sampling_per");
+        }
         plane_sampler = std::make_unique<PlaneSampler>();
     }
 
