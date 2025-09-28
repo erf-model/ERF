@@ -8,6 +8,7 @@
 #include <ERF_Utils.H>
 #include <ERF_ProbCommon.H>
 #include <ERF_DataStruct.H>
+#include <ERF_SurfaceLayer.H>
 
 #ifdef ERF_USE_NETCDF
 
@@ -62,6 +63,7 @@ update_sst_tsk (const int itime,
                 const amrex::BoxArray& ba2d_lev,
                 amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_lev,
                 amrex::Vector<std::unique_ptr<amrex::MultiFab>>& tsk_lev,
+                std::unique_ptr<SurfaceLayer>& SurfLayer,
                 const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& low_data_zlo,
                 const amrex::MultiFab& cons,
                 const amrex::MultiFab& mf_PSFC_lev,

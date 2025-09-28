@@ -2,6 +2,7 @@
 #include "ERF_NCWpsFile.H"
 #include "ERF_NCInterface.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_SurfaceLayer.H"
 
 #include <sstream>
 #include <string>
@@ -169,6 +170,7 @@ update_sst_tsk (const int itime,
                 const BoxArray& ba2d_lev,
                 Vector<std::unique_ptr<MultiFab>>& sst_lev,
                 Vector<std::unique_ptr<MultiFab>>& tsk_lev,
+                std::unique_ptr<SurfaceLayer>& SurfLayer,
                 const Vector<Vector<FArrayBox>>& low_data_zlo,
                 const MultiFab& cons,
                 const MultiFab& mf_PSFC_lev,
@@ -191,6 +193,10 @@ update_sst_tsk (const int itime,
     if (itime > 0) {
         sst_lev[itime] = std::make_unique<MultiFab>(ba2d_lev,dm,1,ngv);
         tsk_lev[itime] = std::make_unique<MultiFab>(ba2d_lev,dm,1,ngv);
+        if (SurfLayer) {
+            SurfLayer->update_sst_ptr(0, itime, sst_lev[itime].get());
+            SurfLayer->update_tsk_ptr(0, itime, tsk_lev[itime].get());
+        }
     }
 
     for ( MFIter mfi(*(sst_lev[itime]), false); mfi.isValid(); ++mfi ) {

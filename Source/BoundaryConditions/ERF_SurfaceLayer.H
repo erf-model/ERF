@@ -532,6 +532,14 @@ public:
       return lmask_min;
   }
 
+  void update_sst_ptr(const int lev, const int itime, amrex::MultiFab* sst_ptr) {
+      m_sst_lev[lev][itime] = sst_ptr;
+  }
+
+  void update_tsk_ptr(const int lev, const int itime, amrex::MultiFab* tsk_ptr) {
+      m_tsk_lev[lev][itime] = tsk_ptr;
+  }
+
   enum struct FluxCalcType {
     MOENG = 0, ///< Moeng functional form
     DONELAN,   ///< Donelan functional form

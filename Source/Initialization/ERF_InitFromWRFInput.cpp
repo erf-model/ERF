@@ -807,7 +807,8 @@ ERF::init_from_wrfinput (int lev,
             read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);
 
             update_sst_tsk(itime, geom[lev], ba2d[lev],
-                           sst_lev[lev], tsk_lev[lev], low_data_zlo,
+                           sst_lev[lev], tsk_lev[lev],
+                           m_SurfaceLayer, low_data_zlo,
                            lev_new[Vars::cons], *mf_PSFC[lev],
                            l_rdOcp, use_moist);
         }

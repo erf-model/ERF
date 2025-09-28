@@ -92,10 +92,11 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
             //if (need_itime) amrex::Print()  << "NEED  LOW DATA AT TIME " << itime << std::endl;
 
             if (low_data_zlo[itime].size() == 0 && need_itime) {
-                read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);
+                read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
 
                 update_sst_tsk(itime, geom[lev], ba2d[lev],
-                               sst_lev[lev], tsk_lev[lev], low_data_zlo,
+                               sst_lev[lev], tsk_lev[lev],
+                               m_SurfaceLayer, low_data_zlo,
                                S_new, *mf_PSFC[lev],
                                solverChoice.rdOcp, use_moist);
             }

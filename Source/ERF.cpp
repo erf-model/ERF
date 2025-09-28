@@ -1033,7 +1033,8 @@ ERF::InitData_post ()
                 }
 
                 update_sst_tsk(itime, geom[lev], ba2d[lev],
-                               sst_lev[lev], tsk_lev[lev], low_data_zlo,
+                               sst_lev[lev], tsk_lev[lev],
+                               m_SurfaceLayer, low_data_zlo,
                                vars_new[lev][Vars::cons], *mf_PSFC[lev],
                                solverChoice.rdOcp, use_moist);
             } // itime
