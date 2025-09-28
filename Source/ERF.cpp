@@ -776,11 +776,11 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     // Write plane/line sampler data
-    if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampler_interval, line_sampler_per)) {
+    if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampling_interval, line_sampling_per)) {
         line_sampler->get_sample_data(geom, vars_new);
         line_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
     }
-    if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampler_interval, plane_sampler_per)) {
+    if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
         plane_sampler->get_sample_data(geom, vars_new);
         plane_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
     }
@@ -2150,10 +2150,10 @@ ERF::ReadParameters ()
         pp.query("column_file_name", column_file_name);
 
         // Sampler output frequency
-        pp.query("line_sampler_per", line_sampler_per);
-        pp.query("line_sampler_interval", line_sampler_interval);
-        pp.query("plane_sampler_per", plane_sampler_per);
-        pp.query("plane_sampler_interval", plane_sampler_interval);
+        pp.query("line_sampling_per", line_sampling_per);
+        pp.query("line_sampling_interval", line_sampling_interval);
+        pp.query("plane_sampling_per", plane_sampling_per);
+        pp.query("plane_sampling_interval", plane_sampling_interval);
 
         // Specify information about outputting planes of data
         pp.query("output_bndry_planes", output_bndry_planes);

@@ -1518,10 +1518,10 @@ private:
     }
 
     // Data sampler for line and plane output
-    int line_sampler_interval = -1;
-    int plane_sampler_interval = -1;
-    amrex::Real line_sampler_per = -1.0;
-    amrex::Real plane_sampler_per = -1.0;
+    int line_sampling_interval = -1;
+    int plane_sampling_interval = -1;
+    amrex::Real line_sampling_per = -1.0;
+    amrex::Real plane_sampling_per = -1.0;
     std::unique_ptr<LineSampler> line_sampler = nullptr;
     std::unique_ptr<PlaneSampler> plane_sampler = nullptr;
 
