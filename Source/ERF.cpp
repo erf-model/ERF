@@ -541,6 +541,8 @@ ERF::Evolve ()
         initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,cur_time);
 #endif
 
+        auto dEvolveTime0 = amrex::second();
+
         int lev = 0;
         int iteration = 1;
         timeStep(lev, cur_time, iteration);
@@ -549,6 +551,13 @@ ERF::Evolve ()
 
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                 << " DT = " << dt[0]  << std::endl;
+
+        if (verbose > 0)
+        {
+            auto dEvolveTime = amrex::second() - dEvolveTime0;
+            ParallelDescriptor::ReduceRealMax(dEvolveTime,ParallelDescriptor::IOProcessorNumber());
+            amrex::Print() << "Timestep time = " << dEvolveTime << " seconds." << '\n';
+        }
 
         post_timestep(step, cur_time, dt[0]);
 
@@ -1733,6 +1742,8 @@ ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
 void
 ERF::restart ()
 {
+    auto dRestartTime0 = amrex::second();
+
     ReadCheckpointFile();
 
     if (regrid_level_0_on_restart) {
@@ -1777,6 +1788,13 @@ ERF::restart ()
     if (m_plot2d_int_2 > 0.) {last_plot2d_file_step_2 = istep[0];}
     if (m_plot3d_int_1 > 0.) {last_plot3d_file_step_1 = istep[0];}
     if (m_plot3d_int_2 > 0.) {last_plot3d_file_step_2 = istep[0];}
+
+    if (verbose > 0)
+    {
+        auto dRestartTime = amrex::second() - dRestartTime0;
+        ParallelDescriptor::ReduceRealMax(dRestartTime,ParallelDescriptor::IOProcessorNumber());
+        amrex::Print() << "Restart time = " << dRestartTime << " seconds." << '\n';
+    }
 }
 
 // This is called only if starting from scratch (from ERF::MakeNewLevelFromScratch)

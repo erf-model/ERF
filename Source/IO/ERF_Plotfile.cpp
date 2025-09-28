@@ -262,6 +262,8 @@ ERF::PlotFileVarNames (Vector<std::string> plot_var_names )
 void
 ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
 {
+    auto dPlotTime0 = amrex::second();
+
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = varnames.size();
 
@@ -1677,6 +1679,13 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 #endif
         }
     } // end multi-level
+
+    if (verbose > 0)
+    {
+        auto dPlotTime = amrex::second() - dPlotTime0;
+        ParallelDescriptor::ReduceRealMax(dPlotTime,ParallelDescriptor::IOProcessorNumber());
+        amrex::Print() << "3DPlotfile write time = " << dPlotTime << " seconds." << '\n';
+    }
 }
 
 void
