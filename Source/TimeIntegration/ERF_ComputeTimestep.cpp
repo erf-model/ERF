@@ -82,7 +82,11 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     //================================================
     // Advection Operator
     //================================================
-    if (solverChoice.terrain_type == TerrainType::EB)
+    if (l_implicit_substepping && (nxc==1) && (nyc==1)) {
+        // SCM -- should not depend on dx or dy; force minimum number of substeps
+        estdt_comp_inv = std::numeric_limits<Real>::min();
+    }
+    else if (solverChoice.terrain_type == TerrainType::EB)
     {
         const eb_& eb_lev = get_eb(level);
         const MultiFab& detJ = (eb_lev.get_const_factory())->getVolFrac();
@@ -117,7 +121,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                            // 2-D in y-z
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
                        } else {
-                           // 3-D or SCM
+                           // 3-D
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
                                                     ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
                        }
@@ -174,7 +178,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                            // 2-D in y-z
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
                        } else {
-                           // 3-D or SCM
+                           // 3-D
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
                                                     ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
                        }
