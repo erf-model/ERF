@@ -626,14 +626,27 @@ SHOCInterface::initialize_impl ()
                                    T_mid, dse, z_mid, phis);
 
     // Maximum number of levels in pbl from surface
+    using TPF = ekat::TeamPolicyFactory<KT::ExeSpace>;
     const int ntop_shoc = 0;
     const int nbot_shoc = m_num_layers;
     view_1d pref_mid("pref_mid", m_num_layers);
     Spack* s_mem = reinterpret_cast<Spack*>(pref_mid.data());
-    uview_1d<Spack> pref_mid_um(s_mem, m_num_layers);
-    Kokkos::parallel_for(Kokkos::RangePolicy<>(0, m_num_layers), KOKKOS_LAMBDA (const int ilev)
+    SHF::view_1d<Spack> pref_mid_um(s_mem, m_num_layers);
+    const auto nlevs      = m_num_layers;
+    const auto nlev_packs = ekat::npack<Spack>(nlevs);
+    const auto policy     =  TPF::get_default_team_policy(m_num_cols, nlev_packs);
+    Kokkos::parallel_for("pref_mid",
+                         policy,
+                         KOKKOS_LAMBDA (const KT::MemberType& team)
     {
-        pref_mid_um(ilev) = p_mid(0,ilev);
+        const auto i = team.league_rank();
+        if (i==0) {
+            const auto& pmid_i = ekat::subview(p_mid, i);
+            Kokkos::parallel_for(Kokkos::TeamVectorRange(team, nlev_packs), [&](const int& k)
+            {
+                pref_mid_um(k) = pmid_i(k);
+            });
+        }
     });
     Kokkos::fence();
     m_npbl = SHF::shoc_init(nbot_shoc,ntop_shoc,pref_mid_um);
