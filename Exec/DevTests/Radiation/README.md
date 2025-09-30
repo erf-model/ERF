@@ -16,3 +16,12 @@ contains the lines
    USE_RRTMGP = TRUE
    USE_NETCDF = TRUE
 ```
+# Compilation on GPUs on Perlmutter
+
+```
+    cd ERF
+    source Build/GNU_Ekat/ekat_build_cuda_commands_Perlmutter.sh
+    cd Exec/DevTests/Radiation
+    cp GNUmakefile_GPU GNUmakefile
+    make -j8
+```

@@ -199,7 +199,7 @@
                const Array4<Real      > pi0_new_arr = pi0_new->array(mfi);
                const Array4<Real      > th0_new_arr = th0_new->array(mfi);
 
-               const Array4<Real      >& z_t_arr      =  z_t_rk[level]->array(mfi);
+               const Array4<Real      >& z_t_arr    =  z_t_rk[level]->array(mfi);
 
                const Array4<Real const>& dJ_old_arr = detJ_cc[level]->const_array(mfi);
                const Array4<Real const>& dJ_new_arr = detJ_cc_new[level]->const_array(mfi);

@@ -503,7 +503,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
 void
 SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
-                                           const Real& time)
+                                           const Real& elapsed_time)
 {
     int n_times_in_sst = m_sst_lev[lev].size();
 
@@ -513,10 +513,18 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     if (n_times_in_sst > 1) {
         // Time interpolation
         Real dT = m_bdy_time_interval;
-        int n_time = static_cast<int>( time /  dT);
+        int n_time = static_cast<int>( elapsed_time /  dT);
         n_time_lo = n_time;
         n_time_hi = n_time+1;
-        alpha = (time - n_time * dT) / dT;
+        alpha = (elapsed_time - n_time * dT) / dT;
+        if ((elapsed_time == m_stop_time-m_start_time) && (alpha==0)) {
+            // stop time coincides with final lowinp slice -- don't try to
+            // interpolate from the following time slice
+            n_time    -= 1;
+            n_time_lo -= 1;
+            n_time_hi -= 1;
+            alpha = 1.0;
+        }
         AMREX_ALWAYS_ASSERT( (n_time >= 0) && (n_time < (m_sst_lev[lev].size()-1)));
     } else {
         n_time_lo = 0;
