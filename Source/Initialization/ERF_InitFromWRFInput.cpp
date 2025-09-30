@@ -637,9 +637,9 @@ ERF::init_from_wrfinput (int lev,
                 Print() << "DEBUG Integrate from sea level to klo" << std::endl;
                 {
                     // Vertical grid spacing
-                    z_lo = 0.0;
+                    z_lo = 0.25  * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )); // surface elevation
                     z_hi = 0.125 * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
-                                   +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
+                                   +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1)); // first cell center
                     dz   = z_hi - z_lo;
 
                     // Establish known constant
