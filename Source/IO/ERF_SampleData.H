@@ -149,7 +149,7 @@ struct LineSampler
     }
 
     void
-    write_line_coords (amrex::Vector<std::unique_ptr<amrex::MultiFab> >& z_phys_cc)
+    write_coords (amrex::Vector<std::unique_ptr<amrex::MultiFab> >& z_phys_cc)
     {
         if (!m_write_ascii) return;
 
@@ -199,7 +199,8 @@ struct LineSampler
     }
 
     void
-    get_line_mfs (amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
+    get_sample_data (amrex::Vector<amrex::Geometry>& /*geom*/,
+                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
     {
         int nlev  = static_cast<int>(vars_new.size());
         int nline = static_cast<int>(m_bnd_bx.size());
@@ -370,10 +371,10 @@ struct LineSampler
     }
 
     void
-    write_line_mfs (amrex::Vector<amrex::Real>& time,
-                    amrex::Vector<int>& level_steps,
-                    amrex::Vector<amrex::IntVect>& ref_ratio,
-                    amrex::Vector<amrex::Geometry>& geom)
+    write_sample_data (amrex::Vector<amrex::Real>& time,
+                       amrex::Vector<int>& level_steps,
+                       amrex::Vector<amrex::IntVect>& ref_ratio,
+                       amrex::Vector<amrex::Geometry>& geom)
     {
         if (m_write_ascii) {
             write_line_ascii(time);
@@ -564,8 +565,8 @@ struct PlaneSampler
     }
 
     void
-    get_plane_mfs (amrex::Vector<amrex::Geometry>& geom,
-                   amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
+    get_sample_data (amrex::Vector<amrex::Geometry>& geom,
+                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
     {
         int nlev   = static_cast<int>(vars_new.size());
         int nplane = static_cast<int>(m_bnd_rbx.size());
@@ -626,10 +627,10 @@ struct PlaneSampler
     }
 
     void
-    write_plane_mfs (amrex::Vector<amrex::Real>& time,
-                     amrex::Vector<int>& level_steps,
-                     amrex::Vector<amrex::IntVect>& ref_ratio,
-                     amrex::Vector<amrex::Geometry>& geom)
+    write_sample_data (amrex::Vector<amrex::Real>& time,
+                       amrex::Vector<int>& level_steps,
+                       amrex::Vector<amrex::IntVect>& ref_ratio,
+                       amrex::Vector<amrex::Geometry>& geom)
     {
         amrex::Vector<std::string> varnames = {"T", "Wsp"};
 
@@ -677,49 +678,5 @@ struct PlaneSampler
     amrex::Vector<amrex::RealBox> m_bnd_rbx;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_ps_mf;
     amrex::Vector<std::string> m_name;
-};
-
-
-class SampleData
-{
-public:
-    explicit SampleData (bool do_line=false,
-                         bool do_plane=false)
-    {
-        if(do_line)  m_ls = std::make_unique<LineSampler >();
-        if(do_plane) m_ps = std::make_unique<PlaneSampler>();
-    }
-
-    void
-    write_coords (amrex::Vector<std::unique_ptr<amrex::MultiFab> >& z_phys_cc)
-    {
-        if (m_ls) m_ls->write_line_coords(z_phys_cc);
-    }
-
-    void
-    get_sample_data (amrex::Vector<amrex::Geometry>& geom,
-                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
-    {
-        if (m_ls) m_ls->get_line_mfs(vars_new);
-        if (m_ps) m_ps->get_plane_mfs(geom, vars_new);
-    }
-
-    void
-    write_sample_data (amrex::Vector<amrex::Real>& time,
-                       amrex::Vector<int>& level_steps,
-                       amrex::Vector<amrex::IntVect>& ref_ratio,
-                       amrex::Vector<amrex::Geometry>& geom)
-    {
-        if (m_ls) m_ls->write_line_mfs(time, level_steps, ref_ratio, geom);
-        if (m_ps) m_ps->write_plane_mfs(time, level_steps, ref_ratio, geom);
-    }
-
-private:
-
-    // Structures for getting line MFs
-    std::unique_ptr<LineSampler> m_ls = nullptr;
-
-    // Structures for getting plane MFs
-    std::unique_ptr<PlaneSampler> m_ps = nullptr;
 };
 #endif
