@@ -18,6 +18,9 @@ INSTALL_DIR=${WORK_DIR}/install
 mkdir -p ${INSTALL_DIR}
 cd ${WORK_DIR}
 
+# Set Kokkos source dir
+KOKKOS_SRC=${SRC_DIR}/extern/kokkos
+
 # Run CMake
 
 cmake \
@@ -33,6 +36,7 @@ cmake \
   -DKokkos_ENABLE_CXX17=ON \
   -DCMAKE_CUDA_STANDARD=17 \
   -DCMAKE_CUDA_STANDARD_REQUIRED=ON \
+  -DKokkos_ENABLE_CUDA_RELOCATABLE_DEVICE_CODE=ON \
   -DKokkos_ENABLE_CUDA_RELOCATABLE_DEVICE_CODE=OFF \
   -DCMAKE_CXX_COMPILER=g++ \
   -DCMAKE_CUDA_COMPILER=nvcc \
