@@ -636,10 +636,10 @@ ERF::init_from_wrfinput (int lev,
                 // First integrate from sea level to the height at klo
                 {
                     // Vertical grid spacing
-                    z_lo = 0.25  * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )); // surface elevation
+                    z_lo = 0.0; // corresponding to p_0
                     z_hi = 0.125 * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
-                                   +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1)); // first cell center
-                    dz   = z_hi - z_lo;
+                                   +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
+                    dz = z_hi - z_lo;
 
                     // Establish known constant
                     qv_lo = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
