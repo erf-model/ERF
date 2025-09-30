@@ -634,7 +634,6 @@ ERF::init_from_wrfinput (int lev,
                 Real P_lo, P_hi;
 
                 // First integrate from sea level to the height at klo
-                Print() << "DEBUG Integrate from sea level to klo" << std::endl;
                 {
                     // Vertical grid spacing
                     z_lo = 0.25  * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )); // surface elevation
@@ -674,8 +673,8 @@ ERF::init_from_wrfinput (int lev,
 
                 for (int k(klo+1); k<=khi; ++k) {
                     // Vertical grid spacing
-                  z_hi = 0.125 * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(1,j+1,k  ) + z_arr(i+1,j+1,k  )
-                                 +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(1,j+1,k+1) + z_arr(i+1,j+1,k+1));
+                  z_hi = 0.125 * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
+                                 +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
                   dz   = z_hi - z_lo;
 
                   // Establish known constant
