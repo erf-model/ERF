@@ -48,8 +48,8 @@ class SHOCInterface
     using view_1d_const        = typename SHF::view_1d<const Real>;
     using view_2d              = typename SHF::view_2d<SHF::Spack>;
     using view_2d_const        = typename SHF::view_2d<const Spack>;
-    using sview_2d             = typename ekat::KokkosTypes<KokkosDefaultDevice>::template view_2d<Real>;
-    using sview_2d_const       = typename ekat::KokkosTypes<KokkosDefaultDevice>::template view_2d<const Real>;
+    using sview_2d             = typename KT::template view_2d<Real>;
+    using sview_2d_const       = typename KT::template view_2d<const Real>;
     using view_3d              = typename SHF::view_3d<Spack>;
     using view_3d_const        = typename SHF::view_3d<const Spack>;
     using view_3d_strided      = typename SHF::view_3d_strided<Spack>;
@@ -73,6 +73,9 @@ public:
                const amrex::BoxArray& ba,
                amrex::Geometry& geom,
                amrex::MultiFab* cons,
+               amrex::MultiFab* xvel,
+               amrex::MultiFab* yvel,
+               amrex::MultiFab* zvel,
                amrex::MultiFab* z_phys);
 
     // Initialize the implementation
@@ -537,7 +540,7 @@ protected:
     Int m_num_layers;
     Int m_npbl;
     Int m_nadv;
-    Int m_num_tracers  = 1;
+    Int m_num_tracers  = 3;
     Int m_num_vel_comp = 2;
     Int hdtime;
 
@@ -555,6 +558,11 @@ protected:
 
     // Pointer to the CC conserved vars
     amrex::MultiFab* m_cons = nullptr;
+
+    // Pointer to the FC velocity vars
+    amrex::MultiFab* m_xvel = nullptr;
+    amrex::MultiFab* m_yvel = nullptr;
+    amrex::MultiFab* m_zvel = nullptr;
 
     // Pointer to the terrain heights
     amrex::MultiFab* m_z_phys = nullptr;

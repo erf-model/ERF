@@ -777,9 +777,13 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     // Write plane/line sampler data
-    if (is_it_time_for_action(nstep+1, time, dt_lev0, sampler_interval, sampler_per) && (data_sampler) ) {
-        data_sampler->get_sample_data(geom, vars_new);
-        data_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
+    if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampling_interval, line_sampling_per)) {
+        line_sampler->get_sample_data(geom, vars_new);
+        line_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
+    }
+    if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
+        plane_sampler->get_sample_data(geom, vars_new);
+        plane_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
     }
 
     // Moving terrain
@@ -1688,9 +1692,18 @@ ERF::InitData_post ()
     // Create object to do line and plane sampling if needed
     bool do_line = false; bool do_plane = false;
     pp.query("do_line_sampling",do_line); pp.query("do_plane_sampling",do_plane);
-    if (do_line || do_plane) {
-        data_sampler = std::make_unique<SampleData>(do_line, do_plane);
-        data_sampler->write_coords(z_phys_cc);
+    if (do_line) {
+        if (line_sampling_interval < 0 && line_sampling_per < 0) {
+            Abort("Need to specify line_sampling_interval or line_sampling_per");
+        }
+        line_sampler = std::make_unique<LineSampler>();
+        line_sampler->write_coords(z_phys_cc);
+    }
+    if (do_plane) {
+        if (plane_sampling_interval < 0 && plane_sampling_per < 0) {
+            Abort("Need to specify plane_sampling_interval or plane_sampling_per");
+        }
+        plane_sampler = std::make_unique<PlaneSampler>();
     }
 
     if ( solverChoice.terrain_type == TerrainType::EB ||
@@ -2192,8 +2205,10 @@ ERF::ReadParameters ()
         pp.query("column_file_name", column_file_name);
 
         // Sampler output frequency
-        pp.query("sampler_per", sampler_per);
-        pp.query("sampler_interval", sampler_interval);
+        pp.query("line_sampling_per", line_sampling_per);
+        pp.query("line_sampling_interval", line_sampling_interval);
+        pp.query("plane_sampling_per", plane_sampling_per);
+        pp.query("plane_sampling_interval", plane_sampling_interval);
 
         // Specify information about outputting planes of data
         pp.query("output_bndry_planes", output_bndry_planes);

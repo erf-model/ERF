@@ -1518,9 +1518,12 @@ private:
     }
 
     // Data sampler for line and plane output
-    int sampler_interval = -1;
-    amrex::Real sampler_per = -1.0;
-    std::unique_ptr<SampleData> data_sampler = nullptr;
+    int line_sampling_interval = -1;
+    int plane_sampling_interval = -1;
+    amrex::Real line_sampling_per = -1.0;
+    amrex::Real plane_sampling_per = -1.0;
+    std::unique_ptr<LineSampler> line_sampler = nullptr;
+    std::unique_ptr<PlaneSampler> plane_sampler = nullptr;
 
     amrex::Vector<std::unique_ptr<std::fstream> >       datalog;
     amrex::Vector<std::unique_ptr<std::fstream> >   der_datalog;
