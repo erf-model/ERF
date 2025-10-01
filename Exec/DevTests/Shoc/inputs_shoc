@@ -9,19 +9,16 @@ erf.use_shoc = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent = 20000.0 400.0  10000.0
-amr.n_cell           = 200     4      100
-geometry.is_periodic = 0 1 0
-xlo.type = "SlipWall"
-xhi.type = "SlipWall"    
+geometry.prob_extent = 400.0 400.0  10000.0
+amr.n_cell           = 4     4      100
+    
+geometry.is_periodic = 1 1 0
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.5
 erf.fixed_mri_dt_ratio = 4
-#erf.substepping_type = None
-#erf.fixed_dt = 0.1
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -55,8 +52,6 @@ erf.moistscal_vert_adv_type  = "Upwind_3rd"
 erf.les_type        = "None"
 erf.pbl_type        = "None"
 erf.moisture_model  = "Kessler"
-erf.buoyancy_type   = 1
-erf.use_moist_background = true
 
 erf.molec_diff_type   = "ConstantAlpha"
 erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
@@ -64,19 +59,6 @@ erf.alpha_T           = 0.0 # [m^2/s]
 erf.alpha_C           = 0.0
 
 # INITIAL CONDITIONS
-#erf.init_type = "input_sounding"
-#erf.input_sounding_file = "BF02_moist_sounding"
-#erf.sounding_type = Ideal
-
-# PROBLEM PARAMETERS (optional)
-# warm bubble input
-prob.x_c    = 10000.0
-prob.z_c    =  2000.0
-prob.x_r    =  2000.0
-prob.z_r    =  2000.0
-prob.T_0    =   300.0
-
-prob.do_moist_bubble = true
-prob.theta_pert  = 2.0
-prob.qt_init     = 0.02
-prob.eq_pot_temp = 320.0
+erf.init_type = "input_sounding"
+erf.input_sounding_file = "input_sounding_moist"
+erf.sounding_type = Ideal
