@@ -41,7 +41,7 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
 
     int ntimes;
     Real timeInterval;
-    const std::string dateTimeFormat ="%Y-%m-%d_%H:%M:%S";
+    const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor())
     {
@@ -91,11 +91,8 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
     bdy_data_ylo.resize(ntimes);
     bdy_data_yhi.resize(ntimes);
 
-    // Make sure all processors know how timeInterval
+    // Make sure all processors know timeInterval
     ParallelDescriptor::Bcast(&timeInterval,1,ioproc);
-
-    // Make sure all processors know how many times are stored
-    ParallelDescriptor::Bcast(&ntimes,1,ioproc);
 
     // Return the number of seconds between the boundary plane data
     return timeInterval;
@@ -335,8 +332,8 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             if (bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V ||
                 bdyVarType == WRFBdyVars::T || bdyVarType == WRFBdyVars::QV)
             {
-                // xlo,xhi dims: (bdy_width, bottom_top, south_north)
-                // ylo,yhi dims: (bdy_width, bottom_top, west_east)
+                // xlo,xhi dims: (Time, bdy_width, bottom_top, south_north)
+                // ylo,yhi dims: (Time, bdy_width, bottom_top, west_east)
 
                 int ns2 = tslice[iv].get_vshape()[2]; // vertical size
                 int ns3 = tslice[iv].get_vshape()[3]; // lateral size, may be staggered
@@ -388,8 +385,8 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                 } // bdyType
 
             } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                // xlo,xhi dims: (bdy_width, south_north)
-                // ylo,yhi dims: (bdy_width, west_east)
+                // xlo,xhi dims: (Time, bdy_width, south_north)
+                // ylo,yhi dims: (Time, bdy_width, west_east)
 
                 if (bdyType == WRFBdyTypes::x_lo) {
                     num_pts  = bdy_data_xlo[itime][bdyVarType].box().numPts();

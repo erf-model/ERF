@@ -128,11 +128,11 @@ int BuildFABsFromWRFBdyFile (const std::string &fname,
                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
 
 template<typename DType>
-void ReadTimeSliceFromNetCDFFile(const std::string& fname,
-                                 const int tidx,
-                                 amrex::Vector<std::string> names,
-                                 amrex::Vector<NDArray<DType> >& arrays,
-                                 amrex::Vector<int>& success)
+void ReadTimeSliceFromNetCDFFile (const std::string& fname,
+                                  const int tidx,
+                                  amrex::Vector<std::string> names,
+                                  amrex::Vector<NDArray<DType> >& arrays,
+                                  amrex::Vector<int>& success)
 {
     amrex::Print() << "Reading time slice " << tidx << " from " << fname << std::endl;
     AMREX_ASSERT(arrays.size() == names.size());

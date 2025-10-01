@@ -73,6 +73,8 @@ void erf_fast_rhs_N (int step, int nrk,
     // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
     Real beta_d = 0.1;
 
+    Real RvOverRd = R_v / R_d;
+
     const Real* dx = geom.CellSize();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
@@ -128,7 +130,8 @@ void erf_fast_rhs_N (int step, int nrk,
         const Array4<Real>& prev_drho_w     = Delta_rho_w.array(mfi);
         const Array4<Real>& prev_drho_theta = Delta_rho_theta.array(mfi);
         const Array4<Real>& lagged_delta_rt = S_scratch[IntVars::cons].array(mfi);
-        const Array4<Real>& theta_extrap = extrap.array(mfi);
+        const Array4<Real>& theta_extrap    = extrap.array(mfi);
+        const Array4<const Real>& prim      = S_stage_prim.const_array(mfi);
 
         Box gbx = mfi.growntilebox(1);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -141,6 +144,10 @@ void erf_fast_rhs_N (int step, int nrk,
                 theta_extrap(i,j,k) = prev_drho_theta(i,j,k) + beta_d *
                   ( prev_drho_theta(i,j,k) - lagged_delta_rt(i,j,k,RhoTheta_comp) );
             }
+
+            // NOTE: qv is not changing over the fast steps so we use the stage data
+            Real qv = (l_use_moisture) ? prim(i,j,k,PrimQ1_comp) : 0.0;
+            theta_extrap(i,j,k) *= (1.0 + RvOverRd*qv);
 
             // We define lagged_delta_rt for our next step as the current delta_rt
             // (after using it above to extrapolate theta for this step)
