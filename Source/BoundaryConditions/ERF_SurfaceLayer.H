@@ -338,7 +338,21 @@ public:
       bool read_z0 = false;
       if ( (flux_type == FluxCalcType::MOENG) ||
            (flux_type == FluxCalcType::ROTATE)) {
-          read_z0 = pp.query("most.roughness_file_name", fname);
+          int count = pp.countval("most.roughness_file_name");
+          if (count > 1) {
+              AMREX_ALWAYS_ASSERT(count >= lev+1);
+              pp.query("most.roughness_file_name", fname, lev);
+              read_z0 = true;
+          } else if (count == 1) {
+              if (lev == 0) {
+                  pp.query("most.roughness_file_name", fname);
+              } else {
+                  // we will interpolate from the coarsest level
+                  fname = "";
+              }
+              read_z0 = true;
+          }
+          // else use z0_const
       }
 
       // Attributes for MFs and FABs

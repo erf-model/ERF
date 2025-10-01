@@ -684,12 +684,12 @@ void
 SurfaceLayer::read_custom_roughness (const int& lev,
                                      const std::string& fname)
 {
-    // Read the file if we are on the coarsest level
-    if (lev==0) {
+    // Read the file if we have it
+    if (!fname.empty()) {
         // Only the ioproc reads the file
         Gpu::HostVector<Real> m_x,m_y,m_z0;
         if (ParallelDescriptor::IOProcessor()) {
-            Print()<<"Reading MOST roughness file: "<< fname << std::endl;
+            Print()<<"Reading MOST roughness file at level " << lev << " : " << fname << std::endl;
             std::ifstream file(fname);
             Real value1,value2,value3;
             while(file>>value1>>value2>>value3){
@@ -764,6 +764,10 @@ SurfaceLayer::read_custom_roughness (const int& lev,
             });
         } // mfi
     } else {
+        AMREX_ALWAYS_ASSERT(lev > 0);
+
+        Print()<<"Interpolating MOST roughness at level " << lev << std::endl;
+
         // Create a BC mapper that uses FOEXTRAP at domain bndry
         Vector<int> bc_lo(3,ERFBCType::foextrap);
         Vector<int> bc_hi(3,ERFBCType::foextrap);
