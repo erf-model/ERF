@@ -361,6 +361,9 @@ struct SolverChoice {
             }
         }
 
+        // Note: this will be overwritten with -1 on levels that have substepping_type == Explicit
+        pp.query("beta_s", beta_s);
+
         // *******************************************************************************
         // Error check on deprecated input
         // *******************************************************************************
@@ -829,6 +832,10 @@ struct SolverChoice {
 
     amrex::Vector<SubsteppingType> substepping_type;
     amrex::Vector<int> anelastic;
+
+    // time off-centering coefficient, > 0 for forward weighting (i.e., bias
+    // towards the future time step)
+    amrex::Real beta_s = 0.1;
 
     bool        fixed_density       = false;
     int         ncorr               = 1;

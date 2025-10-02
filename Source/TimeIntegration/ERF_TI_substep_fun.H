@@ -27,7 +27,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         // beta_s =  1.0 : fully implicit
         Real beta_s;
         if (solverChoice.substepping_type[level] == SubsteppingType::Implicit) {
-            beta_s = 0.1;
+            beta_s = solverChoice.beta_s;
         } else { // Fully explicit
             beta_s = -1.0;
         }
