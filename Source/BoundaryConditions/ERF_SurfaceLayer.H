@@ -37,6 +37,7 @@ public:
                          std::string a_pp_prefix,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                         const MeshType& a_mesh_type,
                          const TerrainType& a_terrain_type,
                          amrex::Real start_time,
                          amrex::Real stop_time,
@@ -46,7 +47,7 @@ public:
     m_start_time(start_time),
     m_stop_time(stop_time),
     m_bdy_time_interval(bdy_time_interval),
-    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_terrain_type)
+    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type)
   {
       // We have a moisture model if Qv_prim is a valid pointer
       use_moisture = (Qv_prim[0].get());
