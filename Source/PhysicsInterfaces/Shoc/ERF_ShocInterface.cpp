@@ -98,7 +98,8 @@ ERF::compute_shoc_tendencies (int lev,
     Print() << "Advancing SHOC at level: " << lev << " ...";
 
     shoc_interface[lev]->set_grids(lev, cons.boxArray(), Geom(lev),
-                                   &cons, z_phys_nd[lev].get());
+                                   &cons, &xvel, &yvel, &zvel,
+                                   z_phys_nd[lev].get());
 
     shoc_interface[lev]->initialize_impl();
     shoc_interface[lev]->run_impl(dt_advance);
@@ -113,13 +114,19 @@ SHOCInterface::set_grids (int& level,
                           const BoxArray& ba,
                           Geometry& geom,
                           MultiFab* cons,
+                          MultiFab* xvel,
+                          MultiFab* yvel,
+                          MultiFab* zvel,
                           MultiFab* z_phys)
 {
     // Set data members that may change
-    m_lev            = level;
-    m_geom           = geom;
-    m_cons           = cons;
-    m_z_phys         = z_phys;
+    m_lev     = level;
+    m_geom    = geom;
+    m_cons    = cons;
+    m_xvel    = xvel;
+    m_yvel    = yvel;
+    m_zvel    = zvel;
+    m_z_phys  = z_phys;
 
     // Ensure the boxes span klo -> khi
     int klo = geom.Domain().smallEnd(2);
@@ -406,7 +413,6 @@ SHOCInterface::mf_to_kokkos_buffers ()
     auto wprtp_sfc_d        = wprtp_sfc;
     auto upwp_sfc_d         = upwp_sfc;
     auto vpwp_sfc_d         = vpwp_sfc;
-    auto wtracer_sfc_d      = wtracer_sfc;
     auto wm_zt_d            = wm_zt;
     auto inv_exner_d        = inv_exner;
     auto thlm_d             = thlm;
@@ -414,6 +420,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
     auto cloud_frac_d       = cloud_frac;
     auto cldfrac_liq_d      = cldfrac_liq;
     auto cldfrac_liq_prev_d = cldfrac_liq_prev;
+    auto horiz_wind_d       = horiz_wind;
 
     int  ncol  = m_num_cols;
     int  nlay  = m_num_layers;
@@ -428,6 +435,9 @@ SHOCInterface::mf_to_kokkos_buffers ()
         const int jmin   = vbx.smallEnd(1);
         const int offset = m_col_offsets[mfi.index()];
         const Array4<const Real>& cons_arr = m_cons->const_array(mfi);
+        const Array4<const Real>& u_arr    = m_xvel->const_array(mfi);
+        const Array4<const Real>& v_arr    = m_yvel->const_array(mfi);
+        const Array4<const Real>& w_arr    = m_zvel->const_array(mfi);
         const Array4<const Real>& z_arr    = (m_z_phys) ? m_z_phys->const_array(mfi) :
                                                           Array4<const Real>{};
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -459,14 +469,17 @@ SHOCInterface::mf_to_kokkos_buffers ()
             surf_mom_flux_d(icol,1)  = 0.0;
 
             // Fill view2d at CC
-            dens_d(icol,ilay)     = r;
-            T_mid_d(icol,ilay)    = getTgivenRandRTh(r, rt, qv);
-            p_mid_d(icol,ilay)    = getPgivenRTh(rt, qv);
-            qv_d(icol,ilay)       = qv;
-            qc_d(icol,ilay)       = qc;
-            qc_copy_d(icol,ilay)  = qc;
-            tke_d(icol,ilay)      = std::max(cons_arr(i,j,k,RhoKE_comp)/r, 0.0);
-            tke_copy_d(icol,ilay) = std::max(cons_arr(i,j,k,RhoKE_comp)/r, 0.0);
+            dens_d(icol,ilay)      = r;
+            T_mid_d(icol,ilay)     = getTgivenRandRTh(r, rt, qv);
+            p_mid_d(icol,ilay)     = getPgivenRTh(rt, qv);
+            thv_d(icol,ilay)       = rt/r * (1.0 + 0.61*qv);
+            inv_exner_d(icol,ilay) = 1.0 / getExnergivenRTh(rt, R_d/Cp_d, qv);
+            qw_d(icol,ilay)        = qv + qc;
+            qv_d(icol,ilay)        = qv;
+            qc_d(icol,ilay)        = qc;
+            qc_copy_d(icol,ilay)   = qc;
+            tke_d(icol,ilay)       = std::max(cons_arr(i,j,k,RhoKE_comp)/r, 0.0);
+            tke_copy_d(icol,ilay)  = std::max(cons_arr(i,j,k,RhoKE_comp)/r, 0.0);
 
             dz_d(icol,ilay)      = (z_arr) ? 0.25 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
                                                     + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
@@ -502,28 +515,31 @@ SHOCInterface::mf_to_kokkos_buffers ()
             cloud_frac_d(icol,ilay)       = ((qc+qi)>0.0) ? 1. : 0.;
             cldfrac_liq_d(icol,ilay)      = (qc>0.0)      ? 1. : 0.;
             cldfrac_liq_prev_d(icol,ilay) = (qc>0.0)      ? 1. : 0.;
+            wm_zt_d(icol,ilay)            = 0.5 * (w_arr(i,j,k) + w_arr(i,j,k+1));
 
-            // Don't know
+            // Need to figure out
             wpthlp_sfc_d(icol)     = 0.0;
             wprtp_sfc_d(icol)      = 0.0;
             upwp_sfc_d(icol)       = 0.0;
             vpwp_sfc_d(icol)       = 0.0;
-            wtracer_sfc_d(icol,0)  = 0.0;
 
             omega_d(icol,ilay)     = 0.0;
             shoc_s_d(icol,ilay)    = 0.0;
             rrho_d(icol,ilay)      = 0.0;
             rrho_i_d(icol,ilay)    = 0.0;
-            thv_d(icol,ilay)       = 0.0;
-            wm_zt_d(icol,ilay)     = 0.0;
-            inv_exner_d(icol,ilay) = 0.0;
+
+
             thlm_d(icol,ilay)      = 0.0;
-            qw_d(icol,ilay)        = 0.0;
             dse(icol,ilay)         = 0.0;
 
 
             // Fill view3d
-            qtracers_d(icol,ilay,0) = 0.0;
+            qtracers_d(icol,ilay,0) = tke_d(icol,ilay);
+            qtracers_d(icol,ilay,0) = qv;
+            qtracers_d(icol,ilay,0) = qc;
+
+            horiz_wind_d(icol,ilay,0) = 0.5 * (u_arr(i,j,k) + u_arr(i+1,j  ,k));
+            horiz_wind_d(icol,ilay,1) = 0.5 * (v_arr(i,j,k) + v_arr(i  ,j+1,k));
         });
     }
 }
@@ -626,14 +642,27 @@ SHOCInterface::initialize_impl ()
                                    T_mid, dse, z_mid, phis);
 
     // Maximum number of levels in pbl from surface
+    using TPF = ekat::TeamPolicyFactory<KT::ExeSpace>;
     const int ntop_shoc = 0;
     const int nbot_shoc = m_num_layers;
     view_1d pref_mid("pref_mid", m_num_layers);
     Spack* s_mem = reinterpret_cast<Spack*>(pref_mid.data());
-    uview_1d<Spack> pref_mid_um(s_mem, m_num_layers);
-    Kokkos::parallel_for(Kokkos::RangePolicy<>(0, m_num_layers), KOKKOS_LAMBDA (const int ilev)
+    SHF::view_1d<Spack> pref_mid_um(s_mem, m_num_layers);
+    const auto nlevs      = m_num_layers;
+    const auto nlev_packs = ekat::npack<Spack>(nlevs);
+    const auto policy     =  TPF::get_default_team_policy(m_num_cols, nlev_packs);
+    Kokkos::parallel_for("pref_mid",
+                         policy,
+                         KOKKOS_LAMBDA (const KT::MemberType& team)
     {
-        pref_mid_um(ilev) = p_mid(0,ilev);
+        const auto i = team.league_rank();
+        if (i==0) {
+            const auto& pmid_i = ekat::subview(p_mid, i);
+            Kokkos::parallel_for(Kokkos::TeamVectorRange(team, nlev_packs), [&](const int& k)
+            {
+                pref_mid_um(k) = pmid_i(k);
+            });
+        }
     });
     Kokkos::fence();
     m_npbl = SHF::shoc_init(nbot_shoc,ntop_shoc,pref_mid_um);
