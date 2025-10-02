@@ -9,10 +9,6 @@ SHOCInterface::SHOCInterface (const int& lev,
     //
     // Defaults set from E3SM/components/eamxx/cime_config/namelist_defaults_eamxx.xml
     //
-    bool def_check_flux_state = false;
-    bool def_enable_column_conservation = false;
-    // Extra SHOC diagnostics
-    bool def_extra_diags = false;
     // Turn off SGS variability in SHOC, effectively reducing it to a 1.5 TKE closure?
     bool def_shoc_1p5tke = false;
     // Minimum value of stability correction
@@ -40,9 +36,6 @@ SHOCInterface::SHOCInterface (const int& lev,
     // Eddy diffusivity coefficient for momentum
     Real def_coeff_km = 0.1;
 
-    // From E3SM/components/eamxx/src/control/atmospheric_driver.cpp
-    bool def_apply_tms = true;
-
     runtime_options.lambda_low    = def_lambda_low;
     runtime_options.lambda_high   = def_lambda_high;
     runtime_options.lambda_slope  = def_lambda_slope;
@@ -58,7 +51,7 @@ SHOCInterface::SHOCInterface (const int& lev,
     runtime_options.Ckh            = def_coeff_kh;
     runtime_options.Ckm            = def_coeff_km;
     runtime_options.shoc_1p5tke    = def_shoc_1p5tke;
-    runtime_options.extra_diags    = def_extra_diags;
+    runtime_options.extra_diags    = extra_shoc_diags;
 
     // Construct parser object for following reads
     ParmParse pp("erf.shoc");
@@ -80,10 +73,10 @@ SHOCInterface::SHOCInterface (const int& lev,
     pp.query("extra_shoc_diags", runtime_options.extra_diags   );
 
     // Set to default but allow us to change it through the inputs file
-    apply_tms = def_apply_tms;
     pp.query("apply_tms", apply_tms);
-
     pp.query("check_flux_state", check_flux_state);
+    pp.query("extra_shoc_diags", extra_shoc_diags);
+    pp.query("column_conservation_check", column_conservation_check);
 }
 
 
@@ -149,8 +142,11 @@ SHOCInterface::set_grids (int& level,
         m_num_cols += nx * ny;
     }
 
-    // Allocate the buffer arrays
+    // Allocate the buffer arrays in ERF
     alloc_buffers();
+
+    // Allocate the m_buffer struct
+    init_buffers();
 
     // Fill the KOKKOS Views from AMReX MFs
     mf_to_kokkos_buffers();
@@ -343,11 +339,11 @@ SHOCInterface::mf_to_kokkos_buffers ()
     auto tke_d = tke;
     auto qc_d = qc;
 
-    int  ncol  = m_num_cols;
     int  nlay  = m_num_layers;
     Real dz    = m_geom.CellSize(2);
     bool moist = (m_cons->nComp() > RhoQ1_comp);
-    bool ice   = (m_cons->nComp() > RhoQ3_comp);
+    //bool ice   = (m_cons->nComp() > RhoQ3_comp);
+    auto ProbLoArr = m_geom.ProbLoArray();
     for (MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
         const auto& vbx  = mfi.validbox();
         const int nx     = vbx.length(0);
@@ -371,7 +367,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
             Real rt = cons_arr(i,j,k,RhoTheta_comp);
             Real qv = (moist) ? cons_arr(i,j,k,RhoQ1_comp)/r : 0.0;
             Real qc = (moist) ? cons_arr(i,j,k,RhoQ2_comp)/r : 0.0;
-            Real qi = (ice)   ? cons_arr(i,j,k,RhoQ3_comp)/r : 0.0;
+            //Real qi = (ice)   ? cons_arr(i,j,k,RhoQ3_comp)/r : 0.0;
 
             // EOS avg to z-face
             Real r_lo  = cons_arr(i,j,k-1,Rho_comp);
@@ -381,6 +377,13 @@ SHOCInterface::mf_to_kokkos_buffers ()
             Real rt_avg = 0.5 * (rt + rt_lo);
             Real qv_avg = 0.5 * (qv + qv_lo);
 
+            // Z height
+            Real z = (z_arr) ? 0.125 * ( (z_arr(i  ,j  ,k+1) + z_arr(i  ,j  ,k))
+                                       + (z_arr(i+1,j  ,k+1) + z_arr(i+1,j  ,k))
+                                       + (z_arr(i  ,j+1,k+1) + z_arr(i  ,j+1,k))
+                                       + (z_arr(i+1,j+1,k+1) + z_arr(i+1,j+1,k)) ) * CONST_GRAV :
+                               ProbLoArr[2] + (k + 0.5) * dz;
+
             // Delta z
             Real delz = (z_arr) ? 0.25 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
                                          + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
@@ -389,7 +392,8 @@ SHOCInterface::mf_to_kokkos_buffers ()
 
             // Interface data structures
             //=======================================================
-            omega_d(icol,ilay)          = 0.5 * (w_arr(i,j,k) + w_arr(i,j,k+1));
+            // Physics functions calculate_vertical_velocity
+            omega_d(icol,ilay)          = 0.5 * (w_arr(i,j,k) + w_arr(i,j,k+1)) * r * CONST_GRAV;
             surf_sens_flux_d(icol)      = 0.0;
             surf_mom_flux_d(icol,0)     = 0.0;
             surf_mom_flux_d(icol,1)     = 0.0;
@@ -402,8 +406,9 @@ SHOCInterface::mf_to_kokkos_buffers ()
             //=======================================================
             p_mid_d(icol,ilay)       = getPgivenRTh(rt, qv);
             p_int_d(icol,ilay)       = getPgivenRTh(rt_avg, qv_avg);
-            pseudo_dens_d(icol,ilay) = -r * CONST_GRAV * delz;
-            phis_d(icol)             = 0.0;
+            // Physics functions calculate_density
+            pseudo_dens_d(icol,ilay) = r * CONST_GRAV * delz;
+            phis_d(icol)             = CONST_GRAV * z;
 
             if (ilay==(nlay-1)) {
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
@@ -421,7 +426,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
             horiz_wind_d(icol,1,ilay)  = 0.5 * (v_arr(i,j,k) + v_arr(i  ,j+1,k));
             sgs_buoy_flux_d(icol,ilay) = 0.0;
             tk_d(icol,ilay)            = 0.0;
-            cldfrac_liq_d(icol,ilay)   = (qc>0.0)      ? 1. : 0.;
+            cldfrac_liq_d(icol,ilay)   = (qc>0.0) ? 1. : 0.;
             tke_d(icol,ilay)           = std::max(cons_arr(i,j,k,RhoKE_comp)/r, 0.0);
             qc_d(icol,ilay)            = qc;
         });
@@ -455,7 +460,7 @@ size_t SHOCInterface::requested_buffer_size_in_bytes() const
     const int n_trac_slots   = ekat::npack<Spack>(m_num_tracers) *Spack::n;
     const size_t wsm_request = WSM::get_total_bytes_needed(nlevi_packs, 14+(n_wind_slots+n_trac_slots), policy);
 
-    return interface_request + wsm_request;
+    return ( (interface_request + wsm_request)/sizeof(Real) );
 }
 
 
@@ -649,16 +654,22 @@ SHOCInterface::initialize_impl ()
                                    cldfrac_liq, inv_qc_relvar,
                                    T_mid, dse, z_mid, phis);
 
+    // Setup WSM for internal local variables
+    using TPF = ekat::TeamPolicyFactory<KT::ExeSpace>;
+    const auto nlev_packs  = ekat::npack<Spack>(m_num_layers);
+    const auto nlevi_packs = ekat::npack<Spack>(m_num_layers+1);
+    const int n_wind_slots = ekat::npack<Spack>(m_num_vel_comp)*Spack::n;
+    const int n_trac_slots = ekat::npack<Spack>(m_num_tracers)*Spack::n;
+    const auto default_policy = TPF::get_default_team_policy(m_num_cols, nlev_packs);
+    workspace_mgr.setup(m_buffer.wsm_data, nlevi_packs, 14+(n_wind_slots+n_trac_slots), default_policy);
+
     // NOTE: FIX ME!
     // Maximum number of levels in pbl from surface
-    using TPF = ekat::TeamPolicyFactory<KT::ExeSpace>;
     const int ntop_shoc = 0;
     const int nbot_shoc = m_num_layers;
     view_1d pref_mid("pref_mid", m_num_layers);
     Spack* s_mem = reinterpret_cast<Spack*>(pref_mid.data());
     SHF::view_1d<Spack> pref_mid_um(s_mem, m_num_layers);
-    const auto nlevs      = m_num_layers;
-    const auto nlev_packs = ekat::npack<Spack>(nlevs);
     const auto policy     =  TPF::get_default_team_policy(m_num_cols, nlev_packs);
     Kokkos::parallel_for("pref_mid",
                          policy,
