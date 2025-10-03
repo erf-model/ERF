@@ -82,17 +82,24 @@ SHOCInterface::SHOCInterface (const int& lev,
 
 void
 ERF::compute_shoc_tendencies (int lev,
-                              MultiFab& cons,
-                              MultiFab& xvel,
-                              MultiFab& yvel,
-                              MultiFab& zvel,
+                              MultiFab* cons,
+                              MultiFab* xvel,
+                              MultiFab* yvel,
+                              MultiFab* zvel,
+                              MultiFab* tau13,
+                              MultiFab* tau23,
+                              MultiFab* hfx3,
+                              MultiFab* qfx3,
+                              MultiFab* eddyDiffs,
+                              MultiFab* z_phys_nd,
                               const Real& dt_advance)
 {
     Print() << "Advancing SHOC at level: " << lev << " ...";
 
-    shoc_interface[lev]->set_grids(lev, cons.boxArray(), Geom(lev),
-                                   &cons, &xvel, &yvel, &zvel,
-                                   z_phys_nd[lev].get());
+    shoc_interface[lev]->set_grids(lev, cons->boxArray(), Geom(lev),
+                                   cons , xvel , yvel, zvel,
+                                   tau13, tau23, hfx3, qfx3,
+                                   eddyDiffs, z_phys_nd);
 
     shoc_interface[lev]->initialize_impl();
     shoc_interface[lev]->run_impl(dt_advance);
@@ -110,6 +117,11 @@ SHOCInterface::set_grids (int& level,
                           MultiFab* xvel,
                           MultiFab* yvel,
                           MultiFab* zvel,
+                          MultiFab* tau13,
+                          MultiFab* tau23,
+                          MultiFab* hfx3,
+                          MultiFab* qfx3,
+                          MultiFab* eddyDiffs,
                           MultiFab* z_phys)
 {
     // Set data members that may change
@@ -119,6 +131,11 @@ SHOCInterface::set_grids (int& level,
     m_xvel    = xvel;
     m_yvel    = yvel;
     m_zvel    = zvel;
+    m_tau13   = tau13;
+    m_tau23   = tau23;
+    m_hfx3    = hfx3;
+    m_qfx3    = qfx3;
+    m_mu      = eddyDiffs;
     m_z_phys  = z_phys;
 
     // Ensure the boxes span klo -> khi
@@ -351,9 +368,18 @@ SHOCInterface::mf_to_kokkos_buffers ()
         const int jmin   = vbx.smallEnd(1);
         const int offset = m_col_offsets[mfi.index()];
         const Array4<const Real>& cons_arr = m_cons->const_array(mfi);
+
         const Array4<const Real>& u_arr    = m_xvel->const_array(mfi);
         const Array4<const Real>& v_arr    = m_yvel->const_array(mfi);
         const Array4<const Real>& w_arr    = m_zvel->const_array(mfi);
+
+        const Array4<const Real>& t13_arr   = m_tau13->const_array(mfi);
+        const Array4<const Real>& t23_arr   = m_tau23->const_array(mfi);
+        const Array4<const Real>& hfx3_arr  = m_hfx3->const_array(mfi);
+        const Array4<const Real>& qfx3_arr  = m_qfx3->const_array(mfi);
+
+        const Array4<const Real>& mu_arr    = m_mu->const_array(mfi);
+
         const Array4<const Real>& z_arr    = (m_z_phys) ? m_z_phys->const_array(mfi) :
                                                           Array4<const Real>{};
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -390,18 +416,20 @@ SHOCInterface::mf_to_kokkos_buffers ()
                                          + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
                                          + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz;
 
-            // W at cc (cannot be 0)
+            // W at cc (cannot be 0?; inspection of shoc code...)
             Real w_cc = 0.5 * (w_arr(i,j,k) + w_arr(i,j,k+1));
-            Real w_limited = std::copysign(std::max(std::fabs(w_cc),0.001),w_cc);
+            Real w_limited = std::copysign(std::max(std::fabs(w_cc),1.0e-6),w_cc);
 
             // Interface data structures
             //=======================================================
             // Physics functions calculate_vertical_velocity
-            omega_d(icol,ilay)          = w_limited * r * CONST_GRAV;
-            surf_sens_flux_d(icol)      = 0.0;
-            surf_mom_flux_d(icol,0)     = 0.0;
-            surf_mom_flux_d(icol,1)     = 0.0;
-            surf_evap(icol)             = 0.0;
+            omega_d(icol,ilay)           = w_limited * r * CONST_GRAV;
+            if (k==0) {
+                surf_mom_flux_d(icol,0)  = 0.5 * (t13_arr(i,j,k) + t13_arr(i+1,j  ,k));
+                surf_mom_flux_d(icol,1)  = 0.5 * (t23_arr(i,j,k) + t23_arr(i  ,j+1,k));
+                surf_sens_flux_d(icol)   = hfx3_arr(i,j,k);
+                surf_evap(icol)          = (moist) ? qfx3_arr(i,j,k) : 0.0;
+            }
             T_mid_d(icol,ilay)          = getTgivenRandRTh(r, rt, qv);
             qv_d(icol,ilay)             = qv;
             surf_drag_coeff_tms_d(icol) = 0.0;
@@ -412,6 +440,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
             p_int_d(icol,ilay)       = getPgivenRTh(rt_avg, qv_avg);
             // Physics functions calculate_density
             pseudo_dens_d(icol,ilay) = r * CONST_GRAV * delz;
+            // Geopotential
             phis_d(icol)             = CONST_GRAV * z;
 
             if (ilay==(nlay-1)) {
@@ -428,8 +457,9 @@ SHOCInterface::mf_to_kokkos_buffers ()
             //=======================================================
             horiz_wind_d(icol,0,ilay)  = 0.5 * (u_arr(i,j,k) + u_arr(i+1,j  ,k));
             horiz_wind_d(icol,1,ilay)  = 0.5 * (v_arr(i,j,k) + v_arr(i  ,j+1,k));
+            // NOTE: Fix me
             sgs_buoy_flux_d(icol,ilay) = 0.0;
-            tk_d(icol,ilay)            = 0.0;
+            tk_d(icol,ilay)            = mu_arr(i,j,k,EddyDiff::Mom_v);
             cldfrac_liq_d(icol,ilay)   = (qc>0.0) ? 1. : 0.;
             tke_d(icol,ilay)           = std::max(cons_arr(i,j,k,RhoKE_comp)/r, 0.0);
             qc_d(icol,ilay)            = qc;
@@ -440,7 +470,87 @@ SHOCInterface::mf_to_kokkos_buffers ()
 
 void
 SHOCInterface::kokkos_buffers_to_mf ()
-{}
+{
+    //
+    // Expose for device capture
+    //
+
+    // Interface data structures
+    //=======================================================
+    auto T_mid_d = T_mid;
+    auto qv_d = qv;
+
+    // Input data structures
+    //=======================================================
+    auto p_mid_d = p_mid;
+
+    // Input/Output data structures
+    //=======================================================
+    auto horiz_wind_d = horiz_wind;
+    //auto sgs_buoy_flux_d = sgs_buoy_flux;
+    auto tk_d = tk;
+    //auto cldfrac_liq_d = cldfrac_liq;
+    auto tke_d = tke;
+    auto qc_d = qc;
+
+    // Output data structures
+    //=======================================================
+    //auto pblh_d = pblh;
+    //auto inv_qc_relvar_d = inv_qc_relvar;
+    auto tkh_d = tkh;
+    //auto w_sec_d = w_sec;
+    //auto cldfrac_liq_prev_d = cldfrac_liq_prev;
+    //auto ustar_d = ustar;
+    //auto obklen_d = obklen;
+
+    bool moist = (m_cons->nComp() > RhoQ1_comp);
+    for (MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
+        const auto& vbx  = mfi.validbox();
+        const int nx     = vbx.length(0);
+        const int imin   = vbx.smallEnd(0);
+        const int jmin   = vbx.smallEnd(1);
+        const int offset = m_col_offsets[mfi.index()];
+
+        const Array4<Real>& cons_arr = m_cons->array(mfi);
+
+        const Array4<Real>& u_arr    = m_xvel->array(mfi);
+        const Array4<Real>& v_arr    = m_yvel->array(mfi);
+
+        const Array4<Real>& mu_arr   = m_mu->array(mfi);
+
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            // map [i,j,k] 0-based to [icol, ilay] 0-based
+            const int icol   = (j-jmin)*nx + (i-imin) + offset;
+            const int ilay   = k;
+
+            // Density at CC
+            Real r  = cons_arr(i,j,k,Rho_comp);
+
+            // Theta at CC
+            Real Th = getThgivenTandP(T_mid_d(icol,ilay)[0], p_mid_d(icol,ilay)[0], R_d/Cp_d);
+
+            // Interface data structures
+            //=======================================================
+            if (moist) { cons_arr(i,j,k,RhoQ1_comp) = r * qv_d(icol,ilay)[0]; }
+            cons_arr(i,j,k,RhoTheta_comp) = r * Th;
+
+            // Input/Output data structures
+            //=======================================================
+            // NOTE: Fix averaging for U/V and account for the CC box being looped over
+            u_arr(i,j,k) = horiz_wind_d(icol,0,ilay)[0];
+            v_arr(i,j,k) = horiz_wind_d(icol,1,ilay)[0];
+            mu_arr(i,j,k,EddyDiff::Mom_v) = tk_d(icol,ilay)[0];
+            cons_arr(i,j,k,RhoKE_comp) = std::max(r*tke_d(icol,ilay)[0],0.0);
+            if (moist) { cons_arr(i,j,k,RhoQ2_comp) = r * qc_d(icol,ilay)[0]; }
+
+            // Output data structures
+            //=======================================================
+            mu_arr(i,j,k,EddyDiff::Theta_v) = tkh_d(icol,ilay)[0];
+        });
+    }
+
+}
 
 
 size_t SHOCInterface::requested_buffer_size_in_bytes() const
