@@ -149,7 +149,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // Update the "old" state using SHOC
     // **************************************************************************************
     if (solverChoice.use_shoc) {
-        compute_shoc_tendencies(lev, S_old, U_old, V_old, W_old, dt_lev);
+        compute_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old,
+                                Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
+                                SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
+                                eddyDiffs_lev[lev].get()      , z_phys_nd[lev].get()          ,
+                                dt_lev);
     }
 #endif
 

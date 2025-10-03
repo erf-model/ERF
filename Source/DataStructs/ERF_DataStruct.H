@@ -519,13 +519,8 @@ struct SolverChoice {
             }
         }
 
-        // Are we using SHOC?
-        pp.query("use_shoc", use_shoc);
-#ifndef ERF_USE_SHOC
-        if (use_shoc) {
-            amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
-        }
-#endif
+        // Are we using SHOC? (test on compilation done in turb struct)
+        if (turbChoice[0].pbl_type == PBLType::SHOC) { use_shoc = true; }
 
         // Which type of multilevel coupling
         coupling_type = CouplingType::TwoWay; // Default
