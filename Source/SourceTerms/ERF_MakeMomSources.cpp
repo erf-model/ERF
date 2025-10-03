@@ -783,9 +783,13 @@ void make_mom_sources (Real time,
 
                 Real cflw = wmag * dt * dzInv;
                 if (cflw > cflw_lim) {
-                    amrex::AllPrint() << "w-damping applied at " << IntVect(i,j,k)
-                        << " for w-CFL = " << cflw << " > " << cflw_lim
-                        << std::endl;
+#ifdef AMREX_USE_GPU
+                    AMREX_DEVICE_PRINTF("w-damping applied at (%d,%d,%d) for w-CFL = %f > %f\n",
+                           i,j,k, cflw, cflw_lim);
+#else
+                    printf("w-damping applied at (%d,%d,%d) for w-CFL = %f > %f\n",
+                           i,j,k, cflw, cflw_lim);
+#endif
                     Real sgn_w = (rho_w(i,j,k) > 0) ? 1.0 : -1.0;
                     zmom_src_arr(i, j, k) -= rho_on_w_face * sgn_w * w_damping_coeff * (cflw - cflw_lim);
                 }
