@@ -368,10 +368,16 @@ public:
 
 #ifdef ERF_USE_SHOC
     void compute_shoc_tendencies (int lev,
-                                  amrex::MultiFab& cons,
-                                  amrex::MultiFab& xvel,
-                                  amrex::MultiFab& yvel,
-                                  amrex::MultiFab& zvel,
+                                  amrex::MultiFab* cons,
+                                  amrex::MultiFab* xvel,
+                                  amrex::MultiFab* yvel,
+                                  amrex::MultiFab* zvel,
+                                  amrex::MultiFab* tau13,
+                                  amrex::MultiFab* tau23,
+                                  amrex::MultiFab* hfx3,
+                                  amrex::MultiFab* qfx3,
+                                  amrex::MultiFab* eddyDiffs,
+                                  amrex::MultiFab* z_phys_nd,
                                   const amrex::Real& dt_advance);
 #endif
 

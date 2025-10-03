@@ -76,6 +76,11 @@ public:
                amrex::MultiFab* xvel,
                amrex::MultiFab* yvel,
                amrex::MultiFab* zvel,
+               amrex::MultiFab* tau13,
+               amrex::MultiFab* tau23,
+               amrex::MultiFab* hfx3,
+               amrex::MultiFab* qfx3,
+               amrex::MultiFab* eddyDiffs,
                amrex::MultiFab* z_phys);
 
     // Initialize the implementation
@@ -107,7 +112,8 @@ public:
     kokkos_buffers_to_mf ();
 
     // The name of the subcomponent
-    std::string name () const { return "shoc"; }
+    std::string
+    name () const { return "shoc"; }
 
 #ifndef KOKKOS_ENABLE_CUDA
   // Cuda requires methods enclosing __device__ lambda's to be public
@@ -515,21 +521,26 @@ protected:
 #endif
 
     // Update flux (if necessary)
-    void check_flux_state_consistency (const double dt);
+    void
+    check_flux_state_consistency (const double dt);
 
     // Apply TMS drag coeff to shoc_main inputs (if necessary)
-    void apply_turbulent_mountain_stress ();
+    void
+    apply_turbulent_mountain_stress ();
 
 protected:
 
     // SHOC updates the 'tracers' group.
-    void set_computed_group_impl ();
+    void
+    set_computed_group_impl ();
 
     // Computes total number of bytes needed for local variables
-    size_t requested_buffer_size_in_bytes () const;
+    size_t
+    requested_buffer_size_in_bytes () const;
 
     // Set local variables
-    void init_buffers ();
+    void
+    init_buffers ();
 
     // Offsets for MultiFab <-> KOKKOS transfer
     amrex::Vector<int> m_col_offsets;
@@ -560,9 +571,18 @@ protected:
     amrex::MultiFab* m_cons = nullptr;
 
     // Pointer to the FC velocity vars
-    amrex::MultiFab* m_xvel = nullptr;
-    amrex::MultiFab* m_yvel = nullptr;
-    amrex::MultiFab* m_zvel = nullptr;
+    amrex::MultiFab* m_xvel  = nullptr;
+    amrex::MultiFab* m_yvel  = nullptr;
+    amrex::MultiFab* m_zvel  = nullptr;
+
+    // Pointer to the surface stresses
+    amrex::MultiFab* m_tau13 = nullptr;
+    amrex::MultiFab* m_tau23 = nullptr;
+    amrex::MultiFab* m_hfx3  = nullptr;
+    amrex::MultiFab* m_qfx3  = nullptr;
+
+    // Pointer to the diffusion coeffs
+    amrex::MultiFab* m_mu    = nullptr;
 
     // Pointer to the terrain heights
     amrex::MultiFab* m_z_phys = nullptr;
