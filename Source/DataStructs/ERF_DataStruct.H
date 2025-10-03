@@ -664,6 +664,20 @@ struct SolverChoice {
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
 
+        amrex::Print() << "Rayleigh damping            :";
+        if (rayleigh_damp_U || rayleigh_damp_V || rayleigh_damp_W || rayleigh_damp_T) {
+            if (rayleigh_damp_U) amrex::Print() << " U";
+            if (rayleigh_damp_V) amrex::Print() << " V";
+            if (rayleigh_damp_W) amrex::Print() << " W";
+            if (rayleigh_damp_T) amrex::Print() << " T";
+            amrex::Print() << " (coef=" << rayleigh_dampcoef << " 1/s,"
+                           << " depth=" << rayleigh_zdamp << " m)"
+                           << std::endl;
+        } else {
+            amrex::Print() << " None" << std::endl;
+        }
+        amrex::Print() << "w damping                   : " << w_damping << std::endl;
+
         if (moisture_type == MoistureType::SAM) {
             amrex::Print() << "Moisture Model: SAM" << std::endl;
         } else if (moisture_type == MoistureType::SAM_NoIce) {
