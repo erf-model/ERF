@@ -134,7 +134,7 @@ public:
           pp, "mrf_moistvars", mrf_moistvars, lev, max_level);
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
-          Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
+          amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
 #endif
       }
     }
