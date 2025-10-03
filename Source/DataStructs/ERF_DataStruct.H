@@ -417,6 +417,11 @@ struct SolverChoice {
         pp.query("rayleigh_zdamp", rayleigh_zdamp);
         pp.query("rayleigh_damp_substep", rayleigh_damp_substep); // apply Rayleigh damping source terms in substep only
 
+        // Include vertical-velocity damping to improve robustness
+        pp.query("w_damping", w_damping);
+        pp.query("w_damping_cfl", w_damping_cfl);
+        pp.query("w_damping_coeff", w_damping_coeff);
+
         // flags for whether to apply other source terms in substep only
         pp.query("immersed_forcing_substep", immersed_forcing_substep); // apply Rayleigh damping source terms in substep only
         pp.query("forest_substep", forest_substep); // apply Rayleigh damping source terms in substep only
@@ -859,6 +864,10 @@ struct SolverChoice {
     amrex::Real rayleigh_zdamp         = 500.0; // damping layer depth [m]
     amrex::Real rayleigh_ztop;
     bool        rayleigh_damp_substep  = false; // use Rayleigh on substep only?
+
+    bool        w_damping              = false;
+    amrex::Real w_damping_cfl          = 1.0;
+    amrex::Real w_damping_coeff        = 0.3; // damping coefficient [m/s]
 
     // Specify whether to apply other various source terms on substep only
     bool        immersed_forcing_substep  = false;
