@@ -590,109 +590,78 @@ protected:
     // WSM for internal local variables
     ekat::WorkspaceManager<Spack, KT::Device> workspace_mgr;
 
+    // Contiguous memory buffer view
+    //=======================================================
+    view_1d tot_buff_view;
+
     // Runtime options
     //=======================================================
-    bool apply_tms = false;
+    bool apply_tms = true;
     bool check_flux_state = false;
+    bool extra_shoc_diags = false;
+    bool column_conservation_check = false;
 
-    // SHOCPreprocess data structures
+    // Interface data structures
     //=======================================================
-    view_1d  phis;
-    view_1d  wpthlp_sfc;
-    view_1d  wprtp_sfc;
-    view_1d  upwp_sfc;
-    view_1d  vpwp_sfc;
+    view_2d  omega;
     view_1d  surf_sens_flux;
-    view_1d  surf_evap;
     sview_2d surf_mom_flux;
-
+    view_1d  surf_evap;
     view_2d  T_mid;
+    view_2d  qv;
+    view_1d  surf_drag_coeff_tms;
+
+    // Input data structures
+    //=======================================================
     view_2d  p_mid;
     view_2d  p_int;
-    view_2d  dens;
-    view_2d  omega;
-    view_2d  qv;
-    view_2d  qc;
-    view_2d  qc_copy;
-    view_2d  z_mid;
-    view_2d  z_int;
-    view_2d  shoc_s;
-    view_2d  tke;
-    view_2d  tke_copy;
-    view_2d  rrho;
-    view_2d  rrho_i;
-    view_2d  thv;
-    view_2d  dz;
-    view_2d  dse;
-    view_2d  zt_grid;
-    view_2d  zi_grid;
-    view_2d  wtracer_sfc;
-    view_2d  wm_zt;
-    view_2d  inv_exner;
-    view_2d  thlm;
-    view_2d  qw;
-    view_2d  cloud_frac;
+    view_2d  pseudo_dens;
+    view_1d  phis;
+
+    // Input/Output data structures
+    //=======================================================
+    view_3d  horiz_wind;
+    view_2d  sgs_buoy_flux;
+    view_2d  tk;
     view_2d  cldfrac_liq;
-    view_2d  cldfrac_liq_prev;
+    view_2d  tke;
+    view_2d  qc;
 
-    view_3d_strided qtracers;
-
-    // SHOCPostprocess data structures
-    //=======================================================
-    view_2d shoc_ql2;
-    view_2d inv_qc_relvar;
-
-    // SHOC InputOutput data structures
-    //=======================================================
-    view_2d sgs_buoy_flux;
-    view_2d tk;
-    view_3d horiz_wind;
-
-    // SHOC Output data structures
+    // Output data structures
     //=======================================================
     view_1d pblh;
+    view_2d inv_qc_relvar;
+    view_2d tkh;
+    view_2d w_sec;
+    view_2d cldfrac_liq_prev;
     view_1d ustar;
     view_1d obklen;
-    view_2d tkh;
 
-    // SHOC HistoryOutput data structures
+    // Extra diagnostic data structures
     //=======================================================
-    view_2d shoc_mix;
-    view_2d w_sec;
-    view_2d thl_sec;
-    view_2d qw_sec;
-    view_2d qwthl_sec;
-    view_2d wthl_sec;
-    view_2d wqw_sec;
-    view_2d wtke_sec;
-    view_2d uw_sec;
-    view_2d vw_sec;
-    view_2d w3;
-    view_2d wqls_sec;
     view_2d brunt;
+    view_2d shoc_mix;
     view_2d isotropy;
     view_2d shoc_cond;
     view_2d shoc_evap;
 
-    // SHOC Miscellaneous data structures
+    view_2d wthl_sec;
+    view_2d thl_sec;
+    view_2d wqw_sec;
+    view_2d qw_sec;
+    view_2d uw_sec;
+    view_2d vw_sec;
+    view_2d w3;
+
+    // Tracer data structures
     //=======================================================
-    // Small kernels
-    view_1d se_b;
-    view_1d ke_b;
-    view_1d wv_b;
-    view_1d wl_b;
-    view_1d se_a;
-    view_1d ke_a;
-    view_1d wv_a;
-    view_1d wl_a;
-    view_1d kbfs;
-    view_1d ustar2;
-    view_1d wstar;
-    view_1d surf_drag_coeff_tms;
-    view_2d rho_zt;
-    view_2d shoc_qv;
-    view_2d tabs;
-    view_2d dz_zt;
-    view_2d dz_zi;
+    view_3d_strided qtracers;
+
+    // Boundary flux data structures
+    //=======================================================
+    view_1d vapor_flux;
+    view_1d water_flux;
+    view_1d ice_flux;
+    view_1d heat_flux;
 }; // SHOCInterface
 #endif
