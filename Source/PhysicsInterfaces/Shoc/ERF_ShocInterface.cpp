@@ -390,10 +390,14 @@ SHOCInterface::mf_to_kokkos_buffers ()
                                          + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
                                          + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz;
 
+            // W at cc (cannot be 0)
+            Real w_cc = 0.5 * (w_arr(i,j,k) + w_arr(i,j,k+1));
+            Real w_limited = std::copysign(std::max(std::fabs(w_cc),0.001),w_cc);
+
             // Interface data structures
             //=======================================================
             // Physics functions calculate_vertical_velocity
-            omega_d(icol,ilay)          = 0.5 * (w_arr(i,j,k) + w_arr(i,j,k+1)) * r * CONST_GRAV;
+            omega_d(icol,ilay)          = w_limited * r * CONST_GRAV;
             surf_sens_flux_d(icol)      = 0.0;
             surf_mom_flux_d(icol,0)     = 0.0;
             surf_mom_flux_d(icol,1)     = 0.0;
