@@ -448,7 +448,7 @@ thinbody_wall_dist (std::unique_ptr<amrex::MultiFab>& wdist,
 
 void WeatherDataInterpolation(const amrex::Real time);
 
-AMREX_GPU_HOST
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 quad_interp_1d(amrex::Real z,
