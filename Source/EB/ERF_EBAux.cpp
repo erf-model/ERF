@@ -1094,10 +1094,45 @@ define( [[maybe_unused]] int const& a_level,
             aux_flag(i,j,k).setDisconnected(ii,jj, 1);
           }}
         });
-      }
-    }
+      } // !l_periodic_z
 
-  }
+    } // FabType::singlevalued
+
+  } // MFIter
+
+  // Set disconnected zero-volume-fraction cells
+  // (equivalent to eb_::set_connection_flags for CC grids)
+
+  for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
+
+    const Box& bx = mfi.validbox();
+    const Box& bx_grown = mfi.growntilebox();
+
+    Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
+    Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        if (aux_flag(i,j,k).isSingleValued()) {
+            for(int kk(-1); kk<=1; kk++) {
+            for(int jj(-1); jj<=1; jj++) {
+            for(int ii(-1); ii<=1; ii++)
+            {
+                if (aux_vfrac(i+ii,j+jj,k+kk) == 0.0) {
+                    aux_flag(i,j,k).setDisconnected(ii,jj,kk);
+                }
+            }}}
+        }
+    });
+
+    ParallelFor(bx_grown, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {           
+        if (aux_vfrac(i,j,k)==0.0) {
+            aux_flag(i,j,k).setCovered();
+        }
+    });    
+
+  } // MFIter
 
   // Fill Boundary
 
