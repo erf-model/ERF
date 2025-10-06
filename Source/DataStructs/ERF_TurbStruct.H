@@ -7,7 +7,7 @@ AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
 AMREX_ENUM(RANSType, None, kEqn);
 
-AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF);
+AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF, SHOC);
 
 AMREX_ENUM(StratType, theta, thetav, thetal);
 
@@ -132,6 +132,10 @@ public:
         query_one_or_per_level(pp, "pbl_mrf_sf", pbl_mrf_sf, lev, max_level);
         query_one_or_per_level(
           pp, "mrf_moistvars", mrf_moistvars, lev, max_level);
+      } else if (pbl_type == PBLType::SHOC) {
+#ifndef ERF_USE_SHOC
+          amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
+#endif
       }
     }
 
@@ -196,7 +200,7 @@ public:
     use_tke =
       ((les_type == LESType::Deardorff) || (rans_type == RANSType::kEqn) ||
        (pbl_type == PBLType::MYJ)       || (pbl_type == PBLType::MYNN25) ||
-       (pbl_type == PBLType::MYNNEDMF));
+       (pbl_type == PBLType::MYNNEDMF)  || (pbl_type == PBLType::SHOC));
 
     // Validate inputs
     if (les_type == LESType::Smagorinsky) {
