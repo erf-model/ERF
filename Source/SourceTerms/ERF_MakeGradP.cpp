@@ -393,16 +393,44 @@ compute_gradp_interpz (const MultiFab& p,
                 Real dz_int = 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i-1,j,k));
                 if (dz_int > 0) {
                     // Klemp 2011, Eqn. 16: s = 1/2
-                    p_hi -= dz_int * ( (   p_arr(i  ,j,k  ) -    p_arr(i  ,j,k-1))
-                                     / (z_cc_arr(i  ,j,k  ) - z_cc_arr(i  ,j,k-1)) );
-                    p_lo += dz_int * ( (   p_arr(i-1,j,k+1) -    p_arr(i-1,j,k  ))
-                                     / (z_cc_arr(i-1,j,k+1) - z_cc_arr(i-1,j,k  )) );
+                    if (k==domain_klo) {
+                        p_hi = quad_interp_1d(z_cc_arr(i,j,k) - dz_int,
+                                              z_cc_arr(i,j,k  ), p_arr(i,j,k  ),
+                                              z_cc_arr(i,j,k+1), p_arr(i,j,k+1),
+                                              z_cc_arr(i,j,k+2), p_arr(i,j,k+2));
+                    } else {
+                        p_hi -= dz_int * ( (   p_arr(i  ,j,k  ) -    p_arr(i  ,j,k-1))
+                                         / (z_cc_arr(i  ,j,k  ) - z_cc_arr(i  ,j,k-1)) );
+                    }
+                    if (k==domain_khi) {
+                        p_lo = quad_interp_1d(z_cc_arr(i-1,j,k) + dz_int,
+                                              z_cc_arr(i-1,j,k-2), p_arr(i-1,j,k-2),
+                                              z_cc_arr(i-1,j,k-1), p_arr(i-1,j,k-1),
+                                              z_cc_arr(i-1,j,k  ), p_arr(i-1,j,k  ));
+                    } else {
+                        p_lo += dz_int * ( (   p_arr(i-1,j,k+1) -    p_arr(i-1,j,k  ))
+                                         / (z_cc_arr(i-1,j,k+1) - z_cc_arr(i-1,j,k  )) );
+                    }
                 } else if (dz_int < 0) {
                     // Klemp 2011, Eqn. 16: s = -1/2
-                    p_hi -= dz_int * ( (   p_arr(i  ,j,k+1) -    p_arr(i  ,j,k  ))
-                                     / (z_cc_arr(i  ,j,k+1) - z_cc_arr(i  ,j,k  )) );
-                    p_lo += dz_int * ( (   p_arr(i-1,j,k  ) -    p_arr(i-1,j,k-1))
-                                     / (z_cc_arr(i-1,j,k  ) - z_cc_arr(i-1,j,k-1)) );
+                    if (k==domain_khi) {
+                        p_hi = quad_interp_1d(z_cc_arr(i,j,k) - dz_int,
+                                              z_cc_arr(i,j,k-2), p_arr(i,j,k-2),
+                                              z_cc_arr(i,j,k-1), p_arr(i,j,k-1),
+                                              z_cc_arr(i,j,k  ), p_arr(i,j,k  ));
+                    } else {
+                        p_hi -= dz_int * ( (   p_arr(i  ,j,k+1) -    p_arr(i  ,j,k  ))
+                                         / (z_cc_arr(i  ,j,k+1) - z_cc_arr(i  ,j,k  )) );
+                    }
+                    if (k==domain_klo) {
+                        p_lo = quad_interp_1d(z_cc_arr(i-1,j,k) + dz_int,
+                                              z_cc_arr(i-1,j,k  ), p_arr(i-1,j,k  ),
+                                              z_cc_arr(i-1,j,k+1), p_arr(i-1,j,k+1),
+                                              z_cc_arr(i-1,j,k+2), p_arr(i-1,j,k+2));
+                    } else {
+                        p_lo += dz_int * ( (   p_arr(i-1,j,k  ) -    p_arr(i-1,j,k-1))
+                                         / (z_cc_arr(i-1,j,k  ) - z_cc_arr(i-1,j,k-1)) );
+                    }
                 }
                 gpx_arr(i,j,k) = dxInv[0] * (p_hi - p_lo);
             } else {
@@ -417,16 +445,44 @@ compute_gradp_interpz (const MultiFab& p,
                 Real dz_int = 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i,j-1,k));
                 if (dz_int > 0) {
                     // Klemp 2011, Eqn. 16: s = 1/2
-                    p_hi -= dz_int * ( (   p_arr(i,j  ,k  ) -    p_arr(i,j  ,k-1))
-                                     / (z_cc_arr(i,j  ,k  ) - z_cc_arr(i,j  ,k-1)) );
-                    p_lo += dz_int * ( (   p_arr(i,j-1,k+1) -    p_arr(i,j-1,k  ))
-                                     / (z_cc_arr(i,j-1,k+1) - z_cc_arr(i,j-1,k  )) );
+                    if (k==domain_klo) {
+                        p_hi = quad_interp_1d(z_cc_arr(i,j,k) - dz_int,
+                                              z_cc_arr(i,j,k  ), p_arr(i,j,k  ),
+                                              z_cc_arr(i,j,k+1), p_arr(i,j,k+1),
+                                              z_cc_arr(i,j,k+2), p_arr(i,j,k+2));
+                    } else {
+                        p_hi -= dz_int * ( (   p_arr(i,j  ,k  ) -    p_arr(i,j  ,k-1))
+                                         / (z_cc_arr(i,j  ,k  ) - z_cc_arr(i,j  ,k-1)) );
+                    }
+                    if (k==domain_khi) {
+                        p_lo = quad_interp_1d(z_cc_arr(i,j-1,k) + dz_int,
+                                              z_cc_arr(i,j-1,k-2), p_arr(i,j-1,k-2),
+                                              z_cc_arr(i,j-1,k-1), p_arr(i,j-1,k-1),
+                                              z_cc_arr(i,j-1,k  ), p_arr(i,j-1,k  ));
+                    } else {
+                        p_lo += dz_int * ( (   p_arr(i,j-1,k+1) -    p_arr(i,j-1,k  ))
+                                         / (z_cc_arr(i,j-1,k+1) - z_cc_arr(i,j-1,k  )) );
+                    }
                 } else if (dz_int < 0) {
                     // Klemp 2011, Eqn. 16: s = -1/2
-                    p_hi -= dz_int * ( (   p_arr(i,j  ,k+1) -    p_arr(i,j  ,k  ))
-                                     / (z_cc_arr(i,j  ,k+1) - z_cc_arr(i,j  ,k  )) );
-                    p_lo += dz_int * ( (   p_arr(i,j-1,k  ) -    p_arr(i,j-1,k-1))
-                                     / (z_cc_arr(i,j-1,k  ) - z_cc_arr(i,j-1,k-1)) );
+                    if (k==domain_khi) {
+                        p_hi = quad_interp_1d(z_cc_arr(i,j,k) - dz_int,
+                                              z_cc_arr(i,j,k-2), p_arr(i,j,k-2),
+                                              z_cc_arr(i,j,k-1), p_arr(i,j,k-1),
+                                              z_cc_arr(i,j,k  ), p_arr(i,j,k  ));
+                    } else {
+                        p_hi -= dz_int * ( (   p_arr(i,j  ,k+1) -    p_arr(i,j  ,k  ))
+                                         / (z_cc_arr(i,j  ,k+1) - z_cc_arr(i,j  ,k  )) );
+                    }
+                    if (k==domain_klo) {
+                        p_lo = quad_interp_1d(z_cc_arr(i,j-1,k) + dz_int,
+                                              z_cc_arr(i,j-1,k  ), p_arr(i,j-1,k  ),
+                                              z_cc_arr(i,j-1,k+1), p_arr(i,j-1,k+1),
+                                              z_cc_arr(i,j-1,k+2), p_arr(i,j-1,k+2));
+                    } else {
+                        p_lo += dz_int * ( (   p_arr(i,j-1,k  ) -    p_arr(i,j-1,k-1))
+                                         / (z_cc_arr(i,j-1,k  ) - z_cc_arr(i,j-1,k-1)) );
+                    }
                 }
                 gpx_arr(i,j,k) = dxInv[1] * (p_hi - p_lo);
             } else {
