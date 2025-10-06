@@ -155,6 +155,12 @@ struct SolverChoice {
         // Do we set map scale factors to 0.5 instead of 1 for testing?
         pp.query("test_mapfactor", test_mapfactor);
 
+        // Which horizontal pressure gradient formulation to use with terrain fitted coords?
+        // 0: dp/dx with dp/dz correction (default)
+        // 1: gradient of vertically interpolated p, see Klemp 2011
+        pp.query("gradp_type", gradp_type);
+        AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
+
         // What type of moisture model to use?
         moisture_type = MoistureType::None; // Default
         if (pp.query("moisture_type",moisture_type) > 0) {
@@ -862,6 +868,8 @@ struct SolverChoice {
     amrex::Real poisson_reltol      = 1e-8;
 
     bool        test_mapfactor         = false;
+
+    int         gradp_type             = 0;
 
     int         buoyancy_type          = 1; // uses rhoprime directly
 
