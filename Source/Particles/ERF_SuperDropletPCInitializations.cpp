@@ -53,6 +53,7 @@ void SuperDropletPC::readInputs ()
 #endif
     m_sigma0 = 0.62;
     m_place_randomly_in_cells = true;
+    m_recycle_threshold = 0.01;
 
     /* Newton solver parameters */
     m_newton_rtol = 1.0e-6;
@@ -67,6 +68,17 @@ void SuperDropletPC::readInputs ()
     /* log file for unconverged particles */
     m_mass_change_logging = false;
     m_mass_change_log_fname = "unconverged_superdroplets.log";
+
+    /* recycled particle position bounds */
+    const Geometry& geom = m_gdb->Geom(m_lev);
+    const auto plo = geom.ProbLoArray();
+    const auto phi = geom.ProbHiArray();
+    m_recyc_xmin = plo[0];
+    m_recyc_xmax = phi[0];
+    m_recyc_ymin = plo[1];
+    m_recyc_ymax = phi[1];
+    m_recyc_zmin = plo[2];
+    m_recyc_zmax = phi[2];
 
     std::string coal_kernel_name = "";
 
@@ -96,6 +108,14 @@ void SuperDropletPC::readInputs ()
     pp.query("include_brownian_coalescence", m_include_brownian_coalescence);
     pp.query("sigma0", m_sigma0);
     pp.query("place_randomly_in_cells", m_place_randomly_in_cells);
+
+    pp.query("recycle_threshold", m_recycle_threshold);
+    pp.query("recycle_xmin", m_recyc_xmin);
+    pp.query("recycle_xmax", m_recyc_xmax);
+    pp.query("recycle_ymin", m_recyc_ymin);
+    pp.query("recycle_ymax", m_recyc_ymax);
+    pp.query("recycle_zmin", m_recyc_zmin);
+    pp.query("recycle_zmax", m_recyc_zmax);
 
     std::string ti_name = "backward_euler";
     pp.query("mass_change_cfl", m_mass_change_cfl);
@@ -147,6 +167,9 @@ void SuperDropletPC::readInputs ()
 
     pp.query("num_initializations", m_num_initializations);
     m_initializations.resize(m_num_initializations);
+    m_num_sd_per_cell = 0;
+    const auto dx_h = Geom(m_lev).CellSize();
+    const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
     for (int i = 0; i < m_num_initializations; i++) {
         m_initializations[i] = std::make_unique<SDInitialization>();
         m_initializations[i]->setDefaults(Geom(0), m_species_mat,m_aerosol_mat);
@@ -157,6 +180,7 @@ void SuperDropletPC::readInputs ()
         m_initializations[i]->readInputs(m_name, Geom(0), m_species_mat, m_aerosol_mat);
         Print() << "Querying inputs file using the string: '" << prefix << "'!\n";
         m_initializations[i]->readInputs(prefix, Geom(0), m_species_mat, m_aerosol_mat);
+        m_num_sd_per_cell += m_initializations[i]->numSDPerCell(cell_volume);
     }
 
     return;
@@ -228,6 +252,10 @@ void SuperDropletPC::InitializeParticles (const Real a_t, const MFPtr& a_ptr)
     Print() << "SuperDropletPC(" << m_name << "):\n"
             << "    Density scaling: " << (m_density_scaling ? "true" : "false") << "\n"
             << "    Nucleate particles: " << (m_nucleate_particles ? "true" : "false") << "\n"
+            << "    Recycling threshold: " << m_recycle_threshold << "\n"
+            << "    Recycling bounding box: " <<    "[" << m_recyc_xmin << ", " << m_recyc_xmax << "] "
+                                              << " x [" << m_recyc_ymin << ", " << m_recyc_ymax << "] "
+                                              << " x [" << m_recyc_zmin << ", " << m_recyc_zmax << "]\n"
             << "    Advect with flow: " << (m_advect_w_flow ? "true" : "false") << "\n"
             << "    Advect with gravity: " << (m_advect_w_gravity ? "true" : "false") << "\n"
             << "    Prescribed advection: " << (m_prescribed_advection ? "true" : "false") << "\n"
