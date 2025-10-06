@@ -390,7 +390,7 @@ compute_gradp_interpz (const MultiFab& p,
             if (l_use_terrain_fitted_coords) {
                 Real p_lo = p_arr(i-1,j,k);
                 Real p_hi = p_arr(i,j,k);
-                Real dz_int = z_cc_arr(i,j,k) - z_cc_arr(i-1,j,k);
+                Real dz_int = 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i-1,j,k));
                 if (dz_int > 0) {
                     // Klemp 2011, Eqn. 16: s = 1/2
                     p_hi -= dz_int * ( (   p_arr(i  ,j,k  ) -    p_arr(i  ,j,k-1))
@@ -414,7 +414,7 @@ compute_gradp_interpz (const MultiFab& p,
             if (l_use_terrain_fitted_coords) {
                 Real p_lo = p_arr(i,j-1,k);
                 Real p_hi = p_arr(i,j,k);
-                Real dz_int = z_cc_arr(i,j,k) - z_cc_arr(i,j-1,k);
+                Real dz_int = 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i,j-1,k));
                 if (dz_int > 0) {
                     // Klemp 2011, Eqn. 16: s = 1/2
                     p_hi -= dz_int * ( (   p_arr(i,j  ,k  ) -    p_arr(i,j  ,k-1))
