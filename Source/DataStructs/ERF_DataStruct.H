@@ -754,6 +754,8 @@ struct SolverChoice {
             amrex::Print() << "Radiation Model: None" << std::endl;
         }
 
+        amrex::Print() << "Gradp_type                  : " << gradp_type << std::endl;
+
         amrex::Print() << "Buoyancy_type               : " << buoyancy_type << std::endl;
 
            advChoice.display(pp_prefix);

@@ -387,65 +387,51 @@ compute_gradp_interpz (const MultiFab& p,
         ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            //Note : mx/my == 1, so no map factor needed here
-            Real gpx = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
-
             if (l_use_terrain_fitted_coords) {
-                Real met_h_xi = (z_cc_arr(i,j,k) - z_cc_arr(i-1,j,k)) * dxInv[0];
-
-                Real dz_phys_hi, dz_phys_lo;
-                Real gpz_lo, gpz_hi;
-                if (k==domain_klo) {
-                    dz_phys_hi = z_cc_arr(i  ,j,k+1) -   z_cc_arr(i  ,j,k  );
-                    dz_phys_lo = z_cc_arr(i-1,j,k+1) -   z_cc_arr(i-1,j,k  );
-                    gpz_hi  = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k  )) / dz_phys_hi;
-                    gpz_lo  = (p_arr(i-1,j,k+1) - p_arr(i-1,j,k  )) / dz_phys_lo;
-                } else if (k==domain_khi) {
-                    dz_phys_hi = z_cc_arr(i  ,j,k  ) -   z_cc_arr(i  ,j,k-1);
-                    dz_phys_lo = z_cc_arr(i-1,j,k  ) -   z_cc_arr(i-1,j,k-1);
-                    gpz_hi  = (p_arr(i  ,j,k  ) - p_arr(i  ,j,k-1)) / dz_phys_hi;
-                    gpz_lo  = (p_arr(i-1,j,k  ) - p_arr(i-1,j,k-1)) / dz_phys_lo;
-                } else {
-                    dz_phys_hi = z_cc_arr(i  ,j,k+1) -   z_cc_arr(i  ,j,k-1);
-                    dz_phys_lo = z_cc_arr(i-1,j,k+1) -   z_cc_arr(i-1,j,k-1);
-                    gpz_hi  = (p_arr(i  ,j,k+1) - p_arr(i  ,j,k-1)) / dz_phys_hi;
-                    gpz_lo  = (p_arr(i-1,j,k+1) - p_arr(i-1,j,k-1)) / dz_phys_lo;
+                Real p_lo = p_arr(i-1,j,k);
+                Real p_hi = p_arr(i,j,k);
+                Real dz_int = z_cc_arr(i,j,k) - z_cc_arr(i-1,j,k);
+                if (dz_int > 0) {
+                    // Klemp 2011, Eqn. 16: s = 1/2
+                    p_hi -= dz_int * ( (   p_arr(i  ,j,k  ) -    p_arr(i  ,j,k-1))
+                                     / (z_cc_arr(i  ,j,k  ) - z_cc_arr(i  ,j,k-1)) );
+                    p_lo += dz_int * ( (   p_arr(i-1,j,k+1) -    p_arr(i-1,j,k  ))
+                                     / (z_cc_arr(i-1,j,k+1) - z_cc_arr(i-1,j,k  )) );
+                } else if (dz_int < 0) {
+                    // Klemp 2011, Eqn. 16: s = -1/2
+                    p_hi -= dz_int * ( (   p_arr(i  ,j,k+1) -    p_arr(i  ,j,k  ))
+                                     / (z_cc_arr(i  ,j,k+1) - z_cc_arr(i  ,j,k  )) );
+                    p_lo += dz_int * ( (   p_arr(i-1,j,k  ) -    p_arr(i-1,j,k-1))
+                                     / (z_cc_arr(i-1,j,k  ) - z_cc_arr(i-1,j,k-1)) );
                 }
-                Real gpx_metric = met_h_xi * 0.5 * (gpz_hi + gpz_lo);
-                gpx -= gpx_metric;
+                gpx_arr(i,j,k) = dxInv[0] * (p_hi - p_lo);
+            } else {
+                gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
             }
-            gpx_arr(i,j,k) = gpx;
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            //Note : mx/my == 1, so no map factor needed here
-            Real gpy = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
-
             if (l_use_terrain_fitted_coords) {
-                Real met_h_eta = (z_cc_arr(i,j,k) - z_cc_arr(i,j-1,k)) * dxInv[1];
-
-                Real dz_phys_hi, dz_phys_lo;
-                Real gpz_lo, gpz_hi;
-                if (k==domain_klo) {
-                    dz_phys_hi = z_cc_arr(i,j  ,k+1) -   z_cc_arr(i,j  ,k  );
-                    dz_phys_lo = z_cc_arr(i,j-1,k+1) -   z_cc_arr(i,j-1,k  );
-                    gpz_hi  = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k  )) / dz_phys_hi;
-                    gpz_lo  = (p_arr(i,j-1,k+1) - p_arr(i,j-1,k  )) / dz_phys_lo;
-                } else if (k==domain_khi) {
-                    dz_phys_hi = z_cc_arr(i,j  ,k  ) -   z_cc_arr(i,j  ,k-1);
-                    dz_phys_lo = z_cc_arr(i,j-1,k  ) -   z_cc_arr(i,j-1,k-1);
-                    gpz_hi  = (p_arr(i,j  ,k  ) - p_arr(i,j  ,k-1)) / dz_phys_hi;
-                    gpz_lo  = (p_arr(i,j-1,k  ) - p_arr(i,j-1,k-1)) / dz_phys_lo;
-                } else {
-                    dz_phys_hi = z_cc_arr(i,j  ,k+1) -   z_cc_arr(i,j  ,k-1);
-                    dz_phys_lo = z_cc_arr(i,j-1,k+1) -   z_cc_arr(i,j-1,k-1);
-                    gpz_hi  = (p_arr(i,j  ,k+1) - p_arr(i,j  ,k-1)) / dz_phys_hi;
-                    gpz_lo  = (p_arr(i,j-1,k+1) - p_arr(i,j-1,k-1)) / dz_phys_lo;
+                Real p_lo = p_arr(i,j-1,k);
+                Real p_hi = p_arr(i,j,k);
+                Real dz_int = z_cc_arr(i,j,k) - z_cc_arr(i,j-1,k);
+                if (dz_int > 0) {
+                    // Klemp 2011, Eqn. 16: s = 1/2
+                    p_hi -= dz_int * ( (   p_arr(i,j  ,k  ) -    p_arr(i,j  ,k-1))
+                                     / (z_cc_arr(i,j  ,k  ) - z_cc_arr(i,j  ,k-1)) );
+                    p_lo += dz_int * ( (   p_arr(i,j-1,k+1) -    p_arr(i,j-1,k  ))
+                                     / (z_cc_arr(i,j-1,k+1) - z_cc_arr(i,j-1,k  )) );
+                } else if (dz_int < 0) {
+                    // Klemp 2011, Eqn. 16: s = -1/2
+                    p_hi -= dz_int * ( (   p_arr(i,j  ,k+1) -    p_arr(i,j  ,k  ))
+                                     / (z_cc_arr(i,j  ,k+1) - z_cc_arr(i,j  ,k  )) );
+                    p_lo += dz_int * ( (   p_arr(i,j-1,k  ) -    p_arr(i,j-1,k-1))
+                                     / (z_cc_arr(i,j-1,k  ) - z_cc_arr(i,j-1,k-1)) );
                 }
-                Real gpy_metric = met_h_eta * 0.5 * (gpz_hi + gpz_lo);
-                gpy -= gpy_metric;
+                gpx_arr(i,j,k) = dxInv[1] * (p_hi - p_lo);
+            } else {
+                gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
             }
-            gpy_arr(i,j,k) = gpy;
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
