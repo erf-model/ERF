@@ -156,7 +156,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         if ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) )
         {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-            init_only(lev, start_time);
+            init_only(lev, time);
             init_zphys(lev, time);
             update_terrain_arrays(lev);
             make_physbcs(lev);
@@ -165,7 +165,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             update_terrain_arrays(lev);
             // Note that for init_type != InitType::WRFInput and != InitType::Metgrid,
             // make_physbcs is called inside init_only
-            init_only(lev, start_time);
+            init_only(lev, time);
         }
     } else {
         // if restarting and nudging from input sounding, load the input sounding files

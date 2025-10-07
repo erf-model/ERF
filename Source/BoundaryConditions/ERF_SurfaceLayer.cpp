@@ -441,43 +441,29 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             });
         } // custom
 
-        // Rho*u flux
-        //============================================================================
-        Box bxx = surroundingNodes(bx,0);
-        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            // Valid tau13 from LSM and over land
-            Real stressx;
-            int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
-            if (lsm_tau13_arr && is_land) {
-                stressx = lsm_tau13_arr(i,j,k);
-            } else {
-                stressx = flux_comp.compute_u_flux(i, j, k,
-                                                   cons_arr, velx_arr, vely_arr,
-                                                   umm_arr, um_arr, u_star_arr);
+        if (!rotate) {
+            // Rho*u flux
+            //============================================================================
+            Box bxx = surroundingNodes(bx,0);
+            ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                // Valid tau13 from LSM and over land
+                Real stressx;
+                int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
+                if (lsm_tau13_arr && is_land) {
+                    stressx = lsm_tau13_arr(i,j,k);
+                } else {
+                    stressx = flux_comp.compute_u_flux(i, j, k,
+                                                       cons_arr, velx_arr, vely_arr,
+                                                       umm_arr, um_arr, u_star_arr);
+                }
 
-
-            }
-
-            // Do stress rotations?
-            if (rotate) {
-                rotate_stress_tensor(i, j, k, stressx, dxInv, zphys_arr,
-                                     velx_arr, vely_arr, velz_arr,
-                                     t11_arr, t22_arr, t33_arr,
-                                     t12_arr, t21_arr,
-                                     t13_arr, t31_arr,
-                                     t23_arr, t32_arr);
-            } else {
                 t13_arr(i,j,k) = stressx;
                 if (t31_arr) { t31_arr(i,j,k) = stressx; }
-            }
+            });
 
-        });
-
-        // Rho*v flux
-        //============================================================================
-        // NOTE: One stress rotation for ALL the stress components
-        if (!rotate) {
+            // Rho*v flux
+            //============================================================================
             Box bxy = surroundingNodes(bx,1);
             ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
@@ -495,13 +481,29 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 t23_arr(i,j,k) = stressy;
                 if (t32_arr) { t32_arr(i,j,k) = stressy; }
             });
+        } else {
+            // All fluxes with rotation
+            //============================================================================
+            Box bxxy = convert(bx, IntVect(1,1,0));
+            ParallelFor(bxxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                Real stresst = flux_comp.compute_u_flux(i, j, k,
+                                                       cons_arr, velx_arr, vely_arr,
+                                                       umm_arr, um_arr, u_star_arr);
+                rotate_stress_tensor(i, j, k, stresst, dxInv, zphys_arr,
+                                     velx_arr, vely_arr, velz_arr,
+                                     t11_arr, t22_arr, t33_arr,
+                                     t12_arr, t21_arr,
+                                     t13_arr, t31_arr,
+                                     t23_arr, t32_arr);
+            });
         }
     } // mfiter
 }
 
 void
 SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
-                                           const Real& time)
+                                           const Real& elapsed_time)
 {
     int n_times_in_sst = m_sst_lev[lev].size();
 
@@ -511,10 +513,18 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     if (n_times_in_sst > 1) {
         // Time interpolation
         Real dT = m_bdy_time_interval;
-        int n_time = static_cast<int>( time /  dT);
+        int n_time = static_cast<int>( elapsed_time /  dT);
         n_time_lo = n_time;
         n_time_hi = n_time+1;
-        alpha = (time - n_time * dT) / dT;
+        alpha = (elapsed_time - n_time * dT) / dT;
+        if ((elapsed_time == m_stop_time-m_start_time) && (alpha==0)) {
+            // stop time coincides with final lowinp slice -- don't try to
+            // interpolate from the following time slice
+            n_time    -= 1;
+            n_time_lo -= 1;
+            n_time_hi -= 1;
+            alpha = 1.0;
+        }
         AMREX_ALWAYS_ASSERT( (n_time >= 0) && (n_time < (m_sst_lev[lev].size()-1)));
     } else {
         n_time_lo = 0;

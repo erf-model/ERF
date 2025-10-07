@@ -12,7 +12,8 @@
  * and modifications to the code, please refer to BSD-3-Clause Open Source License.
  */
 
-#include <ERF_Radiation.H>
+#include "ERF_NCInterface.H"
+#include "ERF_Radiation.H"
 
 using namespace amrex;
 
@@ -82,12 +83,6 @@ Radiation::Radiation (const int& lev,
     pp.query("rad_extra_clnclrsky_diag", m_extra_clnclrsky_diag);
     pp.query("rad_extra_clnsky_diag"   , m_extra_clnsky_diag);
 
-    // Parse the band and gauss pt sizes
-    pp.query("nswbands", m_nswbands);
-    pp.query("nlwbands", m_nlwbands);
-    pp.query("nswgpts" , m_nswgpts );
-    pp.query("nlwgpts" , m_nlwgpts );
-
     // Parse path and file names
     pp.query("rrtmgp_file_path"      , rrtmgp_file_path);
     pp.query("rrtmgp_coeffs_sw"      , rrtmgp_coeffs_sw  );
@@ -101,6 +96,24 @@ Radiation::Radiation (const int& lev,
     rrtmgp_cloud_optics_file_sw = rrtmgp_file_path + "/" + rrtmgp_cloud_optics_sw;
     rrtmgp_cloud_optics_file_lw = rrtmgp_file_path + "/" + rrtmgp_cloud_optics_lw;
 
+    // Get dimensions from lookup data
+    if (ParallelDescriptor::IOProcessor()) {
+        auto ncf_sw = ncutils::NCFile::open(rrtmgp_coeffs_file_sw, NC_CLOBBER | NC_NETCDF4);
+        m_nswbands = ncf_sw.dim("bnd").len();
+        m_nswgpts  = ncf_sw.dim("gpt").len();
+        ncf_sw.close();
+
+        auto ncf_lw = ncutils::NCFile::open(rrtmgp_coeffs_file_lw, NC_CLOBBER | NC_NETCDF4);
+        m_nlwbands = ncf_lw.dim("bnd").len();
+        m_nlwgpts  = ncf_lw.dim("gpt").len();
+        ncf_lw.close();
+    }
+    int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+    ParallelDescriptor::Bcast(&m_nswbands, 1, ioproc);
+    ParallelDescriptor::Bcast(&m_nlwbands, 1, ioproc);
+    ParallelDescriptor::Bcast(&m_nswgpts,  1, ioproc);
+    ParallelDescriptor::Bcast(&m_nlwgpts,  1, ioproc);
+
     // Output for user
     if (lev == 0) {
         Print() << "Radiation interface constructed:\n";
@@ -109,6 +122,10 @@ Radiation::Radiation (const int& lev,
         Print() << "Coeff LW file: " << rrtmgp_coeffs_file_lw << "\n";
         Print() << "Cloud SW file: " << rrtmgp_cloud_optics_file_sw << "\n";
         Print() << "Cloud LW file: " << rrtmgp_cloud_optics_file_lw << "\n";
+        Print() << "Number of short/longwave bands: "
+                << m_nswbands << " " << m_nlwbands << "\n";
+        Print() << "Number of short/longwave gauss points: "
+                << m_nswgpts  << " " << m_nlwgpts  << "\n";
         Print() << "========================================================\n";
     }
 }
@@ -191,7 +208,7 @@ Radiation::alloc_buffers ()
     gas_names_offset.clear(); gas_names_offset.resize(m_ngas);
     std::string* gas_names_offset_p = gas_names_offset.data();
     Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, m_ngas),
-                         KOKKOS_LAMBDA (int igas)
+                         [&] (int igas)
     {
         m_gas_mol_weights_h(igas) = mol_weight_gas_p[igas];
         gas_names_offset_p[igas]  = gas_names_p[igas];
@@ -206,7 +223,7 @@ Radiation::alloc_buffers ()
     o3_lay = real1d_k("o3_lay", m_o3_size);
     realHost1d_k o3_lay_h("o3_lay_h", m_o3_size);
     Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, m_o3_size),
-                         KOKKOS_LAMBDA (int io3)
+                         [&] (int io3)
     {
         o3_lay_h(io3) = o3vmr_p[io3];
     });
@@ -240,7 +257,6 @@ Radiation::alloc_buffers ()
     cldfrac_tot   = real2d_k("cldfrac_tot"  , m_ncol, m_nlay);
     eff_radius_qc = real2d_k("eff_radius_qc", m_ncol, m_nlay);
     eff_radius_qi = real2d_k("eff_radius_qi", m_ncol, m_nlay);
-    tmp2d         = real2d_k("tmp2d"        , m_ncol, m_nlay);
     lwp           = real2d_k("lwp"          , m_ncol, m_nlay);
     iwp           = real2d_k("iwp"          , m_ncol, m_nlay);
     sw_heating    = real2d_k("sw_heating"   , m_ncol, m_nlay);
@@ -342,7 +358,6 @@ Radiation::dealloc_buffers ()
     cldfrac_tot       = real2d_k();
     eff_radius_qc     = real2d_k();
     eff_radius_qi     = real2d_k();
-    tmp2d             = real2d_k();
     lwp               = real2d_k();
     iwp               = real2d_k();
     sw_heating        = real2d_k();
@@ -990,7 +1005,6 @@ Radiation::run_impl ()
     orbital_params(orbital_year, eccen, obliq,
                    mvelp, obliqr, lambm0, mvelpp);
 
-
     // Use the orbital parameters to calculate the solar declination and eccentricity factor
     double delta, eccf;
     // Want day + fraction; calday 1 == Jan 1 0Z
@@ -1014,7 +1028,7 @@ Radiation::run_impl ()
     // O3 may be a constant or a 1D vector
     // All other comps are set to constants for now
     for (int igas(0); igas < m_ngas; ++igas) {
-        auto tmp2d_d = tmp2d;
+        auto tmp2d = Kokkos::View<RealT**,layout_t,KokkosDefaultMem>("tmp2d", ncol, nlay);
         auto name = m_gas_names[igas];
         auto gas_mol_weight = m_mol_weight_gas[igas];
         if (name == "H2O") {
@@ -1022,7 +1036,7 @@ Radiation::run_impl ()
             Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
                                  KOKKOS_LAMBDA (int icol, int ilay)
             {
-                tmp2d_d(icol,ilay) = qv_lay_d(icol,ilay) * mwdair/ gas_mol_weight;
+                tmp2d(icol,ilay) = qv_lay_d(icol,ilay) * mwdair/gas_mol_weight;
             });
         } else if (name == "CO2") {
             Kokkos::deep_copy(tmp2d, m_co2vmr);
@@ -1034,7 +1048,7 @@ Radiation::run_impl ()
                 Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
                                      KOKKOS_LAMBDA (int icol, int ilay)
                 {
-                    tmp2d_d(icol,ilay) = o3_lay_d(ilay);
+                    tmp2d(icol,ilay) = o3_lay_d(ilay);
                 });
             }
         } else if (name == "N2O") {
@@ -1053,6 +1067,7 @@ Radiation::run_impl ()
 
         // Populate GasConcs object
         m_gas_concs.set_vmr(name, tmp2d);
+        Kokkos::fence();
     }
 
     // Populate mu0 1D array
@@ -1066,7 +1081,7 @@ Radiation::run_impl ()
         double dt  = double(m_dt);
         auto rad_freq_in_steps = m_rad_freq_in_steps;
         Kokkos::parallel_for(Kokkos::RangePolicy<Kokkos::Serial>(0, ncol),
-                             KOKKOS_LAMBDA (int icol)
+                             [&] (int icol)
         {
             // Convert lat/lon to radians
             double lat_col = h_lat(icol)*PI/180.0;
@@ -1098,7 +1113,6 @@ Radiation::run_impl ()
                                                  sfc_alb_dir_vis, sfc_alb_dir_nir,
                                                  sfc_alb_dif_vis, sfc_alb_dif_nir,
                                                  sfc_alb_dir    , sfc_alb_dif);
-
     // Run RRTMGP driver
     rrtmgp::rrtmgp_main(ncol, m_nlay,
                         p_lay, t_lay,

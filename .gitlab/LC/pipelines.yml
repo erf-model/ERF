@@ -1,0 +1,19 @@
+dane-build-and-test:
+  variables:
+    CI_MACHINE: "dane"
+  extends: [.build-and-test]
+
+tioga-build-and-test:
+  variables:
+    CI_MACHINE: "tioga"
+  extends: [.build-and-test]
+
+lassen-build-and-test:
+  variables:
+    CI_MACHINE: "lassen"
+  extends: [.build-and-test]
+
+tuolumne-build-and-test:
+  variables:
+    CI_MACHINE: "tuolumne"
+  extends: [.build-and-test]

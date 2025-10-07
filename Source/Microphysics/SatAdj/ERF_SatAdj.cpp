@@ -7,6 +7,8 @@ using namespace amrex;
  */
 void SatAdj::AdvanceSatAdj (const SolverChoice& /*solverChoice*/)
 {
+    if (!m_do_cond) { return; }
+
     auto tabs  = mic_fab_vars[MicVar_SatAdj::tabs];
 
     // Expose for GPU
