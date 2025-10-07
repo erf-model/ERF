@@ -38,8 +38,8 @@ namespace LsmData_NOAHMP {
 namespace LsmFlux_NOAHMP {
    enum {
          // 2D SurfaceLayer flux vars
+         t_flux = 0,
          q_flux,
-         t_flux,
          tau13,
          tau23,
          NumVars
