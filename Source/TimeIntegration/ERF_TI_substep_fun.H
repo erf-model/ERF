@@ -27,7 +27,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         // beta_s =  1.0 : fully implicit
         Real beta_s;
         if (solverChoice.substepping_type[level] == SubsteppingType::Implicit) {
-            beta_s = 0.1;
+            beta_s = solverChoice.beta_s;
         } else { // Fully explicit
             beta_s = -1.0;
         }
@@ -87,7 +87,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             base_to_use = MultiFab(base_state[level], make_alias, 0, BaseState::num_comps);
         }
 
-        make_mom_sources(old_substep_time, Svec_to_use,
+        make_mom_sources(old_substep_time, dtau, Svec_to_use,
                          *z_phys_nd[level].get(), *z_phys_cc[level].get(), stretched_dz_h[level],
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,

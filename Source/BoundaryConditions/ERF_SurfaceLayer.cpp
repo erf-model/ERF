@@ -684,12 +684,12 @@ void
 SurfaceLayer::read_custom_roughness (const int& lev,
                                      const std::string& fname)
 {
-    // Read the file if we are on the coarsest level
-    if (lev==0) {
+    // Read the file if we have it
+    if (!fname.empty()) {
         // Only the ioproc reads the file
         Gpu::HostVector<Real> m_x,m_y,m_z0;
         if (ParallelDescriptor::IOProcessor()) {
-            Print()<<"Reading MOST roughness file: "<< fname << std::endl;
+            Print()<<"Reading MOST roughness file at level " << lev << " : " << fname << std::endl;
             std::ifstream file(fname);
             Real value1,value2,value3;
             while(file>>value1>>value2>>value3){
@@ -698,17 +698,26 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                 m_z0.push_back(value3);
             }
             file.close();
+
+            AMREX_ALWAYS_ASSERT(m_x.size() == m_y.size());
+            AMREX_ALWAYS_ASSERT(m_x.size() == m_z0.size());
         }
 
         // Broadcast the whole domain to every rank
         int ioproc = ParallelDescriptor::IOProcessorNumber();
-        ParallelDescriptor::Barrier();
-        ParallelDescriptor::Bcast(m_x.data() , m_x.size() , ioproc);
-        ParallelDescriptor::Bcast(m_y.data() , m_x.size() , ioproc);
-        ParallelDescriptor::Bcast(m_z0.data(), m_z0.size(), ioproc);
+        int nnode = m_x.size();
+        ParallelDescriptor::Bcast(&nnode, 1, ioproc);
+
+        if (!ParallelDescriptor::IOProcessor()) {
+            m_x.resize(nnode);
+            m_y.resize(nnode);
+            m_z0.resize(nnode);
+        }
+        ParallelDescriptor::Bcast(m_x.data() , nnode, ioproc);
+        ParallelDescriptor::Bcast(m_y.data() , nnode, ioproc);
+        ParallelDescriptor::Bcast(m_z0.data(), nnode, ioproc);
 
         // Copy data to the GPU
-        int nnode = m_x.size();
         Gpu::DeviceVector<Real> d_x(nnode),d_y(nnode),d_z0(nnode);
         Gpu::copy(Gpu::hostToDevice, m_x.begin(), m_x.end(), d_x.begin());
         Gpu::copy(Gpu::hostToDevice, m_y.begin(), m_y.end(), d_y.begin());
@@ -764,6 +773,10 @@ SurfaceLayer::read_custom_roughness (const int& lev,
             });
         } // mfi
     } else {
+        AMREX_ALWAYS_ASSERT(lev > 0);
+
+        Print()<<"Interpolating MOST roughness at level " << lev << std::endl;
+
         // Create a BC mapper that uses FOEXTRAP at domain bndry
         Vector<int> bc_lo(3,ERFBCType::foextrap);
         Vector<int> bc_hi(3,ERFBCType::foextrap);

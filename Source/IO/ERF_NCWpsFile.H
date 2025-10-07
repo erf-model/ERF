@@ -262,6 +262,7 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
 template<class FAB,typename DType>
 void
 fill_fab_from_arrays (int iv,
+                      const amrex::Box& domain,
                       amrex::Vector<NDArray<float>>& nc_arrays,
                       const std::string& var_name,
                       NC_Data_Dims_Type& NC_dim_type,
@@ -287,11 +288,19 @@ fill_fab_from_arrays (int iv,
         amrex::Abort("Dont know this NC_Data_Dims_Type");
     }
 
+    // allow fewer z levels to be read in
+    // - ns1 may be the bottom_top or bottom_top_stag dim
+    // - domain.bigEnd(2) is the input number of cells in z
+    // - khi may be nz==bottom_top, nz < bottom_top, or 0 for 2D fields
+    int khi = std::min(domain.bigEnd(2), ns1-1);
+
     // TODO:  The box will only start at (0,0,0) at level 0 -- we need to generalize this
-    amrex::Box my_box(amrex::IntVect(0,0,0), amrex::IntVect(ns3-1,ns2-1,ns1-1));
+    amrex::Box in_box(amrex::IntVect(0,0,0), amrex::IntVect(ns3-1,ns2-1,ns1-1)); // ns1 may or may not be staggered
+    amrex::Box my_box(amrex::IntVect(0,0,0), amrex::IntVect(ns3-1,ns2-1,khi));
 
     if (var_name == "PH" || var_name == "PHB") {
         my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
+        my_box.setBig(2, khi+1);
     }
     else if (var_name == "U" || var_name == "UU" || var_name == "MAPFAC_U") {
         my_box.setType(amrex::IndexType(amrex::IntVect(1,0,0)));
@@ -301,6 +310,7 @@ fill_fab_from_arrays (int iv,
     }
     else if (var_name == "W" || var_name == "WW") {
         my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
+        my_box.setBig(2, khi+1);
     }
 
     amrex::Arena* Arena_Used = amrex::The_Arena();
@@ -313,11 +323,14 @@ fill_fab_from_arrays (int iv,
 
     int ioff = temp.box().smallEnd()[0];
     int joff = temp.box().smallEnd()[1];
+    int kmax = temp.box().bigEnd()[2]; // highest z level to be read in
+    //amrex::Print() << var_name << " domain khi, kmax, ns1 = " << khi << " " << kmax << " " << ns1 << std::endl;
 
-    auto num_pts = my_box.numPts();
+    auto num_pts = in_box.numPts();
 
     for (int n(0); n < num_pts; ++n) {
         int k  = n / (ns2*ns3);
+        if (k > kmax) continue;
         int j  = (n - k*(ns2*ns3)) / ns3 + joff;
         int i  = n - k*(ns2*ns3) - (j-joff) * ns3 + ioff;
         fab_arr(i,j,k,0) = static_cast<DType>(*(nc_arrays[iv].get_data()+n));
@@ -357,7 +370,7 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
         if (success[iv] == 1) {
             FAB tmp;
             if (amrex::ParallelDescriptor::IOProcessor()) {
-                fill_fab_from_arrays<FAB,DType>(iv, nc_arrays, nc_var_names[iv], NC_dim_types[iv], tmp);
+                fill_fab_from_arrays<FAB,DType>(iv, domain, nc_arrays, nc_var_names[iv], NC_dim_types[iv], tmp);
             }
 
             int ncomp = tmp.nComp();
