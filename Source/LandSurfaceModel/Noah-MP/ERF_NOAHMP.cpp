@@ -31,7 +31,7 @@ NOAHMP::Init (const int& lev,
                   LsmData_NOAHMP::cos_zenith_angle, LsmData_NOAHMP::sw_flux_dn     ,
                   LsmData_NOAHMP::lw_flux_dn                                        };
     LsmDataName.resize(m_lsm_data_size);
-    LsmDataName = {"t_sfc"          , "sfc_emis"         ,
+    LsmDataName = {"t_sfc"           , "sfc_emis"        ,
                    "sfc_alb_dir_vis" , "sfc_alb_dir_nir" ,
                    "sfc_alb_dif_vis" , "sfc_alb_dif_nir" ,
                    "cos_zenith_angle", "sw_flux_dn"      ,
@@ -39,7 +39,7 @@ NOAHMP::Init (const int& lev,
 
 
     LsmFluxMap.resize(m_lsm_flux_size);
-    LsmFluxMap = {LsmFlux_NOAHMP::q_flux         , LsmFlux_NOAHMP::t_flux         ,
+    LsmFluxMap = {LsmFlux_NOAHMP::t_flux         , LsmFlux_NOAHMP::q_flux         ,
                   LsmFlux_NOAHMP::tau13          , LsmFlux_NOAHMP::tau23          };
     LsmFluxName.resize(m_lsm_flux_size);
     LsmFluxName = {"t_flux"         , "q_flux"         ,
