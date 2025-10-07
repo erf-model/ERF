@@ -104,12 +104,13 @@ eb_::set_connection_flags ()
     const MultiFab& volfrac = m_factory->getVolFrac();
 
     for (MFIter mfi(cellflag, false); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const Box gbx = amrex::grow(bx, cellflag.nGrow()-1); // Leave one cell layer
+
         Array4<EBCellFlag> const& flag = cellflag.array(mfi);
         Array4<Real const> const& vfrac = volfrac.const_array(mfi);
-        const Box& bx = mfi.validbox();
-        const Box& bx_grown = mfi.growntilebox();
 
-        ParallelFor(bx_grown, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {           
             if (flag(i,j,k).isSingleValued()) {
                 for(int kk(-1); kk<=1; kk++) {
@@ -123,7 +124,7 @@ eb_::set_connection_flags ()
             }
         });
 
-        ParallelFor(bx_grown, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {           
             if (vfrac(i,j,k)==0.0) {
                 flag(i,j,k).setCovered();
