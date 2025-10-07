@@ -117,7 +117,8 @@
         // *****************************************************************************
         // Make remaining (not gradp or buoyancy) momentum sources
         // *****************************************************************************
-        make_mom_sources(old_stage_time, S_data, *zpn_to_use, *zpc_to_use, stretched_dz_h[level],
+        make_mom_sources(old_stage_time, slow_dt,
+                         S_data, *zpn_to_use, *zpc_to_use, stretched_dz_h[level],
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
                          base_to_use, forest_drag, terrain_blank,

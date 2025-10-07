@@ -17,9 +17,11 @@ using namespace amrex;
 MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
                           const bool& has_zphys,
                           std::string a_pp_prefix,
+                          const MeshType& mesh_type,
                           const TerrainType& terrain_type)
   : m_geom(std::move(geom)),
     m_pp_prefix(a_pp_prefix),
+    m_mesh_type(mesh_type),
     m_terrain_type(terrain_type)
 {
     // Get basic info
@@ -37,6 +39,13 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
 
     // Corrections to the mean surface velocity
     pp.query("most.include_subgrid_vel", include_subgrid_vel);
+
+    if ((m_mesh_type == MeshType::VariableDz) && (m_policy == 0)) {
+        Warning("Planar averaging requested with variable dz, switching to local average with defaults");
+        m_policy = 1;
+        m_norm_vec = true;
+        m_interp = true;
+    }
 
     // For SYCL
     amrex::ignore_unused(has_zphys);
@@ -430,7 +439,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
 
 
 /**
- * Function to set K indices with terrain.
+ * Function to set K indices with terrain (w/o terrain normals or interpolation).
  *
  */
 void
@@ -439,6 +448,12 @@ MOSTAverage::set_k_indices_T (const int& lev)
     ParmParse pp(m_pp_prefix);
     auto read_z = pp.query("most.zref",m_zref);
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
+
+    // Allow default zref
+    if (!read_z) {
+        Print() << "most.zref not specified, query distance default is " << m_zref << std::endl;
+        read_z = true;
+    }
 
     // No default behavior with terrain (we can't tell the difference between
     // vertical grid stretching and true terrain)
@@ -485,14 +500,17 @@ MOSTAverage::set_k_indices_T (const int& lev)
 
 
 /**
- * Function to set I,J,K indices with terrain normals.
+ * Function to set I,J,K indices with terrain normals (w/o interpolation).
  *
  */
 void
 MOSTAverage::set_norm_indices_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    pp.get("most.zref",m_zref);
+    auto read_zref = pp.query("most.zref",m_zref);
+    if (!read_zref) {
+        Print() << "most.zref not specified, query distance default is " << m_zref << std::endl;
+    }
 
     // Capture for device
     Real d_zref   = m_zref;
@@ -556,14 +574,17 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 
 
 /**
- * Function to set positions with terrain and e_z vector.
+ * Function to set positions with terrain and e_z vector (with interpolation but no terrain normals)
  *
  */
 void
 MOSTAverage::set_z_positions_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    pp.get("most.zref",m_zref);
+    auto read_zref = pp.query("most.zref",m_zref);
+    if (!read_zref) {
+        Print() << "most.zref not specified, query distance default is " << m_zref << std::endl;
+    }
 
     // Capture for device
     Real d_zref = m_zref;
@@ -601,14 +622,17 @@ MOSTAverage::set_z_positions_T (const int& lev)
 
 
 /**
- * Function to set positions with terrain and normal vector.
+ * Function to set positions with terrain and normal vector (with interpolation).
  *
  */
 void
 MOSTAverage::set_norm_positions_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    pp.get("most.zref",m_zref);
+    auto read_zref = pp.query("most.zref",m_zref);
+    if (!read_zref) {
+        Print() << "most.zref not specified, query distance default is " << m_zref << std::endl;
+    }
 
     // Capture for device
     Real d_zref = m_zref;
