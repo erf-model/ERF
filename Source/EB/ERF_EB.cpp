@@ -109,7 +109,7 @@ eb_::set_connection_flags ()
         const Box& bx = mfi.validbox();
         const Box& bx_grown = mfi.growntilebox();
 
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx_grown, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {           
             if (flag(i,j,k).isSingleValued()) {
                 for(int kk(-1); kk<=1; kk++) {
