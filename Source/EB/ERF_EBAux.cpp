@@ -1106,31 +1106,29 @@ define( [[maybe_unused]] int const& a_level,
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
 
     const Box& bx = mfi.validbox();
-    const Box& bx_grown = mfi.growntilebox();
+    const Box gbx = amrex::grow(bx, m_cellflags->nGrow()-1); // Leave one cell layer
 
     Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
     Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
 
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if (aux_flag(i,j,k).isSingleValued()) {
-            for(int kk(-1); kk<=1; kk++) {
-            for(int jj(-1); jj<=1; jj++) {
-            for(int ii(-1); ii<=1; ii++)
-            {
-                if (aux_vfrac(i+ii,j+jj,k+kk) == 0.0) {
-                    aux_flag(i,j,k).setDisconnected(ii,jj,kk);
-                }
-            }}}
+      for(int kk(-1); kk<=1; kk++) {
+      for(int jj(-1); jj<=1; jj++) {
+      for(int ii(-1); ii<=1; ii++)
+      {
+        if (aux_vfrac(i+ii,j+jj,k+kk) == 0.0) {
+            aux_flag(i,j,k).setDisconnected(ii,jj,kk);
         }
+      }}}
     });
 
-    ParallelFor(bx_grown, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {           
         if (aux_vfrac(i,j,k)==0.0) {
             aux_flag(i,j,k).setCovered();
         }
-    });    
+    });
 
   } // MFIter
 

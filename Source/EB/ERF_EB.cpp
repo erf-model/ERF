@@ -112,16 +112,14 @@ eb_::set_connection_flags ()
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {           
-            if (flag(i,j,k).isSingleValued()) {
-                for(int kk(-1); kk<=1; kk++) {
-                for(int jj(-1); jj<=1; jj++) {
-                for(int ii(-1); ii<=1; ii++)
-                {
-                    if (vfrac(i+ii,j+jj,k+kk) == 0.0) {
-                        flag(i,j,k).setDisconnected(ii,jj,kk);
-                    }
-                }}}
-            }
+            for(int kk(-1); kk<=1; kk++) {
+            for(int jj(-1); jj<=1; jj++) {
+            for(int ii(-1); ii<=1; ii++)
+            {
+                if (vfrac(i+ii,j+jj,k+kk) == 0.0) {
+                    flag(i,j,k).setDisconnected(ii,jj,kk);
+                }
+            }}}
         });
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
