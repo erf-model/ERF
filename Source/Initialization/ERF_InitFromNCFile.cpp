@@ -73,7 +73,7 @@ ERF::init_from_ncfile (int lev)
     NC_fabs.push_back(&NC_p_hse_fab) ; NC_fnames.push_back("P_HSE")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);   // 7
     NC_fabs.push_back(&NC_th_hse_fab); NC_fnames.push_back("T_HSE")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);   // 8
 
-    NC_fabs.push_back(&NC_th_hse_fab); NC_fnames.push_back("QV")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);      // 9
+    NC_fabs.push_back(&NC_qv_fab)    ; NC_fnames.push_back("QV")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);      // 9
 
     Vector<int> success; success.resize(NC_fabs.size());
 
