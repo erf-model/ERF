@@ -66,6 +66,7 @@ jobs:
           -DERF_ENABLE_FCOMPARE:BOOL=ON `
           ${{github.workspace}};
 
+
     - name: Compile and Link
       run: |
         cmake --build build --parallel 2 --verbose
