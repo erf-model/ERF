@@ -30,7 +30,6 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     pp.query("most.radius",m_radius);
     pp.query("most.time_average",m_t_avg);
     pp.query("most.terrain_rotate",m_rotate);
-    pp.query("most.average_policy",m_policy);
     pp.query("most.use_interpolation",m_interp);
     pp.query("most.use_normal_vector",m_norm_vec);
 
@@ -40,11 +39,17 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     // Corrections to the mean surface velocity
     pp.query("most.include_subgrid_vel", include_subgrid_vel);
 
+    auto specified_policy = pp.query("most.average_policy",m_policy);
     if ((m_mesh_type == MeshType::VariableDz) && (m_policy == 0)) {
-        Warning("Planar averaging requested with variable dz, switching to local average with defaults");
-        m_policy = 1;
-        m_norm_vec = true;
-        m_interp = true;
+        if (specified_policy) {
+            Warning("MOST Planar averaging requested with variable dz -- proceed with caution");
+        } else {
+            Print() << "Note: Switching to local averaging for MOST with defaults"
+                    << std::endl;
+            m_policy = 1;
+            m_norm_vec = true;
+            m_interp = true;
+        }
     }
 
     // For SYCL
