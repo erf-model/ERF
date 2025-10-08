@@ -123,6 +123,25 @@ jobs:
       run: |
         cmake --build build --parallel 2 --verbose
 
+        - name: Run Tests
+      shell: powershell
+      run: |
+        # For MPI tests, ensure we're using the correct mpiexec
+        if ("${{matrix.mpi}}" -eq "ON") {
+          $env:PATH = "C:\Program Files\Microsoft MPI\Bin;$env:PATH"
+          Write-Host "Using mpiexec from: " (Get-Command mpiexec -ErrorAction SilentlyContinue).Path
+
+          # Print the first test command to verify format
+          $testFile = Get-ChildItem -Path build -Filter CTestTestfile.cmake -Recurse | Select-Object -First 1
+          if ($testFile) {
+            Write-Host "Sample test command from $($testFile.FullName):"
+            Get-Content -Path $testFile.FullName | Select-String "add_test" | Select-Object -First 1
+          }
+        }
+
+        # Run tests with verbose output
+        ctest -L regression -C ${{matrix.build_type}} -VV
+
     - name: CMake Tests # see file ERF/Tests/CTestList.cmake
       run: |
         ctest -L regression -VV
