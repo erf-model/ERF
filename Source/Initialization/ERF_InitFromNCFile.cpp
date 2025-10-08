@@ -54,22 +54,26 @@ ERF::init_from_ncfile (int lev)
     FArrayBox NC_p_hse_fab;
     FArrayBox NC_th_hse_fab;
 
+    FArrayBox NC_qv_fab;
+
     Print() << "Loading data from NetCDF file " << fname << " at level " << lev << std::endl;
 
     Vector<FArrayBox*>  NC_fabs;
     Vector<std::string> NC_fnames;
     Vector<enum NC_Data_Dims_Type> NC_fdim_types;
 
-    NC_fabs.push_back(&NC_rho_fab)   ; NC_fnames.push_back("RHO") ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-    NC_fabs.push_back(&NC_theta_fab) ; NC_fnames.push_back("T")   ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-    NC_fabs.push_back(&NC_scalar_fab); NC_fnames.push_back("SCAL"); NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-    NC_fabs.push_back(&NC_xvel_fab)  ; NC_fnames.push_back("U")   ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-    NC_fabs.push_back(&NC_yvel_fab)  ; NC_fnames.push_back("V")   ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-    NC_fabs.push_back(&NC_zvel_fab)  ; NC_fnames.push_back("W")   ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+    NC_fabs.push_back(&NC_rho_fab)   ; NC_fnames.push_back("RHO") ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);      // 0
+    NC_fabs.push_back(&NC_theta_fab) ; NC_fnames.push_back("T")   ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);      // 1
+    NC_fabs.push_back(&NC_scalar_fab); NC_fnames.push_back("SCAL"); NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);      // 2
+    NC_fabs.push_back(&NC_xvel_fab)  ; NC_fnames.push_back("U")   ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);      // 3
+    NC_fabs.push_back(&NC_yvel_fab)  ; NC_fnames.push_back("V")   ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);      // 4
+    NC_fabs.push_back(&NC_zvel_fab)  ; NC_fnames.push_back("W")   ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);      // 5
 
-    NC_fabs.push_back(&NC_r_hse_fab)  ; NC_fnames.push_back("RHO_HSE"); NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-    NC_fabs.push_back(&NC_p_hse_fab)    ; NC_fnames.push_back("P_HSE")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-    NC_fabs.push_back(&NC_th_hse_fab)    ; NC_fnames.push_back("T_HSE")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+    NC_fabs.push_back(&NC_r_hse_fab) ; NC_fnames.push_back("RHO_HSE"); NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);   // 6
+    NC_fabs.push_back(&NC_p_hse_fab) ; NC_fnames.push_back("P_HSE")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);   // 7
+    NC_fabs.push_back(&NC_th_hse_fab); NC_fnames.push_back("T_HSE")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);   // 8
+
+    NC_fabs.push_back(&NC_th_hse_fab); NC_fnames.push_back("QV")  ; NC_fdim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);      // 9
 
     Vector<int> success; success.resize(NC_fabs.size());
 
@@ -109,8 +113,8 @@ ERF::init_from_ncfile (int lev)
     // Default zvel to 0
     lev_new[Vars::zvel].setVal(0.0,0,0,1);
 
-    int src_comp = 0;
-    int num_comp = 1;
+    const int src_comp = 0;
+    const int num_comp = 1;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -153,6 +157,7 @@ ERF::init_from_ncfile (int lev)
             zvel_fab.template copy<RunOn::Device>(NC_zvel_fab , src_comp, dest_comp, num_comp);
         }
 
+        // HSE vars
         if (success[6]) {
             int dest_comp = 0;
             r_hse_fab.template copy<RunOn::Device>(NC_r_hse_fab , src_comp, dest_comp, num_comp);
@@ -166,6 +171,17 @@ ERF::init_from_ncfile (int lev)
             th_hse_fab.template copy<RunOn::Device>(NC_th_hse_fab , src_comp, dest_comp, num_comp);
         }
 
+        // Moisture vars
+        if (success[9]) {
+            int dest_comp = RhoQ1_comp;
+            if (dest_comp < lev_new[Vars::cons].nComp()) {
+                cons_fab.template copy<RunOn::Device>(NC_qv_fab , src_comp, dest_comp, num_comp);
+            } else {
+                Print() << "QV was read, but no moisture model is active" << std::endl;
+            }
+        } else {
+            Print() << "QV not found, defaulting to dry" << std::endl;
+        }
     } // mf
 
     lev_new[Vars::xvel].setVal(0.0,0,0,1);
@@ -233,6 +249,7 @@ ERF::init_from_ncfile (int lev)
             const Array4<      Real>&  p_hse_arr = p_hse.array(mfi);
             const Array4<      Real>& th_hse_arr = th_hse.array(mfi);
             const Array4<      Real>& pi_hse_arr = pi_hse.array(mfi);
+            const Array4<      Real>& qv_hse_arr = qv_hse.array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
@@ -281,6 +298,7 @@ ERF::init_from_ncfile (int lev)
                      p_hse_arr(i,j,klo) = P_hi;
                     th_hse_arr(i,j,klo) = Th_hi;
                     pi_hse_arr(i,j,klo) = getExnergivenP(p_hse_arr(i,j,klo), R_d/Cp_d);
+                    qv_hse_arr(i,j,klo) = qv_hi;
                     P_lo = P_hi;
                     z_lo = z_hi;
                 }
@@ -316,6 +334,7 @@ ERF::init_from_ncfile (int lev)
                    p_hse_arr(i,j,k) = P_hi;
                   th_hse_arr(i,j,k) = Th_hi;
                   pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), R_d/Cp_d);
+                  qv_hse_arr(i,j,k) = qv_hi;
                   P_lo = P_hi;
                   z_lo = z_hi;
                 }
