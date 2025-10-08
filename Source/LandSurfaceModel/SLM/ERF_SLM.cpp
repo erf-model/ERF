@@ -181,6 +181,12 @@ SLM::Init (const int& /*lev*/,
     albedonir_v.define(ba_lsm_2d, dm, 1, ng_2d);
     albedovis_s.define(ba_lsm_2d, dm, 1, ng_2d);
     albedonir_s.define(ba_lsm_2d, dm, 1, ng_2d);
+    albedovis_v.setVal(0.0);
+    albedovis_s.setVal(0.0);
+    albedonir_v.setVal(0.0);
+    albedonir_s.setVal(0.0);
+    IR_emis_vege.setVal(0.0);
+    vege_YES.setVal(0.0);
 
     r_a.define(ba_lsm_2d, dm, 1, ng_2d);
     r_b.define(ba_lsm_2d, dm, 1, ng_2d);
@@ -195,6 +201,7 @@ SLM::Init (const int& /*lev*/,
     slm_diag.setVal(0.0);
 
     zrefxy.define(ba_lsm_2d, dm, 1, ng_2d);
+    zrefxy.setVal(0.0);
 
     r_soil.setVal(0.0);
     lhf_air.setVal(0.0);
@@ -207,6 +214,11 @@ SLM::Init (const int& /*lev*/,
     q_cas.setVal(0.0);
     wet_canop.setVal(0.0);
 
+    mw.setVal(0.0);
+    mws.setVal(0.0);
+    mw_inc.setVal(0.0);
+    evapo_dry.setVal(0.0);
+
     // Initialize 1D arrays
     soilw_inc.resize({klo_lsm},  {khi_lsm});
     alpha.resize({klo_lsm},  {khi_lsm});
@@ -216,6 +228,7 @@ SLM::Init (const int& /*lev*/,
     r_b.setVal(0.0);
     r_c.setVal(0.0);
     r_d.setVal(0.0);
+    r_soil.setVal(0.0);
     lsm_fab_vars[LsmVar_SLM::ustar]->setVal(0.1);
     lsm_fab_vars[LsmVar_SLM::tstar]->setVal(0.0);
     lsm_fab_vars[LsmVar_SLM::qstar]->setVal(0.0);
@@ -1175,6 +1188,9 @@ void SLM::init_soil_tw()
                             break;
                     }
 
+                    // convert to percentage
+                    sand_arr(i,j,k) *= 100.0;
+                    clay_arr(i,j,k) *= 100.0;
                 }
 
                 // initialize nudging profiles for soil based on the initial soilt and soilw
@@ -1619,8 +1635,8 @@ SLM::AdvanceSLM ()
                 qstar_arr(i, j, d_khi_lsm) = qstar_arr(i, j, 0);
 
                 // TODO: fix - copies SLM boundary into flux array for MOST
-                fluxq_arr(i,j,0) = flbq_arr(i, j, d_khi_lsm);
-                fluxt_arr(i,j,0) = flbt_arr(i, j, d_khi_lsm);
+                fluxq_arr(i,j,0) = rhow * flbq_arr(i, j, d_khi_lsm);
+                fluxt_arr(i,j,0) = rhow * flbt_arr(i, j, d_khi_lsm);
                 tau13_arr(i,j,0) = flbu_arr(i, j, d_khi_lsm);
                 tau23_arr(i,j,0) = flbv_arr(i, j, d_khi_lsm);
             }
@@ -3300,17 +3316,25 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
 
     mf_data.push_back(&wet_canop);
 
+    mf_data.push_back(&albedovis_v);
+    mf_data.push_back(&albedovis_s);
+    mf_data.push_back(&albedonir_v);
+    mf_data.push_back(&albedonir_s);
+    mf_data.push_back(&IR_emis_vege);
+    mf_data.push_back(&zrefxy);
+    mf_data.push_back(&vege_YES);
+    
     IntVect ng(0, 0, 0);
 
     // Total number of output MFs: net_rad components + mf_data size - 1
-    const int output_size = SLM_NetRad::NumVars + mf_data.size() - 1 + slm_diag.nComp();
+    const int output_size = SLM_NetRad::NumVars + mf_data.size() - 1 + SLM_Diag::NumVars;
     MultiFab fab(ba_lsm_2d, net_rad.DistributionMap(), output_size, ng);
     MultiFab::Copy(fab, *(mf_data[0]), 0, 0, SLM_NetRad::NumVars, 0);
     for (int i = 1; i < mf_data.size(); i++)
     {
         MultiFab::Copy(fab, *(mf_data[i]), 0, i + SLM_NetRad::NumVars - 1, 1, 0);
     }
-    MultiFab::Copy(fab, slm_diag, 0, output_size - slm_diag.nComp(), slm_diag.nComp(), 0);
+    MultiFab::Copy(fab, slm_diag, 0, output_size - SLM_Diag::NumVars, SLM_Diag::NumVars, 0);
 
 
     amrex::Vector<std::string> varnames;
@@ -3359,6 +3383,14 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     varnames.push_back("r_soil");
 
     varnames.push_back("wet_canop");
+
+    varnames.push_back("albedovis_veg");
+    varnames.push_back("albedovis_soil");
+    varnames.push_back("albedonir_veg");
+    varnames.push_back("albedonir_soil");
+    varnames.push_back("IR_emis_veg");
+    varnames.push_back("zrefxy");
+    varnames.push_back("veg_flag");
 
     for (int i = 0; i < diag_names.size(); i++)
     {
