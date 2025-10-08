@@ -306,7 +306,7 @@ ERF::init_from_ncfile (int lev)
                      p_hse_arr(i,j,klo) = P_hi;
                     th_hse_arr(i,j,klo) = Th_hi;
                     pi_hse_arr(i,j,klo) = getExnergivenP(p_hse_arr(i,j,klo), R_d/Cp_d);
-                    qv_hse_arr(i,j,klo) = qv_hi;
+                    if (have_moisture) qv_hse_arr(i,j,klo) = qv_hi;
                     P_lo = P_hi;
                     z_lo = z_hi;
                 }
@@ -342,7 +342,7 @@ ERF::init_from_ncfile (int lev)
                    p_hse_arr(i,j,k) = P_hi;
                   th_hse_arr(i,j,k) = Th_hi;
                   pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), R_d/Cp_d);
-                  qv_hse_arr(i,j,k) = qv_hi;
+                  if (have_moisture) qv_hse_arr(i,j,k) = qv_hi;
                   P_lo = P_hi;
                   z_lo = z_hi;
                 }
