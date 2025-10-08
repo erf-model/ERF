@@ -231,7 +231,7 @@ ERF::init_from_ncfile (int lev)
                 pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(ii,jj,kk), R_d/Cp_d);
 
                 // qv_hse == qv
-                if (have_moisture) qv_hse_arr(i,j,k) = cons_arr(ii,jj,kk,RhoQ1_comp);
+                if (have_moisture) qv_hse_arr(i,j,k) = con_arr(ii,jj,kk,RhoQ1_comp);
             });
         }// mfi
 
