@@ -76,6 +76,7 @@ public:
                amrex::MultiFab* xvel,
                amrex::MultiFab* yvel,
                amrex::MultiFab* zvel,
+               amrex::Real* w_subsid,
                amrex::MultiFab* tau13,
                amrex::MultiFab* tau23,
                amrex::MultiFab* hfx3,
@@ -574,6 +575,9 @@ protected:
     amrex::MultiFab* m_xvel  = nullptr;
     amrex::MultiFab* m_yvel  = nullptr;
     amrex::MultiFab* m_zvel  = nullptr;
+
+    // Pointer to the w-subsidence velocity
+    amrex::Real* m_w_subsid  = nullptr;
 
     // Pointer to the surface stresses
     amrex::MultiFab* m_tau13 = nullptr;

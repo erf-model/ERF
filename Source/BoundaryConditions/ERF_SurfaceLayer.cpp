@@ -39,9 +39,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
 
-    // Do we have a constant flux for moisture?
-    bool cons_qflux = ( (moist_type == MoistCalcType::MOISTURE_FLUX) ||
-                        (moist_type == MoistCalcType::ADIABATIC) );
+
 
     // ***************************************************************
     // Iterate the fluxes if moeng type
@@ -51,6 +49,9 @@ SurfaceLayer::update_fluxes (const int& lev,
     if (flux_type == FluxCalcType::MOENG ||
         flux_type == FluxCalcType::ROTATE) {
         bool is_land = true;
+        // Do we have a constant flux for moisture over land?
+        bool cons_qflux = ( (moist_type == MoistCalcType::MOISTURE_FLUX) ||
+                            (moist_type == MoistCalcType::ADIABATIC) );
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
             if (rough_type_land == RoughCalcType::CONSTANT) {
                 surface_flux most_flux(m_ma.get_zref(), surf_temp_flux, surf_moist_flux, cons_qflux);
@@ -86,6 +87,9 @@ SurfaceLayer::update_fluxes (const int& lev,
     if (flux_type == FluxCalcType::MOENG ||
         flux_type == FluxCalcType::ROTATE) {
         bool is_land = false;
+        // NOTE: Do not allow default to adiabatic over sea (we have Qvs at surface)
+        // Do we have a constant flux for moisture over sea?
+        bool cons_qflux = (moist_type == MoistCalcType::MOISTURE_FLUX);
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
                 surface_flux_charnock most_flux(m_ma.get_zref(),
