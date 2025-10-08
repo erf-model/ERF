@@ -86,6 +86,8 @@ ERF::init_from_ncfile (int lev)
 
     auto& lev_new = vars_new[lev];
 
+    auto have_moisture = (lev_new[Vars::cons].nComp() > RhoQ1_comp);
+
     // This defines all the z(i,j,k) values given z(i,j,0)
     make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
 
@@ -174,7 +176,7 @@ ERF::init_from_ncfile (int lev)
         // Moisture vars
         if (success[9]) {
             int dest_comp = RhoQ1_comp;
-            if (dest_comp < lev_new[Vars::cons].nComp()) {
+            if (have_moisture) {
                 cons_fab.template copy<RunOn::Device>(NC_qv_fab , src_comp, dest_comp, num_comp);
             } else {
                 Print() << "QV was read, but no moisture model is active" << std::endl;
@@ -205,10 +207,13 @@ ERF::init_from_ncfile (int lev)
             int jlo = vbx.smallEnd(1); int jhi = vbx.bigEnd(1);
             int klo = vbx.smallEnd(2); int khi = vbx.bigEnd(2);
 
-            Array4<Real>  r_hse_arr = r_hse.array(mfi);
-            Array4<Real>  p_hse_arr = p_hse.array(mfi);
-            Array4<Real> th_hse_arr = th_hse.array(mfi);
-            Array4<Real> pi_hse_arr = pi_hse.array(mfi);
+            const Array4<const Real>& con_arr = lev_new[Vars::cons].const_array(mfi);
+
+            const Array4<Real>&  r_hse_arr = r_hse.array(mfi);
+            const Array4<Real>&  p_hse_arr = p_hse.array(mfi);
+            const Array4<Real>& th_hse_arr = th_hse.array(mfi);
+            const Array4<Real>& pi_hse_arr = pi_hse.array(mfi);
+            const Array4<Real>& qv_hse_arr = (have_moisture) ? qv_hse.array(mfi) : Array4<Real>{};
 
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -224,6 +229,9 @@ ERF::init_from_ncfile (int lev)
                  p_hse_arr(i,j,k) =  p_hse_arr(ii,jj,kk);
                 th_hse_arr(i,j,k) = th_hse_arr(ii,jj,kk);
                 pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(ii,jj,kk), R_d/Cp_d);
+
+                // qv_hse == qv
+                if (have_moisture) qv_hse_arr(i,j,k) = cons_arr(ii,jj,kk,RhoQ1_comp);
             });
         }// mfi
 
@@ -249,7 +257,7 @@ ERF::init_from_ncfile (int lev)
             const Array4<      Real>&  p_hse_arr = p_hse.array(mfi);
             const Array4<      Real>& th_hse_arr = th_hse.array(mfi);
             const Array4<      Real>& pi_hse_arr = pi_hse.array(mfi);
-            const Array4<      Real>& qv_hse_arr = qv_hse.array(mfi);
+            const Array4<      Real>& qv_hse_arr = (have_moisture) ? qv_hse.array(mfi) : Array4<Real>{};
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
@@ -272,7 +280,7 @@ ERF::init_from_ncfile (int lev)
                     dz = z_hi - z_lo;
 
                     // Establish known constant
-                    qv_lo = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
+                    qv_lo = (have_moisture) ? con_arr(i,j,klo,RhoQ1_comp) / con_arr(i,j,klo,Rho_comp) : 0.0;
                     Th_lo = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
                     P_lo  = p_0;
                     R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
@@ -280,7 +288,7 @@ ERF::init_from_ncfile (int lev)
                     C  = -P_lo + 0.5*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
-                    qv_hi = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
+                    qv_hi = (have_moisture) ? con_arr(i,j,klo,RhoQ1_comp) / con_arr(i,j,klo,Rho_comp) : 0.0;
                     Th_hi = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
                     P_hi  = p_0;
                     R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
@@ -310,14 +318,14 @@ ERF::init_from_ncfile (int lev)
                   dz   = z_hi - z_lo;
 
                   // Establish known constant
-                  qv_lo = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
+                  qv_lo = (have_moisture) ? con_arr(i,j,k,RhoQ1_comp) / con_arr(i,j,k,Rho_comp) : 0.0;
                   Th_lo = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
                   R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
                   rho_tot_lo = R_lo * (1. + qv_lo);
                   C  = -P_lo + 0.5*rho_tot_lo*grav*dz;
 
                   // Initial guess and residual
-                  qv_hi = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
+                  qv_hi = (have_moisture) ? con_arr(i,j,k,RhoQ1_comp) / con_arr(i,j,k,Rho_comp) : 0.0;
                   Th_hi = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
                   R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
                   rho_tot_hi = R_hi * (1. + qv_hi);
@@ -347,5 +355,6 @@ ERF::init_from_ncfile (int lev)
     p_hse.FillBoundary(geom[lev].periodicity());
     th_hse.FillBoundary(geom[lev].periodicity());
     pi_hse.FillBoundary(geom[lev].periodicity());
+    qv_hse.FillBoundary(geom[lev].periodicity());
 }
 #endif // ERF_USE_NETCDF
