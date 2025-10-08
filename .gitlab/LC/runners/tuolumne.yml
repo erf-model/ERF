@@ -26,26 +26,6 @@ stages:
   tags:
     - shell
     - tuolumne
-  rules:
-    # Runs except if we explicitly deactivate this system
-    - if: '$ON_TUOLUMNE == "OFF"'
-      when: never
-    # Test the default branch
-    - if: $CI_COMMIT_BRANCH == $DEFAULT_BRANCH
-    # Test the upstream branch
-    - if: $CI_COMMIT_BRANCH == 'development'
-    # Branches starting with "gitlab"
-    - if: $CI_COMMIT_BRANCH =~ /^gitlab.*/
-    # Test merge requests
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    # Always release resources allocated in the pipeline
-    - if: '$CI_JOB_NAME =~ /release_resources/'
-      when: always
-    # Do not test on push
-    - if: $CI_PIPELINE_SOURCE == "push"
-      when: never
-    # Default is to allow jobs to run
-    - when: on_success
 
 .job_on_tuolumne:
   extends: .on_tuolumne
