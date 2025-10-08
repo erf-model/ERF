@@ -123,7 +123,7 @@ jobs:
       run: |
         cmake --build build --parallel 2 --verbose
 
-        - name: Run Tests
+    - name: Run Tests
       shell: powershell
       run: |
         # For MPI tests, ensure we're using the correct mpiexec
