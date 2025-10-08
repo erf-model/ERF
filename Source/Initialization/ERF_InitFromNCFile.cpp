@@ -176,7 +176,7 @@ ERF::init_from_ncfile (int lev)
     MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, RhoScalar_comp, 1, 0);
 
     // Populate the base state ghost cells and derived data structures if needed
-    if (success[6]) {
+    if (success[6] && success[7] && success[8]) { // have RHO_HSE, P_HSE, and T_HSE
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -211,12 +211,122 @@ ERF::init_from_ncfile (int lev)
             });
         }// mfi
 
-        // Fill boundary if periodic
-        r_hse.FillBoundary(geom[lev].periodicity());
-        p_hse.FillBoundary(geom[lev].periodicity());
-        th_hse.FillBoundary(geom[lev].periodicity());
-        pi_hse.FillBoundary(geom[lev].periodicity());
+    } else {
+        // Same code as Initialization/ERF_InitFromWRFInput.cpp
+        Print() << "Calculating HSE state!\n";
 
-    }// success[6]
+        int ncomp = lev_new[Vars::cons].nComp();
+        int k_dom_lo = geom[lev].Domain().smallEnd(2);
+        int k_dom_hi = geom[lev].Domain().bigEnd(2);
+        Real tol = 1.0e-10;
+        Real grav = CONST_GRAV;
+        for ( MFIter mfi(lev_new[Vars::cons],TileNoZ()); mfi.isValid(); ++mfi ) {
+            Box bx  = mfi.tilebox();
+            int klo = bx.smallEnd(2);
+            int khi = bx.bigEnd(2);
+            AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
+            bx.makeSlab(2,klo);
+
+            const Array4<const Real>& con_arr    = lev_new[Vars::cons].const_array(mfi);
+            const Array4<const Real>& z_arr      = z_phys_nd[lev]->const_array(mfi);
+            const Array4<      Real>&  r_hse_arr = r_hse.array(mfi);
+            const Array4<      Real>&  p_hse_arr = p_hse.array(mfi);
+            const Array4<      Real>& th_hse_arr = th_hse.array(mfi);
+            const Array4<      Real>& pi_hse_arr = pi_hse.array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            {
+                // integrate from surface to domain top
+                Real Factor;
+                Real dz, F, C;
+                Real rho_tot_hi, rho_tot_lo;
+                Real z_lo, z_hi;
+                Real R_lo, R_hi;
+                Real qv_lo, qv_hi;
+                Real Th_lo, Th_hi;
+                Real P_lo, P_hi;
+
+                // First integrate from sea level to the height at klo
+                {
+                    // Vertical grid spacing
+                    z_lo = 0.0; // corresponding to p_0
+                    z_hi = 0.125 * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
+                                   +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
+                    dz = z_hi - z_lo;
+
+                    // Establish known constant
+                    qv_lo = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
+                    Th_lo = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
+                    P_lo  = p_0;
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
+                    rho_tot_lo = R_lo * (1. + qv_lo);
+                    C  = -P_lo + 0.5*rho_tot_lo*grav*dz;
+
+                    // Initial guess and residual
+                    qv_hi = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
+                    Th_hi = con_arr(i,j,klo,RhoTheta_comp) / con_arr(i,j,klo,Rho_comp);
+                    P_hi  = p_0;
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
+                    rho_tot_hi = R_hi * (1. + qv_hi);
+                    F = P_hi + 0.5*rho_tot_hi*grav*dz + C;
+
+                    // Do iterations
+                    HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                                 grav, C, Th_hi,
+                                                 qv_hi, qv_hi,
+                                                 P_hi, R_hi, F);
+
+                    // Assign data
+                     r_hse_arr(i,j,klo) = R_hi;
+                     p_hse_arr(i,j,klo) = P_hi;
+                    th_hse_arr(i,j,klo) = Th_hi;
+                    pi_hse_arr(i,j,klo) = getExnergivenP(p_hse_arr(i,j,klo), R_d/Cp_d);
+                    P_lo = P_hi;
+                    z_lo = z_hi;
+                }
+
+                for (int k(klo+1); k<=khi; ++k) {
+                    // Vertical grid spacing
+                  z_hi = 0.125 * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
+                                 +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
+                  dz   = z_hi - z_lo;
+
+                  // Establish known constant
+                  qv_lo = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
+                  Th_lo = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
+                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, R_d/Cp_d, qv_lo);
+                  rho_tot_lo = R_lo * (1. + qv_lo);
+                  C  = -P_lo + 0.5*rho_tot_lo*grav*dz;
+
+                  // Initial guess and residual
+                  qv_hi = con_arr(i,j,k,RhoQ1_comp)    / con_arr(i,j,k,Rho_comp);
+                  Th_hi = con_arr(i,j,k,RhoTheta_comp) / con_arr(i,j,k,Rho_comp);
+                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, R_d/Cp_d, qv_hi);
+                  rho_tot_hi = R_hi * (1. + qv_hi);
+                  F = P_hi + 0.5*rho_tot_hi*grav*dz + C;
+
+                  // Do iterations
+                  HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
+                                               grav, C, Th_hi,
+                                               qv_hi, qv_hi,
+                                               P_hi, R_hi, F);
+
+                  // Assign data
+                   r_hse_arr(i,j,k) = R_hi;
+                   p_hse_arr(i,j,k) = P_hi;
+                  th_hse_arr(i,j,k) = Th_hi;
+                  pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), R_d/Cp_d);
+                  P_lo = P_hi;
+                  z_lo = z_hi;
+                }
+            });
+        } // mfi
+    }
+
+    // Fill boundary if periodic
+    r_hse.FillBoundary(geom[lev].periodicity());
+    p_hse.FillBoundary(geom[lev].periodicity());
+    th_hse.FillBoundary(geom[lev].periodicity());
+    pi_hse.FillBoundary(geom[lev].periodicity());
 }
 #endif // ERF_USE_NETCDF
