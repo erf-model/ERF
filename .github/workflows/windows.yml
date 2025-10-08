@@ -23,26 +23,52 @@ jobs:
 
     - name: Install MS-MPI
       if: matrix.mpi == 'ON'
+      shell: powershell
       run: |
         # Download MS-MPI SDK and Runtime
-        Invoke-WebRequest -Uri https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisdk.msi -OutFile msmpisdk.msi
-        Invoke-WebRequest -Uri https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisetup.exe -OutFile msmpisetup.exe
+        $msmpiSetupPath = "$env:TEMP\msmpisetup.exe"
+        $msmpiSDKPath = "$env:TEMP\msmpisdk.msi"
 
-        # Install MS-MPI silently
-        Start-Process -FilePath msmpisetup.exe -ArgumentList "-unattend" -Wait
-        Start-Process -FilePath msiexec.exe -ArgumentList "/quiet /qn /i msmpisdk.msi" -Wait
+        Write-Host "Downloading MS-MPI Runtime..."
+        (New-Object Net.WebClient).DownloadFile("https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisetup.exe", $msmpiSetupPath)
 
-        # Add MS-MPI to PATH
-        echo "C:\Program Files\Microsoft MPI\Bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        Write-Host "Downloading MS-MPI SDK..."
+        (New-Object Net.WebClient).DownloadFile("https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisdk.msi", $msmpiSDKPath)
 
-        # Set MPI environment variables
+        Write-Host "Installing MS-MPI Runtime..."
+        Start-Process -FilePath $msmpiSetupPath -ArgumentList "-unattend" -Wait -NoNewWindow
+
+        Write-Host "Installing MS-MPI SDK..."
+        Start-Process -FilePath "msiexec.exe" -ArgumentList "/quiet /qn /i $msmpiSDKPath" -Wait -NoNewWindow
+
+        # Add MS-MPI to the current session PATH
+        $env:PATH = "$env:PATH;C:\Program Files\Microsoft MPI\Bin"
+
+        # Check if mpiexec is now available
+        Write-Host "Verifying MS-MPI installation..."
+        try {
+            $mpiExecOutput = & "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe" -help
+            Write-Host "mpiexec is available"
+            Write-Host $mpiExecOutput
+        } catch {
+            Write-Host "Error running mpiexec: $_"
+            Write-Host "Checking if MS-MPI is installed correctly..."
+            if (Test-Path "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe") {
+                Write-Host "mpiexec.exe exists but couldn't be executed"
+            } else {
+                Write-Host "mpiexec.exe does not exist at expected location"
+            }
+            exit 1
+        }
+
+        # Add MS-MPI to PATH for subsequent steps
+        echo "PATH=$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+        # Set MPI environment variables for CMake
         echo "MPI_HOME=C:\Program Files\Microsoft MPI" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "MSMPI_INC=C:\Program Files (x86)\Microsoft SDKs\MPI\Include" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "MSMPI_LIB32=C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "MSMPI_LIB64=C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-        # Verify installation
-        mpiexec -help
 
     - name: Cache dependencies
       uses: actions/cache@v3
@@ -55,6 +81,32 @@ jobs:
 
     - name: Configure Project and Generate Build System
       run: |
+        if ("${{matrix.mpi}}" -eq "ON") {
+            Write-Host "MPI environment variables:"
+            Write-Host "PATH: $env:PATH"
+            Write-Host "MPI_HOME: $env:MPI_HOME"
+            Write-Host "MSMPI_INC: $env:MSMPI_INC"
+            Write-Host "MSMPI_LIB64: $env:MSMPI_LIB64"
+
+            # List MPI directories to verify installation
+            if (Test-Path "C:\Program Files\Microsoft MPI") {
+                Write-Host "MPI installation directory contents:"
+                Get-ChildItem "C:\Program Files\Microsoft MPI" -Recurse | Select-Object -First 20 | ForEach-Object { Write-Host $_.FullName }
+            }
+
+            if (Test-Path $env:MSMPI_INC) {
+                Write-Host "MPI include directory exists"
+            } else {
+                Write-Host "WARNING: MPI include directory not found"
+            }
+
+            if (Test-Path $env:MSMPI_LIB64) {
+                Write-Host "MPI lib directory exists"
+            } else {
+                Write-Host "WARNING: MPI lib directory not found"
+            }
+        }
+
         cmake -S . -B build `
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install `
           -DCMAKE_BUILD_TYPE:STRING=Debug `
