@@ -87,9 +87,13 @@ file **ERF_Prob.cpp** must still be present for the build.
 
   - In this case the base state defaults to zero and the full state is read in from
     a much simplified NetCDF file.  Right now, only the density, horizontal and
-    vertical velocity components, and temperature (or potential temperature) can
+    vertical velocity components, potential temperature, and water vapor mixing ratio can
     be read in.  This case is designed for idealized problems and does not allow
-    for terrain-fitted coordinates, map factors or a non-zero base state.
+    for terrain-fitted coordinates or map factors.
+    The variables in the NC file should have dimensions of (Time, bottom_top, south_north, west_east).
+    Variable names include ``RHO``, ``U``, ``V``, ``W``, ``T``, and ``QV``.
+    Optional HSE variables include ``RHO_HSE``, ``T_HSE``, and ``P_HSE``; the base state will be
+    calculated if it is not specified.
 
 Workflows
 --------------------
