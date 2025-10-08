@@ -81,6 +81,19 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
     // TODO: make sure grids of urban and LSM inputs match
     for (int field=0; field < nfields; field++)
     {
+        int output_field = (use_fluxes && field > 0) ? field - 1 : field;
+        int comp = (use_fluxes && field < 2) ? field : 0;
+
+        // whether we have a valid LSM multifab
+        bool valid_land = (use_land &&
+                           lsm_fields[field] != -1 &&
+                           lsm_data_lev[lev][lsm_fields[field]]);
+
+        // whether we have a valid urban multifab
+        bool valid_urban = (use_urban &&
+                            urban_fields[field] != -1 &&
+                            urban_data_lev[lev][urban_fields[field]]);
+
         for (MFIter mfi(*u_star[lev], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box tbx = mfi.tilebox();
@@ -88,26 +101,9 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
             auto weights_arr = wavg[lev]->const_array(mfi);
 
             // Outputs for surface boundary condition
-            //auto ustar_arr = u_star[lev]->array(mfi);
-            //auto tstar_arr = t_star[lev]->array(mfi);
-            //auto qstar_arr = q_star[lev]->array(mfi);
-            //auto tsurf_arr = t_surf[lev]->array(mfi);
-            int output_field = (use_fluxes && field > 0) ? field - 1 : field;
             auto output_arr = outputs[output_field]->array(mfi);
-
-            // whether we have a valid LSM multifab
-            bool valid_land = (use_land &&
-                               lsm_fields[field] != -1 &&
-                               lsm_data_lev[lev][lsm_fields[field]]);
             auto lsm_data_arr = (valid_land) ? lsm_data_lev[lev][lsm_fields[field]]->const_array(mfi) : Array4<const Real>{};
-           
-            // whether we have a valid urban multifab
-            bool valid_urban = (use_urban &&
-                                urban_fields[field] != -1 &&
-                                urban_data_lev[lev][urban_fields[field]]);
             auto urban_data_arr = (valid_urban) ? urban_data_lev[lev][urban_fields[field]]->const_array(mfi) : Array4<const Real>{};
-
-            int comp = (use_fluxes && field < 2) ? field : 0;
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
@@ -118,12 +114,15 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
 
             });
         }
+
+        outputs[output_field]->FillBoundary(comp, 1, m_geom[lev].periodicity());
     }
 
     // Apply the weight fractions to the rest of the LSM and urban fields (if any)
     if (use_land) {
         for (int field = nfields; field < lsm_fields.size(); field++) {
-            for (MFIter mfi(*u_star[lev], TileNoZ()); mfi.isValid(); ++mfi)
+            if (lsm_fields[field] == -1) continue;
+            for (MFIter mfi(*lsm_data_lev[lev][lsm_fields[field]], TileNoZ()); mfi.isValid(); ++mfi)
             {
                 Box tbx = mfi.tilebox();
 
@@ -145,7 +144,8 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
 
     if (use_urban) {
         for (int field = nfields; field < urban_fields.size(); field++) {
-            for (MFIter mfi(*u_star[lev], TileNoZ()); mfi.isValid(); ++mfi)
+            if (urban_fields[field] == -1) continue;
+            for (MFIter mfi(*urban_data_lev[lev][urban_fields[field]], TileNoZ()); mfi.isValid(); ++mfi)
             {
                 Box tbx = mfi.tilebox();
 
@@ -161,6 +161,10 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
                 {
                     urban_data_arr(i, j, k) *= weights_arr(i, j, 0, SurfaceModelType::URBAN);
                 });
+            }
+
+            if (urban_data_lev[lev][urban_fields[field]]) {
+                urban_data_lev[lev][urban_fields[field]]->FillBoundary(m_geom[lev].periodicity());
             }
         }
     }
