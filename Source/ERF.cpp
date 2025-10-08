@@ -302,6 +302,12 @@ ERF::ERF_shared ()
     // We resize this regardless in order to pass it without error
     pp_inc.resize(nlevs_max);
 
+    // Used in the fast substepping only
+    lagged_delta_rt.resize(nlevs_max);
+    avg_xmom.resize(nlevs_max);
+    avg_ymom.resize(nlevs_max);
+    avg_zmom.resize(nlevs_max);
+
     rU_new.resize(nlevs_max);
     rV_new.resize(nlevs_max);
     rW_new.resize(nlevs_max);

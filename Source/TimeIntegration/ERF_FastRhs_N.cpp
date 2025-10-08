@@ -17,11 +17,14 @@ using namespace amrex;
  * @param[in   ]  pi_stage   Exner function      at previous RK stage
  * @param[in   ]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
  * @param[  out]  S_data    current solution
- * @param[in   ]  S_scratch scratch space
- * @param[in   ] cc_src source terms for conserved variables
- * @param[in   ] xmom_src source terms for x-momentum
- * @param[in   ] ymom_src source terms for y-momentum
- * @param[in   ] zmom_src source terms for z-momentum
+ * @param[inout]  lagged_delta_rt
+ * @param[inout] avg_xmom: time-averaged x-momentum to be used for updating slow variables
+ * @param[inout] avg_ymom: time-averaged y-momentum to be used for updating slow variables
+ * @param[inout] avg_zmom: time-averaged z-momentum to be used for updating slow variables
+ * @param[in   ]  cc_src source terms for conserved variables
+ * @param[in   ]  xmom_src source terms for x-momentum
+ * @param[in   ]  ymom_src source terms for y-momentum
+ * @param[in   ]  zmom_src source terms for z-momentum
  * @param[in   ]  geom container for geometric information
  * @param[in   ]  gravity magnitude of gravity
  * @param[in   ]  dtau fast time step
@@ -45,7 +48,10 @@ void erf_fast_rhs_N (int step, int nrk,
                      const  MultiFab & pi_stage,                     // Exner function evaluated at last stage
                      const  MultiFab &fast_coeffs,                   // Coeffs for tridiagonal solve
                      Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
-                     Vector<MultiFab>& S_scratch,                    // S_sum_old at most recent fast timestep for (rho theta)
+                     MultiFab& lagged_delta_rt,
+                     MultiFab& avg_xmom,
+                     MultiFab& avg_ymom,
+                     MultiFab& avg_zmom,
                      const MultiFab& cc_src,
                      const MultiFab& xmom_src,
                      const MultiFab& ymom_src,
@@ -129,7 +135,7 @@ void erf_fast_rhs_N (int step, int nrk,
 
         const Array4<Real>& prev_drho_w     = Delta_rho_w.array(mfi);
         const Array4<Real>& prev_drho_theta = Delta_rho_theta.array(mfi);
-        const Array4<Real>& lagged_delta_rt = S_scratch[IntVars::cons].array(mfi);
+        const Array4<Real>& lagged_arr      = lagged_delta_rt.array(mfi);
         const Array4<Real>& theta_extrap    = extrap.array(mfi);
         const Array4<const Real>& prim      = S_stage_prim.const_array(mfi);
 
@@ -142,7 +148,7 @@ void erf_fast_rhs_N (int step, int nrk,
                 theta_extrap(i,j,k) = prev_drho_theta(i,j,k);
             } else {
                 theta_extrap(i,j,k) = prev_drho_theta(i,j,k) + beta_d *
-                  ( prev_drho_theta(i,j,k) - lagged_delta_rt(i,j,k,RhoTheta_comp) );
+                  ( prev_drho_theta(i,j,k) - lagged_arr(i,j,k) );
             }
 
             // NOTE: qv is not changing over the fast steps so we use the stage data
@@ -151,7 +157,7 @@ void erf_fast_rhs_N (int step, int nrk,
 
             // We define lagged_delta_rt for our next step as the current delta_rt
             // (after using it above to extrapolate theta for this step)
-            lagged_delta_rt(i,j,k,RhoTheta_comp) = prev_drho_theta(i,j,k);
+            lagged_arr(i,j,k) = prev_drho_theta(i,j,k);
         });
 
         // NOTE: We must do this here because for step > 0, prev_zmom and cur_zmom both point to the same data,
@@ -192,8 +198,8 @@ void erf_fast_rhs_N (int step, int nrk,
         const Array4<const Real>& prev_ymom = S_prev[IntVars::ymom].const_array(mfi);
 
         // These store the advection momenta which we will use to update the slow variables
-        const Array4<      Real>& avg_xmom = S_scratch[IntVars::xmom].array(mfi);
-        const Array4<      Real>& avg_ymom = S_scratch[IntVars::ymom].array(mfi);
+        const Array4<      Real>& avg_xmom_arr = avg_xmom.array(mfi);
+        const Array4<      Real>& avg_ymom_arr = avg_ymom.array(mfi);
 
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
@@ -211,13 +217,13 @@ void erf_fast_rhs_N (int step, int nrk,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real new_drho_u = dtau * slow_rhs_rho_u(i,j,k) + dtau * xmom_src_arr(i,j,k);;
-                avg_xmom(i,j,k) += facinv*new_drho_u;
+                avg_xmom_arr(i,j,k) += facinv*new_drho_u;
                 temp_cur_xmom_arr(i,j,k) = stage_xmom(i,j,k) + new_drho_u;
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real new_drho_v = dtau * slow_rhs_rho_v(i,j,k) + dtau * ymom_src_arr(i,j,k);
-                avg_ymom(i,j,k) += facinv*new_drho_v;
+                avg_ymom_arr(i,j,k) += facinv*new_drho_v;
                 temp_cur_ymom_arr(i,j,k) = stage_ymom(i,j,k) + new_drho_v;
             });
         } else {
@@ -237,7 +243,7 @@ void erf_fast_rhs_N (int step, int nrk,
                                 + dtau * fast_rhs_rho_u + dtau * slow_rhs_rho_u(i,j,k)
                                 + dtau * xmom_src_arr(i,j,k);
 
-                avg_xmom(i,j,k) += facinv*new_drho_u;
+                avg_xmom_arr(i,j,k) += facinv*new_drho_u;
 
                 temp_cur_xmom_arr(i,j,k) = stage_xmom(i,j,k) + new_drho_u;
             },
@@ -256,7 +262,7 @@ void erf_fast_rhs_N (int step, int nrk,
                                 + dtau * fast_rhs_rho_v + dtau * slow_rhs_rho_v(i,j,k)
                                 + dtau * ymom_src_arr(i,j,k);
 
-                avg_ymom(i,j,k) += facinv*new_drho_v;
+                avg_ymom_arr(i,j,k) += facinv*new_drho_v;
 
                 temp_cur_ymom_arr(i,j,k) = stage_ymom(i,j,k) + new_drho_v;
             });
@@ -299,7 +305,7 @@ void erf_fast_rhs_N (int step, int nrk,
         const Array4<Real>& temp_cur_ymom_arr  = temp_cur_ymom.array(mfi);
 
         // These store the advection momenta which we will use to update the slow variables
-        const Array4<      Real>& avg_zmom = S_scratch[IntVars::zmom].array(mfi);
+        const Array4<      Real>& avg_zmom_arr = avg_zmom.array(mfi);
 
         // Map factors
         const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
@@ -529,14 +535,14 @@ void erf_fast_rhs_N (int step, int nrk,
             Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * prev_drho_w(i,j,k  );
             Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * prev_drho_w(i,j,k+1);
 
-            avg_zmom(i,j,k)      += facinv*zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
+            avg_zmom_arr(i,j,k)      += facinv*zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
             if (l_reflux) {
                 (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
                 (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
             }
 
             if (k == vbx_hi.z) {
-                avg_zmom(i,j,k+1)      += facinv * zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
+                avg_zmom_arr(i,j,k+1)      += facinv * zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
                 if (l_reflux) {
                     (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
                     (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
