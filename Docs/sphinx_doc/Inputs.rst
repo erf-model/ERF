@@ -1352,6 +1352,29 @@ Note that ``erf.add_custom_geostrophic_profile`` cannot be used in combination
 with an ``erf.abl_geo_wind_table``.
 
 
+Numerical Stability
+===================
+
+To enhance numerical stability, e.g., for operational runs, we provide some additional controls.
+
+List of Parameters
+------------------
+
++----------------------------+----------------------------------+-------------------+-------------+
+| **erf.beta_s**             | Time off-centering coefficient   | Real              | 0.1         |
++----------------------------+----------------------------------+-------------------+-------------+
+| **erf.w_damping**          | Enable vertical-velocity         | Bool              | false       |
+|                            | damping                          |                   |             |
++----------------------------+----------------------------------+-------------------+-------------+
+| **erf.w_damping_cfl**      | Critical vertical advective      | Real              | 1.0         |
+|                            | CFL for w-damping to be applied, |                   |             |
+|                            | if ``erf.w_damping`` is true     |                   |             |
++----------------------------+----------------------------------+-------------------+-------------+
+| **erf.w_damping_coeff**    | w-damping coefficient (m/s)      | Real              | 0.3         |
++----------------------------+----------------------------------+-------------------+-------------+
+
+
+
 Initialization
 ==============
 

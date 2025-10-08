@@ -1444,7 +1444,9 @@ ERF::InitData_post ()
         // This constructor will make the ABLMost object but not allocate the arrays at each level.
         //
         m_SurfaceLayer = std::make_unique<SurfaceLayer>(geom, rotate, pp_prefix, Qv_prim,
-                                                        z_phys_nd, solverChoice.terrain_type,
+                                                        z_phys_nd,
+                                                        solverChoice.mesh_type,
+                                                        solverChoice.terrain_type,
                                                         start_time, stop_time
 #ifdef ERF_USE_NETCDF
                                                         , bdy_time_interval

@@ -113,6 +113,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
 
     const auto& lo = domain.loVect();
     const auto& hi = domain.hiVect();
+    const int khi = hi[2];
 
     IntVect plo(lo);
     IntVect phi(hi);
@@ -121,6 +122,8 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
     // Read the netcdf file and fill these FABs
     // NOTE: the order and number of these must match the WRFBdyVars enum!
     // WRFBdyVars:  U, V, R, T, QV, MU, PC
+    //
+    // These fields are at half levels (unstaggered)
     // ******************************************************************
     Vector<std::string> nc_var_names;
     Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","MU","PC"};
@@ -339,46 +342,50 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                 int ns3 = tslice[iv].get_vshape()[3]; // lateral size, may be staggered
 
                 if (bdyType == WRFBdyTypes::x_lo) {
-                    num_pts  = bdy_data_xlo[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int ioff = bdy_data_xlo[itime][bdyVarType].smallEnd()[0];
                     fab_arr  = bdy_data_xlo[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int i = n / (ns2 * ns3);
                         if (i >= real_width) continue;
                         int k = (n - i * (ns2 * ns3)) / ns3;
+                        if (k > khi) continue;
                         int j =  n - i * (ns2 * ns3) - k * ns3;
                         fab_arr(ioff+i, j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } else if (bdyType == WRFBdyTypes::x_hi) {
-                    num_pts  = bdy_data_xhi[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int ioff = bdy_data_xhi[itime][bdyVarType].bigEnd()[0];
                     fab_arr  = bdy_data_xhi[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int i = n / (ns2 * ns3);
                         if (i >= real_width) continue;
                         int k = (n - i * (ns2 * ns3)) / ns3;
+                        if (k > khi) continue;
                         int j =  n - i * (ns2 * ns3) - k * ns3;
                         fab_arr(ioff-i, j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } else if (bdyType == WRFBdyTypes::y_lo) {
-                    num_pts  = bdy_data_ylo[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int joff = bdy_data_ylo[itime][bdyVarType].smallEnd()[1];
                     fab_arr  = bdy_data_ylo[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int j = n / (ns2 * ns3);
                         if (j >= real_width) continue;
                         int k = (n - j * (ns2 * ns3)) / ns3;
+                        if (k > khi) continue;
                         int i =  n - j * (ns2 * ns3) - k * ns3;
                         fab_arr(i, joff+j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } else if (bdyType == WRFBdyTypes::y_hi) {
-                    num_pts  = bdy_data_yhi[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int joff = bdy_data_yhi[itime][bdyVarType].bigEnd()[1];
                     fab_arr  = bdy_data_yhi[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int j = n / (ns2 * ns3);
                         if (j >= real_width) continue;
                         int k = (n - j * (ns2 * ns3)) / ns3;
+                        if (k > khi) continue;
                         int i =  n - j * (ns2 * ns3) - k * ns3;
                         fab_arr(i, joff-j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
@@ -389,7 +396,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                 // ylo,yhi dims: (Time, bdy_width, west_east)
 
                 if (bdyType == WRFBdyTypes::x_lo) {
-                    num_pts  = bdy_data_xlo[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int ioff = bdy_data_xlo[itime][bdyVarType].smallEnd()[0];
                     int ns2 = tslice[iv].get_vshape()[2];
                     fab_arr  = bdy_data_xlo[itime][bdyVarType].array();
@@ -400,7 +407,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         fab_arr(ioff+i, j, 0, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } else if (bdyType == WRFBdyTypes::x_hi) {
-                    num_pts  = bdy_data_xhi[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int ioff = bdy_data_xhi[itime][bdyVarType].bigEnd()[0];
                     int ns2 = tslice[iv].get_vshape()[2];
                     fab_arr  = bdy_data_xhi[itime][bdyVarType].array();
@@ -411,7 +418,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         fab_arr(ioff-i, j, 0, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } else if (bdyType == WRFBdyTypes::y_lo) {
-                    num_pts  = bdy_data_ylo[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int joff = bdy_data_ylo[itime][bdyVarType].smallEnd()[1];
                     int ns2 = tslice[iv].get_vshape()[2];
                     fab_arr  = bdy_data_ylo[itime][bdyVarType].array();
@@ -422,7 +429,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         fab_arr(i, joff+j, 0, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } else if (bdyType == WRFBdyTypes::y_hi) {
-                    num_pts  = bdy_data_yhi[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int joff = bdy_data_yhi[itime][bdyVarType].bigEnd()[1];
                     int ns2 = tslice[iv].get_vshape()[2];
                     fab_arr  = bdy_data_yhi[itime][bdyVarType].array();
