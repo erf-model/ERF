@@ -372,6 +372,7 @@ public:
                                   amrex::MultiFab* xvel,
                                   amrex::MultiFab* yvel,
                                   amrex::MultiFab* zvel,
+                                  amrex::Real* w_subsid,
                                   amrex::MultiFab* tau13,
                                   amrex::MultiFab* tau23,
                                   amrex::MultiFab* hfx3,
