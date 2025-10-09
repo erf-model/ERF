@@ -61,6 +61,20 @@ jobs:
       run: |
         cmake --build build --parallel 2 --verbose
 
+    - name: Prepare Windows Test Environment
+      if: matrix.mpi == 'ON'
+      shell: pwsh
+      run: |
+        # Create helper script to correctly handle paths with spaces
+        @"
+        @echo off
+        "%MPIEXEC%" %*
+        exit /b %ERRORLEVEL%
+        "@ | Out-File -FilePath ${{runner.workspace}}/ERF/build/run_mpi.bat -Encoding ascii
+
+        # Set environment variables
+        echo "CTEST_LAUNCH_COMMAND=${{runner.workspace}}/ERF/build/run_mpi.bat" >> $GITHUB_ENV
+
     - name: CMake Tests # see file ERF/Tests/CTestList.cmake
       if: matrix.mpi == 'OFF'
       run: |
