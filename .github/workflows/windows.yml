@@ -9,7 +9,7 @@ concurrency:
 
 jobs:
   WIN32-MSVC10:
-    name: WIN32 MSVC@19.29 - Particles ${{matrix.particles}}
+    name: WIN32 MSVC@19.29 - Particles ${{matrix.particles}} - MPI ${{matrix.mpi}}
     runs-on: windows-latest
     strategy:
       matrix:
@@ -17,59 +17,19 @@ jobs:
         mpi: [OFF, ON]
 
     steps:
-
     - uses: actions/checkout@v4
       with:
         submodules: recursive
 
     - name: Install MS-MPI
       if: matrix.mpi == 'ON'
-      shell: powershell
       run: |
-        # Download MS-MPI SDK and Runtime
-        $msmpiSetupPath = "$env:TEMP\msmpisetup.exe"
-        $msmpiSDKPath = "$env:TEMP\msmpisdk.msi"
+        Invoke-WebRequest -Uri https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisetup.exe -OutFile msmpisetup.exe
+        Start-Process -FilePath .\msmpisetup.exe -ArgumentList "-unattend" -Wait
+        Invoke-WebRequest -Uri https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisdk.msi -OutFile msmpisdk.msi
+        Start-Process -FilePath msiexec.exe -ArgumentList "/quiet /i msmpisdk.msi" -Wait
 
-        Write-Host "Downloading MS-MPI Runtime..."
-        (New-Object Net.WebClient).DownloadFile("https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisetup.exe", $msmpiSetupPath)
-
-        Write-Host "Downloading MS-MPI SDK..."
-        (New-Object Net.WebClient).DownloadFile("https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisdk.msi", $msmpiSDKPath)
-
-        Write-Host "Installing MS-MPI Runtime..."
-        Start-Process -FilePath $msmpiSetupPath -ArgumentList "-unattend" -Wait -NoNewWindow
-
-        Write-Host "Installing MS-MPI SDK..."
-        Start-Process -FilePath "msiexec.exe" -ArgumentList "/quiet /qn /i $msmpiSDKPath" -Wait -NoNewWindow
-
-        # Add MS-MPI to the current session PATH
-        $env:PATH = "$env:PATH;C:\Program Files\Microsoft MPI\Bin"
-
-        # Check if mpiexec is now available
-        Write-Host "Verifying MS-MPI installation..."
-        try {
-            $mpiExecOutput = & "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe" -help
-            Write-Host "mpiexec is available"
-            Write-Host $mpiExecOutput
-        } catch {
-            Write-Host "Error running mpiexec: $_"
-            Write-Host "Checking if MS-MPI is installed correctly..."
-            if (Test-Path "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe") {
-                Write-Host "mpiexec.exe exists but couldn't be executed"
-            } else {
-                Write-Host "mpiexec.exe does not exist at expected location"
-            }
-            exit 1
-        }
-
-        # Add MS-MPI to PATH for subsequent steps
-        echo "PATH=$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-        # Set MPI environment variables for CMake
-        echo "MPI_HOME=C:\Program Files\Microsoft MPI" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        echo "MSMPI_INC=C:\Program Files (x86)\Microsoft SDKs\MPI\Include" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        echo "MSMPI_LIB32=C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x86" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        echo "MSMPI_LIB64=C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "C:\Program Files\Microsoft MPI\Bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     - name: Cache dependencies
       uses: actions/cache@v3
@@ -80,66 +40,8 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-deps-
 
-    - name: Create MPI Test Helper Script
-      if: matrix.mpi == 'ON'
-      shell: powershell
-      run: |
-        # Create a helper script that properly handles Windows paths with spaces
-        $content = @'
-        #!/usr/bin/env powershell
-        # This script executes MPI commands with proper path handling
-
-        # Convert paths from Unix style to Windows style if needed
-        function Fix-Path {
-          param([string]$path)
-          $path -replace '/', '\'
-        }
-
-        # Get arguments
-        $args_string = $args -join ' '
-        Write-Host "Running MPI command: $args_string"
-
-        # Execute the command
-        & $args
-        exit $LASTEXITCODE
-        '@
-
-        # Save the script
-        $scriptPath = "${{runner.workspace}}\run_mpi.ps1"
-        $content | Out-File -FilePath $scriptPath -Encoding utf8
-        Write-Host "Created MPI test helper script at $scriptPath"
-
-        # Add the script to the environment for CTest to use
-        echo "MPI_RUNNER=$scriptPath" >> $env:GITHUB_ENV
-
-
     - name: Configure Project and Generate Build System
       run: |
-        if ("${{matrix.mpi}}" -eq "ON") {
-            Write-Host "MPI environment variables:"
-            Write-Host "PATH: $env:PATH"
-            Write-Host "MPI_HOME: $env:MPI_HOME"
-            Write-Host "MSMPI_INC: $env:MSMPI_INC"
-            Write-Host "MSMPI_LIB64: $env:MSMPI_LIB64"
-
-            # List MPI directories to verify installation
-            if (Test-Path "C:\Program Files\Microsoft MPI") {
-                Write-Host "MPI installation directory contents:"
-                Get-ChildItem "C:\Program Files\Microsoft MPI" -Recurse | Select-Object -First 20 | ForEach-Object { Write-Host $_.FullName }
-            }
-
-            if (Test-Path $env:MSMPI_INC) {
-                Write-Host "MPI include directory exists"
-            } else {
-                Write-Host "WARNING: MPI include directory not found"
-            }
-
-            if (Test-Path $env:MSMPI_LIB64) {
-                Write-Host "MPI lib directory exists"
-            } else {
-                Write-Host "WARNING: MPI lib directory not found"
-            }
-        }
 
         cmake -S . -B build `
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install `
@@ -147,6 +49,7 @@ jobs:
           -DERF_DIM:STRING=3 `
           -DERF_ENABLE_MPI:BOOL=${{matrix.mpi}} `
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} `
+          ${{ matrix.mpi == 'ON' && '-DMPI_C_INCLUDE_PATH="C:/Program Files (x86)/Microsoft SDKs/MPI/Include" -DMPI_CXX_INCLUDE_PATH="C:/Program Files (x86)/Microsoft SDKs/MPI/Include" -DMPI_C_LIBRARIES="C:/Program Files (x86)/Microsoft SDKs/MPI/Lib/x64/msmpi.lib" -DMPI_CXX_LIBRARIES="C:/Program Files (x86)/Microsoft SDKs/MPI/Lib/x64/msmpi.lib"' || '' }} `
           -DERF_ENABLE_TESTS:BOOL=ON `
           -DERF_ENABLE_ALL_WARNINGS:BOOL=OFF `
           -DERF_ENABLE_FCOMPARE:BOOL=ON `
@@ -157,151 +60,7 @@ jobs:
       run: |
         cmake --build build --parallel 2 --verbose
 
-    - name: Run Tests with Custom Command
-      shell: powershell
+    - name: CMake Tests # see file ERF/Tests/CTestList.cmake
       run: |
-        # Instead of using ctest directly, find and execute tests manually
-        $testDir = "${{runner.workspace}}/ERF/build/Testing"
-
-        # Identify test executables
-        $exeFiles = Get-ChildItem -Path "${{runner.workspace}}/ERF/build/Exec" -Recurse -Filter "*.exe" | 
-                Where-Object { $_.Name -notmatch "fcompare" }
-
-        Write-Host "Found $(($exeFiles | Measure-Object).Count) test executables"
-
-        # Run a simple MPI test first to verify
-        $mpiexec = '"C:\Program Files\Microsoft MPI\Bin\mpiexec.exe"'
-
-        # Test if basic MPI works
-        Write-Host "Testing basic MPI functionality..."
-        $cmd = "$mpiexec -n 1 hostname"
-        Write-Host "Running: $cmd"
-        Invoke-Expression $cmd
-
-        if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: Basic MPI test failed!"
-        exit 1
-        }
-
-        Write-Host "MPI is working correctly. Skipping complex regression tests for this PR."
-
-        # Optionally run a simple test with one of the executables
-        if ($exeFiles.Count -gt 0) {
-        $testExe = $exeFiles[0].FullName
-        Write-Host "Running test with: $testExe"
-        $cmd = "$mpiexec -n 1 `"$testExe`" --help"
-        Invoke-Expression $cmd
-        }
-      working-directory: ${{runner.workspace}}/ERF/build
-
-    - name: Run Regression Tests with PowerShell
-      shell: powershell
-      run: |
-        Write-Host "Running regression tests with custom PowerShell handling..."
-
-        # Get the list of regression tests
-        $tests = ctest -N -L regression -C ${{matrix.build_type}} | 
-             Select-String "Test #\d+: (.+)" | 
-             ForEach-Object { $_.Matches.Groups[1].Value }
-
-        Write-Host "Found $($tests.Count) regression tests to run"
-
-        # Create a directory to store test results
-        $resultsDir = "${{runner.workspace}}/test_results"
-        New-Item -Path $resultsDir -ItemType Directory -Force | Out-Null
-
-        # Setup the MPI command properly with quoted paths
-        $mpiexec = "`"C:\Program Files\Microsoft MPI\Bin\mpiexec.exe`""
-
-        # Function to properly quote paths for PowerShell
-        function Quote-Path {
-            param([string]$path)
-            if ($path -match ' ') {
-            return "`"$path`""
-        }
-        return $path
-        }
-
-        # Run each test manually with proper path handling
-        $totalTests = $tests.Count
-        $passedTests = 0
-        $failedTests = @()
-
-        foreach ($test in $tests) {
-        Write-Host "`n== Running Test: $test =="
-
-        # Get the test command from CTest
-        $testInfo = ctest -V -R "^$test$" -C ${{matrix.build_type}} -N | Out-String
-
-        # Parse the test command
-        if ($testInfo -match "Test command: .+`"-c`" `"(.+)`"") {
-            $bashCmd = $matches[1]
-
-            # Extract the command parts - this is test-specific based on your CTest setup
-            if ($bashCmd -match "C:/Program Files/Microsoft MPI/Bin/mpiexec.exe -n (\d+)\s+(.+?)\.exe\s+(.+?)(?:\s+>|$)") {
-                $numProcs = $matches[1]
-                $exePath = $matches[2] + ".exe"
-                $exeArgs = $matches[3]
-
-                # Fix paths for PowerShell execution
-                $exePath = Quote-Path $exePath
-
-                # Build the PowerShell command
-                $psCmd = "$mpiexec -n $numProcs $exePath $exeArgs"
-                Write-Host "Executing: $psCmd"
-
-                # Execute the command
-                $tempLog = "$resultsDir\$test.log"
-                $exitCode = 0
-
-                try {
-                    Invoke-Expression "$psCmd > $tempLog 2>&1"
-                    $exitCode = $LASTEXITCODE
-                }
-                catch {
-                    Write-Host "Error executing test: $_"
-                    $exitCode = 1
-                }
-
-                # Check the result
-                if ($exitCode -eq 0) {
-                    Write-Host "✅ Test $test PASSED"
-                    $passedTests++
-                } else {
-                    Write-Host "❌ Test $test FAILED with exit code $exitCode"
-                    Write-Host "== Log output =="
-                    Get-Content $tempLog | ForEach-Object { Write-Host $_ }
-                    Write-Host "== End log output =="
-                    $failedTests += $test
-                }
-            } else {
-                Write-Host "Could not parse MPI command for test $test"
-                $failedTests += $test
-            }
-        } else {
-            Write-Host "Could not find test command for $test"
-            $failedTests += $test
-        }
-        }
-
-        Write-Host "`n== Test Summary =="
-        Write-Host "Total tests: $totalTests"
-        Write-Host "Passed: $passedTests"
-        Write-Host "Failed: $($failedTests.Count)"
-
-        if ($failedTests.Count -gt 0) {
-          Write-Host "Failed tests: $($failedTests -join ', ')"
-
-        # Non-zero exit only if tests we actually ran failed
-        # (as opposed to tests we couldn't parse)
-        if ($passedTests -gt 0) {
-            exit 1
-        }
-        }
-
-        # If we couldn't run any tests successfully, that's a problem with our test setup
-        if ($passedTests -eq 0) {
-          Write-Host "No tests ran successfully. This is likely a configuration issue."
-          exit 1
-        }
+        ctest -L regression -VV
       working-directory: ${{runner.workspace}}/ERF/build
