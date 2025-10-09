@@ -159,6 +159,18 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         pp_inc[lev].setVal(0.0);
     }
 
+    // We use this in the fast substepping only
+    if (solverChoice.anelastic[lev] == 0) {
+        lagged_delta_rt[lev].define(ba, dm, 1, 1);
+        lagged_delta_rt[lev].setVal(0.0);
+    }
+
+    // We use these for advecting the slow variables, whether anelastic or compressible
+    avg_xmom[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, 1);
+    avg_ymom[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, 1);
+    avg_zmom[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, 1);
+    avg_xmom[lev].setVal(0.0); avg_ymom[lev].setVal(0.0); avg_zmom[lev].setVal(0.0);
+
     // ********************************************************************************************
     // These are just used for scratch in the time integrator but we might as well define them here
     // ********************************************************************************************

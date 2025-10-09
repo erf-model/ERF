@@ -17,7 +17,10 @@ using namespace amrex;
  * @param[in   ] pi_stage   Exner function      at previous RK stage
  * @param[in   ] fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
  * @param[  out] S_data current solution
- * @param[in   ] S_scratch scratch space
+ * @param[inout] lagged_delta_rt
+ * @param[inout] avg_xmom: time-averaged x-momentum to be used for updating slow variables
+ * @param[inout] avg_ymom: time-averaged y-momentum to be used for updating slow variables
+ * @param[inout] avg_zmom: time-averaged z-momentum to be used for updating slow variables
  * @param[in   ] cc_src source terms for conserved variables
  * @param[in   ] xmom_src source terms for x-momentum
  * @param[in   ] ymom_src source terms for y-momentum
@@ -54,7 +57,10 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
                       const MultiFab& pi_stage,                      // Exner function evaluated at last RK stg
                       const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
                       Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
-                      Vector<MultiFab>& S_scratch,                   // S_sum_old at most recent fast timestep for (rho theta)
+                      MultiFab& lagged_delta_rt,
+                      MultiFab& avg_xmom,
+                      MultiFab& avg_ymom,
+                      MultiFab& avg_zmom,
                       const MultiFab& cc_src,
                       const MultiFab& xmom_src,
                       const MultiFab& ymom_src,
@@ -159,7 +165,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         const Array4<Real>& cur_ymom = S_data[IntVars::ymom].array(mfi);
         const Array4<Real>& cur_zmom = S_data[IntVars::zmom].array(mfi);
 
-        const Array4<Real>& lagged_delta_rt = S_scratch[IntVars::cons].array(mfi);
+        const Array4<Real>& lagged = lagged_delta_rt.array(mfi);
 
         const Array4<const Real>& prev_cons = S_prev[IntVars::cons].const_array(mfi);
         const Array4<const Real>& prev_xmom = S_prev[IntVars::xmom].const_array(mfi);
@@ -167,9 +173,9 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         const Array4<const Real>& prev_zmom = S_prev[IntVars::zmom].const_array(mfi);
 
         // These store the advection momenta which we will use to update the slow variables
-        const Array4<Real>& avg_xmom = S_scratch[IntVars::xmom].array(mfi);
-        const Array4<Real>& avg_ymom = S_scratch[IntVars::ymom].array(mfi);
-        const Array4<Real>& avg_zmom = S_scratch[IntVars::zmom].array(mfi);
+        const Array4<Real>& avg_xmom_arr = avg_xmom.array(mfi);
+        const Array4<Real>& avg_ymom_arr = avg_ymom.array(mfi);
+        const Array4<Real>& avg_zmom_arr = avg_zmom.array(mfi);
 
         const Array4<const Real>& z_nd_old = z_phys_nd_old->const_array(mfi);
         const Array4<const Real>& z_nd_new = z_phys_nd_new->const_array(mfi);
@@ -215,21 +221,21 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
                 theta_extrap(i,j,k) *= (1.0 + RvOverRd*qv);
 
                 // We define lagged_delta_rt for our next step as the current delta_rt
-                lagged_delta_rt(i,j,k,RhoTheta_comp) = delta_rt;
+                lagged(i,j,k) = delta_rt;
             });
         } else if (use_lagged_delta_rt) {
             // This is the default for cases with no or static terrain
             ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 Real delta_rt = cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
-                theta_extrap(i,j,k) = delta_rt + beta_d * (delta_rt - lagged_delta_rt(i,j,k,RhoTheta_comp));
+                theta_extrap(i,j,k) = delta_rt + beta_d * (delta_rt - lagged(i,j,k));
 
                 // NOTE: qv is not changing over the fast steps so we use the stage data
                 Real qv = (l_use_moisture) ? prim(i,j,k,PrimQ1_comp) : 0.0;
                 theta_extrap(i,j,k) *= (1.0 + RvOverRd*qv);
 
                 // We define lagged_delta_rt for our next step as the current delta_rt
-                lagged_delta_rt(i,j,k,RhoTheta_comp) = delta_rt;
+                lagged(i,j,k) = delta_rt;
             });
         } else {
             // For the moving wave problem, this choice seems more robust
@@ -395,13 +401,13 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         {
             Real h_zeta_new = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_new);
             cur_xmom(i, j, k) /= h_zeta_new;
-            avg_xmom(i,j,k) += facinv*(cur_xmom(i,j,k) - stg_xmom(i,j,k));
+            avg_xmom_arr(i,j,k) += facinv*(cur_xmom(i,j,k) - stg_xmom(i,j,k));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real h_zeta_new = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_new);
             cur_ymom(i, j, k) /= h_zeta_new;
-            avg_ymom(i,j,k) += facinv*(cur_ymom(i,j,k) - stg_ymom(i,j,k));
+            avg_ymom_arr(i,j,k) += facinv*(cur_ymom(i,j,k) - stg_ymom(i,j,k));
         });
 
         Box bx_shrunk_in_k = bx;
@@ -592,7 +598,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
 
               // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
               // so we don't update avg_zmom at k=vbx_hi.z+1
-              avg_zmom(i,j,k)      += facinv*zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
+              avg_zmom_arr(i,j,k)      += facinv*zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
               if (l_reflux) {
                   (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
               }
@@ -619,7 +625,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
               }
 
               if (k == vbx_hi.z) {
-                  avg_zmom(i,j,k+1)      += facinv * zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
+                  avg_zmom_arr(i,j,k+1)      += facinv * zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
                   if (l_reflux) {
                       (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
                       (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));

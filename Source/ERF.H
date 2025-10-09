@@ -797,7 +797,14 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
+    // Used for anelastic or when we impose an initial projection
     amrex::Vector<amrex::MultiFab> pp_inc;
+
+    // Used only for fast substepping
+    amrex::Vector<amrex::MultiFab> lagged_delta_rt;
+    amrex::Vector<amrex::MultiFab> avg_xmom;
+    amrex::Vector<amrex::MultiFab> avg_ymom;
+    amrex::Vector<amrex::MultiFab> avg_zmom;
 
     // Vector over levels of routines to impose physical boundary conditions
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_cons>> physbcs_cons;
