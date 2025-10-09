@@ -65,26 +65,62 @@ jobs:
       if: matrix.mpi == 'ON'
       shell: pwsh
       run: |
-        # Create helper script to correctly handle paths with spaces
+        # Create a custom test runner script
         @"
         @echo off
-        "%MPIEXEC%" %*
-        exit /b %ERRORLEVEL%
-        "@ | Out-File -FilePath ${{runner.workspace}}/ERF/build/run_mpi.bat -Encoding ascii
+        setlocal enabledelayedexpansion
 
-        # Set environment variables
-        echo "CTEST_LAUNCH_COMMAND=${{runner.workspace}}/ERF/build/run_mpi.bat" >> $GITHUB_ENV
+        rem Extract the command from arguments
+        set cmd=%*
+
+        rem Replace forward slashes with backslashes
+        set cmd=!cmd:/=\!
+
+        rem Execute the command
+        !cmd!
+
+        exit /b %ERRORLEVEL%
+        "@ | Out-File -FilePath ${{runner.workspace}}/ERF/build/test_runner.bat -Encoding ascii
+
+        # Create CMake script to override test settings
+        @"
+        # Override test properties to use CMD instead of sh.exe
+        file(GLOB_RECURSE TEST_LIST "${CMAKE_BINARY_DIR}/Testing/Temporary/CTestCostData.txt" "${CMAKE_BINARY_DIR}/CTestTestfile.cmake")
+
+        foreach(TEST_FILE ${TEST_LIST})
+          file(STRINGS ${TEST_FILE} TEST_CONTENT)
+          string(REGEX REPLACE "\"C:/Program Files/Git/bin/sh.exe\" \"-c\"" "cmd.exe /c \"${CMAKE_BINARY_DIR}/test_runner.bat\"" NEW_CONTENT "${TEST_CONTENT}")
+          file(WRITE ${TEST_FILE} "${NEW_CONTENT}")
+        endforeach()
+        "@ | Out-File -FilePath ${{runner.workspace}}/ERF/build/fix_tests.cmake -Encoding ascii
+
+        # Run the CMake script to modify the test configuration
+        cd ${{runner.workspace}}/ERF/build
+        cmake -P fix_tests.cmake
+
+    - name: CMake Tests with MPI
+      if: matrix.mpi == 'ON'
+      shell: pwsh
+      run: |
+        $env:MPIEXEC = "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe"
+        $env:CTEST_OUTPUT_ON_FAILURE = 1
+
+        # Manually run each test that's failing
+        Write-Host "Running SuperCell_3D test..."
+        Push-Location "D:/a/ERF/ERF/Build/Tests/test_files/SuperCell_3D/"
+        & "$env:MPIEXEC" -n 2 "D:/a/ERF/ERF/Build/Exec/MoistRegTests/SuperCell_3D/erf_supercell.exe" "SuperCell_3D.i" | Out-File -FilePath "SuperCell_3D.log"
+        if ($LASTEXITCODE -ne 0) { throw "Test execution failed" }
+
+        & "$env:MPIEXEC" -n 1 "D:/a/ERF/ERF/Build/Submodules/AMReX/Tools/Plotfile/amrex_fcompare.exe" --abort_if_not_all_found -a -r 2.0e-10 --abs_tol 2.0e-10 "D:/a/ERF/ERF/Tests/ERFGoldFiles/SuperCell_3D" "plt00010"
+        if ($LASTEXITCODE -ne 0) { throw "Comparison failed" }
+        Pop-Location
+
+        # Run other tests via CTest if they don't have the same issue
+        ctest -L regression -E "SuperCell_3D" -VV
+      working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Tests # see file ERF/Tests/CTestList.cmake
       if: matrix.mpi == 'OFF'
       run: |
-        ctest -L regression -VV
-      working-directory: ${{runner.workspace}}/ERF/build
-
-    - name: CMake Tests with MPI
-      if: matrix.mpi == 'ON'
-      shell: cmd
-      run: |
-        set MPIEXEC="C:\Program Files\Microsoft MPI\Bin\mpiexec.exe"
         ctest -L regression -VV
       working-directory: ${{runner.workspace}}/ERF/build
