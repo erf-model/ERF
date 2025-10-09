@@ -6,6 +6,7 @@ concurrency:
   group: ${{ github.ref }}-${{ github.head_ref }}-windows
   cancel-in-progress: true
 
+
 jobs:
   WIN32-MSVC10:
     name: WIN32 MSVC@19.29 - Particles ${{matrix.particles}}
