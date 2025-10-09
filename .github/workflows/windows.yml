@@ -52,6 +52,7 @@ jobs:
           ${{ matrix.mpi == 'ON' && '-DMPI_C_INCLUDE_PATH="C:/Program Files (x86)/Microsoft SDKs/MPI/Include" -DMPI_CXX_INCLUDE_PATH="C:/Program Files (x86)/Microsoft SDKs/MPI/Include" -DMPI_C_LIBRARIES="C:/Program Files (x86)/Microsoft SDKs/MPI/Lib/x64/msmpi.lib" -DMPI_CXX_LIBRARIES="C:/Program Files (x86)/Microsoft SDKs/MPI/Lib/x64/msmpi.lib"' || '' }} `
           -DERF_ENABLE_TESTS:BOOL=ON `
           -DERF_ENABLE_ALL_WARNINGS:BOOL=OFF `
+          -DMPIEXEC_EXECUTABLE:PATH="C:/Program Files/Microsoft MPI/Bin/mpiexec.exe" `
           -DERF_ENABLE_FCOMPARE:BOOL=ON `
           ${{github.workspace}};
 
@@ -61,6 +62,15 @@ jobs:
         cmake --build build --parallel 2 --verbose
 
     - name: CMake Tests # see file ERF/Tests/CTestList.cmake
+      if: matrix.mpi == 'OFF'
       run: |
+        ctest -L regression -VV
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: CMake Tests with MPI
+      if: matrix.mpi == 'ON'
+      shell: cmd
+      run: |
+        set MPIEXEC="C:\Program Files\Microsoft MPI\Bin\mpiexec.exe"
         ctest -L regression -VV
       working-directory: ${{runner.workspace}}/ERF/build
