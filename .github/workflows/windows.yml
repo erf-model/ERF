@@ -79,6 +79,39 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-deps-
 
+    - name: Create MPI Test Helper Script
+      if: matrix.mpi == 'ON'
+      shell: powershell
+      run: |
+        # Create a helper script that properly handles Windows paths with spaces
+        $content = @'
+        #!/usr/bin/env powershell
+        # This script executes MPI commands with proper path handling
+
+        # Convert paths from Unix style to Windows style if needed
+        function Fix-Path {
+          param([string]$path)
+          $path -replace '/', '\'
+        }
+
+        # Get arguments
+        $args_string = $args -join ' '
+        Write-Host "Running MPI command: $args_string"
+
+        # Execute the command
+        & $args
+        exit $LASTEXITCODE
+        '@
+
+        # Save the script
+        $scriptPath = "${{runner.workspace}}\run_mpi.ps1"
+        $content | Out-File -FilePath $scriptPath -Encoding utf8
+        Write-Host "Created MPI test helper script at $scriptPath"
+
+        # Add the script to the environment for CTest to use
+        echo "MPI_RUNNER=$scriptPath" >> $env:GITHUB_ENV
+
+
     - name: Configure Project and Generate Build System
       run: |
         if ("${{matrix.mpi}}" -eq "ON") {
