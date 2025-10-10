@@ -9,6 +9,9 @@ variables:
     value: "/p/vast1/$USER/gitlab-runner/erf"
     expand: false
 
+  # Limit build directory sprawl
+  JACAMAR_LIMITED_DIR: 1
+
   # Recursively update the submodules when cloning the project
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_DEPTH: 1

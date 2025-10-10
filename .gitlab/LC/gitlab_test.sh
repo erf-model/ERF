@@ -4,6 +4,10 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+echo "========="
+echo "GitLab CI"
+echo "========="
+
 modules=${MODULE_LIST:-""}
 mpiexec_executable=${MPIEXEC_EXECUTABLE:-"srun"}
 # If using flux, append "run" after the flux executable path
@@ -25,9 +29,11 @@ ERF_ENABLE_HIP=${ERF_ENABLE_HIP:-"OFF"}
 
 basehost=${host//[[:digit:]]/}
 
-echo ${host}
-
-build_dir=build_${host}_${CI_PIPELINE_ID}_$(date +%F_%H_%M_%S)
+echo "HOST: ${host}"
+src_dir="${PWD}"
+echo "Source directory: ${src_dir}"
+build_dir="$(realpath -- "${src_dir}/../build_${host}_${CI_PIPELINE_ID}_$(date +%F_%H_%M_%S)")"
+echo "Build directory: ${build_dir}"
 
 echo "============="
 echo "Setup modules"
@@ -43,41 +49,42 @@ module list
 #  AMReX fcompare seems to not work as expected if compiled with CUDA.
 #  This builds a CPU version first and uses that fcompare executable during the
 #  testing for the CUDA build
+
+# Default fcompare executable
+FCOMPARE_EXE="${build_dir}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare"
+
 if [[ "${ERF_ENABLE_CUDA}" == "ON" ]]
 then
-    echo "====================================================="
-    echo "Building CPU version first to get fcompare executable"
-    echo "====================================================="
-    mkdir "${build_dir}_cpu"
-    cd "${build_dir}_cpu"
-    pwd
-
-    time cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
-         -DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER:-"mpicxx"} \
-         -DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER:-"mpicc"} \
-         -DCMAKE_Fortran_COMPILER:STRING=${CMAKE_Fortran_COMPILER:-"mpifort"} \
-         -DCMAKE_BUILD_TYPE:STRING=Release \
-         -DERF_DIM:STRING=3 \
-         -DERF_ENABLE_MPI:BOOL=ON \
-         -DERF_ENABLE_CUDA:BOOL=OFF \
-         -DERF_ENABLE_TESTS:BOOL=OFF \
-         -DERF_ENABLE_FCOMPARE:BOOL=ON \
-         -DERF_ENABLE_DOCUMENTATION:BOOL=OFF \
-         -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON ..
-    time make -j fcompare
-
-    FCOMPARE_EXE="$(pwd)/Submodules/AMReX/Tools/Plotfile/amrex_fcompare"
-
-    cd ../
-
-    echo "====================================================="
-    echo "Using fcompare executable at: ${FCOMPARE_EXE}"
-    echo "====================================================="
+    echo "======================="
+    echo "Build CPU amrex_fcompre"
+    echo "======================="
+    time cmake \
+         -G Ninja \
+         -S "${src_dir}" \
+         -B "${build_dir}_cpu" \
+         -D CMAKE_INSTALL_PREFIX:PATH=./install \
+         -D CMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER:-"mpicxx"} \
+         -D CMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER:-"mpicc"} \
+         -D CMAKE_Fortran_COMPILER:STRING=${CMAKE_Fortran_COMPILER:-"mpifort"} \
+         -D CMAKE_BUILD_TYPE:STRING=Release \
+         -D ERF_DIM:STRING=3 \
+         -D ERF_ENABLE_MPI:BOOL=ON \
+         -D ERF_ENABLE_CUDA:BOOL=OFF \
+         -D ERF_ENABLE_TESTS:BOOL=OFF \
+         -D ERF_ENABLE_FCOMPARE:BOOL=ON \
+         -D ERF_ENABLE_DOCUMENTATION:BOOL=OFF \
+         -D CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON
+    time cmake --build "${build_dir}_cpu" --target fcompare --parallel 16
+    FCOMPARE_EXE="${build_dir}_cpu/Submodules/AMReX/Tools/Plotfile/amrex_fcompare"
 fi
+echo "fcompare executable: ${FCOMPARE_EXE}"
 
-echo "==========================="
-echo "Clone gold files repository"
-echo "==========================="
+echo "========================"
+echo "Clone LC gold files repo"
+echo "========================"
+
+# Default gold files directory
+ERF_TEST_GOLD_FILES_DIRECTORY="${src_dir}/Tests/ERFGoldFiles"
 
 # Clone LC gold files repo -- note that we need to grant this repo job
 # token permissions to the gold file repo
@@ -100,57 +107,50 @@ then
             ERF_TEST_GOLD_FILES_DIRECTORY+="/cpu"
         fi
     fi
-    echo "====================================================="
-    echo "Using gold files at: ${ERF_TEST_GOLD_FILES_DIRECTORY}"
-    echo "====================================================="
-else
-    echo "============================"
-    echo "Using default ERF gold files"
-    echo "============================"
 fi
 cd -
+
+echo "Gold files directory: ${ERF_TEST_GOLD_FILES_DIRECTORY}"
 
 echo "============="
 echo "Configure ERF"
 echo "============="
 
-mkdir ${build_dir}
-cd ${build_dir}
-pwd
-
 time cmake \
-     -DCMAKE_INSTALL_PREFIX:PATH=./install \
-     -DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER:-"mpicxx"} \
-     -DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER:-"mpicc"} \
-     -DCMAKE_Fortran_COMPILER:STRING=${CMAKE_Fortran_COMPILER:-"mpifort"} \
-     -DMPIEXEC_EXECUTABLE="${mpiexec_executable}" \
-     -DMPIEXEC_PREFLAGS:STRING="${mpiexec_preflags}" \
-     -DCMAKE_BUILD_TYPE:STRING="${build_type}" \
-     -DERF_DIM:STRING=3 \
-     -DERF_ENABLE_MPI:BOOL=ON \
-     -DERF_ENABLE_CUDA:BOOL="${ERF_ENABLE_CUDA}" \
-     -DAMReX_CUDA_ARCH:STRING="${CUDA_ARCH:-""}" \
-     -DERF_ENABLE_HIP:BOOL="${ERF_ENABLE_HIP:-"OFF"}" \
-     -DAMReX_AMD_ARCH:STRING="${AMD_ARCH:-""}" \
-     -DERF_ENABLE_TESTS:BOOL=ON \
-     -DERF_TEST_NRANKS:STRING=${ERF_TEST_NRANKS:-"4"} \
-     -DERF_ENABLE_FCOMPARE:BOOL=ON \
-     -DERF_ENABLE_DOCUMENTATION:BOOL=OFF \
-     -DFCOMPARE_EXE="${FCOMPARE_EXE:-"$(pwd)/Submodules/AMReX/Tools/Plotfile/amrex_fcompare"}" \
-     -DERF_TEST_GOLD_FILES_DIRECTORY="${ERF_TEST_GOLD_FILES_DIRECTORY:-"$(pwd)/../Tests/ERFGoldFiles"}" \
-     -DERF_TEST_FCOMPARE_RTOL="${ERF_TEST_FCOMPARE_RTOL:-"5.0e-9"}" \
-     -DERF_TEST_FCOMPARE_ATOL="${ERF_TEST_FCOMPARE_ATOL:-"2.0e-10"}" \
-     -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
-     ..
+     -G Ninja \
+     -S "${src_dir}" \
+     -B "${build_dir}" \
+     -D CMAKE_INSTALL_PREFIX:PATH=./install \
+     -D CMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER:-"mpicxx"} \
+     -D CMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER:-"mpicc"} \
+     -D CMAKE_Fortran_COMPILER:STRING=${CMAKE_Fortran_COMPILER:-"mpifort"} \
+     -D MPIEXEC_EXECUTABLE="${mpiexec_executable}" \
+     -D MPIEXEC_PREFLAGS:STRING="${mpiexec_preflags}" \
+     -D CMAKE_BUILD_TYPE:STRING="${build_type}" \
+     -D ERF_DIM:STRING=3 \
+     -D ERF_ENABLE_MPI:BOOL=ON \
+     -D ERF_ENABLE_CUDA:BOOL="${ERF_ENABLE_CUDA}" \
+     -D AMReX_CUDA_ARCH:STRING="${CUDA_ARCH:-""}" \
+     -D ERF_ENABLE_HIP:BOOL="${ERF_ENABLE_HIP:-"OFF"}" \
+     -D AMReX_AMD_ARCH:STRING="${AMD_ARCH:-""}" \
+     -D ERF_ENABLE_TESTS:BOOL=ON \
+     -D ERF_TEST_NRANKS:STRING=${ERF_TEST_NRANKS:-"4"} \
+     -D ERF_ENABLE_FCOMPARE:BOOL=ON \
+     -D ERF_ENABLE_DOCUMENTATION:BOOL=OFF \
+     -D FCOMPARE_EXE="${FCOMPARE_EXE}" \
+     -D ERF_TEST_GOLD_FILES_DIRECTORY="${ERF_TEST_GOLD_FILES_DIRECTORY}" \
+     -D ERF_TEST_FCOMPARE_RTOL="${ERF_TEST_FCOMPARE_RTOL:-"5.0e-9"}" \
+     -D ERF_TEST_FCOMPARE_ATOL="${ERF_TEST_FCOMPARE_ATOL:-"2.0e-10"}" \
+     -D CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON
 
 echo "========="
 echo "Build ERF"
 echo "========="
 
-time make -j ${OMP_NUM_THREADS:-16}
+time cmake --build "${build_dir}" --parallel 16
 
 echo "========"
 echo "Test ERF"
 echo "========"
 
-time ctest -VV --output-on-failure
+time ctest --test-dir "${build_dir}" --extra-verbose --output-on-failure
