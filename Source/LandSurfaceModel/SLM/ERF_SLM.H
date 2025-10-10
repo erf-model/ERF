@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <ctime>
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
@@ -196,10 +197,14 @@ public:
 
     // Wrapper to do all the updating
     void
-    Advance (const amrex::Real& dt) override
+    Advance (const amrex::Real& dt,
+             const amrex::Real& t_new,
+             const amrex::Real& t_start) override
     {
         m_dt = dt;
-        time += m_dt;
+        //time += m_dt;
+        time = t_new;
+        start_time = t_start;
 
         // override ERF inputs from reference data if testing flag is set
         this->time_interp_from_ref();
@@ -398,7 +403,7 @@ public:
         this->Copy_State_to_Lsm(cons_in, u_in, v_in);
         if (first_step && time == 0.0) {
             this->init_slm_vars();
-            time += m_dt; // update time here so that first timestep time is correct
+            //time += m_dt; // update time here so that first timestep time is correct
         }
         //this->Diagnose();
         //this->Compute_Coefficients();
@@ -444,6 +449,12 @@ public:
     void vege_root_init();
 
     void init_slm_vars();
+
+    void ReadParameterFile(const std::string &filename);
+
+    void UpdateLAI(const amrex::MFIter &mfi);
+
+    void UpdateLAIParameters(const amrex::MFIter &mfi);
 
     void radiative_fluxes(const amrex::MFIter &mfi);
 
@@ -621,6 +632,7 @@ private:
     amrex::iMultiFab landmask;
     amrex::iMultiFab landtype; // IGBP landtype (1 to 16)
     amrex::MultiFab LAI; // leaf area index
+    amrex::MultiFab SAI; // stem area index
 
     amrex::MultiFab sstxy;
 
@@ -711,6 +723,28 @@ private:
     amrex::Real start_time = -1.0;
     amrex::Real time_unit = 1.0;
     bool first_step = true;
+
+    std::string parameter_file = "NoahmpTable.TBL";
+    std::string veg_dataset = "modis";
+    int num_landtypes = -1; // Number of land types in sai/lai, parameter tables
+    //amrex::Vector<amrex::Vector<amrex::Real>> sai_table; // table containing monthly SAI values for each land type
+    //amrex::Vector<amrex::Vector<amrex::Real>> lai_table; // table containing monthly LAI values for each land type
+    std::vector<std::vector<amrex::Real>> sai_table; // table containing monthly SAI values for each land type
+    std::vector<std::vector<amrex::Real>> lai_table; // table containing monthly LAI values for each land type
+
+    amrex::Gpu::PinnedVector<amrex::Real> d_lai_curr; // GPU LAI values for current month only
+    amrex::Gpu::PinnedVector<amrex::Real> d_lai_next; // GPU LAI values for next month
+    amrex::Gpu::PinnedVector<amrex::Real> d_sai_curr; // GPU LAI values for current month only
+    amrex::Gpu::PinnedVector<amrex::Real> d_sai_next; // GPU LAI values for next month
+
+    bool use_param_file = false;  // whether to initialize using parameters from file
+    bool interpolate_lai = false; // whether to interpolate LAI+SAI between monthly values for each landtype
+
+    amrex::Real m_calday = -1.0;
+    int m_orbital_year = -1;
+    int m_orbital_mon = -1;
+    int m_orbital_day = -1;
+    int m_orbital_sec = -1;
 
     amrex::MultiFab *z_phys_cc; // input z_phys_cc from ERF
 

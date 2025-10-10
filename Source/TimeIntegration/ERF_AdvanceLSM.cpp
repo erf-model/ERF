@@ -44,7 +44,7 @@ void ERF::advance_lsm (int lev,
         if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
             lsm.Advance(lev, cons_in, xvel_in, yvel_in, SFS_hfx3_lev[lev].get(), SFS_q1fx3_lev[lev].get(), dt_advance, istep[lev]);
         } else {
-            lsm.Advance(lev, dt_advance);
+            lsm.Advance(lev, dt_advance, t_new[lev], start_time);
         }
         lsm.Update_State_Vars_Lev(lev, cons_in);
 
