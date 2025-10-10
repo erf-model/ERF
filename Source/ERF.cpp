@@ -838,8 +838,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     if(solverChoice.io_hurricane_eye_tracker and (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0)) {
         int levc=finest_level;
 
-        HurricaneEyeTracker(levc,
-                            geom[levc],
+        HurricaneEyeTracker(geom[levc],
                             vars_new[levc],
                             solverChoice.moisture_type,
                             solverChoice.hindcast_lateral_forcing? &forecast_state_interp[levc] : nullptr,
@@ -856,8 +855,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
         average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
 
-        HurricaneMaxVelTracker(levc,
-                               geom[levc],
+        HurricaneMaxVelTracker(geom[levc],
                                mf_cc_vel,
                                t_new[0],
                                hurricane_eye_track_xy,

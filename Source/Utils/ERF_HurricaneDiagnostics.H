@@ -141,15 +141,13 @@ HurricaneTrackerCircle (const amrex::Vector<std::array<amrex::Real, 2>>& hurrica
     }
 }
 
-void HurricaneEyeTrackerInitial (const int levc,
-                          const amrex::Geometry& geom,
-                          const amrex::Vector<amrex::MultiFab>& S_data,
-                          MoistureType moisture_type,
-                          const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
-                          amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_xy,
-                          amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_latlon,
-                          const amrex::Real& hurricane_eye_latitude,
-                          const amrex::Real& hurricane_eye_longitude)
+void HurricaneEyeTrackerInitial (const amrex::Geometry& geom,
+                                 const amrex::Vector<amrex::MultiFab>& S_data,
+                                 const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
+                                 amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_xy,
+                                 amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_latlon,
+                                 const amrex::Real& hurricane_eye_latitude,
+                                 const amrex::Real& hurricane_eye_longitude)
 {
     amrex::Gpu::DeviceScalar<amrex::Real> d_val_min(1e10);
     amrex::Gpu::DeviceScalar<int> d_i_min(-1), d_j_min(-1);
@@ -190,13 +188,12 @@ void HurricaneEyeTrackerInitial (const int levc,
                              hurricane_eye_track_latlon);
 }
 
-void HurricaneEyeTrackerNotInitial (const int levc,
-                          const amrex::Geometry& geom,
-                          const amrex::Vector<amrex::MultiFab>& S_data,
-                          MoistureType moisture_type,
-                          const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
-                          amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_xy,
-                          amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_latlon)
+void HurricaneEyeTrackerNotInitial (const amrex::Geometry& geom,
+                                    const amrex::Vector<amrex::MultiFab>& S_data,
+                                    MoistureType moisture_type,
+                                    const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
+                                    amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_xy,
+                                    amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_latlon)
 {
 
     if (hurricane_eye_track_xy.empty()) {
@@ -259,11 +256,10 @@ void HurricaneEyeTrackerNotInitial (const int levc,
                              hurricane_eye_track_latlon);
 }
 
-void HurricaneEyeTracker (const int levc,
-                          const amrex::Geometry& geom,
-                             const amrex::Vector<amrex::MultiFab>& S_data,
+void HurricaneEyeTracker (const amrex::Geometry& geom,
+                          const amrex::Vector<amrex::MultiFab>& S_data,
                           MoistureType moisture_type,
-                           const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
+                          const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
                           const amrex::Real& hurricane_eye_latitude,
                           const amrex::Real& hurricane_eye_longitude,
                           amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_xy,
@@ -272,13 +268,13 @@ void HurricaneEyeTracker (const int levc,
 {
     static bool is_start = true;
     if(is_start){
-        HurricaneEyeTrackerInitial(levc, geom, S_data, moisture_type,
+        HurricaneEyeTrackerInitial(geom, S_data,
                                    forecast_state_at_lev, hurricane_eye_track_xy,
                                    hurricane_eye_track_latlon,
                                    hurricane_eye_latitude, hurricane_eye_longitude);
         is_start = false;
     } else {
-        HurricaneEyeTrackerNotInitial(levc, geom, S_data, moisture_type,
+        HurricaneEyeTrackerNotInitial(geom, S_data, moisture_type,
                                       forecast_state_at_lev, hurricane_eye_track_xy,
                                       hurricane_eye_track_latlon);
     }
@@ -286,8 +282,7 @@ void HurricaneEyeTracker (const int levc,
 }
 
 void
-HurricaneMaxVelTracker(const int levc,
-                       const amrex::Geometry& geom,
+HurricaneMaxVelTracker(const amrex::Geometry& geom,
                        const amrex::MultiFab& mf_cc_vel,
                        const amrex::Real& time,
                        const amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_xy,
