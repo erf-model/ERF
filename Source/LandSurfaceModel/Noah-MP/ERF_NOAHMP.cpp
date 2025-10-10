@@ -8,6 +8,7 @@
 
 #include <ERF_NOAHMP.H>
 #include <ERF_Constants.H>
+#include <ERF_EOS.H>
 
 using namespace amrex;
 
@@ -259,9 +260,9 @@ NOAHMP::Advance_With_State (const int& lev,
             {
                 noahmpio->U_PHY(i,1,j)   = 0.5*(U_PHY(i,j,0)+U_PHY(i+1,j  ,0));
                 noahmpio->V_PHY(i,1,j)   = 0.5*(V_PHY(i,j,0)+V_PHY(i  ,j+1,0));
-                noahmpio->T_PHY(i,1,j)   = QV_TH(i,j,0,RhoTheta_comp)/QV_TH(i,j,0,Rho_comp);
+                noahmpio->T_PHY(i,1,j)   = getTgivenRandRTh(QV_TH(i,j,0,Rho_comp),QV_TH(i,j,0,RhoTheta_comp));
                 noahmpio->QV_CURR(i,1,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
-                noahmpio->P8W(i,1,j)     = 280*noahmpio->T_PHY(i,1,j);
+                noahmpio->P8W(i,1,j)     = getPgivenRTh(QV_TH(i,j,0,RhoTheta_comp));
                 noahmpio->SWDOWN(i,j)    = SWDOWN(i,j,0);
                 noahmpio->GLW(i,j)       = GLW(i,j,0);
                 noahmpio->COSZEN(i,j)    = COSZEN(i,j,0);
