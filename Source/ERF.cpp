@@ -19,6 +19,7 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_EBIFTerrain.H"
 #ifdef ERF_USE_NETCDF
+#include "ERF_ReadFromWRFInput.H"
 #include "ERF_ReadFromWRFBdy.H"
 #endif
 
@@ -186,6 +187,15 @@ ERF::ERF_shared ()
     initializeWindFarm(nlevs_max);
 #endif
 
+#ifdef ERF_USE_SHOC
+    shoc_interface.resize(nlevs_max);
+    if (solverChoice.use_shoc) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            shoc_interface[lev] = std::make_unique<SHOCInterface>(lev, solverChoice);
+        }
+    }
+#endif
+
     rad.resize(nlevs_max);
     for (int lev = 0; lev <= max_level; ++lev) {
         if (solverChoice.rad_type == RadiationType::RRTMGP) {
@@ -294,6 +304,12 @@ ERF::ERF_shared ()
 
     // We resize this regardless in order to pass it without error
     pp_inc.resize(nlevs_max);
+
+    // Used in the fast substepping only
+    lagged_delta_rt.resize(nlevs_max);
+    avg_xmom.resize(nlevs_max);
+    avg_ymom.resize(nlevs_max);
+    avg_zmom.resize(nlevs_max);
 
     rU_new.resize(nlevs_max);
     rV_new.resize(nlevs_max);
@@ -469,6 +485,8 @@ ERF::ERF_shared ()
         int max_coarsening_level = ( solverChoice.terrain_type == TerrainType::EB &&
                                     (solverChoice.project_initial_velocity ||
                                      solverChoice.anelastic[0] == 1) ) ? 100 : 0;
+        int ngrow_for_eb = 4;  // This is the default in amrex but we need to explicitly pass it here since
+                               // we want to also pass the build_coarse_level_by_coarsening argument
         if (geometry == "terrain") {
             Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
             FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
@@ -476,7 +494,7 @@ ERF::ERF_shared ()
             prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
             TerrainIF implicit_fun(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, ngrow_for_eb, build_coarse_level_by_coarsening);
         } else if (geometry == "box") {
             RealArray box_lo{0.0, 0.0, 0.0};
             RealArray box_hi{0.0, 0.0, 0.0};
@@ -484,7 +502,7 @@ ERF::ERF_shared ()
             pp.query("box_hi", box_hi);
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, ngrow_for_eb, build_coarse_level_by_coarsening);
         } else if (geometry == "sphere") {
             auto ProbLoArr = geom[max_level].ProbLoArray();
             auto ProbHiArr = geom[max_level].ProbHiArray();
@@ -493,7 +511,7 @@ ERF::ERF_shared ()
             RealArray sphere_center = {xcen, ycen, 0.0};
             EB2::SphereIF implicit_fun(0.5, sphere_center, false);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, ngrow_for_eb, build_coarse_level_by_coarsening);
         }
     }
 }
@@ -534,6 +552,8 @@ ERF::Evolve ()
         initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,cur_time);
 #endif
 
+        auto dEvolveTime0 = amrex::second();
+
         int lev = 0;
         int iteration = 1;
         timeStep(lev, cur_time, iteration);
@@ -542,6 +562,13 @@ ERF::Evolve ()
 
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                 << " DT = " << dt[0]  << std::endl;
+
+        if (verbose > 0)
+        {
+            auto dEvolveTime = amrex::second() - dEvolveTime0;
+            ParallelDescriptor::ReduceRealMax(dEvolveTime,ParallelDescriptor::IOProcessorNumber());
+            amrex::Print() << "Timestep time = " << dEvolveTime << " seconds." << '\n';
+        }
 
         post_timestep(step, cur_time, dt[0]);
 
@@ -761,9 +788,13 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     // Write plane/line sampler data
-    if (is_it_time_for_action(nstep+1, time, dt_lev0, sampler_interval, sampler_per) && (data_sampler) ) {
-        data_sampler->get_sample_data(geom, vars_new);
-        data_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
+    if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampling_interval, line_sampling_per)) {
+        line_sampler->get_sample_data(geom, vars_new);
+        line_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
+    }
+    if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
+        plane_sampler->get_sample_data(geom, vars_new);
+        plane_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
     }
 
     // Moving terrain
@@ -959,7 +990,9 @@ ERF::InitData_post ()
 #ifdef ERF_USE_NETCDF
         //
         // Create the needed bdy_data_xlo etc ... since we don't read it in from checkpoint any more
+        // This follows init_from_wrfinput()
         //
+        bool use_moist = (solverChoice.moisture_type != MoistureType::None);
         if (solverChoice.use_real_bcs) {
 
             bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
@@ -970,7 +1003,6 @@ ERF::InitData_post ()
             int n_time_old = static_cast<int>(t_new[0] /  dT);
 
             int lev = 0;
-            bool use_moist = (solverChoice.moisture_type != MoistureType::None);
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
 
@@ -984,7 +1016,53 @@ ERF::InitData_post ()
                                         vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
                                         geom[lev], use_moist);
             } // itime
-        } // use_real_bcs && lev == 0
+        } // use_real_bcs
+
+        if (!nc_low_file.empty())
+        {
+            low_time_interval = read_times_from_wrflow(nc_low_file,
+                                                       low_data_zlo,
+                                                       start_low_time);
+            Real dT = low_time_interval;
+
+            int lev = 0;
+            sst_lev[lev].resize(low_data_zlo.size());
+            tsk_lev[lev].resize(low_data_zlo.size());
+
+            int n_time_old = static_cast<int>(t_new[0] /  dT);
+
+            int ntimes = std::min(n_time_old+2, static_cast<int>(low_data_zlo.size()));
+
+            for (int itime = n_time_old; itime < ntimes; itime++)
+            {
+                read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
+
+                // Need to read PSFC
+                FArrayBox NC_fab_var_file;
+                for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
+                    int success, use_theta_m;
+                    read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][0],
+                                       NC_fab_var_file, "PSFC", geom[lev],
+                                       use_theta_m, success);
+                    auto& var_fab = NC_fab_var_file;
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for ( MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi )
+                    {
+                        FArrayBox &cur_fab = (*mf_PSFC[lev])[mfi];
+                        cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                    }
+                    var_fab.clear();
+                }
+
+                update_sst_tsk(itime, geom[lev], ba2d[lev],
+                               sst_lev[lev], tsk_lev[lev],
+                               m_SurfaceLayer, low_data_zlo,
+                               vars_new[lev][Vars::cons], *mf_PSFC[lev],
+                               solverChoice.rdOcp, use_moist);
+            } // itime
+        }
 #endif
     } // end restart
 
@@ -1393,7 +1471,10 @@ ERF::InitData_post ()
         // This constructor will make the ABLMost object but not allocate the arrays at each level.
         //
         m_SurfaceLayer = std::make_unique<SurfaceLayer>(geom, rotate, pp_prefix, Qv_prim,
-                                                        z_phys_nd, solverChoice.terrain_type
+                                                        z_phys_nd,
+                                                        solverChoice.mesh_type,
+                                                        solverChoice.terrain_type,
+                                                        start_time, stop_time
 #ifdef ERF_USE_NETCDF
                                                         , bdy_time_interval
 #endif
@@ -1643,9 +1724,18 @@ ERF::InitData_post ()
     // Create object to do line and plane sampling if needed
     bool do_line = false; bool do_plane = false;
     pp.query("do_line_sampling",do_line); pp.query("do_plane_sampling",do_plane);
-    if (do_line || do_plane) {
-        data_sampler = std::make_unique<SampleData>(do_line, do_plane);
-        data_sampler->write_coords(z_phys_cc);
+    if (do_line) {
+        if (line_sampling_interval < 0 && line_sampling_per < 0) {
+            Abort("Need to specify line_sampling_interval or line_sampling_per");
+        }
+        line_sampler = std::make_unique<LineSampler>();
+        line_sampler->write_coords(z_phys_cc);
+    }
+    if (do_plane) {
+        if (plane_sampling_interval < 0 && plane_sampling_per < 0) {
+            Abort("Need to specify plane_sampling_interval or plane_sampling_per");
+        }
+        plane_sampler = std::make_unique<PlaneSampler>();
     }
 
     if ( solverChoice.terrain_type == TerrainType::EB ||
@@ -1697,10 +1787,9 @@ ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
 void
 ERF::restart ()
 {
-    ReadCheckpointFile();
+    auto dRestartTime0 = amrex::second();
 
-    // We set this here so that we don't over-write the checkpoint file we just started from
-    last_check_file_step = istep[0];
+    ReadCheckpointFile();
 
     if (regrid_level_0_on_restart) {
         //
@@ -1731,6 +1820,26 @@ ERF::restart ()
     // We call this here without knowing whether the particles have already been initialized or not
     initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,t_new[0]);
 #endif
+
+    Real cur_time = t_new[0];
+    if (m_check_per    > 0.) {last_check_file_time    = cur_time;}
+    if (m_plot2d_per_1 > 0.) {last_plot2d_file_time_1 = std::floor(cur_time/m_plot2d_per_1) * m_plot2d_per_1;}
+    if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 = std::floor(cur_time/m_plot2d_per_2) * m_plot2d_per_2;}
+    if (m_plot3d_per_1 > 0.) {last_plot3d_file_time_1 = std::floor(cur_time/m_plot3d_per_1) * m_plot3d_per_1;}
+    if (m_plot3d_per_2 > 0.) {last_plot3d_file_time_2 = std::floor(cur_time/m_plot3d_per_2) * m_plot3d_per_2;}
+
+    if (m_check_int    > 0.) {last_check_file_step    = istep[0];}
+    if (m_plot2d_int_1 > 0.) {last_plot2d_file_step_1 = istep[0];}
+    if (m_plot2d_int_2 > 0.) {last_plot2d_file_step_2 = istep[0];}
+    if (m_plot3d_int_1 > 0.) {last_plot3d_file_step_1 = istep[0];}
+    if (m_plot3d_int_2 > 0.) {last_plot3d_file_step_2 = istep[0];}
+
+    if (verbose > 0)
+    {
+        auto dRestartTime = amrex::second() - dRestartTime0;
+        ParallelDescriptor::ReduceRealMax(dRestartTime,ParallelDescriptor::IOProcessorNumber());
+        amrex::Print() << "Restart time = " << dRestartTime << " seconds." << '\n';
+    }
 }
 
 // This is called only if starting from scratch (from ERF::MakeNewLevelFromScratch)
@@ -2128,8 +2237,10 @@ ERF::ReadParameters ()
         pp.query("column_file_name", column_file_name);
 
         // Sampler output frequency
-        pp.query("sampler_per", sampler_per);
-        pp.query("sampler_interval", sampler_interval);
+        pp.query("line_sampling_per", line_sampling_per);
+        pp.query("line_sampling_interval", line_sampling_interval);
+        pp.query("plane_sampling_per", plane_sampling_per);
+        pp.query("plane_sampling_interval", plane_sampling_interval);
 
         // Specify information about outputting planes of data
         pp.query("output_bndry_planes", output_bndry_planes);

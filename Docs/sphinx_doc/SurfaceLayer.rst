@@ -180,15 +180,16 @@ When computing an average :math:`\overline{\phi}` for the MOST boundary, where :
    erf.most.use_normal_vector = BOOL   #USE NORMAL VECTOR W/ TERRAIN?
    erf.most.use_interpolation = BOOL   #INTERPOLATE QUERY POINT W/ TERRAIN?
    erf.most.time_average      = BOOL   #USE TIME AVERAGING?
-   erf.most.z0                = FLOAT  #SURFACE ROUGHNESS
-   erf.most.zref              = FLOAT  #QUERY DISTANCE (HEIGHT OR NORM LENGTH)
-   erf.most.surf_temp         = FLOAT  #SPECIFIED SURFACE TEMP
-   erf.most.surf_temp_flux    = FLOAT  #SPECIFIED SURFACE TEMP FLUX
-   erf.most.surf_moist        = FLOAT  #SPECIFIED SURFACE MOISTURE
-   erf.most.surf_moist_flux   = FLOAT  #SPECIFIED SURFACE MOISTURE FLUX
+   erf.most.z0                = FLOAT  #SURFACE ROUGHNESS [m]
+   erf.most.zref              = FLOAT  #QUERY DISTANCE (HEIGHT OR NORM LENGTH) [m]
+   erf.most.surf_temp         = FLOAT  #SPECIFIED SURFACE TEMP [K]
+   erf.most.surf_temp_flux    = FLOAT  #SPECIFIED SURFACE TEMP FLUX [K-m/s]
+   erf.most.surf_heating_rate = FLOAT  #SPECIFIED RATE OF SURFACE TEMP CHANGE [K/h]
+   erf.most.surf_moist        = FLOAT  #SPECIFIED SURFACE MOISTURE [-]
+   erf.most.surf_moist_flux   = FLOAT  #SPECIFIED SURFACE MOISTURE FLUX [m/s]
    erf.most.k_arr_in          = INT    #SPECIFIED K INDEX ARRAY (MAXLEV)
-   erf.most.radius            = INT    #SPECIFIED REGION RADIUS
-   erf.most.time_window       = FLOAT  #WINDOW FOR TIME AVG
+   erf.most.radius            = INT    #SPECIFIED REGION RADIUS [grid cells]
+   erf.most.time_window       = FLOAT  #WINDOW FOR TIME AVG [s]
 
 We now consider two concrete examples. To employ an instantaneous ``planar average`` at a specified vertical height above the bottom surface, one would specify:
 

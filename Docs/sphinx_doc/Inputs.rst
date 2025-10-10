@@ -817,8 +817,11 @@ List of Parameters
 | Parameter                         | Definition       | Acceptable     | Default        |
 |                                   |                  | Values         |                |
 +===================================+==================+================+================+
-| **erf.sampler_interval**          | Output           | Integer        | -1             |
-|                                   | frequency        |                |                |
+| **erf.line_sampling_interval**,   | Output           | Integer        | -1             |
+| **erf.plane_sampling_interval**   | frequency (steps)|                |                |
++===================================+==================+================+================+
+| **erf.line_sampling_per**,        | Output           | Real           | -1             |
+| **erf.plane_sampling_per**        | frequency (time) |                |                |
 +-----------------------------------+------------------+----------------+----------------+
 | **erf.do_line_sampling**          | Flag to do line  | Boolean        | false          |
 |                                   | sampling         |                |                |
@@ -861,14 +864,14 @@ Example of Usage
 
 ::
 
-   erf.sampler_interval = 1                  # Write plt files every step
-
    erf.do_line_sampling = true               # Do line sampling
+   erf.line_sampling_interval = 1            # Write plt files every step
    erf.sample_line_lo   = 5 32  5 10   32 5  # Lo points for two lines
    erf.sample_line_hi   = 5 32 25 1000 32 5  # Hi points for two lines
    erf.sample_line_dir  = 2 0                # One line in z and one in x
 
    erf.do_plane_sampling = true              # Do plane sampling
+   erf.plane_sampling_interval = 10          # Write plt files every 10 steps
    erf.sample_plane_lo   =  48.0  48.0  32.0 # Lo points for one plane
    erf.sample_plane_hi   = 320.0 320.0  32.0 # Hi points for one plane
    erf.sample_plane_dir  = 2                 # One plane with z normal
@@ -1347,6 +1350,29 @@ function(s).
 
 Note that ``erf.add_custom_geostrophic_profile`` cannot be used in combination
 with an ``erf.abl_geo_wind_table``.
+
+
+Numerical Stability
+===================
+
+To enhance numerical stability, e.g., for operational runs, we provide some additional controls.
+
+List of Parameters
+------------------
+
++----------------------------+----------------------------------+-------------------+-------------+
+| **erf.beta_s**             | Time off-centering coefficient   | Real              | 0.1         |
++----------------------------+----------------------------------+-------------------+-------------+
+| **erf.w_damping**          | Enable vertical-velocity         | Bool              | false       |
+|                            | damping                          |                   |             |
++----------------------------+----------------------------------+-------------------+-------------+
+| **erf.w_damping_cfl**      | Critical vertical advective      | Real              | 1.0         |
+|                            | CFL for w-damping to be applied, |                   |             |
+|                            | if ``erf.w_damping`` is true     |                   |             |
++----------------------------+----------------------------------+-------------------+-------------+
+| **erf.w_damping_coeff**    | w-damping coefficient (m/s)      | Real              | 0.3         |
++----------------------------+----------------------------------+-------------------+-------------+
+
 
 
 Initialization
