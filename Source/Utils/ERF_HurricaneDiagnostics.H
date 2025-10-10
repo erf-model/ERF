@@ -14,11 +14,6 @@
 #include <AMReX.H>
 #include <mpi.h>
 
-//---------------------------------------------------------------------
-// Returns the global minimum distance and corresponding (i,j) indices.
-//--i-------------------------------------------------------------------
-
-// For MPI_MINLOC reduction
 struct {
     amrex::Real value;
     int rank;
@@ -36,7 +31,6 @@ void ComputeGlobalMinLocation(const amrex::Geometry& geom,
                               amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_xy,
                               amrex::Vector<std::array<amrex::Real, 2>>& hurricane_eye_track_latlon)
 {
-    // Host mirrors
     amrex::Real h_val_min;
     int h_i_min, h_j_min;
 
@@ -44,7 +38,6 @@ void ComputeGlobalMinLocation(const amrex::Geometry& geom,
     amrex::Gpu::copy(amrex::Gpu::deviceToHost, d_i_min_ptr, d_i_min_ptr + 1, &h_i_min);
     amrex::Gpu::copy(amrex::Gpu::deviceToHost, d_j_min_ptr, d_j_min_ptr + 1, &h_j_min);
     amrex::Gpu::synchronize();
-
 
     amrex::Real local_val_min = h_val_min;
     int local_i_min = h_i_min;
