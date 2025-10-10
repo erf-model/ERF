@@ -25,6 +25,8 @@ ERF::GotoNextLine (std::istream& is)
 void
 ERF::WriteCheckpointFile () const
 {
+    auto dCheckTime0 = amrex::second();
+
     // chk00010            write a checkpoint file with this root directory
     // chk00010/Header     this contains information you need to save (e.g., finest_level, t_new, etc.) and also
     //                     the BoxArrays at each level
@@ -430,6 +432,12 @@ ERF::WriteCheckpointFile () const
 #endif
 #endif
 
+    if (verbose > 0)
+    {
+        auto dCheckTime = amrex::second() - dCheckTime0;
+        ParallelDescriptor::ReduceRealMax(dCheckTime,ParallelDescriptor::IOProcessorNumber());
+        amrex::Print() << "Checkpoint write time = " << dCheckTime << " seconds." << '\n';
+    }
 }
 
 /**
@@ -667,6 +675,30 @@ ERF::ReadCheckpointFile ()
            VisMF::Read(z_height, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
            update_terrain_arrays(lev);
+
+           if (SolverChoice::mesh_type == MeshType::VariableDz) {
+               MultiFab z_slab(convert(ba2d[lev],IntVect(1,1,1)),dmap[lev],1,0);
+               int klo = geom[lev].Domain().smallEnd(2);
+               for (MFIter mfi(z_slab); mfi.isValid(); ++mfi) {
+                   Box nbx = mfi.tilebox();
+                   Array4<Real const> const& z_arr      = z_phys_nd[lev]->const_array(mfi);
+                   Array4<Real      > const& z_slab_arr = z_slab.array(mfi);
+                   ParallelFor(nbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                   {
+                       z_slab_arr(i,j,k) = z_arr(i,j,klo);
+                   });
+               }
+               Real z_min = z_slab.min(0);
+               Real z_max = z_slab.max(0);
+
+               auto dz = geom[lev].CellSize()[2];
+               if (z_max - z_min < 1.e-8 * dz) {
+                   SolverChoice::set_mesh_type(MeshType::StretchedDz);
+                   if (verbose > 0) {
+                       amrex::Print() << "Resetting mesh type to StretchedDz since terrain is flat" << std::endl;
+                   }
+               }
+           }
         }
 
         // Read in the moisture model restart variables

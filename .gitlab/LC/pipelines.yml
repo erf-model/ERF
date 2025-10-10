@@ -1,19 +1,61 @@
+# Common rules for all CI pipelines - conditions are checked in order and the
+# checks break on first condition satisfied
+.common-rules:
+  rules:
+    # Test the default branch
+    - if: $CI_COMMIT_BRANCH == $DEFAULT_BRANCH
+    # Test the upstream branch
+    - if: $CI_COMMIT_BRANCH == 'development'
+    # Do not test if the commit message contains [skip-ci]
+    - if: $CI_COMMIT_MESSAGE =~ /\[skip-ci\]/
+      when: never
+    # Test branches starting with "gitlab"
+    - if: $CI_COMMIT_BRANCH =~ /^gitlab.*/
+    # Test if the commit message contains [run-ci]
+    - if: $CI_COMMIT_MESSAGE =~ /\[run-ci\]/
+    # Test merge requests
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Always release resources allocated in the pipeline
+    - if: $CI_JOB_NAME =~ /release_resources/
+      when: always
+    # Do not test on push
+    - if: $CI_PIPELINE_SOURCE == "push"
+      when: never
+    # Default is to allow jobs to run
+    - when: on_success
+
 dane-build-and-test:
   variables:
     CI_MACHINE: "dane"
+    ON_DANE: "ON"
   extends: [.build-and-test]
+  rules:
+    # Runs except if we explicitly deactivate this system
+    - if: $ON_DANE == "OFF"
+      when: never
+    # Include rules from .common_rules
+    - !reference [.common-rules, rules]
 
 tioga-build-and-test:
   variables:
     CI_MACHINE: "tioga"
+    ON_TIOGA: "ON"
   extends: [.build-and-test]
-
-lassen-build-and-test:
-  variables:
-    CI_MACHINE: "lassen"
-  extends: [.build-and-test]
+  rules:
+    # Runs except if we explicitly deactivate this system
+    - if: $ON_TIOGA == "OFF"
+      when: never
+    # Include rules from .common_rules
+    - !reference [.common-rules, rules]
 
 tuolumne-build-and-test:
   variables:
     CI_MACHINE: "tuolumne"
+    ON_TUOLUMNE: "ON"
   extends: [.build-and-test]
+  rules:
+    # Runs except if we explicitly deactivate this system
+    - if: $ON_TUOLUMNE == "OFF"
+      when: never
+    # Include rules from .common_rules
+    - !reference [.common-rules, rules]

@@ -368,10 +368,17 @@ public:
 
 #ifdef ERF_USE_SHOC
     void compute_shoc_tendencies (int lev,
-                                  amrex::MultiFab& cons,
-                                  amrex::MultiFab& xvel,
-                                  amrex::MultiFab& yvel,
-                                  amrex::MultiFab& zvel,
+                                  amrex::MultiFab* cons,
+                                  amrex::MultiFab* xvel,
+                                  amrex::MultiFab* yvel,
+                                  amrex::MultiFab* zvel,
+                                  amrex::Real* w_subsid,
+                                  amrex::MultiFab* tau13,
+                                  amrex::MultiFab* tau23,
+                                  amrex::MultiFab* hfx3,
+                                  amrex::MultiFab* qfx3,
+                                  amrex::MultiFab* eddyDiffs,
+                                  amrex::MultiFab* z_phys_nd,
                                   const amrex::Real& dt_advance);
 #endif
 
@@ -716,10 +723,10 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_ylo;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
 
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> low_data_zlo;
+
     // Maximum value of terrain read in from wrfinput at level 0
     amrex::Real z_top = 0.;
-
-    amrex::Vector<amrex::FArrayBox> low_data_zlo;
 
 #endif // ERF_USE_NETCDF
 
@@ -790,7 +797,14 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
+    // Used for anelastic or when we impose an initial projection
     amrex::Vector<amrex::MultiFab> pp_inc;
+
+    // Used only for fast substepping
+    amrex::Vector<amrex::MultiFab> lagged_delta_rt;
+    amrex::Vector<amrex::MultiFab> avg_xmom;
+    amrex::Vector<amrex::MultiFab> avg_ymom;
+    amrex::Vector<amrex::MultiFab> avg_zmom;
 
     // Vector over levels of routines to impose physical boundary conditions
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_cons>> physbcs_cons;
@@ -1518,9 +1532,12 @@ private:
     }
 
     // Data sampler for line and plane output
-    int sampler_interval = -1;
-    amrex::Real sampler_per = -1.0;
-    std::unique_ptr<SampleData> data_sampler = nullptr;
+    int line_sampling_interval = -1;
+    int plane_sampling_interval = -1;
+    amrex::Real line_sampling_per = -1.0;
+    amrex::Real plane_sampling_per = -1.0;
+    std::unique_ptr<LineSampler> line_sampler = nullptr;
+    std::unique_ptr<PlaneSampler> plane_sampler = nullptr;
 
     amrex::Vector<std::unique_ptr<std::fstream> >       datalog;
     amrex::Vector<std::unique_ptr<std::fstream> >   der_datalog;

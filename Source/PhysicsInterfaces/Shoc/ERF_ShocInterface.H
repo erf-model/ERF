@@ -48,8 +48,8 @@ class SHOCInterface
     using view_1d_const        = typename SHF::view_1d<const Real>;
     using view_2d              = typename SHF::view_2d<SHF::Spack>;
     using view_2d_const        = typename SHF::view_2d<const Spack>;
-    using sview_2d             = typename ekat::KokkosTypes<KokkosDefaultDevice>::template view_2d<Real>;
-    using sview_2d_const       = typename ekat::KokkosTypes<KokkosDefaultDevice>::template view_2d<const Real>;
+    using sview_2d             = typename KT::template view_2d<Real>;
+    using sview_2d_const       = typename KT::template view_2d<const Real>;
     using view_3d              = typename SHF::view_3d<Spack>;
     using view_3d_const        = typename SHF::view_3d<const Spack>;
     using view_3d_strided      = typename SHF::view_3d_strided<Spack>;
@@ -73,6 +73,15 @@ public:
                const amrex::BoxArray& ba,
                amrex::Geometry& geom,
                amrex::MultiFab* cons,
+               amrex::MultiFab* xvel,
+               amrex::MultiFab* yvel,
+               amrex::MultiFab* zvel,
+               amrex::Real* w_subsid,
+               amrex::MultiFab* tau13,
+               amrex::MultiFab* tau23,
+               amrex::MultiFab* hfx3,
+               amrex::MultiFab* qfx3,
+               amrex::MultiFab* eddyDiffs,
                amrex::MultiFab* z_phys);
 
     // Initialize the implementation
@@ -104,7 +113,8 @@ public:
     kokkos_buffers_to_mf ();
 
     // The name of the subcomponent
-    std::string name () const { return "shoc"; }
+    std::string
+    name () const { return "shoc"; }
 
 #ifndef KOKKOS_ENABLE_CUDA
   // Cuda requires methods enclosing __device__ lambda's to be public
@@ -512,21 +522,26 @@ protected:
 #endif
 
     // Update flux (if necessary)
-    void check_flux_state_consistency (const double dt);
+    void
+    check_flux_state_consistency (const double dt);
 
     // Apply TMS drag coeff to shoc_main inputs (if necessary)
-    void apply_turbulent_mountain_stress ();
+    void
+    apply_turbulent_mountain_stress ();
 
 protected:
 
     // SHOC updates the 'tracers' group.
-    void set_computed_group_impl ();
+    void
+    set_computed_group_impl ();
 
     // Computes total number of bytes needed for local variables
-    size_t requested_buffer_size_in_bytes () const;
+    size_t
+    requested_buffer_size_in_bytes () const;
 
     // Set local variables
-    void init_buffers ();
+    void
+    init_buffers ();
 
     // Offsets for MultiFab <-> KOKKOS transfer
     amrex::Vector<int> m_col_offsets;
@@ -537,7 +552,7 @@ protected:
     Int m_num_layers;
     Int m_npbl;
     Int m_nadv;
-    Int m_num_tracers  = 1;
+    Int m_num_tracers  = 3;
     Int m_num_vel_comp = 2;
     Int hdtime;
 
@@ -555,6 +570,23 @@ protected:
 
     // Pointer to the CC conserved vars
     amrex::MultiFab* m_cons = nullptr;
+
+    // Pointer to the FC velocity vars
+    amrex::MultiFab* m_xvel  = nullptr;
+    amrex::MultiFab* m_yvel  = nullptr;
+    amrex::MultiFab* m_zvel  = nullptr;
+
+    // Pointer to the w-subsidence velocity
+    amrex::Real* m_w_subsid  = nullptr;
+
+    // Pointer to the surface stresses
+    amrex::MultiFab* m_tau13 = nullptr;
+    amrex::MultiFab* m_tau23 = nullptr;
+    amrex::MultiFab* m_hfx3  = nullptr;
+    amrex::MultiFab* m_qfx3  = nullptr;
+
+    // Pointer to the diffusion coeffs
+    amrex::MultiFab* m_mu    = nullptr;
 
     // Pointer to the terrain heights
     amrex::MultiFab* m_z_phys = nullptr;
@@ -582,109 +614,78 @@ protected:
     // WSM for internal local variables
     ekat::WorkspaceManager<Spack, KT::Device> workspace_mgr;
 
+    // Contiguous memory buffer view
+    //=======================================================
+    view_1d tot_buff_view;
+
     // Runtime options
     //=======================================================
-    bool apply_tms = false;
+    bool apply_tms = true;
     bool check_flux_state = false;
+    bool extra_shoc_diags = false;
+    bool column_conservation_check = false;
 
-    // SHOCPreprocess data structures
+    // Interface data structures
     //=======================================================
-    view_1d  phis;
-    view_1d  wpthlp_sfc;
-    view_1d  wprtp_sfc;
-    view_1d  upwp_sfc;
-    view_1d  vpwp_sfc;
+    view_2d  omega;
     view_1d  surf_sens_flux;
-    view_1d  surf_evap;
     sview_2d surf_mom_flux;
-
+    view_1d  surf_evap;
     view_2d  T_mid;
+    view_2d  qv;
+    view_1d  surf_drag_coeff_tms;
+
+    // Input data structures
+    //=======================================================
     view_2d  p_mid;
     view_2d  p_int;
-    view_2d  dens;
-    view_2d  omega;
-    view_2d  qv;
-    view_2d  qc;
-    view_2d  qc_copy;
-    view_2d  z_mid;
-    view_2d  z_int;
-    view_2d  shoc_s;
-    view_2d  tke;
-    view_2d  tke_copy;
-    view_2d  rrho;
-    view_2d  rrho_i;
-    view_2d  thv;
-    view_2d  dz;
-    view_2d  dse;
-    view_2d  zt_grid;
-    view_2d  zi_grid;
-    view_2d  wtracer_sfc;
-    view_2d  wm_zt;
-    view_2d  inv_exner;
-    view_2d  thlm;
-    view_2d  qw;
-    view_2d  cloud_frac;
+    view_2d  pseudo_dens;
+    view_1d  phis;
+
+    // Input/Output data structures
+    //=======================================================
+    view_3d  horiz_wind;
+    view_2d  sgs_buoy_flux;
+    view_2d  tk;
     view_2d  cldfrac_liq;
-    view_2d  cldfrac_liq_prev;
+    view_2d  tke;
+    view_2d  qc;
 
-    view_3d_strided qtracers;
-
-    // SHOCPostprocess data structures
-    //=======================================================
-    view_2d shoc_ql2;
-    view_2d inv_qc_relvar;
-
-    // SHOC InputOutput data structures
-    //=======================================================
-    view_2d sgs_buoy_flux;
-    view_2d tk;
-    view_3d horiz_wind;
-
-    // SHOC Output data structures
+    // Output data structures
     //=======================================================
     view_1d pblh;
+    view_2d inv_qc_relvar;
+    view_2d tkh;
+    view_2d w_sec;
+    view_2d cldfrac_liq_prev;
     view_1d ustar;
     view_1d obklen;
-    view_2d tkh;
 
-    // SHOC HistoryOutput data structures
+    // Extra diagnostic data structures
     //=======================================================
-    view_2d shoc_mix;
-    view_2d w_sec;
-    view_2d thl_sec;
-    view_2d qw_sec;
-    view_2d qwthl_sec;
-    view_2d wthl_sec;
-    view_2d wqw_sec;
-    view_2d wtke_sec;
-    view_2d uw_sec;
-    view_2d vw_sec;
-    view_2d w3;
-    view_2d wqls_sec;
     view_2d brunt;
+    view_2d shoc_mix;
     view_2d isotropy;
     view_2d shoc_cond;
     view_2d shoc_evap;
 
-    // SHOC Miscellaneous data structures
+    view_2d wthl_sec;
+    view_2d thl_sec;
+    view_2d wqw_sec;
+    view_2d qw_sec;
+    view_2d uw_sec;
+    view_2d vw_sec;
+    view_2d w3;
+
+    // Tracer data structures
     //=======================================================
-    // Small kernels
-    view_1d se_b;
-    view_1d ke_b;
-    view_1d wv_b;
-    view_1d wl_b;
-    view_1d se_a;
-    view_1d ke_a;
-    view_1d wv_a;
-    view_1d wl_a;
-    view_1d kbfs;
-    view_1d ustar2;
-    view_1d wstar;
-    view_1d surf_drag_coeff_tms;
-    view_2d rho_zt;
-    view_2d shoc_qv;
-    view_2d tabs;
-    view_2d dz_zt;
-    view_2d dz_zi;
+    view_3d_strided qtracers;
+
+    // Boundary flux data structures
+    //=======================================================
+    view_1d vapor_flux;
+    view_1d water_flux;
+    view_1d ice_flux;
+    view_1d heat_flux;
 }; // SHOCInterface
 #endif

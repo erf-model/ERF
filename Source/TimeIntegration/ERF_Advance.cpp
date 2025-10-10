@@ -140,9 +140,23 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     }
 
     // **************************************************************************************
-    // Update the radiation sources
+    // Update the radiation sources with the "old" state
     // **************************************************************************************
-    advance_radiation(lev, S_new, dt_lev);
+    advance_radiation(lev, S_old, dt_lev);
+
+#ifdef ERF_USE_SHOC
+    // **************************************************************************************
+    // Update the "old" state using SHOC
+    // **************************************************************************************
+    if (solverChoice.use_shoc) {
+        Real* w_sub = (solverChoice.custom_w_subsidence) ? d_w_subsid[lev].data() : nullptr;
+        compute_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
+                                Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
+                                SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
+                                eddyDiffs_lev[lev].get()      , z_phys_nd[lev].get()          ,
+                                dt_lev);
+    }
+#endif
 
     const BoxArray&            ba = S_old.boxArray();
     const DistributionMapping& dm = S_old.DistributionMap();
@@ -184,15 +198,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     state_new.push_back(MultiFab(rU_new[lev], amrex::make_alias, 0,     1)); // xmom
     state_new.push_back(MultiFab(rV_new[lev], amrex::make_alias, 0,     1)); // ymom
     state_new.push_back(MultiFab(rW_new[lev], amrex::make_alias, 0,     1)); // zmom
-
-#ifdef ERF_USE_SHOC
-    // **************************************************************************************
-    // Update the "old" state using SHOC
-    // **************************************************************************************
-    if (solverChoice.use_shoc) {
-        compute_shoc_tendencies(lev, S_old, U_old, V_old, W_old, dt_lev);
-    }
-#endif
 
     // **************************************************************************************
     // Update the dycore

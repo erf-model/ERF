@@ -19,43 +19,45 @@ using namespace amrex;
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
  *
- * @param[in]  level level of resolution
- * @param[in]  finest_level finest level of resolution
- * @param[in]  nrk   which RK stage
- * @param[in]  dt    slow time step
- * @param[out]  S_rhs RHS computed here
- * @param[in]  S_old  old-time solution -- used only for anelastic
- * @param[in]  S_data current solution
- * @param[in]  S_prim primitive variables (i.e. conserved variables divided by density)
- * @param[in]  S_scratch scratch space
- * @param[in]  xvel x-component of velocity
- * @param[in]  yvel y-component of velocity
- * @param[in]  zvel z-component of velocity
- * @param[in]  z_t_ mf rate of change of grid height -- only relevant for moving terrain
- * @param[in] cc_src source terms for conserved variables
- * @param[in] xmom_src source terms for x-momentum
- * @param[in] ymom_src source terms for y-momentum
- * @param[in] zmom_src source terms for z-momentum
- * @param[in] buoyancy buoyancy source term for z-momentum
- * @param[in] zmom_crse_rhs update term from coarser level for z-momentum; non-zero on c/f boundary only
- * @param[in] Tau_lev components of stress tensor
- * @param[in] SmnSmn strain rate magnitude
- * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
- * @param[in] Hfx3 heat flux in z-dir
- * @param[in] Diss dissipation of turbulent kinetic energy
- * @param[in]  geom   Container for geometric information
- * @param[in]  solverChoice  Container for solver parameters
- * @param[in]  SurfLayer  Pointer to SurfaceLayer class for Monin-Obukhov Similarity Theory boundary condition
- * @param[in]  domain_bcs_type_d device vector for domain boundary conditions
- * @param[in]  domain_bcs_type_h   host vector for domain boundary conditions
- * @param[in] z_phys_nd height coordinate at nodes
- * @param[in] ax area fractions on x-faces
- * @param[in] ay area fractions on y-faces
- * @param[in] az area fractions on z-faces
- * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain_fitted_coords is false)
- * @param[in] gradp  pressure gradient
- * @param[in] mapfac map factors
- * @param[in] ebfact EB factories for cell- and face-centered variables
+ * @param[in   ] level level of resolution
+ * @param[in   ] finest_level finest level of resolution
+ * @param[in   ] nrk   which RK stage
+ * @param[in   ] dt    slow time step
+ * @param[  out] S_rhs RHS computed here
+ * @param[in   ] S_old  old-time solution -- used only for anelastic
+ * @param[in   ] S_data current solution
+ * @param[in   ] S_prim primitive variables (i.e. conserved variables divided by density)
+ * @param[inout] avg_xmom
+ * @param[inout] avg_ymom
+ * @param[inout] avg_zmom
+ * @param[in   ] xvel x-component of velocity
+ * @param[in   ] yvel y-component of velocity
+ * @param[in   ] zvel z-component of velocity
+ * @param[in   ] z_t_ mf rate of change of grid height -- only relevant for moving terrain
+ * @param[in   ] cc_src source terms for conserved variables
+ * @param[in   ] xmom_src source terms for x-momentum
+ * @param[in   ] ymom_src source terms for y-momentum
+ * @param[in   ] zmom_src source terms for z-momentum
+ * @param[in   ] buoyancy buoyancy source term for z-momentum
+ * @param[in   ] zmom_crse_rhs update term from coarser level for z-momentum; non-zero on c/f boundary only
+ * @param[in   ] Tau_lev components of stress tensor
+ * @param[in   ] SmnSmn strain rate magnitude
+ * @param[in   ] eddyDiffs diffusion coefficients for LES turbulence models
+ * @param[in   ] Hfx3 heat flux in z-dir
+ * @param[in   ] Diss dissipation of turbulent kinetic energy
+ * @param[in   ] geom   Container for geometric information
+ * @param[in   ] solverChoice  Container for solver parameters
+ * @param[in   ] SurfLayer  Pointer to SurfaceLayer class for Monin-Obukhov Similarity Theory boundary condition
+ * @param[in   ] domain_bcs_type_d device vector for domain boundary conditions
+ * @param[in   ] domain_bcs_type_h   host vector for domain boundary conditions
+ * @param[in   ] z_phys_nd height coordinate at nodes
+ * @param[in   ] ax area fractions on x-faces
+ * @param[in   ] ay area fractions on y-faces
+ * @param[in   ] az area fractions on z-faces
+ * @param[in   ] detJ Jacobian of the metric transformation (= 1 if use_terrain_fitted_coords is false)
+ * @param[in   ] gradp  pressure gradient
+ * @param[in   ] mapfac map factors
+ * @param[in   ] ebfact EB factories for cell- and face-centered variables
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  */
@@ -68,7 +70,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        Vector<MultiFab>& S_data,
                        const MultiFab& S_prim,
                        const MultiFab& qt,
-                       Vector<MultiFab>& S_scratch,
+                       MultiFab& avg_xmom,
+                       MultiFab& avg_ymom,
+                       MultiFab& avg_zmom,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& zvel,
@@ -273,14 +277,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         if (l_anelastic) {
             // When anelastic we must reset these to 0 each RK step
-            S_scratch[IntVars::xmom][mfi].template setVal<RunOn::Device>(0.0,tbx);
-            S_scratch[IntVars::ymom][mfi].template setVal<RunOn::Device>(0.0,tby);
-            S_scratch[IntVars::zmom][mfi].template setVal<RunOn::Device>(0.0,tbz);
+            avg_xmom[mfi].template setVal<RunOn::Device>(0.0,tbx);
+            avg_ymom[mfi].template setVal<RunOn::Device>(0.0,tby);
+            avg_zmom[mfi].template setVal<RunOn::Device>(0.0,tbz);
         }
 
-        Array4<Real> avg_xmom = S_scratch[IntVars::xmom].array(mfi);
-        Array4<Real> avg_ymom = S_scratch[IntVars::ymom].array(mfi);
-        Array4<Real> avg_zmom = S_scratch[IntVars::zmom].array(mfi);
+        Array4<Real> avg_xmom_arr = avg_xmom.array(mfi);
+        Array4<Real> avg_ymom_arr = avg_ymom.array(mfi);
+        Array4<Real> avg_zmom_arr = avg_zmom.array(mfi);
 
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
@@ -493,12 +497,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
         if (!l_eb_terrain_cc){
             AdvectionSrcForRho( bx, cell_rhs,
                                 rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
-                                avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
+                                avg_xmom_arr, avg_ymom_arr, avg_zmom_arr, // these are being defined from the fluxes
                                 ax_arr, ay_arr, az_arr, detJ_arr,
                                 dxInv, mf_mx, mf_my, mf_uy, mf_vx,
                                 flx_arr, l_fixed_rho);
             AdvectionSrcForScalars(bx, icomp, ncomp,
-                                avg_xmom, avg_ymom, avg_zmom,
+                                avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
                                 cell_prim, cell_rhs,
                                 detJ_arr, dxInv, mf_mx, mf_my,
                                 l_horiz_adv_type, l_vert_adv_type,
@@ -507,7 +511,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         } else {
             EBAdvectionSrcForRho(bx, cell_rhs,
                                 rho_u, rho_v, omega_arr,
-                                avg_xmom, avg_ymom, avg_zmom,
+                                avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
                                 mask_arr, cfg_arr,
                                 ax_arr, ay_arr, az_arr,
                                 fcx_arr, fcy_arr, fcz_arr, detJ_arr,
@@ -515,7 +519,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                 flx_arr, l_fixed_rho,
                                 already_on_centroids);
             EBAdvectionSrcForScalars(bx, icomp, ncomp,
-                                avg_xmom, avg_ymom, avg_zmom,
+                                avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
                                 cell_prim, cell_rhs,
                                 mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
                                 fcx_arr, fcy_arr, fcz_arr,

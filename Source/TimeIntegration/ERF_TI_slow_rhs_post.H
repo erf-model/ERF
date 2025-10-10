@@ -4,7 +4,6 @@
                                  Vector<MultiFab>& S_old,
                                  Vector<MultiFab>& S_new,
                                  Vector<MultiFab>& S_data,
-                                 Vector<MultiFab>& S_scratch,
                                  const Real old_step_time,
                                  const Real old_stage_time,
                                  const Real new_stage_time,
@@ -49,7 +48,7 @@
            (solverChoice.terrain_type == TerrainType::MovingFittedMesh) ? (detJ_cc_new[level].get()) : (detJ_cc[level].get());
 
         erf_slow_rhs_post(level, finest_level, nrk, slow_dt, micro->Get_Qstate_Moist_Size(),
-                          S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
+                          S_rhs, S_old, S_new, S_data, S_prim, avg_xmom[level], avg_ymom[level], avg_zmom[level],
                           xvel_new, yvel_new, zvel_new, cc_src, SmnSmn, eddyDiffs,
                           Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                           fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,

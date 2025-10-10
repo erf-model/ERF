@@ -9,35 +9,37 @@ using namespace amrex;
 /**
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
  *
- * @param[in]  level level of resolution
- * @param[in]  finest_level finest level of resolution
- * @param[in]  nrk   which RK stage
- * @param[in]  dt    slow time step
- * @param[out]  S_rhs RHS computed here
- * @param[in]  S_old solution at start of time step
- * @param[in]  S_new solution at end of current RK stage
- * @param[in]  S_data current solution
- * @param[in]  S_prim primitive variables (i.e. conserved variables divided by density)
- * @param[in]  S_scratch scratch space
- * @param[in]  xvel x-component of velocity
- * @param[in]  yvel y-component of velocity
- * @param[in]  zvel z-component of velocity
- * @param[in] source source terms for conserved variables
- * @param[in] SmnSmn strain rate magnitude
- * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
- * @param[in] Hfx3 heat flux in z-dir
- * @param[in] Diss dissipation of turbulent kinetic energy
- * @param[in]  geom   Container for geometric information
- * @param[in]  solverChoice  Container for solver parameters
- * @param[in]  SurfLayer  Pointer to SurfaceLayer class for Monin-Obukhov Similarity Theory boundary condition
- * @param[in]  domain_bcs_type_d device vector for domain boundary conditions
- * @param[in] z_phys_nd height coordinate at nodes
- * @param[in] ax area fractions on x-faces
- * @param[in] ay area fractions on y-faces
- * @param[in] az area fractions on z-faces
- * @param[in] detJ     Jacobian of the metric transformation at start of time step (= 1 if use_terrain is false)
- * @param[in] detJ_new Jacobian of the metric transformation at new RK stage time (= 1 if use_terrain is false)
- * @param[in] mapfac map factors
+ * @param[in   ] evel level of resolution
+ * @param[in   ] finest_level finest level of resolution
+ * @param[in   ] nrk   which RK stage
+ * @param[in   ] dt    slow time step
+ * @param[  out] S_rhs RHS computed here
+ * @param[in   ] S_old solution at start of time step
+ * @param[in   ] S_new solution at end of current RK stage
+ * @param[in   ] S_data current solution
+ * @param[in   ] S_prim primitive variables (i.e. conserved variables divided by density)
+ * @param[in   ] avg_xmom
+ * @param[in   ] avg_ymom
+ * @param[in   ] avg_zmom
+ * @param[in   ] xvel x-component of velocity
+ * @param[in   ] yvel y-component of velocity
+ * @param[in   ] zvel z-component of velocity
+ * @param[in   ] source source terms for conserved variables
+ * @param[in   ] SmnSmn strain rate magnitude
+ * @param[in   ] eddyDiffs diffusion coefficients for LES turbulence models
+ * @param[in   ] Hfx3 heat flux in z-dir
+ * @param[in   ] Diss dissipation of turbulent kinetic energy
+ * @param[in   ] geom   Container for geometric information
+ * @param[in   ] solverChoice  Container for solver parameters
+ * @param[in   ] SurfLayer  Pointer to SurfaceLayer class for Monin-Obukhov Similarity Theory boundary condition
+ * @param[in   ] domain_bcs_type_d device vector for domain boundary conditions
+ * @param[in   ] z_phys_nd height coordinate at nodes
+ * @param[in   ] ax area fractions on x-faces
+ * @param[in   ] ay area fractions on y-faces
+ * @param[in   ] az area fractions on z-faces
+ * @param[in   ] detJ     Jacobian of the metric transformation at start of time step (= 1 if use_terrain is false)
+ * @param[in   ] detJ_new Jacobian of the metric transformation at new RK stage time (= 1 if use_terrain is false)
+ * @param[in   ] mapfac map factors
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  */
@@ -51,7 +53,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Vector<MultiFab>& S_new,
                         Vector<MultiFab>& S_data,
                         const MultiFab& S_prim,
-                        Vector<MultiFab>& S_scratch,
+                              MultiFab& avg_xmom,
+                              MultiFab& avg_ymom,
+                              MultiFab& avg_zmom,
                         const MultiFab& xvel,
                         const MultiFab& yvel,
                         const MultiFab& /*zvel*/,
@@ -240,9 +244,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<      Real> & cur_ymom  = S_data[IntVars::ymom].array(mfi);
         const Array4<      Real> & cur_zmom  = S_data[IntVars::zmom].array(mfi);
 
-        Array4<Real> avg_xmom = S_scratch[IntVars::xmom].array(mfi);
-        Array4<Real> avg_ymom = S_scratch[IntVars::ymom].array(mfi);
-        Array4<Real> avg_zmom = S_scratch[IntVars::zmom].array(mfi);
+        Array4<Real> avg_xmom_arr = avg_xmom.array(mfi);
+        Array4<Real> avg_ymom_arr = avg_ymom.array(mfi);
+        Array4<Real> avg_zmom_arr = avg_zmom.array(mfi);
 
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
@@ -281,8 +285,8 @@ void erf_slow_rhs_post (int level, int finest_level,
         });
 
         // We have projected the velocities stored in S_data but we will use
-        //    the velocities stored in S_scratch to update the scalars, so
-        //    we need to copy from S_data (projected) into S_scratch
+        //    the velocities stored in {avg_xmom,avg_ymom,avg_zmom} to update the scalars,
+        //    so we need to copy from S_data (projected) into these
         if (l_anelastic) {
             Box tbx_inc = mfi.nodaltilebox(0);
             Box tby_inc = mfi.nodaltilebox(1);
@@ -290,13 +294,13 @@ void erf_slow_rhs_post (int level, int finest_level,
 
             ParallelFor(tbx_inc, tby_inc, tbz_inc,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                avg_xmom(i,j,k) = cur_xmom(i,j,k);
+                avg_xmom_arr(i,j,k) = cur_xmom(i,j,k);
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                avg_ymom(i,j,k) = cur_ymom(i,j,k);
+                avg_ymom_arr(i,j,k) = cur_ymom(i,j,k);
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                avg_zmom(i,j,k) = cur_zmom(i,j,k);
+                avg_zmom_arr(i,j,k) = cur_zmom(i,j,k);
             });
         }
 
@@ -403,7 +407,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                     ((ivar == RhoKE_comp) && l_advect_KE))
                 {
                     if (!l_eb_terrain_cc){
-                        AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                        AdvectionSrcForScalars(tbx, start_comp, num_comp,
+                                               avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
                                                cur_prim, cell_rhs,
                                                detJ_arr, dxInv, mf_mx, mf_my,
                                                horiz_adv_type, vert_adv_type,
@@ -411,7 +416,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                flx_arr, domain, bc_ptr_h);
                     } else {
                         EBAdvectionSrcForScalars(tbx, start_comp, num_comp,
-                                                 avg_xmom, avg_ymom, avg_zmom,
+                                                 avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
                                                  cur_prim, cell_rhs,
                                                  mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
                                                  fcx_arr, fcy_arr, fcz_arr,
