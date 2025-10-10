@@ -22,6 +22,7 @@
 #include "ERF_ReadFromWRFInput.H"
 #include "ERF_ReadFromWRFBdy.H"
 #endif
+#include "ERF_HurricaneDiagnostics.H"
 
 using namespace amrex;
 
