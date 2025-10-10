@@ -482,6 +482,8 @@ ERF::ERF_shared ()
         int max_coarsening_level = ( solverChoice.terrain_type == TerrainType::EB &&
                                     (solverChoice.project_initial_velocity ||
                                      solverChoice.anelastic[0] == 1) ) ? 100 : 0;
+        int ngrow_for_eb = 4;  // This is the default in amrex but we need to explicitly pass it here since
+                               // we want to also pass the build_coarse_level_by_coarsening argument
         if (geometry == "terrain") {
             Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
             FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
@@ -489,7 +491,7 @@ ERF::ERF_shared ()
             prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
             TerrainIF implicit_fun(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, ngrow_for_eb, build_coarse_level_by_coarsening);
         } else if (geometry == "box") {
             RealArray box_lo{0.0, 0.0, 0.0};
             RealArray box_hi{0.0, 0.0, 0.0};
@@ -497,7 +499,7 @@ ERF::ERF_shared ()
             pp.query("box_hi", box_hi);
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, ngrow_for_eb, build_coarse_level_by_coarsening);
         } else if (geometry == "sphere") {
             auto ProbLoArr = geom[max_level].ProbLoArray();
             auto ProbHiArr = geom[max_level].ProbHiArray();
@@ -506,7 +508,7 @@ ERF::ERF_shared ()
             RealArray sphere_center = {xcen, ycen, 0.0};
             EB2::SphereIF implicit_fun(0.5, sphere_center, false);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, build_coarse_level_by_coarsening);
+            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, ngrow_for_eb, build_coarse_level_by_coarsening);
         }
     }
 }
