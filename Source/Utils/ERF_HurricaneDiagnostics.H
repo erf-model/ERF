@@ -11,7 +11,6 @@
 /**
  * Routines to compute hurricane diagnostics
  */
-#include <AMReX.H>
 
 struct {
     amrex::Real value;
