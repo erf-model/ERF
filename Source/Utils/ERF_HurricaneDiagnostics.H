@@ -12,6 +12,10 @@
  * Routines to compute hurricane diagnostics
  */
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 struct {
     amrex::Real value;
     int rank;
