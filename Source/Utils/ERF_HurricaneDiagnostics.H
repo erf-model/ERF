@@ -43,14 +43,16 @@ void ComputeGlobalMinLocation(const amrex::Geometry& geom,
     int local_i_min = h_i_min;
     int local_j_min = h_j_min;
 
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    int rank = amrex::ParallelDescriptor::MyProc();
 
     in.value = local_val_min;
     in.rank  = rank;
 
-    // Find rank that holds the global minimum
-    MPI_Allreduce(&in, &out, 1, MPI_DOUBLE_INT, MPI_MINLOC, MPI_COMM_WORLD);
+    #ifdef AMREX_USE_MPI
+        MPI_Allreduce(&in, &out, 1, MPI_DOUBLE_INT, MPI_MINLOC, MPI_COMM_WORLD);
+    #else
+        out = in;
+    #endif
 
     global_val_min = out.value;
     int owner_rank = out.rank;
@@ -59,8 +61,8 @@ void ComputeGlobalMinLocation(const amrex::Geometry& geom,
     global_i_min = local_i_min;
     global_j_min = local_j_min;
 
-    MPI_Bcast(&global_i_min, 1, MPI_INT, owner_rank, MPI_COMM_WORLD);
-    MPI_Bcast(&global_j_min, 1, MPI_INT, owner_rank, MPI_COMM_WORLD);
+    ParallelDescriptor::Bcast(&global_i_min, 1, owner_rank);
+    ParallelDescriptor::Bcast(&global_j_min, 1, owner_rank);
 
     if (rank == 0) {
         amrex::Print() << "Global minimum distance to hurricane eye (k=0): "
@@ -93,9 +95,8 @@ void ComputeGlobalMinLocation(const amrex::Geometry& geom,
     // Synchronize to ensure the owner has computed values
     amrex::Gpu::synchronize();
 
-    // Broadcast to all ranks
-    MPI_Bcast(&eye_lat, 1, MPI_DOUBLE, owner_rank, MPI_COMM_WORLD);
-    MPI_Bcast(&eye_lon, 1, MPI_DOUBLE, owner_rank, MPI_COMM_WORLD);
+    ParallelDescriptor::Bcast(&eye_lat, 1, owner_rank);
+    ParallelDescriptor::Bcast(&eye_lon, 1, owner_rank);
 
     const auto dx = geom.CellSizeArray();
     const auto prob_lo = geom.ProbLoArray();
@@ -321,7 +322,12 @@ HurricaneMaxVelTracker(const amrex::Geometry& geom,
     amrex::Gpu::copy(amrex::Gpu::deviceToHost, d_val_max.begin(), d_val_max.end(), &h_val_max_local);
 
     amrex::Real h_val_max_global = -1.0e30;
-    MPI_Allreduce(&h_val_max_local, &h_val_max_global, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+     #ifdef AMREX_USE_MPI
+        MPI_Allreduce(&h_val_max_local, &h_val_max_global, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+        h_val_max_global = h_val_max_local;
+    #else
+        h_val_max_global = h_val_max_local;
+    #endif
 
     amrex::Real time_in_hrs = time / 3600.0;
     hurricane_maxvel_vs_time.push_back({time_in_hrs, h_val_max_global});
