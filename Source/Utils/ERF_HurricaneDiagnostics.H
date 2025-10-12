@@ -61,8 +61,8 @@ void ComputeGlobalMinLocation(const amrex::Geometry& geom,
     global_i_min = local_i_min;
     global_j_min = local_j_min;
 
-    ParallelDescriptor::Bcast(&global_i_min, 1, owner_rank);
-    ParallelDescriptor::Bcast(&global_j_min, 1, owner_rank);
+    amrex::ParallelDescriptor::Bcast(&global_i_min, 1, owner_rank);
+    amrex::ParallelDescriptor::Bcast(&global_j_min, 1, owner_rank);
 
     if (rank == 0) {
         amrex::Print() << "Global minimum distance to hurricane eye (k=0): "
@@ -95,8 +95,8 @@ void ComputeGlobalMinLocation(const amrex::Geometry& geom,
     // Synchronize to ensure the owner has computed values
     amrex::Gpu::synchronize();
 
-    ParallelDescriptor::Bcast(&eye_lat, 1, owner_rank);
-    ParallelDescriptor::Bcast(&eye_lon, 1, owner_rank);
+    amrex::ParallelDescriptor::Bcast(&eye_lat, 1, owner_rank);
+    amrex::ParallelDescriptor::Bcast(&eye_lon, 1, owner_rank);
 
     const auto dx = geom.CellSizeArray();
     const auto prob_lo = geom.ProbLoArray();
