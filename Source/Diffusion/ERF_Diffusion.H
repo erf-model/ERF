@@ -86,11 +86,11 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& tm_arr,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
-                             const bool use_SurfLayer);
+                             const bool use_SurfLayer,
+                             const amrex::Real implicit_fac);
 
 void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,
                              int start_comp, int num_comp,
-                             const bool& rotate,
                              const amrex::Array4<const amrex::Real>& u,
                              const amrex::Array4<const amrex::Real>& v,
                              const amrex::Array4<const amrex::Real>& cell_data,
@@ -122,7 +122,8 @@ void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& tm_arr,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
-                             const bool use_SurfLayer);
+                             const bool use_SurfLayer,
+                             const amrex::Real implicit_fac);
 
 void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              int start_comp, int num_comp,
@@ -163,9 +164,8 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& tm_arr,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
-                             const bool use_SurfLayer);
-
-
+                             const bool use_SurfLayer,
+                             const amrex::Real implicit_fac);
 
 void ComputeStressConsVisc_N (amrex::Box bxcc,
                               amrex::Box tbxxy,
@@ -351,4 +351,25 @@ void ComputeStrain_T (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz, amrex
                       const amrex::Array4<const amrex::Real>& mf_uy,
                       const amrex::Array4<const amrex::Real>& mf_vy,
                       const amrex::BCRec* bc_ptr);
+
+void ImplicitDiffForState_S (const amrex::Box& bx, const amrex::Box& domain,
+                             const amrex::Real dt,
+                             int start_comp, int num_comp,
+                             const amrex::Array4<const amrex::Real>& u,
+                             const amrex::Array4<const amrex::Real>& v,
+                             const amrex::Array4<const amrex::Real>& cell_data,
+                             const amrex::Array4<const amrex::Real>& cell_prim,
+                             const amrex::Array4<      amrex::Real>& cell_rhs,
+                             const amrex::Array4<      amrex::Real>& zflux,
+                             const amrex::Array4<const amrex::Real>& z_nd,
+                             const amrex::Array4<const amrex::Real>& detJ,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                             const amrex::Array4<const amrex::Real>& SmnSmn_a,
+                             const amrex::Array4<      amrex::Real>& hfx_z,
+                             const amrex::Array4<const amrex::Real>& mu_turb,
+                             const SolverChoice& solverChoice,
+                             const int level,
+                             const amrex::BCRec* bc_ptr,
+                             const bool use_SurfLayer,
+                             const amrex::Real implicit_fac);
 #endif

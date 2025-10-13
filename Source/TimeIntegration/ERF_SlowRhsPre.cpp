@@ -56,6 +56,7 @@ using namespace amrex;
  * @param[in   ] az area fractions on z-faces
  * @param[in   ] detJ Jacobian of the metric transformation (= 1 if use_terrain_fitted_coords is false)
  * @param[in   ] gradp  pressure gradient
+ * @param[in   ] vert_implicit_fac  factor controlling whether we do semi-implicit solve for (rho theta) diffusive terms
  * @param[in   ] mapfac map factors
  * @param[in   ] ebfact EB factories for cell- and face-centered variables
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
@@ -86,13 +87,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
-                       MultiFab* Hfx1,
-                       MultiFab* Hfx2,
-                       MultiFab* Hfx3,
-                       MultiFab* Q1fx1,
-                       MultiFab* Q1fx2,
-                       MultiFab* Q1fx3,
-                       MultiFab* Q2fx3,
+                       MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3,
+                       MultiFab* Q1fx1, MultiFab* Q1fx2,
+                       MultiFab* Q1fx3, MultiFab* Q2fx3,
                        MultiFab* Diss,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
@@ -105,6 +102,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& detJ,
                        Gpu::DeviceVector<Real>& stretched_dz_d,
                        Vector<MultiFab>& gradp,
+                       const Real vert_implicit_fac,
                        Vector<std::unique_ptr<MultiFab>>& mapfac,
                        const eb_& ebfact,
                        YAFluxRegister* fr_as_crse,
@@ -134,8 +132,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool    l_moving_terrain               = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_stretched_dz || l_use_terrain_fitted_coords);
 
-    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
-
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
                                     (tc.les_type        !=       LESType::None) ||
                                     (tc.rans_type       !=      RANSType::None) ||
@@ -149,6 +145,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const bool l_anelastic = solverChoice.anelastic[level];
     const bool l_fixed_rho = solverChoice.fixed_density;
+
+    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
+                            ( (l_anelastic && nrk == 1) || (!l_anelastic && nrk == 2) ) );
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real* dx = geom.CellSize();
@@ -553,7 +552,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_comp  = 1;
 
             if (l_use_stretched_dz) {
-                DiffusionSrcForState_S(bx, domain, n_start, n_comp, l_rotate, u, v,
+                DiffusionSrcForState_S(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        stretched_dz_d, dxInv, SmnSmn_a,
@@ -561,7 +560,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, vert_implicit_fac);
             } else if (l_use_terrain_fitted_coords) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -572,7 +571,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, vert_implicit_fac);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -582,7 +581,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, vert_implicit_fac);
             }
         }
 
@@ -591,6 +590,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         {
             cell_rhs(i,j,k,Rho_comp)      += source_arr(i,j,k,Rho_comp);
             cell_rhs(i,j,k,RhoTheta_comp) += source_arr(i,j,k,RhoTheta_comp);
+            amrex::Print() <<" SRC FOR RT " << cell_rhs(i,j,k,RhoTheta_comp) << std::endl;
         });
 
         // Multiply the slow RHS for rho and rhotheta by detJ here so we don't have to later

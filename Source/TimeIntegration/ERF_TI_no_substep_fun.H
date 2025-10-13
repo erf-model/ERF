@@ -120,6 +120,10 @@
                         } else {
                             ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n);
                         }
+                        if (k <= 10 and n == 1) amrex::Print() << "NEW RT " << k << " " <<
+                                      ssum[IntVars::cons](i,j,k,n) << " FROM OLD " << sold[IntVars::cons](i,j,k,n) <<
+                            " WITH DT " << slow_dt << " USING SLOW " << fslow[IntVars::cons](i,j,k,n) <<
+                            " FOR NET UPDATE " << slow_dt * fslow[IntVars::cons](i,j,k,n) << std::endl;
                     });
 
                     // Commenting out the update is a HACK while developing the EB capability
