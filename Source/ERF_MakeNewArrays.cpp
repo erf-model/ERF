@@ -407,8 +407,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         }
         BoxArray m_ba(std::move(m_bl));
 
-        sw_lw_fluxes[lev] = std::make_unique<MultiFab>(m_ba, dm, 5, ngrow_state); // SW direct (2), SW diffuse (2), LW
-        solar_zenith[lev] = std::make_unique<MultiFab>(m_ba, dm, 2, ngrow_state);
+        sw_lw_fluxes[lev] = std::make_unique<MultiFab>(m_ba, dm, 6, ngrow_state); // DIR/DIF VIS/NIR (4), NET SW (1), LW (1)
+        solar_zenith[lev] = std::make_unique<MultiFab>(m_ba, dm, 1, ngrow_state);
 
         sw_lw_fluxes[lev]->setVal(0.);
         solar_zenith[lev]->setVal(0.);
