@@ -277,8 +277,8 @@ NOAHMP::Advance_With_State (const int& lev,
         // Copy forcing data from Noahmp to ERF
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
         {
-            q_flux_arr(i,j,0) = noahmpio->HFX(i,j)/(QV_TH(i,j,0,Rho_comp)*Cp_d);
-            t_flux_arr(i,j,0) = noahmpio->LH(i,j)/(QV_TH(i,j,0,Rho_comp)*L_v);
+            t_flux_arr(i,j,0) = noahmpio->HFX(i,j)/(QV_TH(i,j,0,Rho_comp)*Cp_d);
+            q_flux_arr(i,j,0) = noahmpio->LH(i,j)/(QV_TH(i,j,0,Rho_comp)*L_v);
             TSK(i,j,0)        = noahmpio->TSK(i,j);
             EMISS(i,j,0)      = noahmpio->EMISS(i,j);
             ALBSFCDIR_VIS(i,j,0) = noahmpio->ALBSFCDIRXY(i,1,j);
