@@ -362,6 +362,10 @@ SHOCInterface::mf_to_kokkos_buffers ()
     auto tke_d = tke;
     auto qc_d = qc;
 
+    // Enforce the correct grid heights and density
+    //=======================================================
+    auto dz_d = m_buffer.dz;
+
     // Subsidence pointer to device vector data
     Real* w_sub = m_w_subsid;
 
@@ -450,6 +454,8 @@ SHOCInterface::mf_to_kokkos_buffers ()
             p_int_d(icol,ilay)       = getPgivenRTh(rt_avg, qv_avg);
             // eamxx_common_physics_functions_impl.hpp: calculate_density
             pseudo_dens_d(icol,ilay) = r * CONST_GRAV * delz;
+            // Enforce the grid spacing
+            dz_d(icol,ilay) = delz;
             // Geopotential
             phis_d(icol)             = CONST_GRAV * z;
 
