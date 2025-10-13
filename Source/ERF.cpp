@@ -22,6 +22,7 @@
 #include "ERF_ReadFromWRFInput.H"
 #include "ERF_ReadFromWRFBdy.H"
 #endif
+#include "ERF_HurricaneDiagnostics.H"
 
 using namespace amrex;
 
@@ -833,6 +834,45 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
             }
         }
     }
+
+    if(solverChoice.io_hurricane_eye_tracker and (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0)) {
+        int levc=finest_level;
+
+        HurricaneEyeTracker(geom[levc],
+                            vars_new[levc],
+                            solverChoice.moisture_type,
+                            solverChoice.hindcast_lateral_forcing? &forecast_state_interp[levc] : nullptr,
+                            solverChoice.hurricane_eye_latitude,
+                            solverChoice.hurricane_eye_longitude,
+                            hurricane_eye_track_xy,
+                            hurricane_eye_track_latlon,
+                            hurricane_tracker_circle);
+
+        MultiFab& U_new = vars_new[levc][Vars::xvel];
+        MultiFab& V_new = vars_new[levc][Vars::yvel];
+        MultiFab& W_new = vars_new[levc][Vars::zvel];
+
+        MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
+        average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
+
+        HurricaneMaxVelTracker(geom[levc],
+                               mf_cc_vel,
+                               t_new[0],
+                               hurricane_eye_track_xy,
+                               hurricane_maxvel_vs_time);
+
+        std::string filename_tracker = MakeVTKFilename_TrackerCircle(nstep);
+        std::string filename_xy = MakeVTKFilename_EyeTracker_xy(nstep);
+        std::string filename_latlon = MakeFilename_EyeTracker_latlon(nstep);
+        std::string filename_maxvel = MakeFilename_EyeTracker_maxvel(nstep);
+        if (ParallelDescriptor::IOProcessor()) {
+            WriteVTKPolyline(filename_tracker, hurricane_tracker_circle);
+            WriteVTKPolyline(filename_xy, hurricane_eye_track_xy);
+            WriteLinePlot(filename_latlon, hurricane_eye_track_latlon);
+            WriteLinePlot(filename_maxvel, hurricane_maxvel_vs_time);
+        }
+    }
+
 } // post_timestep
 
 // This is called from main.cpp and handles all initialization, whether from start or restart
