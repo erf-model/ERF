@@ -548,8 +548,8 @@ protected:
 
     // Keep track of field dimensions and other scalar values
     // needed in shoc_main
-    Int m_num_cols;
-    Int m_num_layers;
+    Int m_num_cols = 0;
+    Int m_num_layers = 0;
     Int m_npbl;
     Int m_nadv;
     Int m_num_tracers  = 3;
