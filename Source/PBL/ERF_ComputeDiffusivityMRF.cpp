@@ -75,13 +75,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real t_surf  = t_surf_arr(i, j, 0);
             const Real t_layer = t10av_arr(i, j, 0);
 
-            int kpbl  = klo;
-            Real zval = 10;
+            Real zval;
+            int kpbl = klo;
             bool above_critical = false;
             while (!above_critical && ((kpbl + 1) <= khi)) {
+                // height above ground level
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : gdata.ProbLo(2) + (kpbl + 0.5) * gdata.CellSize(2);
+                     : (kpbl + 0.5) * gdata.CellSize(2);
+
                 kpbl += 1;
 
                 const Real theta = cell_data(i, j, kpbl, RhoTheta_comp) /
@@ -93,6 +95,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real Rib = CONST_GRAV * zval * (theta - t_surf) / (ws2 * t_layer);
                 above_critical = (Rib >= Ribcr);
             }
+
             // Initial PBL Height
             // Avoiding detailed interpolation here and just using map-nearest
             // neighbor Empirical expression for PBLH is given by h = c u* / f
