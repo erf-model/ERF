@@ -492,7 +492,7 @@ ERF::ERF_shared ()
             prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
             TerrainIF implicit_fun(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, ngrow_for_eb, build_coarse_level_by_coarsening);
+            amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
         } else if (geometry == "box") {
             RealArray box_lo{0.0, 0.0, 0.0};
             RealArray box_hi{0.0, 0.0, 0.0};
@@ -500,7 +500,7 @@ ERF::ERF_shared ()
             pp.query("box_hi", box_hi);
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, ngrow_for_eb, build_coarse_level_by_coarsening);
+            amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
         } else if (geometry == "sphere") {
             auto ProbLoArr = geom[max_level].ProbLoArray();
             auto ProbHiArr = geom[max_level].ProbHiArray();
@@ -509,7 +509,7 @@ ERF::ERF_shared ()
             RealArray sphere_center = {xcen, ycen, 0.0};
             EB2::SphereIF implicit_fun(0.5, sphere_center, false);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level, ngrow_for_eb, build_coarse_level_by_coarsening);
+            amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
         }
     }
 }
