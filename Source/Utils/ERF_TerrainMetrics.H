@@ -97,9 +97,8 @@ Compute_h_zeta_AtIface (const int &i, const int &j, const int &k,
                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dzInv = cellSizeInv[2];
-    amrex::Real met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-                                           - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
+    amrex::Real met_h_zeta = 0.5 * cellSizeInv[2] * ( (z_nd(i,j  ,k+1) - z_nd(i,j  ,k))
+                                                    + (z_nd(i,j+1,k+1) - z_nd(i,j+1,k)) );
     return met_h_zeta;
 }
 
@@ -111,10 +110,9 @@ Compute_h_xi_AtIface (const int &i, const int &j, const int &k,
                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                       const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dxInv = cellSizeInv[0];
-    amrex::Real met_h_xi   = 0.125 * dxInv *
-      ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-       -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k+1) );
+    amrex::Real met_h_xi   = 0.125 * cellSizeInv[0] * (
+      (z_nd(i+1,j  ,k  ) - z_nd(i-1,j  ,k  )) + (z_nd(i+1,j  ,k+1) - z_nd(i-1,j  ,k+1)) +
+      (z_nd(i+1,j+1,k  ) - z_nd(i-1,j+1,k  )) + (z_nd(i+1,j+1,k+1) - z_nd(i-1,j+1,k+1)) );
     return met_h_xi;
 }
 
@@ -126,9 +124,8 @@ Compute_h_eta_AtIface (const int &i, const int &j, const int &k,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dyInv = cellSizeInv[1];
-    amrex::Real met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k  ) + z_nd(i,j+1,k+1)
-                                           - z_nd(i,j  ,k  ) - z_nd(i,j  ,k+1) );
+    amrex::Real met_h_eta  = 0.5 * cellSizeInv[1] * ( (z_nd(i,j+1,k  ) - z_nd(i,j,k  ))
+                                                    + (z_nd(i,j+1,k+1) - z_nd(i,j,k+1)) );
     return met_h_eta;
 }
 
@@ -140,9 +137,8 @@ Compute_h_zeta_AtJface (const int &i, const int &j, const int &k,
                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dzInv = cellSizeInv[2];
-    amrex::Real met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
-                                           - z_nd(i,j,k  ) - z_nd(i+1,j,k  ) );
+    amrex::Real met_h_zeta = 0.5 * cellSizeInv[2] * ( (z_nd(i  ,j,k+1) - z_nd(i  ,j,k  ))
+                                                    + (z_nd(i+1,j,k+1) - z_nd(i+1,j,k  )) );
     return met_h_zeta;
 }
 
@@ -154,9 +150,8 @@ Compute_h_xi_AtJface (const int &i, const int &j, const int &k,
                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                       const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dxInv = cellSizeInv[0];
-    amrex::Real met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1)
-                                            -z_nd(i  ,j,k) - z_nd(i  ,j,k+1) );
+    amrex::Real met_h_xi   = 0.5 * cellSizeInv[0] * ( (z_nd(i+1,j,k  ) - z_nd(i,j,k  ))
+                                                    + (z_nd(i+1,j,k+1) - z_nd(i,j,k+1)) );
     return met_h_xi;
 }
 
@@ -168,10 +163,9 @@ Compute_h_eta_AtJface (const int &i, const int &j, const int &k,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dyInv = cellSizeInv[1];
-    amrex::Real met_h_eta  = 0.125 * dyInv *
-      ( z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k+1) );
+    amrex::Real met_h_eta  = 0.125 * cellSizeInv[1] *
+      ( (z_nd(i  ,j+1,k  ) - z_nd(i  ,j-1,k  )) + (z_nd(i  ,j+1,k+1) - z_nd(i  ,j-1,k+1)) +
+        (z_nd(i+1,j+1,k  ) - z_nd(i+1,j-1,k  )) + (z_nd(i+1,j+1,k+1) - z_nd(i+1,j-1,k+1)) );
     return met_h_eta;
 }
 
@@ -183,10 +177,9 @@ Compute_h_zeta_AtKface (const int &i, const int &j, const int &k,
                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dzInv = cellSizeInv[2];
-    amrex::Real met_h_zeta = 0.125 * dzInv *
-      ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j+1,k-1) );
+    amrex::Real met_h_zeta = 0.125 * cellSizeInv[2] *
+      ( (z_nd(i  ,j  ,k+1) - z_nd(i  ,j  ,k-1)) + (z_nd(i+1,j  ,k+1) - z_nd(i+1,j  ,k-1)) +
+        (z_nd(i  ,j+1,k+1) - z_nd(  i,j+1,k-1)) + (z_nd(i+1,j+1,k+1) - z_nd(i+1,j+1,k-1)) );
     return met_h_zeta;
 }
 
@@ -198,9 +191,8 @@ Compute_h_xi_AtKface (const int &i, const int &j, const int &k,
                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                       const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dxInv = cellSizeInv[0];
-    amrex::Real met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k)
-                                            -z_nd(i  ,j,k) - z_nd(i  ,j+1,k) );
+    amrex::Real met_h_xi   = 0.5 * cellSizeInv[0] * ( (z_nd(i+1,j  ,k) - z_nd(i,j  ,k))
+                                                    + (z_nd(i+1,j+1,k) - z_nd(i,j+1,k)) );
     return met_h_xi;
 }
 
@@ -212,9 +204,8 @@ Compute_h_eta_AtKface (const int &i, const int &j, const int &k,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dyInv = cellSizeInv[1];
-    amrex::Real met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k)
-                                            -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) );
+    amrex::Real met_h_eta  = 0.5 * cellSizeInv[1] * ( (z_nd(i  ,j+1,k) - z_nd(i  ,j,k))
+                                                    + (z_nd(i+1,j+1,k) - z_nd(i+1,j,k)) );
     return met_h_eta;
 }
 

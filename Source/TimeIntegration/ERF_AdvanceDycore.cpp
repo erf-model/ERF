@@ -102,8 +102,9 @@ void ERF::advance_dycore (int level,
     int num_prim = state_old[IntVars::cons].nComp() - 1;
 
     MultiFab    S_prim  (ba  , dm, num_prim,          state_old[IntVars::cons].nGrowVect());
-    MultiFab  pi_stage  (ba  , dm,        1,          state_old[IntVars::cons].nGrowVect());
+    MultiFab  pi_stage  (ba  , dm,        1,          1);
     MultiFab fast_coeffs(ba_z, dm,        5,          0);
+
     MultiFab* eddyDiffs = eddyDiffs_lev[level].get();
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
 
