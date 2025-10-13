@@ -172,9 +172,10 @@ protected:
                 thv(i,k)  = theta_zt*(1 + zvir*qv(i,k) - qc(i,k));
 
                 // Vertical layer thickness
-                dz(i,k) = PF::calculate_dz(pseudo_density(i,k), p_mid(i,k), T_mid(i,k), qv(i,k));
+                //dz(i,k) = PF::calculate_dz(pseudo_density(i,k), p_mid(i,k), T_mid(i,k), qv(i,k));
 
                 rrho(i,k) = inv_ggr*(pseudo_density(i,k)/dz(i,k));
+
                 wm_zt(i,k) = -1*omega(i,k)/(rrho(i,k)*ggr);
             });
             team.team_barrier();
@@ -548,8 +549,8 @@ protected:
 
     // Keep track of field dimensions and other scalar values
     // needed in shoc_main
-    Int m_num_cols;
-    Int m_num_layers;
+    Int m_num_cols = 0;
+    Int m_num_layers = 0;
     Int m_npbl;
     Int m_nadv;
     Int m_num_tracers  = 3;
