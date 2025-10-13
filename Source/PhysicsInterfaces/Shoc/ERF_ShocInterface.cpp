@@ -148,7 +148,7 @@ SHOCInterface::set_grids (int& level,
     // Reset vector of offsets for columnar data
     m_num_layers = geom.Domain().length(2);
 
-    m_num_cols = 0;
+    int num_cols = 0;
     m_col_offsets.clear();
     m_col_offsets.resize(int(ba.size()));
     for (amrex::MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
@@ -158,9 +158,18 @@ SHOCInterface::set_grids (int& level,
                                          "Vertical decomposition with shoc is not allowed.");
         int nx = vbx.length(0);
         int ny = vbx.length(1);
-        m_col_offsets[mfi.index()] = m_num_cols;
-        m_num_cols += nx * ny;
+        m_col_offsets[mfi.index()] = num_cols;
+        num_cols += nx * ny;
     }
+
+    // Resize variables that persist in memory
+    if (num_cols != m_num_cols) {
+        sgs_buoy_flux = view_2d();
+        tk            = view_2d();
+        sgs_buoy_flux = view_2d("sgs_buoy_flux", num_cols, m_num_layers);
+        tk            = view_2d("eddy_diff_mom", num_cols, m_num_layers);
+    }
+    m_num_cols = num_cols;
 
     // Allocate the buffer arrays in ERF
     alloc_buffers();
@@ -196,8 +205,6 @@ SHOCInterface::alloc_buffers ()
     // Input/Output data structures
     //=======================================================
     horiz_wind       = view_3d("horiz_wind"        , m_num_cols, m_num_vel_comp, m_num_layers);
-    sgs_buoy_flux    = view_2d("sgs_buoy_flux"     , m_num_cols, m_num_layers);
-    tk               = view_2d("eddy_diff_mom"     , m_num_cols, m_num_layers);
     cldfrac_liq      = view_2d("Cld_frac_liq"      , m_num_cols, m_num_layers  );
     tke              = view_2d("Tke"               , m_num_cols, m_num_layers  );
     qc               = view_2d("Qc"                , m_num_cols, m_num_layers  );
@@ -277,8 +284,6 @@ SHOCInterface::dealloc_buffers ()
     // Input/Output data structures
     //=======================================================
     horiz_wind       = view_3d();
-    sgs_buoy_flux    = view_2d();
-    tk               = view_2d();
     cldfrac_liq      = view_2d();
     tke              = view_2d();
     qc               = view_2d();
@@ -353,11 +358,13 @@ SHOCInterface::mf_to_kokkos_buffers ()
     // Input/Output data structures
     //=======================================================
     auto horiz_wind_d = horiz_wind;
-    auto sgs_buoy_flux_d = sgs_buoy_flux;
-    auto tk_d = tk;
     auto cldfrac_liq_d = cldfrac_liq;
     auto tke_d = tke;
     auto qc_d = qc;
+
+    // Enforce the correct grid heights and density
+    //=======================================================
+    auto dz_d = m_buffer.dz;
 
     // Subsidence pointer to device vector data
     Real* w_sub = m_w_subsid;
@@ -447,6 +454,8 @@ SHOCInterface::mf_to_kokkos_buffers ()
             p_int_d(icol,ilay)       = getPgivenRTh(rt_avg, qv_avg);
             // eamxx_common_physics_functions_impl.hpp: calculate_density
             pseudo_dens_d(icol,ilay) = r * CONST_GRAV * delz;
+            // Enforce the grid spacing
+            dz_d(icol,ilay) = delz;
             // Geopotential
             phis_d(icol)             = CONST_GRAV * z;
 
@@ -464,9 +473,6 @@ SHOCInterface::mf_to_kokkos_buffers ()
             //=======================================================
             horiz_wind_d(icol,0,ilay)  = 0.5 * (u_arr(i,j,k) + u_arr(i+1,j  ,k));
             horiz_wind_d(icol,1,ilay)  = 0.5 * (v_arr(i,j,k) + v_arr(i  ,j+1,k));
-            // NOTE: Fix me?
-            sgs_buoy_flux_d(icol,ilay) = 0.0;
-            tk_d(icol,ilay)            = mu_arr(i,j,k,EddyDiff::Mom_v);
             cldfrac_liq_d(icol,ilay)   = (qc>0.0) ? 1. : 0.;
             tke_d(icol,ilay)           = std::max(cons_arr(i,j,k,RhoKE_comp)/r, 0.0);
             qc_d(icol,ilay)            = qc;
