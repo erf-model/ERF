@@ -37,12 +37,17 @@ public:
                          std::string a_pp_prefix,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                         const MeshType& a_mesh_type,
                          const TerrainType& a_terrain_type,
+                         amrex::Real start_time,
+                         amrex::Real stop_time,
                          amrex::Real bdy_time_interval = 0.0)
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
+    m_start_time(start_time),
+    m_stop_time(stop_time),
     m_bdy_time_interval(bdy_time_interval),
-    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_terrain_type)
+    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type)
   {
       // We have a moisture model if Qv_prim is a valid pointer
       use_moisture = (Qv_prim[0].get());
@@ -334,7 +339,21 @@ public:
       bool read_z0 = false;
       if ( (flux_type == FluxCalcType::MOENG) ||
            (flux_type == FluxCalcType::ROTATE)) {
-          read_z0 = pp.query("most.roughness_file_name", fname);
+          int count = pp.countval("most.roughness_file_name");
+          if (count > 1) {
+              AMREX_ALWAYS_ASSERT(count >= lev+1);
+              pp.query("most.roughness_file_name", fname, lev);
+              read_z0 = true;
+          } else if (count == 1) {
+              if (lev == 0) {
+                  pp.query("most.roughness_file_name", fname);
+              } else {
+                  // we will interpolate from the coarsest level
+                  fname = "";
+              }
+              read_z0 = true;
+          }
+          // else use z0_const
       }
 
       // Attributes for MFs and FABs
@@ -528,6 +547,14 @@ public:
       return lmask_min;
   }
 
+  void update_sst_ptr(const int lev, const int itime, amrex::MultiFab* sst_ptr) {
+      m_sst_lev[lev][itime] = sst_ptr;
+  }
+
+  void update_tsk_ptr(const int lev, const int itime, amrex::MultiFab* tsk_ptr) {
+      m_tsk_lev[lev][itime] = tsk_ptr;
+  }
+
   enum struct FluxCalcType {
     MOENG = 0, ///< Moeng functional form
     DONELAN,   ///< Donelan functional form
@@ -568,6 +595,8 @@ private:
   // Set in constructor
   amrex::Vector<amrex::Geometry> m_geom;
   bool m_rotate = false;
+  amrex::Real m_start_time;
+  amrex::Real m_stop_time;
   amrex::Real m_bdy_time_interval;
 
   bool m_include_wstar = false;

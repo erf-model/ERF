@@ -87,114 +87,138 @@ struct AdvChoice {
                                       "The moist scalar vertical upwinding fraction must be between 0 and 1");
         }
 
-        if ( (dycore_horiz_adv_string == "Centered_2nd") ||
-             (dycore_horiz_adv_string == "Upwind_3rd"  ) ||
-             (dycore_horiz_adv_string == "Blended_3rd4th") ||
-             (dycore_horiz_adv_string == "Centered_4th") ||
-             (dycore_horiz_adv_string == "Upwind_5th"  ) ||
-             (dycore_horiz_adv_string == "Blended_5th6th") ||
-             (dycore_horiz_adv_string == "Centered_6th") ||
-             (dycore_horiz_adv_string == "WENO3"       ) ||
-             (dycore_horiz_adv_string == "WENOZ3"      ) ||
-             (dycore_horiz_adv_string == "WENO5"       ) ||
-             (dycore_horiz_adv_string == "WENOZ5"      ) ||
-             (dycore_horiz_adv_string == "WENO7"       ) ||
-             (dycore_horiz_adv_string == "WENOZ7"      ))
-        {
-            dycore_horiz_adv_type = adv_type_convert_string_to_advtype(dycore_horiz_adv_string);
+        if (dycore_horiz_adv_string != "") {
+            if ( (dycore_horiz_adv_string == "Centered_2nd") ||
+                 (dycore_horiz_adv_string == "Upwind_3rd"  ) ||
+                 (dycore_horiz_adv_string == "Blended_3rd4th") ||
+                 (dycore_horiz_adv_string == "Centered_4th") ||
+                 (dycore_horiz_adv_string == "Upwind_5th"  ) ||
+                (dycore_horiz_adv_string == "Blended_5th6th") ||
+                (dycore_horiz_adv_string == "Centered_6th") ||
+                (dycore_horiz_adv_string == "WENO3"       ) ||
+                (dycore_horiz_adv_string == "WENOZ3"      ) ||
+                (dycore_horiz_adv_string == "WENO5"       ) ||
+                (dycore_horiz_adv_string == "WENOZ5"      ) ||
+                (dycore_horiz_adv_string == "WENO7"       ) ||
+                (dycore_horiz_adv_string == "WENOZ7"      ))
+           {
+               dycore_horiz_adv_type = adv_type_convert_string_to_advtype(dycore_horiz_adv_string);
+           } else {
+               amrex::Error("Don't know this dycore_horiz_adv_string");
+           }
         }
 
-        if ( (dycore_vert_adv_string == "Centered_2nd") ||
-             (dycore_vert_adv_string == "Upwind_3rd"  ) ||
-             (dycore_vert_adv_string == "Blended_3rd4th") ||
-             (dycore_vert_adv_string == "Centered_4th") ||
-             (dycore_vert_adv_string == "Upwind_5th"  ) ||
-             (dycore_vert_adv_string == "Blended_5th6th") ||
-             (dycore_vert_adv_string == "Centered_6th") ||
-             (dycore_vert_adv_string == "WENO3"       ) ||
-             (dycore_vert_adv_string == "WENOZ3"      ) ||
-             (dycore_vert_adv_string == "WENO5"       ) ||
-             (dycore_vert_adv_string == "WENOZ5"      ) ||
-             (dycore_vert_adv_string == "WENO7"       ) ||
-             (dycore_vert_adv_string == "WENOZ7"      ))
-        {
-            dycore_vert_adv_type = adv_type_convert_string_to_advtype(dycore_vert_adv_string);
+        if (dycore_vert_adv_string != "") {
+            if ( (dycore_vert_adv_string == "Centered_2nd") ||
+                 (dycore_vert_adv_string == "Upwind_3rd"  ) ||
+                 (dycore_vert_adv_string == "Blended_3rd4th") ||
+                 (dycore_vert_adv_string == "Centered_4th") ||
+                 (dycore_vert_adv_string == "Upwind_5th"  ) ||
+                 (dycore_vert_adv_string == "Blended_5th6th") ||
+                 (dycore_vert_adv_string == "Centered_6th") ||
+                 (dycore_vert_adv_string == "WENO3"       ) ||
+                 (dycore_vert_adv_string == "WENOZ3"      ) ||
+                 (dycore_vert_adv_string == "WENO5"       ) ||
+                 (dycore_vert_adv_string == "WENOZ5"      ) ||
+                 (dycore_vert_adv_string == "WENO7"       ) ||
+                 (dycore_vert_adv_string == "WENOZ7"      ))
+            {
+                dycore_vert_adv_type = adv_type_convert_string_to_advtype(dycore_vert_adv_string);
+            } else {
+                amrex::Error("Don't know this dycore_vert_adv_string");
+            }
         }
 
-        if ( (dryscal_horiz_adv_string == "Centered_2nd") ||
-             (dryscal_horiz_adv_string == "Upwind_3rd"  ) ||
-             (dryscal_horiz_adv_string == "Upwind_3rd_SL") ||
-             (dryscal_horiz_adv_string == "Blended_3rd4th") ||
-             (dryscal_horiz_adv_string == "Centered_4th") ||
-             (dryscal_horiz_adv_string == "Upwind_5th"  ) ||
-             (dryscal_horiz_adv_string == "Blended_5th6th") ||
-             (dryscal_horiz_adv_string == "Centered_6th") ||
-             (dryscal_horiz_adv_string == "WENO3"       ) ||
-             (dryscal_horiz_adv_string == "WENOZ3"      ) ||
-             (dryscal_horiz_adv_string == "WENOMZQ3"    ) ||
-             (dryscal_horiz_adv_string == "WENO5"       ) ||
-             (dryscal_horiz_adv_string == "WENOZ5"      ) ||
-             (dryscal_horiz_adv_string == "WENO7"       ) ||
-             (dryscal_horiz_adv_string == "WENOZ7"      ) )
-        {
-            dryscal_horiz_adv_type = adv_type_convert_string_to_advtype(dryscal_horiz_adv_string);
+        if (dryscal_horiz_adv_string != "") {
+            if ( (dryscal_horiz_adv_string == "Centered_2nd") ||
+                 (dryscal_horiz_adv_string == "Upwind_3rd"  ) ||
+                 (dryscal_horiz_adv_string == "Upwind_3rd_SL") ||
+                 (dryscal_horiz_adv_string == "Blended_3rd4th") ||
+                 (dryscal_horiz_adv_string == "Centered_4th") ||
+                 (dryscal_horiz_adv_string == "Upwind_5th"  ) ||
+                 (dryscal_horiz_adv_string == "Blended_5th6th") ||
+                 (dryscal_horiz_adv_string == "Centered_6th") ||
+                 (dryscal_horiz_adv_string == "WENO3"       ) ||
+                 (dryscal_horiz_adv_string == "WENOZ3"      ) ||
+                 (dryscal_horiz_adv_string == "WENOMZQ3"    ) ||
+                 (dryscal_horiz_adv_string == "WENO5"       ) ||
+                 (dryscal_horiz_adv_string == "WENOZ5"      ) ||
+                 (dryscal_horiz_adv_string == "WENO7"       ) ||
+                 (dryscal_horiz_adv_string == "WENOZ7"      ) )
+            {
+                dryscal_horiz_adv_type = adv_type_convert_string_to_advtype(dryscal_horiz_adv_string);
+            } else {
+                amrex::Error("Don't know this dryscal_horiz_adv_string");
+            }
         }
 
-        if ( (dryscal_vert_adv_string == "Centered_2nd") ||
-             (dryscal_vert_adv_string == "Upwind_3rd"  ) ||
-             (dryscal_vert_adv_string == "Upwind_3rd_SL") ||
-             (dryscal_vert_adv_string == "Blended_3rd4th") ||
-             (dryscal_vert_adv_string == "Centered_4th") ||
-             (dryscal_vert_adv_string == "Upwind_5th"  ) ||
-             (dryscal_vert_adv_string == "Blended_5th6th") ||
-             (dryscal_vert_adv_string == "Centered_6th") ||
-             (dryscal_vert_adv_string == "WENO3"       ) ||
-             (dryscal_vert_adv_string == "WENOZ3"      ) ||
-             (dryscal_vert_adv_string == "WENOMZQ3"    ) ||
-             (dryscal_vert_adv_string == "WENO5"       ) ||
-             (dryscal_vert_adv_string == "WENOZ5"      ) ||
-             (dryscal_vert_adv_string == "WENO7"       ) ||
-             (dryscal_vert_adv_string == "WENOZ7"      ))
-        {
-            dryscal_vert_adv_type = adv_type_convert_string_to_advtype(dryscal_vert_adv_string);
+        if (dryscal_vert_adv_string != "") {
+            if ( (dryscal_vert_adv_string == "Centered_2nd") ||
+                 (dryscal_vert_adv_string == "Upwind_3rd"  ) ||
+                 (dryscal_vert_adv_string == "Upwind_3rd_SL") ||
+                 (dryscal_vert_adv_string == "Blended_3rd4th") ||
+                 (dryscal_vert_adv_string == "Centered_4th") ||
+                 (dryscal_vert_adv_string == "Upwind_5th"  ) ||
+                 (dryscal_vert_adv_string == "Blended_5th6th") ||
+                 (dryscal_vert_adv_string == "Centered_6th") ||
+                 (dryscal_vert_adv_string == "WENO3"       ) ||
+                 (dryscal_vert_adv_string == "WENOZ3"      ) ||
+                 (dryscal_vert_adv_string == "WENOMZQ3"    ) ||
+                 (dryscal_vert_adv_string == "WENO5"       ) ||
+                 (dryscal_vert_adv_string == "WENOZ5"      ) ||
+                 (dryscal_vert_adv_string == "WENO7"       ) ||
+                 (dryscal_vert_adv_string == "WENOZ7"      ))
+            {
+                dryscal_vert_adv_type = adv_type_convert_string_to_advtype(dryscal_vert_adv_string);
+            } else {
+                amrex::Error("Don't know this dryscal_vert_adv_string");
+            }
         }
 
-        if ( (moistscal_horiz_adv_string == "Centered_2nd") ||
-             (moistscal_horiz_adv_string == "Upwind_3rd"  ) ||
-             (moistscal_horiz_adv_string == "Upwind_3rd_SL"  ) ||
-             (moistscal_horiz_adv_string == "Blended_3rd4th") ||
-             (moistscal_horiz_adv_string == "Centered_4th") ||
-             (moistscal_horiz_adv_string == "Upwind_5th"  ) ||
-             (moistscal_horiz_adv_string == "Blended_5th6th") ||
-             (moistscal_horiz_adv_string == "Centered_6th") ||
-             (moistscal_horiz_adv_string == "WENO3"       ) ||
-             (moistscal_horiz_adv_string == "WENOZ3"      ) ||
-             (moistscal_horiz_adv_string == "WENOMZQ3"    ) ||
-             (moistscal_horiz_adv_string == "WENO5"       ) ||
-             (moistscal_horiz_adv_string == "WENOZ5"      ) ||
-             (moistscal_horiz_adv_string == "WENO7"       ) ||
-             (moistscal_horiz_adv_string == "WENOZ7"      ))
-        {
-            moistscal_horiz_adv_type = adv_type_convert_string_to_advtype(moistscal_horiz_adv_string);
+        if (moistscal_horiz_adv_string != "") {
+            if ( (moistscal_horiz_adv_string == "Centered_2nd") ||
+                 (moistscal_horiz_adv_string == "Upwind_3rd"  ) ||
+                 (moistscal_horiz_adv_string == "Upwind_3rd_SL"  ) ||
+                 (moistscal_horiz_adv_string == "Blended_3rd4th") ||
+                 (moistscal_horiz_adv_string == "Centered_4th") ||
+                 (moistscal_horiz_adv_string == "Upwind_5th"  ) ||
+                 (moistscal_horiz_adv_string == "Blended_5th6th") ||
+                 (moistscal_horiz_adv_string == "Centered_6th") ||
+                 (moistscal_horiz_adv_string == "WENO3"       ) ||
+                 (moistscal_horiz_adv_string == "WENOZ3"      ) ||
+                 (moistscal_horiz_adv_string == "WENOMZQ3"    ) ||
+                 (moistscal_horiz_adv_string == "WENO5"       ) ||
+                 (moistscal_horiz_adv_string == "WENOZ5"      ) ||
+                 (moistscal_horiz_adv_string == "WENO7"       ) ||
+                 (moistscal_horiz_adv_string == "WENOZ7"      ))
+            {
+                moistscal_horiz_adv_type = adv_type_convert_string_to_advtype(moistscal_horiz_adv_string);
+            } else {
+                amrex::Error("Don't know this moistscal_horiz_adv_string");
+            }
         }
 
-        if ( (moistscal_vert_adv_string == "Centered_2nd") ||
-             (moistscal_vert_adv_string == "Upwind_3rd"  ) ||
-             (moistscal_vert_adv_string == "Upwind_3rd_SL"  ) ||
-             (moistscal_vert_adv_string == "Blended_3rd4th") ||
-             (moistscal_vert_adv_string == "Centered_4th") ||
-             (moistscal_vert_adv_string == "Upwind_5th"  ) ||
-             (moistscal_vert_adv_string == "Blended_5th6th") ||
-             (moistscal_vert_adv_string == "Centered_6th") ||
-             (moistscal_vert_adv_string == "WENO3"       ) ||
-             (moistscal_vert_adv_string == "WENOZ3"      ) ||
-             (moistscal_vert_adv_string == "WENOMZQ3"    ) ||
-             (moistscal_vert_adv_string == "WENO5"       ) ||
-             (moistscal_vert_adv_string == "WENOZ5"      ) ||
-             (moistscal_vert_adv_string == "WENO7"       ) ||
-             (moistscal_vert_adv_string == "WENOZ7"      ))
-        {
-            moistscal_vert_adv_type = adv_type_convert_string_to_advtype(moistscal_vert_adv_string);
+        if (moistscal_vert_adv_string != "") {
+            if ( (moistscal_vert_adv_string == "Centered_2nd") ||
+                 (moistscal_vert_adv_string == "Upwind_3rd"  ) ||
+                 (moistscal_vert_adv_string == "Upwind_3rd_SL"  ) ||
+                 (moistscal_vert_adv_string == "Blended_3rd4th") ||
+                 (moistscal_vert_adv_string == "Centered_4th") ||
+                 (moistscal_vert_adv_string == "Upwind_5th"  ) ||
+                 (moistscal_vert_adv_string == "Blended_5th6th") ||
+                 (moistscal_vert_adv_string == "Centered_6th") ||
+                 (moistscal_vert_adv_string == "WENO3"       ) ||
+                 (moistscal_vert_adv_string == "WENOZ3"      ) ||
+                 (moistscal_vert_adv_string == "WENOMZQ3"    ) ||
+                 (moistscal_vert_adv_string == "WENO5"       ) ||
+                 (moistscal_vert_adv_string == "WENOZ5"      ) ||
+                 (moistscal_vert_adv_string == "WENO7"       ) ||
+                 (moistscal_vert_adv_string == "WENOZ7"      ))
+            {
+                moistscal_vert_adv_type = adv_type_convert_string_to_advtype(moistscal_vert_adv_string);
+            } else {
+                amrex::Error("Don't know this moistscal_vert_adv_string");
+            }
         }
 
         // We can can't use weno with Embedded Boundaries (for now)

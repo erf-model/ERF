@@ -164,7 +164,8 @@ public:
     rad_run_impl (amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs)
     {
         if (m_update_rad) {
-            amrex::Print() << "Advancing radiation at level: " << m_lev << " ...";
+            amrex::Print() << "Radiation advancing level " << m_lev << " at (YY-MM-DD SS) " << m_orbital_year << '-'
+                << m_orbital_mon << '-' << m_orbital_day << ' ' << m_orbital_sec << " ...";
             this->initialize_impl();
             this->run_impl();
             this->finalize_impl(lsm_output_ptrs);
@@ -273,7 +274,7 @@ private:
     // Path, data file, and coefficient file for K-distribution
     std::string rrtmgp_file_path       = ".";
     std::string rrtmgp_coeffs_sw       = "rrtmgp-data-sw-g224-2018-12-04.nc";
-    std::string rrtmgp_coeffs_lw       = "rrtmgp-data-lw-g224-2018-12-04.nc";
+    std::string rrtmgp_coeffs_lw       = "rrtmgp-data-lw-g256-2018-12-04.nc";
     std::string rrtmgp_cloud_optics_sw = "rrtmgp-cloud-optics-coeffs-sw.nc";
     std::string rrtmgp_cloud_optics_lw = "rrtmgp-cloud-optics-coeffs-lw.nc";
     std::string rrtmgp_coeffs_file_sw;
@@ -347,12 +348,11 @@ private:
     // This is only used if a positive value is supplied
     amrex::Real m_fixed_solar_zenith_angle = -9999.;
 
-    // Need to hard-code some dimension sizes for now.
-    // TODO: find a better way of configuring this
-    int m_nswbands = 14;
-    int m_nlwbands = 16;
-    int m_nswgpts  = 112;
-    int m_nlwgpts  = 128;
+    // Dimensions to be read from lookup data
+    int m_nswbands;
+    int m_nlwbands;
+    int m_nswgpts;
+    int m_nlwgpts;
 
     // Rad frequency in number of steps
     int m_rad_freq_in_steps = 1;
@@ -391,7 +391,6 @@ private:
     real2d_k cldfrac_tot;
     real2d_k eff_radius_qc;
     real2d_k eff_radius_qi;
-    real2d_k tmp2d;
     real2d_k lwp;
     real2d_k iwp;
     real2d_k sw_heating;

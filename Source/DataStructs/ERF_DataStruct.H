@@ -155,6 +155,12 @@ struct SolverChoice {
         // Do we set map scale factors to 0.5 instead of 1 for testing?
         pp.query("test_mapfactor", test_mapfactor);
 
+        // Which horizontal pressure gradient formulation to use with terrain fitted coords?
+        // 0: dp/dx with dp/dz correction (default)
+        // 1: gradient of vertically interpolated p, see Klemp 2011
+        pp.query("gradp_type", gradp_type);
+        AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
+
         // What type of moisture model to use?
         moisture_type = MoistureType::None; // Default
         if (pp.query("moisture_type",moisture_type) > 0) {
@@ -190,6 +196,7 @@ struct SolverChoice {
             moisture_indices = MoistureComponentIndices(
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp,  // cloud water
+                -1,          // cloud ice
                 RhoQ3_comp   // rain
             );
         }
@@ -360,6 +367,9 @@ struct SolverChoice {
             }
         }
 
+        // Note: this will be overwritten with -1 on levels that have substepping_type == Explicit
+        pp.query("beta_s", beta_s);
+
         // *******************************************************************************
         // Error check on deprecated input
         // *******************************************************************************
@@ -412,6 +422,11 @@ struct SolverChoice {
         pp.query("rayleigh_dampcoef", rayleigh_dampcoef);
         pp.query("rayleigh_zdamp", rayleigh_zdamp);
         pp.query("rayleigh_damp_substep", rayleigh_damp_substep); // apply Rayleigh damping source terms in substep only
+
+        // Include vertical-velocity damping to improve robustness
+        pp.query("w_damping", w_damping);
+        pp.query("w_damping_cfl", w_damping_cfl);
+        pp.query("w_damping_coeff", w_damping_coeff);
 
         // flags for whether to apply other source terms in substep only
         pp.query("immersed_forcing_substep", immersed_forcing_substep); // apply Rayleigh damping source terms in substep only
@@ -518,13 +533,8 @@ struct SolverChoice {
             }
         }
 
-        // Are we using SHOC?
-        pp.query("use_shoc", use_shoc);
-#ifndef ERF_USE_SHOC
-        if (use_shoc) {
-            amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
-        }
-#endif
+        // Are we using SHOC? (test on compilation done in turb struct)
+        if (turbChoice[0].pbl_type == PBLType::SHOC) { use_shoc = true; }
 
         // Which type of multilevel coupling
         coupling_type = CouplingType::TwoWay; // Default
@@ -586,6 +596,18 @@ struct SolverChoice {
 
             if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < 0.0) {
                 amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_strength' or it is specified to be less than zero");
+            }
+        }
+
+        pp.query("io_hurricane_eye_tracker", io_hurricane_eye_tracker);
+        if(io_hurricane_eye_tracker) {
+            pp.query("hurricane_eye_latitude", hurricane_eye_latitude);
+            pp.query("hurricane_eye_longitude", hurricane_eye_longitude);
+            if(hurricane_eye_latitude == -1e10 or hurricane_eye_longitude == -1e10) {
+                amrex::Abort("ERROR: You are using 'erf.io_hurricane_eye_tracker' to write out the files that track the eye of the hurricane"
+                              " but have not provided the initial location of the eye of the hurricane to be tracked. There has to be two"
+                              " options in the inputs - erf.hurricane_eye_latitude and erf.hurricane_eye_longitude that gives an approximate"
+                              " location of the eye in the initial condition");
             }
         }
 
@@ -654,6 +676,20 @@ struct SolverChoice {
         amrex::Print() << "fixed_density               : " << fixed_density << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
+
+        amrex::Print() << "Rayleigh damping            :";
+        if (rayleigh_damp_U || rayleigh_damp_V || rayleigh_damp_W || rayleigh_damp_T) {
+            if (rayleigh_damp_U) amrex::Print() << " U";
+            if (rayleigh_damp_V) amrex::Print() << " V";
+            if (rayleigh_damp_W) amrex::Print() << " W";
+            if (rayleigh_damp_T) amrex::Print() << " T";
+            amrex::Print() << " (coef=" << rayleigh_dampcoef << " 1/s,"
+                           << " depth=" << rayleigh_zdamp << " m)"
+                           << std::endl;
+        } else {
+            amrex::Print() << " None" << std::endl;
+        }
+        amrex::Print() << "w damping                   : " << w_damping << std::endl;
 
         if (moisture_type == MoistureType::SAM) {
             amrex::Print() << "Moisture Model: SAM" << std::endl;
@@ -724,6 +760,8 @@ struct SolverChoice {
         } else {
             amrex::Print() << "Radiation Model: None" << std::endl;
         }
+
+        amrex::Print() << "Gradp_type                  : " << gradp_type << std::endl;
 
         amrex::Print() << "Buoyancy_type               : " << buoyancy_type << std::endl;
 
@@ -829,12 +867,18 @@ struct SolverChoice {
     amrex::Vector<SubsteppingType> substepping_type;
     amrex::Vector<int> anelastic;
 
+    // time off-centering coefficient, > 0 for forward weighting (i.e., bias
+    // towards the future time step)
+    amrex::Real beta_s = 0.1;
+
     bool        fixed_density       = false;
     int         ncorr               = 1;
     amrex::Real poisson_abstol      = 1e-8;
     amrex::Real poisson_reltol      = 1e-8;
 
     bool        test_mapfactor         = false;
+
+    int         gradp_type             = 0;
 
     int         buoyancy_type          = 1; // uses rhoprime directly
 
@@ -851,6 +895,10 @@ struct SolverChoice {
     amrex::Real rayleigh_zdamp         = 500.0; // damping layer depth [m]
     amrex::Real rayleigh_ztop;
     bool        rayleigh_damp_substep  = false; // use Rayleigh on substep only?
+
+    bool        w_damping              = false;
+    amrex::Real w_damping_cfl          = 1.0;
+    amrex::Real w_damping_coeff        = 0.3; // damping coefficient [m/s]
 
     // Specify whether to apply other various source terms on substep only
     bool        immersed_forcing_substep  = false;
@@ -954,5 +1002,8 @@ struct SolverChoice {
     amrex::Real hindcast_lateral_sponge_strength = -1.0, hindcast_lateral_sponge_length = -1.0;
     amrex::Real hindcast_zhi_sponge_strength = -1.0, hindcast_zhi_sponge_length = -1.0;
     bool hindcast_zhi_sponge_damping = false;
+
+    bool io_hurricane_eye_tracker = false;
+    amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
 };
 #endif
