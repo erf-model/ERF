@@ -45,7 +45,9 @@ SLM::Init (const int& /*lev*/,
       LsmVar_SLM::uref,          LsmVar_SLM::vref,         LsmVar_SLM::dref,
       LsmVar_SLM::qref,          LsmVar_SLM::pref,         LsmVar_SLM::node_z,
       LsmVar_SLM::soilt_nudge,   LsmVar_SLM::soilw_nudge,  LsmVar_SLM::lai,
-      LsmVar_SLM::vegtype,       LsmVar_SLM::soiltype};
+      LsmVar_SLM::vegtype,       LsmVar_SLM::soiltype,     LsmVar_SLM::veg_frac,
+      LsmVar_SLM::emis_sfc,      LsmVar_SLM::alb_nir_sfc,  LsmVar_SLM::alb_vis_sfc,
+      LsmVar_SLM::alb_nir_sfc_diff, LsmVar_SLM::alb_vis_sfc_diff};
 
     LsmDataName.resize(m_lsm_data_size);
     LsmDataName = {"tsurf",         "ustar",          "tstar",
@@ -59,7 +61,8 @@ SLM::Init (const int& /*lev*/,
                   "ref_v",         "ref_d",          "ref_q",
                   "ref_p",         "node_z",         "soilt_nudge",
                   "soilw_nudge",   "lai",            "vegtype",
-                  "soiltype"};
+                  "soiltype",      "veg_frac",       "emis_sfc",
+                  "alb_nir_sfc",   "alb_vis_sfc", "alb_nir_sfc_diff", "alb_vis_sfc_diff"};
 
     AMREX_ALWAYS_ASSERT(LsmDataMap.size() == LsmDataName.size());
     AMREX_ALWAYS_ASSERT(LsmDataMap.size() == m_lsm_data_size);
@@ -245,6 +248,11 @@ SLM::Init (const int& /*lev*/,
 
     net_rad.setVal(0.0);
 
+    // Set a default vegetation fraction of 1.0.
+    // Cells without vegetation (baresoil, urban) are set to 0.0 later on
+    // If using WRFInput, this fraction will be overwritten with those values
+    lsm_fab_vars[LsmVar_SLM::veg_frac]->setVal(1.0);
+
     if (!use_wrfinput) {
         // Initialize here if not using wrfinput, otherwise it is done at first time step
         slm_init();
@@ -277,7 +285,12 @@ SLM::Init (const int& /*lev*/,
     }
 
     //slm_to_rad_vars = {Lsm_Data_Ptr(LsmVar_SLM::tsurf), &albedovis_s, &albedovis_v, &albedonir_s, &albedonir_v, &IR_emis_vege, &net_rad};
-    slm_to_rad_vars = {Lsm_Data_Ptr(LsmVar_SLM::tsurf), &IR_emis_vege, &albedovis_v, &albedonir_v, &albedovis_v, &albedonir_v};
+    slm_to_rad_vars = {Lsm_Data_Ptr(LsmVar_SLM::tsurf),
+                       Lsm_Data_Ptr(Lsm_DataIndex("emis_sfc")),
+                       Lsm_Data_Ptr(Lsm_DataIndex("alb_vis_sfc")),
+                       Lsm_Data_Ptr(Lsm_DataIndex("alb_nir_sfc")),
+                       Lsm_Data_Ptr(Lsm_DataIndex("alb_vis_sfc_diff")),
+                       Lsm_Data_Ptr(Lsm_DataIndex("alb_nir_sfc_diff"))};
 }
 /**
  * Initialize SLM from input data - used for testing only
@@ -649,11 +662,14 @@ void SLM::slm_init()
         auto Khai_L_arr = Khai_L.array(mfi);
         auto landmask_arr = landmask.const_array(mfi);
 
+        auto veg_frac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->array(mfi);
+
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             if (landmask_arr(i, j, 0) == 1) {
                 if (vegetype_arr(i, j, 0) == 0) {
                     vege_YES_arr(i, j, 0) = 0.0;
+                    veg_frac_arr(i, j, 0) = 0.0;
                 } else {
                     // set minimum LAI for vegetated land
                     LAI_arr(i, j, 0) = std::max(LAI_arr(i, j, 0), 0.001);
@@ -1477,7 +1493,7 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
                 //} else if (vegetype_arr(i, j, 0) == 1) {
                 } else {
                     // vegetation
-                    const int ltype = landtype_arr(i,j,0);
+                    const int ltype = landtype_arr(i,j,0) - 1;
 
                     const Real lai_x = d_lai_curr_ptr[ltype];
                     const Real lai_y = d_lai_next_ptr[ltype];
@@ -1846,6 +1862,14 @@ void SLM::radiative_fluxes(const amrex::MFIter &mfi)
     auto t_canop_arr      = t_canop.const_array(mfi);
     auto soilw_arr        = lsm_fab_vars[LsmVar_SLM::soilw]->const_array(mfi);
     auto soilt_arr        = lsm_fab_vars[LsmVar_SLM::soilt]->const_array(mfi);
+    auto veg_frac_arr     = lsm_fab_vars[LsmVar_SLM::veg_frac]->const_array(mfi);
+
+    // Combined (veg+soil) surface emissivity and albedos for coupling to radiation model
+    auto emis_sfc_arr     = lsm_fab_vars[LsmVar_SLM::emis_sfc]->array(mfi);
+    auto alb_nir_sfc_arr  = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc]->array(mfi);
+    auto alb_vis_sfc_arr  = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc]->array(mfi);
+    auto alb_nir_sfc_diff_arr  = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc_diff]->array(mfi);
+    auto alb_vis_sfc_diff_arr  = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc_diff]->array(mfi);
 
     auto t_skin_arr  = t_skin.array(mfi);
     auto net_rad_arr = net_rad.array(mfi);
@@ -1895,6 +1919,28 @@ void SLM::radiative_fluxes(const amrex::MFIter &mfi)
 
             net_rad_arr(i, j, 0, SLM_NetRad::net_swdn2) = net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1)*explai;
             net_rad_arr(i, j, 0, SLM_NetRad::net_swup2) = net_rad_arr(i, j, 0, SLM_NetRad::net_rad2) - net_rad_arr(i, j, 0, SLM_NetRad::net_swdn2);
+
+            // Albedo is computed as alb = alb_v*(1-exp(-kLAI))+alb_s*exp(-kLAI)
+            Real alb_nir_veg_dir = albedonir_v_arr(i, j, 0)*(1.0 - explai);
+            Real alb_nir_veg_dif = albedonir_v_arr(i, j, 0)*(1.0 - explai0);
+            Real alb_vis_veg_dir = albedovis_v_arr(i, j, 0)*(1.0 - explai);
+            Real alb_vis_veg_dif = albedovis_v_arr(i, j, 0)*(1.0 - explai0);
+
+            Real alb_nir_soil_dir = albedonir_s_arr(i, j, 0)*wetfactor*explai;
+            Real alb_nir_soil_dif = albedonir_s_arr(i, j, 0)*wetfactor*explai0;
+            Real alb_vis_soil_dir = albedovis_s_arr(i, j, 0)*wetfactor*explai;
+            Real alb_vis_soil_dif = albedovis_s_arr(i, j, 0)*wetfactor*explai0;
+
+            alb_nir_sfc_arr(i, j, 0) = alb_nir_veg_dir + alb_nir_soil_dir;
+            alb_vis_sfc_arr(i, j, 0) = alb_vis_veg_dir + alb_vis_soil_dir;
+            alb_nir_sfc_diff_arr(i, j, 0) = alb_nir_veg_dif + alb_nir_soil_dif;
+            alb_vis_sfc_diff_arr(i, j, 0) = alb_vis_veg_dif + alb_vis_soil_dif;
+
+            alb_nir_sfc_arr(i, j, d_khi_lsm) = alb_nir_sfc_arr(i, j, 0);
+            alb_vis_sfc_arr(i, j, d_khi_lsm) = alb_vis_sfc_arr(i, j, 0);
+            alb_nir_sfc_diff_arr(i, j, d_khi_lsm) = alb_nir_sfc_diff_arr(i, j, 0);
+            alb_vis_sfc_diff_arr(i, j, d_khi_lsm) = alb_vis_sfc_diff_arr(i, j, 0);
+
 
             // Store net absorbed SW
             net_rad_arr(i, j, 0, SLM_NetRad::net_sw1) = net_rad_arr(i, j, 0, SLM_NetRad::net_rad1);
@@ -1951,7 +1997,7 @@ void SLM::radiative_fluxes(const amrex::MFIter &mfi)
 
         // ===================================================
         // Note:
-        //  Emitted LW from topsoil = emitted tir from topspoil + portion of incoming LW that is reflected back toward canopy
+        //  Emitted LW from topsoil = emitted tir from topsoil + portion of incoming LW that is reflected back toward canopy
         //  IR_emis_soil is set to 1.0
         // ===================================================
         fup1 = (net_rad_arr(i, j, 0, SLM_NetRad::tir2) + (1.0 - IR_emis_soil_arr(i, j, 0))*fdn1);
@@ -1960,7 +2006,7 @@ void SLM::radiative_fluxes(const amrex::MFIter &mfi)
         // ===================================================
         // Note: At this stage,
         //  net_rad(2) = net absorbed SW by soil surface
-        //          + net absorbed LW by soil surface
+        //             + net absorbed LW by soil surface
         // ===================================================
         net_rad_arr(i, j, 0, SLM_NetRad::net_rad2) += fdn1 - fdn2 - fup1 + fup2;
 
@@ -1979,6 +2025,10 @@ void SLM::radiative_fluxes(const amrex::MFIter &mfi)
         //        for no canopy: fup1 = fup2
         // ===================================================
         fup1 = (1.0 - IR_emis_vege_arr(i,j,0))*fup2 + net_rad_arr(i, j, 0, SLM_NetRad::tir1);
+
+        emis_sfc_arr(i, j, 0) = IR_emis_vege_arr(i,j,0) * veg_frac_arr(i, j, d_khi_lsm) + IR_emis_soil_arr(i,j,0) * (1.0 - veg_frac_arr(i, j, d_khi_lsm));
+
+        emis_sfc_arr(i, j, d_khi_lsm) = emis_sfc_arr(i,j,0);
 
         // total upward LW from surface (for canopy cover- from canopy top, for no canopy - from soil surface)
         net_rad_arr(i, j, 0, SLM_NetRad::net_lwup1) = fup1;

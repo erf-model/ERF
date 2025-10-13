@@ -114,6 +114,8 @@ ERF::init_from_wrfinput (int lev,
         NC_names.push_back("LAI");    // 30
         NC_names.push_back("ZS");     // 31
         NC_names.push_back("DZS");    // 32
+        NC_names.push_back("VEGFRA"); // 33
+        NC_names.push_back("TMN");    // 34
 
         // --- debugging ---
         // print LSM varname->WRF input name map
