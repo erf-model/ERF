@@ -599,6 +599,18 @@ struct SolverChoice {
             }
         }
 
+        pp.query("io_hurricane_eye_tracker", io_hurricane_eye_tracker);
+        if(io_hurricane_eye_tracker) {
+            pp.query("hurricane_eye_latitude", hurricane_eye_latitude);
+            pp.query("hurricane_eye_longitude", hurricane_eye_longitude);
+            if(hurricane_eye_latitude == -1e10 or hurricane_eye_longitude == -1e10) {
+                amrex::Abort("ERROR: You are using 'erf.io_hurricane_eye_tracker' to write out the files that track the eye of the hurricane"
+                              " but have not provided the initial location of the eye of the hurricane to be tracked. There has to be two"
+                              " options in the inputs - erf.hurricane_eye_latitude and erf.hurricane_eye_longitude that gives an approximate"
+                              " location of the eye in the initial condition");
+            }
+        }
+
         check_params(max_level);
     }
 
@@ -990,5 +1002,8 @@ struct SolverChoice {
     amrex::Real hindcast_lateral_sponge_strength = -1.0, hindcast_lateral_sponge_length = -1.0;
     amrex::Real hindcast_zhi_sponge_strength = -1.0, hindcast_zhi_sponge_length = -1.0;
     bool hindcast_zhi_sponge_damping = false;
+
+    bool io_hurricane_eye_tracker = false;
+    amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
 };
 #endif
