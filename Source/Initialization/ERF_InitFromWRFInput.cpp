@@ -1101,7 +1101,7 @@ init_terrain_from_wrfinput (int /*lev*/,
             } else {
                 // Note: wrfinput geopotentials ph, phb are only staggered in the vertical, i.e.,
                 //       they have dims (bottom_top_stag, south_north, west_east). On k==klo, we
-                //       will end up smoothing the terrain as we avearge from surface face centers
+                //       will end up smoothing the terrain as we average from surface face centers
                 //       to nodes.
                 z_arr(i, j, k) = 0.25 * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
                                           nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
