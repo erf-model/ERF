@@ -417,7 +417,9 @@ public:
 
           // Pathways in fill_tsurf_with_sst_and_tsk
           bool use_tsk = (m_tsk_lev[lev][0]);
+          bool use_sst = (m_sst_lev[lev][0]);
           amrex::Print() << "Using MOST with specified surface temperature ";
+          if (use_tsk && !use_sst) { m_ignore_sst = true; }
           if (use_tsk) {
               amrex::Print() << "(land: TSK, ";
           } else {
