@@ -562,7 +562,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
-                if (!is_land) {
+                if (!is_land && !m_ignore_sst) {
                     t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
                                       + alpha * sst_hi_arr(i,j,k);
                 } else {
