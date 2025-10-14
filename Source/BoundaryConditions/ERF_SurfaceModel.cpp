@@ -169,6 +169,8 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
             }
         }
     }
+
+    weight_average_fields(lev, urban_frac);
 }
 
 void SurfaceModel::calculate_simple_average(int lev, amrex::MultiFab* const urban_frac)
@@ -193,6 +195,81 @@ void SurfaceModel::calculate_simple_average(int lev, amrex::MultiFab* const urba
     m_weights_updated = true;
 }
 
+void SurfaceModel::register_field_map(std::string name, const std::pair<int, int> &lsm_urb_map)
+{
+    amrex::Print() << " adding mapping between LSM<->Urban fields <"<<lsm_urb_map.first << "," << lsm_urb_map.second << "> to common surface name " << name << std::endl;
+
+    AMREX_ALWAYS_ASSERT(!(lsm_urb_map.first == -1 && lsm_urb_map.second == -1));
+    if (fieldmap.find(name) == fieldmap.end()) {
+
+        Field field;
+        field.map = lsm_urb_map;
+        field.mf_ind = -1;
+
+        // Create MF to hold output for this field
+
+        amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_lev(m_nlevs);
+        for (int lev = 0; lev < m_nlevs; lev++)
+        {
+            mf_lev[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, IntVect(1,1,0));
+            mf_lev[lev]->setVal(0.0);
+        }
+
+        fields.push_back(std::move(mf_lev));
+        field.mf_ind = fields.size() - 1;
+
+        amrex::Print() << "    -- created at ind = " << field.mf_ind << std::endl;
+
+        fieldmap.insert({name, field});
+    } else {
+        return;
+    }
+}
+
+void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const urban_frac)
+{
+    for (auto &field : fieldmap)
+    {
+        int mf_idx = field.second.mf_ind;
+        AMREX_ASSERT(mf_idx != -1);
+
+        int lsm_idx = field.second.map.first;
+        int urb_idx = field.second.map.second;
+
+        // whether we have a valid LSM multifab
+        bool valid_land = (m_use_land &&
+                           lsm_idx != -1 &&
+                           lsm_data_lev[lev][lsm_idx]);
+
+        // whether we have a valid urban multifab
+        bool valid_urban = (m_use_urban &&
+                            urb_idx != -1 &&
+                            urban_data_lev[lev][urb_idx]);
+
+        for (MFIter mfi(*fields[mf_idx][lev], TileNoZ()); mfi.isValid(); ++mfi)
+        {
+            Box tbx = mfi.tilebox();
+            Box b2d = makeSlab(tbx, 2, 0);
+
+            auto weights_arr = wavg[lev]->const_array(mfi);
+
+            // Calculate weight average into output
+            auto output_arr = fields[mf_idx][lev]->array(mfi);
+            auto lsm_data_arr = (valid_land) ? lsm_data_lev[lev][lsm_idx]->const_array(mfi) : Array4<const Real>{};
+            auto urban_data_arr = (valid_urban) ? urban_data_lev[lev][urb_idx]->const_array(mfi) : Array4<const Real>{};
+
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                Real land = (lsm_data_arr) ? lsm_data_arr(i, j, k) * weights_arr(i, j, 0, SurfaceModelType::LAND) : 0.0;
+                Real urb  = (urban_data_arr) ? urban_data_arr(i, j, k) * weights_arr(i, j, 0, SurfaceModelType::URBAN) : 0.0;
+
+                output_arr(i, j, k) = land + urb;
+            });
+        }
+        //outputs[output_field]->FillBoundary(comp, 1, m_geom[lev].periodicity());
+    }
+}
+
 
 void SurfaceModel::write_output(int lev, const amrex::Real time, const std::string plot_prefix, const int level_step)
 {
@@ -201,7 +278,7 @@ void SurfaceModel::write_output(int lev, const amrex::Real time, const std::stri
     const int nfields = (m_export_fluxes) ? 5 : 4;
     const int nlsm_fields = (m_use_land) ? (lsm_fields.size() - nfields) : 0;
     const int nurb_fields = (m_use_urban) ? (urban_fields.size() - nfields) : 0;
-    const int noutput = nfields + 2; // + nlsm_fields + nurb_fields; // MOST, lmask, urb frac, lsm fields, urban fields
+    const int noutput = nfields + 2 + fieldmap.size(); // + nlsm_fields + nurb_fields; // MOST, lmask, urb frac, lsm fields, urban fields
     IntVect ng(0, 0, 0);
 
     amrex::MultiFab* const outputs[] = {u_star[lev].get(), t_star[lev].get(), q_star[lev].get(), t_surf[lev].get()};
@@ -232,6 +309,15 @@ void SurfaceModel::write_output(int lev, const amrex::Real time, const std::stri
 
     varnames.push_back("lmask");
     varnames.push_back("urb_frac");
+
+    // Add any mapped fields
+    for (auto &field : fieldmap) {
+        MultiFab::Copy(fab, *(fields[field.second.mf_ind][lev]), 0, nout, 1, ng);
+        varnames.push_back(field.first);
+        nout++;
+    }
+
+    AMREX_ALWAYS_ASSERT(varnames.size() == noutput);
 
     amrex::WriteSingleLevelPlotfile(plotfilename, fab, varnames, m_geom2d[lev], time, level_step);
 }
