@@ -16,6 +16,8 @@ CEXE_headers += ERF_MoistUtils.H
 CEXE_headers += ERF_SatMethods.H
 CEXE_headers += ERF_WaterVaporSaturation.H
 CEXE_headers += ERF_DirectionSelector.H
+CEXE_headers += ERF_StormDiagnostics.H
+CEXE_headers += ERF_HurricaneDiagnostics.H
 
 CEXE_sources += ERF_AverageDown.cpp
 CEXE_sources += ERF_ChopGrids.cpp

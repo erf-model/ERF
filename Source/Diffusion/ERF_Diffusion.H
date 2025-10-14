@@ -90,7 +90,6 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
 
 void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,
                              int start_comp, int num_comp,
-                             const bool& rotate,
                              const amrex::Array4<const amrex::Real>& u,
                              const amrex::Array4<const amrex::Real>& v,
                              const amrex::Array4<const amrex::Real>& cell_data,

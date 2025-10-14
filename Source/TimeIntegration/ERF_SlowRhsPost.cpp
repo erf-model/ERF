@@ -431,7 +431,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                 if (l_use_diff) {
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
                     if (solverChoice.mesh_type == MeshType::StretchedDz && solverChoice.terrain_type != TerrainType::EB) {
-                        DiffusionSrcForState_S(tbx, domain, start_comp, num_comp, l_rotate, u, v,
+                        DiffusionSrcForState_S(tbx, domain, start_comp, num_comp, u, v,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                stretched_dz_d, dxInv, SmnSmn_a,

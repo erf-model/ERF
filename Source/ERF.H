@@ -151,13 +151,24 @@ public:
 
     // Hurricane track line output as VTKPolyline
     amrex::Vector<std::array<amrex::Real, 2>> hurricane_track_xy;
+    amrex::Vector<std::array<amrex::Real, 2>> hurricane_eye_track_xy,
+                                              hurricane_eye_track_latlon,
+                                              hurricane_maxvel_vs_time,
+                                              hurricane_tracker_circle;
     amrex::Vector<amrex::MultiFab> weather_forecast_data_1, weather_forecast_data_2;
     amrex::Vector<amrex::Vector<amrex::MultiFab>> forecast_state_1,
                                                   forecast_state_2,
                                                   forecast_state_interp;
     std::string MakeVTKFilename(int nstep);
+    std::string MakeVTKFilename_TrackerCircle(int nstep);
+    std::string MakeVTKFilename_EyeTracker_xy(int nstep);
+    std::string MakeFilename_EyeTracker_latlon(int nstep);
+    std::string MakeFilename_EyeTracker_maxvel(int nstep);
     void WriteVTKPolyline(const std::string& filename,
                           amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
+
+    void WriteLinePlot(const std::string& filename,
+                       amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
     // Initialize multilevel data
     void InitData ();
