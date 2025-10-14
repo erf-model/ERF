@@ -279,8 +279,8 @@ NOAHMP::Advance_With_State (const int& lev,
         {
             t_flux_arr(i,j,0) = noahmpio->HFX(i,j)/(QV_TH(i,j,0,Rho_comp)*Cp_d);
             q_flux_arr(i,j,0) = noahmpio->LH(i,j)/(QV_TH(i,j,0,Rho_comp)*L_v);
-            tau13_arr(i,j,0)  = noahmpio->TAU_EW(i,j);
-            tau23_arr(i,j,0)  = noahmpio->TAU_NS(i,j);
+            tau13_arr(i,j,0)  = noahmpio->TAU_EW(i,j)/QV_TH(i,j,0,Rho_comp);
+            tau23_arr(i,j,0)  = noahmpio->TAU_NS(i,j)/QV_TH(i,j,0,Rho_comp);
             TSK(i,j,0)        = noahmpio->TSK(i,j);
             EMISS(i,j,0)      = noahmpio->EMISS(i,j);
             ALBSFCDIR_VIS(i,j,0) = noahmpio->ALBSFCDIRXY(i,1,j);
