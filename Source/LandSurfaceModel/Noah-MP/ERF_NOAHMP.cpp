@@ -253,8 +253,8 @@ NOAHMP::Advance_With_State (const int& lev,
         // NOTE: Need to expose stresses and get stresses from NOAHMP
         Array4<Real> q_flux_arr    = lsm_fab_flux[LsmFlux_NOAHMP::q_flux]->array(mfi);
         Array4<Real> t_flux_arr    = lsm_fab_flux[LsmFlux_NOAHMP::t_flux]->array(mfi);
-        //Array4<Real> tau13_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau13]->array(mfi);
-        //Array4<Real> tau23_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau23]->array(mfi);
+        Array4<Real> tau13_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau13]->array(mfi);
+        Array4<Real> tau23_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau23]->array(mfi);
 
         // Copy forcing data from ERF to Noahmp.
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
@@ -279,6 +279,8 @@ NOAHMP::Advance_With_State (const int& lev,
         {
             t_flux_arr(i,j,0) = noahmpio->HFX(i,j)/(QV_TH(i,j,0,Rho_comp)*Cp_d);
             q_flux_arr(i,j,0) = noahmpio->LH(i,j)/(QV_TH(i,j,0,Rho_comp)*L_v);
+            tau13_arr(i,j,0)  = noahmpio->TAU_EW(i,j)/QV_TH(i,j,0,Rho_comp);
+            tau23_arr(i,j,0)  = noahmpio->TAU_NS(i,j)/QV_TH(i,j,0,Rho_comp);
             TSK(i,j,0)        = noahmpio->TSK(i,j);
             EMISS(i,j,0)      = noahmpio->EMISS(i,j);
             ALBSFCDIR_VIS(i,j,0) = noahmpio->ALBSFCDIRXY(i,1,j);

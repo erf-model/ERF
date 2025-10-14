@@ -74,7 +74,7 @@ then
          -D ERF_ENABLE_FCOMPARE:BOOL=ON \
          -D ERF_ENABLE_DOCUMENTATION:BOOL=OFF \
          -D CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON
-    time cmake --build "${build_dir}_cpu" --target fcompare --parallel 16
+    time cmake --build "${build_dir}_cpu" --target fcompare
     FCOMPARE_EXE="${build_dir}_cpu/Submodules/AMReX/Tools/Plotfile/amrex_fcompare"
 fi
 echo "fcompare executable: ${FCOMPARE_EXE}"
@@ -147,7 +147,7 @@ echo "========="
 echo "Build ERF"
 echo "========="
 
-time cmake --build "${build_dir}" --parallel 16
+time cmake --build "${build_dir}"
 
 echo "========"
 echo "Test ERF"
