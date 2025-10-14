@@ -28,6 +28,29 @@ variables:
   # Git reference (branch name, tag, hash, etc.) to use in the gold file repo
   CI_GOLD_FILES_GIT_REF: main
 
+# Common rules for all CI pipelines - conditions are checked in order and the
+# checks break on the first condition satisfied
+workflow:
+  rules:
+    # Test the default branch
+    - if: $CI_COMMIT_BRANCH == $DEFAULT_BRANCH
+    # Test the upstream branch
+    - if: $CI_COMMIT_BRANCH == 'development'
+    # Do not test if the commit message contains [skip-ci]
+    - if: $CI_COMMIT_MESSAGE =~ /\[skip-ci\]/
+      when: never
+    # Test if the commit message contains [run-ci]
+    - if: $CI_COMMIT_MESSAGE =~ /\[run-ci\]/
+    # Test branches starting with "gitlab"
+    - if: $CI_COMMIT_BRANCH =~ /^gitlab.*/
+    # Test merge requests
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Do not test on push
+    - if: $CI_PIPELINE_SOURCE == "push"
+      when: never
+    # Default to always test
+    - when: always
+
 # High level stages
 stages:
   - build-and-test
