@@ -128,7 +128,7 @@ time cmake \
      -D MPIEXEC_PREFLAGS:STRING="${mpiexec_preflags}" \
      -D CMAKE_BUILD_TYPE:STRING="${build_type}" \
      -D ERF_DIM:STRING=3 \
-     - DERF_ENABLE_PARTICLES:BOOL=ON \
+     -D ERF_ENABLE_PARTICLES:BOOL=ON \
      -D ERF_ENABLE_MPI:BOOL=ON \
      -D ERF_ENABLE_CUDA:BOOL="${ERF_ENABLE_CUDA}" \
      -D AMReX_CUDA_ARCH:STRING="${CUDA_ARCH:-""}" \
