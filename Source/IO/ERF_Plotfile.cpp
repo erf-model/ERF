@@ -1470,6 +1470,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         lsm.Plot_Lsm_Data(t_new[0], istep, refRatio());
     }
 
+    if (which==1 && plot_surfmodel && m_SurfaceModel) {
+        m_SurfaceModel->write_output(0, t_new[0], "plt_surf_", istep[0]);
+    }
+
 #ifdef ERF_USE_RRTMGP
     /*
     // write additional RRTMGP data

@@ -20,7 +20,8 @@ public:
                           const amrex::Vector<amrex::BoxArray> &ba,
                           const amrex::Vector<amrex::Geometry> &geom,
                           const amrex::Vector<amrex::DistributionMapping> &dm,
-                          const SolverChoice &solverChoice) 
+                          const SolverChoice &solverChoice,
+                          amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_lev)
         : m_nlevs(nlevs), m_ba(ba), m_geom(geom), m_dmap(dm) {
         
         u_star.resize(m_nlevs);
@@ -30,6 +31,8 @@ public:
 
         wavg.resize(m_nlevs);
 
+        m_geom2d.resize(m_nlevs);
+        m_lmask.resize(m_nlevs);
 
         for (int lev = 0; lev < m_nlevs; lev++)
         {
@@ -41,6 +44,11 @@ public:
             }
             amrex::BoxArray ba2d(std::move(bl2d));
 
+            amrex::RealBox dom2d = m_geom[lev].ProbDomain();
+            dom2d.setHi(2, m_geom[lev].CellSize(2));
+            m_geom2d[lev].define(ba2d.minimalBox(), dom2d, m_geom[lev].Coord(), m_geom[lev].isPeriodic());
+
+            m_lmask[lev] = lmask_lev[lev][0].get();
 
             amrex::IntVect ng(1,1,0);
             // Create output arrays for surface boundary condition
@@ -150,6 +158,8 @@ public:
         return wavg[lev].get();
     }
 
+    void write_output(int lev, const amrex::Real time, const std::string plot_prefix, const int level_step);
+
 private:
 
     // Internal function to update weights using urban fraction
@@ -168,6 +178,9 @@ private:
     amrex::Vector<amrex::BoxArray> m_ba;
     amrex::Vector<amrex::Geometry> m_geom;
     amrex::Vector<amrex::DistributionMapping> m_dmap;
+
+    amrex::Vector<amrex::Geometry> m_geom2d;
+    amrex::Vector<amrex::iMultiFab*> m_lmask;
 
     // Pointers to LSM and Urban model data
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  urban_frac_lev; // Urban fraction for each level [0-1.0]
@@ -190,6 +203,14 @@ private:
     amrex::Vector<int> lsm_fields;
     amrex::Vector<int> urban_fields;
     
+    // plotfile names for outputs
+    inline static const std::vector<std::string> field_names = {
+        "uflux",
+        "vflux",
+        "hfx",
+        "qfx",
+        "tskin",
+    };
 };
 
 #endif

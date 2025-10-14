@@ -2,6 +2,7 @@
 
 #include "AMReX_Box.H"
 #include "AMReX_MFIter.H"
+#include <AMReX_PlotFileUtil.H>
 #include "ERF_TileNoZ.H"
 
 using namespace amrex;
@@ -190,4 +191,33 @@ void SurfaceModel::calculate_simple_average(int lev, amrex::MultiFab* const urba
     }
 
     m_weights_updated = true;
+}
+
+
+void SurfaceModel::write_output(int lev, const amrex::Real time, const std::string plot_prefix, const int level_step)
+{
+    std::string plotfilename = amrex::Concatenate(plot_prefix + "2D_", level_step, 5);
+
+    const int nfields = (m_export_fluxes) ? 5 : 4;
+    IntVect ng(0, 0, 0);
+
+    amrex::MultiFab* const outputs[] = {u_star[lev].get(), t_star[lev].get(), q_star[lev].get(), t_surf[lev].get()};
+    MultiFab fab(outputs[0]->boxArray(), m_dmap[lev], nfields, ng);
+
+
+    amrex::Vector<std::string> varnames(nfields);
+
+    // Output weighted surface fluxes into ustar, tstar, qstar and surface temperature into tsurf
+    // TODO: make sure grids of urban and LSM inputs match
+    for (int field=0; field < nfields; field++)
+    {
+        int output_field = (m_export_fluxes && field > 0) ? field - 1 : field;
+        int comp = (m_export_fluxes && field < 2) ? field : 0;
+
+        MultiFab::Copy(fab, *(outputs[output_field]), comp, field, 1, ng);
+
+        varnames[field] = field_names[field];
+    }
+
+    amrex::WriteSingleLevelPlotfile(plotfilename, fab, varnames, m_geom2d[lev], time, level_step);
 }
