@@ -77,6 +77,8 @@ namespace LsmVar_SLM {
       vegtype,         // vegetation type (2D)
       soiltype,        // soil type (2D)
       veg_frac,        // vegetation fraction
+      veg_frac_min,    // yearly min vegetation fraction
+      veg_frac_max,    // yearly max vegetation fraction
       // model outputs
       flbu,            // surface u-momentum
       flbv,            // surface v-momentum
@@ -225,7 +227,8 @@ public:
                 // TODO: fix - WRFinput sets 3D MFs in lsm_data - these need to be copied into SLM local 2D MFs
                 int d_khi_lsm = khi_lsm;
 
-                const int inature = 14; // nature cell type to use for urban cells
+                const int isnature = 14; // nature cell type to use for urban cells
+                const int isurban  = 13; // urban cell type
                 for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
                     amrex::Box bx2d = mfi.tilebox();
 
@@ -243,6 +246,8 @@ public:
                     auto in_tsk_arr = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
                     auto in_tsoil_arr = lsm_fab_vars[LsmVar_SLM::soilt]->array(mfi);
                     auto in_vegfrac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->array(mfi);
+                    auto in_vegfrac_min_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_min]->array(mfi);
+                    auto in_vegfrac_max_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_max]->array(mfi);
 
                     auto emis_sfc_arr = lsm_fab_vars[LsmVar_SLM::emis_sfc]->array(mfi);
                     auto alb_vis_sfc_arr = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc]->array(mfi);
@@ -279,6 +284,10 @@ public:
 
                         in_vegfrac_arr(i,j,d_khi_lsm) *= 0.01;
                         in_vegfrac_arr(i,j,0) = in_vegfrac_arr(i,j,d_khi_lsm);
+                        in_vegfrac_min_arr(i,j,d_khi_lsm) *= 0.01;
+                        in_vegfrac_min_arr(i,j,0) = in_vegfrac_min_arr(i,j,d_khi_lsm);
+                        in_vegfrac_max_arr(i,j,d_khi_lsm) *= 0.01;
+                        in_vegfrac_max_arr(i,j,0) = in_vegfrac_max_arr(i,j,d_khi_lsm);
 
                         if (landtype_arr(i,j,0) == 17) {
                             //amrex::Print() << "     -- water cell - setting landtype=0 landmask=0" << std::endl;
@@ -302,8 +311,14 @@ public:
                             alb_nir_sfc_dif_arr(i,j,d_khi_lsm) = alb_nir_sfc_dif_arr(i,j,0);
 
                         } else if (landtype_arr(i,j,0) > 16) {
-                            //amrex::Print() << "     -- urban cell - setting landtype=13" << std::endl;
-                            landtype_arr(i,j,0) = inature;
+                            // amrex::Print() << "     -- urban cell (i = " << i << " j = " << j << ") - setting landtype=" << isnature << " (orig landtype = " << landtype_arr(i,j,0) << ")" << std::endl;
+                            // for urban cells, set as a nature landtype for the non-building part
+                            landtype_arr(i,j,0) = isnature;
+                            if (use_wrf_lai) {
+                                // set the vegetation frac
+                                in_vegfrac_arr(i,j,0) = param_table[isnature-1][1];
+                            }
+                            //landtype_arr(i,j,0) = isurban;
                         }
                     });
                 }
@@ -541,7 +556,7 @@ public:
 
 private:
     // number of lsm variables (theta)
-    int m_lsm_data_size = 40;
+    int m_lsm_data_size = 42;
 
     // number of flux variables (qflux, tflux, uflux, vflux)
     int m_lsm_flux_size = 4;
@@ -774,7 +789,10 @@ private:
     amrex::Gpu::PinnedVector<amrex::Real> d_sai_next; // GPU LAI values for next month
 
     bool use_param_file = false;  // whether to initialize using parameters from file
-    bool interpolate_lai = false; // whether to interpolate LAI+SAI between monthly values for each landtype
+    bool interpolate_lai = false; // whether to interpolate LAI+SAI between monthly values for each landtype (Noah-MP style, dynamic veg=4)
+    bool use_wrf_lai = false;     // whether to use WRF-Noah style LAI (interpolate between min and max lai)
+
+    std::vector<std::vector<amrex::Real>> param_table;
 
     amrex::Real m_calday = -1.0;
     int m_orbital_year = -1;
@@ -801,6 +819,8 @@ private:
         {"ISLTYP", "soiltype"},
         {"TSK", "tsurf"},
         {"VEGFRA", "veg_frac"},
+        {"SHDMIN", "veg_frac_min"},
+        {"SHDMAX", "veg_frac_max"},
         //{"TMN", "soilt_obs"}
     };
 
@@ -839,6 +859,8 @@ private:
       LsmVar_SLM::vegtype,
       LsmVar_SLM::soiltype,
       LsmVar_SLM::veg_frac,
+      LsmVar_SLM::veg_frac_min,
+      LsmVar_SLM::veg_frac_max,
       LsmVar_SLM::emis_sfc,
       LsmVar_SLM::alb_nir_sfc,
       LsmVar_SLM::alb_vis_sfc,
@@ -852,7 +874,7 @@ private:
       "tveg", "mv", "tsoil", "wsoil", "sand", "clay", "soil_thickness", "node_z", "interface_z",
       "soilw_nudge", "soilt_nudge", "sw_over_sat", "soil_relax_hgt", "soilt_obs", "soilw_obs", "rootF", "w_s_FC", "w_s_WP",
       "sst_capa", "sst_cond", "poro_soil", "theta_FC", "theta_WP", "m_pot_sat", "Bconst", "ks","lai","vegtype","soiltype",
-      "veg_frac", "surface_u", "surface_v", "surface_vapor", "surface_heat", "precip_soil", "emis_sfc", "alb_nir_sfc", "alb_vis_sfc", "alb_nir_sfc_diff", "alb_vis_sfc_diff"
+      "veg_frac", "veg_frac_min", "veg_frac_max", "surface_u", "surface_v", "surface_vapor", "surface_heat", "precip_soil", "emis_sfc", "alb_nir_sfc", "alb_vis_sfc", "alb_nir_sfc_diff", "alb_vis_sfc_diff"
     };
 
     static_assert(sizeof(LsmVarName_Full)/sizeof(*LsmVarName_Full) == LsmVar_SLM::NumVars);

@@ -45,7 +45,7 @@ SLM::Init (const int& /*lev*/,
       LsmVar_SLM::uref,          LsmVar_SLM::vref,         LsmVar_SLM::dref,
       LsmVar_SLM::qref,          LsmVar_SLM::pref,         LsmVar_SLM::node_z,
       LsmVar_SLM::soilt_nudge,   LsmVar_SLM::soilw_nudge,  LsmVar_SLM::lai,
-      LsmVar_SLM::vegtype,       LsmVar_SLM::soiltype,     LsmVar_SLM::veg_frac,
+      LsmVar_SLM::vegtype,       LsmVar_SLM::soiltype,     LsmVar_SLM::veg_frac, LsmVar_SLM::veg_frac_min, LsmVar_SLM::veg_frac_max,
       LsmVar_SLM::emis_sfc,      LsmVar_SLM::alb_nir_sfc,  LsmVar_SLM::alb_vis_sfc,
       LsmVar_SLM::alb_nir_sfc_diff, LsmVar_SLM::alb_vis_sfc_diff};
 
@@ -61,7 +61,7 @@ SLM::Init (const int& /*lev*/,
                   "ref_v",         "ref_d",          "ref_q",
                   "ref_p",         "node_z",         "soilt_nudge",
                   "soilw_nudge",   "lai",            "vegtype",
-                  "soiltype",      "veg_frac",       "emis_sfc",
+                  "soiltype",      "veg_frac", "veg_frac_min", "veg_frac_max", "emis_sfc",
                   "alb_nir_sfc",   "alb_vis_sfc", "alb_nir_sfc_diff", "alb_vis_sfc_diff"};
 
     AMREX_ALWAYS_ASSERT(LsmDataMap.size() == LsmDataName.size());
@@ -357,6 +357,10 @@ void SLM::init_from_file()
     pp.query("interpolate_lai", interpolate_lai);
     pp.query("parameter_file", parameter_file);
     pp.query("veg_dataset", veg_dataset);
+    pp.query("use_param_tbl", use_wrf_lai);
+    if (use_param_file) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(use_wrf_lai != use_param_file, "Cannot use parameter file and parameter table, must choose one method");
+    }
 
     /*
     if (use_param_file) {
@@ -381,6 +385,22 @@ void SLM::init_from_file()
         d_lai_next.resize(num_landtypes);
         d_sai_curr.resize(num_landtypes);
         d_sai_next.resize(num_landtypes);
+    }
+
+    if (use_wrf_lai) {
+        pp.gettable("vegparam", param_table);
+        amrex::Print() << " param table = " << std::endl;
+
+        int nparam = param_table[0].size();
+        for (int t = 0; t < param_table.size(); t++) {
+            amrex::Print() << "     LANDTYPE " << t << ": ";
+            for (int i = 0; i < param_table[t].size(); i++) {
+                amrex::Print() << param_table[t][i] << " ";
+            }
+            amrex::Print() << std::endl;
+
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(param_table[t].size() == nparam, "Invalid param table, inconsistent number of parameters for landtype");
+        }
     }
 
     pp.query("rad_input_file", rad_input_file);
@@ -680,6 +700,9 @@ void SLM::slm_init()
                 phi_2_arr(i, j, 0) = 0.877 * (1.0 - 2.0 * phi_1_arr(i, j, 0));
                 precip_extinc_arr(i, j, 0) = phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0);
                 mw_mx_arr(i, j, 0) = 0.1 * LAI_arr(i, j, 0);
+            } else {
+                vege_YES_arr(i, j, 0) = 0.0;
+                veg_frac_arr(i, j, 0) = 0.0;
             }
         });
     }
@@ -1506,6 +1529,67 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
 
                     LAI_arr(i,j,0) += SAI_arr(i,j,0);
                 }
+            }
+        });
+
+        UpdateLAIParameters(mfi);
+    } else if (use_wrf_lai) {
+
+        Box box = mfi.tilebox();
+        box.makeSlab(2, 0);
+
+        auto landmask_arr = landmask.const_array(mfi);
+        auto landtype_arr = landtype.const_array(mfi);
+        auto vegetype_arr = vegetype.const_array(mfi);
+
+        auto veg_frac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->array(mfi);
+        auto veg_frac_min_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_min]->array(mfi);
+        auto veg_frac_max_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_max]->array(mfi);
+
+        auto IR_emis_veg = IR_emis_vege.array(mfi);
+
+        auto LAI_arr = LAI.array(mfi);
+        auto SAI_arr = SAI.array(mfi);
+
+        // Update LAI = LAI + SAI
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        {
+            if (landmask_arr(i, j, 0) == 1) {
+
+                const int ltype = landtype_arr(i,j,0) - 1; // shift by one to match table index (i.e, types 1-20 -> 0-19)
+
+                AMREX_ALWAYS_ASSERT(param_table[ltype][0] == ltype + 1); // debug to make sure landtypes match
+
+                if (ltype + 1 == 13) { // urban cells
+                    veg_frac_arr(i,j,0) = param_table[ltype][1];
+                }
+
+                //    LAI min = col 8, lai max = col 9
+                //  emiss min = col 10,    max = col 11
+                // albedo min = col 12,    max = col 13
+
+                if (veg_frac_arr(i,j,0) >= veg_frac_max_arr(i,j,0)) {
+                    //emis_sfc_arr(i,j,0) = emissmax;
+                    LAI_arr(i,j,0) = param_table[ltype][9];
+                } else if (veg_frac_arr(i,j,0) <= veg_frac_min_arr(i,j,0)) {
+                    //emis_sfc_arr(i,j,0) = emissmin;
+                    LAI_arr(i,j,0) = param_table[ltype][8];
+                } else {
+                    if (veg_frac_max_arr(i,j,0) > veg_frac_min_arr(i,j,0)) {
+
+                        Real interp_frac = (veg_frac_arr(i,j,0) - veg_frac_min_arr(i,j,0)) / (veg_frac_max_arr(i,j,0) - veg_frac_min_arr(i,j,0));
+                        interp_frac = std::min(std::max(interp_frac, 0.0), 1.0); // bound between 0.0 and 1.0
+
+                        // Scale emissivitiy and LAI between min/max by interp_frac
+                        //emis_sfc_arr(i,j,0) = ( (1.0 - interp_frac) * param_table[ltype][10]) + interp_frac * param_table[ltype][11];
+
+                        LAI_arr(i,j,0) = ( (1.0 - interp_frac) * param_table[ltype][8]) + interp_frac * param_table[ltype][9];
+                    } else {
+                        // emis_sfc_arr(i,j,0) = 0.5 * param_table[ltype][10] + 0.5 * param_table[ltype][11];
+                        LAI_arr(i,j,0) = 0.5 * param_table[ltype][8] + 0.5 * param_table[ltype][9];
+                    }
+                }
+
             }
         });
 
