@@ -26,7 +26,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     }
 
     // Update qsurf with qsat over sea
-    if (use_moisture && (moist_type == MoistCalcType::SURFACE_MOISTURE)) {
+    if (use_moisture) {
         fill_qsurf_with_qsat(lev, cons_in, z_phys_nd);
     }
 
@@ -38,7 +38,6 @@ SurfaceLayer::update_fluxes (const int& lev,
 
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
-
 
 
     // ***************************************************************
