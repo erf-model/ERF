@@ -69,6 +69,7 @@ public:
             wavg[lev]->setVal(0.0, SurfaceModelType::URBAN, 1, 0);
         }
 
+        urban_frac_lev.resize(m_nlevs);
         lsm_data_lev.resize(m_nlevs);
         urban_data_lev.resize(m_nlevs);
 
@@ -80,10 +81,19 @@ public:
     /**
      * Sets the urban or land data pointers that are used to compute weight averages
      */
-    void set_model_data(int lev, amrex::Vector<amrex::MultiFab*> model_data, SurfaceModelType type)
+    void set_model_data(int lev, amrex::Vector<amrex::MultiFab*> model_data, amrex::Vector<std::string>& data_names, SurfaceModelType type)
     {
         if (type == SurfaceModelType::LAND) {
             lsm_data_lev[lev].resize(model_data.size());
+            if (lev == 0) {
+                // only set names on first level, since they are the same for all levels
+                m_lsm_names.resize(model_data.size());
+                AMREX_ALWAYS_ASSERT(data_names.size() == model_data.size());
+                for (int i = 0; i < data_names.size(); i++) {
+                    m_lsm_names[i] = data_names[i];
+                }
+            }
+
             for (int i = 0; i < lsm_data_lev[lev].size(); i++) {
                 AMREX_ALWAYS_ASSERT(model_data[i]);
                 lsm_data_lev[lev][i] = model_data[i];
@@ -91,6 +101,14 @@ public:
             m_use_land = true;
         } else if (type == SurfaceModelType::URBAN) {
             urban_data_lev[lev].resize(model_data.size());
+            if (lev == 0) {
+                // only set names on first level, since they are the same for all levels
+                m_urban_names.resize(model_data.size());
+                AMREX_ALWAYS_ASSERT(data_names.size() == model_data.size());
+                for (int i = 0; i < data_names.size(); i++) {
+                    m_urban_names[i] = data_names[i];
+                }
+            }
             for (int i = 0; i < urban_data_lev[lev].size(); i++) {
                 AMREX_ALWAYS_ASSERT(model_data[i]);
                 urban_data_lev[lev][i] = model_data[i];
@@ -183,7 +201,7 @@ private:
     amrex::Vector<amrex::iMultiFab*> m_lmask;
 
     // Pointers to LSM and Urban model data
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>>  urban_frac_lev; // Urban fraction for each level [0-1.0]
+    amrex::Vector<amrex::MultiFab*>  urban_frac_lev; // Urban fraction for each level [0-1.0]
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  lsm_data_lev;   // LSM data for each level
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  urban_data_lev; // Urban data for each level
 
@@ -202,6 +220,9 @@ private:
     // TODO: make this more flexible for different types of models
     amrex::Vector<int> lsm_fields;
     amrex::Vector<int> urban_fields;
+
+    amrex::Vector<std::string> m_lsm_names;
+    amrex::Vector<std::string> m_urban_names;
     
     // plotfile names for outputs
     inline static const std::vector<std::string> field_names = {

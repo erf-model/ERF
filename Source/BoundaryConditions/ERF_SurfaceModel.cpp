@@ -199,10 +199,13 @@ void SurfaceModel::write_output(int lev, const amrex::Real time, const std::stri
     std::string plotfilename = amrex::Concatenate(plot_prefix + "2D_", level_step, 5);
 
     const int nfields = (m_export_fluxes) ? 5 : 4;
+    const int nlsm_fields = (m_use_land) ? (lsm_fields.size() - nfields) : 0;
+    const int nurb_fields = (m_use_urban) ? (urban_fields.size() - nfields) : 0;
+    const int noutput = nfields + 2; // + nlsm_fields + nurb_fields; // MOST, lmask, urb frac, lsm fields, urban fields
     IntVect ng(0, 0, 0);
 
     amrex::MultiFab* const outputs[] = {u_star[lev].get(), t_star[lev].get(), q_star[lev].get(), t_surf[lev].get()};
-    MultiFab fab(outputs[0]->boxArray(), m_dmap[lev], nfields, ng);
+    MultiFab fab(outputs[0]->boxArray(), m_dmap[lev], noutput, ng);
 
 
     amrex::Vector<std::string> varnames(nfields);
@@ -218,6 +221,17 @@ void SurfaceModel::write_output(int lev, const amrex::Real time, const std::stri
 
         varnames[field] = field_names[field];
     }
+
+    int nout = nfields;
+
+    MultiFab lmask_tmp = amrex::ToMultiFab(*m_lmask[lev]); // iMultiFab -> MultiFab
+    MultiFab::Copy(fab, lmask_tmp, 0, nout, 1, ng);
+    nout++;
+    MultiFab::Copy(fab, *(wavg[lev]), SurfaceModelType::URBAN, nout, 1, ng);
+    nout++;
+
+    varnames.push_back("lmask");
+    varnames.push_back("urb_frac");
 
     amrex::WriteSingleLevelPlotfile(plotfilename, fab, varnames, m_geom2d[lev], time, level_step);
 }

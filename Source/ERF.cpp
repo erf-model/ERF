@@ -1353,7 +1353,7 @@ ERF::InitData_post ()
         m_SurfaceModel = std::make_unique<SurfaceModel>(max_level+1, grids, geom, dmap, solverChoice, lmask_lev);
         if (solverChoice.lsm_type != LandSurfaceType::None) {
             for (int lev = 0; lev <= finest_level; ++lev) {
-                m_SurfaceModel->set_model_data(lev, lsm_data[lev], SurfaceModelType::LAND);
+                m_SurfaceModel->set_model_data(lev, lsm_data[lev], lsm_data_name, SurfaceModelType::LAND);
             }
 
             // For SLM:
@@ -1367,7 +1367,7 @@ ERF::InitData_post ()
         /*
         if (solverChoice.urban_type != UrbanType::None) {
             for (int lev = 0; lev <= finest_level; ++lev) {
-                m_SurfaceModel->set_model_data(lev, urban_data[lev], SurfaceModelType::URBAN);
+                m_SurfaceModel->set_model_data(lev, urban_data[lev], urban_data_name, SurfaceModelType::URBAN);
             }
             m_SurfaceModel->set_model_fields(SurfaceModelType::URBAN, amrex::Vector<int>{UrbanVar_BEP::tau13,
                                                                                          UrbanVar_BEP::tau23,
