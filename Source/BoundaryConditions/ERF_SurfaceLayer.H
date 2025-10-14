@@ -235,6 +235,10 @@ public:
       } else {
           amrex::Abort("Undefined MOST roughness type for sea!");
       }
+
+      // use skin temperature instead of sea-surface temperature
+      // (wrfinput data may have lower resolution SST data)
+      pp.query("most.ignore_sst", m_ignore_sst);
   } // constructor
 
   void make_SurfaceLayer_at_level (const int& lev,
@@ -422,6 +426,21 @@ public:
           // extended lambda capture) Note that land temp will be set from m_tsk_lev
           //      while sea temp will be set from m_sst_lev
           theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
+
+          // Pathways in fill_tsurf_with_sst_and_tsk
+          bool use_tsk = (m_tsk_lev[lev][0]);
+          amrex::Print() << "Using MOST with specified surface temperature ";
+          if (use_tsk) {
+              amrex::Print() << "(land: TSK, ";
+          } else {
+              amrex::Print() << "(land: T0, ";
+          }
+          if (use_tsk && m_ignore_sst) {
+              amrex::Print() << "sea: TSK)" << std::endl;
+          } else {
+              amrex::Print() << "sea: SST)" << std::endl;
+              AMREX_ALWAYS_ASSERT(m_sst_lev[lev][0]);
+          }
       }
   }
 
@@ -637,6 +656,8 @@ private:
   amrex::Real m_Cd = 0.0;
   amrex::Real m_Ch = 0.0;
   amrex::Real m_Cq = 0.0;
+
+  bool m_ignore_sst = false;
 
   MOSTAverage m_ma;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
