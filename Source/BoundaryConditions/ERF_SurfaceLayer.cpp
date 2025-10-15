@@ -685,6 +685,41 @@ SurfaceLayer::compute_pblh (const int& lev,
 }
 
 void
+SurfaceLayer::init_tke_from_ustar (const int& lev,
+                                   MultiFab& cons,
+                                   const std::unique_ptr<MultiFab>& z_phys_cc,
+                                   const Real tkefac,
+                                   const Real zi)
+{
+    Print() << "Initializing TKE from surface layer ustar on level " << lev << std::endl;
+
+    constexpr Real small = 0.01;
+
+    for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        auto const& u_star_arr = u_star[lev]->const_array(mfi);
+        auto const& z_phys_arr = z_phys_cc->const_array(mfi);
+
+        auto const& cons_arr   = cons.array(mfi);
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            Real rho = cons_arr(i, j, k, Rho_comp);
+            Real ust = u_star_arr(i, j, 0);
+            Real tke0 = tkefac * ust * ust; // surface value
+
+            // linearly tapering profile
+            cons_arr(i, j, k, RhoKE_comp) = rho * tke0 * std::max(
+                (ust * zi - z_phys_arr(i,j,k)) / (std::max(ust, small) * zi),
+                small);
+        });
+    }
+}
+
+
+void
 SurfaceLayer::read_custom_roughness (const int& lev,
                                      const std::string& fname)
 {

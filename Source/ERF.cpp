@@ -1550,6 +1550,19 @@ ERF::InitData_post ()
                 m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
                                             solverChoice.moisture_indices);
                 m_SurfaceLayer->update_fluxes(lev, time, vars_new[lev][Vars::cons], z_phys_nd[lev]);
+
+                // Initialize tke(x,y,z) as a function of u*(x,y)
+                if (solverChoice.turbChoice[lev].init_tke_from_ustar) {
+                    Real qkefac = 1.0;
+                    if (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25 ||
+                        solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF)
+                    {
+                        // https://github.com/NCAR/MYNN-EDMF/blob/90f36c25259ec1960b24325f5b29ac7c5adeac73/module_bl_mynnedmf.F90#L1325-L1333
+                        const Real B1 = solverChoice.turbChoice[lev].pbl_mynn.B1;
+                        qkefac = 1.5 * std::pow(B1, 2.0/3.0);
+                    }
+                    m_SurfaceLayer->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_cc[lev], qkefac);
+                }
             }
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
