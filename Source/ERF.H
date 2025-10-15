@@ -699,6 +699,7 @@ private:
 
     // set which variables and derived quantities go into plotfiles
     void setPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
+    void setPlotVariables2D (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
     // append variables to plot
     void appendPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
 
@@ -1120,6 +1121,13 @@ private:
 #endif
                                                     ,"qsrc_sw", "qsrc_lw"
                                                    };
+
+    // **************************************************************************************
+    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
+    // **************************************************************************************
+    const amrex::Vector<std::string> derived_names_2d {
+        "mapfac", "lat_m", "lon_m"
+    };
 
     // algorithm choices
     static SolverChoice solverChoice;

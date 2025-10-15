@@ -209,8 +209,8 @@ ERF::ERF_shared ()
 
     const std::string& pv3d_1 = "plot_vars_1"  ; setPlotVariables(pv3d_1,plot3d_var_names_1);
     const std::string& pv3d_2 = "plot_vars_2"  ; setPlotVariables(pv3d_2,plot3d_var_names_2);
-    const std::string& pv2d_1 = "plot2d_vars_1"; setPlotVariables(pv2d_1,plot2d_var_names_1);
-    const std::string& pv2d_2 = "plot2d_vars_2"; setPlotVariables(pv2d_2,plot2d_var_names_2);
+    const std::string& pv2d_1 = "plot2d_vars_1"; setPlotVariables2D(pv2d_1,plot2d_var_names_1);
+    const std::string& pv2d_2 = "plot2d_vars_2"; setPlotVariables2D(pv2d_2,plot2d_var_names_2);
 
     // This is only used when we have mesh_type == MeshType::StretchedDz
     stretched_dz_h.resize(nlevs_max);

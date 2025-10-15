@@ -177,6 +177,49 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
         }
     }
 #endif
+
+    plot_var_names = tmp_plot_names;
+}
+
+void
+ERF::setPlotVariables2D (const std::string& pp_plot_var_names, Vector<std::string>& plot_var_names)
+{
+    ParmParse pp(pp_prefix);
+
+    if (pp.contains(pp_plot_var_names.c_str()))
+    {
+        std::string nm;
+
+        int nPltVars = pp.countval(pp_plot_var_names.c_str());
+
+        for (int i = 0; i < nPltVars; i++)
+        {
+            pp.get(pp_plot_var_names.c_str(), nm, i);
+
+            // Add the named variable to our list of plot variables
+            // if it is not already in the list
+            if (!containerHasElement(plot_var_names, nm)) {
+                plot_var_names.push_back(nm);
+            }
+        }
+    } else {
+        //
+        // The default is to add none of the variables to the list
+        //
+        plot_var_names.clear();
+    }
+
+    // Get state variables in the same order as we define them,
+    // since they may be in any order in the input list
+    Vector<std::string> tmp_plot_names;
+
+    // 2D plot variables
+    for (int i = 0; i < derived_names_2d.size(); ++i) {
+        if (containerHasElement(plot_var_names, derived_names_2d[i]) ) {
+            tmp_plot_names.push_back(derived_names_2d[i]);
+        }
+    }
+
     plot_var_names = tmp_plot_names;
 }
 

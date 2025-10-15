@@ -700,7 +700,7 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
         Box gtbx = mfi.growntilebox();
 
         auto const& u_star_arr = u_star[lev]->const_array(mfi);
-        auto const& z_phys_arr = z_phys_cc->const_array(mfi);
+        auto const& z_phys_arr = z_phys_nd->const_array(mfi);
 
         auto const& cons_arr   = cons.array(mfi);
 
