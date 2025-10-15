@@ -1561,7 +1561,7 @@ ERF::InitData_post ()
                         const Real B1 = solverChoice.turbChoice[lev].pbl_mynn.B1;
                         qkefac = 1.5 * std::pow(B1, 2.0/3.0);
                     }
-                    m_SurfaceLayer->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_cc[lev], qkefac);
+                    m_SurfaceLayer->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_nd[lev], qkefac);
                 }
             }
         }

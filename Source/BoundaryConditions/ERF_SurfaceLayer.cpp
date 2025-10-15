@@ -687,9 +687,9 @@ SurfaceLayer::compute_pblh (const int& lev,
 void
 SurfaceLayer::init_tke_from_ustar (const int& lev,
                                    MultiFab& cons,
-                                   const std::unique_ptr<MultiFab>& z_phys_cc,
+                                   const std::unique_ptr<MultiFab>& z_phys_nd,
                                    const Real tkefac,
-                                   const Real zi)
+                                   const Real zscale)
 {
     Print() << "Initializing TKE from surface layer ustar on level " << lev << std::endl;
 
@@ -709,10 +709,12 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
             Real rho = cons_arr(i, j, k, Rho_comp);
             Real ust = u_star_arr(i, j, 0);
             Real tke0 = tkefac * ust * ust; // surface value
+            Real zagl = Compute_Zrel_AtCellCenter(i, j, k, z_phys_arr);
 
-            // linearly tapering profile
+            // linearly tapering profile --  following WRF, approximate top of
+            // PBL as ustar * zscale
             cons_arr(i, j, k, RhoKE_comp) = rho * tke0 * std::max(
-                (ust * zi - z_phys_arr(i,j,k)) / (std::max(ust, small) * zi),
+                (ust * zscale - zagl) / (std::max(ust, small) * zscale),
                 small);
         });
     }

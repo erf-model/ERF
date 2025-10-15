@@ -449,9 +449,9 @@ public:
 
   void init_tke_from_ustar (const int& lev,
                             amrex::MultiFab& cons,
-                            const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
+                            const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                             const amrex::Real tkefac = 1.0,
-                            const amrex::Real zi = 700.0);
+                            const amrex::Real zscale = 700.0);
 
   void impose_SurfaceLayer_bcs (const int& lev,
                                 amrex::Vector<const amrex::MultiFab*> mfs,
