@@ -1027,6 +1027,10 @@ ERF::InitData_post ()
         bool use_moist = (solverChoice.moisture_type != MoistureType::None);
         if (solverChoice.use_real_bcs) {
 
+            if ( geom[0].isPeriodic(0) || geom[0].isPeriodic(1) ) {
+                 amrex::Error("Cannot set periodic lateral boundary conditions when reading in real boundary values");
+            }
+
             bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                        bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                                        start_bdy_time);
