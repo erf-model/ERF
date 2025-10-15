@@ -223,9 +223,10 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             Real alphac  = (qvel(i,j,k) >= qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
 //#if EXTRA_MYNN25_CHECKS
 #if 0
+            // VERY verbose diagnostic
             Real Ri = -GH/(GM+level2.eps);
             if (alphac < 1) {
-                AllPrint() << "Level 2 limter at " << IntVect(i,j,k) << " :"
+                AllPrint() << "Level 2 limiter at " << IntVect(i,j,k) << " :"
                     << " ustar= " << u_star_arr(i,j,0)
                     << " alphac= " << alphac
                     << " Ri,SM2,SH2= " << Ri << " " << SM2 << " " << level2.calc_SH(Rf)
