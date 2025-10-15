@@ -730,6 +730,10 @@ ERF::init_from_wrfinput (int lev,
     // *******************************************************************************************
     if (solverChoice.use_real_bcs && (lev == 0))
     {
+        if (geom[0].isPeriodic(0) || geom[0].isPeriodic(1) ) {
+             amrex::Error("Cannot set periodic lateral boundary conditions when reading in real boundary values");
+        }
+
         if (nc_bdy_file.empty()) {
             amrex::Error("NetCDF boundary file name must be provided via input");
         }
