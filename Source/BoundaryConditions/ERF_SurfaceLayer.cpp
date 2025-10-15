@@ -237,11 +237,14 @@ SurfaceLayer::compute_fluxes (const int& lev,
                 (!is_land && lmask_arr(i,j,k) == 0))
             {
                 most_flux.iterate_flux(i, j, k, max_iters,
-                                       z0_arr, umm_arr, tm_arr, tvm_arr, qvm_arr,
-                                       u_star_arr, w_star_arr,           // to be updated
-                                       t_star_arr, q_star_arr,           // to be updated
-                                       t_surf_arr, q_surf_arr, olen_arr, // to be updated
-                                       pblh_arr, Hwave_arr, Lwave_arr, eta_arr);
+                                       z0_arr,                              // updated if(!is_land)
+                                       umm_arr, tm_arr, tvm_arr, qvm_arr,
+                                       u_star_arr,                          // updated
+                                       w_star_arr,                          // updated if(m_include_wstar)
+                                       t_star_arr, q_star_arr,              // updated
+                                       t_surf_arr, q_surf_arr, olen_arr,    // updated
+                                       pblh_arr,                            // updated if(m_include_wstar)
+                                       Hwave_arr, Lwave_arr, eta_arr);
             }
         });
     }
