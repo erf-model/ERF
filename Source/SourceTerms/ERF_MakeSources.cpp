@@ -468,27 +468,41 @@ void make_sources (int level,
         if (solverChoice.four_stream_radiation && has_moisture && is_slow_step)
         {
             AMREX_ALWAYS_ASSERT((bx.smallEnd(2) == klo) && (bx.bigEnd(2) == khi));
-            Real F0   = 70; // [W/m^2]
-            Real F1   = 22; // [W/m^2]
-            Real krad = 85; // [m^2 kg^-1]
+            Real D    = 3.75e-6; // [s^-1]
+            Real F0   = 70;      // [W/m^2]
+            Real F1   = 22;      // [W/m^2]
+            Real krad = 85;      // [m^2 kg^-1]
+            Real qt_i = 0.008;
 
             Box xybx = makeSlab(bx,2,klo);
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
-                // Inclusive scan at w-faces for the Q integral
+                // Inclusive scan at w-faces for the Q integral (also find "i" values)
                 q_int[0] = 0.0;
+                Real zi   = 0.5 * (z_cc_arr(i,j,khi) + z_cc_arr(i,j,khi-1));
+                Real rhoi = 0.5 * (cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi-1,Rho_comp));
                 for (int k(klo+1); k<=khi+1; ++k) {
                     int lk    = k - klo;
                     // Average to w-faces when looping w-faces
-                    Real dz   = (z_cc_arr) ? 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx[2];
-                    q_int[lk] = q_int[lk-1] + krad * cell_data(i,j,k-1,Rho_comp) * cell_data(i,j,k-1,RhoQ2_comp) * dz;
+                    Real dz    = (z_cc_arr) ? 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx[2];
+                    q_int[lk]  = q_int[lk-1] + krad * cell_data(i,j,k-1,Rho_comp) * cell_data(i,j,k-1,RhoQ2_comp) * dz;
+                    Real qt_hi = cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp);
+                    Real qt_lo = cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp);
+                    if ( (qt_lo > qt_i) && (qt_hi < qt_i) ) {
+                        zi   = 0.5 * (z_cc_arr(i,j,k) + z_cc_arr(i,j,k-1));
+                        rhoi = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
+                    }
                 }
 
                 // Decompose the integral to get the fluxes at w-faces
                 Real q_int_inf = q_int[khi+1];
                 for (int k(klo); k<=khi+1; ++k) {
                     int lk       = k - klo;
+                    Real z       = 0.5 * (z_cc_arr(i,j,k) + z_cc_arr(i,j,k-1));
                     rad_flux[lk] = F1*std::exp(-q_int[lk]) + F0*std::exp(-(q_int_inf - q_int[lk]));
+                    if (z > zi) {
+                      rad_flux[lk] += rhoi * Cp_d * D * ( std::pow(z-zi,4./3.)/4. + zi*std::pow(z-zi,1./3.) ) ;
+                    }
                 }
 
                 // Compute the radiative heating source
