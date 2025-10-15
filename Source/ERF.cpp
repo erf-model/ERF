@@ -478,11 +478,6 @@ ERF::ERF_shared ()
         ParmParse pp("eb2");
         pp.queryAdd("geometry", geometry);
 
-        bool build_coarse_level_by_coarsening(false);
-        // Note this just needs to be an integer > number of V-cycles one might use
-        int max_coarsening_level = ( solverChoice.terrain_type == TerrainType::EB &&
-                                    (solverChoice.project_initial_velocity ||
-                                     solverChoice.anelastic[0] == 1) ) ? 100 : 0;
         int ngrow_for_eb = 4;  // This is the default in amrex but we need to explicitly pass it here since
                                // we want to also pass the build_coarse_level_by_coarsening argument
         if (geometry == "terrain") {
