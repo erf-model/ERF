@@ -237,11 +237,14 @@ SurfaceLayer::compute_fluxes (const int& lev,
                 (!is_land && lmask_arr(i,j,k) == 0))
             {
                 most_flux.iterate_flux(i, j, k, max_iters,
-                                       z0_arr, umm_arr, tm_arr, tvm_arr, qvm_arr,
-                                       u_star_arr, w_star_arr,           // to be updated
-                                       t_star_arr, q_star_arr,           // to be updated
-                                       t_surf_arr, q_surf_arr, olen_arr, // to be updated
-                                       pblh_arr, Hwave_arr, Lwave_arr, eta_arr);
+                                       z0_arr,                              // updated if(!is_land)
+                                       umm_arr, tm_arr, tvm_arr, qvm_arr,
+                                       u_star_arr,                          // updated
+                                       w_star_arr,                          // updated if(m_include_wstar)
+                                       t_star_arr, q_star_arr,              // updated
+                                       t_surf_arr, q_surf_arr, olen_arr,    // updated
+                                       pblh_arr,                            // updated if(m_include_wstar)
+                                       Hwave_arr, Lwave_arr, eta_arr);
             }
         });
     }
@@ -683,6 +686,43 @@ SurfaceLayer::compute_pblh (const int& lev,
                      vars[lev][Vars::cons],m_lmask_lev[lev][0],
                      moisture_indices);
 }
+
+void
+SurfaceLayer::init_tke_from_ustar (const int& lev,
+                                   MultiFab& cons,
+                                   const std::unique_ptr<MultiFab>& z_phys_nd,
+                                   const Real tkefac,
+                                   const Real zscale)
+{
+    Print() << "Initializing TKE from surface layer ustar on level " << lev << std::endl;
+
+    constexpr Real small = 0.01;
+
+    for (MFIter mfi(cons); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.tilebox();
+
+        auto const& u_star_arr = u_star[lev]->const_array(mfi);
+        auto const& z_phys_arr = z_phys_nd->const_array(mfi);
+
+        auto const& cons_arr   = cons.array(mfi);
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            Real rho = cons_arr(i, j, k, Rho_comp);
+            Real ust = u_star_arr(i, j, 0);
+            Real tke0 = tkefac * ust * ust; // surface value
+            Real zagl = Compute_Zrel_AtCellCenter(i, j, k, z_phys_arr);
+
+            // linearly tapering profile --  following WRF, approximate top of
+            // PBL as ustar * zscale
+            cons_arr(i, j, k, RhoKE_comp) = rho * tke0 * std::max(
+                (ust * zscale - zagl) / (std::max(ust, small) * zscale),
+                small);
+        });
+    }
+}
+
 
 void
 SurfaceLayer::read_custom_roughness (const int& lev,
