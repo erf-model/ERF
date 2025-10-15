@@ -1126,7 +1126,7 @@ private:
     // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
     // **************************************************************************************
     const amrex::Vector<std::string> derived_names_2d {
-        "mapfac", "lat_m", "lon_m"
+        "z_surf", "mapfac", "lat_m", "lon_m"
     };
 
     // algorithm choices

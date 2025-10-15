@@ -1,6 +1,7 @@
 #include "ERF.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_StormDiagnostics.H"
+#include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
 
@@ -1931,6 +1932,22 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
         // Set all components to zero in case they aren't defined below
         mf[lev].setVal(0.0);
+
+        if (containerHasElement(plot_var_names, "z_surf")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real>& derdat = mf[lev].array(mfi);
+                const Array4<const Real>& z_phys_arr = z_phys_nd[lev]->const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                   derdat(i, j, k, mf_comp) = Compute_Z_AtWFace(i, j, 0, z_phys_arr);
+                });
+            }
+            mf_comp++;
+        }
 
         if (containerHasElement(plot_var_names, "mapfac")) {
 #ifdef _OPENMP
