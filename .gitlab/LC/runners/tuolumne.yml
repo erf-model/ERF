@@ -7,6 +7,10 @@ default:
   interruptible: true
 
 workflow:
+  # Run this pipeline any time the parent pipeline triggers it. Need to run when
+  # triggered by a merge request event.
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
   # Auto-cancel redundant pipelines
   auto_cancel:
     on_new_commit: interruptible
@@ -26,26 +30,6 @@ stages:
   tags:
     - shell
     - tuolumne
-  rules:
-    # Runs except if we explicitly deactivate this system
-    - if: '$ON_TUOLUMNE == "OFF"'
-      when: never
-    # Test the default branch
-    - if: $CI_COMMIT_BRANCH == $DEFAULT_BRANCH
-    # Test the upstream branch
-    - if: $CI_COMMIT_BRANCH == 'development'
-    # Branches starting with "gitlab"
-    - if: $CI_COMMIT_BRANCH =~ /^gitlab.*/
-    # Test merge requests
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    # Always release resources allocated in the pipeline
-    - if: '$CI_JOB_NAME =~ /release_resources/'
-      when: always
-    # Do not test on push
-    - if: $CI_PIPELINE_SOURCE == "push"
-      when: never
-    # Default is to allow jobs to run
-    - when: on_success
 
 .job_on_tuolumne:
   extends: .on_tuolumne
@@ -58,11 +42,12 @@ stages:
     # Allocation information
     - echo -e "### Allocation name is ${ALLOC_NAME}"
     - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
+    - if [[ -z "${JOBID}" ]]; then echo "No JOBID found for ${ALLOC_NAME}"; exit 1; fi
     - echo -e "### Job ID is ${JOBID}"
     - export AMD_LOG_LEVEL=2
     - export MPICH_GPU_SUPPORT_ENABLED=1
     - export HSA_XNACK=1
-    - flux proxy $( [[ -n "${JOBID}" ]] && echo "${JOBID}" ) flux run -N 1 -n 1 -c 16 -vv ${TEST_SCRIPT}
+    - flux proxy "${JOBID}" flux run -N 1 -n 1 -c 16 -vv ${TEST_SCRIPT}
 
 ##############################################################################
 # JOBS

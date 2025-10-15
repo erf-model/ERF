@@ -314,7 +314,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
         if (anel_assume_dry) qv_k = 0;
         r_hse_arr (i,j,k) = rho_k_base * (1.0 + qv_k);
         p_hse_arr (i,j,k) = getPgivenRTh(rhoTh_k, qv_k);
-        pi_hse_arr(i,j,k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
+        pi_hse_arr(i,j,k) = getExnergivenRTh(rhoTh_k, l_rdOcp, qv_k);
         th_hse_arr(i,j,k) = getRhoThetagivenP(p_hse_arr(i,j,k), qv_k) / rho_k_base;
         qv_hse_arr(i,j,k) = qv_k;
         if (l_isentropic) {
