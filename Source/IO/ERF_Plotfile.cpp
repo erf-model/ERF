@@ -1949,6 +1949,22 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
         }
 
+        if (containerHasElement(plot_var_names, "landmask")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real>& derdat = mf[lev].array(mfi);
+                const Array4<const int>& lmask_arr = lmask_lev[lev][0]->const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                   derdat(i, j, k, mf_comp) = lmask_arr(i, j, 0);
+                });
+            }
+            mf_comp++;
+        }
+
         if (containerHasElement(plot_var_names, "mapfac")) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -2004,9 +2020,189 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
 
         } // lon_m
-    }
 
-    // mf[0].setVal(1.0);
+        ///////////////////////////////////////////////////////////////////////
+        // These quantities are diagnosed by the surface layer
+        if (containerHasElement(plot_var_names, "u_star")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (m_SurfaceLayer) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& ustar  = m_SurfaceLayer->get_u_star(lev)->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // ustar
+
+        if (containerHasElement(plot_var_names, "w_star")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (m_SurfaceLayer) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& ustar  = m_SurfaceLayer->get_w_star(lev)->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // wstar
+
+        if (containerHasElement(plot_var_names, "t_star")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (m_SurfaceLayer) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& ustar  = m_SurfaceLayer->get_t_star(lev)->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // tstar
+
+        if (containerHasElement(plot_var_names, "q_star")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (m_SurfaceLayer) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& ustar  = m_SurfaceLayer->get_q_star(lev)->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // qstar
+
+        if (containerHasElement(plot_var_names, "Olen")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (m_SurfaceLayer) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& ustar  = m_SurfaceLayer->get_olen(lev)->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // Olen
+
+        if (containerHasElement(plot_var_names, "pblh")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (m_SurfaceLayer) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& ustar  = m_SurfaceLayer->get_pblh(lev)->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // pblh
+
+        if (containerHasElement(plot_var_names, "t_surf")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (m_SurfaceLayer) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& ustar  = m_SurfaceLayer->get_t_surf(lev)->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // tsurf
+
+        if (containerHasElement(plot_var_names, "q_surf")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (m_SurfaceLayer) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& ustar  = m_SurfaceLayer->get_q_surf(lev)->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // qsurf
+
+        if (containerHasElement(plot_var_names, "z0")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (m_SurfaceLayer) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& ustar  = m_SurfaceLayer->get_z0(lev)->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // z0
+    } // lev
 
     std::string plotfilename;
     if (which == 1) {
