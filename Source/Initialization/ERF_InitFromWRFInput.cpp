@@ -1053,10 +1053,7 @@ init_terrain_from_wrfinput (int /*lev*/,
                             const MultiFab& mf_PH,
                             const MultiFab& mf_PHB)
 {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(*z_phys, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    for ( MFIter mfi(*z_phys, false); mfi.isValid(); ++mfi )
     {
         Box gnbx = mfi.growntilebox();
 
@@ -1112,20 +1109,23 @@ init_terrain_from_wrfinput (int /*lev*/,
 
         // Sanity check
         Print() << "Verifying grid integrity" << std::endl;
-        Box z_surf_faces = makeSlab(mfi.validbox(), 2, klo);
-        ParallelFor(z_surf_faces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            if (z_arr(i,j,k+1) < z_arr(i,j,k)) {
+        const Box& vbox = mfi.validbox();
+        if (vbox.smallEnd(2) == klo) {
+            Box z_surf_faces = makeSlab(vbox, 2, klo);
+            ParallelFor(z_surf_faces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                if (z_arr(i,j,k+1) < z_arr(i,j,k)) {
 #ifdef AMREX_USE_GPU
-                AMREX_DEVICE_PRINTF("z values at (%d,%d,%d) and k+1 are %f, %f\n",
-                       i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
+                    AMREX_DEVICE_PRINTF("z values at (%d,%d,%d) and k+1 are %f, %f\n",
+                           i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
 #else
-                printf("z values at (%d,%d,%d) and k+1 are %f, %f\n",
-                       i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
+                    printf("z values at (%d,%d,%d) and k+1 are %f, %f\n",
+                           i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
 #endif
-                Error("Grid integrity issue detected");
-            }
-        });
+                    Error("Grid integrity issue detected");
+                }
+            });
+        } // tile includes zlo
     } // mfi
 }
 #endif // ERF_USE_NETCDF
