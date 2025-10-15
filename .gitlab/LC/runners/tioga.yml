@@ -7,6 +7,10 @@ default:
   interruptible: true
 
 workflow:
+  # Run this pipeline any time the parent pipeline triggers it. Need to run when
+  # triggered by a merge request event.
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
   # Auto-cancel redundant pipelines
   auto_cancel:
     on_new_commit: interruptible
@@ -38,8 +42,9 @@ stages:
     # Allocation information
     - echo -e "### Allocation name is ${ALLOC_NAME}"
     - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
+    - if [[ -z "${JOBID}" ]]; then echo "No JOBID found for ${ALLOC_NAME}"; exit 1; fi
     - echo -e "### Job ID is ${JOBID}"
-    - flux proxy $( [[ -n "${JOBID}" ]] && echo "${JOBID}" ) flux run -N 1 -n 1 -c 16 -vv ${TEST_SCRIPT}
+    - flux proxy "${JOBID}" flux run -N 1 -n 1 -c 16 -vv ${TEST_SCRIPT}
 
 ##############################################################################
 # JOBS
