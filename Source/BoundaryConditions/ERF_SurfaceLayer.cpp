@@ -698,9 +698,9 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
 
     constexpr Real small = 0.01;
 
-    for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+    for (MFIter mfi(cons); mfi.isValid(); ++mfi)
     {
-        Box gtbx = mfi.growntilebox();
+        Box gtbx = mfi.tilebox();
 
         auto const& u_star_arr = u_star[lev]->const_array(mfi);
         auto const& z_phys_arr = z_phys_nd->const_array(mfi);
