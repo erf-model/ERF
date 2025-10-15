@@ -1053,10 +1053,7 @@ init_terrain_from_wrfinput (int /*lev*/,
                             const MultiFab& mf_PH,
                             const MultiFab& mf_PHB)
 {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(*z_phys, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    for ( MFIter mfi(*z_phys, false); mfi.isValid(); ++mfi )
     {
         Box gnbx = mfi.growntilebox();
 
