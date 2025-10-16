@@ -1209,10 +1209,10 @@ struct surface_temp
         t_star_arr(i,j,k) = mdata.kappa * (t_mean - t_surf) / (C - psi_h);
         if (spec_qflux) {
             q_surf_arr(i,j,k) = mdata.surf_moist_flux * (C - psi_h) /
-                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
+                                (u_star_arr(i,j,k) * mdata.kappa) + qv_a;
             q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
         } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / (C - psi_h);
+            q_star_arr(i,j,k) = mdata.kappa * (qv_a - qv_s) / (C - psi_h);
         }
     }
 
