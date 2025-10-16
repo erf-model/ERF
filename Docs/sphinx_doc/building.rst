@@ -340,9 +340,9 @@ If you prefer to use one of the provided CMake build scripts, first load the fol
 
 ::
 
-   module load gcc-native/12.3 cmake cudatoolkit cray-mpich cray-hdf5-parallel cray-netcdf-hdf5parallel
+   module load gcc/12.2.0 cmake cudatoolkit cray-mpich cray-hdf5-parallel cray-netcdf-hdf5parallel
 
-Note that the latest cmake module helps with finding the CUDA math libraries. The gcc version should be one of the version 12 variants (such as ``gcc-native/12.3`` or ``gcc/12.2.0``) to reliably find the filesystem functionality used in some utilities. Also note that the ``cray-hdf5-parallel`` module matches with the parallel configuration requirements.
+Note that the latest cmake module helps with finding the CUDA math libraries. The gcc version should be a gcc variant such as ``gcc/12.2.0`` that has been tested to reliably find the filesystem functionality used in some utilities. Also note that the ``cray-hdf5-parallel`` module matches with the parallel configuration requirements.
 
 Then build with one of the provided build scripts. We suggest using ``Build/cmake_cuda.sh`` for a basic CUDA build, or ``Build/cmake_with_netcdf.sh`` if you need NetCDF support.
 
