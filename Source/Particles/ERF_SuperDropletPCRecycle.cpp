@@ -56,7 +56,6 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
-        int grid    = pti.index();
         auto& ptile = ParticlesAt(a_lev, pti);
         auto& aos  = ptile.GetArrayOfStructs();
         auto& soa  = ptile.GetStructOfArrays();
