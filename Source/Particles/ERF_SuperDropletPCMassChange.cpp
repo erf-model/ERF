@@ -69,11 +69,13 @@ void SuperDropletPC::MassChange ( int                                         a_
 
         auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
 
-        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
+        auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
+        int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+        auto* radius_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::radius).data();
+        auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-        auto* condt_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::cond_tendency).data();
+        auto* condt_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::cond_tendency).data();
 #endif
 
         SDSpeciesMassArr sp_mass_ptrs;
@@ -189,7 +191,7 @@ void SuperDropletPC::MassChange ( int                                         a_
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
-            if (mult_ptr[i] == 0.0) { return; }
+            if (active_ptr[i] == 0) { return; }
 
             ParticleReal sat_ratio, e_sat, temperature, pressure;
             if (is_periodic_z) {

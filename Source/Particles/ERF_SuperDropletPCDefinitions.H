@@ -22,6 +22,15 @@ using SuperDropletsIntIdxAoS = ERFParticlesIntIdxAoS;
 /*! \brief Real-type struct-of-array attributes of a super-droplet */
 using SuperDropletsRealIdxSoA = ERFParticlesRealIdxSoA;
 
+/*! \brief Int-type struct-of-array attributes added during runtime */
+struct SuperDropletsIntIdxSoA_RT
+{
+    enum {
+        active = 0,     /*!< Active/inactive */
+        ncomps
+    };
+};
+
 /*! \brief Real-type struct-of-array attributes added during runtime */
 struct SuperDropletsRealIdxSoA_RT
 {

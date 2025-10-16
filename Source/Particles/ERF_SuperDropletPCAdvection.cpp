@@ -79,9 +79,11 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
 
         auto zheight = (*z_height)[grid].array();
 
-        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
-        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
+        auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
+        int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+        auto* vterm_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::term_vel).data();
+        auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
         SDSpeciesMassArr sp_mass_ptrs;
         Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
@@ -137,7 +139,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
-            if (mult_ptr[i] == 0) { return; }
+            if (active_ptr[i] == 0) { return; }
 
             ParticleReal v[AMREX_SPACEDIM];
             v[0] = v[1] = v[2] = 0.0;
