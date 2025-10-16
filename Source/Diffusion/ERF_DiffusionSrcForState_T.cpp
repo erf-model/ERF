@@ -298,7 +298,6 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-
             rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
@@ -686,14 +685,16 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
         zflux(i,j,k) -= met_h_xi*mf_mx(i,j,0)*xfluxbar + met_h_eta*mf_my(i,j,0)*yfluxbar;
     });
+
     // Multiply h_zeta by x/y-fluxes
+    // Adjust with map factors
     ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        xflux(i,j,k) *= ax(i,j,k)/mf_uy(i,j,0);
+        xflux(i,j,k) *= ax(i,j,k) / mf_uy(i,j,0);
     });
     ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        yflux(i,j,k) *= ay(i,j,k)/mf_vx(i,j,0);
+        yflux(i,j,k) *= ay(i,j,k) / mf_vx(i,j,0);
     });
 
 

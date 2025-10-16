@@ -104,7 +104,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
-            Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index) - cell_prim(i-1, j, k  , prim_index) );
+            Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
 #if 0
             if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
@@ -277,7 +277,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-
             rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
