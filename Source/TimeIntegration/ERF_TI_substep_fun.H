@@ -8,7 +8,6 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                         const Vector<MultiFab>& S_old,
                         Vector<MultiFab>& S_stage,
                         Vector<MultiFab>& S_data,
-                        Vector<MultiFab>& S_scratch,
                         const Real dtau,
                         const Real inv_fac,
                         const Real old_substep_time,
@@ -27,7 +26,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         // beta_s =  1.0 : fully implicit
         Real beta_s;
         if (solverChoice.substepping_type[level] == SubsteppingType::Implicit) {
-            beta_s = 0.1;
+            beta_s = solverChoice.beta_s;
         } else { // Fully explicit
             beta_s = -1.0;
         }
@@ -88,7 +87,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             base_to_use = MultiFab(base_state[level], make_alias, 0, BaseState::num_comps);
         }
 
-        make_mom_sources(old_substep_time, Svec_to_use,
+        make_mom_sources(old_substep_time, dtau, Svec_to_use,
                          *z_phys_nd[level].get(), *z_phys_cc[level].get(), stretched_dz_h[level],
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
@@ -120,7 +119,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         {
             erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
                             S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
-                            S_data, S_scratch,
+                            S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
                             cc_src, xmom_src, ymom_src, zmom_src,
                             fine_geom,
                             solverChoice.gravity, solverChoice.use_lagged_delta_rt,
@@ -134,7 +133,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
             erf_fast_rhs_T(fast_step, nrk, level, finest_level,
                            S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
-                           S_data, S_scratch,
+                           S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom, solverChoice.gravity,
                            z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
@@ -145,7 +144,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
             erf_fast_rhs_N(fast_step, nrk, level, finest_level,
                            S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
-                           S_data, S_scratch,
+                           S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom, solverChoice.gravity,
                            dtau, beta_s, inv_fac, mapfac[level],

@@ -151,13 +151,24 @@ public:
 
     // Hurricane track line output as VTKPolyline
     amrex::Vector<std::array<amrex::Real, 2>> hurricane_track_xy;
+    amrex::Vector<std::array<amrex::Real, 2>> hurricane_eye_track_xy,
+                                              hurricane_eye_track_latlon,
+                                              hurricane_maxvel_vs_time,
+                                              hurricane_tracker_circle;
     amrex::Vector<amrex::MultiFab> weather_forecast_data_1, weather_forecast_data_2;
     amrex::Vector<amrex::Vector<amrex::MultiFab>> forecast_state_1,
                                                   forecast_state_2,
                                                   forecast_state_interp;
     std::string MakeVTKFilename(int nstep);
+    std::string MakeVTKFilename_TrackerCircle(int nstep);
+    std::string MakeVTKFilename_EyeTracker_xy(int nstep);
+    std::string MakeFilename_EyeTracker_latlon(int nstep);
+    std::string MakeFilename_EyeTracker_maxvel(int nstep);
     void WriteVTKPolyline(const std::string& filename,
                           amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
+
+    void WriteLinePlot(const std::string& filename,
+                       amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
     // Initialize multilevel data
     void InitData ();
@@ -368,12 +379,17 @@ public:
 
 #ifdef ERF_USE_SHOC
     void compute_shoc_tendencies (int lev,
-                                  amrex::MultiFab& cons_in,
-                                  amrex::MultiFab& xvel_in,
-                                  amrex::MultiFab& yvel_in,
-                                  amrex::MultiFab& zvel_in,
-                                  amrex::MultiFab& source,    amrex::MultiFab& xmom_src,
-                                  amrex::MultiFab& ymom_src,  amrex::MultiFab& zmom_src,
+                                  amrex::MultiFab* cons,
+                                  amrex::MultiFab* xvel,
+                                  amrex::MultiFab* yvel,
+                                  amrex::MultiFab* zvel,
+                                  amrex::Real* w_subsid,
+                                  amrex::MultiFab* tau13,
+                                  amrex::MultiFab* tau23,
+                                  amrex::MultiFab* hfx3,
+                                  amrex::MultiFab* qfx3,
+                                  amrex::MultiFab* eddyDiffs,
+                                  amrex::MultiFab* z_phys_nd,
                                   const amrex::Real& dt_advance);
 #endif
 
@@ -685,6 +701,7 @@ private:
 
     // set which variables and derived quantities go into plotfiles
     void setPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
+    void setPlotVariables2D (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
     // append variables to plot
     void appendPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
 
@@ -720,10 +737,10 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_ylo;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
 
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> low_data_zlo;
+
     // Maximum value of terrain read in from wrfinput at level 0
     amrex::Real z_top = 0.;
-
-    amrex::Vector<amrex::FArrayBox> low_data_zlo;
 
 #endif // ERF_USE_NETCDF
 
@@ -794,7 +811,14 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
+    // Used for anelastic or when we impose an initial projection
     amrex::Vector<amrex::MultiFab> pp_inc;
+
+    // Used only for fast substepping
+    amrex::Vector<amrex::MultiFab> lagged_delta_rt;
+    amrex::Vector<amrex::MultiFab> avg_xmom;
+    amrex::Vector<amrex::MultiFab> avg_ymom;
+    amrex::Vector<amrex::MultiFab> avg_zmom;
 
     // Vector over levels of routines to impose physical boundary conditions
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_cons>> physbcs_cons;
@@ -877,6 +901,11 @@ private:
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  sst_lev;
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  tsk_lev;
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> lmask_lev;
+
+    // Land grid types and urban fraction
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> land_type_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> soil_type_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  urb_frac_lev;
 
     // Other SFS terms
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
@@ -988,7 +1017,7 @@ private:
     // runtime parameters
 
     // Maximum number of steps
-    int max_step = std::numeric_limits<int>::max();
+    int max_step = -1;
 
     // Start and stop times
     static amrex::Real start_time;
@@ -1099,6 +1128,15 @@ private:
 #endif
                                                     ,"qsrc_sw", "qsrc_lw"
                                                    };
+
+    // **************************************************************************************
+    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
+    // **************************************************************************************
+    const amrex::Vector<std::string> derived_names_2d {
+        "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
+        "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
+        "t_surf", "q_surf", "z0"
+    };
 
     // algorithm choices
     static SolverChoice solverChoice;
@@ -1522,9 +1560,12 @@ private:
     }
 
     // Data sampler for line and plane output
-    int sampler_interval = -1;
-    amrex::Real sampler_per = -1.0;
-    std::unique_ptr<SampleData> data_sampler = nullptr;
+    int line_sampling_interval = -1;
+    int plane_sampling_interval = -1;
+    amrex::Real line_sampling_per = -1.0;
+    amrex::Real plane_sampling_per = -1.0;
+    std::unique_ptr<LineSampler> line_sampler = nullptr;
+    std::unique_ptr<PlaneSampler> plane_sampler = nullptr;
 
     amrex::Vector<std::unique_ptr<std::fstream> >       datalog;
     amrex::Vector<std::unique_ptr<std::fstream> >   der_datalog;

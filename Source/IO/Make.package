@@ -28,4 +28,5 @@ ifeq ($(USE_NETCDF), TRUE)
   CEXE_headers += ERF_NCWpsFile.H
   CEXE_headers += ERF_NCInterface.H
   CEXE_headers += ERF_ReadFromWRFBdy.H
+  CEXE_headers += ERF_ReadFromWRFInput.H
 endif
