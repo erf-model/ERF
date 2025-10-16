@@ -97,8 +97,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
 
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
-
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
             xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
@@ -116,7 +114,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -208,7 +205,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -225,7 +221,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -249,7 +244,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -281,6 +275,8 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 Real dzk_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
+
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k) = hfx_z(i,j,0);
@@ -314,7 +310,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -330,7 +325,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -353,7 +347,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -385,6 +378,8 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 Real dzk_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
+
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k) = hfx_z(i,j,0);
@@ -417,7 +412,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -432,7 +426,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -454,7 +447,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -486,6 +478,8 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 Real dzk_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
+
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k) = hfx_z(i,j,0);

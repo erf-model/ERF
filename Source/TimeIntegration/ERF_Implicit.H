@@ -42,21 +42,23 @@
 
                 if (l_use_stretched_dz) {
                     ImplicitDiffForState_S(bx, fine_geom.Domain(), slow_dt, n_start, n_comp, u_arr, v_arr,
-                                           cell_data, cell_prim, diffflux_z,
+                                           cell_data, diffflux_z,
                                            z_nd_arr, detJ_arr, dxInv, SmnSmn_a, hfx_z,
                                            mu_turb, solverChoice, level,
                                            bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
 #if 0
                 } else if (l_use_terrain_fitted_coords) {
-                    ImplicitDiffForState_T(bx, fine_domain.Domain(), slow_dt, n_start, n_comp, l_rotate, u_arr, v_arr,
+                    ImplicitDiffForState_T(bx, fine_geom.Domain(), slow_dt, n_start, n_comp, l_rotate, u_arr, v_arr,
                                            cell_data, cell_prim, diffflux_z,
                                            z_nd_arr, detJ_arr, ax_arr, ay_arr, az_arr, detJ_arr,
                                            dxInv, SmnSmn_a, hfx_z,
                                            mu_turb, solverChoice, level,
                                            bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+#endif
                 } else {
-                    ImplicitDiffForState_N(bx, fine_domain.Domain(), slow_dt, n_start, n_comp, u_arr, v_arr,
-                                           cell_data, cell_prim, diffflux_z,
+#if 0
+                    ImplicitDiffForState_N(bx, fine_geom.Domain(), slow_dt, n_start, n_comp, u_arr, v_arr,
+                                           cell_data, diffflux_z,
                                            dxInv, SmnSmn_a, hfx_z,
                                            mu_turb, solverChoice, level,
                                            bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
