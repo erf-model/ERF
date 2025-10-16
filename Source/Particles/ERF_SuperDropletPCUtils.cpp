@@ -104,7 +104,11 @@ Real SuperDropletPC::TotalNumberOfParticles ()
     BL_PROFILE("SuperDropletPC::TotalNumberOfParticles()");
     Real count = ReduceSum(*this,
                            [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                           { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]; });
+                           {
+                                auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+                                auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                return ai*ni;
+                           });
     ParallelDescriptor::ReduceRealSum(&count, 1, ParallelDescriptor::IOProcessorNumber());
     return count;
 }
@@ -116,9 +120,9 @@ Long SuperDropletPC::NumSDDeactivated ()
     auto count = ReduceSum( *this,
                             [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Long
                             {
-                                auto mult = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                if (mult == 0) { return Long(1); }
-                                else           { return Long(0); }
+                                auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+                                if (ai == 0) { return Long(1); }
+                                else         { return Long(0); }
                             } );
     ParallelDescriptor::ReduceLongSum(&count, 1, ParallelDescriptor::IOProcessorNumber());
     return count;
@@ -148,7 +152,10 @@ void SuperDropletPC::SDNumberDensity ( MultiFab& a_mf,  /*!< Number density mult
             ParticleInterpolator::Linear interp(p, plo, dxi);
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
-                { return inv_cell_volume; });
+                {
+                    auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
+                    return ai*inv_cell_volume;
+                });
         });
 
     return;
@@ -180,8 +187,9 @@ void SuperDropletPC::numberDensity ( MultiFab& a_mf,  /*!< Number density multif
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
+                    auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                    return num_par*inv_cell_volume;
+                    return ai*num_par*inv_cell_volume;
                 });
         });
 
@@ -214,9 +222,10 @@ void SuperDropletPC::massDensity ( MultiFab& a_mf,  /*!< Mass density multifab *
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
+                    auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto par_mass = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
-                    return num_par*par_mass*inv_cell_volume;
+                    return ai*num_par*par_mass*inv_cell_volume;
                 });
         });
 
@@ -249,6 +258,7 @@ void SuperDropletPC::massFlux ( MultiFab& a_mf,  /*!< Mass flux multifab */
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
+                    auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto par_mass = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
                     auto par_velocity = ptd.m_rdata[SuperDropletsRealIdxSoA::vx+a_dim][i];
@@ -256,7 +266,7 @@ void SuperDropletPC::massFlux ( MultiFab& a_mf,  /*!< Mass flux multifab */
                         auto term_vel = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
                         par_velocity -= term_vel;
                     }
-                    return num_par * par_mass * par_velocity * inv_cell_volume;
+                    return ai * num_par * par_mass * par_velocity * inv_cell_volume;
                 });
         });
 
@@ -293,9 +303,10 @@ void SuperDropletPC::aerosolMassDensity ( MultiFab& a_mf,  /*!< Aerosol mass den
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
+                    auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto aero_mass = ptd.m_runtime_rdata[ridx_a(a_idx,na,ns)][i];
-                    return num_par*aero_mass*inv_cell_volume;
+                    return ai*num_par*aero_mass*inv_cell_volume;
                 });
         });
 
@@ -333,6 +344,7 @@ void SuperDropletPC::aerosolMassFlux ( MultiFab& a_mf,  /*!< Aerosol mass flux m
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
+                    auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto aero_mass = ptd.m_runtime_rdata[ridx_a(a_idx,na,ns)][i];
                     auto par_velocity = ptd.m_rdata[SuperDropletsRealIdxSoA::vx+a_dim][i];
@@ -340,7 +352,7 @@ void SuperDropletPC::aerosolMassFlux ( MultiFab& a_mf,  /*!< Aerosol mass flux m
                         auto term_vel = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
                         par_velocity -= term_vel;
                     }
-                    return num_par*aero_mass*par_velocity*inv_cell_volume;
+                    return ai*num_par*aero_mass*par_velocity*inv_cell_volume;
                 });
         });
 
@@ -377,9 +389,10 @@ void SuperDropletPC::speciesMassDensity ( MultiFab&  a_mf,  /*!< Species mass de
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
+                    auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto species_mass = ptd.m_runtime_rdata[ridx_s(a_idx,na,ns)][i];
-                    return num_par*species_mass*inv_cell_volume;
+                    return ai*num_par*species_mass*inv_cell_volume;
                 });
         });
 
@@ -422,9 +435,10 @@ void SuperDropletPC::cloudRainDensity ( MultiFab&  a_mf,  /*!< Species mass dens
                     if ((radius < a_rmin) || (radius >= a_rmax)) {
                         return 0.0;
                     } else {
+                        auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                         auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                         auto species_mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
-                        return num_par*species_mass*inv_cell_volume;
+                        return ai*num_par*species_mass*inv_cell_volume;
                     }
                 });
         });
@@ -471,8 +485,9 @@ void SuperDropletPC::iceDensity (MultiFab&  a_mf,         /*!< Species mass dens
                     auto nmono = ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i];
                     auto frac = (mass > 0.0 ? mrime / mass : 0.0);
                     if ((frac < a_mrime_frac) && (nmono == 1)) {
+                        auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                         auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                        return num_par*mass*inv_cell_volume;
+                        return ai*num_par*mass*inv_cell_volume;
                     } else {
                         return 0.0;
                     }
@@ -521,8 +536,9 @@ void SuperDropletPC::snowDensity (MultiFab&  a_mf,         /*!< Species mass den
                     auto nmono = ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i];
                     auto frac = (mass > 0.0 ? mrime / mass : 0.0);
                     if ((frac < a_mrime_frac) && (nmono > 1)) {
+                        auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                         auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                        return num_par*mass*inv_cell_volume;
+                        return ai*num_par*mass*inv_cell_volume;
                     } else {
                         return 0.0;
                     }
@@ -570,8 +586,9 @@ void SuperDropletPC::graupelDensity (MultiFab&  a_mf,         /*!< Species mass 
                     auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
                     auto frac = (mass > 0.0 ? mrime / mass : 0.0);
                     if (frac > a_mrime_frac) {
+                        auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                         auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                        return num_par*mass*inv_cell_volume;
+                        return ai*num_par*mass*inv_cell_volume;
                     } else {
                         return 0.0;
                     }
@@ -614,9 +631,10 @@ void SuperDropletPC::totalIceDensity (MultiFab&  a_mf,  /*!< Species mass densit
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
+                    auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                    return num_par*mass*inv_cell_volume;
+                    return ai*num_par*mass*inv_cell_volume;
                 });
         });
 
@@ -654,6 +672,7 @@ void SuperDropletPC::speciesMassFlux ( MultiFab& a_mf,  /*!< Species mass flux m
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
+                    auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto species_mass = ptd.m_runtime_rdata[ridx_s(a_idx,na,ns)][i];
                     auto par_velocity = ptd.m_rdata[SuperDropletsRealIdxSoA::vx+a_dim][i];
@@ -661,7 +680,7 @@ void SuperDropletPC::speciesMassFlux ( MultiFab& a_mf,  /*!< Species mass flux m
                         auto term_vel = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
                         par_velocity -= term_vel;
                     }
-                    return num_par*species_mass*par_velocity*inv_cell_volume;
+                    return ai*num_par*species_mass*par_velocity*inv_cell_volume;
                 });
         });
 
@@ -696,9 +715,10 @@ void SuperDropletPC::effectiveRadius (  MultiFab& a_mf,  /*!< Effective radius m
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
+                    auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto radius = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
-                    return num_par*radius*inv_cell_volume;
+                    return ai*num_par*radius*inv_cell_volume;
                 });
         });
 

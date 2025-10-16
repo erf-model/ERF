@@ -62,10 +62,12 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
         auto zheight = (*z_height)[grid].array();
 
-        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
-        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
+        auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
+        int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+        auto* radius_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::radius).data();
+        auto* vterm_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::term_vel).data();
+        auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
         SDSpeciesMassArr species_mass_ptrs;
         for (int i = 0; i < n_species; i++) {
@@ -84,7 +86,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
-            if (mult_ptr[i] == 0) { return; }
+            if (active_ptr[i] == 0) { return; }
 
             // check for ground impact
             {
@@ -96,7 +98,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                 if (p.pos(2) < z_ground) {
                     p.pos(2) = z_ground + 0.01*dx[2];
                     v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
-                    mult_ptr[i] = 0.0;
+                    active_ptr[i] = 0;
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
                     update_location_idata(p,plo,dxi,zheight);
                 }
@@ -112,7 +114,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                 if (p.pos(2) > z_roof) {
                     p.pos(2) = z_roof - dx[2];
                     v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
-                    mult_ptr[i] = 0.0;
+                    active_ptr[i] = 0;
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
                     update_location_idata(p,plo,dxi,zheight);
                 }
@@ -134,7 +136,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
                         p.pos(d) = x_min + 0.01*dx[d];
                         v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
-                        mult_ptr[i] = 0.0;
+                        active_ptr[i] = 0;
                         Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
 
                     } else {
@@ -170,7 +172,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
                         p.pos(d) = x_max - 0.01*dx[d];
                         v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
-                        mult_ptr[i] = 0.0;
+                        active_ptr[i] = 0;
                         Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
 
                     } else {

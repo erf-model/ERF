@@ -11,6 +11,10 @@ void SuperDropletPC::add_superdroplet_attributes()
 {
     BL_PROFILE("SuperDropletPC::add_superdroplets_attributes()");
     const bool communicate_this_comp = true;
+    for (int i = 0; i < SuperDropletsIntIdxSoA_RT::ncomps; i++) {
+        AddIntComp(communicate_this_comp);
+    }
+    Print() << "SuperDropletPC(" << m_name << "): added " << SuperDropletsIntIdxSoA_RT::ncomps << " int-type attibute(s).\n";
     int count(0);
     for (int i = 0; i < SuperDropletsRealIdxSoA_RT::ncomps; i++) {
         AddRealComp(communicate_this_comp);
@@ -526,14 +530,16 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
         auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data() + size_old;
 
         /* Runtime-added SoA attributes */
-        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data() + size_old;
-        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data() + size_old;
-        auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data() + size_old;
+        int rt_off_i = SuperDropletsIntIdxSoA::ncomps;
+        auto* active_ptr = soa.GetIntData(rt_off_i+SuperDropletsIntIdxSoA_RT::active).data() + size_old;
+        int rt_off_r = SuperDropletsRealIdxSoA::ncomps;
+        auto* radius_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::radius).data() + size_old;
+        auto* mult_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::multiplicity).data() + size_old;
+        auto* vterm_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::term_vel).data() + size_old;
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-        auto* condt_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::cond_tendency).data() + size_old;
+        auto* condt_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::cond_tendency).data() + size_old;
 #endif
-        auto* uid_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::uid).data() + size_old;
+        auto* uid_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::uid).data() + size_old;
 
         SDSpeciesMassArr sp_mass_ptrs;
         for (int i = 0; i < num_sp; i++) {
@@ -688,6 +694,7 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                 }
 
                 p.idata(SuperDropletsIntIdxAoS::k) = k;
+                active_ptr[n] = 1;
                 vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = 0.0;
 
                 Real mult_this_sd = 0;
@@ -718,7 +725,6 @@ void SuperDropletPC::initializeParticles ( const MFPtr& a_height_ptr, /*!< terra
                                                      sp_sol_arr, ae_sol_arr,
                                                      sp_mass_ptrs, ae_mass_ptrs,
                                                      sp_rho_arr, ae_rho_arr );
-                //Print()<<" SD# "<<n<<" with radius="<<radius_ptr[n]<< " m\n";
                 mass_ptr[n] = SD_total_mass( n, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
 
                 vterm_ptr[n] = 0.0;
@@ -827,9 +833,9 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
         auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
 
         /* Runtime-added SoA attributes */
-        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        int rt_off_r = SuperDropletsRealIdxSoA::ncomps;
+        auto* radius_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::radius).data();
+        auto* mult_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
         SDSpeciesMassArr sp_mass_ptrs;
         for (int i = 0; i < num_sp; i++) {
@@ -901,8 +907,8 @@ void SuperDropletPC::DensityScaling (const MultiFab& a_rho /*!< density of air *
         const int n = aos.numParticles();
 
         /* Runtime-added SoA attributes */
-        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        int rt_off_r = SuperDropletsRealIdxSoA::ncomps;
+        auto* mult_ptr = soa.GetRealData(rt_off_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
         auto density = a_rho[pti.index()].const_array();
 

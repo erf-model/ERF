@@ -68,10 +68,12 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
         auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
 
-        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
-        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
+        auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
+        int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+        auto* radius_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::radius).data();
+        auto* vterm_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::term_vel).data();
+        auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
         SDSpeciesMassArr sp_mass_ptrs;
         for (int i = 0; i < num_sp; i++) {
@@ -187,7 +189,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
-            if (mult_ptr[i] > 0) { return; }
+            if (active_ptr[i] > 0) { return; }
 
             // Place particle randomly in domain within specified bounds
             p.pos(0) = x_min + Random(rnd_engine)*(x_max - x_min);
@@ -225,6 +227,9 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                                                  sp_mass_ptrs, ae_mass_ptrs,
                                                  sp_rho_arr, ae_rho_arr );
             mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+
+            // set as active
+            active_ptr[i] = 1;
 
             // add to count
             Gpu::Atomic::Add(np_recycle_ptr, Long(1));

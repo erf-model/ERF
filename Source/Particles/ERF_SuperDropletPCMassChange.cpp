@@ -72,11 +72,13 @@ void SuperDropletPC::MassChange_LV (  int                                       
 
         auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
 
-        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
+        auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
+        int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+        auto* radius_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::radius).data();
+        auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-        auto* condt_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::cond_tendency).data();
+        auto* condt_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::cond_tendency).data();
 #endif
 
         SDSpeciesMassArr sp_mass_ptrs;
@@ -192,7 +194,7 @@ void SuperDropletPC::MassChange_LV (  int                                       
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
-            if (mult_ptr[i] == 0.0) { return; }
+            if (active_ptr[i] == 0) { return; }
 
             // skip ice particles
             auto par_phase = SD_phase(i, idx_w, idx_i, sp_mass_ptrs);
@@ -352,9 +354,11 @@ void SuperDropletPC::MassChange_SL (  int                                       
 
         auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
 
-        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
+        auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
+        int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+        auto* radius_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::radius).data();
+        auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
         auto* Tfz_ptr = soa.GetRealData(idx_ice_Tfz(num_ae,num_sp)).data();
         auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data();
         auto* c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data();
@@ -415,7 +419,7 @@ void SuperDropletPC::MassChange_SL (  int                                       
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
-            if (mult_ptr[i] == 0.0) { return; }
+            if (active_ptr[i] == 0) { return; }
 
             ParticleReal temperature;
             if (is_periodic_z) {
@@ -519,10 +523,13 @@ void SuperDropletPC::MassChange_SV (  int                                      a
 
         auto zheight = (*z_height)[grid].array();
         auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
-        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
-        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+
+        int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
+        auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
+        int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+        auto* radius_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::radius).data();
+        auto* vterm_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::term_vel).data();
+        auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
         auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data();
         auto* c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data();
         auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data();
@@ -591,7 +598,7 @@ void SuperDropletPC::MassChange_SV (  int                                      a
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
-            if (mult_ptr[i] == 0.0) { return; }
+            if (active_ptr[i] == 0) { return; }
 
             // skip water particles
             auto par_phase = SD_phase(i, idx_w, idx_i, sp_mass_ptrs);
