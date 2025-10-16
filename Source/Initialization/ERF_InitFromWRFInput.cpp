@@ -491,9 +491,9 @@ ERF::init_from_wrfinput (int lev,
 
           // Initialize Landtype
           if ( var_name == "IVGTYP" ) {
-              for ( MFIter mfi(*(urb_type_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+              for ( MFIter mfi(*(land_type_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                   Box gtbx = mfi.growntilebox();
-                  const Array4<       int>& dst_arr = urb_type_lev[lev][0]->array(mfi);
+                  const Array4<       int>& dst_arr = land_type_lev[lev][0]->array(mfi);
                   const Array4<const Real>& src_arr = var_fab.const_array();
                   ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                   {
@@ -502,7 +502,7 @@ ERF::init_from_wrfinput (int lev,
                       dst_arr(i,j,0) = static_cast<int>(src_arr(li,lj,0));
                   });
               }
-              (urb_type_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
+              (land_type_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
           }
 
           // Initialize Soil type

@@ -900,8 +900,8 @@ private:
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  tsk_lev;
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> lmask_lev;
 
-    // Urban grid type and fraction
-    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> urb_type_lev;
+    // Land grid types and urban fraction
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> land_type_lev;
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> soil_type_lev;
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  urb_frac_lev;
 

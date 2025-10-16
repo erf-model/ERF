@@ -443,10 +443,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lmask_lev[lev][0]->setVal(1);
     lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
 
-    urb_type_lev[lev].resize(1);
-    urb_type_lev[lev][0] = std::make_unique<iMultiFab>(ba2d_mask,dm,1,ngv);
-    urb_type_lev[lev][0]->setVal(0);
-    urb_type_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+    land_type_lev[lev].resize(1);
+    land_type_lev[lev][0] = std::make_unique<iMultiFab>(ba2d_mask,dm,1,ngv);
+    land_type_lev[lev][0]->setVal(0);
+    land_type_lev[lev][0]->FillBoundary(geom[lev].periodicity());
 
     soil_type_lev[lev].resize(1);
     soil_type_lev[lev][0] = std::make_unique<iMultiFab>(ba2d_mask,dm,1,ngv);
