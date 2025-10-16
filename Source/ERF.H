@@ -900,6 +900,11 @@ private:
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  tsk_lev;
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> lmask_lev;
 
+    // Land grid types and urban fraction
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> land_type_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> soil_type_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  urb_frac_lev;
+
     // Other SFS terms
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_diss_lev;
