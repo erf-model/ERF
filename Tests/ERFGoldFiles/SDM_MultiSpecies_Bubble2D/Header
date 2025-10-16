@@ -1,5 +1,5 @@
 HyperCLaw-V1.1
-59
+60
 density
 rhotheta
 rhoadv_0
@@ -59,6 +59,7 @@ qc_agua
 qt_agua
 sat_ratio_agua
 accum_agua
+accum_NaCl
 3
 0.5
 0
