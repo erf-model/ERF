@@ -114,6 +114,10 @@ ERF::init_from_wrfinput (int lev,
         NC_names.push_back("LAI");    // 30
         NC_names.push_back("ZS");     // 31
         NC_names.push_back("DZS");    // 32
+        NC_names.push_back("VEGFRA"); // 33
+        NC_names.push_back("TMN");    // 34
+        NC_names.push_back("SHDMIN"); // 35
+        NC_names.push_back("SHDMAX"); // 36
 
         // --- debugging ---
         // print LSM varname->WRF input name map
@@ -533,7 +537,7 @@ ERF::init_from_wrfinput (int lev,
                   if (var_name == var.first) {
                       bool is_3d = var_fab.box().length(2) > 1;
                       amrex::Print() << "   Reading " << ((is_3d) ? "3D" : "2D") << " LSM variable '" << var.first << "' (" << var.second << ")" << std::endl;
-                      int lsm_idx = lsm.Get_VarIdx(lev, var.second);
+                      int lsm_idx = lsm.Get_DataIdx(lev, var.second);
                       AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_idx != -1, "LSM variable mapping invalid!");
                       AMREX_ALWAYS_ASSERT(lsm_data[lev][lsm_idx]);
 
