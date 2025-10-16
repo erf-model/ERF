@@ -216,6 +216,8 @@ add_test_sdm(SDM_Box3D_IceFrzDep             "MoistRegTests/Bubble" "erf_bubble"
 add_test_sdm(SDM_Box3D_IceSub                "MoistRegTests/Bubble" "erf_bubble"   "plt00010" 1e-14 2e-13)
 # terminal velocity
 add_test_sdm(SDM_Box3D_VTerm                 "MoistRegTests/Bubble" "erf_bubble"   "plt00001" 5e-13 1e-14)
+# recycling
+add_test_sdm(SDM_Box3D_Recycling             "MoistRegTests/Bubble" "erf_bubble"   "plt00020" 5e-13 1e-14)
 # Congestus case
 add_test_sdm(SDM_Congestus3D                 "DevTests/TemperatureSourceSpatial"   "erf_abl_with_spatial_temperature_source" "plt00020" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
 # RICO case
