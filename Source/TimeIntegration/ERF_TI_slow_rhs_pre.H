@@ -152,8 +152,6 @@
                          stretched_dz_d[level], gradp[level],
                          mapfac[level], get_eb(level), fr_as_crse, fr_as_fine);
 
-// #include "ERF_Implicit.H"
-
         // *****************************************************************************
         // Update for moving terrain
         // *****************************************************************************

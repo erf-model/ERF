@@ -56,13 +56,11 @@
                                            bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
 #endif
                 } else {
-#if 0
                     ImplicitDiffForState_N(bx, fine_geom.Domain(), slow_dt, n_start, n_comp, u_arr, v_arr,
                                            cell_data, diffflux_z,
                                            dxInv, SmnSmn_a, hfx_z,
                                            mu_turb, solverChoice, level,
                                            bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
-#endif
                 }
             } // mfi
         } // if do implicit solve for diffusive contribution to (rho theta) update
