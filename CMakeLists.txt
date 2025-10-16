@@ -178,7 +178,21 @@ if(ERF_ENABLE_EKAT)
   add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/ekat ${EKAT_BIN})
 
 endif()
+########################### MPI #####################################
 
+##if(ERF_ENABLE_MPI)
+##  set(_mpi_comps C CXX)  # Do we need MPI_C ?
+##  if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
+##    list(APPEND _mpi_comps Fortran)
+##  endif()
+##  find_package(MPI REQUIRED ${_mpi_comps})
+###  list(TRANSFORM _mpi_comps PREPEND "MPI::MPI_")
+###  foreach(D IN LISTS AMReX_SPACEDIM)
+###      target_link_libraries(amrex_${D}d PUBLIC ${_mpi_comps})
+###  endforeach()
+###  unset(_mpi_comps)
+##endif()
+     message(STATUS "mpi section done")
 ########################## NETCDF ##################################
 
 if(ERF_ENABLE_NETCDF OR ERF_ENABLE_TOOLS)
@@ -239,11 +253,16 @@ endif()
 ########################### ERF #####################################
 
 if(ERF_ENABLE_MPI)
+  set(_mpi_comps C CXX)  # Do we need MPI_C ?
   if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
-    find_package(MPI COMPONENTS Fortran REQUIRED)
-  else()
-    find_package(MPI REQUIRED)
+    list(APPEND _mpi_comps Fortran)
   endif()
+  find_package(MPI REQUIRED ${_mpi_comps})
+#  list(TRANSFORM _mpi_comps PREPEND "MPI::MPI_")
+#  foreach(D IN LISTS AMReX_SPACEDIM)
+#      target_link_libraries(amrex_${D}d PUBLIC ${_mpi_comps})
+#  endforeach()
+#  unset(_mpi_comps)
 endif()
 
 # General information about machine, compiler, and build type
