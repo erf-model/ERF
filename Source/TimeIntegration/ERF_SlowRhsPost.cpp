@@ -437,7 +437,11 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                stretched_dz_d, dxInv, SmnSmn_a,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
-                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
+#if 0
+                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
+#else
+                                               hfx_z, q1fx_z, q2fx_z, diss,
+#endif
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer);
                     } else if (l_use_terrain) {
