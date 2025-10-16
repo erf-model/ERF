@@ -730,6 +730,10 @@ ERF::init_from_wrfinput (int lev,
     // *******************************************************************************************
     if (solverChoice.use_real_bcs && (lev == 0))
     {
+        if (geom[0].isPeriodic(0) || geom[0].isPeriodic(1) ) {
+             amrex::Error("Cannot set periodic lateral boundary conditions when reading in real boundary values");
+        }
+
         if (nc_bdy_file.empty()) {
             amrex::Error("NetCDF boundary file name must be provided via input");
         }
@@ -1053,10 +1057,7 @@ init_terrain_from_wrfinput (int /*lev*/,
                             const MultiFab& mf_PH,
                             const MultiFab& mf_PHB)
 {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(*z_phys, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    for ( MFIter mfi(*z_phys, false); mfi.isValid(); ++mfi )
     {
         Box gnbx = mfi.growntilebox();
 
@@ -1099,12 +1100,36 @@ init_terrain_from_wrfinput (int /*lev*/,
             } else if (k == khi) {
                 z_arr(i, j, k) = z_top;
             } else {
+                // Note: wrfinput geopotentials ph, phb are only staggered in the vertical, i.e.,
+                //       they have dims (bottom_top_stag, south_north, west_east). On k==klo, we
+                //       will end up smoothing the terrain as we average from surface face centers
+                //       to nodes.
                 z_arr(i, j, k) = 0.25 * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
                                           nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
                                           nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
                                           nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
-            } // k
+            }
         });
+
+        // Sanity check
+        Print() << "Verifying grid integrity" << std::endl;
+        const Box& vbox = mfi.validbox();
+        if (vbox.smallEnd(2) == klo) {
+            Box z_surf_faces = makeSlab(vbox, 2, klo);
+            ParallelFor(z_surf_faces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                if (z_arr(i,j,k+1) < z_arr(i,j,k)) {
+#ifdef AMREX_USE_GPU
+                    AMREX_DEVICE_PRINTF("z values at (%d,%d,%d) and k+1 are %f, %f\n",
+                           i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
+#else
+                    printf("z values at (%d,%d,%d) and k+1 are %f, %f\n",
+                           i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
+#endif
+                    Error("Grid integrity issue detected");
+                }
+            });
+        } // tile includes zlo
     } // mfi
 }
 #endif // ERF_USE_NETCDF

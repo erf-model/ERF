@@ -417,7 +417,9 @@ public:
 
           // Pathways in fill_tsurf_with_sst_and_tsk
           bool use_tsk = (m_tsk_lev[lev][0]);
+          bool use_sst = (m_sst_lev[lev][0]);
           amrex::Print() << "Using MOST with specified surface temperature ";
+          if (use_tsk && !use_sst) { m_ignore_sst = true; }
           if (use_tsk) {
               amrex::Print() << "(land: TSK, ";
           } else {
@@ -444,6 +446,12 @@ public:
                        const int& max_iters,
                        const FluxIter& most_flux,
                        bool is_land);
+
+  void init_tke_from_ustar (const int& lev,
+                            amrex::MultiFab& cons,
+                            const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                            const amrex::Real tkefac = 1.0,
+                            const amrex::Real zscale = 700.0);
 
   void impose_SurfaceLayer_bcs (const int& lev,
                                 amrex::Vector<const amrex::MultiFab*> mfs,
