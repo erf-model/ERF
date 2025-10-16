@@ -291,13 +291,13 @@ NOAHMP::Advance_With_State (const int& lev,
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
         {
             tmp_u_phy_arr(i,j,0)   = 0.5*(U_PHY(i,j,0)+U_PHY(i+1,j  ,0));
-            tmp_v_phy_arr(i,1,j)   = 0.5*(V_PHY(i,j,0)+V_PHY(i  ,j+1,0));
-            tmp_t_phy_arr(i,1,j)   = getTgivenRandRTh(QV_TH(i,j,0,Rho_comp),QV_TH(i,j,0,RhoTheta_comp));
-            tmp_qv_curr_arr(i,1,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
-            tmp_p9w_arr(i,1,j)     = getPgivenRTh(QV_TH(i,j,0,RhoTheta_comp));
-            tmp_swdown_arr(i,j)    = SWDOWN(i,j,0);
-            tmp_glw_arr(i,j)       = GLW(i,j,0);
-            tmp_coszen_arr(i,j)    = COSZEN(i,j,0);
+            tmp_v_phy_arr(i,j,0)   = 0.5*(V_PHY(i,j,0)+V_PHY(i  ,j+1,0));
+            tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(QV_TH(i,j,0,Rho_comp),QV_TH(i,j,0,RhoTheta_comp));
+            tmp_qv_curr_arr(i,j,0) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
+            tmp_p9w_arr(i,j,0)     = getPgivenRTh(QV_TH(i,j,0,RhoTheta_comp));
+            tmp_swdown_arr(i,j,0)    = SWDOWN(i,j,0);
+            tmp_glw_arr(i,j,0)       = GLW(i,j,0);
+            tmp_coszen_arr(i,j,0)    = COSZEN(i,j,0);
         });
 
         // Synchronize to ensure GPU kernel is complete before host access
