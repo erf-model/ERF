@@ -56,7 +56,6 @@ using namespace amrex;
  * @param[in   ] az area fractions on z-faces
  * @param[in   ] detJ Jacobian of the metric transformation (= 1 if use_terrain_fitted_coords is false)
  * @param[in   ] gradp  pressure gradient
- * @param[in   ] vert_implicit_fac  factor controlling whether we do semi-implicit solve for (rho theta) diffusive terms
  * @param[in   ] mapfac map factors
  * @param[in   ] ebfact EB factories for cell- and face-centered variables
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
@@ -102,7 +101,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& detJ,
                        Gpu::DeviceVector<Real>& stretched_dz_d,
                        Vector<MultiFab>& gradp,
-                       const Real vert_implicit_fac,
                        Vector<std::unique_ptr<MultiFab>>& mapfac,
                        const eb_& ebfact,
                        YAFluxRegister* fr_as_crse,
@@ -551,6 +549,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_start = RhoTheta_comp;
             int n_comp  = 1;
 
+            // We use vert_implicit_fac because we are only diffusing RhoTheta here
+            const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac;
+
             if (l_use_stretched_dz) {
                 DiffusionSrcForState_S(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -560,7 +561,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, vert_implicit_fac);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
             } else if (l_use_terrain_fitted_coords) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -571,7 +572,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, vert_implicit_fac);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -581,7 +582,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, vert_implicit_fac);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
             }
         }
 

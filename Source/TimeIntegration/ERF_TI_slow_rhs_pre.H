@@ -23,21 +23,13 @@
             cons_to_prim(S_data[IntVars::cons], ng_cons);
         }
 
-        Real vert_implicit_fac = 0.0;
-#if 0
-        if (!solverChoice.anelastic[level] && nrk == 0) {
-            // Fully implicit
-            vert_implicit_fac = 1.0;
-        }
-#endif
-
         if (verbose) Print() << std::setprecision(timeprecision)
                              << "Making slow rhs at time " << old_stage_time
                              << " for fast variables advancing from " << old_step_time
                              << " to " << new_stage_time << std::endl;
 
         Real slow_dt = new_stage_time - old_step_time;
-    
+
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
         // *************************************************************************
@@ -157,75 +149,10 @@
                          Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                          fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                          *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
-                         stretched_dz_d[level], gradp[level], vert_implicit_fac,
+                         stretched_dz_d[level], gradp[level],
                          mapfac[level], get_eb(level), fr_as_crse, fr_as_fine);
 
-        // *****************************************************************************
-        // Do semi-implicit solve for theta only in first RK stage -- this updates the slow_rhs 
-        //    before it goes into the fast substeps
-        // *****************************************************************************
-
-        if (vert_implicit_fac > 0.) {
-            const bool l_use_stretched_dz = (solverChoice.mesh_type == MeshType::StretchedDz);
-            const bool l_use_SurfLayer = (m_SurfaceLayer != nullptr);
-            const BCRec* bc_ptr_d = domain_bcs_type_d.data();
-    
-            const bool l_use_turb       = solverChoice.turbChoice[level].use_kturb;
-
-            std::unique_ptr<MultiFab> dflux_z;
-            dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 0);
-
-            int n_start = RhoTheta_comp;
-            int n_comp  = 1;
-
-            for ( MFIter mfi(S_old[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
-            {
-                Box bx  = mfi.tilebox();
-    
-                const Array4<Real const> u_arr = xvel_new.const_array(mfi);
-                const Array4<Real const> v_arr = yvel_new.const_array(mfi);
-    
-                const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
-                const Array4<const Real> & cell_prim  = S_prim.array(mfi);
-                const Array4<      Real> & cell_rhs   = S_rhs[IntVars::cons].array(mfi);
-    
-                const Array4<const Real>& z_nd_arr = z_phys_nd[level]->const_array(mfi);
-                const Array4<const Real>& detJ_arr = detJ_cc[level]->const_array(mfi);
-    
-                const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
-    
-                const Array4<Real>& hfx_z   = Hfx3->array(mfi);
-    
-                // Strain magnitude but we don't actually need it here
-                const Array4<const Real>& SmnSmn_a = Array4<const Real>{};
-    
-                // This is just used for scratch
-                const Array4<Real>& diffflux_z = dflux_z->array(mfi);
-    
-                if (l_use_stretched_dz) {
-                    ImplicitDiffForState_S(bx, fine_geom.Domain(), slow_dt, n_start, n_comp, u_arr, v_arr,
-                                           cell_data, cell_prim, cell_rhs, diffflux_z,
-                                           z_nd_arr, detJ_arr, dxInv, SmnSmn_a, hfx_z,
-                                           mu_turb, solverChoice, level,
-                                           bc_ptr_d, l_use_SurfLayer, vert_implicit_fac);
-#if 0
-                } else if (l_use_terrain_fitted_coords) {
-                    ImplicitDiffForState_T(bx, fine_domain.Domain(), slow_dt, n_start, n_comp, l_rotate, u_arr, v_arr,
-                                           cell_data, cell_prim, cell_rhs, diffflux_z,
-                                           z_nd_arr, detJ_arr, ax_arr, ay_arr, az_arr, detJ_arr,
-                                           dxInv, SmnSmn_a, hfx_z,
-                                           mu_turb, solverChoice, level,
-                                           bc_ptr_d, l_use_SurfLayer, vert_implicit_fac);
-                } else {
-                    ImplicitDiffForState_N(bx, fine_domain.Domain(), slow_dt, n_start, n_comp, u_arr, v_arr,
-                                           cell_data, cell_prim, cell_rhs, diffflux_z,
-                                           dxInv, SmnSmn_a, hfx_z,
-                                           mu_turb, solverChoice, level,
-                                           bc_ptr_d, l_use_SurfLayer, vert_implicit_fac);
-#endif
-                }
-            } // mfi
-        } // if do implicit solve for diffusive contribution to (rho theta) update
+// #include "ERF_Implicit.H"
 
         // *****************************************************************************
         // Update for moving terrain

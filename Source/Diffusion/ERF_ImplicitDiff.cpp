@@ -34,9 +34,8 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
                         int start_comp, int num_comp,
                         const Array4<const Real>& u,
                         const Array4<const Real>& v,
-                        const Array4<const Real>& cell_data,
+                        const Array4<      Real>& cell_data,
                         const Array4<const Real>& cell_prim,
-                        const Array4<      Real>& cell_rhs,
                         const Array4<      Real>& zflux,
                         const Array4<const Real>& z_nd,
                         const Array4<const Real>& detJ,
@@ -57,7 +56,7 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
     const int         n = RhoTheta_comp;
     const int qty_index = RhoTheta_comp;
     const int prim_index = qty_index - 1;
-    const int prim_scal_index = prim_index;
+    const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
 
     // Box bounds
     int ilo = bx.smallEnd(0);
@@ -157,9 +156,11 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
 #endif
             Real met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,k  ,cellSizeInv,z_nd);
             Real met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,k+1,cellSizeInv,z_nd);
-    
-            coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv / met_h_zeta_lo;
-            coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv / met_h_zeta_hi;
+
+            // Note that the additional factor of detJ is multiplied through so we don't see it here
+            //      in the denominator but do see it multiplying the B coeff and the RHS
+            coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv / met_h_zeta_lo;
+            coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv / met_h_zeta_hi;
 
             if (k == klo) {
                 coeffA_a(i,j,klo) = 0.; // Zero gradient at bottom boundary
@@ -167,14 +168,13 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
             if (k == khi) {
                 coeffC_a(i,j,khi) = 0.; // Zero gradient at top boundary
             }
-    
+
             coeffB_a(i,j,k) = detJ(i,j,k)*cell_data(i,j,k,Rho_comp) - coeffA_a(i,j,k) - coeffC_a(i,j,k);
 
-            amrex::Print() <<" RT RHS A B C " << k << " " << cell_data(i,j,k,n) << " " << dt*cell_rhs(i,j,k,n) << " " <<
-                        coeffA_a(i,j,k) << " " << coeffB_a(i,j,k) << " " << coeffC_a(i,j,k) << std::endl;
+            //amrex::Print() <<" A B C " << k << " " <<
+            //            coeffA_a(i,j,k) << " " << coeffB_a(i,j,k) << " " << coeffC_a(i,j,k) << std::endl;
 
-            RHS_a(i,j,k)  = cell_data(i,j,k,n) + dt * cell_rhs(i,j,k,n);
-            RHS_a(i,j,k) *= detJ(i,j,k);
+            RHS_a(i,j,k)  = detJ(i,j,k) * cell_data(i,j,k,n); // Note this is rho*theta, whereas solution will be theta
         } // k
 
         Real bet = coeffB_a(i,j,klo);
@@ -182,18 +182,22 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
         for (int k(klo+1); k<=khi; ++k) {
             Real gam = coeffC_a(i,j,k-1) / bet;
             bet = coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam;
-            coeffB_a(i,j,k) = bet; 
+            coeffB_a(i,j,k) = bet;
         }
 
         for (int k(klo); k<=khi; ++k) {
             inv_coeffB_a(i,j,k) = 1.0 / coeffB_a(i,j,k);
         }
 
+#if 0
         if (use_SurfLayer) {
             RHS_a(i,j,klo) += implicit_fac * dt * hfx_z(i,j,0);
         }
+#endif
 
+        //
         // Tridiagonal solve
+        //
         soln_a(i,j,klo) = RHS_a(i,j,klo) * inv_coeffB_a(i,j,klo);
 
         for (int k(klo+1); k<=khi; ++k) {
@@ -204,6 +208,7 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
           soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) * soln_a(i,j,k+1);
         }
 
+#if 0
         zflux(i,j,klo  ) = 0.0;  // We assume zero gradient at bottom (except if prescribed gradient)
         if (!use_SurfLayer) {
             hfx_z(i,j,0) -= zflux(i,j,klo);
@@ -213,6 +218,15 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
         for (int k(klo+1); k<=khi; ++k) {
             zflux(i,j,k) = (coeffA_a(i,j,k)/dt) * (soln_a(i,j,k,0) - soln_a(i,j,k-1,0));
         }
+#endif
+
+        //
+        // Transfer back to original array
+        //
+        for (int k(klo); k<=khi; ++k) {
+          // amrex::Print() <<" RT IN/OUT " << k << " " << cell_data(i,j,k,n)/cell_data(i,j,k,Rho_comp) << " " << soln_a(i,j,k) << std::endl;
+          cell_data(i,j,k,n) = soln_a(i,j,k) * cell_data(i,j,k,Rho_comp);
+        }
 
       } // i
     } // j
@@ -220,10 +234,9 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
     // Use fluxes to compute RHS
     ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real stateContrib = (zflux(i  ,j  ,k+1) - zflux(i, j, k)) * dz_inv;        // Diffusive flux in z-dir
-        stateContrib /= detJ(i,j,k);
-        amrex::Print() << "ADDING SRC " << k << " " << stateContrib << std::endl;
-
-        cell_rhs(i,j,k,qty_index) += stateContrib;
+        // Real stateContrib = (zflux(i  ,j  ,k+1) - zflux(i, j, k)) * dz_inv;        // Diffusive flux in z-dir
+        // stateContrib /= detJ(i,j,k);
+        // amrex::Print() << "ADDING SRC " << k << " " << stateContrib << std::endl;
+        // cell_rhs(i,j,k,qty_index) += stateContrib;
     });
 }

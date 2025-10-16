@@ -370,6 +370,9 @@ struct SolverChoice {
         // Note: this will be overwritten with -1 on levels that have substepping_type == Explicit
         pp.query("beta_s", beta_s);
 
+        // This controls the time-centering of the vertical differences in the diffusive term for (rho theta) only
+        pp.query("vert_implicit_fac", vert_implicit_fac);
+
         // *******************************************************************************
         // Error check on deprecated input
         // *******************************************************************************
@@ -870,6 +873,11 @@ struct SolverChoice {
     // time off-centering coefficient, > 0 for forward weighting (i.e., bias
     // towards the future time step)
     amrex::Real beta_s = 0.1;
+
+    // This controls the time-centering of the *vertical* differences in the diffusive term for (rho theta) only
+    // 0: fully explicit
+    // 1: fully implicit
+    amrex::Real vert_implicit_fac = 0.0;
 
     bool        fixed_density       = false;
     int         ncorr               = 1;
