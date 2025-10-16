@@ -65,6 +65,7 @@ ERF::init_from_wrfinput (int lev,
     }
 
     bool use_moist = (solverChoice.moisture_type != MoistureType::None);
+    bool use_lsm = (solverChoice.lsm_type != LandSurfaceType::None);
 
     // *** FArrayBox's at this level for holding the INITIAL data
     Vector<std::string> NC_names;
@@ -94,6 +95,32 @@ ERF::init_from_wrfinput (int lev,
         NC_names.push_back("QVAPOR"); // 22
         NC_names.push_back("QCLOUD"); // 23
         NC_names.push_back("QRAIN");  // 24
+    }
+    NC_names.push_back("IVGTYP");     // 25
+    NC_names.push_back("ISLTYP");     // 26
+    if (use_lsm) {
+        NC_names.push_back("TSLB");   // 27
+        NC_names.push_back("SMOIS");  // 28
+        NC_names.push_back("SH2O");   // 29
+        NC_names.push_back("LAI");    // 30
+        NC_names.push_back("ZS");     // 31
+        NC_names.push_back("DZS");    // 32
+        NC_names.push_back("VEGFRA"); // 33
+        NC_names.push_back("TMN");    // 34
+        NC_names.push_back("SHDMIN"); // 35
+        NC_names.push_back("SHDMAX"); // 36
+
+        // --- debugging ---
+        // print LSM varname->WRF input name map
+        auto &lsm_wrfmap = lsm.Get_WRFInputNames();
+        for (const auto &[wrfname, lsmname] : lsm_wrfmap) {
+            amrex::Print() << " LSM input for WRF name '" << wrfname << "' -> '" << lsmname << "'" << std::endl;
+        }
+        // ---
+
+        if (lsm_wrfmap.size() == 0) {
+            amrex::Print() << "Warning: LSM model is being used, but no mapping is defined to fill its variables from WRFinput!" << std::endl;
+        }
     }
     int nvar = NC_names.size();
     Vector<Vector<FArrayBox>> NC_fab_var_file;
@@ -460,6 +487,85 @@ ERF::init_from_wrfinput (int lev,
                   });
               }
               (lmask_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
+          }
+
+          // Initialize Landtype
+          if ( var_name == "IVGTYP" ) {
+              for ( MFIter mfi(*(land_type_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+                  Box gtbx = mfi.growntilebox();
+                  const Array4<       int>& dst_arr = land_type_lev[lev][0]->array(mfi);
+                  const Array4<const Real>& src_arr = var_fab.const_array();
+                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  {
+                      int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                      int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                      dst_arr(i,j,0) = static_cast<int>(src_arr(li,lj,0));
+                  });
+              }
+              (land_type_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
+          }
+
+          // Initialize Soil type
+          if ( var_name == "ISLTYP" ) {
+              for ( MFIter mfi(*(soil_type_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+                  Box gtbx = mfi.growntilebox();
+                  const Array4<       int>& dst_arr = soil_type_lev[lev][0]->array(mfi);
+                  const Array4<const Real>& src_arr = var_fab.const_array();
+                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  {
+                      int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                      int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                      dst_arr(i,j,0) = static_cast<int>(src_arr(li,lj,0));
+                  });
+              }
+              (soil_type_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
+          }
+
+          // Initialize any LSM variables
+          if (use_lsm) {
+              auto &lsm_wrfmap = lsm.Get_WRFInputNames();
+              for (auto &var : lsm_wrfmap) {
+                  if (var_name == var.first) {
+                      bool is_3d = var_fab.box().length(2) > 1;
+                      amrex::Print() << "   Reading " << ((is_3d) ? "3D" : "2D") << " LSM variable '" << var.first << "' (" << var.second << ")" << std::endl;
+                      int lsm_idx = lsm.Get_DataIdx(lev, var.second);
+                      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_idx != -1, "LSM variable mapping invalid!");
+                      AMREX_ALWAYS_ASSERT(lsm_data[lev][lsm_idx]);
+
+                      int lsm_nsoil = lsm.Get_Lsm_Geom(lev).Domain().length(2);
+                      amrex::Print() << " LSM NZ = " << lsm_nsoil << " WRFINPUT NZ = " << var_fab.box().length(2) << std::endl;
+                      if (is_3d) {
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_nsoil == var_fab.box().length(2), "Number of soil layers must match!");
+                      }
+
+                      // check for special case of single column data (such as soil thickness ZS, DZS)
+                      //  the single column is duplicated across all grid points
+                      bool is_column = var_fab.box().length(0) == 1 && var_fab.box().length(1) == 1;
+
+                      for ( MFIter mfi(*lsm_data[lev][lsm_idx], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+                          Box gtbx = mfi.tilebox();
+                          int lsm_khi = gtbx.bigEnd(2);
+                          gtbx.setRange(2, 0, var_fab.box().length(2));
+                          const Array4<      Real>& dst_arr = lsm_data[lev][lsm_idx]->array(mfi);
+                          const Array4<const Real>& src_arr = var_fab.const_array();
+                          ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                          {
+                              int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                              int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                              if (is_column) {
+                                // single column src input is copied to all i,j in dst
+                                li = 0;
+                                lj = 0;
+                              }
+                              // Note: LSM z levels are at negative k below surface
+                              //  map [0, nsoil-1] to [-1, -nsoil]
+                              const int lsm_k = lsm_khi - k;
+                              dst_arr(i,j,lsm_k) = src_arr(li,lj,k);
+                          });
+                      }
+                      (lsm_data[lev][lsm_idx])->FillBoundary(geom[lev].periodicity());
+                  }
+              }
           }
 
           // Initialize MapFac U
