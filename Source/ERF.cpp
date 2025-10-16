@@ -359,6 +359,11 @@ ERF::ERF_shared ()
     tsk_lev.resize(nlevs_max);
     lmask_lev.resize(nlevs_max);
 
+    // Land and soil grid type and urban fractions
+    land_type_lev.resize(nlevs_max);
+    soil_type_lev.resize(nlevs_max);
+    urb_frac_lev.resize(nlevs_max);
+
     // Metric terms
     z_phys_nd.resize(nlevs_max);
     z_phys_cc.resize(nlevs_max);
