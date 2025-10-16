@@ -429,6 +429,50 @@ Output Options for 3D plotfiles
 |                             |                  |
 +-----------------------------+------------------+
 
+
+Output Options for 3D plotfiles
+-------------------------------
+
++-------------------+----------------------------+
+| Parameter         | Definition                 |
+|                   |                            |
++===================+============================+
+| **z_surf**        | Surface elevation          |
++-------------------+----------------------------+
+| **landmask**      | Land-sea mask              |
+|                   | (land=1, sea=0)            |
++-------------------+----------------------------+
+| **mapfac**        | Map factors                |
++-------------------+----------------------------+
+| **lat_m**         | Latitude (at unstaggered   |
+|                   | "mass" points)             |
++-------------------+----------------------------+
+| **u_star**        | Friction velocity          |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **t_star**        | Temperature scale          |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **q_star**        | Humidity scale             |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **Olen**          | Obukhov length             |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **pblh**          | Diagnosed PBL height       |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **t_surf**        | Surface temperature        |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **q_surf**        | Surface humidity           |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **z0**            | Roughness height           |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+
+
 Examples of Usage
 -----------------
 
