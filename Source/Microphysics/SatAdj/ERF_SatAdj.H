@@ -58,6 +58,7 @@ public:
     {
         m_fac_cond = lcond / sc.c_p;
         m_rdOcp    = sc.rdOcp;
+        m_do_cond  = (!sc.use_shoc);
     }
 
     // init
@@ -203,7 +204,8 @@ private:
 
     // constants
     amrex::Real m_fac_cond;
-    amrex::Real m_rdOcp ;
+    amrex::Real m_rdOcp;
+    bool m_do_cond;
 
     // independent variables
     amrex::Array<FabPtr, MicVar_SatAdj::NumVars> mic_fab_vars;

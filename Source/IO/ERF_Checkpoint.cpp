@@ -25,6 +25,8 @@ ERF::GotoNextLine (std::istream& is)
 void
 ERF::WriteCheckpointFile () const
 {
+    auto dCheckTime0 = amrex::second();
+
     // chk00010            write a checkpoint file with this root directory
     // chk00010/Header     this contains information you need to save (e.g., finest_level, t_new, etc.) and also
     //                     the BoxArrays at each level
@@ -299,20 +301,19 @@ ERF::WriteCheckpointFile () const
                 MultiFab::Copy(m_var,*src,0,0,1,ng);
                 VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Olen" + face));
 
+                // Qsurf
+                src = m_SurfaceLayer[ori]->get_q_surf(lev);
+                MultiFab::Copy(m_var,*src,0,0,1,ng);
+                VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qsurf" + face));
+
                 // PBLH
                 src = m_SurfaceLayer[ori]->get_pblh(lev);
                 MultiFab::Copy(m_var,*src,0,0,1,ng);
                 VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PBLH" + face));
 
                 // Z0
-                for (MFIter mfi(m_var); mfi.isValid(); ++mfi) {
-                    const Box& bx = mfi.growntilebox().makeSlab(dir, sm_index);
-                    Array4<const Real> const& fab_arr = m_SurfaceLayer[ori]->get_z0(lev)->const_array();
-                    Array4<      Real> const&  mv_arr = m_var.array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        mv_arr(i,j,k) = fab_arr(i,j,k);
-                    });
-                }
+                src = m_SurfaceLayer[ori]->get_z0(lev);
+                MultiFab::Copy(m_var,*src,0,0,1,ng);
                 VisMF::Write(m_var, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z0" + face));
             }
         }
@@ -449,6 +450,12 @@ ERF::WriteCheckpointFile () const
 #endif
 #endif
 
+    if (verbose > 0)
+    {
+        auto dCheckTime = amrex::second() - dCheckTime0;
+        ParallelDescriptor::ReduceRealMax(dCheckTime,ParallelDescriptor::IOProcessorNumber());
+        amrex::Print() << "Checkpoint write time = " << dCheckTime << " seconds." << '\n';
+    }
 }
 
 /**
@@ -686,6 +693,30 @@ ERF::ReadCheckpointFile ()
            VisMF::Read(z_height, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
            update_terrain_arrays(lev);
+
+           if (SolverChoice::mesh_type == MeshType::VariableDz) {
+               MultiFab z_slab(convert(ba2d[lev],IntVect(1,1,1)),dmap[lev],1,0);
+               int klo = geom[lev].Domain().smallEnd(2);
+               for (MFIter mfi(z_slab); mfi.isValid(); ++mfi) {
+                   Box nbx = mfi.tilebox();
+                   Array4<Real const> const& z_arr      = z_phys_nd[lev]->const_array(mfi);
+                   Array4<Real      > const& z_slab_arr = z_slab.array(mfi);
+                   ParallelFor(nbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                   {
+                       z_slab_arr(i,j,k) = z_arr(i,j,klo);
+                   });
+               }
+               Real z_min = z_slab.min(0);
+               Real z_max = z_slab.max(0);
+
+               auto dz = geom[lev].CellSize()[2];
+               if (z_max - z_min < 1.e-8 * dz) {
+                   SolverChoice::set_mesh_type(MeshType::StretchedDz);
+                   if (verbose > 0) {
+                       amrex::Print() << "Resetting mesh type to StretchedDz since terrain is flat" << std::endl;
+                   }
+               }
+           }
         }
 
         // Read in the moisture model restart variables
@@ -1086,6 +1117,14 @@ ERF::ReadCheckpointFileSurfaceLayer ()
                     MultiFab::Copy(*dst,m_var,0,0,1,ng);
                 }
 
+                // Qsurf
+                std::string QsurfFileName(restart_chkfile + "/Level_0/Qsurf" + face + "_H");
+                if (amrex::FileExists(QsurfFileName)) {
+                    dst = m_SurfaceLayer[ori]->get_q_surf(lev);
+                    VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qsurf" + face));
+                    MultiFab::Copy(*dst,m_var,0,0,1,ng);
+                }
+
                 // PBLH
                 std::string PBLHFileName(restart_chkfile + "/Level_0/PBLH" + face + "_H");
                 if (amrex::FileExists(PBLHFileName)) {
@@ -1097,12 +1136,9 @@ ERF::ReadCheckpointFileSurfaceLayer ()
                 // Z0
                 std::string Z0FileName(restart_chkfile + "/Level_0/Z0" + face + "_H");
                 if (amrex::FileExists(Z0FileName)) {
+                    dst = m_SurfaceLayer[ori]->get_z0(lev);
                     VisMF::Read(m_var, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z0" + face));
-                    for (amrex::MFIter mfi(m_var); mfi.isValid(); ++mfi) {
-                        const Box& bx = mfi.growntilebox();
-                        FArrayBox* most_z0 = (m_SurfaceLayer[ori]->get_z0(lev));
-                        most_z0->copy<RunOn::Device>(m_var[mfi], bx);
-                    }
+                    MultiFab::Copy(*dst,m_var,0,0,1,ng);
                 }
             }
         }

@@ -216,9 +216,9 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
            long unsigned local_ny = bx.length()[1];
            long unsigned local_nz = bx.length()[2];
 
-           long unsigned local_start_x  = static_cast<long unsigned>(bx.smallEnd()[0]);
-           long unsigned local_start_y  = static_cast<long unsigned>(bx.smallEnd()[1]);
-           long unsigned local_start_z  = static_cast<long unsigned>(bx.smallEnd()[2]);
+           long unsigned local_start_x  = static_cast<long unsigned>(bx.smallEnd()[0]-subdomain.smallEnd()[0]);
+           long unsigned local_start_y  = static_cast<long unsigned>(bx.smallEnd()[1]-subdomain.smallEnd()[1]);
+           long unsigned local_start_z  = static_cast<long unsigned>(bx.smallEnd()[2]-subdomain.smallEnd()[2]);
 
            for (int k(0); k < ncomp; ++k) {
                FArrayBox tmp;

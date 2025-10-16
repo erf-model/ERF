@@ -41,7 +41,7 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
 
     int ntimes;
     Real timeInterval;
-    const std::string dateTimeFormat ="%Y-%m-%d_%H:%M:%S";
+    const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor())
     {
@@ -91,11 +91,8 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
     bdy_data_ylo.resize(ntimes);
     bdy_data_yhi.resize(ntimes);
 
-    // Make sure all processors know how timeInterval
+    // Make sure all processors know timeInterval
     ParallelDescriptor::Bcast(&timeInterval,1,ioproc);
-
-    // Make sure all processors know how many times are stored
-    ParallelDescriptor::Bcast(&ntimes,1,ioproc);
 
     // Return the number of seconds between the boundary plane data
     return timeInterval;
@@ -116,6 +113,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
 
     const auto& lo = domain.loVect();
     const auto& hi = domain.hiVect();
+    const int khi = hi[2];
 
     IntVect plo(lo);
     IntVect phi(hi);
@@ -124,6 +122,8 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
     // Read the netcdf file and fill these FABs
     // NOTE: the order and number of these must match the WRFBdyVars enum!
     // WRFBdyVars:  U, V, R, T, QV, MU, PC
+    //
+    // These fields are at half levels (unstaggered)
     // ******************************************************************
     Vector<std::string> nc_var_names;
     Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","MU","PC"};
@@ -335,64 +335,68 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             if (bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V ||
                 bdyVarType == WRFBdyVars::T || bdyVarType == WRFBdyVars::QV)
             {
-                // xlo,xhi dims: (bdy_width, bottom_top, south_north)
-                // ylo,yhi dims: (bdy_width, bottom_top, west_east)
+                // xlo,xhi dims: (Time, bdy_width, bottom_top, south_north)
+                // ylo,yhi dims: (Time, bdy_width, bottom_top, west_east)
 
                 int ns2 = tslice[iv].get_vshape()[2]; // vertical size
                 int ns3 = tslice[iv].get_vshape()[3]; // lateral size, may be staggered
 
                 if (bdyType == WRFBdyTypes::x_lo) {
-                    num_pts  = bdy_data_xlo[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int ioff = bdy_data_xlo[itime][bdyVarType].smallEnd()[0];
                     fab_arr  = bdy_data_xlo[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int i = n / (ns2 * ns3);
                         if (i >= real_width) continue;
                         int k = (n - i * (ns2 * ns3)) / ns3;
+                        if (k > khi) continue;
                         int j =  n - i * (ns2 * ns3) - k * ns3;
                         fab_arr(ioff+i, j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } else if (bdyType == WRFBdyTypes::x_hi) {
-                    num_pts  = bdy_data_xhi[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int ioff = bdy_data_xhi[itime][bdyVarType].bigEnd()[0];
                     fab_arr  = bdy_data_xhi[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int i = n / (ns2 * ns3);
                         if (i >= real_width) continue;
                         int k = (n - i * (ns2 * ns3)) / ns3;
+                        if (k > khi) continue;
                         int j =  n - i * (ns2 * ns3) - k * ns3;
                         fab_arr(ioff-i, j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } else if (bdyType == WRFBdyTypes::y_lo) {
-                    num_pts  = bdy_data_ylo[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int joff = bdy_data_ylo[itime][bdyVarType].smallEnd()[1];
                     fab_arr  = bdy_data_ylo[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int j = n / (ns2 * ns3);
                         if (j >= real_width) continue;
                         int k = (n - j * (ns2 * ns3)) / ns3;
+                        if (k > khi) continue;
                         int i =  n - j * (ns2 * ns3) - k * ns3;
                         fab_arr(i, joff+j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } else if (bdyType == WRFBdyTypes::y_hi) {
-                    num_pts  = bdy_data_yhi[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int joff = bdy_data_yhi[itime][bdyVarType].bigEnd()[1];
                     fab_arr  = bdy_data_yhi[itime][bdyVarType].array();
                     for (int n(0); n < num_pts; ++n) {
                         int j = n / (ns2 * ns3);
                         if (j >= real_width) continue;
                         int k = (n - j * (ns2 * ns3)) / ns3;
+                        if (k > khi) continue;
                         int i =  n - j * (ns2 * ns3) - k * ns3;
                         fab_arr(i, joff-j, k, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } // bdyType
 
             } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                // xlo,xhi dims: (bdy_width, south_north)
-                // ylo,yhi dims: (bdy_width, west_east)
+                // xlo,xhi dims: (Time, bdy_width, south_north)
+                // ylo,yhi dims: (Time, bdy_width, west_east)
 
                 if (bdyType == WRFBdyTypes::x_lo) {
-                    num_pts  = bdy_data_xlo[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int ioff = bdy_data_xlo[itime][bdyVarType].smallEnd()[0];
                     int ns2 = tslice[iv].get_vshape()[2];
                     fab_arr  = bdy_data_xlo[itime][bdyVarType].array();
@@ -403,7 +407,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         fab_arr(ioff+i, j, 0, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } else if (bdyType == WRFBdyTypes::x_hi) {
-                    num_pts  = bdy_data_xhi[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int ioff = bdy_data_xhi[itime][bdyVarType].bigEnd()[0];
                     int ns2 = tslice[iv].get_vshape()[2];
                     fab_arr  = bdy_data_xhi[itime][bdyVarType].array();
@@ -414,7 +418,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         fab_arr(ioff-i, j, 0, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } else if (bdyType == WRFBdyTypes::y_lo) {
-                    num_pts  = bdy_data_ylo[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int joff = bdy_data_ylo[itime][bdyVarType].smallEnd()[1];
                     int ns2 = tslice[iv].get_vshape()[2];
                     fab_arr  = bdy_data_ylo[itime][bdyVarType].array();
@@ -425,7 +429,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
                         fab_arr(i, joff+j, 0, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 } else if (bdyType == WRFBdyTypes::y_hi) {
-                    num_pts  = bdy_data_yhi[itime][bdyVarType].box().numPts();
+                    num_pts  = tslice[iv].ndim();
                     int joff = bdy_data_yhi[itime][bdyVarType].bigEnd()[1];
                     int ns2 = tslice[iv].get_vshape()[2];
                     fab_arr  = bdy_data_yhi[itime][bdyVarType].array();
@@ -478,15 +482,29 @@ convert_wrfbdy_data (const int itime,
     int vsize = bdy_data[itime].size() - 2; // Don't do MU & PC
     amrex::Vector<amrex::FArrayBox> bdy_data_tmp; bdy_data_tmp.resize(vsize);
     for (int ivar(0); ivar < vsize; ++ivar) {
-        bdy_data_tmp[ivar].resize(bdy_data[itime][ivar].box(),1);
+        bdy_data_tmp[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
         bdy_data_tmp[ivar].template setVal<RunOn::Device>(0.);
     }
+
+    // BDY data
+    Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
+    Array4<Real> bdy_v_arr  = bdy_data[itime][WRFBdyVars::V].array();  // This is y-face-centered
+    Array4<Real> bdy_t_arr  = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
+    Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
+    Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
+
+    // Bounds limiting
+    int ilo  = domain.smallEnd()[0];
+    int ihi  = domain.bigEnd()[0];
+    int jlo  = domain.smallEnd()[1];
+    int jhi  = domain.bigEnd()[1];
 
     for ( MFIter mfi(cons); mfi.isValid(); ++mfi )
     {
         Box tbx = mfi.tilebox();
         Box xbx = mfi.nodaltilebox(0);
         Box ybx = mfi.nodaltilebox(1);
+
         const Box& bx_u  = (xbx & bdy_data[itime][WRFBdyVars::U].box());
         const Box& bx_v  = (ybx & bdy_data[itime][WRFBdyVars::V].box());
         const Box& bx_t  = (tbx & bdy_data[itime][WRFBdyVars::T].box());
@@ -507,19 +525,6 @@ convert_wrfbdy_data (const int itime,
         Array4<Real const> c1h_arr  = mf_C1H.const_array(mfi);
         Array4<Real const> c2h_arr  = mf_C2H.const_array(mfi);
         Array4<Real const> mub_arr  = mf_MUB.const_array(mfi);
-
-        // BDY data
-        Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
-        Array4<Real> bdy_v_arr  = bdy_data[itime][WRFBdyVars::V].array();  // This is y-face-centered
-        Array4<Real> bdy_t_arr  = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
-        Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
-        Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
-
-        // Bounds limiting
-        int ilo  = domain.smallEnd()[0];
-        int ihi  = domain.bigEnd()[0];
-        int jlo  = domain.smallEnd()[1];
-        int jhi  = domain.bigEnd()[1];
 
         // Define u velocity
         ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

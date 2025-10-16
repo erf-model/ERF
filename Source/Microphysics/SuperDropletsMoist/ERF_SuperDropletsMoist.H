@@ -38,6 +38,13 @@ namespace MicVar_SD_Species {
     };
 }
 
+namespace MicVar_SD_Aerosols {
+    enum {
+        accum = 0,  /*!< Ground accumulation */
+        NumVars
+    };
+}
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int s_qt_idx (const int a_i /*!< species index */ )
 {
@@ -81,6 +88,17 @@ static int s_accum_idx (const int a_i /*!< species index */ )
     return      MicVar_SD::NumVars
             +   (a_i-1)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::accum;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+static int a_accum_idx (const int a_ns, /*!< number of species */
+                        const int a_i /*!< aerosol index */ )
+{
+    AMREX_ALWAYS_ASSERT(a_i >= 0);
+    return      MicVar_SD::NumVars
+            +   (a_ns-1)*MicVar_SD_Species::NumVars
+            +   a_i*MicVar_SD_Aerosols::NumVars
+            +   MicVar_SD_Aerosols::accum;
 }
 
 /*! \brief List of super-droplet moisture model initializations */
@@ -246,8 +264,11 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Compute rain accumulation */
         virtual void rainAccumulation ();
 
-        /*! \brief Compute rain accumulation */
+        /*! \brief Compute non-water species accumulation */
         virtual void speciesAccumulation ();
+
+        /*! \brief Compute aerosol accumulation */
+        virtual void aerosolAccumulation ();
 
         /*! \brief Convert a multifab containing density of something to its mixing ratio */
         void densityToRatio ( MultiFab&, const int a_comp = 0 );
@@ -267,6 +288,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                 a_names.push_back("qt_"+getEnumNameString(m_species[v]));
                 a_names.push_back("sat_ratio_"+getEnumNameString(m_species[v]));
                 a_names.push_back("accum_"+getEnumNameString(m_species[v]));
+            }
+            for (int v = 0; v < m_num_aerosols; v++) {
+                a_names.push_back("accum_"+getEnumNameString(m_aerosols[v]));
             }
         }
 
@@ -316,6 +340,17 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                     if (a_name == varname) {
                         MultiFab::Copy( a_mf,
                                         *m_mic_fab_vars[s_accum_idx(v)],
+                                        0, 0, 1, IntVect::TheZeroVector() );
+                        return;
+                    }
+                }
+            }
+            for (int v = 0; v < m_num_aerosols; v++) {
+                {
+                    std::string varname = "accum_" + getEnumNameString(m_aerosols[v]);
+                    if (a_name == varname) {
+                        MultiFab::Copy( a_mf,
+                                        *m_mic_fab_vars[a_accum_idx(m_num_species,v)],
                                         0, 0, 1, IntVect::TheZeroVector() );
                         return;
                     }

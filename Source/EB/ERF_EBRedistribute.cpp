@@ -19,6 +19,7 @@ redistribute_term ( int ncomp,
                     BCRec const* bc, // this is bc for the state (needed for SRD slopes)
                     Real const local_dt)
 {
+    BL_PROFILE_VAR("redistribute_term1", redistribute_term1);
     // ************************************************************************
     // Redistribute result_tmp and pass out result
     // ************************************************************************
@@ -93,6 +94,7 @@ redistribute_term ( int ncomp,
                     Real const local_dt,
                     int const igrid)
 {
+    BL_PROFILE_VAR("redistribute_term2", redistribute_term2);
     // ************************************************************************
     // Redistribute result_tmp and pass out result
     // ************************************************************************

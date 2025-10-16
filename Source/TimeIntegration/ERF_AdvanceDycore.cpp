@@ -35,16 +35,16 @@ using namespace amrex;
  * @param[in] old_time old time for this time advance
  */
 
-void ERF::advance_dycore(int level,
-                         Vector<MultiFab>& state_old,
-                         Vector<MultiFab>& state_new,
-                         MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
-                         MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
-                         MultiFab&   cc_src, MultiFab& xmom_src,
-                         MultiFab& ymom_src, MultiFab& zmom_src,
-                         MultiFab& buoyancy,
-                         const Geometry fine_geom,
-                         const Real dt_advance, const Real old_time)
+void ERF::advance_dycore (int level,
+                          Vector<MultiFab>& state_old,
+                          Vector<MultiFab>& state_new,
+                          MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
+                          MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
+                          MultiFab&   cc_src, MultiFab& xmom_src,
+                          MultiFab& ymom_src, MultiFab& zmom_src,
+                          MultiFab& buoyancy,
+                          const Geometry fine_geom,
+                          const Real dt_advance, const Real old_time)
 {
     BL_PROFILE_VAR("erf_advance_dycore()",erf_advance_dycore);
 
@@ -93,7 +93,7 @@ void ERF::advance_dycore(int level,
     bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
     const bool use_SurfLayer = (m_SurfaceLayer[Orientation(Direction::z, Orientation::low)] != nullptr);
-    const FArrayBox* z_0     = (use_SurfLayer) ? m_SurfaceLayer[Orientation(Direction::z, Orientation::low)]->get_z0(level) : nullptr;
+    const MultiFab* z_0      = (use_SurfLayer) ? m_SurfaceLayer[Orientation(Direction::z, Orientation::low)]->get_z0(level) : nullptr;
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
@@ -102,8 +102,9 @@ void ERF::advance_dycore(int level,
     int num_prim = state_old[IntVars::cons].nComp() - 1;
 
     MultiFab    S_prim  (ba  , dm, num_prim,          state_old[IntVars::cons].nGrowVect());
-    MultiFab  pi_stage  (ba  , dm,        1,          state_old[IntVars::cons].nGrowVect());
+    MultiFab  pi_stage  (ba  , dm,        1,          1);
     MultiFab fast_coeffs(ba_z, dm,        5,          0);
+
     MultiFab* eddyDiffs = eddyDiffs_lev[level].get();
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
 
@@ -226,7 +227,7 @@ void ERF::advance_dycore(int level,
     {
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
         const BCRec* bc_ptr_h = domain_bcs_type.data();
-        ComputeTurbulentViscosity(xvel_old, yvel_old,Tau[level],
+        ComputeTurbulentViscosity(dt_advance, xvel_old, yvel_old,Tau[level],
                                   state_old[IntVars::cons],
                                   *walldist[level].get(),
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated

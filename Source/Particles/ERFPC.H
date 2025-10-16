@@ -49,7 +49,6 @@ namespace ERFParticleInitializations
 namespace ERFParticleNames
 {
     const std::string tracers = "tracer_particles";
-    const std::string hydro = "hydro_particles";
 }
 
 struct ERFParticlesAssignor
@@ -78,26 +77,29 @@ void update_location_idata (  P& a_p,
                               amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& a_dxi,
                               const amrex::Array4<amrex::Real const>&  a_height_arr )
 {
-    amrex::IntVect iv( int(amrex::Math::floor((a_p.pos(0)-a_plo[0])*a_dxi[0])),
-                       int(amrex::Math::floor((a_p.pos(1)-a_plo[1])*a_dxi[1])),
-                       a_p.idata(ERFParticlesIntIdxAoS::k) );
-
     if (a_height_arr) {
-        amrex::Real lx = (a_p.pos(0)-a_plo[0])*a_dxi[0] - static_cast<amrex::Real>(iv[0]);
-        amrex::Real ly = (a_p.pos(1)-a_plo[1])*a_dxi[1] - static_cast<amrex::Real>(iv[1]);
-        auto zlo = a_height_arr(iv[0]  ,iv[1]  ,iv[2]  ) * (1.0-lx) * (1.0-ly) +
-                   a_height_arr(iv[0]+1,iv[1]  ,iv[2]  ) *      lx  * (1.0-ly) +
-                   a_height_arr(iv[0]  ,iv[1]+1,iv[2]  ) * (1.0-lx) * ly +
-                   a_height_arr(iv[0]+1,iv[1]+1,iv[2]  ) *      lx  * ly;
-        auto zhi = a_height_arr(iv[0]  ,iv[1]  ,iv[2]+1) * (1.0-lx) * (1.0-ly) +
-                   a_height_arr(iv[0]+1,iv[1]  ,iv[2]+1) *      lx  * (1.0-ly) +
-                   a_height_arr(iv[0]  ,iv[1]+1,iv[2]+1) * (1.0-lx) * ly +
-                   a_height_arr(iv[0]+1,iv[1]+1,iv[2]+1) *      lx  * ly;
+        while (1) {
+            amrex::IntVect iv( int(amrex::Math::floor((a_p.pos(0)-a_plo[0])*a_dxi[0])),
+                               int(amrex::Math::floor((a_p.pos(1)-a_plo[1])*a_dxi[1])),
+                               a_p.idata(ERFParticlesIntIdxAoS::k) );
+            amrex::Real lx = (a_p.pos(0)-a_plo[0])*a_dxi[0] - static_cast<amrex::Real>(iv[0]);
+            amrex::Real ly = (a_p.pos(1)-a_plo[1])*a_dxi[1] - static_cast<amrex::Real>(iv[1]);
+            auto zlo = a_height_arr(iv[0]  ,iv[1]  ,iv[2]  ) * (1.0-lx) * (1.0-ly) +
+                       a_height_arr(iv[0]+1,iv[1]  ,iv[2]  ) *      lx  * (1.0-ly) +
+                       a_height_arr(iv[0]  ,iv[1]+1,iv[2]  ) * (1.0-lx) * ly +
+                       a_height_arr(iv[0]+1,iv[1]+1,iv[2]  ) *      lx  * ly;
+            auto zhi = a_height_arr(iv[0]  ,iv[1]  ,iv[2]+1) * (1.0-lx) * (1.0-ly) +
+                       a_height_arr(iv[0]+1,iv[1]  ,iv[2]+1) *      lx  * (1.0-ly) +
+                       a_height_arr(iv[0]  ,iv[1]+1,iv[2]+1) * (1.0-lx) * ly +
+                       a_height_arr(iv[0]+1,iv[1]+1,iv[2]+1) *      lx  * ly;
 
-        if (a_p.pos(2) > zhi) {
-            a_p.idata(ERFParticlesIntIdxAoS::k) += 1;
-        } else if (a_p.pos(2) <= zlo) {
-            a_p.idata(ERFParticlesIntIdxAoS::k) -= 1;
+            if (a_p.pos(2) > zhi) {
+                a_p.idata(ERFParticlesIntIdxAoS::k) += 1;
+            } else if (a_p.pos(2) <= zlo) {
+                a_p.idata(ERFParticlesIntIdxAoS::k) -= 1;
+            } else {
+                break;
+            }
         }
     }
 }
@@ -230,7 +232,7 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         std::string m_initialization_type;  /*!< initial particle distribution type */
         int m_ppc_init;                     /*!< initial number of particles per cell */
 
-        amrex::Real m_start_time;           /*!< particles will only be initialized if time >= m_start_time */
+        amrex::Real m_inject_start_time;    /*!< particles will only be initialized/injected if time >= m_inject_start_time */
 
         bool m_initialized = false;         /*!< have the particles been initialized */
 

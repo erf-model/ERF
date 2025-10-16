@@ -33,6 +33,12 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real dampcoef = 0.2; // inverse time scale [1/s]
   amrex::Real zdamp = 500.0; // damping depth [m] from model top
 
+  // sinusoidal perturbations for regression tests
+  amrex::Real pert_deltaT = 0.0;
+  amrex::Real pert_deltaQV = 0.0;
+  amrex::Real pert_periods_T = 0.0;
+  amrex::Real pert_periods_QV = 0.0;
+
   //==============================================
   // USER-DEFINED INPUTS
   // source terms
@@ -51,6 +57,8 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real bval;
   amrex::Real ufac;
   amrex::Real vfac;
+  amrex::Real cval, dval;
+  amrex::Real tfac, qvfac;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase

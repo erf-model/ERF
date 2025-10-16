@@ -131,9 +131,14 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // New solution data containers
     // ********************************************************************************************
-    lev_new[Vars::cons].define(ba, dm, ncomp, ngrow_state);
-    lev_old[Vars::cons].define(ba, dm, ncomp, ngrow_state);
-
+    if (solverChoice.terrain_type != TerrainType::EB) {
+        lev_new[Vars::cons].define(ba, dm, ncomp, ngrow_state);
+        lev_old[Vars::cons].define(ba, dm, ncomp, ngrow_state);
+    } else {
+        // EB: Define the MultiFabs with the EBFactory
+        lev_new[Vars::cons].define(ba, dm, ncomp, ngrow_state, MFInfo(), EBFactory(lev));
+        lev_old[Vars::cons].define(ba, dm, ncomp, ngrow_state, MFInfo(), EBFactory(lev));
+    }
     lev_new[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
     lev_old[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
 
@@ -154,17 +159,41 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         pp_inc[lev].setVal(0.0);
     }
 
+    // We use this in the fast substepping only
+    if (solverChoice.anelastic[lev] == 0) {
+        lagged_delta_rt[lev].define(ba, dm, 1, 1);
+        lagged_delta_rt[lev].setVal(0.0);
+    }
+
+    // We use these for advecting the slow variables, whether anelastic or compressible
+    avg_xmom[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, 1);
+    avg_ymom[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, 1);
+    avg_zmom[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, 1);
+    avg_xmom[lev].setVal(0.0); avg_ymom[lev].setVal(0.0); avg_zmom[lev].setVal(0.0);
+
     // ********************************************************************************************
     // These are just used for scratch in the time integrator but we might as well define them here
     // ********************************************************************************************
-    rU_old[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
-    rU_new[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
+    if (solverChoice.terrain_type != TerrainType::EB) {
+        rU_old[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
+        rU_new[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
 
-    rV_old[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
-    rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
+        rV_old[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
+        rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
 
-    rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
-    rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+        rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+        rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+    } else {
+        // EB: Define the MultiFabs with the EBFactory
+        rU_old[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels, MFInfo(), EBFactory(lev));
+        rU_new[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels, MFInfo(), EBFactory(lev));
+
+        rV_old[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels, MFInfo(), EBFactory(lev));
+        rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels, MFInfo(), EBFactory(lev));
+
+        rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels, MFInfo(), EBFactory(lev));
+        rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels, MFInfo(), EBFactory(lev));
+    }
 
     if (lev > 0) {
         //xmom_crse_rhs[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, IntVect{0});
@@ -295,9 +324,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     IntVect ng  = vars_new[lev][Vars::cons].nGrowVect();
 
     if (lev == 0) {
-        mf_C1H = std::make_unique<MultiFab>(ba1d[lev],dm,1,0);
-        mf_C2H = std::make_unique<MultiFab>(ba1d[lev],dm,1,0);
-        mf_MUB = std::make_unique<MultiFab>(ba2d[lev],dm,1,0);
+        mf_C1H = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        mf_C2H = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        mf_MUB = std::make_unique<MultiFab>(ba2d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
     }
 
     mf_PSFC[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ng);
@@ -384,8 +413,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         }
         BoxArray m_ba(std::move(m_bl));
 
-        sw_lw_fluxes[lev] = std::make_unique<MultiFab>(m_ba, dm, 5, ngrow_state); // SW direct (2), SW diffuse (2), LW
-        solar_zenith[lev] = std::make_unique<MultiFab>(m_ba, dm, 2, ngrow_state);
+        sw_lw_fluxes[lev] = std::make_unique<MultiFab>(m_ba, dm, 6, ngrow_state); // DIR/DIF VIS/NIR (4), NET SW (1), LW (1)
+        solar_zenith[lev] = std::make_unique<MultiFab>(m_ba, dm, 1, ngrow_state);
 
         sw_lw_fluxes[lev]->setVal(0.);
         solar_zenith[lev]->setVal(0.);
@@ -466,6 +495,9 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         Tau[lev][TauType::tau12] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
         Tau[lev][TauType::tau13] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
         Tau[lev][TauType::tau23] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
+        Tau[lev][TauType::tau12]->setVal(0.);
+        Tau[lev][TauType::tau13]->setVal(0.);
+        Tau[lev][TauType::tau23]->setVal(0.);
         Tau[lev][TauType::tau21] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
         if (l_use_terrain || l_Surf_X) {
             //Tau[lev][TauType::tau21] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) );
@@ -476,6 +508,9 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         }
         if (l_use_terrain || l_Surf_Y) {
             Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
+            Tau[lev][TauType::tau21]->setVal(0.);
+            Tau[lev][TauType::tau31]->setVal(0.);
+            Tau[lev][TauType::tau32]->setVal(0.);
         } else {
             Tau[lev][TauType::tau32] = nullptr;
         }
@@ -658,6 +693,17 @@ ERF::update_terrain_arrays (int lev)
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
+    } else { // MeshType::ConstantDz
+        if (SolverChoice::terrain_type == TerrainType::EB) {
+            const auto& ebfact = *eb[lev]->get_const_factory();
+            const MultiFab& volfrac = ebfact.getVolFrac();
+            detJ_cc[lev] = std::make_unique<MultiFab>(volfrac, amrex::make_alias, 0, volfrac.nComp());
+
+            // Array<const MultiCutFab*, AMREX_SPACEDIM> areafrac = ebfact.getAreaFrac();
+            // ax[lev] = std::make_unique<MultiFab>(*(areafrac[0]), amrex::make_alias, 0, areafrac[0]->nComp());
+            // ay[lev] = std::make_unique<MultiFab>(*(areafrac[1]), amrex::make_alias, 0, areafrac[1]->nComp());
+            // az[lev] = std::make_unique<MultiFab>(*(areafrac[2]), amrex::make_alias, 0, areafrac[2]->nComp());
+        }
     }
 }
 

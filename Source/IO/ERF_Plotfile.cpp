@@ -1,5 +1,6 @@
 #include "ERF.H"
 #include "ERF_SrcHeaders.H"
+#include "ERF_StormDiagnostics.H"
 
 using namespace amrex;
 
@@ -271,6 +272,8 @@ ERF::PlotFileVarNames (Vector<std::string> plot_var_names )
 void
 ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
 {
+    auto dPlotTime0 = amrex::second();
+
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = varnames.size();
 
@@ -284,16 +287,15 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
 
     // Level 0 FilLPatch
-    FillPatch(0, t_new[0], {&vars_new[0][Vars::cons], &vars_new[0][Vars::xvel],
-                            &vars_new[0][Vars::yvel], &vars_new[0][Vars::zvel]});
+    FillPatchCrseLevel(0, t_new[0], {&vars_new[0][Vars::cons], &vars_new[0][Vars::xvel],
+                       &vars_new[0][Vars::yvel], &vars_new[0][Vars::zvel]});
 
     for (int lev = 1; lev <= finest_level; ++lev) {
         bool fillset = false;
-        FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
-                                    &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
-                                   {&vars_new[lev][Vars::cons],
-                                    &rU_new[lev], &rV_new[lev], &rW_new[lev]},
-                                    base_state[lev], base_state[lev], fillset);
+        FillPatchFineLevel(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
+                           &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
+                          {&vars_new[lev][Vars::cons], &rU_new[lev], &rV_new[lev], &rW_new[lev]},
+                           base_state[lev], base_state[lev], fillset);
     }
 
     // Get qmoist pointers if using moisture
@@ -1259,6 +1261,74 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     mf_comp += 1;
                 }
             }
+
+            if (containerHasElement(plot_var_names, "reflectivity")) {
+                if (solverChoice.moisture_type == MoistureType::Morrison) {
+
+                    for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const Box& bx = mfi.tilebox();
+                        const Array4<Real>& derdat  = mf[lev].array(mfi);
+                        const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+
+                            Real rho = S_arr(i,j,k,Rho_comp);
+                            Real qv  = std::max(0.0,S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp));
+                            Real qpr = std::max(0.0,S_arr(i,j,k,RhoQ4_comp)/S_arr(i,j,k,Rho_comp));
+                            Real qps = std::max(0.0,S_arr(i,j,k,RhoQ5_comp)/S_arr(i,j,k,Rho_comp));
+                            Real qpg = std::max(0.0,S_arr(i,j,k,RhoQ6_comp)/S_arr(i,j,k,Rho_comp));
+
+                            Real temp  = getTgivenRandRTh(S_arr(i,j,k,Rho_comp),
+                                                     S_arr(i,j,k,RhoTheta_comp),
+                                                     qv);
+                            derdat(i, j, k, mf_comp) = compute_max_reflectivity_dbz(rho, temp, qpr, qps, qpg,
+                                                                                1, 1, 1, 1) ;
+                        });
+                    }
+                    mf_comp ++;
+                }
+            }
+
+           if (solverChoice.moisture_type == MoistureType::Morrison) {
+                if (containerHasElement(plot_var_names, "max_reflectivity")) {
+                    for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const Box& bx = mfi.tilebox();
+
+                        const Array4<Real>& derdat  = mf[lev].array(mfi);
+                        const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+
+                        // collapse to i,j box (ignore vertical for now)
+                        Box b2d = bx;
+                        b2d.setSmall(2,0);
+                        b2d.setBig(2,0);
+
+                        ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+
+                            Real max_dbz = -1.0e30;
+
+                            // find max reflectivity over k
+                            for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+                                Real rho = S_arr(i,j,k,Rho_comp);
+                                Real qv  = std::max(0.0, S_arr(i,j,k,RhoQ1_comp)/rho);
+                                Real qpr = std::max(0.0, S_arr(i,j,k,RhoQ4_comp)/rho);
+                                Real qps = std::max(0.0, S_arr(i,j,k,RhoQ5_comp)/rho);
+                                Real qpg = std::max(0.0, S_arr(i,j,k,RhoQ6_comp)/rho);
+
+                                Real temp = getTgivenRandRTh(rho, S_arr(i,j,k,RhoTheta_comp), qv);
+
+                                Real dbz = compute_max_reflectivity_dbz(rho, temp, qpr, qps, qpg,
+                                                                        1, 1, 1, 1);
+                                max_dbz = amrex::max(max_dbz, dbz);
+                            }
+
+                            // store max_dbz into *all* levels for this (i,j)
+                            for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+                                derdat(i, j, k, mf_comp) = max_dbz;
+                            }
+                        });
+                    }
+                    mf_comp++;
+                }
+            }
         } // use_moisture
 
         if (containerHasElement(plot_var_names, "terrain_IB_mask"))
@@ -1856,6 +1926,13 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 #endif
         }
     } // end multi-level
+
+    if (verbose > 0)
+    {
+        auto dPlotTime = amrex::second() - dPlotTime0;
+        ParallelDescriptor::ReduceRealMax(dPlotTime,ParallelDescriptor::IOProcessorNumber());
+        amrex::Print() << "3DPlotfile write time = " << dPlotTime << " seconds." << '\n';
+    }
 }
 
 void

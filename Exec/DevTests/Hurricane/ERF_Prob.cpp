@@ -141,10 +141,16 @@ Problem::init_custom_pert (
     // File to read
     std::string filename;
     ParmParse pp("erf");
-    pp.query("IC_file", filename);
+    pp.query("hindcast_IC_filename", filename);
 
     if (filename.empty()) {
-        amrex::Abort("Error: IC_file is not specified in the input file.");
+        if ( (sc.init_type == InitType::WRFInput) ||
+             (sc.init_type == InitType::Metgrid)  ||
+             (sc.init_type == InitType::NCFile) ) {
+            return;
+        } else {
+            amrex::Abort("Error: IC_file is not specified in the input file.");
+        }
     }
 
     Vector<Real> latvec_h, lonvec_h;

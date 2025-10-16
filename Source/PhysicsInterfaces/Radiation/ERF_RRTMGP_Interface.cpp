@@ -136,7 +136,7 @@ get_subsampled_clouds (const int ncol,
     int1d_k seeds("seeds", ncol);
     Kokkos::parallel_for(ncol, KOKKOS_LAMBDA(int icol)
     {
-        seeds(icol) = 1.0e9 * (p_lay(icol,nlay) - int(p_lay(icol,nlay)));
+        seeds(icol) = 1.0e9 * (p_lay(icol,nlay-1) - int(p_lay(icol,nlay-1)));
     });
     auto cldmask = get_subcolumn_mask(ncol, nlay, ngpt, cldfrac_rad, overlap, seeds);
 
@@ -249,7 +249,7 @@ rrtmgp_initialize (gas_concs_t& gas_concs_k,
     load_cld_lutcoeff(*cloud_optics_sw_k, cloud_optics_file_sw);
     load_cld_lutcoeff(*cloud_optics_lw_k, cloud_optics_file_lw);
 
-    // initialize kokkos rrtmgp pool allocator
+    // Initialize kokkos rrtmgp pool allocator
     const size_t nvar = 300;
     const size_t nbnd = std::max(k_dist_sw_k->get_nband(),k_dist_sw_k->get_nband());
     const size_t ncol = gas_concs_k.ncol;

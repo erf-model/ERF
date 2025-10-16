@@ -68,6 +68,7 @@ erf.plot_vars_1     = density \
                       qsat \
                       qrain \
                       rain_accum \
+                      accum_NH4HSO4 \
                       rel_humidity \
                       super_droplets_moisture_number_density \
                       super_droplets_moisture_mass_flux_x \
@@ -124,18 +125,11 @@ erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.17
 
-#erf.les_type = "Deardorff"
-#erf.Ck       = 0.1
-#erf.sigma_k  = 1.0
-#erf.Ce       = 0.1
-
 erf.Pr_t      = 0.33333333333333
 erf.Sc_t      = 0.33333333333333
 
 erf.init_type = "input_sounding"
 erf.init_sounding_ideal = true
-
-#erf.restart = chk160000
 
 erf.add_custom_rhotheta_forcing        = true
 erf.add_custom_moisture_forcing        = true
@@ -143,15 +137,15 @@ erf.add_custom_geostrophic_profile     = true
 erf.add_custom_w_subsidence            = true
 erf.custom_forcing_uses_primitive_vars = true
 
-# Higher values of perturbations lead to instability
-# Instability seems to be coming from BC
-prob.U_0_Pert_Mag = 0.01
-prob.V_0_Pert_Mag = 0.01 
 prob.W_0_Pert_Mag = 0.0
-
 prob.pert_ref_height = 1600.0
-prob.T_0_Pert_Mag    = 0.1
-prob.qv_0_Pert_Mag   = 0.000025
+
+prob.pert_deltaU = 0.01
+prob.pert_deltaV = 0.01
+prob.pert_deltaT = 0.1
+prob.pert_deltaQV = 0.000025
+prob.pert_periods_T = 10.0
+prob.pert_periods_QV = 10.0
 
 prob.advection_heating_rate   = -2.8935E-5
 prob.source_cutoff            = 1500.0

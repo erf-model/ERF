@@ -1,0 +1,11 @@
+
+To build with SHOC using gmake:
+
+   export ERF_DIR=/path/to/ERF
+   source /path/to/ERF/Build/GNU_Ekat/eamxx_clone.sh
+   source /path/to/ERF/Build/GNU_Ekat/ekat_build_commands.sh
+
+Then type "make" here in ERF/Exec/DevTests/Shoc, after verifying that the GNUmakfile
+contains the line 
+
+   USE_SHOC = TRUE

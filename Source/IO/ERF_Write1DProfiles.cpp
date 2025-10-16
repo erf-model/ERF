@@ -589,6 +589,82 @@ ERF::MakeVTKFilename(int nstep) {
     return oss.str();
 }
 
+std::string
+ERF::MakeVTKFilename_TrackerCircle(int nstep) {
+    // Ensure output directory exists
+    const std::string dir = "Output_HurricaneTracker/tracker_circle";
+    if (!fs::exists(dir)) {
+        fs::create_directories(dir);
+    }
+
+    // Construct filename with zero-padded step
+    std::ostringstream oss;
+    if(nstep==0){
+        oss << dir << "/hurricane_tracker_circle_" << std::setw(7) << std::setfill('0') << nstep << ".vtk";
+    } else {
+        oss << dir << "/hurricane_tracker_circle_" << std::setw(7) << std::setfill('0') << nstep+1 << ".vtk";
+    }
+
+    return oss.str();
+}
+
+std::string
+ERF::MakeVTKFilename_EyeTracker_xy(int nstep) {
+    // Ensure output directory exists
+    const std::string dir = "Output_HurricaneTracker/xy";
+    if (!fs::exists(dir)) {
+        fs::create_directories(dir);
+    }
+
+    // Construct filename with zero-padded step
+    std::ostringstream oss;
+    if(nstep==0){
+        oss << dir << "/hurricane_track_xy_" << std::setw(7) << std::setfill('0') << nstep << ".vtk";
+    } else {
+        oss << dir << "/hurricane_track_xy_" << std::setw(7) << std::setfill('0') << nstep+1 << ".vtk";
+    }
+
+    return oss.str();
+}
+
+std::string
+ERF::MakeFilename_EyeTracker_latlon(int nstep) {
+    // Ensure output directory exists
+    const std::string dir = "Output_HurricaneTracker/latlon";
+    if (!fs::exists(dir)) {
+        fs::create_directories(dir);
+    }
+
+    // Construct filename with zero-padded step
+    std::ostringstream oss;
+    if(nstep==0){
+        oss << dir << "/hurricane_track_latlon" << std::setw(7) << std::setfill('0') << nstep << ".txt";
+    } else {
+        oss << dir << "/hurricane_track_latlon" << std::setw(7) << std::setfill('0') << nstep+1 << ".txt";
+    }
+
+    return oss.str();
+}
+
+std::string
+ERF::MakeFilename_EyeTracker_maxvel(int nstep) {
+    // Ensure output directory exists
+    const std::string dir = "Output_HurricaneTracker/maxvel";
+    if (!fs::exists(dir)) {
+        fs::create_directories(dir);
+    }
+
+    // Construct filename with zero-padded step
+    std::ostringstream oss;
+    if(nstep==0){
+        oss << dir << "/hurricane_maxvel_" << std::setw(7) << std::setfill('0') << nstep << ".txt";
+    } else {
+        oss << dir << "/hurricane_maxvel_" << std::setw(7) << std::setfill('0') << nstep+1 << ".txt";
+    }
+
+    return oss.str();
+}
+
 void
 ERF::WriteVTKPolyline(const std::string& filename,
                       Vector<std::array<Real, 2>>& points_xy)
@@ -636,3 +712,24 @@ ERF::WriteVTKPolyline(const std::string& filename,
     vtkfile.close();
 }
 
+void
+ERF::WriteLinePlot(const std::string& filename,
+                   Vector<std::array<Real, 2>>& points_xy)
+{
+    std::ofstream ofs(filename);
+    if (!ofs.is_open()) {
+        amrex::Print() << "Error: Could not open file " << filename << " for writing.\n";
+        return;
+    }
+
+    ofs << std::setprecision(10) << std::scientific;
+    ofs << "# x y\n";
+
+    for (const auto& p : points_xy) {
+        ofs << p[0] << " " << p[1] << "\n";
+    }
+
+    ofs.close();
+
+    amrex::Print() << "Line plot data written to " << filename << "\n";
+}

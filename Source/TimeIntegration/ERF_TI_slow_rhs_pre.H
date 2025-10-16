@@ -6,7 +6,6 @@
     auto slow_rhs_fun_pre = [&](Vector<MultiFab>& S_rhs,
                                 Vector<MultiFab>& S_old,
                                 Vector<MultiFab>& S_data,
-                                Vector<MultiFab>& S_scratch,
                                 const Real old_step_time,
                                 const Real old_stage_time,
                                 const Real new_stage_time,
@@ -117,7 +116,8 @@
         // *****************************************************************************
         // Make remaining (not gradp or buoyancy) momentum sources
         // *****************************************************************************
-        make_mom_sources(old_stage_time, S_data, *zpn_to_use, *zpc_to_use, stretched_dz_h[level],
+        make_mom_sources(old_stage_time, slow_dt,
+                         S_data, *zpn_to_use, *zpc_to_use, stretched_dz_h[level],
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
                          base_to_use, forest_drag, terrain_blank,
@@ -126,6 +126,7 @@
                          (solverChoice.have_geo_wind_profile) ? d_u_geos[level].data(): nullptr,
                          (solverChoice.have_geo_wind_profile) ? d_v_geos[level].data(): nullptr,
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                         (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
                          input_sounding_data, true);
 
         // *****************************************************************************
@@ -139,7 +140,8 @@
         // Define RHS for rho, rho_theta and momenta
         // *****************************************************************************
         erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data,
-                         S_prim, qt, S_scratch, xvel_new, yvel_new, zvel_new,
+                         S_prim, qt, avg_xmom[level], avg_ymom[level], avg_zmom[level],
+                         xvel_new, yvel_new, zvel_new,
                          z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src, buoyancy,
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
                          Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
@@ -198,7 +200,7 @@
                const Array4<Real      > pi0_new_arr = pi0_new->array(mfi);
                const Array4<Real      > th0_new_arr = th0_new->array(mfi);
 
-               const Array4<Real      >& z_t_arr      =  z_t_rk[level]->array(mfi);
+               const Array4<Real      >& z_t_arr    =  z_t_rk[level]->array(mfi);
 
                const Array4<Real const>& dJ_old_arr = detJ_cc[level]->const_array(mfi);
                const Array4<Real const>& dJ_new_arr = detJ_cc_new[level]->const_array(mfi);
@@ -246,8 +248,8 @@
         // Populate RHS for relaxation zones if using real bcs
         if (solverChoice.use_real_bcs && (level == 0)) {
             if (real_width>0) {
-                realbdy_compute_interior_ghost_rhs(bdy_time_interval, start_bdy_time,
-                                                   new_stage_time, slow_dt, stop_time,
+                realbdy_compute_interior_ghost_rhs(bdy_time_interval,
+                                                   new_stage_time, slow_dt, stop_time-start_time,
                                                    real_width, real_set_width, fine_geom,
                                                    S_rhs, S_old, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,

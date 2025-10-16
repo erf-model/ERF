@@ -191,6 +191,8 @@ class SuperDropletPC : public ERFPC
         virtual void ComputeBinnedDistributionsCell ( int, amrex::Real );
 #endif
 
+        /*! \brief Compute the SD number density on a mesh */
+        virtual void SDNumberDensity ( amrex::MultiFab&, const int a_comp=0 ) const;
         /*! \brief Compute the particle number density on a mesh */
         virtual void numberDensity ( amrex::MultiFab&, const int a_comp=0 ) const;
         /*! \brief Compute the particle mass density on a mesh */
@@ -290,6 +292,17 @@ class SuperDropletPC : public ERFPC
 
         /*! species index of water */
         int m_idx_w;
+
+        /*! recycling threshold */
+        amrex::Real m_recycle_threshold;
+
+        /* recycled particle position bounds */
+        amrex::Real m_recyc_xmin;
+        amrex::Real m_recyc_xmax;
+        amrex::Real m_recyc_ymin;
+        amrex::Real m_recyc_ymax;
+        amrex::Real m_recyc_zmin;
+        amrex::Real m_recyc_zmax;
 
         /*! \brief read inputs from file */
         virtual void readInputs () override;

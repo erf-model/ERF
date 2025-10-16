@@ -1,5 +1,5 @@
-#ifndef ERF_KOKKOS_RADIATION_H
-#define ERF_KOKKOS_RADIATION_H
+#ifndef ERF_KOKKOS_H
+#define ERF_KOKKOS_H
 using KokkosHostDevice    = Kokkos::Device<Kokkos::Serial, Kokkos::HostSpace>;
 #if defined(ERF_USE_CUDA)
 using KokkosDefaultDevice = Kokkos::Device<Kokkos::Cuda, Kokkos::CudaSpace>;
@@ -10,8 +10,9 @@ using KokkosDefaultDevice = Kokkos::Device<Kokkos::Experimental::SYCL, Kokkos::E
 #else
 using KokkosDefaultDevice = KokkosHostDevice;
 #endif
-using layout_t         = Kokkos::LayoutRight;
 using RealT            = amrex::Real;
+using layout_t         = Kokkos::LayoutRight;
+using KokkosDefaultMem = Kokkos::DefaultExecutionSpace::memory_space;
 using realHost1d_k     = Kokkos::View<RealT* , KokkosHostDevice>;
 using realHost2d_k     = Kokkos::View<RealT**, layout_t, KokkosHostDevice>;
 using real1d_k         = Kokkos::View<RealT*  , KokkosDefaultDevice>;

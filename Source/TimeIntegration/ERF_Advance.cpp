@@ -54,9 +54,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // If lev == 0 we have already FillPatched this in ERF::TimeStep
     //
     if (lev > 0) {
-        FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
-                             {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
-                             base_state[lev], base_state[lev]);
+        FillPatchFineLevel(lev, time, {&S_old, &U_old, &V_old, &W_old},
+                           {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
+                           base_state[lev], base_state[lev]);
     }
 
     //
@@ -120,18 +120,48 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             //       Reassign the field ptrs for MAC avg computation.
             m_SurfaceLayer[ori]->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
             m_SurfaceLayer[ori]->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
-                                        solverChoice.moisture_indices);
-            m_SurfaceLayer[ori]->update_fluxes(lev, time);
+                                             solverChoice.moisture_indices);
+            m_SurfaceLayer[ori]->update_fluxes(lev, time, S_old, z_phys_nd[lev]);
         }
     }
 
 #if defined(ERF_USE_WINDFARM)
+    // **************************************************************************************
+    // Update the windfarm sources
+    // **************************************************************************************
     if (solverChoice.windfarm_type != WindFarmType::None) {
         advance_windfarm(Geom(lev), dt_lev, S_old,
                          U_old, V_old, W_old, vars_windfarm[lev],
                          Nturb[lev], SMark[lev], time);
     }
 
+#endif
+
+    // **************************************************************************************
+    // Weather data interpolation
+    // **************************************************************************************
+    if(solverChoice.init_type == InitType::HindCast and
+       solverChoice.hindcast_lateral_forcing){
+       WeatherDataInterpolation(time);
+    }
+
+    // **************************************************************************************
+    // Update the radiation sources with the "old" state
+    // **************************************************************************************
+    advance_radiation(lev, S_old, dt_lev);
+
+#ifdef ERF_USE_SHOC
+    // **************************************************************************************
+    // Update the "old" state using SHOC
+    // **************************************************************************************
+    if (solverChoice.use_shoc) {
+        Real* w_sub = (solverChoice.custom_w_subsidence) ? d_w_subsid[lev].data() : nullptr;
+        compute_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
+                                Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
+                                SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
+                                eddyDiffs_lev[lev].get()      , z_phys_nd[lev].get()          ,
+                                dt_lev);
+    }
 #endif
 
     const BoxArray&            ba = S_old.boxArray();
@@ -196,11 +226,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     advance_lsm(lev, S_new, U_new, V_new, dt_lev);
 
-    // **************************************************************************************
-    // Update the radiation
-    // **************************************************************************************
-    advance_radiation(lev, S_new, dt_lev);
-
 #ifdef ERF_USE_PARTICLES
     // **************************************************************************************
     // Update the particle positions
@@ -228,14 +253,13 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // **************************************************************************************
     // Register old and new coarse data if we are at a level less than the finest level
     // **************************************************************************************
-    if (lev < finest_level)
-    {
+    if (lev < finest_level) {
         if (cf_width > 0) {
             // We must fill the ghost cells of these so that the parallel copy works correctly
             state_old[IntVars::cons].FillBoundary(geom[lev].periodicity());
             state_new[IntVars::cons].FillBoundary(geom[lev].periodicity());
             FPr_c[lev].RegisterCoarseData({&state_old[IntVars::cons], &state_new[IntVars::cons]},
-                                          {time, time + dt_lev});
+                                          {time, time+dt_lev});
         }
 
         if (cf_width >= 0) {
@@ -243,17 +267,17 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             state_old[IntVars::xmom].FillBoundary(geom[lev].periodicity());
             state_new[IntVars::xmom].FillBoundary(geom[lev].periodicity());
             FPr_u[lev].RegisterCoarseData({&state_old[IntVars::xmom], &state_new[IntVars::xmom]},
-                                          {time, time + dt_lev});
+                                          {time, time+dt_lev});
 
             state_old[IntVars::ymom].FillBoundary(geom[lev].periodicity());
             state_new[IntVars::ymom].FillBoundary(geom[lev].periodicity());
             FPr_v[lev].RegisterCoarseData({&state_old[IntVars::ymom], &state_new[IntVars::ymom]},
-                                          {time, time + dt_lev});
+                                          {time, time+dt_lev});
 
             state_old[IntVars::zmom].FillBoundary(geom[lev].periodicity());
             state_new[IntVars::zmom].FillBoundary(geom[lev].periodicity());
             FPr_w[lev].RegisterCoarseData({&state_old[IntVars::zmom], &state_new[IntVars::zmom]},
-                                          {time, time + dt_lev});
+                                          {time, time+dt_lev});
         }
 
             //
