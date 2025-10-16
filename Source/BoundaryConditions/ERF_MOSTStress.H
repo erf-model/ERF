@@ -26,6 +26,10 @@ public:
     amrex::Real Cnk_b;
     bool visc{false};                 ///< Use viscous Charnock formulation
 
+    amrex::Real Cd{0.001};
+    amrex::Real Ch{0.001};
+    amrex::Real Cq{0.001};
+
     const amrex::Real Bjr_beta = 1.2; // Empirical parameter from Beljaars 1995 QJRMS
 };
 
@@ -2168,8 +2172,135 @@ struct custom_flux
 private:
     const amrex::Real eps = 1e-15;
     const bool fluxes_include_rho{false};
-
 };
+
+
+/**
+ * Bulk coefficient flux formulation
+ */
+struct bulk_coeff_flux
+{
+    bulk_coeff_flux (amrex::Real m_Cd,
+                     amrex::Real m_Ch,
+                     amrex::Real m_Cq)
+    {
+        mdata.Cd = m_Cd;
+        mdata.Ch = m_Ch;
+        mdata.Cq = m_Cq;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_q_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& velx_arr,
+                    const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*qm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*q_star_arr*/,
+                    const amrex::Array4<const amrex::Real>& q_surf_arr) const
+    {
+        amrex::Real rho    = cons_arr(i,j,k,Rho_comp);
+        amrex::Real qv     = cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp);
+        amrex::Real qvsurf = q_surf_arr(i,j,k);
+        amrex::Real velx   = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
+        amrex::Real vely   = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
+        amrex::Real wsp    = sqrt(velx*velx+vely*vely);
+
+        // NOTE: this is rho*<q'w'> = -K dqdz
+        amrex::Real moflux  = rho * mdata.Cq * wsp * (qvsurf - qv);
+
+        return moflux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_t_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& velx_arr,
+                    const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*t_star_arr*/,
+                    const amrex::Array4<const amrex::Real>& t_surf_arr) const
+    {
+        amrex::Real rho    = cons_arr(i,j,k,Rho_comp);
+        amrex::Real th     = cons_arr(i,j,k,RhoTheta_comp)/cons_arr(i,j,k,Rho_comp);
+        amrex::Real thsurf = t_surf_arr(i,j,k);
+        amrex::Real velx   = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
+        amrex::Real vely   = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
+        amrex::Real wsp    = sqrt(velx*velx+vely*vely);
+
+        // NOTE: this is rho*<T'w'> = -K dTdz
+        amrex::Real moflux  = rho * mdata.Ch * wsp * (thsurf - th);
+
+        return moflux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_u_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& velx_arr,
+                    const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*um_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/) const
+    {
+        amrex::Real rho   = 0.5 * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
+        amrex::Real velx  = velx_arr(i,j,k);
+        amrex::Real vely  = 0.25 * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
+                                   + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
+        amrex::Real wsp   = sqrt(velx*velx+vely*vely);
+
+        // NOTE: this is rho*<u'w'> = -K dudz
+        // NOTE: tau_tot = rho * Cd * wsp^2, multiply by u/wsp to get tau_13
+        amrex::Real stressx = -rho * mdata.Cd * wsp * velx;
+
+        return stressx;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    compute_v_flux (const int& i,
+                    const int& j,
+                    const int& k,
+                    const amrex::Array4<const amrex::Real>& cons_arr,
+                    const amrex::Array4<const amrex::Real>& velx_arr,
+                    const amrex::Array4<const amrex::Real>& vely_arr,
+                    const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*vm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/) const
+    {
+        amrex::Real rho   = 0.5 * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
+        amrex::Real velx  = 0.25 * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
+                                   + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
+        amrex::Real vely  = vely_arr(i,j,k);
+        amrex::Real wsp   = sqrt(velx*velx+vely*vely);
+
+        // NOTE: this is rho*<v'w'> = -K dvdz
+        // NOTE: tau_tot = rho * Cd * wsp^2, multiply by v/wsp to get tau_13
+        amrex::Real stressy = -rho * mdata.Cd * wsp * vely;
+
+        return stressy;
+    }
+
+private:
+    most_data mdata;
+};
+
 
 /**
  * Rotate flux formulation
