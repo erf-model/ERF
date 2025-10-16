@@ -34,7 +34,7 @@ using namespace amrex;
  * @param[in]  tm_arr theta mean array
  * @param[in]  grav_gpu gravity vector
  * @param[in]  bc_ptr container with boundary conditions
- * @param[in]  use_most whether we have turned on MOST BCs
+ * @param[in]  use_SurfLayer whether we have turned on subgrid diffusion
  */
 void
 DiffusionSrcForState_N (const Box& bx, const Box& domain,
@@ -76,7 +76,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     for (int n(0); n<num_comp; ++n) {
         const int qty_index = start_comp + n;
 
-    // Compute fluxes at each face
+    // Constant alpha & Turb model
     if (l_consA && l_turb) {
         ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -202,8 +202,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
         });
+    // Constant rho*alpha & Turb model
     } else if (l_turb) {
-        // with MolecDiffType::Constant or None
         ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
@@ -319,8 +319,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
         });
+    // Constant alpha & no LES/PBL model
     } else if(l_consA) {
-        // without an LES/PBL model
         ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
@@ -433,9 +433,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
         });
+    // Constant rho*alpha & no LES/PBL model
     } else {
-        // with MolecDiffType::Constant or None
-        // without an LES/PBL model
         ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
