@@ -70,11 +70,19 @@ public:
         amrex::Array4<amrex::Real const> const& mf_v,
         const SolverChoice& sc) override;
 
+      void update_w_subsidence (
+        const amrex::Real& /*time*/,
+        amrex::Vector<amrex::Real>& wbar,
+        amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
+        const amrex::Geometry& geom,
+        std::unique_ptr<amrex::MultiFab>& z_phys_nd) override;
+
 protected:
     std::string name() override { return "SHOC"; }
 
 private:
     ProbParm parms;
+    amrex::Vector<amrex::Real> zlevels;
 };
 
 #endif
