@@ -9,21 +9,12 @@
 #include <ERF_ProbCommon.H>
 #include <ERF_DataStruct.H>
 
+#include <ERF_ReadFromWRFInput.H>
 #include <ERF_ReadFromWRFBdy.H>
 
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
-
-void
-read_from_wrfinput (int lev,
-                    const Box& subdomain,
-                    const std::string& fname,
-                    FArrayBox& NC_fab,
-                    const std::string& NC_name,
-                    Geometry& geom,
-                    int& use_theta_m,
-                    int& success);
 
 void
 compute_terrain_top_and_bottom (Real& terrain_bottom_min,
@@ -742,10 +733,10 @@ ERF::init_from_wrfinput (int lev,
                 // First integrate from sea level to the height at klo
                 {
                     // Vertical grid spacing
-                    z_lo = 0.0;
-                    z_hi = 0.125 * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(1,j+1,klo  ) + z_arr(i+1,j+1,klo  )
-                                   +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(1,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
-                    dz   = z_hi - z_lo;
+                    z_lo = 0.0; // corresponding to p_0
+                    z_hi = 0.125 * (z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
+                                   +z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1));
+                    dz = z_hi - z_lo;
 
                     // Establish known constant
                     qv_lo = con_arr(i,j,klo,RhoQ1_comp)    / con_arr(i,j,klo,Rho_comp);
@@ -779,8 +770,8 @@ ERF::init_from_wrfinput (int lev,
 
                 for (int k(klo+1); k<=khi; ++k) {
                     // Vertical grid spacing
-                  z_hi = 0.125 * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(1,j+1,k  ) + z_arr(i+1,j+1,k  )
-                                 +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(1,j+1,k+1) + z_arr(i+1,j+1,k+1));
+                  z_hi = 0.125 * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
+                                 +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
                   dz   = z_hi - z_lo;
 
                   // Establish known constant
@@ -845,6 +836,10 @@ ERF::init_from_wrfinput (int lev,
     // *******************************************************************************************
     if (solverChoice.use_real_bcs && (lev == 0))
     {
+        if (geom[0].isPeriodic(0) || geom[0].isPeriodic(1) ) {
+             amrex::Error("Cannot set periodic lateral boundary conditions when reading in real boundary values");
+        }
+
         if (nc_bdy_file.empty()) {
             amrex::Error("NetCDF boundary file name must be provided via input");
         }
@@ -865,9 +860,9 @@ ERF::init_from_wrfinput (int lev,
         int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
         for (int itime = 0; itime < ntimes; itime++)
         {
-           read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
-                            bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                            real_width);
+            read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
+                             bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                             real_width);
 
             if (itime == 0) {
                 Print() << "Read in boundary data with width "  << real_width << std::endl;
@@ -906,43 +901,26 @@ ERF::init_from_wrfinput (int lev,
     // *******************************************************************************************
     if ((lev == 0) && !nc_low_file.empty())
     {
-        low_time_interval = read_from_wrflow(nc_low_file,geom[0].Domain(),
-                                             low_data_zlo, start_low_time);
-
-        int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
-        int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
+        low_time_interval = read_times_from_wrflow(nc_low_file,
+                                                   low_data_zlo,
+                                                   start_low_time);
 
         int ntimes = low_data_zlo.size();
-
-        // HACK HACK HACK
-        // For right now we run out of memory if we load all of wrfbdy and all of wrflow
-        // Thus for now we are only loading the first two time slices
-        ntimes = 2;
-
         sst_lev[lev].resize(ntimes);
+        tsk_lev[lev].resize(ntimes);
+
+        // We can possibly run out of memory if we load all of wrfbdy and all of wrflow
+        // Thus we only load the first two time slices here and load more only if needed
+        ntimes = amrex::min(ntimes, 2);
 
         for (int itime(0); itime < ntimes; ++itime) {
-            if (itime > 0) {
-                sst_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
-            }
-            for ( MFIter mfi(*(sst_lev[lev][itime]), false); mfi.isValid(); ++mfi ) {
-                Box gtbx = mfi.growntilebox();
-                FArrayBox& src = low_data_zlo[itime];
-                FArrayBox& dst = (*(sst_lev[lev][itime]))[mfi];
-                const Array4<      Real>& dst_arr = dst.array();
-                const Array4<const Real>& src_arr = src.const_array();
-                const Array4<const Real>& psfc_arr = mf_PSFC_lev.const_array(mfi);
-                ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
-                {
-                    int li = min(max(i, i_lo), i_hi);
-                    int lj = min(max(j, j_lo), j_hi);
-                    // NOTE: we convert to potential temperature for the surface
-                    // layer scheme using the initial surface pressure since it's
-                    // not available in the wrflowinp file
-                    dst_arr(i,j,0) = getThgivenTandP(src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
-                });
-            }
-            sst_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
+            read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);
+
+            update_sst_tsk(itime, geom[lev], ba2d[lev],
+                           sst_lev[lev], tsk_lev[lev],
+                           m_SurfaceLayer, low_data_zlo,
+                           lev_new[Vars::cons], *mf_PSFC[lev],
+                           l_rdOcp, use_moist);
         }
     } // lev == 0 && nc_low_file exists
 }
@@ -1185,10 +1163,7 @@ init_terrain_from_wrfinput (int /*lev*/,
                             const MultiFab& mf_PH,
                             const MultiFab& mf_PHB)
 {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(*z_phys, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    for ( MFIter mfi(*z_phys, false); mfi.isValid(); ++mfi )
     {
         Box gnbx = mfi.growntilebox();
 
@@ -1231,12 +1206,36 @@ init_terrain_from_wrfinput (int /*lev*/,
             } else if (k == khi) {
                 z_arr(i, j, k) = z_top;
             } else {
+                // Note: wrfinput geopotentials ph, phb are only staggered in the vertical, i.e.,
+                //       they have dims (bottom_top_stag, south_north, west_east). On k==klo, we
+                //       will end up smoothing the terrain as we average from surface face centers
+                //       to nodes.
                 z_arr(i, j, k) = 0.25 * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
                                           nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
                                           nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
                                           nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
-            } // k
+            }
         });
+
+        // Sanity check
+        Print() << "Verifying grid integrity" << std::endl;
+        const Box& vbox = mfi.validbox();
+        if (vbox.smallEnd(2) == klo) {
+            Box z_surf_faces = makeSlab(vbox, 2, klo);
+            ParallelFor(z_surf_faces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                if (z_arr(i,j,k+1) < z_arr(i,j,k)) {
+#ifdef AMREX_USE_GPU
+                    AMREX_DEVICE_PRINTF("z values at (%d,%d,%d) and k+1 are %f, %f\n",
+                           i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
+#else
+                    printf("z values at (%d,%d,%d) and k+1 are %f, %f\n",
+                           i,j,k, z_arr(i,j,k), z_arr(i,j,k+1));
+#endif
+                    Error("Grid integrity issue detected");
+                }
+            });
+        } // tile includes zlo
     } // mfi
 }
 #endif // ERF_USE_NETCDF

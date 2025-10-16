@@ -16,7 +16,7 @@ public:
     amrex::Real z0_const{0.1};        ///< Roughness height -- default constant value(m)
     amrex::Real kappa{KAPPA};         ///< von Karman constant
     amrex::Real gravity{CONST_GRAV};  ///< Acceleration due to gravity (m/s^2)
-    amrex::Real surf_temp_flux{0.0};  ///< Heat flux
+    amrex::Real surf_temp_flux{0.0};  ///< Heat flux TODO: decide whether this is <θ'w'> or <θv'w'> under moist conditions
     amrex::Real surf_moist_flux{0.0}; ///< Moisture flux
 
     amrex::Real Cnk_a{0.0185};        ///< Standard Charnock constant https://doi.org/10.1175/JAMC-D-17-0137.1

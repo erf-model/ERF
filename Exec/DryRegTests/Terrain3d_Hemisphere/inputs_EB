@@ -11,7 +11,7 @@ eb2.small_volfrac = 1.e-4
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = 0.   0.  0. 
 geometry.prob_hi     = 10  10  10
-amr.n_cell           = 256  256  256
+amr.n_cell           = 128  128  128
 
 geometry.is_periodic = 0 1 0
 

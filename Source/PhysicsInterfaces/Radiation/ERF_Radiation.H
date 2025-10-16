@@ -127,69 +127,6 @@ public:
                amrex::MultiFab* lat,
                amrex::MultiFab* lon);
 
-    template<typename LandSurfaceModelType>
-    void set_lsm_inputs (LandSurfaceModelType *model)
-    {
-        if constexpr(std::is_same_v<LandSurfaceModelType, SLM>)
-        {
-            if (!m_update_rad)
-            {
-                // skip getting LSM inputs if radiation not updating this timestep
-                return;
-            }
-
-            // get surface temperature, LW flux, and emissivities from SLM
-            /*
-            auto slm_to_rad_vars = model->export_to_RRTMGP();
-
-            for (amrex::MFIter mfi(*slm_to_rad_vars[0]); mfi.isValid(); ++mfi) {
-                const auto& vbx  = mfi.validbox();
-                const auto& sbx  = amrex::makeSlab(vbx, 2, 0);
-
-                const int nx     = vbx.length(0);
-                const int imin   = vbx.smallEnd(0);
-                const int jmin   = vbx.smallEnd(1);
-                const int offset = m_col_offsets[mfi.index()];
-
-                const auto &slm_tsurf           = slm_to_rad_vars[0]->const_array(mfi);
-                const auto &slm_alb_dir_vis_arr = slm_to_rad_vars[2]->const_array(mfi);
-                const auto &slm_alb_dir_nir_arr = slm_to_rad_vars[4]->const_array(mfi);
-                const auto &slm_IR_emis_arr     = slm_to_rad_vars[5]->const_array(mfi);
-                const auto &slm_net_rad_arr     = slm_to_rad_vars[6]->const_array(mfi);
-                amrex::ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    // map [i,j,k] 0-based to [icol, ilay] 1-based
-                    const int icol = (j-jmin)*nx + (i-imin) + 1 + offset;
-                    const int ilay = 0;
-
-                    t_sfc(icol) = slm_tsurf(i, j, k);
-
-                    sfc_alb_dir_vis(icol) = slm_alb_dir_vis_arr(i, j, k);
-                    sfc_alb_dir_nir(icol) = slm_alb_dir_nir_arr(i, j, k);
-                    sfc_alb_dif_vis(icol) = slm_alb_dir_vis_arr(i, j, k);
-                    sfc_alb_dif_nir(icol) = slm_alb_dir_nir_arr(i, j, k);
-
-                    sfc_emis(icol) = slm_IR_emis_arr(i, j, k);
-
-                    //lw_src(icol) = slm_net_rad_arr(i, j, k, SLM_NetRad::net_lwup1);
-                    lw_src(icol) = 0.0; // TODO
-                });
-            }
-
-            // expand sfc_emis and lw_src over nlwbands
-            // TODO: check if this is correct - should emissivity vary based on band?
-            Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {m_nlwbands, m_ncol}),
-                                 KOKKOS_LAMBDA (int ibnd, int icol)
-            {
-                emis_sfc(icol, ibnd) = sfc_emis(icol);
-            });
-            */
-
-            Kokkos::deep_copy(emis_sfc, 0.98);
-            Kokkos::deep_copy(lw_src, 0.0);
-        }
-    }
-
     // Initialize the temporary variables
     void
     alloc_buffers ();
@@ -227,7 +164,8 @@ public:
     rad_run_impl (amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs)
     {
         if (m_update_rad) {
-            amrex::Print() << "Advancing radiation at level: " << m_lev << " ...";
+            amrex::Print() << "Radiation advancing level " << m_lev << " at (YY-MM-DD SS) " << m_orbital_year << '-'
+                << m_orbital_mon << '-' << m_orbital_day << ' ' << m_orbital_sec << " ...";
             this->initialize_impl();
             this->run_impl();
             this->finalize_impl(lsm_output_ptrs);
@@ -304,7 +242,7 @@ private:
                                                     "sfc_alb_dif_vis", "sfc_alb_dif_nir"};
 
     // List of output parameter names
-    amrex::Vector<std::string> m_lsm_output_names = {"sw_flux_dn", "lw_flux_dn"};
+    amrex::Vector<std::string> m_lsm_output_names = {"cos_zenith_angle", "sw_flux_dn", "lw_flux_dn"};
 
     // T surf if no LSM is available
     amrex::Real m_rad_t_sfc = -1;
@@ -336,7 +274,7 @@ private:
     // Path, data file, and coefficient file for K-distribution
     std::string rrtmgp_file_path       = ".";
     std::string rrtmgp_coeffs_sw       = "rrtmgp-data-sw-g224-2018-12-04.nc";
-    std::string rrtmgp_coeffs_lw       = "rrtmgp-data-lw-g224-2018-12-04.nc";
+    std::string rrtmgp_coeffs_lw       = "rrtmgp-data-lw-g256-2018-12-04.nc";
     std::string rrtmgp_cloud_optics_sw = "rrtmgp-cloud-optics-coeffs-sw.nc";
     std::string rrtmgp_cloud_optics_lw = "rrtmgp-cloud-optics-coeffs-lw.nc";
     std::string rrtmgp_coeffs_file_sw;
@@ -410,12 +348,11 @@ private:
     // This is only used if a positive value is supplied
     amrex::Real m_fixed_solar_zenith_angle = -9999.;
 
-    // Need to hard-code some dimension sizes for now.
-    // TODO: find a better way of configuring this
-    int m_nswbands = 14;
-    int m_nlwbands = 16;
-    int m_nswgpts  = 112;
-    int m_nlwgpts  = 128;
+    // Dimensions to be read from lookup data
+    int m_nswbands;
+    int m_nlwbands;
+    int m_nswgpts;
+    int m_nlwgpts;
 
     // Rad frequency in number of steps
     int m_rad_freq_in_steps = 1;
@@ -427,7 +364,6 @@ private:
     real1d_k o3_lay;
 
     // 1d size (ncol)
-    real1d_k cosine_zenith;
     real1d_k mu0;
     real1d_k sfc_alb_dir_vis;
     real1d_k sfc_alb_dir_nir;
@@ -455,7 +391,6 @@ private:
     real2d_k cldfrac_tot;
     real2d_k eff_radius_qc;
     real2d_k eff_radius_qi;
-    real2d_k tmp2d;
     real2d_k lwp;
     real2d_k iwp;
     real2d_k sw_heating;

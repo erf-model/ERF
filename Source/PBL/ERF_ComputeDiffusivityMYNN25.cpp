@@ -63,9 +63,9 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         const GeometryData gdata = geom.data();
 
         const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
+        FArrayBox qturb(bx,1);
         FArrayBox qintegral(xybx,2);
         qintegral.setVal<RunOn::Device>(0.0);
-        FArrayBox qturb(bx,1); FArrayBox qturb_old(bx,1);
         const Array4<Real> qint = qintegral.array();
         const Array4<Real> qvel = qturb.array();
 
@@ -77,7 +77,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             {
                 // q^2 / 2 is the TKE
                 qvel(i,j,k) = std::sqrt(2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
-                AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
 
                 Real fac = (sbx.contains(i,j,k)) ? 1.0 : 0.0;
                 const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
@@ -90,7 +90,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             {
                 // q^2 / 2 is the TKE
                 qvel(i,j,k) = std::sqrt(2.0 * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
-                AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "KE must have a positive value");
 
                 // Not multiplying by dz: it's constant and would fall out when we divide qint0/qint1 anyway
 
@@ -219,15 +219,18 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             Real qe2 = mynn.B1 * Lm*Lm * SM2 * (1.0-Rf) * shearProd;
             Real qe  = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2);
 
-            // Level 2 limiting (Helfand and Labraga 1988)
+            // Level 2 limiting intrdocued by Helfand and Labraga 1988 (NN09, Eqn. 42)
             Real alphac  = (qvel(i,j,k) >= qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
-#ifdef EXTRA_MYNN25_CHECKS
+//#if EXTRA_MYNN25_CHECKS
+#if 0
+            // VERY verbose diagnostic
             Real Ri = -GH/(GM+level2.eps);
-            if (alphac < 1 && (Ri > 1 || Ri < -1)) {
-                Warning("Level 2 limiting being applied with Ri out of expected range");
-                //AllPrint() << "alphac"<<IntVect(i,j,k)<<"= " << alphac
-                //    << " Ri,SM2,SH2= " << Ri << " " << SM2 << " " << level2.calc_SH(Rf)
-                //    << std::endl;
+            if (alphac < 1) {
+                AllPrint() << "Level 2 limiter at " << IntVect(i,j,k) << " :"
+                    << " ustar= " << u_star_arr(i,j,0)
+                    << " alphac= " << alphac
+                    << " Ri,SM2,SH2= " << Ri << " " << SM2 << " " << level2.calc_SH(Rf)
+                    << std::endl;
             }
 #endif
 
@@ -238,7 +241,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             // Clip SM, SH following WRF
             SM = amrex::min(amrex::max(SM, mynn.SMmin), mynn.SMmax);
             SH = amrex::min(amrex::max(SH, mynn.SHmin), mynn.SHmax);
-#ifdef EXTRA_MYNN25_CHECKS
+#if EXTRA_MYNN25_CHECKS
             if (SM == mynn.SMmin) {
                 Warning("SM clipped at min val");
             } else if (SM == mynn.SMmax) {

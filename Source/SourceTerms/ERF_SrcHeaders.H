@@ -43,6 +43,13 @@ void compute_gradp (const amrex::MultiFab& p,
                     amrex::Vector<amrex::MultiFab>& gradp,
                     const SolverChoice& solverChoice);
 
+void compute_gradp_interpz (const amrex::MultiFab& p,
+                            const amrex::Geometry& geom,
+                            amrex::MultiFab& z_phys_nd,
+                            amrex::MultiFab& z_phys_cc,
+                            amrex::Vector<amrex::MultiFab>& gradp,
+                            const SolverChoice& solverChoice);
+
 void make_sources (int level, int nrk,
                    amrex::Real dt, amrex::Real time,
                    const amrex::Vector<amrex::MultiFab>& S_data,
@@ -64,6 +71,7 @@ void make_sources (int level, int nrk,
                    bool is_slow_step);
 
 void make_mom_sources (amrex::Real time,
+                       amrex::Real dt,
                        const amrex::Vector<amrex::MultiFab>& S_data,
                              amrex::MultiFab& z_phys_nd,
                              amrex::MultiFab& z_phys_cc,
@@ -81,12 +89,13 @@ void make_mom_sources (amrex::Real time,
                              amrex::MultiFab* sinPhi_mf,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
-                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
+                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                        const amrex::Real* dptr_rhotheta_src,
                        const amrex::Real* dptr_rhoqt_src,
                        const amrex::Real* dptr_wbar_sub,
                        const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                        const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev,
+                       const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
                              InputSoundingData& input_sounding_data,
                              bool is_slow_step);
 
@@ -110,7 +119,7 @@ moist_set_rhs (const amrex::Geometry& geom,
                const amrex::Real& bdy_time_interval,
                const amrex::Real& new_stage_time,
                const amrex::Real& dt,
-               const amrex::Real& stop_time,
+               const amrex::Real& stop_time_elapsed,
                int width, int set_width,
                const amrex::Box& domain,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
@@ -153,4 +162,22 @@ void ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
                                               const amrex::Array4<const amrex::Real>& rho_u,
                                               const amrex::Array4<const amrex::Real>& rho_v,
                                               const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev);
+
+void ApplyBndryForcing_Forecast (const SolverChoice& solverChoice,
+                                 const amrex::Geometry geom,
+                                 const amrex::Box& tbx,
+                                 const amrex::Box& tby,
+                                 const amrex::Box& tbz,
+                                 const amrex::Array4<const amrex::Real>& z_phys_nd,
+                                 const amrex::Array4<amrex::Real>& rho_u_rhs,
+                                 const amrex::Array4<amrex::Real>& rho_v_rhs,
+                                 const amrex::Array4<amrex::Real>& rho_w_rhs,
+                                 const amrex::Array4<const amrex::Real>& rho_u,
+                                 const amrex::Array4<const amrex::Real>& rho_v,
+                                 const amrex::Array4<const amrex::Real>& rho_w,
+                                 const amrex::Array4<const amrex::Real>& rho_u_initial_state,
+                                 const amrex::Array4<const amrex::Real>& rho_v_initial_state,
+                                 const amrex::Array4<const amrex::Real>& rho_w_initial_state,
+                                 const amrex::Array4<const amrex::Real>& cons_initial_state);
+
 #endif
