@@ -510,7 +510,13 @@ void make_sources (int level,
                     int lk       = k - klo;
                     // Average to w-faces when looping CC
                     Real dzInv   = (z_cc_arr) ? 1.0/ (0.5 * (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1))) : dxInv[2];
-                    cell_src(i, j, k, RhoTheta_comp) += (rad_flux[lk+1] - rad_flux[lk]) * dzInv / Cp_d;
+                    // NOTE: Fnet  = Up - Dn (all fluxes are up here)
+                    //       dT/dt = dF/dz * (1/(-rho*Cp))
+                    Real dTdt    = (rad_flux[lk+1] - rad_flux[lk]) * dzInv / (-cell_data(i,j,k,Rho_comp)*Cp_d);
+                    Real qv      = cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp);
+                    Real iexner  = 1./getExnergivenRTh(cell_data(i,j,k,RhoTheta_comp), R_d/Cp_d, qv);
+                    // Convert dT/dt to dTheta/dt and multiply rho
+                    cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * dTdt * iexner;
                 }
             });
         }
