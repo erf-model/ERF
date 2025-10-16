@@ -107,15 +107,7 @@ void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& mf_my,
                              const amrex::Array4<const amrex::Real>& mf_uy,
                              const amrex::Array4<const amrex::Real>& mf_vy,
-#if 0
-                                   amrex::Array4<      amrex::Real>& hfx_x,
-                                   amrex::Array4<      amrex::Real>& hfx_y,
-#endif
                                    amrex::Array4<      amrex::Real>& hfx_z,
-#if 0
-                                   amrex::Array4<      amrex::Real>& qfx1_x,
-                                   amrex::Array4<      amrex::Real>& qfx1_y,
-#endif
                                    amrex::Array4<      amrex::Real>& qfx1_z,
                                    amrex::Array4<      amrex::Real>& qfx2_z,
                                    amrex::Array4<      amrex::Real>& diss,
