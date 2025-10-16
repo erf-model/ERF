@@ -71,6 +71,8 @@ struct TurbulentPerturbation {
         pp.query("perturbation_nondimensional",tpi_nonDim);
         pp.query("perturbation_T_infinity",tpi_Tinf);
         pp.query("perturbation_T_intensity",tpi_Ti);
+        pp.query("perturbation_zlo",perturbation_zlo);
+        pp.query("perturbation_zhi",perturbation_zhi);
         pp.query("perturbation_Ug",input_Ug);
 
         // Check variables message
@@ -100,27 +102,27 @@ struct TurbulentPerturbation {
         //amrex::PrintToFile("BoxPerturbationOutput") << "Setting perturbation region in:";
         // ***** X-direction perturbation *****
         if (tpi_direction[0]) { // West
-            lo_x_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_offset, valid_box_lo[1]+tpi_direction[1]*tpi_offset, valid_box_lo[2]));
-            lo_x_bx.setBig(amrex::IntVect(valid_box_lo[0]+(tpi_layers*tpi_boxDim[0]-1)+tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), valid_box_hi[2]));
+            lo_x_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_offset, valid_box_lo[1]+tpi_direction[1]*tpi_offset, perturbation_zlo));
+            lo_x_bx.setBig(amrex::IntVect(valid_box_lo[0]+(tpi_layers*tpi_boxDim[0]-1)+tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), perturbation_zhi));
             //amrex::PrintToFile("BoxPerturbationOutput") << " West face";
         }
 
         if (tpi_direction[3]) { // East
-            hi_x_bx.setSmall(amrex::IntVect(valid_box_hi[0]-((tpi_layers*tpi_boxDim[0]-1)+tpi_offset), valid_box_lo[1]+tpi_direction[1]*tpi_offset, valid_box_lo[2]));
-            hi_x_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), valid_box_hi[2]));
+            hi_x_bx.setSmall(amrex::IntVect(valid_box_hi[0]-((tpi_layers*tpi_boxDim[0]-1)+tpi_offset), valid_box_lo[1]+tpi_direction[1]*tpi_offset, perturbation_zlo));
+            hi_x_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_offset, valid_box_hi[1]-(tpi_direction[4]*tpi_offset), perturbation_zhi));
             //amrex::PrintToFile("BoxPerturbationOutput") << " East face";
         }
 
         // ***** Y-direction Perturbation *****
         if (tpi_direction[1]) { // North
-            lo_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_lo[1]+tpi_offset, valid_box_lo[2]));
-            lo_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_lo[1]+((tpi_layers*tpi_boxDim[1])-1)+tpi_offset, valid_box_hi[2]));
+            lo_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_lo[1]+tpi_offset, perturbation_zlo));
+            lo_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_lo[1]+((tpi_layers*tpi_boxDim[1])-1)+tpi_offset, perturbation_zhi));
             //amrex::PrintToFile("BoxPerturbationOutput") << " North face";
         }
 
         if (tpi_direction[4]) { // South
-            hi_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_hi[1]-((tpi_layers*tpi_boxDim[1]-1)+tpi_offset), valid_box_lo[2]));
-            hi_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_hi[1]-tpi_offset, valid_box_hi[2]));
+            hi_y_bx.setSmall(amrex::IntVect(valid_box_lo[0]+tpi_direction[0]*tpi_offset, valid_box_hi[1]-((tpi_layers*tpi_boxDim[1]-1)+tpi_offset), perturbation_zlo));
+            hi_y_bx.setBig(amrex::IntVect(valid_box_hi[0]-tpi_direction[3]*tpi_offset, valid_box_hi[1]-tpi_offset, perturbation_zhi));
             //amrex::PrintToFile("BoxPerturbationOutput") << " South face";
         }
 
@@ -652,6 +654,9 @@ struct TurbulentPerturbation {
     amrex::Real tpi_nonDim;           // Richardson number
     amrex::Real tpi_Ti;               // Temperature intensity value
     amrex::Real tpi_Tinf;             // Reference temperature [K]
+
+    int         perturbation_zlo;                         // lo z point for perturbation region
+    int         perturbation_zhi;                         // hi z point for perturbation region
 
     // Physical dimensions
     amrex::Vector<amrex::Real> tpi_Hpb;              // PB height [m]

@@ -7,6 +7,7 @@
 #include <ERF_NumericalDiffusion.H>
 #include <ERF_SrcHeaders.H>
 #include <ERF_TI_slow_headers.H>
+#include <ERF_MOSTStress.H>
 
 using namespace amrex;
 
@@ -35,6 +36,9 @@ void make_sources (int level,
                           MultiFab & source,
                    const  MultiFab & base_state,
                    const  MultiFab*  z_phys_cc,
+                   const  MultiFab & xvel,
+                   const  MultiFab & yvel,
+                   const  MultiFab & wvel,
                    const MultiFab* qheating_rates,
                           MultiFab* terrain_blank,
                    const Geometry geom,
@@ -83,9 +87,9 @@ void make_sources (int level,
     Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
     TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
     bool compute_averages = false;
-    compute_averages = compute_averages ||
-        ( (solverChoice.terrain_type == TerrainType::ImmersedForcing) &&
-          ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)));
+    // compute_averages = compute_averages ||
+    //     ( (solverChoice.terrain_type == TerrainType::ImmersedForcing) &&
+    //       ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)));
     compute_averages = compute_averages ||
         ( is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding) );
 
@@ -430,15 +434,115 @@ void make_sources (int level,
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
         {
-            Real dz                     = geom.CellSize(2);
-            const Real drag_coefficient = 10.0/dz;
-            const Real CdT = drag_coefficient;
-            const Real U_s  = 1.0;
+            const Array4<const Real>& u = xvel.array(mfi);
+            const Array4<const Real>& v = yvel.array(mfi);
+            const Array4<const Real>& w = wvel.array(mfi);
+
+            // geometric properties
+            const Real* dx_arr = geom.CellSize();
+            const Real dx_x = dx_arr[0];
+            const Real dx_y = dx_arr[1];
+            const Real dx_z = dx_arr[2]; // we should be grabbing from the z_phys for this technically. Need to use one of those weird statements
+
+            const Real alpha_h          = solverChoice.if_Cd_scalar;
+            const Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, 1./3.);
+            const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
+            const Real U_s              = 1.0; // unit velocity scale
+
+            // MOST parameters
+            similarity_funs sfuns;
+            const Real ggg                = CONST_GRAV; 
+            const Real kappa              = KAPPA;
+            const Real z0                 = solverChoice.if_z0; // should be user input
+            const Real tflux              = solverChoice.if_surf_temp_flux; // should be user input
+            const Real init_surf_temp     = solverChoice.if_init_surf_temp; //292.0; // K
+            const Real surf_heating_rate  = solverChoice.if_surf_heating_rate; //1.00; // K/hr
+            const Real Olen_in            = solverChoice.if_Olen_in; 
+            // const bool l_use_most         = solverChoice.if_wall_model; // options should be terrain or none
+            // Print them using AMReX's Print function:
+            // amrex::Print() << "z0 = " << z0 << "\n";
+            // amrex::Print() << "tflux = " << tflux << "\n";
+            // amrex::Print() << "init_surf_temp = " << init_surf_temp << "\n";
+            // amrex::Print() << "surf_heating_rate = " << surf_heating_rate << "\n";
+            // amrex::Print() << "Olen_in = " << Olen_in << "\n";
+
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                const Real t_blank = t_blank_arr(i, j, k);
-                cell_src(i, j, k, RhoTheta_comp) -= t_blank * CdT * U_s * (cell_data(i,j,k,RhoTheta_comp) - dptr_t_plane(k));
-                cell_src(i, j, k, Rho_comp)      -= t_blank * CdT * U_s * (cell_data(i,j,k,Rho_comp) - dptr_r_plane(k));
+                const Real t_blank       = t_blank_arr(i, j, k);
+                const Real t_blank_above = t_blank_arr(i, j, k+1);
+                // const Real t_blank_below = t_blank_arr(i, j, k-1);
+
+                // const Real ux_cc    = 0.5 * (u(i  ,j  ,k  ) + u(i+1,j  ,k  ));
+                // const Real uy_cc    = 0.5 * (v(i  ,j  ,k  ) + v(i  ,j+1,k  ));
+                const Real ux_cc_2r = 0.5 * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
+                const Real uy_cc_2r = 0.5 * (v(i  ,j  ,k+1) + v(i  ,j+1,k+1));
+                // const Real windspeed      = std::sqrt(ux_cc * ux_cc + uy_cc * uy_cc);
+                const Real h_windspeed2r  = std::sqrt(ux_cc_2r * ux_cc_2r + uy_cc_2r * uy_cc_2r);
+
+                const Real theta          = cell_data(i,j,k  ,RhoTheta_comp) / cell_data(i,j,k  ,Rho_comp);
+                const Real theta_neighbor = cell_data(i,j,k+1,RhoTheta_comp) / cell_data(i,j,k+1,Rho_comp);
+                // const Real theta_mid = 0.5 * (theta + theta_neighbor);
+
+                // SURFACE TEMP AND HEATING/COOLING RATE
+                if (init_surf_temp > 0.0) {
+                    if (t_blank > 0 && (t_blank_above == 0.0)) { // force to MOST value
+                    // if ((t_blank > 0) && l_use_most) { // force all cells below the wall to be some value
+                        const Real surf_temp    = init_surf_temp + surf_heating_rate*time/3600;
+                        const Real bc_forcing_rt_srf = -(cell_data(i,j,k-1,Rho_comp) * surf_temp - cell_data(i,j,k-1,RhoTheta_comp)); 
+                        cell_src(i, j, k-1, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf; // k-1
+                    }
+                }
+
+                // SURFACE HEAT FLUX
+                if (tflux != 1e-8){
+                    if (t_blank > 0 && (t_blank_above == 0.0)) { // force to MOST value
+                        Real psi_m           = 0.0;
+                        Real psi_h           = 0.0;
+                        Real psi_h_neighbor  = 0.0;
+                        Real ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m); 
+                        const Real Olen  = -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny); 
+                        const Real zeta          = (0.5) * dx_z / Olen;
+                        const Real zeta_neighbor = (1.5) * dx_z / Olen;
+
+                        // similarity functions
+                        psi_m          = sfuns.calc_psi_m(zeta);
+                        psi_h          = sfuns.calc_psi_h(zeta);
+                        psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                        ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m); // SETTING THIS CORRECTLY BROKE THE CODE
+
+                        // We do not know the actual temperature so use cell above
+                        const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
+                        const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((1.5) * dx_z / z0) - psi_h_neighbor);
+                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((0.5) * dx_z / z0) - psi_h);
+
+                        const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp)); 
+                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt; // no t_blank since we are just representing a surface
+                    }
+                }
+
+                // OBUKHOV LENGTH
+                if (Olen_in != 1e-8){
+                    if (t_blank > 0 && (t_blank_above == 0.0)) { // force to MOST value
+                        const Real Olen  = Olen_in; 
+                        const Real zeta          = (0.5) * dx_z / Olen;
+                        const Real zeta_neighbor = (1.5) * dx_z / Olen;
+
+                        // similarity functions
+                        const Real psi_m          = sfuns.calc_psi_m(zeta);
+                        const Real psi_h          = sfuns.calc_psi_h(zeta);
+                        const Real psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                        Real ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m); // SETTING THIS CORRECTLY BROKE THE CODE
+
+                        // We do not know the actual temperature so use cell above
+                        const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
+                        const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((1.5) * dx_z / z0) - psi_h_neighbor);
+                        const Real tTarget      = surf_temp + thetastar / kappa * (std::log((0.5) * dx_z / z0) - psi_h);
+
+                        const Real bc_forcing_rt = -(cell_data(i,j,k,Rho_comp) * tTarget - cell_data(i,j,k,RhoTheta_comp)); 
+                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt; // no t_blank since we are just representing a surface
+                    }
+                }
+
             });
         }
 
@@ -446,3 +550,6 @@ void make_sources (int level,
     } // mfi
     } // OMP
 }
+
+// private:
+//     similarity_funs sfuns;

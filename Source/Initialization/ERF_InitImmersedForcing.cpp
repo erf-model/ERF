@@ -24,7 +24,6 @@ ERF::init_immersed_forcing (int lev)
     #endif
         for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi)
         {
-            const Box &bx  = mfi.tilebox();
             const Box &xbx = mfi.tilebox(IntVect(1,0,0));
             const Box &ybx = mfi.tilebox(IntVect(0,1,0));
             const Box &zbx = mfi.tilebox(IntVect(0,0,1));
