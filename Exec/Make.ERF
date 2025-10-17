@@ -202,21 +202,28 @@ VPATH_LOCATIONS   += $(ERF_LSM_MM5_DIR)
 INCLUDE_LOCATIONS += $(ERF_LSM_MM5_DIR)
 
 
-# If using NOAH-MP model, then compile relevant source and headers
-ifeq ($(USE_NOAH), TRUE)
+# If using Noah-MP model, then compile relevant source and headers
+ifeq ($(USE_NOAHMP), TRUE)
   ifneq ($(USE_NETCDF), TRUE)
     $(error USE_NETCDF must be true for using NOAH-MP interface)
   else
-    DEFINES   += -DERF_USE_NOAH
+    DEFINES   += -DERF_USE_NOAHMP
     includes  += $(shell pkg-config --cflags netcdf-fortran)
     LIBRARIES += $(shell pkg-config --libs netcdf-fortran)
-    NOAH_HOME ?= $(ERF_HOME)/Submodules/NOAH-MP
-    VPATH_LOCATIONS   += $(NOAH_HOME)/drivers/hrldas
-    INCLUDE_LOCATIONS += $(NOAH_HOME)/drivers/hrldas
-    ERF_LSM_NOAH_DIR   = $(ERF_SOURCE_DIR)/LandSurfaceModel/NOAH
-    include $(ERF_LSM_NOAH_DIR)/Make.package
-    VPATH_LOCATIONS   += $(ERF_LSM_NOAH_DIR)
-    INCLUDE_LOCATIONS += $(ERF_LSM_NOAH_DIR)
+
+    NOAHMP_HOME ?= $(ERF_HOME)/Submodules/Noah-MP
+
+    VPATH_LOCATIONS   += $(NOAHMP_HOME)/drivers/erf
+    INCLUDE_LOCATIONS += $(NOAHMP_HOME)/drivers/erf
+    INCLUDE_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/include
+
+    ERF_LSM_NOAHMP_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/Noah-MP
+    include $(ERF_LSM_NOAHMP_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_LSM_NOAHMP_DIR)
+    INCLUDE_LOCATIONS += $(ERF_LSM_NOAHMP_DIR)
+
+    LIBRARY_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/lib
+    LIBRARIES += -lnoahmp
   endif
 endif
 
@@ -409,7 +416,15 @@ INCLUDE_LOCATIONS += $(AMREX_HOME)/Tools/C_scripts
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 
-all: $(executable)
+build_noahmp:
+ifeq ($(USE_NOAHMP), TRUE)
+	export NOAHMP_HOME
+	export FFLAGS
+	export CXXFLAGS
+	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp
+endif
+
+all: build_noahmp $(executable)
 	(SILENT) $(RM) AMReX_buildInfo.cpp
 	@echo SUCCESS
 
@@ -427,3 +442,6 @@ AMReX_buildInfo.cpp:
 
 clean::
 	$(SILENT) $(RM) AMReX_buildInfo.cpp
+ifeq ($(USE_NOAHMP), TRUE)
+	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile clean_noahmp
+endif
