@@ -250,7 +250,6 @@ Radiation::alloc_buffers ()
     p_lay         = real2d_k("p_lay"        , m_ncol, m_nlay);
     t_lay         = real2d_k("t_lay"        , m_ncol, m_nlay);
     z_del         = real2d_k("z_del"        , m_ncol, m_nlay);
-    p_del         = real2d_k("p_del"        , m_ncol, m_nlay);
     qv_lay        = real2d_k("qv"           , m_ncol, m_nlay);
     qc_lay        = real2d_k("qc"           , m_ncol, m_nlay);
     qi_lay        = real2d_k("qi"           , m_ncol, m_nlay);
@@ -351,7 +350,6 @@ Radiation::dealloc_buffers ()
     p_lay             = real2d_k();
     t_lay             = real2d_k();
     z_del             = real2d_k();
-    p_del             = real2d_k();
     qv_lay            = real2d_k();
     qc_lay            = real2d_k();
     qi_lay            = real2d_k();
@@ -448,7 +446,6 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
     auto lat_d = lat;
     auto lon_d = lon;
     auto t_sfc_d = t_sfc;
-    auto p_del_d = p_del;
 
     bool moist = m_moist;
     bool ice   = m_ice;
@@ -538,13 +535,6 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
 
         });
     } // mfi
-
-    // EAMXX delP is positive
-    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
-                         KOKKOS_LAMBDA (int icol, int ilay)
-    {
-        p_del_d(icol,ilay)  = std::abs(p_lev_d(icol,ilay+1) - p_lev_d(icol,ilay));
-    });
 
     // Populate vars LSM would provide
     if (!has_lsm) {
@@ -641,10 +631,10 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
             q_arr(i,j,k,0) = sw_heating_d(icol,ilay);
             q_arr(i,j,k,1) = lw_heating_d(icol,ilay);
 
-            // Convert the rates for theta_d
-            Real exner = getExnergivenP(Real(p_lay_d(icol,ilay)), R_d/Cp_d);
-            q_arr(i,j,k,0) *= exner;
-            q_arr(i,j,k,1) *= exner;
+            // Convert the dT/dz to dTheta/dz
+            Real iexner = 1./getExnergivenP(Real(p_lay_d(icol,ilay)), R_d/Cp_d);
+            q_arr(i,j,k,0) *= iexner;
+            q_arr(i,j,k,1) *= iexner;
         });
         if (m_lsm_fluxes) {
             const Array4<Real>& lsm_arr =  m_lsm_fluxes->array(mfi);
