@@ -38,8 +38,8 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
     const int idx_w = m_idx_w;
     const Real rho_w = m_species_mat[m_idx_w]->m_density;
-    const int num_sp  = m_num_species;
-    const int num_ae = m_num_aerosols;
+    const int n_sp  = m_num_species;
+    const int n_ae = m_num_aerosols;
 
     // number of super-droplets per cell
     int num_sd_per_cell = m_num_sd_per_cell;
@@ -75,22 +75,27 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         auto* vterm_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::term_vel).data();
         auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
+        auto* a_ptr = soa.GetRealData(idx_ice_a(n_ae,n_sp)).data();
+        auto* c_ptr = soa.GetRealData(idx_ice_c(n_ae,n_sp)).data();
+        auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(n_ae,n_sp)).data();
+        auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(n_ae,n_sp)).data();
+
         SDSpeciesMassArr sp_mass_ptrs;
-        for (int i = 0; i < num_sp; i++) {
-            sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
+        for (int i = 0; i < n_sp; i++) {
+            sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,n_ae,n_sp)).data();
         }
 
         SDAerosolMassArr ae_mass_ptrs;
-        for (int i = 0; i < num_ae; i++) {
-            ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
+        for (int i = 0; i < n_ae; i++) {
+            ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,n_ae,n_sp)).data();
         }
 
-        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-        Gpu::DeviceVector<int> sp_solubility(num_sp);
+        Gpu::DeviceVector<ParticleReal> sp_density(n_sp);
+        Gpu::DeviceVector<int> sp_solubility(n_sp);
         {
-            Vector<ParticleReal> sp_density_h(num_sp);
-            Vector<int> sp_solubility_h(num_sp);
-            for (int i = 0; i < num_sp; i++) {
+            Vector<ParticleReal> sp_density_h(n_sp);
+            Vector<int> sp_solubility_h(n_sp);
+            for (int i = 0; i < n_sp; i++) {
                 sp_density_h[i] = m_species_mat[i]->m_density;
                 sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
             }
@@ -104,12 +109,12 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                         sp_solubility.begin() );
         }
 
-        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-        Gpu::DeviceVector<int> ae_solubility(num_ae);
+        Gpu::DeviceVector<ParticleReal> ae_density(n_ae);
+        Gpu::DeviceVector<int> ae_solubility(n_ae);
         {
-            Vector<ParticleReal> ae_density_h(num_ae);
-            Vector<int> ae_solubility_h(num_ae);
-            for (int i = 0; i < num_ae; i++) {
+            Vector<ParticleReal> ae_density_h(n_ae);
+            Vector<int> ae_solubility_h(n_ae);
+            for (int i = 0; i < n_ae; i++) {
                 ae_density_h[i] = m_aerosol_mat[i]->m_density;
                 ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
             }
@@ -129,12 +134,12 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         auto ae_sol_arr = ae_solubility.data();
 
         // get sampled aerosol mass values based on initialization
-        Gpu::DeviceVector<Real> aerosol_mass_d(num_ae*np);
+        Gpu::DeviceVector<Real> aerosol_mass_d(n_ae*np);
         Gpu::DeviceVector<Real> multiplicity_d(np);
         ParticleReal mult_scale = 1.0;
         {
             Vector<Real> multiplicity_h(np, 0.0);
-            for (int i = 0; i < num_ae; i++) {
+            for (int i = 0; i < n_ae; i++) {
                 Vector<Real> aerosol_mass_h;
                 if (sampled_multiplicity) {
                     init_r.getAerosolDistribution( aerosol_mass_h,
@@ -200,7 +205,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
 
             // reset all species masses to zero
-            for (int ctr = 0; ctr < num_sp; ctr++) {
+            for (int ctr = 0; ctr < n_sp; ctr++) {
                 sp_mass_ptrs[ctr][i] = 0.0;
             }
             // Reset water mass
@@ -209,10 +214,16 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                              * water_radius*water_radius*water_radius*rho_w;
             sp_mass_ptrs[idx_w][i] = water_mass;
 
+            // Reset ice attributes
+            a_ptr[i] = 0.0;
+            c_ptr[i] = 0.0;
+            mrime_ptr[i] = 0.0;
+            nmono_ptr[i] = 0.0;
+
             // choose a random index
             auto j = Random_int(np, rnd_engine);
             // Set aerosol mass
-            for (int ctr = 0; ctr < num_ae; ctr++) {
+            for (int ctr = 0; ctr < n_ae; ctr++) {
                 ae_mass_ptrs[ctr][i] = aerosol_mass[ctr*np+j];
             }
             // Set multiplicity to sampled or averaged multiplicity
@@ -222,11 +233,11 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             // compute effective radius and total mass
             radius_ptr[i] = SD_effective_radius( i, idx_w,
                                                  rho_w,
-                                                 num_sp, num_ae,
+                                                 n_sp, n_ae,
                                                  sp_sol_arr, ae_sol_arr,
                                                  sp_mass_ptrs, ae_mass_ptrs,
                                                  sp_rho_arr, ae_rho_arr );
-            mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+            mass_ptr[i] = SD_total_mass( i, n_sp, n_ae, sp_mass_ptrs, ae_mass_ptrs);
 
             // set as active
             active_ptr[i] = 1;

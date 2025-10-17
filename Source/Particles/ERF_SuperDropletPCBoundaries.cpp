@@ -27,8 +27,8 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
     const int k_lo = domain.smallEnd(2);
     const int k_hi = domain.bigEnd(2);
 
-    const int n_species = m_num_species;
-    const int n_aerosols = m_num_aerosols;
+    const int n_sp = m_num_species;
+    const int n_ae = m_num_aerosols;
     const Real rho_w = m_species_mat[m_idx_w]->m_density;
     const int idx_w = m_idx_w;
 
@@ -69,18 +69,60 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
         auto* vterm_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::term_vel).data();
         auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
-        SDSpeciesMassArr species_mass_ptrs;
-        for (int i = 0; i < n_species; i++) {
-            species_mass_ptrs[i] = soa.GetRealData(idx_s(i,n_aerosols,n_species)).data();
-        }
-
-        SDAerosolMassArr aerosol_mass_ptrs;
-        for (int i = 0; i < n_aerosols; i++) {
-            aerosol_mass_ptrs[i] = soa.GetRealData(idx_a(i,n_aerosols,n_species)).data();
-        }
+        auto* a_ptr = soa.GetRealData(idx_ice_a(n_ae,n_sp)).data();
+        auto* c_ptr = soa.GetRealData(idx_ice_c(n_ae,n_sp)).data();
+        auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(n_ae,n_sp)).data();
+        auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(n_ae,n_sp)).data();
 
         Gpu::Buffer<Long> deactivated_particles({0});
         auto* deactivated_particles_ptr = deactivated_particles.data();
+
+        SDSpeciesMassArr sp_mass_ptrs;
+        Gpu::DeviceVector<ParticleReal> sp_density(n_sp);
+        Gpu::DeviceVector<int> sp_solubility(n_sp);
+        {
+            Vector<ParticleReal> sp_density_h(n_sp);
+            Vector<int> sp_solubility_h(n_sp);
+            for (int i = 0; i < n_sp; i++) {
+                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,n_ae,n_sp)).data();
+                sp_density_h[i] = m_species_mat[i]->m_density;
+                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        sp_density_h.begin(),
+                        sp_density_h.end(),
+                        sp_density.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        sp_solubility_h.begin(),
+                        sp_solubility_h.end(),
+                        sp_solubility.begin() );
+        }
+
+        SDAerosolMassArr ae_mass_ptrs;
+        Gpu::DeviceVector<ParticleReal> ae_density(n_ae);
+        Gpu::DeviceVector<int> ae_solubility(n_ae);
+        {
+            Vector<ParticleReal> ae_density_h(n_ae);
+            Vector<int> ae_solubility_h(n_ae);
+            for (int i = 0; i < n_ae; i++) {
+                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,n_ae,n_sp)).data();
+                ae_density_h[i] = m_aerosol_mat[i]->m_density;
+                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        ae_density_h.begin(),
+                        ae_density_h.end(),
+                        ae_density.begin() );
+            Gpu::copy(  Gpu::hostToDevice,
+                        ae_solubility_h.begin(),
+                        ae_solubility_h.end(),
+                        ae_solubility.begin() );
+        }
+
+        auto sp_rho_arr = sp_density.data();
+        auto sp_sol_arr = sp_solubility.data();
+        auto ae_rho_arr = ae_density.data();
+        auto ae_sol_arr = ae_solubility.data();
 
         ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -146,22 +188,33 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         if (!is_periodic[d]) {
                             v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
 
-                            for (int ctr = 0; ctr < n_species; ctr++) {
-                                species_mass_ptrs[ctr][i] = 0.0;
+                            for (int ctr = 0; ctr < n_sp; ctr++) {
+                                sp_mass_ptrs[ctr][i] = 0.0;
                             }
 
                             ParticleReal aerosol_mass_total = 0.0;
-                            for (int ctr = 0; ctr < n_aerosols; ctr++) {
-                                aerosol_mass_total += aerosol_mass_ptrs[ctr][i];
+                            for (int ctr = 0; ctr < n_ae; ctr++) {
+                                aerosol_mass_total += ae_mass_ptrs[ctr][i];
                             }
 
                             auto par_radius = 1.0e-15;
                             auto cond_mass = (4.0/3.0)*PI
                                              * par_radius*par_radius*par_radius*rho_w;
-                            radius_ptr[i] = par_radius;
-                            species_mass_ptrs[idx_w][i] = cond_mass;
-                            mass_ptr[i] = cond_mass + aerosol_mass_total;
+                            sp_mass_ptrs[idx_w][i] = cond_mass;
+
                             mult_ptr[i] = multiplicity;
+                            a_ptr[i] = 0.0;
+                            c_ptr[i] = 0.0;
+                            mrime_ptr[i] = 0.0;
+                            nmono_ptr[i] = 0.0;
+
+                            radius_ptr[i] = SD_effective_radius( i, idx_w,
+                                                                 rho_w,
+                                                                 n_sp, n_ae,
+                                                                 sp_sol_arr, ae_sol_arr,
+                                                                 sp_mass_ptrs, ae_mass_ptrs,
+                                                                 sp_rho_arr, ae_rho_arr );
+                            mass_ptr[i] = SD_total_mass( i, n_sp, n_ae, sp_mass_ptrs, ae_mass_ptrs);
                         }
 
                     }
@@ -182,22 +235,33 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         if (!is_periodic[d]) {
                             v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
 
-                            for (int ctr = 0; ctr < n_species; ctr++) {
-                                species_mass_ptrs[ctr][i] = 0.0;
+                            for (int ctr = 0; ctr < n_sp; ctr++) {
+                                sp_mass_ptrs[ctr][i] = 0.0;
                             }
 
                             ParticleReal aerosol_mass_total = 0.0;
-                            for (int ctr = 0; ctr < n_aerosols; ctr++) {
-                                aerosol_mass_total += aerosol_mass_ptrs[ctr][i];
+                            for (int ctr = 0; ctr < n_ae; ctr++) {
+                                aerosol_mass_total += ae_mass_ptrs[ctr][i];
                             }
 
                             auto par_radius = 1.0e-15;
                             auto cond_mass = (4.0/3.0)*PI
                                              * par_radius*par_radius*par_radius
                                              * rho_w;
-                            radius_ptr[i] = par_radius;
-                            mass_ptr[i] = cond_mass + aerosol_mass_total;
+
                             mult_ptr[i] = multiplicity;
+                            a_ptr[i] = 0.0;
+                            c_ptr[i] = 0.0;
+                            mrime_ptr[i] = 0.0;
+                            nmono_ptr[i] = 0.0;
+
+                            radius_ptr[i] = SD_effective_radius( i, idx_w,
+                                                                 rho_w,
+                                                                 n_sp, n_ae,
+                                                                 sp_sol_arr, ae_sol_arr,
+                                                                 sp_mass_ptrs, ae_mass_ptrs,
+                                                                 sp_rho_arr, ae_rho_arr );
+                            mass_ptr[i] = SD_total_mass( i, n_sp, n_ae, sp_mass_ptrs, ae_mass_ptrs);
                         }
 
                     }
@@ -205,8 +269,6 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                 }
 
             }
-
-            // Update z-coordinate carried by the particle
         });
         Gpu::synchronize();
         num_deactivated_particles += *(deactivated_particles.copyToHost());
