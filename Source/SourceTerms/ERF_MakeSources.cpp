@@ -87,9 +87,6 @@ void make_sources (int level,
     Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
     TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
     bool compute_averages = false;
-    // compute_averages = compute_averages ||
-    //     ( (solverChoice.terrain_type == TerrainType::ImmersedForcing) &&
-    //       ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)));
     compute_averages = compute_averages ||
         ( is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding) );
 
@@ -542,6 +539,3 @@ void make_sources (int level,
     } // mfi
     } // OMP
 }
-
-// private:
-//     similarity_funs sfuns;

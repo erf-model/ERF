@@ -700,10 +700,10 @@ void make_mom_sources (Real time,
             similarity_funs sfuns;
             const Real ggg        = CONST_GRAV;
             const Real kappa      = KAPPA;
-            const Real z0                 = solverChoice.if_z0; // should be user input
-            const Real tflux_in           = solverChoice.if_surf_temp_flux; // should be user input
+            const Real z0                 = solverChoice.if_z0;
+            const Real tflux_in           = solverChoice.if_surf_temp_flux;
             const Real Olen_in            = solverChoice.if_Olen_in;
-            const bool l_use_most         = solverChoice.if_use_most; // options should be terrain or none
+            const bool l_use_most         = solverChoice.if_use_most;
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
