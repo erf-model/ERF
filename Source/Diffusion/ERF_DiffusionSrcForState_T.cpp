@@ -677,7 +677,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                  + yflux(i,j,k  ) + yflux(i  ,j+1,k  ) );
         }
 
-        // HACK - THIS SHOULDNT BE NEEDED BUT THERE IS TYPO IN ABOVE SOMEHOW
+        // HACK - THIS SHOULDN'T BE NEEDED BUT THERE IS TYPO IN ABOVE SOMEHOW
         xfluxbar_lo = 0.;
         yfluxbar_lo = 0.;
         xfluxbar_hi = 0.;
