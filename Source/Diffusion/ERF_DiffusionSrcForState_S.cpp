@@ -94,8 +94,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
 
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
-
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
             xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
@@ -113,7 +111,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -205,7 +202,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -222,7 +218,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -311,7 +306,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -327,7 +321,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
@@ -414,7 +407,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
@@ -429,7 +421,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 

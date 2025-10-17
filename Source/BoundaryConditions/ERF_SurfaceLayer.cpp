@@ -288,12 +288,20 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp);
-    } else {
+    } else if (flux_type == FluxCalcType::BULK_COEFF) {
+        bulk_coeff_flux flux_comp(m_Cd, m_Ch, m_Cq);
+        compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
+                                 xheat_flux, yheat_flux, zheat_flux,
+                                 xqv_flux, yqv_flux, zqv_flux,
+                                 z_phys, flux_comp);
+    } else if (flux_type == FluxCalcType::CUSTOM) {
         custom_flux flux_comp(specified_rho_surf);
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp);
+    } else {
+        amrex::Abort("Unknown surface layer flux calculation type");
     }
 }
 
