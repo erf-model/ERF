@@ -62,21 +62,20 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain, const Real dt,
     int khi = bx.bigEnd(2);
 
  // Temporary FABs for tridiagonal solve (allocated on column)
-    amrex::FArrayBox RHS_fab, soln_fab, coeffA_fab, coeffB_fab, inv_coeffB_fab, coeffC_fab, gamma_fab;
+ // A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
+    amrex::FArrayBox RHS_fab, soln_fab, coeffA_fab, coeffB_fab, inv_coeffB_fab, coeffC_fab;
            RHS_fab.resize(bx,1, amrex::The_Async_Arena());
           soln_fab.resize(bx,1, amrex::The_Async_Arena());
         coeffA_fab.resize(bx,1, amrex::The_Async_Arena());
         coeffB_fab.resize(bx,1, amrex::The_Async_Arena());
     inv_coeffB_fab.resize(bx,1, amrex::The_Async_Arena());
         coeffC_fab.resize(bx,1, amrex::The_Async_Arena());
-         gamma_fab.resize(bx,1, amrex::The_Async_Arena());
     auto const& RHS_a        =        RHS_fab.array();
     auto const& soln_a       =       soln_fab.array();
-    auto const& coeffA_a     =     coeffA_fab.array();
-    auto const& coeffB_a     =     coeffB_fab.array();
+    auto const& coeffA_a     =     coeffA_fab.array(); // lower diagonal
+    auto const& coeffB_a     =     coeffB_fab.array(); // diagonal
     auto const& inv_coeffB_a = inv_coeffB_fab.array();
-    auto const& coeffC_a     =     coeffC_fab.array();
-    auto const& gam_a        =      gamma_fab.array();
+    auto const& coeffC_a     =     coeffC_fab.array(); // upper diagonal
 
     int bc_comp = qty_index;
 

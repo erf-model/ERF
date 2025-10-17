@@ -47,4 +47,54 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain, const Real dt,
                         const Real implicit_fac)
 {
     BL_PROFILE_VAR("ImplicitDiffForState_T()",ImplicitDiffForState_T);
+
+#include "ERF_DiffSetup.H"
+
+    const int         n = RhoTheta_comp;
+    const int qty_index = RhoTheta_comp;
+    const int prim_index = qty_index - 1;
+    const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
+
+    // Box bounds
+    int ilo = bx.smallEnd(0);
+    int ihi = bx.bigEnd(0);
+    int jlo = bx.smallEnd(1);
+    int jhi = bx.bigEnd(1);
+    int klo = bx.smallEnd(2);
+    int khi = bx.bigEnd(2);
+
+ // Temporary FABs for tridiagonal solve (allocated on column)
+ // A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
+    amrex::FArrayBox RHS_fab, soln_fab, coeffA_fab, coeffB_fab, inv_coeffB_fab, coeffC_fab;
+           RHS_fab.resize(bx,1, amrex::The_Async_Arena());
+          soln_fab.resize(bx,1, amrex::The_Async_Arena());
+        coeffA_fab.resize(bx,1, amrex::The_Async_Arena());
+        coeffB_fab.resize(bx,1, amrex::The_Async_Arena());
+    inv_coeffB_fab.resize(bx,1, amrex::The_Async_Arena());
+        coeffC_fab.resize(bx,1, amrex::The_Async_Arena());
+    auto const& RHS_a        =        RHS_fab.array();
+    auto const& soln_a       =       soln_fab.array();
+    auto const& coeffA_a     =     coeffA_fab.array(); // lower diagonal
+    auto const& coeffB_a     =     coeffB_fab.array(); // diagonal
+    auto const& inv_coeffB_a = inv_coeffB_fab.array();
+    auto const& coeffC_a     =     coeffC_fab.array(); // upper diagonal
+
+    int bc_comp = qty_index;
+
+    Real rhoAlpha_lo;
+    Real rhoAlpha_hi;
+
+    Real dz_inv        = cellSizeInv[2];
+
+    bool ext_dir_on_zlo = ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
+                           (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim));
+    bool ext_dir_on_zhi = ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
+                           (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim));
+
+    for (int j(jlo); j<=jhi; ++j) {
+      for (int i(ilo); i<=ihi; ++i) {
+
+
+      } // i
+    } // j
 }
