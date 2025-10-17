@@ -68,7 +68,6 @@ erf.moistscal_vert_adv_type  = "Upwind_3rd_SL"
 # PHYSICS OPTIONS
 erf.les_type        = "Smagorinsky2D"
 erf.Cs              = 0.17
-#erf.les_type        = "Smagorinsky"
 erf.pbl_type        = "SHOC"
 erf.moisture_model  = "Kessler"
 

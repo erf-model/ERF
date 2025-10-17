@@ -507,7 +507,7 @@ SHOCInterface::kokkos_buffers_to_mf ()
     //=======================================================
     auto horiz_wind_d = horiz_wind;
     //auto sgs_buoy_flux_d = sgs_buoy_flux;
-    auto tk_d = tk;
+    //auto tk_d = tk;
     //auto cldfrac_liq_d = cldfrac_liq;
     auto tke_d = tke;
     auto qc_d = qc;
@@ -516,7 +516,7 @@ SHOCInterface::kokkos_buffers_to_mf ()
     //=======================================================
     //auto pblh_d = pblh;
     //auto inv_qc_relvar_d = inv_qc_relvar;
-    auto tkh_d = tkh;
+    //auto tkh_d = tkh;
     //auto w_sec_d = w_sec;
     //auto cldfrac_liq_prev_d = cldfrac_liq_prev;
     //auto ustar_d = ustar;
