@@ -57,11 +57,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                         const Array4<const Real>& mf_my,
                         const Array4<const Real>& mf_uy,
                         const Array4<const Real>& mf_vy,
-                              Array4<      Real>& hfx_x,
-                              Array4<      Real>& hfx_y,
                               Array4<      Real>& hfx_z,
-                              Array4<      Real>& qfx1_x,
-                              Array4<      Real>& qfx1_y,
                               Array4<      Real>& qfx1_z,
                               Array4<      Real>& qfx2_z,
                               Array4<      Real>& diss,
@@ -98,17 +94,9 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
 
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
+            Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
-            Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index) - cell_prim(i-1, j, k  , prim_index) );
-
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                xflux(i,j,k) = hfx_x(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                xflux(i,j,k) = qfx1_x(i,j,0);
-            } else {
-                xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
-            }
+            xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -123,17 +111,10 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                yflux(i,j,k) = hfx_y(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                yflux(i,j,k) = qfx1_y(i,j,0);
-            } else {
-                yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
-            }
+            yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -221,17 +202,10 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                xflux(i,j,k) = hfx_x(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                xflux(i,j,k) = qfx1_x(i,j,0);
-            } else {
-                xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) *  GradCx;
-            }
+            xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -244,24 +218,16 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                yflux(i,j,k) = hfx_y(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                yflux(i,j,k) = qfx1_y(i,j,0);
-            } else {
-                yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
-            }
+            yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-
             rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
@@ -340,17 +306,10 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                xflux(i,j,k) = hfx_x(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                xflux(i,j,k) = qfx1_x(i,j,0);
-            } else {
-                xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
-            }
+            xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -362,17 +321,10 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                yflux(i,j,k) = hfx_y(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                yflux(i,j,k) = qfx1_y(i,j,0);
-            } else {
-                yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
-            }
+            yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -455,17 +407,10 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                xflux(i,j,k) = hfx_x(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                xflux(i,j,k) = qfx1_x(i,j,0);
-            } else {
-              xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
-            }
+            xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -476,17 +421,10 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                yflux(i,j,k) = hfx_y(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                yflux(i,j,k) = qfx1_y(i,j,0);
-            } else {
-                yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
-            }
+            yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {

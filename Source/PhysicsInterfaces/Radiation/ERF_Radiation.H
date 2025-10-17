@@ -384,7 +384,6 @@ private:
     real2d_k p_lay;
     real2d_k t_lay;
     real2d_k z_del;
-    real2d_k p_del;
     real2d_k qv_lay;
     real2d_k qc_lay;
     real2d_k qi_lay;

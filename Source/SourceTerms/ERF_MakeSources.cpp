@@ -29,7 +29,9 @@ using namespace amrex;
  */
 
 void make_sources (int level,
-                   int /*nrk*/, Real dt, Real time,
+                   int /*nrk*/,
+                   Real dt,
+                   Real time,
                    const Vector<MultiFab>& S_data,
                    const  MultiFab & S_prim,
                           MultiFab & source,
@@ -68,6 +70,7 @@ void make_sources (int level,
     const Box& domain = geom.Domain();
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+    const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
 
     MultiFab r_hse (base_state, make_alias, BaseState::r0_comp , 1);
 
@@ -76,6 +79,9 @@ void make_sources (int level,
     // flags to apply certain source terms in substep call only
     bool use_Rayleigh_fast = solverChoice.rayleigh_damp_substep;
     bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
+
+    // flag for a moisture model
+    bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
 
     // *****************************************************************************
     // Planar averages for subsidence terms
@@ -102,7 +108,7 @@ void make_sources (int level,
         // With no moisture we only (rho) and (rho theta); with moisture we also do qv and qc
         // We use the alias here to control ncomp inside the PlaneAverage
         //
-        int ncomp = (solverChoice.moisture_type == MoistureType::None) ? 2 : RhoQ2_comp+1;
+        int ncomp = (!has_moisture) ? 2 : RhoQ2_comp+1;
         MultiFab cons(S_data[IntVars::cons], make_alias, 0, ncomp);
 
         PlaneAverage cons_ave(&cons, geom, solverChoice.ave_plane, ng_c);
@@ -139,7 +145,7 @@ void make_sources (int level,
             dptr_t_plane(k-offset) = dptr_t[k];
         });
 
-        if (solverChoice.moisture_type != MoistureType::None)
+        if (has_moisture)
         {
             Gpu::HostVector<  Real> qv_plane_h(ncell), qc_plane_h(ncell);
             Gpu::DeviceVector<Real> qv_plane_d(ncell), qc_plane_d(ncell);
@@ -169,6 +175,18 @@ void make_sources (int level,
     }
 
     // *****************************************************************************
+    // Radiation flux vector for four stream approximation
+    // *****************************************************************************
+    // NOTE: The fluxes live on w-faces
+    int klo = domain.smallEnd(0);
+    int khi = domain.bigEnd(2);
+    int nk  = khi - klo + 2;
+    Gpu::DeviceVector<Real> radiation_flux(nk,0.0);
+    Gpu::DeviceVector<Real> q_integral(nk,0.0);
+    Real* rad_flux = radiation_flux.data();
+    Real* q_int    = q_integral.data();
+
+    // *****************************************************************************
     // Define source term for cell-centered conserved variables, from
     //    1. user-defined source terms for (rho theta) and (rho q_t)
     //    2. radiation           for (rho theta)
@@ -179,7 +197,8 @@ void make_sources (int level,
     //    7. sponging
     //    8. turbulent perturbation
     //    9. nudging towards input sounding values (only for theta)
-    //    10. Immersed forcing
+    //   10. Immersed forcing
+    //   11. Four stream radiation source for (rho theta)
     // *****************************************************************************
 
     // ***********************************************************************************************
@@ -203,6 +222,7 @@ void make_sources (int level,
 
         const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
                                                                Array4<const Real>{};
+
 
         // *************************************************************************************
         // 2. Add radiation source terms to (rho theta)
@@ -442,7 +462,64 @@ void make_sources (int level,
             });
         }
 
+        // *************************************************************************************
+        // 11. Add 4 stream radiation src to RhoTheta
+        // *************************************************************************************
+        if (solverChoice.four_stream_radiation && has_moisture && is_slow_step)
+        {
+            AMREX_ALWAYS_ASSERT((bx.smallEnd(2) == klo) && (bx.bigEnd(2) == khi));
+            Real D    = 3.75e-6; // [s^-1]
+            Real F0   = 70;      // [W/m^2]
+            Real F1   = 22;      // [W/m^2]
+            Real krad = 85;      // [m^2 kg^-1]
+            Real qt_i = 0.008;
 
+            Box xybx = makeSlab(bx,2,klo);
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            {
+                // Inclusive scan at w-faces for the Q integral (also find "i" values)
+                q_int[0] = 0.0;
+                Real zi   = 0.5 * (z_cc_arr(i,j,khi) + z_cc_arr(i,j,khi-1));
+                Real rhoi = 0.5 * (cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi-1,Rho_comp));
+                for (int k(klo+1); k<=khi+1; ++k) {
+                    int lk    = k - klo;
+                    // Average to w-faces when looping w-faces
+                    Real dz    = (z_cc_arr) ? 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx[2];
+                    q_int[lk]  = q_int[lk-1] + krad * cell_data(i,j,k-1,Rho_comp) * cell_data(i,j,k-1,RhoQ2_comp) * dz;
+                    Real qt_hi = cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp);
+                    Real qt_lo = cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp);
+                    if ( (qt_lo > qt_i) && (qt_hi < qt_i) ) {
+                        zi   = 0.5 * (z_cc_arr(i,j,k) + z_cc_arr(i,j,k-1));
+                        rhoi = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
+                    }
+                }
+
+                // Decompose the integral to get the fluxes at w-faces
+                Real q_int_inf = q_int[khi+1];
+                for (int k(klo); k<=khi+1; ++k) {
+                    int lk       = k - klo;
+                    Real z       = 0.5 * (z_cc_arr(i,j,k) + z_cc_arr(i,j,k-1));
+                    rad_flux[lk] = F1*std::exp(-q_int[lk]) + F0*std::exp(-(q_int_inf - q_int[lk]));
+                    if (z > zi) {
+                      rad_flux[lk] += rhoi * Cp_d * D * ( std::pow(z-zi,4./3.)/4. + zi*std::pow(z-zi,1./3.) ) ;
+                    }
+                }
+
+                // Compute the radiative heating source
+                for (int k(klo); k<=khi; ++k) {
+                    int lk       = k - klo;
+                    // Average to w-faces when looping CC
+                    Real dzInv   = (z_cc_arr) ? 1.0/ (0.5 * (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1))) : dxInv[2];
+                    // NOTE: Fnet  = Up - Dn (all fluxes are up here)
+                    //       dT/dt = dF/dz * (1/(-rho*Cp))
+                    Real dTdt    = (rad_flux[lk+1] - rad_flux[lk]) * dzInv / (-cell_data(i,j,k,Rho_comp)*Cp_d);
+                    Real qv      = cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp);
+                    Real iexner  = 1./getExnergivenRTh(cell_data(i,j,k,RhoTheta_comp), R_d/Cp_d, qv);
+                    // Convert dT/dt to dTheta/dt and multiply rho
+                    cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * dTdt * iexner;
+                }
+            });
+        }
     } // mfi
     } // OMP
 }
