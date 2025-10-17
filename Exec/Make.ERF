@@ -418,9 +418,6 @@ include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 
 build_noahmp:
 ifeq ($(USE_NOAHMP), TRUE)
-	export NOAHMP_HOME
-	export FFLAGS
-	export CXXFLAGS
 	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp
 endif
 
