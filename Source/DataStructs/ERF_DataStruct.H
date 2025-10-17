@@ -432,13 +432,9 @@ struct SolverChoice {
         pp.query("immersed_forcing_substep", immersed_forcing_substep); // apply Rayleigh damping source terms in substep only
         pp.query("forest_substep", forest_substep); // apply Rayleigh damping source terms in substep only
 
-        // // immersed forcing temeprature
-        // pp.query("if_init_surf_temp", if_init_surf_temp);
-        // pp.query("if_surf_heating_rate", if_surf_heating_rate);
-
+        // immersed forcing parameters
         pp.query("if_Cd_scalar", if_Cd_scalar);
         pp.query("if_Cd_momentum", if_Cd_momentum);
-        // immersed forcing MOST
         pp.query("if_z0", if_z0);
         pp.query("if_surf_temp_flux", if_surf_temp_flux);
         pp.query("if_init_surf_temp", if_init_surf_temp);
@@ -925,19 +921,16 @@ struct SolverChoice {
     bool        immersed_forcing_substep  = false;
     bool        forest_substep            = false;
 
-    // // specify temperature for immersed forcing
-    // amrex::Real if_init_surf_temp      = 290.0; // initial surface temp
-    // amrex::Real if_surf_heating_rate        = 0.0; // surface heating rate
-
+    // immersed forcing parameters
     amrex::Real if_Cd_scalar          = 10.0;
     amrex::Real if_Cd_momentum        = 10.0;
-    // immersed forcing MOST parameters. NEED TO ADD CHECK SO THAT PEOPLE DON'T DOUBLE SPECIFY THINGS
-    amrex::Real if_z0                 = 0.1; // [m]
-    amrex::Real if_surf_temp_flux     = 1e-8; // units?
-    amrex::Real if_init_surf_temp     = 0.0; // [K]
-    amrex::Real if_surf_heating_rate  = 0.0; // [K/hr]
-    amrex::Real if_Olen_in            = 1e-8; // [m]
-    bool        if_use_most           = false; // None or Terrain for now (urban to be added)
+    // immersed forcing MOST parameters.
+    amrex::Real if_z0                 = 0.1;   // [m]
+    amrex::Real if_surf_temp_flux     = 1e-8;  // [K m/s]
+    amrex::Real if_init_surf_temp     = 0.0;   // [K]
+    amrex::Real if_surf_heating_rate  = 0.0;   // [K/hr]
+    amrex::Real if_Olen_in            = 1e-8;  // [m]
+    bool        if_use_most           = false;
 
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt    = true;

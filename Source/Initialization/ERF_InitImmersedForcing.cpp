@@ -47,7 +47,7 @@ ERF::init_immersed_forcing (int lev)
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
-                if (t_blank >= 10.9) { zvel_arr(i, j, k) = epsilon; }
+                if (t_blank >= 0.9) { zvel_arr(i, j, k) = epsilon; }
             });
         } //mfi
     }
