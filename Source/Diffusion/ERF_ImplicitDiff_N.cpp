@@ -93,14 +93,14 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain, const Real dt,
       for (int i(ilo); i<=ihi; ++i) {
 
         // Dirichlet top/bottom
-               RHS_a(i,j,klo) = 0.0;
-               RHS_a(i,j,khi) = 0.0;
-            coeffA_a(i,j,klo) = 0.0;
-            coeffA_a(i,j,khi) = 0.0;
-            coeffC_a(i,j,klo) = 0.0;
-            coeffC_a(i,j,khi) = 0.0;
-        inv_coeffB_a(i,j,klo) = 1.0;
-        inv_coeffB_a(i,j,khi) = 1.0;
+//             RHS_a(i,j,klo) = 0.0;
+//             RHS_a(i,j,khi) = 0.0;
+//          coeffA_a(i,j,klo) = 0.0;
+//          coeffA_a(i,j,khi) = 0.0;
+//          coeffC_a(i,j,klo) = 0.0;
+//          coeffC_a(i,j,khi) = 0.0;
+//      inv_coeffB_a(i,j,klo) = 1.0;
+//      inv_coeffB_a(i,j,khi) = 1.0;
 
         // Build the coefficients and RHS
         for (int k(klo); k <= khi; k++)
@@ -152,6 +152,7 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain, const Real dt,
             coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv;
             coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv;
 
+            // TODO: inhomogeneous BCs
             if (k == klo) {
                 coeffA_a(i,j,klo) = 0.; // Zero gradient at bottom boundary
             }
@@ -167,11 +168,14 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain, const Real dt,
             RHS_a(i,j,k)  = cell_data(i,j,k,n); // Note this is rho*theta, whereas solution will be theta
         } // k
 
+        // Forward sweep
+
         Real bet = coeffB_a(i,j,klo);
 
         for (int k(klo+1); k<=khi; ++k) {
             Real gam = coeffC_a(i,j,k-1) / bet;
             bet = coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam;
+            AMREX_ASSERT(bet != 0.0);
             coeffB_a(i,j,k) = bet;
         }
 
