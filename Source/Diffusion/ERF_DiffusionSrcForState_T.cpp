@@ -87,14 +87,20 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
     const Real dz_inv = cellSizeInv[2];
 
-    amrex::Print() << "ZBX IS " << zbx << std::endl;
+    // We need to grow these boxes in the vertical direction when tiling so that we can access xflux and yflux
+    //    to modify zflux
+    Box xbx_g1(xbx); Box ybx_g1(ybx);
+    if (xbx_g1.smallEnd(2) != dom_lo.z) xbx_g1.growLo(2,1);
+    if (ybx_g1.smallEnd(2) != dom_lo.z) ybx_g1.growLo(2,1);
+    if (xbx_g1.bigEnd(2)   != dom_hi.z) xbx_g1.growHi(2,1);
+    if (ybx_g1.bigEnd(2)   != dom_hi.z) ybx_g1.growHi(2,1);
 
     for (int n(0); n<num_comp; ++n) {
         const int qty_index = start_comp + n;
 
     // Constant alpha & Turb model
     if (l_consA && l_turb) {
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(xbx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
@@ -126,7 +132,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - met_h_xi*GradCz );
             }
         });
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(ybx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
@@ -235,7 +241,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         });
     // Constant rho*alpha & Turb model
     } else if (l_turb) {
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(xbx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
@@ -264,7 +270,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - met_h_xi*GradCz );
             }
         });
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(ybx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
@@ -370,7 +376,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         });
     // Constant alpha & no LES/PBL model
     } else if(l_consA) {
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(xbx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
@@ -398,7 +404,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - met_h_xi*GradCz );
             }
         });
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(ybx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
@@ -501,7 +507,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         });
     // Constant rho*alpha & no LES/PBL model
     } else {
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(xbx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
@@ -528,7 +534,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - met_h_xi*GradCz );
             }
         });
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(ybx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
@@ -676,12 +682,6 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             yfluxbar_hi = 0.25 * ( yflux(i,j,k+1) + yflux(i  ,j+1,k+1)
                                  + yflux(i,j,k  ) + yflux(i  ,j+1,k  ) );
         }
-
-        // HACK - THIS SHOULDN'T BE NEEDED BUT THERE IS TYPO IN ABOVE SOMEHOW
-        xfluxbar_lo = 0.;
-        yfluxbar_lo = 0.;
-        xfluxbar_hi = 0.;
-        yfluxbar_hi = 0.;
 
         Real zflux_lo = zflux(i,j,k  ) - met_h_xi_lo*mf_mx(i,j,0)*xfluxbar_lo - met_h_eta_lo*mf_my(i,j,0)*yfluxbar_lo;
         Real zflux_hi = zflux(i,j,k+1) - met_h_xi_hi*mf_mx(i,j,0)*xfluxbar_hi - met_h_eta_hi*mf_my(i,j,0)*yfluxbar_hi;
