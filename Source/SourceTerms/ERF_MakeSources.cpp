@@ -38,7 +38,6 @@ void make_sources (int level,
                    const  MultiFab*  z_phys_cc,
                    const  MultiFab & xvel,
                    const  MultiFab & yvel,
-                   const  MultiFab & wvel,
                    const MultiFab* qheating_rates,
                           MultiFab* terrain_blank,
                    const Geometry geom,
@@ -433,7 +432,6 @@ void make_sources (int level,
         {
             const Array4<const Real>& u = xvel.array(mfi);
             const Array4<const Real>& v = yvel.array(mfi);
-            const Array4<const Real>& w = wvel.array(mfi);
 
             // geometric properties
             const Real* dx_arr = geom.CellSize();

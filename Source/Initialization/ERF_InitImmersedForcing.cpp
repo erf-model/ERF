@@ -14,41 +14,38 @@ using namespace amrex;
 void
 ERF::init_immersed_forcing (int lev)
 {
-    for (int lev = 0; lev <= finest_level; lev++)
+    auto& lev_new = vars_new[lev];
+    MultiFab* terrain_blank = terrain_blanking[lev].get();
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi)
     {
-        auto& lev_new = vars_new[lev];
-        MultiFab* terrain_blank = terrain_blanking[lev].get();
+        const Box &xbx = mfi.tilebox(IntVect(1,0,0));
+        const Box &ybx = mfi.tilebox(IntVect(0,1,0));
+        const Box &zbx = mfi.tilebox(IntVect(0,0,1));
+        const Real epsilon = 1e-2;
 
-    #ifdef _OPENMP
-    #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-    #endif
-        for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi)
-        {
-            const Box &xbx = mfi.tilebox(IntVect(1,0,0));
-            const Box &ybx = mfi.tilebox(IntVect(0,1,0));
-            const Box &zbx = mfi.tilebox(IntVect(0,0,1));
-            const Real epsilon = 1e-2;
+        const Array4<const Real>& t_blank_arr = terrain_blank->const_array(mfi);
 
-            const Array4<const Real>& t_blank_arr = terrain_blank->const_array(mfi);
+        const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
+        const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
+        const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
 
-            const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
-            const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
-            const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
-
-            // Set the x,y,z-velocities
-            ParallelFor(xbx, ybx, zbx,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
-                if (t_blank >= 0.9) { xvel_arr(i, j, k) = epsilon; }
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
-                if (t_blank >= 0.9) { yvel_arr(i, j, k) = epsilon; }
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
-                if (t_blank >= 0.9) { zvel_arr(i, j, k) = epsilon; }
-            });
-        } //mfi
-    }
+        // Set the x,y,z-velocities
+        ParallelFor(xbx, ybx, zbx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+            if (t_blank >= 0.9) { xvel_arr(i, j, k) = epsilon; }
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+            if (t_blank >= 0.9) { yvel_arr(i, j, k) = epsilon; }
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+            if (t_blank >= 0.9) { zvel_arr(i, j, k) = epsilon; }
+        });
+    } //mfi
 }
