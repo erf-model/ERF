@@ -214,3 +214,39 @@ Problem::init_custom_pert(
     }
   });
 }
+
+//=============================================================================
+// USER-DEFINED FUNCTION
+//=============================================================================
+void
+Problem::update_w_subsidence (const Real& /*time*/,
+                              Vector<Real>& wbar,
+                              Gpu::DeviceVector<Real>& d_wbar,
+                              const Geometry& geom,
+                              std::unique_ptr<MultiFab>& z_phys_nd)
+{
+    if (wbar.empty()) return;
+
+    const int khi       = geom.Domain().bigEnd()[2] + 1; // lives on z-faces
+    const Real* prob_lo = geom.ProbLo();
+    const auto dx       = geom.CellSize();
+
+    // Note: If z_phys_nd, then use_terrain=1 was set. If the z coordinate
+    // varies in time and or space, then the the height needs to be
+    // calculated at each time step. Here, we assume that only grid
+    // stretching exists.
+    if (z_phys_nd) {
+        zlevels.resize(khi+1);
+        reduce_to_max_per_height(zlevels, z_phys_nd);
+    }
+
+    // Linearly increase wbar to the cutoff_max and then linearly decrease to cutoff_min
+    Real D = 3.75e-6;
+    for (int k = 0; k <= khi; k++) {
+        const Real z_w_face = (z_phys_nd) ? zlevels[k] : prob_lo[2] + k*dx[2];
+        wbar[k] = -D * z_w_face;
+    }
+
+    // Copy from host version to device version
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, wbar.begin(), wbar.end(), d_wbar.begin());
+}

@@ -89,6 +89,10 @@ compute_heating_rate (View1 const& flux_up,
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nlay}),
                          KOKKOS_LAMBDA (int icol, int ilay)
     {
+        // NOTE: This calculation defines Fnet = Up - Dn
+        //       H = dT/dt = g/Cp dF/dP
+        //       Using dF/dz * dz/dP = dF/dz * (1/(-rho*g)) = dF/dP
+        //       We have: dT/dt = dF/dz * (1/(-rho*Cp))
         heating_rate(icol,ilay) = ( flux_up(icol,ilay+1) - flux_up(icol,ilay)
                                   - flux_dn(icol,ilay+1) + flux_dn(icol,ilay) )
                                   / ( -rho(icol,ilay) * dz(icol,ilay) * Cp_d );
