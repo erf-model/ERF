@@ -102,7 +102,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         MultiFab vol_fine(ba, dm, 1, 0);
         vol_fine.setVal(cell_vol);
         EB_average_down(vars_new[fine_lev][Vars::cons],vars_new[crse_lev][Vars::cons],
-                    *detJ_cc[fine_lev], vol_fine,
+                    vol_fine, *detJ_cc[fine_lev], 
                     scomp, ncomp, refRatio(crse_lev));
     }
 
