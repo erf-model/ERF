@@ -591,7 +591,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         {
             cell_rhs(i,j,k,Rho_comp)      += source_arr(i,j,k,Rho_comp);
             cell_rhs(i,j,k,RhoTheta_comp) += source_arr(i,j,k,RhoTheta_comp);
-            amrex::Print() <<" SRC FOR RT " << cell_rhs(i,j,k,RhoTheta_comp) << std::endl;
         });
 
         // Multiply the slow RHS for rho and rhotheta by detJ here so we don't have to later

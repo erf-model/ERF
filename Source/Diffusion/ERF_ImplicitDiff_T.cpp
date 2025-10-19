@@ -63,8 +63,8 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain, const Real dt,
     int klo = bx.smallEnd(2);
     int khi = bx.bigEnd(2);
 
- // Temporary FABs for tridiagonal solve (allocated on column)
- // A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
+    // Temporary FABs for tridiagonal solve (allocated on column)
+    //   A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
     amrex::FArrayBox RHS_fab, soln_fab, coeffA_fab, coeffB_fab, inv_coeffB_fab, coeffC_fab;
            RHS_fab.resize(bx,1, amrex::The_Async_Arena());
           soln_fab.resize(bx,1, amrex::The_Async_Arena());
@@ -85,11 +85,6 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain, const Real dt,
     Real rhoAlpha_hi;
 
     Real dz_inv        = cellSizeInv[2];
-
-    bool ext_dir_on_zlo = ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
-                           (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim));
-    bool ext_dir_on_zhi = ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
-                           (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim));
 
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {

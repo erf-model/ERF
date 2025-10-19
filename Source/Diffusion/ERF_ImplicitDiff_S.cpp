@@ -63,8 +63,8 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
     int klo = bx.smallEnd(2);
     int khi = bx.bigEnd(2);
 
- // Temporary FABs for tridiagonal solve (allocated on column)
- // A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
+    // Temporary FABs for tridiagonal solve (allocated on column)
+    //   A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
     amrex::FArrayBox RHS_fab, soln_fab, coeffA_fab, coeffB_fab, inv_coeffB_fab, coeffC_fab;
            RHS_fab.resize(bx,1, amrex::The_Async_Arena());
           soln_fab.resize(bx,1, amrex::The_Async_Arena());
@@ -86,11 +86,6 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
 
     Real dz_inv        = cellSizeInv[2];
 
-    bool ext_dir_on_zlo = ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
-                           (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim));
-    bool ext_dir_on_zhi = ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
-                           (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim));
-
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {
 
@@ -107,6 +102,12 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
         // Build the coefficients and RHS
         for (int k(klo); k <= khi; k++)
         {
+//          bool ext_dir_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
+//                                 bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim)
+//          bool ext_dir_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir ||
+//                                 bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim)
+            bool neumann_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::neumann);
+
             if (l_consA && l_turb) {
                 rhoAlpha_lo = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
                             + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_scal_index])
@@ -153,25 +154,45 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
             Real met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,k  ,cellSizeInv,z_nd);
             Real met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,k+1,cellSizeInv,z_nd);
 
+            RHS_a(i,j,k)  = detJ(i,j,k) * cell_data(i,j,k,n); // Note this is rho*theta, whereas solution will be theta
+
             // Note that the additional factor of detJ is multiplied through so we don't see it here
             //      in the denominator but do see it multiplying the B coeff and the RHS
             coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv / met_h_zeta_lo;
             coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv / met_h_zeta_hi;
 
-            // TODO: inhomogeneous BCs
             if (k == klo) {
+                // TODO: inhomogeneous BCs
                 coeffA_a(i,j,klo) = 0.; // Zero gradient at bottom boundary
             }
             if (k == khi) {
-                coeffC_a(i,j,khi) = 0.; // Zero gradient at top boundary
+                if (neumann_on_zhi) {
+                    // Calculate gradient of rhotheta for RHS
+                    Real dtheta = cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)
+                                - cell_data(i, j, k  , RhoTheta_comp) / cell_data(i, j, k  , Rho_comp);
+
+                    // TODO: why is ghost value for theta at k+1 == 0 in the first step?
+                  //Print() << "neumann dtheta/dz"<<IntVect(i,j,k)<<"= " << dtheta * dz_inv
+                  //    << " from " << cell_data(i, j, k  , RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)
+                  //    << " "      << cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k  , Rho_comp)
+                  //    << " C= " << coeffC_a(i,j,khi)
+                  //    << std::endl;
+
+                    // TODO: get input theta_grad
+                  //if (cell_data(i,j,k+1,RhoTheta_comp) > 0) // WORKAROUND
+                  //{
+                  //      RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * dtheta;
+                  //}
+                    RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * 0.003/dz_inv * met_h_zeta_hi;
+                }
+
+                coeffC_a(i,j,khi) = 0.;
             }
 
             coeffB_a(i,j,k) = detJ(i,j,k)*cell_data(i,j,k,Rho_comp) - coeffA_a(i,j,k) - coeffC_a(i,j,k);
 
             //amrex::Print() <<" A B C " << k << " " <<
             //            coeffA_a(i,j,k) << " " << coeffB_a(i,j,k) << " " << coeffC_a(i,j,k) << std::endl;
-
-            RHS_a(i,j,k)  = detJ(i,j,k) * cell_data(i,j,k,n); // Note this is rho*theta, whereas solution will be theta
         } // k
 
         // Forward sweep
