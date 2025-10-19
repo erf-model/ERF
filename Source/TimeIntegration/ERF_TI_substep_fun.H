@@ -155,6 +155,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         // to fillpatch the slow ones every acoustic substep
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
+
 #include "ERF_Implicit.H"
 
         // NOTE: Numerical diffusion is tested on in FillPatchIntermediate and dictates the size of the
