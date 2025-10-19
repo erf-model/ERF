@@ -158,8 +158,10 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
 
             // Note that the additional factor of detJ is multiplied through so we don't see it here
             //      in the denominator but do see it multiplying the B coeff and the RHS
-            coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv / met_h_zeta_lo;
-            coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv / met_h_zeta_hi;
+            coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv
+                            / met_h_zeta_lo / met_h_zeta_lo;
+            coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv
+                            / met_h_zeta_hi / met_h_zeta_hi;
 
             if (k == klo) {
                 // TODO: inhomogeneous BCs
