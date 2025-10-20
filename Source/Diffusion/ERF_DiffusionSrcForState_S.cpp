@@ -74,7 +74,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 #include "ERF_DiffSetup.H"
 
     int klo = domain.smallEnd(2);
-    int khi = domain.bigEnd(2) + 1;
+    int khi = domain.bigEnd(2);
     auto dz_ptr = stretched_dz_d.data();
 
     for (int n(0); n<num_comp; ++n) {
@@ -170,7 +170,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 Real dzk_inv;
                 if (k==klo) {
                     dzk_inv =  1.0 / dz_ptr[k];
-                } else if (k==khi) {
+                } else if (k==(khi+1)) {
                     dzk_inv =  1.0 / dz_ptr[k-1];
                 } else {
                     dzk_inv =  2.0 / (dz_ptr[k] + dz_ptr[k-1]);
@@ -282,7 +282,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 Real dzk_inv;
                 if (k==klo) {
                     dzk_inv =  1.0 / dz_ptr[k];
-                } else if (k==khi) {
+                } else if (k==(khi+1)) {
                     dzk_inv =  1.0 / dz_ptr[k-1];
                 } else {
                     dzk_inv =  2.0 / (dz_ptr[k] + dz_ptr[k-1]);
@@ -391,7 +391,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 Real dzk_inv;
                 if (k==klo) {
                     dzk_inv =  1.0 / dz_ptr[k];
-                } else if (k==khi) {
+                } else if (k==(khi+1)) {
                     dzk_inv =  1.0 / dz_ptr[k-1];
                 } else {
                     dzk_inv =  2.0 / (dz_ptr[k] + dz_ptr[k-1]);
@@ -497,7 +497,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 Real dzk_inv;
                 if (k==klo) {
                     dzk_inv =  1.0 / dz_ptr[k];
-                } else if (k==khi) {
+                } else if (k==(khi+1)) {
                     dzk_inv =  1.0 / dz_ptr[k-1];
                 } else {
                     dzk_inv =  2.0 / (dz_ptr[k] + dz_ptr[k-1]);
