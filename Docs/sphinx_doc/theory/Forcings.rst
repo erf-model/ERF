@@ -190,7 +190,7 @@ The following inputs are available when representing terrain using immersed forc
         erf.if_use_most                = BOOL
         erf.immersed_forcing_substep   = BOOL
 
-An example of using immersed forcing for a Witch of Agnesi hill is availble in ``Exec/ABL/immersed_forcing``
+An example of using immersed forcing for a Witch of Agnesi hill is available in ``Exec/ABL/immersed_forcing``.
 
 .. note:: When using fully compressible simulations, it is recommended to apply immersed forcing on the substep for numerical stability.
 
