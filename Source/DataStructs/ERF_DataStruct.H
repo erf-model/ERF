@@ -131,27 +131,6 @@ struct SolverChoice {
             amrex::Abort("The input use_terrain is deprecated.  Set terrain_type instead.");
         }
 
-        pp.query("grid_stretching_ratio", grid_stretching_ratio);
-        if (grid_stretching_ratio != 0) {
-            AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= 1.),
-                                      "The grid stretching ratio must be greater than 1");
-        }
-        if (grid_stretching_ratio >= 1) {
-            if (mesh_type == MeshType::ConstantDz) {
-                mesh_type    = MeshType::StretchedDz;
-            }
-            if (terrain_type != TerrainType::StaticFittedMesh) {
-                amrex::Print() << "Turning terrain on to enable grid stretching" << std::endl;
-                terrain_type = TerrainType::StaticFittedMesh;
-            }
-            pp.query("zsurface", zsurf);
-            if (zsurf != 0.0) {
-                amrex::Print() << "Nominal zsurface height != 0, may result in unexpected behavior"
-                    << std::endl;
-            }
-            pp.get("initial_dz", dz0);
-        }
-
         // Do we set map scale factors to 0.5 instead of 1 for testing?
         pp.query("test_mapfactor", test_mapfactor);
 
@@ -284,8 +263,6 @@ struct SolverChoice {
             }
         }
 
-
-
         if (init_type == InitType::WRFInput) {
             if (moisture_type == MoistureType::None) {
                 amrex::Abort("Can't have moisture_type = None with init_type = WRFInput");
@@ -321,6 +298,26 @@ struct SolverChoice {
             mesh_type = MeshType::VariableDz;
         }
 
+        pp.query("grid_stretching_ratio", grid_stretching_ratio);
+        if (grid_stretching_ratio != 0) {
+            AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= 1.),
+                                      "The grid stretching ratio must be greater than 1");
+        }
+        if (grid_stretching_ratio >= 1) {
+            if (terrain_type == TerrainType::None) {
+                terrain_type = TerrainType::StaticFittedMesh;
+            }
+            if (mesh_type == MeshType::ConstantDz) {
+                mesh_type = MeshType::StretchedDz;
+            }
+            pp.query("zsurface", zsurf);
+            if (zsurf != 0.0) {
+                amrex::Print() << "Nominal zsurface height != 0, may result in unexpected behavior"
+                    << std::endl;
+            }
+            pp.get("initial_dz", dz0);
+        }
+
         int n_zlevels = pp.countval("terrain_z_levels");
         if (n_zlevels > 0)
         {
@@ -328,7 +325,7 @@ struct SolverChoice {
                 terrain_type = TerrainType::StaticFittedMesh;
             }
             if (mesh_type == MeshType::ConstantDz) {
-                mesh_type    = MeshType::StretchedDz;
+                mesh_type = MeshType::StretchedDz;
             }
         }
 
