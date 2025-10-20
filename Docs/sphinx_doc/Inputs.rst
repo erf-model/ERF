@@ -1584,7 +1584,7 @@ methods for defining how the terrain-fitted coordinates given the topography:
     The influence of the terrain decreases with the cube of height.
 
 The user can also specify that terrain should be represented with an immersed forcing method
-(with an optional wall model, see :ref:`Forcings` for mote detail), or
+(with an optional wall model, see :ref:`Forcings` for more detail), or
 with an embedded boundary / cut cell representation.
 
 .. note:: The embedded boundary / cut cell representation is a work in progress and not ready for use!
