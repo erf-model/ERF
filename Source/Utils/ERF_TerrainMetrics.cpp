@@ -141,13 +141,14 @@ make_terrain_fitted_coords (int lev, const Geometry& geom, MultiFab& z_phys_nd,
         // Note that domhi_z is already nodal in the z-direction
         if (nd_bx.bigEnd(2) >= domhi_z) {
             // Grown box with no z range
-            Box xybx = mfi.growntilebox(ngrow);
-            xybx.setRange(2,0);
+            Box bx_zhi = mfi.growntilebox(ngrow);
+            bx_zhi.setSmall(2,domhi_z+1);
             Array4<Real> const& z_arr = z_phys_nd.array(mfi);
 
             // Extrapolate top layer
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int ) {
-                z_arr(i,j,domhi_z+1) = 2.0*z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1);
+            ParallelFor(bx_zhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                z_arr(i,j,k) = z_arr(i,j,domhi_z)
+                             + (k-domhi_z) * (z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1));
             });
         }
     }
