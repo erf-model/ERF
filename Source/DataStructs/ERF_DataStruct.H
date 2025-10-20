@@ -435,6 +435,23 @@ struct SolverChoice {
         pp.query("immersed_forcing_substep", immersed_forcing_substep); // apply Rayleigh damping source terms in substep only
         pp.query("forest_substep", forest_substep); // apply Rayleigh damping source terms in substep only
 
+        // immersed forcing parameters
+        pp.query("if_Cd_scalar", if_Cd_scalar);
+        pp.query("if_Cd_momentum", if_Cd_momentum);
+        pp.query("if_z0", if_z0);
+        pp.query("if_surf_temp_flux", if_surf_temp_flux);
+        pp.query("if_init_surf_temp", if_init_surf_temp);
+        pp.query("if_surf_heating_rate", if_surf_heating_rate);
+        pp.query("if_Olen", if_Olen_in);
+        pp.query("if_use_most",if_use_most);
+
+        if ((if_init_surf_temp > 0.0 && if_surf_temp_flux != 1e-8) ||
+            (if_init_surf_temp > 0.0 && if_Olen_in != 1e-8) ||
+            (if_Olen_in != 1e-8 && if_surf_temp_flux != 1e-8))
+        {
+            amrex::Abort("Can only specify one of init_surf_temp, surf_temp_flux, or Olen");
+        }
+
         // Flag to do MOST rotations with terrain
         pp.query("use_rotate_surface_flux",use_rotate_surface_flux);
         if (use_rotate_surface_flux) {
@@ -908,6 +925,17 @@ struct SolverChoice {
     // Specify whether to apply other various source terms on substep only
     bool        immersed_forcing_substep  = false;
     bool        forest_substep            = false;
+
+    // immersed forcing parameters
+    amrex::Real if_Cd_scalar          = 10.0;
+    amrex::Real if_Cd_momentum        = 10.0;
+    // immersed forcing MOST parameters.
+    amrex::Real if_z0                 = 0.1;   // [m]
+    amrex::Real if_surf_temp_flux     = 1e-8;  // [K m/s]
+    amrex::Real if_init_surf_temp     = 0.0;   // [K]
+    amrex::Real if_surf_heating_rate  = 0.0;   // [K/hr]
+    amrex::Real if_Olen_in            = 1e-8;  // [m]
+    bool        if_use_most           = false;
 
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt    = true;

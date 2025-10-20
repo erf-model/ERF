@@ -454,6 +454,8 @@ public:
 
     void init_from_input_sounding (int lev);
 
+    void init_immersed_forcing (int lev);
+
     void input_sponge (int lev);
 
     void init_from_hse (int lev);
