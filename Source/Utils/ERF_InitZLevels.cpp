@@ -43,14 +43,11 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
             // Create stretched grid based on initial dz and stretching ratio
             zlevels_stag[lev][0] = zsurf;
             Real dz = dz0;
-            stretched_dz_h[lev][0] = dz0;
             Print() << "Stretched grid levels at level : " << lev << " is " <<  zsurf;
             for (int k = 1; k < nz+1; k++)
             {
+                stretched_dz_h[lev][k-1] = dz;
                 zlevels_stag[lev][k] = zlevels_stag[lev][k-1] + dz;
-                if (k < nz) {
-                    stretched_dz_h[lev][k] = dz;
-                }
                 Print() << " " << zlevels_stag[lev][k];
                 dz *= grid_stretching_ratio;
             }
