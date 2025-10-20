@@ -7,8 +7,8 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent = 400.0 400.0  2000.0
-amr.n_cell           = 4     4      200
+geometry.prob_extent = 4000.0 4000.0  2000.0
+amr.n_cell           = 4      4       200
     
 geometry.is_periodic = 1 1 0
 
@@ -26,7 +26,7 @@ erf.most.zref   = 10.0
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt = 0.1
+erf.fixed_dt = 1.0
 erf.fixed_mri_dt_ratio = 6
 
 # DIAGNOSTICS & VERBOSITY
@@ -50,9 +50,9 @@ erf.plot_vars_1     = density rhotheta rhoQ1 rhoQ2 rhoadv_0 x_velocity y_velocit
 erf.use_gravity     = true
 erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_forcing = 7.0 -5.5 0.0
-#erf.use_coriolis    = true
-#erf.latitude        = 90.
-#erf.rotational_time_period = 86164.0900027328
+erf.use_coriolis    = true
+erf.latitude        = 90.
+erf.rotational_time_period = 86164.0900027328
 
 erf.four_stream_radiation              = true
 erf.add_custom_w_subsidence            = true

@@ -75,6 +75,8 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 #include "ERF_DiffSetup.H"
     Real l_abs_g      = std::abs(grav_gpu[2]);
 
+    int klo = domain.smallEnd(2);
+    int khi = domain.bigEnd(2);
     auto dz_ptr = stretched_dz_d.data();
 
     for (int n(0); n<num_comp; ++n) {
@@ -167,7 +169,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
             } else {
-                Real dzk_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                Real dzk_inv;
+                if (k==klo) {
+                    dzk_inv =  1.0 / dz_ptr[k];
+                } else if (k==(khi+1)) {
+                    dzk_inv =  1.0 / dz_ptr[k-1];
+                } else {
+                    dzk_inv =  2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                }
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
@@ -271,7 +280,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
             } else {
-                Real dzk_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                Real dzk_inv;
+                if (k==klo) {
+                    dzk_inv =  1.0 / dz_ptr[k];
+                } else if (k==(khi+1)) {
+                    dzk_inv =  1.0 / dz_ptr[k-1];
+                } else {
+                    dzk_inv =  2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                }
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
@@ -374,7 +390,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
             } else {
-                Real dzk_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                Real dzk_inv;
+                if (k==klo) {
+                    dzk_inv =  1.0 / dz_ptr[k];
+                } else if (k==(khi+1)) {
+                    dzk_inv =  1.0 / dz_ptr[k-1];
+                } else {
+                    dzk_inv =  2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                }
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
@@ -474,7 +497,14 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                                     + c2 * cell_prim(i, j, k-1, prim_index)
                                     + c3 * cell_prim(i, j, k-2, prim_index) ) );
             } else {
-                Real dzk_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                Real dzk_inv;
+                if (k==klo) {
+                    dzk_inv =  1.0 / dz_ptr[k];
+                } else if (k==(khi+1)) {
+                    dzk_inv =  1.0 / dz_ptr[k-1];
+                } else {
+                    dzk_inv =  2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+                }
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
