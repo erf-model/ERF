@@ -452,7 +452,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
                 surf_mom_flux_d(icol,1)  = 0.5 * (t23_arr(i,j,k) + t23_arr(i  ,j+1,k));
                 // Unit conversion to W/m^2 (eamxx_shoc_process_interface.cpp L62)
                 surf_sens_flux_d(icol)   = hfx3_arr(i,j,k) * r * Cp_d;
-                surf_evap(icol)          = (moist) ? qfx3_arr(i,j,k) : 0.0;
+                surf_evap_d(icol)        = (moist) ? qfx3_arr(i,j,k) : 0.0;
                 // Back out the drag coeff
                 Real wsp = sqrt( horiz_wind_d(icol,0,ilay)[0]*horiz_wind_d(icol,0,ilay)[0]
                                + horiz_wind_d(icol,1,ilay)[0]*horiz_wind_d(icol,1,ilay)[0] );
@@ -825,6 +825,7 @@ SHOCInterface::initialize_impl ()
     // Maximum number of levels in pbl from surface
     const int ntop_shoc = 0;
     const int nbot_shoc = m_num_layers;
+    auto p_mid_d = p_mid;
     view_1d pref_mid("pref_mid", m_num_layers);
     Spack* s_mem = reinterpret_cast<Spack*>(pref_mid.data());
     SHF::view_1d<Spack> pref_mid_um(s_mem, m_num_layers);
@@ -835,7 +836,7 @@ SHOCInterface::initialize_impl ()
     {
         const auto i = team.league_rank();
         if (i==0) {
-            const auto& pmid_i = ekat::subview(p_mid, i);
+            const auto& pmid_i = ekat::subview(p_mid_d, i);
             Kokkos::parallel_for(Kokkos::TeamVectorRange(team, nlev_packs), [&](const int& k)
             {
                 pref_mid_um(k) = pmid_i(k);
@@ -944,6 +945,8 @@ SHOCInterface::apply_turbulent_mountain_stress()
     auto rrho_i   = m_buffer.rrho_i;
     auto upwp_sfc = m_buffer.upwp_sfc;
     auto vpwp_sfc = m_buffer.vpwp_sfc;
+    auto surf_drag_coeff_tms_d = surf_drag_coeff_tms;
+    auto horiz_wind_d = horiz_wind;
 
     const int nlev_v  = (m_num_layers-1)/Spack::n;
     const int nlev_p  = (m_num_layers-1)%Spack::n;
@@ -952,8 +955,8 @@ SHOCInterface::apply_turbulent_mountain_stress()
 
     Kokkos::parallel_for("apply_tms", KT::RangePolicy(0, m_num_cols), KOKKOS_LAMBDA (const int i)
     {
-        upwp_sfc(i) -= surf_drag_coeff_tms(i)*horiz_wind(i,0,nlev_v)[nlev_p]/rrho_i(i,nlevi_v)[nlevi_p];
-        vpwp_sfc(i) -= surf_drag_coeff_tms(i)*horiz_wind(i,1,nlev_v)[nlev_p]/rrho_i(i,nlevi_v)[nlevi_p];
+        upwp_sfc(i) -= surf_drag_coeff_tms_d(i)*horiz_wind_d(i,0,nlev_v)[nlev_p]/rrho_i(i,nlevi_v)[nlevi_p];
+        vpwp_sfc(i) -= surf_drag_coeff_tms_d(i)*horiz_wind_d(i,1,nlev_v)[nlev_p]/rrho_i(i,nlevi_v)[nlevi_p];
     });
 }
 
@@ -969,6 +972,8 @@ SHOCInterface::check_flux_state_consistency(const double dt)
     const Real qmin   = 1e-12; // minimum permitted constituent concentration (kg/kg)
 
     const auto& pseudo_density = pseudo_dens;
+    auto qv_d = qv;
+    auto surf_evap_d = surf_evap;
 
     const auto nlevs           = m_num_layers;
     const auto nlev_packs      = ekat::npack<Spack>(nlevs);
@@ -982,16 +987,16 @@ SHOCInterface::check_flux_state_consistency(const double dt)
         const auto i = team.league_rank();
 
         const auto& pseudo_density_i = ekat::subview(pseudo_density, i);
-        const auto& qv_i             = ekat::subview(qv, i);
+        const auto& qv_i             = ekat::subview(qv_d, i);
 
         // reciprocal of pseudo_density at the bottom layer
         const auto rpdel = 1.0/pseudo_density_i(last_pack_idx)[last_pack_entry];
 
         // Check if the negative surface latent heat flux can exhaust
         // the moisture in the lowest model level. If so, apply fixer.
-        const auto condition = surf_evap(i) - (qmin - qv_i(last_pack_idx)[last_pack_entry])/(dt*gravit*rpdel);
+        const auto condition = surf_evap_d(i) - (qmin - qv_i(last_pack_idx)[last_pack_entry])/(dt*gravit*rpdel);
         if (condition < 0) {
-            const auto cc = std::fabs(surf_evap(i)*dt*gravit);
+            const auto cc = std::fabs(surf_evap_d(i)*dt*gravit);
 
             auto tracer_mass = [&](const int k)
             {
@@ -1007,7 +1012,7 @@ SHOCInterface::check_flux_state_consistency(const double dt)
                 qv_i(k) = (qv_i(k)*pseudo_density_i(k) - adjust)/pseudo_density_i(k);
             });
 
-            surf_evap(i) = 0;
+            surf_evap_d(i) = 0;
         }
     });
 }
