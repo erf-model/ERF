@@ -19,7 +19,6 @@ using namespace amrex;
  * @param[in]  xflux flux in x-dir
  * @param[in]  yflux flux in y-dir
  * @param[in]  zflux flux in z-dir
- * @param[in]  detJ Jacobian determinant
  * @param[in]  cellSizeInv inverse cell size array
  * @param[in]  SmnSmn_a strain rate magnitude
  * @param[in]  mf_m map factor at cell center
