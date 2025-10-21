@@ -16,6 +16,8 @@ amrex::Real erf_gammafff (amrex::Real x){
     return std::exp(lgamma(x));
 }
 
+// Saturation vapor pressure of ice [mbar]
+//
 // From Flatau et al. (1992):
 // https://doi.org/10.1175/1520-0450(1992)031<1507:PFTSVP>2.0.CO;2
 // Coefficients come from Table 4 and the data is valid over a
@@ -33,7 +35,7 @@ amrex::Real erf_esati (amrex::Real t) {
     amrex::Real const a8 = 0.252751365e-14;
 
     amrex::Real dtt = t-273.16;
-    AMREX_ALWAYS_ASSERT(dtt>-85);
+    AMREX_ALWAYS_ASSERT(dtt>-90);
 
     amrex::Real esati;
     if (dtt > 0.0) {
@@ -57,6 +59,7 @@ amrex::Real erf_esatw_cc (amrex::Real t) {
 }
 
 // Saturation vapor pressure of water vapor [mbar]
+//
 // From Flatau et al. (1992):
 // https://doi.org/10.1175/1520-0450(1992)031<1507:PFTSVP>2.0.CO;2
 // Coefficients come from Table 4 and the data is valid over a

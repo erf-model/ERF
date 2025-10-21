@@ -18,11 +18,11 @@ private:
    /**
     * \brief rhs is the right-hand-side function the integrator will use.
     */
-    std::function<void(T&, const T&,     const amrex::Real, const amrex::Real     )> rhs;
-    std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_pre;
-    std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int )> slow_rhs_post;
-    std::function<void(int, int, int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real,
-                                                                const amrex::Real, const amrex::Real)> fast_rhs;
+    std::function<void(T&, const T&,   const amrex::Real, const amrex::Real     )> rhs;
+    std::function<void(T&, T&, T&,     const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_pre;
+    std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int )> slow_rhs_post;
+    std::function<void(int, int, int, T&, const T&, T&, T&, const amrex::Real, const amrex::Real,
+                                                            const amrex::Real, const amrex::Real)> fast_rhs;
 
    /**
     * \brief Integrator timestep size (Real)
@@ -62,20 +62,17 @@ private:
 
     amrex::Vector<std::unique_ptr<T> > T_store;
     T* S_sum;
-    T* S_scratch;
     T* F_slow;
 
     void initialize_data (const T& S_data)
     {
-        // TODO: We can optimize memory by making the cell-centered part of S_sum, S_scratch
+        // TODO: We can optimize memory by making the cell-centered part of S_sum
         //       have only 2 components, not ncomp_cons components
         const bool include_ghost = true;
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         S_sum = T_store[0].get();
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
-        S_scratch = T_store[1].get();
-        amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
-        F_slow = T_store[2].get();
+        F_slow = T_store[1].get();
     }
 
 public:
@@ -130,16 +127,16 @@ public:
         force_stage1_single_substep = _force_stage1_single_substep;
     }
 
-    void set_slow_rhs_pre (std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
+    void set_slow_rhs_pre (std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
     {
         slow_rhs_pre = F;
     }
-    void set_slow_rhs_post (std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
+    void set_slow_rhs_post (std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
     {
         slow_rhs_post = F;
     }
 
-    void set_fast_rhs (std::function<void(int, int, int, T&, const T&, T&, T&, T&,
+    void set_fast_rhs (std::function<void(int, int, int, T&, const T&, T&, T&,
                                           const amrex::Real, const amrex::Real,
                                           const amrex::Real, const amrex::Real)> F)
     {
@@ -265,12 +262,7 @@ public:
             // step 2 starts with S_stage = S^*  and we always start substepping at the old time
             // step 3 starts with S_stage = S^** and we always start substepping at the old time
 
-            // S_scratch also holds the average momenta over the fast iterations --
-            //    to be used to update the slow variables -- we will initialize with
-            //    the momenta used in the first call to the slow_rhs, then update
-            //    inside fast_rhs, then use these values in the later call to slow_rhs
-
-            slow_rhs_pre(*F_slow, S_old, S_new, *S_scratch, time, old_time_stage, time_stage, nrk);
+            slow_rhs_pre(*F_slow, S_old, S_new, time, old_time_stage, time_stage, nrk);
 
             amrex::Real inv_fac = 1.0 / static_cast<amrex::Real>(nsubsteps);
 
@@ -284,7 +276,7 @@ public:
                 // *******************************************************************************
                 for (int ks = 0; ks < nsubsteps; ++ks)
                 {
-                    fast_rhs(ks, nsubsteps, nrk, *F_slow, S_old, S_new, *S_sum, *S_scratch, dtau, inv_fac,
+                    fast_rhs(ks, nsubsteps, nrk, *F_slow, S_old, S_new, *S_sum, dtau, inv_fac,
                              time + ks*dtau, time + (ks+1) * dtau);
 
                 } // ks
@@ -300,7 +292,7 @@ public:
             //       but we are using the "new" versions (in S_sum) of the velocities
             //      (because we did    update the fast variables in the substepping)
             // ****************************************************
-            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage, nrk);
+            slow_rhs_post(*F_slow, S_old, S_new, *S_sum,  time, old_time_stage, time_stage, nrk);
           } // nrk
 
         } else {
@@ -313,12 +305,7 @@ public:
             if (nrk == 0) { nsubsteps = 1; dtau = timestep; time_stage = time + timestep; }
             if (nrk == 1) { nsubsteps = 1; dtau = timestep; time_stage = time + timestep; }
 
-            // S_scratch also holds the average momenta over the fast iterations --
-            //    to be used to update the slow variables -- we will initialize with
-            //    the momenta used in the first call to the slow_rhs, then update
-            //    inside fast_rhs, then use these values in the later call to slow_rhs
-
-            slow_rhs_pre(*F_slow, S_old, S_new, *S_scratch, time, old_time_stage, time_stage, nrk);
+            slow_rhs_pre(*F_slow, S_old, S_new, time, old_time_stage, time_stage, nrk);
 
             no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau, nrk);
 
@@ -329,7 +316,7 @@ public:
             //       but we are using the "new" versions (in S_sum) of the velocities
             //      (because we did    update the fast variables in the substepping)
             // ****************************************************
-            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage, nrk);
+            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, time, old_time_stage, time_stage, nrk);
           } // nrk
         }
 

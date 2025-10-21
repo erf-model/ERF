@@ -24,13 +24,14 @@ amr.v              = 1       # verbosity in Amr.cpp
 
 erf.data_log = my_data_file
 
-erf.sampler_interval = 1
 erf.do_line_sampling = true
+erf.line_sampling_interval = 1
 erf.sample_line_lo   = 5 32  5 10   32 5
 erf.sample_line_hi   = 5 32 25 1000 32 5
 erf.sample_line_dir  = 2 0
 
 erf.do_plane_sampling = true
+erf.plane_sampling_interval = 10
 erf.sample_plane_lo   =  48.0  48.0  32.0
 erf.sample_plane_hi   = 320.0 320.0  32.0 
 erf.sample_plane_dir  = 2

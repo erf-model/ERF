@@ -28,6 +28,7 @@ namespace LsmData_NOAHMP {
          sfc_alb_dir_nir,
          sfc_alb_dif_vis,
          sfc_alb_dif_nir,
+         cos_zenith_angle,
          sw_flux_dn,
          lw_flux_dn,
          NumVars
@@ -37,8 +38,8 @@ namespace LsmData_NOAHMP {
 namespace LsmFlux_NOAHMP {
    enum {
          // 2D SurfaceLayer flux vars
+         t_flux = 0,
          q_flux,
-         t_flux,
          tau13,
          tau23,
          NumVars

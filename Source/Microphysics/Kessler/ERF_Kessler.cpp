@@ -10,7 +10,8 @@ using namespace amrex;
  */
 void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 {
-    auto tabs  = mic_fab_vars[MicVar_Kess::tabs];
+    bool do_cond = m_do_cond;
+    auto tabs    = mic_fab_vars[MicVar_Kess::tabs];
     if (solverChoice.moisture_type == MoistureType::Kessler){
         auto dz = m_geom.CellSize(2);
         auto domain = m_geom.Domain();
@@ -75,17 +76,17 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 Real fac = (L_v/Cp_d)*dtqsat;
 
                 // If water vapor content exceeds saturation value, then vapor condenses to water and latent heat is released, increasing temperature
-                if (qv_array(i,j,k) > qsat) {
+                if ( (qv_array(i,j,k) > qsat) && do_cond ) {
                     dq_vapor_to_clwater = std::min(qv_array(i,j,k), (qv_array(i,j,k)-qsat)/(1.0 + fac));
                 }
 
                 // If water vapor is less than the saturated value, then the cloud water can evaporate,
                 // leading to evaporative cooling and reducing temperature
-                if (qv_array(i,j,k) < qsat && qc_array(i,j,k) > 0.0) {
+                if ( (qv_array(i,j,k) < qsat) && (qc_array(i,j,k) > 0.0) && do_cond ) {
                     dq_clwater_to_vapor = std::min(qc_array(i,j,k), (qsat - qv_array(i,j,k))/(1.0 + fac));
                 }
 
-                if (qp_array(i,j,k) > 0.0 && qv_array(i,j,k) < qsat) {
+                if (( qp_array(i,j,k) > 0.0) && (qv_array(i,j,k) < qsat) ) {
                     Real C = 1.6 + 124.9*std::pow(0.001*rho_array(i,j,k)*qp_array(i,j,k),0.2046);
                     dq_rain_to_vapor = 1.0/(0.001*rho_array(i,j,k))*(1.0 - qv_array(i,j,k)/qsat)*C*std::pow(0.001*rho_array(i,j,k)*qp_array(i,j,k),0.525)/
                         (5.4e5 + 2.55e6/(pressure*qsat))*dtn;
@@ -247,8 +248,8 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
     }
 
 
-    if (solverChoice.moisture_type == MoistureType::Kessler_NoRain){
-
+    if (solverChoice.moisture_type == MoistureType::Kessler_NoRain) {
+        if (!do_cond) { return; }
         // get the temperature, density, theta, qt and qc from input
         for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
