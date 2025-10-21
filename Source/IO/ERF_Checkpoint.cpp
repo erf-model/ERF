@@ -677,9 +677,8 @@ ERF::ReadCheckpointFile ()
            update_terrain_arrays(lev);
 
            // Compute the min dz and pass to the micro model
-           Real dz_min = get_dzmin_terrain(*z_phys_nd[lev]);
-           ParallelDescriptor::ReduceRealMin(dz_min);
-           micro->Set_dzmin(lev, dz_min);
+           Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
+           micro->Set_dzmin(lev, dzmin);
 
            if (SolverChoice::mesh_type == MeshType::VariableDz) {
                MultiFab z_slab(convert(ba2d[lev],IntVect(1,1,1)),dmap[lev],1,0);
