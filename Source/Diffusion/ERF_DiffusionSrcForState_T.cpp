@@ -85,7 +85,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 {
     BL_PROFILE_VAR("DiffusionSrcForState_T()",DiffusionSrcForState_T);
 
-#include "ERF_DiffSetup.H"
+#include "ERF_SetupDiff.H"
     Real l_abs_g      = std::abs(grav_gpu[2]);
 
     const Real dz_inv = cellSizeInv[2];
@@ -698,6 +698,6 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
     });
     } // n
 
-#include "ERF_DiffTKEAdjustment.H"
-#include "ERF_DiffQKEAdjustment.H"
+#include "ERF_AddTKESources.H"
+#include "ERF_AddQKESources.H"
 }

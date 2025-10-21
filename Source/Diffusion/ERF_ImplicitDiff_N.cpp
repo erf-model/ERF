@@ -43,7 +43,7 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain,
     BL_PROFILE_VAR("ImplicitDiffForState_N()",ImplicitDiffForState_N);
 
     // this uses domain, level, start_comp, num_comp
-#include "ERF_DiffSetup.H"
+#include "ERF_SetupVertDiff.H"
 
     const int         n = RhoTheta_comp;
     const int qty_index = RhoTheta_comp;
