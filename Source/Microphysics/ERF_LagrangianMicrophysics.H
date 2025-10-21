@@ -173,10 +173,10 @@ public:
     }
 
      /*! \brief Populates dz_min in micro model for precipitation */
-    virtual void Set_dzmin (const int a_lev,
+    virtual void Set_dzmin (const int /*a_lev*/,
                             const amrex::Real dz_min) const override
     {
-        m_moist_model[a_lev]->Set_dzmin(dz_min);
+        m_moist_model->Set_dzmin(dz_min);
     }
 
 protected:
