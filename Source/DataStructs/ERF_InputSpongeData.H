@@ -33,9 +33,8 @@ public:
         const int Nz = geom.Domain().size()[AMREX_SPACEDIM-1];
         const amrex::Real dz = geom.CellSize()[AMREX_SPACEDIM-1];
 
-        const bool use_terrain = (zlevels_stag.size() > 0);
-        const amrex::Real zbot = (use_terrain) ? zlevels_stag[klo]   : geom.ProbLo(AMREX_SPACEDIM-1);
-        const amrex::Real ztop = (use_terrain) ? zlevels_stag[khi+1] : geom.ProbHi(AMREX_SPACEDIM-1);
+        const amrex::Real zbot = zlevels_stag[klo];
+        const amrex::Real ztop = zlevels_stag[khi+1];
 
         z_inp_sponge.resize(Nz+2);
         U_inp_sponge.resize(Nz+2);
@@ -85,8 +84,7 @@ public:
             U_inp_sponge[0]     = U_inp_sponge_tmp[0];
             V_inp_sponge[0]     = V_inp_sponge_tmp[0];
             for (int k=0; k < Nz; ++k) {
-                z_inp_sponge[k+1] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
-                                                 : zbot + (k + 0.5) * dz;
+                z_inp_sponge[k+1] = 0.5 * (zlevels_stag[k] + zlevels_stag[k+1]);
                 U_inp_sponge[k+1] = interpolate_1d(z_inp_sponge_tmp.dataPtr(), U_inp_sponge_tmp.dataPtr(), z_inp_sponge[k+1], Ninp);
                 V_inp_sponge[k+1] = interpolate_1d(z_inp_sponge_tmp.dataPtr(), V_inp_sponge_tmp.dataPtr(), z_inp_sponge[k+1], Ninp);
             }
