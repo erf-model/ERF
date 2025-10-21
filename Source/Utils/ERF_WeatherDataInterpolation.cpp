@@ -498,10 +498,11 @@ ERF::WeatherDataInterpolation(const Real time)
 {
 
     static Real next_read_forecast_time = -1.0;
+    Real hindcast_data_interval = solverChoice.hindcast_data_interval_in_hrs*3600.0;
 
     if (next_read_forecast_time < 0.0) {
-        int next_multiple = static_cast<int>(time / 10800.0);
-        next_read_forecast_time = next_multiple * 10800.0;
+        int next_multiple = static_cast<int>(time / hindcast_data_interval);
+        next_read_forecast_time = next_multiple * hindcast_data_interval;
     }
     if (time >= next_read_forecast_time) {
 
@@ -531,8 +532,8 @@ ERF::WeatherDataInterpolation(const Real time)
 
         std::string filename1, filename2;
 
-        int idx1 = static_cast<int>(time / 10800.0);
-        int idx2 = static_cast<int>(time / 10800.0)+1;
+        int idx1 = static_cast<int>(time / hindcast_data_interval);
+        int idx2 = static_cast<int>(time / hindcast_data_interval)+1;
         std::cout << "Reading weather data " << time << " " << idx1 << " " << idx2 <<" " << bin_files.size() << std::endl;
 
         if (idx2 >= static_cast<int>(bin_files.size())) {
@@ -571,9 +572,9 @@ ERF::WeatherDataInterpolation(const Real time)
 
         CreateForecastStateMultiFabs(forecast_state_interp);
 
-        next_read_forecast_time += 10800.0;
+        next_read_forecast_time += hindcast_data_interval;
     }
-    Real alpha1 = 1.0 - (time - next_read_forecast_time)/10800.0;
+    Real alpha1 = 1.0 - (time - next_read_forecast_time)/hindcast_data_interval;
     Real alpha2 = 1.0 - alpha1;
 
     MultiFab& erf_mf_cons   = forecast_state_interp[0][Vars::cons];
