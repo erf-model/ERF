@@ -73,8 +73,6 @@ Morrison::Init (const MultiFab& cons_in,
         rho1d.resize({zlo}, {zhi});
         pres1d.resize({zlo}, {zhi});
         tabs1d.resize({zlo}, {zhi});
-        gamaz.resize({zlo}, {zhi});
-        zmid.resize({zlo}, {zhi});
     }
 
 #ifdef ERF_USE_MORR_FORT
@@ -88,6 +86,11 @@ Morrison::Init (const MultiFab& cons_in,
 #endif
 }
 
+void
+Morrison::Set_dzmin (const Real dz_min)
+{
+    m_dzmin = dz_min;
+}
 
 /**
  * Initializes the Microphysics module.
@@ -151,9 +154,6 @@ Morrison::Copy_State_to_Micro (const MultiFab& cons_in)
 
 void Morrison::Compute_Coefficients ()
 {
-    auto dz   = m_geom.CellSize(2);
-    auto lowz = m_geom.ProbLo(2);
-
     auto accrrc_t  = accrrc.table();
     auto accrsi_t  = accrsi.table();
     auto accrsc_t  = accrsc.table();
@@ -170,9 +170,6 @@ void Morrison::Compute_Coefficients ()
     auto rho1d_t  = rho1d.table();
     auto pres1d_t = pres1d.table();
     auto tabs1d_t = tabs1d.table();
-
-    auto gamaz_t  = gamaz.table();
-    auto zmid_t   = zmid.table();
 
     Real gam3  = erf_gammafff(3.0             );
     Real gamr1 = erf_gammafff(3.0+b_rain      );
@@ -222,8 +219,6 @@ void Morrison::Compute_Coefficients ()
         //       not affect results since evporation requires snow/graupel to be present
         //       and thus T<273.16
         tabs1d_t(k)   = std::min(getTgivenRandRTh(rho_dptr[k], RhoTheta, qv_dptr[k]),273.16);
-        zmid_t(k)     = lowz + (k+0.5)*dz;
-        gamaz_t(k)    = gOcp*zmid_t(k);
     });
 
     if(round(gam3) != 2) {

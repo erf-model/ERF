@@ -1,7 +1,6 @@
 #include <AMReX_GpuContainers.H>
 #include "ERF_Kessler.H"
 #include "ERF_IndexDefines.H"
-#include "ERF_PlaneAverage.H"
 #include "ERF_EOS.H"
 #include "ERF_TileNoZ.H"
 
@@ -54,6 +53,12 @@ void Kessler::Init (const MultiFab& cons_in,
         zlo  = lo.z;
         zhi  = hi.z;
     }
+}
+
+void
+Kessler::Set_dzmin (const Real dz_min)
+{
+    m_dzmin = dz_min;
 }
 
 /**
