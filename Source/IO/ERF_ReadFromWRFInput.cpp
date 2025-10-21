@@ -84,8 +84,11 @@ read_from_wrfinput (int lev,
                     "amr.n_cell[0] does not match wrfinput");
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(south_north_stag == geom.Domain().length(1)+1,
                     "amr.n_cell[1] does not match wrfinput");
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bottom_top == geom.Domain().length(2),
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bottom_top >= geom.Domain().length(2),
                     "amr.n_cell[2] does not match wrfinput");
+            if (geom.Domain().length(2) < bottom_top) {
+                Warning("Fewer vertical levels in ERF domain than the wrfinput");
+            }
 
             Real rtol  = 1.0e-7;
             Real Len_x = NC_dx * Real(NC_nx-1);

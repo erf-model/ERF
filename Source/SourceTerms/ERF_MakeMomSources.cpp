@@ -15,6 +15,8 @@ using namespace amrex;
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
  *
+ * @param[in] time current time
+ * @param[in] dt current slow or fast timestep size
  * @param[in]  S_data current solution
  * @param[in]  xvel x-component of velocity
  * @param[in]  yvel y-component of velocity
@@ -31,6 +33,7 @@ using namespace amrex;
  */
 
 void make_mom_sources (Real time,
+                       Real dt,
                        const Vector<MultiFab>& S_data,
                              MultiFab& z_phys_nd,
                              MultiFab& z_phys_cc,
@@ -48,12 +51,13 @@ void make_mom_sources (Real time,
                              MultiFab* sinPhi_mf,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
-                       Vector<std::unique_ptr<MultiFab>>& /*mapfac*/,
+                             Vector<std::unique_ptr<MultiFab>>& /*mapfac*/,
                        const Real* dptr_u_geos,
                        const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
+                       const Vector<MultiFab>* forecast_state_at_lev,
                              InputSoundingData& input_sounding_data,
                              LargeScaleForcingData &lsf_data,
                              std::unique_ptr<amrex::MultiFab>& lsf_tendencies,
@@ -89,6 +93,7 @@ void make_mom_sources (Real time,
     //    8. Forest canopy
     //    9. Immersed forcing
     //   10. Constant mass flux
+    //   11. Vertical-velocity damping
     // *****************************************************************************
     // NOTE: buoyancy is now computed in a separate routine - it should not appear here
     // *****************************************************************************
@@ -309,11 +314,37 @@ void make_mom_sources (Real time,
         const Array4<const Real>& z_nd_arr =  z_phys_nd.const_array(mfi);
         const Array4<const Real>& z_cc_arr =  z_phys_cc.const_array(mfi);
 
+
         // *****************************************************************************
         // 1. Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis && is_slow_step) {
-            if (var_coriolis && has_lat_lon) {
+            if(solverChoice.init_type == InitType::HindCast) {
+                const Array4<const Real>& latlon_arr = (*forecast_state_at_lev)[4].array(mfi);
+                ParallelFor(tbx, tby, tbz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
+                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
+                    Real latitude = latlon_arr(i,j,k,0);
+                    Real sphi_loc = std::sin(latitude*PI/180.0);
+                    Real cphi_loc = std::cos(latitude*PI/180.0);
+                    xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sphi_loc - rho_w_loc * cphi_loc);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
+                    Real latitude = latlon_arr(i,j,k,0);
+                    Real sphi_loc = std::sin(latitude*PI/180.0);
+                    ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sphi_loc;
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
+                    Real latitude = latlon_arr(i,j,k,0);
+                    Real cphi_loc = std::cos(latitude*PI/180.0);
+                    zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cphi_loc;
+                });
+            }
+            else if (var_coriolis && has_lat_lon) {
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
@@ -723,6 +754,19 @@ void make_mom_sources (Real time,
                                         xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w,
                                         r0, z_nd_arr, z_cc_arr);
             }
+
+            if(solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_lateral_forcing){
+
+                const Array4<const Real>& rho_u_forecast_state  = (*forecast_state_at_lev)[IntVars::xmom].array(mfi);
+                const Array4<const Real>& rho_v_forecast_state  = (*forecast_state_at_lev)[IntVars::ymom].array(mfi);
+                const Array4<const Real>& rho_w_forecast_state  = (*forecast_state_at_lev)[IntVars::zmom].array(mfi);
+                const Array4<const Real>& cons_forecast_state   = (*forecast_state_at_lev)[IntVars::cons].array(mfi);
+                ApplyBndryForcing_Forecast(solverChoice, geom, tbx, tby, tbz, z_nd_arr,
+                                           xmom_src_arr, ymom_src_arr, zmom_src_arr,
+                                           rho_u, rho_v, rho_w,
+                                           rho_u_forecast_state, rho_v_forecast_state, rho_w_forecast_state,
+                                           cons_forecast_state);
+            }
         }
 
         // *****************************************************************************
@@ -823,6 +867,62 @@ void make_mom_sources (Real time,
             },
             [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                 ymom_src_arr(i, j, k) += tau_inv * (rhoVA_target - rhoVA);
+            });
+        }
+
+        // *****************************************************************************
+        // 11. Add w-damping
+        // *****************************************************************************
+        bool        w_damping       = solverChoice.w_damping;
+        amrex::Real w_damping_coeff = solverChoice.w_damping_coeff;
+        amrex::Real cflw_lim        = solverChoice.w_damping_cfl;
+
+        if (w_damping && is_slow_step) {
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                Real dzInv;
+                if (z_nd_arr) {
+                    // average z_nd to face then diff
+                    if (k == domain.smallEnd(2)) {
+                        dzInv = 4.0 / (
+                            z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k)
+                          + z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k)
+                          + z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k)
+                          + z_nd_arr(i+1,j+1,k+1) - z_nd_arr(i+1,j+1,k) );
+                    } else if (k == domain.bigEnd(2)+1) {
+                        dzInv = 4.0 / (
+                            z_nd_arr(i  ,j  ,k) - z_nd_arr(i  ,j  ,k-1)
+                          + z_nd_arr(i+1,j  ,k) - z_nd_arr(i+1,j  ,k-1)
+                          + z_nd_arr(i  ,j+1,k) - z_nd_arr(i  ,j+1,k-1)
+                          + z_nd_arr(i+1,j+1,k) - z_nd_arr(i+1,j+1,k-1) );
+                    } else {
+                        // dz = 0.5 * (dz[i,j,k] + dz[i,j,k+1])
+                        //    = 0.5 * (z_nd_face[i,j,k+1] - z_nd_face[i,j,k-1])
+                        dzInv = 8.0 / (
+                            z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k-1)
+                          + z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k-1)
+                          + z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k-1)
+                          + z_nd_arr(i+1,j+1,k+1) - z_nd_arr(i+1,j+1,k-1) );
+                    }
+                } else {
+                    dzInv = dxInv[2];
+                }
+
+                Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                Real wmag = std::abs(rho_w(i,j,k) / rho_on_w_face);
+
+                Real cflw = wmag * dt * dzInv;
+                if (cflw > cflw_lim) {
+#ifdef AMREX_USE_GPU
+                    AMREX_DEVICE_PRINTF("w-damping applied at (%d,%d,%d) for w-CFL = %f > %f\n",
+                           i,j,k, cflw, cflw_lim);
+#else
+                    printf("w-damping applied at (%d,%d,%d) for w-CFL = %f > %f\n",
+                           i,j,k, cflw, cflw_lim);
+#endif
+                    Real sgn_w = (rho_w(i,j,k) > 0) ? 1.0 : -1.0;
+                    zmom_src_arr(i, j, k) -= rho_on_w_face * sgn_w * w_damping_coeff * (cflw - cflw_lim);
+                }
             });
         }
     } // mfi

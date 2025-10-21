@@ -10,8 +10,9 @@ using KokkosDefaultDevice = Kokkos::Device<Kokkos::Experimental::SYCL, Kokkos::E
 #else
 using KokkosDefaultDevice = KokkosHostDevice;
 #endif
-using layout_t         = Kokkos::LayoutRight;
 using RealT            = amrex::Real;
+using layout_t         = Kokkos::LayoutRight;
+using KokkosDefaultMem = Kokkos::DefaultExecutionSpace::memory_space;
 using realHost1d_k     = Kokkos::View<RealT* , KokkosHostDevice>;
 using realHost2d_k     = Kokkos::View<RealT**, layout_t, KokkosHostDevice>;
 using real1d_k         = Kokkos::View<RealT*  , KokkosDefaultDevice>;

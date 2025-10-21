@@ -22,12 +22,14 @@ Getting Started
 See `Getting Started <https://erf.readthedocs.io/en/latest/GettingStarted.html>`_ for instructions as to how to clone the ERF
 and AMReX codes, and for how to build and run an ERF example.  Minimum requirements for system software are also given there.
 
+Python tools for pre- and post-processing ERF can be found in the companion `erftools repository <https://github.com/erf-model/erftools/>`_.
+
 Documentation
 ~~~~~~~~~~~~~~~~~
 
-Documentation of the ERF theory and implementation is available `here <https://erf.readthedocs.io/en/latest/>`_ .
+Documentation of the ERF theory and implementation is available `here <https://erf.readthedocs.io/en/latest/>`_.
 
-In addition, there is doxygen documentation of the ERF Code available `here <https://erf-model.github.io/docs/index.html>`_
+In addition, there is doxygen documentation of the ERF Code available `here <https://erf-model.github.io/docs/index.html>`_.
 
 Development model
 ~~~~~~~~~~~~~~~~~

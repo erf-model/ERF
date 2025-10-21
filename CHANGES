@@ -1,3 +1,14 @@
+#25.10
+    -- Different dt for Line and plane sampler (#2570)
+
+    -- Read wrflowinp slice as needed (#2569)
+
+    -- Acoustic substepping pressure with moisture (#2566)
+
+    -- Fix restart with StretchDz (#2568)
+
+    -- MYJ PBL scheme (#2524)
+
 #25.08
     -- 2D plotfile capability (#2463)
 

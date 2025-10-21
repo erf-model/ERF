@@ -6,6 +6,27 @@ if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
 else()
   project(ERF CXX C)
 endif()
+
+# Find NVHPC package and create aliases if needed
+if(ERF_ENABLE_CUDA AND ERF_ENABLE_NVHPC)
+  find_package(NVHPC REQUIRED COMPONENTS MATH CUDA)
+  function(create_cuda_alias nvhpc_target cuda_name)
+    if(TARGET NVHPC::${nvhpc_target} AND NOT TARGET CUDA::${cuda_name})
+      add_library(CUDA::${cuda_name} ALIAS NVHPC::${nvhpc_target})
+      message(STATUS " Created alias: CUDA::${cuda_name} -> NVHPC::${nvhpc_target}")
+    elseif(NOT TARGET NVHPC::${nvhpc_target})
+      message(WARNING "X Cannot create alias CUDA::${cuda_name}: NVHPC::${nvhpc_target} not found")
+  endif()
+  endfunction()
+  create_cuda_alias(CUBLAS cublas)
+  create_cuda_alias(CUBLAS_STATIC cublas_static)
+  create_cuda_alias(CURAND curand)
+  create_cuda_alias(CURAND_STATIC curand_static)
+  create_cuda_alias(CUSPARSE cusparse)
+  create_cuda_alias(CUSPARSE_STATIC cusparse_static)
+endif()
+
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
 include(CMakePackageConfigHelpers)
 
@@ -34,6 +55,7 @@ option(ERF_ENABLE_OPENMP "Enable OpenMP" OFF)
 option(ERF_ENABLE_CUDA "Enable CUDA" OFF)
 option(ERF_ENABLE_HIP  "Enable HIP" OFF)
 option(ERF_ENABLE_SYCL "Enable SYCL" OFF)
+option(ERF_ENABLE_NVHPC "Enable NVHPC" OFF)
 
 #Options for NOAH-MP
 option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
@@ -156,7 +178,21 @@ if(ERF_ENABLE_EKAT)
   add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/ekat ${EKAT_BIN})
 
 endif()
+########################### MPI #####################################
 
+##if(ERF_ENABLE_MPI)
+##  set(_mpi_comps C CXX)  # Do we need MPI_C ?
+##  if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
+##    list(APPEND _mpi_comps Fortran)
+##  endif()
+##  find_package(MPI REQUIRED ${_mpi_comps})
+###  list(TRANSFORM _mpi_comps PREPEND "MPI::MPI_")
+###  foreach(D IN LISTS AMReX_SPACEDIM)
+###      target_link_libraries(amrex_${D}d PUBLIC ${_mpi_comps})
+###  endforeach()
+###  unset(_mpi_comps)
+##endif()
+     message(STATUS "mpi section done")
 ########################## NETCDF ##################################
 
 if(ERF_ENABLE_NETCDF OR ERF_ENABLE_TOOLS)
@@ -217,11 +253,16 @@ endif()
 ########################### ERF #####################################
 
 if(ERF_ENABLE_MPI)
+  set(_mpi_comps C CXX)  # Do we need MPI_C ?
   if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
-    find_package(MPI COMPONENTS Fortran REQUIRED)
-  else()
-    find_package(MPI REQUIRED)
+    list(APPEND _mpi_comps Fortran)
   endif()
+  find_package(MPI REQUIRED ${_mpi_comps})
+#  list(TRANSFORM _mpi_comps PREPEND "MPI::MPI_")
+#  foreach(D IN LISTS AMReX_SPACEDIM)
+#      target_link_libraries(amrex_${D}d PUBLIC ${_mpi_comps})
+#  endforeach()
+#  unset(_mpi_comps)
 endif()
 
 # General information about machine, compiler, and build type

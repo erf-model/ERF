@@ -21,12 +21,12 @@
           //
           amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
-            Real rho       = cons_arr(i,j,k,Rho_comp);
-            Real rho_theta = cons_arr(i,j,k,RhoTheta_comp);
-            prim_arr(i,j,k,PrimTheta_comp) = rho_theta / rho;
-            for (int n = 1; n < ncomp_prim; ++n) {
-              prim_arr(i,j,k,PrimTheta_comp + n) = cons_arr(i,j,k,RhoTheta_comp + n) / rho;
-            }
+              Real rho       = cons_arr(i,j,k,Rho_comp);
+              Real rho_theta = cons_arr(i,j,k,RhoTheta_comp);
+              prim_arr(i,j,k,PrimTheta_comp) = rho_theta / rho;
+              for (int n = 1; n < ncomp_prim; ++n) {
+                  prim_arr(i,j,k,PrimTheta_comp + n) = cons_arr(i,j,k,RhoTheta_comp + n) / rho;
+              }
           });
 
           //
@@ -36,10 +36,12 @@
 
           const Array4<      Real>& pi_stage_arr = pi_stage.array(mfi);
           const Real rdOcp = solverChoice.rdOcp;
+          const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
 
           amrex::ParallelFor(gbx1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
-            pi_stage_arr(i,j,k) = getExnergivenRTh(cons_arr(i,j,k,RhoTheta_comp), rdOcp);
+              auto qv_for_p = (l_use_moisture) ? cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp) : 0.0;
+              pi_stage_arr(i,j,k) = getExnergivenRTh(cons_arr(i,j,k,RhoTheta_comp), rdOcp, qv_for_p);
           });
       } // mfi
     };

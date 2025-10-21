@@ -7,7 +7,7 @@ AMREX_ENUM(LESType, None, Smagorinsky, Smagorinsky2D, Deardorff);
 
 AMREX_ENUM(RANSType, None, kEqn);
 
-AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF);
+AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF, SHOC);
 
 AMREX_ENUM(StratType, theta, thetav, thetal);
 
@@ -132,6 +132,10 @@ public:
         query_one_or_per_level(pp, "pbl_mrf_sf", pbl_mrf_sf, lev, max_level);
         query_one_or_per_level(
           pp, "mrf_moistvars", mrf_moistvars, lev, max_level);
+      } else if (pbl_type == PBLType::SHOC) {
+#ifndef ERF_USE_SHOC
+          amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
+#endif
       }
     }
 
@@ -196,7 +200,11 @@ public:
     use_tke =
       ((les_type == LESType::Deardorff) || (rans_type == RANSType::kEqn) ||
        (pbl_type == PBLType::MYJ)       || (pbl_type == PBLType::MYNN25) ||
-       (pbl_type == PBLType::MYNNEDMF));
+       (pbl_type == PBLType::MYNNEDMF)  || (pbl_type == PBLType::SHOC));
+
+    if (use_tke) {
+        query_one_or_per_level(pp, "init_tke_from_ustar", init_tke_from_ustar, lev, max_level);
+    }
 
     // Validate inputs
     if (les_type == LESType::Smagorinsky) {
@@ -375,7 +383,7 @@ public:
   PBLType pbl_type;
 
   MYNNLevel25 pbl_mynn;
-  MYNNLevel2 pbl_mynn_level2; // for filtering
+  MYNNLevel2 pbl_mynn_level2; // limiting in the decaying turbulence regime
 
   // Common Flags
   bool use_kturb = false; // Any turbulence modeling?
@@ -383,8 +391,13 @@ public:
     false; // Any microscale turbulence modeling (LES, RANS) with TKE closure?
            // Then need to populate SmnSmn_lev for production term.
   bool use_pbl_tke =
-    false; // Any mesoscale  turbulence modeling (PBL) with TKE closure?
+    false; // Any mesoscale turbulence modeling (PBL) with TKE closure?
   bool use_tke = false; // Any TKE closure (meso or microscale)?
+
+  // Initialize TKE/QKE with linear profiles whose surface values are a
+  // function of the friction velocity calculated by the surface layer scheme
+  // (e.g., as done in MYNN-EDMF)
+  bool init_tke_from_ustar = false;
 
   // Model coefficients - YSU
   // TODO: Add parmparse for all of these above
