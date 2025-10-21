@@ -15,7 +15,7 @@ Summary of findings
 * The original fully explicit setup requires a diffusive CFL < 0.5 for numerical stability
 * No-terrain and stretched grid give the same level of error compared to explicit (in terms of MAE
   and RMSE)
-* Implicit veritical allows diffusive CFL ~ 50 (dt=60 s) for this test problem, above which the
+* Implicit vertical allows diffusive CFL ~ 50 (dt=60 s) for this test problem, above which the
   solution remains numerically stable but error begins to increase significantly
 * To retain full temporal accuracy -- and minimize error -- use explicit diffusion in the final RK
   stage (e.g., with `erf.vert_implicit_fac = 1 1 0`)
