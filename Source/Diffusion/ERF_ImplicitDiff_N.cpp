@@ -94,16 +94,6 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain, const Real dt,
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {
 
-        // Dirichlet top/bottom
-//             RHS_a(i,j,klo) = 0.0;
-//             RHS_a(i,j,khi) = 0.0;
-//          coeffA_a(i,j,klo) = 0.0;
-//          coeffA_a(i,j,khi) = 0.0;
-//          coeffC_a(i,j,klo) = 0.0;
-//          coeffC_a(i,j,khi) = 0.0;
-//      inv_coeffB_a(i,j,klo) = 1.0;
-//      inv_coeffB_a(i,j,khi) = 1.0;
-
         // Build the coefficients and RHS
         for (int k(klo); k <= khi; k++)
         {
@@ -134,22 +124,6 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain, const Real dt,
                 rhoAlpha_lo = d_alpha_eff[prim_index];
                 rhoAlpha_hi = d_alpha_eff[prim_index];
             }
-
-#if 0
-            if (ext_dir_on_zlo) {
-                zflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
-                                                 + 3. * cell_prim(i, j, k  , prim_index)
-                                            - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
-            } else if (ext_dir_on_zhi) {
-                zflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i, j, k  , prim_index)
-                                                 - 3. * cell_prim(i, j, k-1, prim_index)
-                                        + (1./3.) * cell_prim(i, j, k-2, prim_index) ) * dz_inv;
-            } else if (SurfLayer_on_zlo) {
-                zflux(i,j,k) = hfx_z(i,j,0);
-            } else {
-                zflux(i,j,k) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
-            }
-#endif
 
             RHS_a(i,j,k)  = cell_data(i,j,k,n); // Note this is rho*theta, whereas solution will be theta
 
@@ -200,12 +174,6 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain, const Real dt,
             inv_coeffB_a(i,j,k) = 1.0 / coeffB_a(i,j,k);
         }
 
-#if 0
-        if (use_SurfLayer) {
-            RHS_a(i,j,klo) += implicit_fac * dt * hfx_z(i,j,0);
-        }
-#endif
-
         //
         // Tridiagonal solve
         //
@@ -218,18 +186,6 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain, const Real dt,
         for (int k(khi-1); k>=klo; --k) {
             soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) * soln_a(i,j,k+1);
         }
-
-#if 0
-        zflux(i,j,klo  ) = 0.0;  // We assume zero gradient at bottom (except if prescribed gradient)
-        if (!use_SurfLayer) {
-            hfx_z(i,j,0) -= zflux(i,j,klo);
-        }
-        zflux(i,j,khi+1) = 0.0;  // We assume zero gradient at top
-
-        for (int k(klo+1); k<=khi; ++k) {
-            zflux(i,j,k) = (coeffA_a(i,j,k)/dt) * (soln_a(i,j,k,0) - soln_a(i,j,k-1,0));
-        }
-#endif
 
         //
         // Transfer back to original array
