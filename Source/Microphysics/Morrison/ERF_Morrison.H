@@ -90,7 +90,10 @@ public:
 
     // Import minimum dz at this level
     void
-    Set_dzmin (const amrex::Real dz_min);
+    Set_dzmin (const amrex::Real dz_min) override
+    {
+        m_dzmin = dz_min;
+    }
 
     // Copy state into micro vars
     void

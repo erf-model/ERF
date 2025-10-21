@@ -75,11 +75,6 @@ SAM::Init (const MultiFab& cons_in,
     }
 }
 
-void
-SAM::Set_dzmin (const Real dz_min)
-{
-    m_dzmin = dz_min;
-}
 
 /**
  * Initializes the Microphysics module.

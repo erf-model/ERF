@@ -55,11 +55,6 @@ void Kessler::Init (const MultiFab& cons_in,
     }
 }
 
-void
-Kessler::Set_dzmin (const Real dz_min)
-{
-    m_dzmin = dz_min;
-}
 
 /**
  * Initializes the Microphysics module.

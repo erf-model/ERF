@@ -86,11 +86,6 @@ Morrison::Init (const MultiFab& cons_in,
 #endif
 }
 
-void
-Morrison::Set_dzmin (const Real dz_min)
-{
-    m_dzmin = dz_min;
-}
 
 /**
  * Initializes the Microphysics module.
