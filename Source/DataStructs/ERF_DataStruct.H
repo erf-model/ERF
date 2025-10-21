@@ -237,24 +237,15 @@ struct SolverChoice {
         std::string init_type_temp_string;
         pp.query("init_type",init_type_temp_string);
         if ( (init_type_temp_string == "Real") || (init_type_temp_string == "real") ) {
-            amrex::Warning("erf.init_type = Real is deprecated; please replace Real by WRFInput");
-            init_type = InitType::WRFInput;
-            use_real_bcs = true;
-            pp.query("upwind_real_bcs",upwind_real_bcs);
+            amrex::Abort("erf.init_type = Real is deprecated; please replace Real by WRFInput");
         } else if ( (init_type_temp_string == "Ideal") || (init_type_temp_string == "ideal") ) {
-            amrex::Warning("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
-            init_type = InitType::WRFInput;
-            use_real_bcs = false;
+            amrex::Abort("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
         } else if (init_type_temp_string == "hindcast") {
             init_type = InitType::HindCast;
-            use_real_bcs = false;
         }
         else {
             pp.query_enum_case_insensitive("init_type",init_type);
             use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
-            if (use_real_bcs) {
-                pp.query("upwind_real_bcs",upwind_real_bcs);
-            }
         }
 
         if ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) ) {
@@ -278,9 +269,10 @@ struct SolverChoice {
             if (use_real_bcs && !use_real_bcs_temp) {
                 use_real_bcs = false;
             }
-            if (use_real_bcs) {
-                pp.query("upwind_real_bcs",upwind_real_bcs);
-            }
+        }
+
+        if (use_real_bcs) {
+            pp.query("upwind_real_bcs",upwind_real_bcs);
         }
 
         // Check for rebalancing with wrfinput
@@ -340,6 +332,11 @@ struct SolverChoice {
         rdOcp = R_d / c_p;
 
         read_int_string(max_level, "anelastic", anelastic, 0);
+
+        if (!upwind_real_bcs && anelastic[0]) {
+            amrex::Print() << "Setting upwind_real_bcs to true because we are doing anelastic at level 0" << std::endl;
+            upwind_real_bcs = true;
+        }
 
         // *******************************************************************************
         // Read substepping_type and allow for different values at each level

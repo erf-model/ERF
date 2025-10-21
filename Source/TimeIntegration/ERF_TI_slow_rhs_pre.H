@@ -106,7 +106,9 @@
         // Define the pressure gradient
         // *****************************************************************************
         make_gradp_pert(level, solverChoice, fine_geom, S_data,
-                        p0_to_use, *zpn_to_use, *zpc_to_use, get_eb(level), gradp[level]);
+                        p0_to_use, *zpn_to_use, *zpc_to_use,
+                        mapfac[level],
+                        get_eb(level), gradp[level]);
 
         // *****************************************************************************
         // Define the buoyancy forcing term in the z-direction
