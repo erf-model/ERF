@@ -68,6 +68,9 @@ The following are the inputs required for hindcast simulations.
 
     // Lateral forcing with reanalysis/forecast data
     erf.hindcast_boundary_data_dir = "ERA5Data_3D"
+    // Time interval in hours between the boundary
+    // data files
+    erf.hindcast_data_interval_in_hrs = 3.0
     erf.hindcast_lateral_forcing = true
     // Sponge strength
     erf.hindcast_lateral_sponge_strength = 0.3
