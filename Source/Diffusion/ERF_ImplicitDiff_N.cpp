@@ -12,8 +12,6 @@ using namespace amrex;
  * @param[in   ] dt time step
  * @param[in   ] start_comp starting component index
  * @param[in   ] num_comp number of components
- * @param[in   ] u velocity in x-dir
- * @param[in   ] v velocity in y-dir
  * @param[inout] cell_data conserved cell center vars
  * @param[in   ] cellSizeInv inverse cell size array
  * @param[inout] hfx_z heat flux in z-dir
@@ -29,8 +27,6 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain,
                         const int level,
                         const Real dt,
                         int start_comp, int num_comp,
-                        const Array4<const Real>& u,
-                        const Array4<const Real>& v,
                         const Array4<      Real>& cell_data,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                         const Array4<      Real>& hfx_z,

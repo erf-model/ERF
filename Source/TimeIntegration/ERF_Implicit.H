@@ -50,21 +50,21 @@
                                            bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
 #endif
                     ImplicitDiffForState_T(bx, fine_geom.Domain(), level, dtau,
-                                           n_start, n_comp, u_arr, v_arr,
+                                           n_start, n_comp,
                                            cell_data, diffflux_z,
                                            z_nd_arr, detJ_arr, dxInv, hfx_z,
                                            mu_turb, solverChoice,
                                            bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
                 } else if (l_use_stretched_dz) {
                     ImplicitDiffForState_S(bx, fine_geom.Domain(), level, dtau,
-                                           n_start, n_comp, u_arr, v_arr,
+                                           n_start, n_comp,
                                            cell_data,
                                            z_nd_arr, detJ_arr, dxInv, hfx_z,
                                            mu_turb, solverChoice,
                                            bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
                 } else {
                     ImplicitDiffForState_N(bx, fine_geom.Domain(), level, dtau,
-                                           n_start, n_comp, u_arr, v_arr,
+                                           n_start, n_comp,
                                            cell_data,
                                            dxInv, hfx_z,
                                            mu_turb, solverChoice,
