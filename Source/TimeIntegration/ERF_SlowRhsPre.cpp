@@ -550,7 +550,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_comp  = 1;
 
             // We use vert_implicit_fac because we are only diffusing RhoTheta here
-            const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac;
+            const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
 
             if (l_use_stretched_dz) {
                 DiffusionSrcForState_S(bx, domain, n_start, n_comp, u, v,

@@ -2,7 +2,7 @@
         // Do semi-implicit solve for theta
         // *****************************************************************************
 
-        const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac;
+        const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
 
         if (l_vert_implicit_fac > 0.) {
             const bool l_use_stretched_dz = (solverChoice.mesh_type == MeshType::StretchedDz);
