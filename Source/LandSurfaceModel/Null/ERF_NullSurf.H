@@ -30,7 +30,9 @@ class NullSurf {
 
     virtual
     void
-    Advance (const amrex::Real& /*dt_advance*/) { }
+    Advance (const amrex::Real& /*dt_advance*/,
+             const amrex::Real& /*time*/,
+             const amrex::Real& /*start_time*/) { }
 
     virtual
     void

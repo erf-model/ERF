@@ -66,9 +66,9 @@ public:
     }
 
     void
-    Advance (const int& lev, const amrex::Real& dt_advance)
+    Advance (const int& lev, const amrex::Real& dt_advance, const amrex::Real &time, const amrex::Real &start_time)
     {
-        m_lsm_model[lev]->Advance(dt_advance);
+        m_lsm_model[lev]->Advance(dt_advance, time, start_time);
     }
 
     void

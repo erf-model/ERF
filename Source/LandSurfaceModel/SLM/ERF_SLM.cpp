@@ -45,7 +45,9 @@ SLM::Init (const int& /*lev*/,
       LsmVar_SLM::uref,          LsmVar_SLM::vref,         LsmVar_SLM::dref,
       LsmVar_SLM::qref,          LsmVar_SLM::pref,         LsmVar_SLM::node_z,
       LsmVar_SLM::soilt_nudge,   LsmVar_SLM::soilw_nudge,  LsmVar_SLM::lai,
-      LsmVar_SLM::vegtype,       LsmVar_SLM::soiltype};
+      LsmVar_SLM::vegtype,       LsmVar_SLM::soiltype,     LsmVar_SLM::veg_frac, LsmVar_SLM::veg_frac_min, LsmVar_SLM::veg_frac_max,
+      LsmVar_SLM::emis_sfc,      LsmVar_SLM::alb_nir_sfc,  LsmVar_SLM::alb_vis_sfc,
+      LsmVar_SLM::alb_nir_sfc_diff, LsmVar_SLM::alb_vis_sfc_diff};
 
     LsmDataName.resize(m_lsm_data_size);
     LsmDataName = {"tsurf",         "ustar",          "tstar",
@@ -59,7 +61,8 @@ SLM::Init (const int& /*lev*/,
                   "ref_v",         "ref_d",          "ref_q",
                   "ref_p",         "node_z",         "soilt_nudge",
                   "soilw_nudge",   "lai",            "vegtype",
-                  "soiltype"};
+                  "soiltype",      "veg_frac", "veg_frac_min", "veg_frac_max", "emis_sfc",
+                  "alb_nir_sfc",   "alb_vis_sfc", "alb_nir_sfc_diff", "alb_vis_sfc_diff"};
 
     AMREX_ALWAYS_ASSERT(LsmDataMap.size() == LsmDataName.size());
     AMREX_ALWAYS_ASSERT(LsmDataMap.size() == m_lsm_data_size);
@@ -135,6 +138,7 @@ SLM::Init (const int& /*lev*/,
 
     landtype.define(ba_lsm_2d, dm, 1, ng_2d);
     LAI.define(ba_lsm_2d, dm, 1, ng_2d);
+    SAI.define(ba_lsm_2d, dm, 1, ng_2d);
     sstxy.define(ba_lsm_2d, dm, 1, ng_2d);
 
     t_canop.define(ba_lsm_2d, dm, 1, ng_2d);
@@ -181,6 +185,13 @@ SLM::Init (const int& /*lev*/,
     albedonir_v.define(ba_lsm_2d, dm, 1, ng_2d);
     albedovis_s.define(ba_lsm_2d, dm, 1, ng_2d);
     albedonir_s.define(ba_lsm_2d, dm, 1, ng_2d);
+    albedovis_v.setVal(0.0);
+    albedovis_s.setVal(0.0);
+    albedonir_v.setVal(0.0);
+    albedonir_s.setVal(0.0);
+    IR_emis_vege.setVal(0.0);
+    IR_emis_soil.setVal(0.98);
+    vege_YES.setVal(0.0);
 
     r_a.define(ba_lsm_2d, dm, 1, ng_2d);
     r_b.define(ba_lsm_2d, dm, 1, ng_2d);
@@ -195,6 +206,7 @@ SLM::Init (const int& /*lev*/,
     slm_diag.setVal(0.0);
 
     zrefxy.define(ba_lsm_2d, dm, 1, ng_2d);
+    zrefxy.setVal(0.0);
 
     r_soil.setVal(0.0);
     lhf_air.setVal(0.0);
@@ -207,6 +219,11 @@ SLM::Init (const int& /*lev*/,
     q_cas.setVal(0.0);
     wet_canop.setVal(0.0);
 
+    mw.setVal(0.0);
+    mws.setVal(0.0);
+    mw_inc.setVal(0.0);
+    evapo_dry.setVal(0.0);
+
     // Initialize 1D arrays
     soilw_inc.resize({klo_lsm},  {khi_lsm});
     alpha.resize({klo_lsm},  {khi_lsm});
@@ -216,6 +233,7 @@ SLM::Init (const int& /*lev*/,
     r_b.setVal(0.0);
     r_c.setVal(0.0);
     r_d.setVal(0.0);
+    r_soil.setVal(0.0);
     lsm_fab_vars[LsmVar_SLM::ustar]->setVal(0.1);
     lsm_fab_vars[LsmVar_SLM::tstar]->setVal(0.0);
     lsm_fab_vars[LsmVar_SLM::qstar]->setVal(0.0);
@@ -225,9 +243,15 @@ SLM::Init (const int& /*lev*/,
 
     landtype.setVal(landtype0);
     LAI.setVal(LAI0);
+    SAI.setVal(0.0);
     mws_mx.setVal(mws_mx0);
 
     net_rad.setVal(0.0);
+
+    // Set a default vegetation fraction of 1.0.
+    // Cells without vegetation (baresoil, urban) are set to 0.0 later on
+    // If using WRFInput, this fraction will be overwritten with those values
+    lsm_fab_vars[LsmVar_SLM::veg_frac]->setVal(1.0);
 
     if (!use_wrfinput) {
         // Initialize here if not using wrfinput, otherwise it is done at first time step
@@ -261,7 +285,12 @@ SLM::Init (const int& /*lev*/,
     }
 
     //slm_to_rad_vars = {Lsm_Data_Ptr(LsmVar_SLM::tsurf), &albedovis_s, &albedovis_v, &albedonir_s, &albedonir_v, &IR_emis_vege, &net_rad};
-    slm_to_rad_vars = {Lsm_Data_Ptr(LsmVar_SLM::tsurf), &IR_emis_vege, &albedovis_v, &albedonir_v, &albedovis_v, &albedonir_v};
+    slm_to_rad_vars = {Lsm_Data_Ptr(LsmVar_SLM::tsurf),
+                       Lsm_Data_Ptr(Lsm_DataIndex("emis_sfc")),
+                       Lsm_Data_Ptr(Lsm_DataIndex("alb_vis_sfc")),
+                       Lsm_Data_Ptr(Lsm_DataIndex("alb_nir_sfc")),
+                       Lsm_Data_Ptr(Lsm_DataIndex("alb_vis_sfc_diff")),
+                       Lsm_Data_Ptr(Lsm_DataIndex("alb_nir_sfc_diff"))};
 }
 /**
  * Initialize SLM from input data - used for testing only
@@ -322,6 +351,57 @@ void SLM::init_from_file()
     pp.query("Rc_max", Rc_max);
     pp.query("T_opt", T_opt);
     pp.query("zref", zref);
+
+    // Read NoahmpTable.TBL
+    pp.query("use_parameter_file", use_param_file);
+    pp.query("interpolate_lai", interpolate_lai);
+    pp.query("parameter_file", parameter_file);
+    pp.query("veg_dataset", veg_dataset);
+    pp.query("use_param_tbl", use_wrf_lai);
+    if (use_param_file) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(use_wrf_lai != use_param_file, "Cannot use parameter file and parameter table, must choose one method");
+    }
+
+    /*
+    if (use_param_file) {
+        ReadParameterFile(parameter_file);
+    }
+    */
+
+    if (interpolate_lai) {
+        pp.gettable("lai", lai_table);
+        pp.gettable("sai", sai_table);
+
+        // validate LAI and SAI tables
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lai_table.size() == 12, "Invalid LAI table size, expected values for all 12 months");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sai_table.size() == 12, "Invalid SAI table size, expected values for all 12 months");
+        num_landtypes = lai_table[0].size(); // use first entry as size, check all others against
+        for (int i = 0; i < lai_table.size(); i++) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lai_table[i].size() == num_landtypes, "Invalid LAI table - inconsistent number of landtype entries between months");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sai_table[i].size() == num_landtypes, "Invalid SAI table - inconsistent number of landtype entries between months");
+        }
+
+        d_lai_curr.resize(num_landtypes);
+        d_lai_next.resize(num_landtypes);
+        d_sai_curr.resize(num_landtypes);
+        d_sai_next.resize(num_landtypes);
+    }
+
+    if (use_wrf_lai) {
+        pp.gettable("vegparam", param_table);
+        amrex::Print() << " param table = " << std::endl;
+
+        int nparam = param_table[0].size();
+        for (int t = 0; t < param_table.size(); t++) {
+            amrex::Print() << "     LANDTYPE " << t << ": ";
+            for (int i = 0; i < param_table[t].size(); i++) {
+                amrex::Print() << param_table[t][i] << " ";
+            }
+            amrex::Print() << std::endl;
+
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(param_table[t].size() == nparam, "Invalid param table, inconsistent number of parameters for landtype");
+        }
+    }
 
     pp.query("rad_input_file", rad_input_file);
     if (rad_input_file != "") {
@@ -602,11 +682,14 @@ void SLM::slm_init()
         auto Khai_L_arr = Khai_L.array(mfi);
         auto landmask_arr = landmask.const_array(mfi);
 
+        auto veg_frac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->array(mfi);
+
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             if (landmask_arr(i, j, 0) == 1) {
                 if (vegetype_arr(i, j, 0) == 0) {
                     vege_YES_arr(i, j, 0) = 0.0;
+                    veg_frac_arr(i, j, 0) = 0.0;
                 } else {
                     // set minimum LAI for vegetated land
                     LAI_arr(i, j, 0) = std::max(LAI_arr(i, j, 0), 0.001);
@@ -617,14 +700,15 @@ void SLM::slm_init()
                 phi_2_arr(i, j, 0) = 0.877 * (1.0 - 2.0 * phi_1_arr(i, j, 0));
                 precip_extinc_arr(i, j, 0) = phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0);
                 mw_mx_arr(i, j, 0) = 0.1 * LAI_arr(i, j, 0);
+            } else {
+                vege_YES_arr(i, j, 0) = 0.0;
+                veg_frac_arr(i, j, 0) = 0.0;
             }
         });
     }
 
     // Initialize soil parameters
     init_soil_tw();
-
-    IR_emis_soil.setVal(0.98);
 
     auto tsurf = lsm_fab_vars[LsmVar_SLM::tsurf];
     for ( MFIter mfi(*tsurf, TileNoZ()); mfi.isValid(); ++mfi) {
@@ -1175,6 +1259,9 @@ void SLM::init_soil_tw()
                             break;
                     }
 
+                    // convert to percentage
+                    sand_arr(i,j,k) *= 100.0;
+                    clay_arr(i,j,k) *= 100.0;
                 }
 
                 // initialize nudging profiles for soil based on the initial soilt and soilw
@@ -1321,6 +1408,7 @@ void SLM::init_slm_vars()
         auto qref_arr  = lsm_fab_vars[LsmVar_SLM::qref]->const_array(mfi);
         auto pref_arr  = lsm_fab_vars[LsmVar_SLM::pref]->const_array(mfi);
 
+        //auto landtype_arr = landtype.const_array(mfi);
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             if (landmask_arr(i, j, 0) == 1)
@@ -1339,8 +1427,11 @@ void SLM::init_slm_vars()
                 q_gr *= soilw_arr(i, j, d_khi_lsm);
 
                 // canopy temperature: initialize as (ref level temperature + soil surf temperature)/2
-                t_canop_arr(i, j, 0) = 0.5*(tref_arr(i, j, 0) + tsurf_arr(i, j, 0));
-                t_cas_arr(i, j, 0) = 0.5*(tref_arr(i, j, 0) + tsurf_arr(i, j, 0));
+                //t_canop_arr(i, j, 0) = 0.5*(tref_arr(i, j, 0) + tsurf_arr(i, j, 0));
+                //t_cas_arr(i, j, 0) = 0.5*(tref_arr(i, j, 0) + tsurf_arr(i, j, 0));
+
+                t_canop_arr(i, j, 0) = tref_arr(i, j, 0);
+                t_cas_arr(i, j, 0) = tref_arr(i, j, 0);
 
                 // specific humidity in canopy air space
                 q_cas_arr(i, j, 0) = 0.5*(qref_arr(i, j, 0) + q_gr);
@@ -1352,6 +1443,191 @@ void SLM::init_slm_vars()
     }
 }
 
+void SLM::ReadParameterFile(const std::string &filename)
+{
+}
+
+
+/**
+ * Updates the LAI + SAI based on the current simulation time and monthly values
+ * from the LAI and SAI tables
+ */
+void SLM::UpdateLAI(const amrex::MFIter &mfi)
+{
+    if (interpolate_lai) {
+        Box box = mfi.tilebox();
+        box.makeSlab(2, 0);
+
+        auto landmask_arr = landmask.const_array(mfi);
+        auto landtype_arr = landtype.const_array(mfi);
+        auto vegetype_arr = vegetype.const_array(mfi);
+        auto LAI_arr = LAI.array(mfi);
+        auto SAI_arr = SAI.array(mfi);
+
+        // Update the day and month
+        time_t timestamp = time_t(time + start_time);
+        struct tm *timeinfo = gmtime(&timestamp);
+
+        m_orbital_year = timeinfo->tm_year + 1900;
+        m_orbital_mon  = timeinfo->tm_mon  + 1;
+        m_orbital_day  = timeinfo->tm_mday;
+        m_orbital_sec  = timeinfo->tm_hour*3600 + timeinfo->tm_min*60 + timeinfo->tm_sec;
+        
+        static constexpr double dpy[] = {0.0  ,  31.0,  59.0,  90.0, 120.0, 151.0,
+                                        181.0, 212.0, 243.0, 273.0, 304.0, 334.0};
+        bool leap = (m_orbital_year % 4 == 0 && (!(m_orbital_year % 100 == 0) || (m_orbital_year % 400 == 0))) ? true : false;
+        m_calday = dpy[m_orbital_mon-1] + (m_orbital_day-1.0) + m_orbital_sec/86400.0;
+        // add extra day if leap year
+        if (leap) { m_calday += 1.0; }
+
+        int curr_mon = m_orbital_mon - 1;
+        int next_mon = curr_mon + 1;
+        Real t0 = dpy[curr_mon];
+        Real t1;
+        if (next_mon >= 11) {
+            next_mon = 0;
+            t1 = 365.0;
+        } else {
+            t1 = dpy[next_mon];
+        }
+
+        const Real d_calday = m_calday;
+
+        // Setup device interpolation points
+        Real *d_lai_curr_ptr = d_lai_curr.data();
+        Real *d_lai_next_ptr = d_lai_next.data();
+        Real *d_sai_curr_ptr = d_sai_curr.data();
+        Real *d_sai_next_ptr = d_sai_next.data();
+        Gpu::copyAsync(Gpu::hostToDevice, lai_table[curr_mon].data(), lai_table[curr_mon].data()+num_landtypes, d_lai_curr_ptr);
+        Gpu::copyAsync(Gpu::hostToDevice, lai_table[next_mon].data(), lai_table[next_mon].data()+num_landtypes, d_lai_next_ptr);
+        Gpu::copyAsync(Gpu::hostToDevice, sai_table[curr_mon].data(), sai_table[curr_mon].data()+num_landtypes, d_sai_curr_ptr);
+        Gpu::copyAsync(Gpu::hostToDevice, sai_table[next_mon].data(), sai_table[next_mon].data()+num_landtypes, d_sai_next_ptr);
+        Gpu::streamSynchronize();
+
+        // Update LAI = LAI + SAI
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        {
+            if (landmask_arr(i, j, 0) == 1) {
+                //if (vegetype_arr(i, j, 0) == 0) { // todo: check, urban cells are not "vegetated", so LAI is incorrect there?
+                if (landtype_arr(i,j,0) == 16) {
+                    // baresoil point, so no LAI or SAI
+                    LAI_arr(i,j,0) = 0.0;
+                    SAI_arr(i,j,0) = 0.0;
+                //} else if (vegetype_arr(i, j, 0) == 1) {
+                } else {
+                    // vegetation
+                    const int ltype = landtype_arr(i,j,0) - 1;
+
+                    const Real lai_x = d_lai_curr_ptr[ltype];
+                    const Real lai_y = d_lai_next_ptr[ltype];
+
+                    const Real sai_x = d_sai_curr_ptr[ltype];
+                    const Real sai_y = d_sai_next_ptr[ltype];
+
+                    LAI_arr(i,j,0) = linear_interp(t0, t1, d_calday, lai_x, lai_y);
+                    SAI_arr(i,j,0) = linear_interp(t0, t1, d_calday, sai_x, sai_y);
+
+                    LAI_arr(i,j,0) += SAI_arr(i,j,0);
+                }
+            }
+        });
+
+        UpdateLAIParameters(mfi);
+    } else if (use_wrf_lai) {
+
+        Box box = mfi.tilebox();
+        box.makeSlab(2, 0);
+
+        auto landmask_arr = landmask.const_array(mfi);
+        auto landtype_arr = landtype.const_array(mfi);
+        auto vegetype_arr = vegetype.const_array(mfi);
+
+        auto veg_frac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->array(mfi);
+        auto veg_frac_min_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_min]->array(mfi);
+        auto veg_frac_max_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_max]->array(mfi);
+
+        auto IR_emis_veg = IR_emis_vege.array(mfi);
+
+        auto LAI_arr = LAI.array(mfi);
+        auto SAI_arr = SAI.array(mfi);
+
+        // Update LAI = LAI + SAI
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        {
+            if (landmask_arr(i, j, 0) == 1) {
+
+                const int ltype = landtype_arr(i,j,0) - 1; // shift by one to match table index (i.e, types 1-20 -> 0-19)
+
+                AMREX_ALWAYS_ASSERT(param_table[ltype][0] == ltype + 1); // debug to make sure landtypes match
+
+                if (ltype + 1 == 13) { // urban cells
+                    veg_frac_arr(i,j,0) = param_table[ltype][1];
+                }
+
+                //    LAI min = col 8, lai max = col 9
+                //  emiss min = col 10,    max = col 11
+                // albedo min = col 12,    max = col 13
+
+                if (veg_frac_arr(i,j,0) >= veg_frac_max_arr(i,j,0)) {
+                    //emis_sfc_arr(i,j,0) = emissmax;
+                    LAI_arr(i,j,0) = param_table[ltype][9];
+                } else if (veg_frac_arr(i,j,0) <= veg_frac_min_arr(i,j,0)) {
+                    //emis_sfc_arr(i,j,0) = emissmin;
+                    LAI_arr(i,j,0) = param_table[ltype][8];
+                } else {
+                    if (veg_frac_max_arr(i,j,0) > veg_frac_min_arr(i,j,0)) {
+
+                        Real interp_frac = (veg_frac_arr(i,j,0) - veg_frac_min_arr(i,j,0)) / (veg_frac_max_arr(i,j,0) - veg_frac_min_arr(i,j,0));
+                        interp_frac = std::min(std::max(interp_frac, 0.0), 1.0); // bound between 0.0 and 1.0
+
+                        // Scale emissivitiy and LAI between min/max by interp_frac
+                        //emis_sfc_arr(i,j,0) = ( (1.0 - interp_frac) * param_table[ltype][10]) + interp_frac * param_table[ltype][11];
+
+                        LAI_arr(i,j,0) = ( (1.0 - interp_frac) * param_table[ltype][8]) + interp_frac * param_table[ltype][9];
+                    } else {
+                        // emis_sfc_arr(i,j,0) = 0.5 * param_table[ltype][10] + 0.5 * param_table[ltype][11];
+                        LAI_arr(i,j,0) = 0.5 * param_table[ltype][8] + 0.5 * param_table[ltype][9];
+                    }
+                }
+
+            }
+        });
+
+        UpdateLAIParameters(mfi);
+    }
+}
+
+/**
+ * Updates radiation parameters related to LAI
+ */
+void SLM::UpdateLAIParameters(const amrex::MFIter &mfi)
+{
+    Box box = mfi.tilebox();
+    box.makeSlab(2, 0);
+
+    auto IR_emis_vege_arr = IR_emis_vege.array(mfi);
+    auto phi_1_arr = phi_1.array(mfi);
+    auto phi_2_arr = phi_2.array(mfi);
+    auto precip_extinc_arr = precip_extinc.array(mfi);
+    auto mw_mx_arr = mw_mx.array(mfi);
+    auto LAI_arr = LAI.array(mfi);
+    auto Khai_L_arr = Khai_L.array(mfi);
+    auto landmask_arr = landmask.const_array(mfi);
+
+    ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
+    {
+        if (landmask_arr(i, j, 0) == 1) {
+            // set minimum LAI for vegetated land
+            LAI_arr(i, j, 0) = std::max(LAI_arr(i, j, 0), 0.001);
+
+            IR_emis_vege_arr(i, j, 0) = 0.97 * (1.0 - std::exp(-1.0 * LAI_arr(i, j, 0)));
+            phi_1_arr(i, j, 0) = 0.5 - 0.633 * Khai_L_arr(i, j, 0) - 0.33 * (std::pow(Khai_L_arr(i, j, 0), 2));
+            phi_2_arr(i, j, 0) = 0.877 * (1.0 - 2.0 * phi_1_arr(i, j, 0));
+            precip_extinc_arr(i, j, 0) = phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0);
+            mw_mx_arr(i, j, 0) = 0.1 * LAI_arr(i, j, 0);
+        }
+    });
+}
 
 
 /* Advance the solution with a simple explicit update (should use tridiagonal solve) */
@@ -1450,6 +1726,9 @@ SLM::AdvanceSLM ()
         auto fluxt_arr = lsm_fab_flux[LsmFlux_SLM::t_flux]->array(mfi);
         auto tau13_arr = lsm_fab_flux[LsmFlux_SLM::tau13]->array(mfi);
         auto tau23_arr = lsm_fab_flux[LsmFlux_SLM::tau23]->array(mfi);
+
+        // Update LAI and SAI based on current month
+        UpdateLAI(mfi);
 
         // Calculate net radiation absorbed by canopy and soil surface
         radiative_fluxes(mfi);
@@ -1615,8 +1894,8 @@ SLM::AdvanceSLM ()
                 qstar_arr(i, j, d_khi_lsm) = qstar_arr(i, j, 0);
 
                 // TODO: fix - copies SLM boundary into flux array for MOST
-                fluxq_arr(i,j,0) = flbq_arr(i, j, d_khi_lsm);
-                fluxt_arr(i,j,0) = flbt_arr(i, j, d_khi_lsm);
+                fluxq_arr(i,j,0) = rhow * flbq_arr(i, j, d_khi_lsm);
+                fluxt_arr(i,j,0) = rhow * flbt_arr(i, j, d_khi_lsm);
                 tau13_arr(i,j,0) = flbu_arr(i, j, d_khi_lsm);
                 tau23_arr(i,j,0) = flbv_arr(i, j, d_khi_lsm);
             }
@@ -1667,6 +1946,14 @@ void SLM::radiative_fluxes(const amrex::MFIter &mfi)
     auto t_canop_arr      = t_canop.const_array(mfi);
     auto soilw_arr        = lsm_fab_vars[LsmVar_SLM::soilw]->const_array(mfi);
     auto soilt_arr        = lsm_fab_vars[LsmVar_SLM::soilt]->const_array(mfi);
+    auto veg_frac_arr     = lsm_fab_vars[LsmVar_SLM::veg_frac]->const_array(mfi);
+
+    // Combined (veg+soil) surface emissivity and albedos for coupling to radiation model
+    auto emis_sfc_arr     = lsm_fab_vars[LsmVar_SLM::emis_sfc]->array(mfi);
+    auto alb_nir_sfc_arr  = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc]->array(mfi);
+    auto alb_vis_sfc_arr  = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc]->array(mfi);
+    auto alb_nir_sfc_diff_arr  = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc_diff]->array(mfi);
+    auto alb_vis_sfc_diff_arr  = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc_diff]->array(mfi);
 
     auto t_skin_arr  = t_skin.array(mfi);
     auto net_rad_arr = net_rad.array(mfi);
@@ -1716,6 +2003,28 @@ void SLM::radiative_fluxes(const amrex::MFIter &mfi)
 
             net_rad_arr(i, j, 0, SLM_NetRad::net_swdn2) = net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1)*explai;
             net_rad_arr(i, j, 0, SLM_NetRad::net_swup2) = net_rad_arr(i, j, 0, SLM_NetRad::net_rad2) - net_rad_arr(i, j, 0, SLM_NetRad::net_swdn2);
+
+            // Albedo is computed as alb = alb_v*(1-exp(-kLAI))+alb_s*exp(-kLAI)
+            Real alb_nir_veg_dir = albedonir_v_arr(i, j, 0)*(1.0 - explai);
+            Real alb_nir_veg_dif = albedonir_v_arr(i, j, 0)*(1.0 - explai0);
+            Real alb_vis_veg_dir = albedovis_v_arr(i, j, 0)*(1.0 - explai);
+            Real alb_vis_veg_dif = albedovis_v_arr(i, j, 0)*(1.0 - explai0);
+
+            Real alb_nir_soil_dir = albedonir_s_arr(i, j, 0)*wetfactor*explai;
+            Real alb_nir_soil_dif = albedonir_s_arr(i, j, 0)*wetfactor*explai0;
+            Real alb_vis_soil_dir = albedovis_s_arr(i, j, 0)*wetfactor*explai;
+            Real alb_vis_soil_dif = albedovis_s_arr(i, j, 0)*wetfactor*explai0;
+
+            alb_nir_sfc_arr(i, j, 0) = alb_nir_veg_dir + alb_nir_soil_dir;
+            alb_vis_sfc_arr(i, j, 0) = alb_vis_veg_dir + alb_vis_soil_dir;
+            alb_nir_sfc_diff_arr(i, j, 0) = alb_nir_veg_dif + alb_nir_soil_dif;
+            alb_vis_sfc_diff_arr(i, j, 0) = alb_vis_veg_dif + alb_vis_soil_dif;
+
+            alb_nir_sfc_arr(i, j, d_khi_lsm) = alb_nir_sfc_arr(i, j, 0);
+            alb_vis_sfc_arr(i, j, d_khi_lsm) = alb_vis_sfc_arr(i, j, 0);
+            alb_nir_sfc_diff_arr(i, j, d_khi_lsm) = alb_nir_sfc_diff_arr(i, j, 0);
+            alb_vis_sfc_diff_arr(i, j, d_khi_lsm) = alb_vis_sfc_diff_arr(i, j, 0);
+
 
             // Store net absorbed SW
             net_rad_arr(i, j, 0, SLM_NetRad::net_sw1) = net_rad_arr(i, j, 0, SLM_NetRad::net_rad1);
@@ -1772,7 +2081,7 @@ void SLM::radiative_fluxes(const amrex::MFIter &mfi)
 
         // ===================================================
         // Note:
-        //  Emitted LW from topsoil = emitted tir from topspoil + portion of incoming LW that is reflected back toward canopy
+        //  Emitted LW from topsoil = emitted tir from topsoil + portion of incoming LW that is reflected back toward canopy
         //  IR_emis_soil is set to 1.0
         // ===================================================
         fup1 = (net_rad_arr(i, j, 0, SLM_NetRad::tir2) + (1.0 - IR_emis_soil_arr(i, j, 0))*fdn1);
@@ -1781,7 +2090,7 @@ void SLM::radiative_fluxes(const amrex::MFIter &mfi)
         // ===================================================
         // Note: At this stage,
         //  net_rad(2) = net absorbed SW by soil surface
-        //          + net absorbed LW by soil surface
+        //             + net absorbed LW by soil surface
         // ===================================================
         net_rad_arr(i, j, 0, SLM_NetRad::net_rad2) += fdn1 - fdn2 - fup1 + fup2;
 
@@ -1800,6 +2109,10 @@ void SLM::radiative_fluxes(const amrex::MFIter &mfi)
         //        for no canopy: fup1 = fup2
         // ===================================================
         fup1 = (1.0 - IR_emis_vege_arr(i,j,0))*fup2 + net_rad_arr(i, j, 0, SLM_NetRad::tir1);
+
+        emis_sfc_arr(i, j, 0) = IR_emis_vege_arr(i,j,0) * veg_frac_arr(i, j, d_khi_lsm) + IR_emis_soil_arr(i,j,0) * (1.0 - veg_frac_arr(i, j, d_khi_lsm));
+
+        emis_sfc_arr(i, j, d_khi_lsm) = emis_sfc_arr(i,j,0);
 
         // total upward LW from surface (for canopy cover- from canopy top, for no canopy - from soil surface)
         net_rad_arr(i, j, 0, SLM_NetRad::net_lwup1) = fup1;
@@ -3157,9 +3470,11 @@ SLM::set_terrain_inputs(const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& s
             auto slm_sst   = sstxy.array(mfi);
             auto slm_lmask   = landmask.array(mfi);
 
+            auto slm_tsk   = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
             ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 slm_sst(i, j, k) = sst_array(i, j, k, 0);
+                slm_tsk(i, j, k) = sst_array(i, j, k, 0);
                 slm_lmask(i, j, k) = lmask_array(i, j, k, 0);
             });
         }
@@ -3294,16 +3609,35 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
 
     mf_data.push_back(&wet_canop);
 
+    mf_data.push_back(&albedovis_v);
+    mf_data.push_back(&albedovis_s);
+    mf_data.push_back(&albedonir_v);
+    mf_data.push_back(&albedonir_s);
+    mf_data.push_back(&IR_emis_vege);
+    mf_data.push_back(&IR_emis_soil);
+    mf_data.push_back(&zrefxy);
+    mf_data.push_back(&vege_YES);
+
+    mf_data.push_back(&LAI);
+    mf_data.push_back(&SAI);
+
+    MultiFab tmp_landtype = amrex::ToMultiFab(landtype);
+    MultiFab tmp_landmask = amrex::ToMultiFab(landmask);
+
+    mf_data.push_back(&tmp_landtype);
+    mf_data.push_back(&tmp_landmask);
+
     IntVect ng(0, 0, 0);
 
     // Total number of output MFs: net_rad components + mf_data size - 1
-    const int output_size = SLM_NetRad::NumVars + mf_data.size() - 1;
+    const int output_size = SLM_NetRad::NumVars + mf_data.size() - 1 + SLM_Diag::NumVars;
     MultiFab fab(ba_lsm_2d, net_rad.DistributionMap(), output_size, ng);
     MultiFab::Copy(fab, *(mf_data[0]), 0, 0, SLM_NetRad::NumVars, 0);
     for (int i = 1; i < mf_data.size(); i++)
     {
         MultiFab::Copy(fab, *(mf_data[i]), 0, i + SLM_NetRad::NumVars - 1, 1, 0);
     }
+    MultiFab::Copy(fab, slm_diag, 0, output_size - SLM_Diag::NumVars, SLM_Diag::NumVars, 0);
 
 
     amrex::Vector<std::string> varnames;
@@ -3352,6 +3686,26 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     varnames.push_back("r_soil");
 
     varnames.push_back("wet_canop");
+
+    varnames.push_back("albedovis_veg");
+    varnames.push_back("albedovis_soil");
+    varnames.push_back("albedonir_veg");
+    varnames.push_back("albedonir_soil");
+    varnames.push_back("IR_emis_veg");
+    varnames.push_back("IR_emis_soil");
+    varnames.push_back("zrefxy");
+    varnames.push_back("veg_flag");
+
+    varnames.push_back("LAI");
+    varnames.push_back("SAI");
+
+    varnames.push_back("vegtype");
+    varnames.push_back("landmask");
+
+    for (int i = 0; i < diag_names.size(); i++)
+    {
+        varnames.push_back(diag_names[i]);
+    }
 
     AMREX_ALWAYS_ASSERT(varnames.size() == output_size);
 

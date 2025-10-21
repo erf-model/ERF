@@ -55,7 +55,9 @@ public:
 
     // Wrapper to do all the updating
     void
-    Advance (const amrex::Real& dt) override
+    Advance (const amrex::Real& dt,
+             const amrex::Real& time,
+             const amrex::Real& start_time) override
     {
         m_dt = dt;
         this->ComputeFluxes();

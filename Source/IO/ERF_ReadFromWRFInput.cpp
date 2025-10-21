@@ -121,7 +121,8 @@ read_from_wrfinput (int lev,
              NC_name == "MUB"      || NC_name == "SST"      || NC_name == "LANDMASK"  ||
              NC_name == "XLAT_V"   || NC_name == "XLONG_U"  || NC_name == "TSK" ||
              NC_name == "PSFC"     || NC_name == "IVGTYP"   || NC_name == "ISLTYP" ||
-             NC_name == "LAI")
+             NC_name == "LAI"      || NC_name == "VEGFRA"   || NC_name == "TMN" ||
+             NC_name == "SHDMIN"   || NC_name == "SHDMAX")
     {
         // Note: staggering is handled in `fill_fab_from_arrays`
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
