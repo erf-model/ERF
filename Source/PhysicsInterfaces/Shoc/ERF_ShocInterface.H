@@ -215,8 +215,8 @@ protected:
 
             wpthlp_sfc(i) = (surf_sens_flux(i)/(cpair*rrho_i(i,nlevi_v)[nlevi_p]))*inv_exner_int_surf;
             wprtp_sfc(i)  = surf_evap(i)/rrho_i(i,nlevi_v)[nlevi_p];
-            upwp_sfc(i) = surf_mom_flux(i,0)/rrho_i(i,nlevi_v)[nlevi_p];
-            vpwp_sfc(i) = surf_mom_flux(i,1)/rrho_i(i,nlevi_v)[nlevi_p];
+            upwp_sfc(i)   = surf_mom_flux(i,0)/rrho_i(i,nlevi_v)[nlevi_p];
+            vpwp_sfc(i)   = surf_mom_flux(i,1)/rrho_i(i,nlevi_v)[nlevi_p];
         } // operator
 
         // Local variables

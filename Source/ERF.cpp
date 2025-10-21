@@ -2009,6 +2009,11 @@ ERF::init_only (int lev, Real time)
         turbPert_update(lev, 0.);
         turbPert_amplitude(lev);
     }
+
+    // Set initial velocity field for immersed cells to be close to 0
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        init_immersed_forcing(lev);
+    }
 }
 
 // Read in some parameters from inputs file

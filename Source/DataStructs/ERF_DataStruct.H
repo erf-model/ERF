@@ -131,27 +131,6 @@ struct SolverChoice {
             amrex::Abort("The input use_terrain is deprecated.  Set terrain_type instead.");
         }
 
-        pp.query("grid_stretching_ratio", grid_stretching_ratio);
-        if (grid_stretching_ratio != 0) {
-            AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= 1.),
-                                      "The grid stretching ratio must be greater than 1");
-        }
-        if (grid_stretching_ratio >= 1) {
-            if (mesh_type == MeshType::ConstantDz) {
-                mesh_type    = MeshType::StretchedDz;
-            }
-            if (terrain_type != TerrainType::StaticFittedMesh) {
-                amrex::Print() << "Turning terrain on to enable grid stretching" << std::endl;
-                terrain_type = TerrainType::StaticFittedMesh;
-            }
-            pp.query("zsurface", zsurf);
-            if (zsurf != 0.0) {
-                amrex::Print() << "Nominal zsurface height != 0, may result in unexpected behavior"
-                    << std::endl;
-            }
-            pp.get("initial_dz", dz0);
-        }
-
         // Do we set map scale factors to 0.5 instead of 1 for testing?
         pp.query("test_mapfactor", test_mapfactor);
 
@@ -284,8 +263,6 @@ struct SolverChoice {
             }
         }
 
-
-
         if (init_type == InitType::WRFInput) {
             if (moisture_type == MoistureType::None) {
                 amrex::Abort("Can't have moisture_type = None with init_type = WRFInput");
@@ -321,6 +298,26 @@ struct SolverChoice {
             mesh_type = MeshType::VariableDz;
         }
 
+        pp.query("grid_stretching_ratio", grid_stretching_ratio);
+        if (grid_stretching_ratio != 0) {
+            AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= 1.),
+                                      "The grid stretching ratio must be greater than 1");
+        }
+        if (grid_stretching_ratio >= 1) {
+            if (terrain_type == TerrainType::None) {
+                terrain_type = TerrainType::StaticFittedMesh;
+            }
+            if (mesh_type == MeshType::ConstantDz) {
+                mesh_type = MeshType::StretchedDz;
+            }
+            pp.query("zsurface", zsurf);
+            if (zsurf != 0.0) {
+                amrex::Print() << "Nominal zsurface height != 0, may result in unexpected behavior"
+                    << std::endl;
+            }
+            pp.get("initial_dz", dz0);
+        }
+
         int n_zlevels = pp.countval("terrain_z_levels");
         if (n_zlevels > 0)
         {
@@ -328,7 +325,7 @@ struct SolverChoice {
                 terrain_type = TerrainType::StaticFittedMesh;
             }
             if (mesh_type == MeshType::ConstantDz) {
-                mesh_type    = MeshType::StretchedDz;
+                mesh_type = MeshType::StretchedDz;
             }
         }
 
@@ -434,6 +431,23 @@ struct SolverChoice {
         // flags for whether to apply other source terms in substep only
         pp.query("immersed_forcing_substep", immersed_forcing_substep); // apply Rayleigh damping source terms in substep only
         pp.query("forest_substep", forest_substep); // apply Rayleigh damping source terms in substep only
+
+        // immersed forcing parameters
+        pp.query("if_Cd_scalar", if_Cd_scalar);
+        pp.query("if_Cd_momentum", if_Cd_momentum);
+        pp.query("if_z0", if_z0);
+        pp.query("if_surf_temp_flux", if_surf_temp_flux);
+        pp.query("if_init_surf_temp", if_init_surf_temp);
+        pp.query("if_surf_heating_rate", if_surf_heating_rate);
+        pp.query("if_Olen", if_Olen_in);
+        pp.query("if_use_most",if_use_most);
+
+        if ((if_init_surf_temp > 0.0 && if_surf_temp_flux != 1e-8) ||
+            (if_init_surf_temp > 0.0 && if_Olen_in != 1e-8) ||
+            (if_Olen_in != 1e-8 && if_surf_temp_flux != 1e-8))
+        {
+            amrex::Abort("Can only specify one of init_surf_temp, surf_temp_flux, or Olen");
+        }
 
         // Flag to do MOST rotations with terrain
         pp.query("use_rotate_surface_flux",use_rotate_surface_flux);
@@ -908,6 +922,17 @@ struct SolverChoice {
     // Specify whether to apply other various source terms on substep only
     bool        immersed_forcing_substep  = false;
     bool        forest_substep            = false;
+
+    // immersed forcing parameters
+    amrex::Real if_Cd_scalar          = 10.0;
+    amrex::Real if_Cd_momentum        = 10.0;
+    // immersed forcing MOST parameters.
+    amrex::Real if_z0                 = 0.1;   // [m]
+    amrex::Real if_surf_temp_flux     = 1e-8;  // [K m/s]
+    amrex::Real if_init_surf_temp     = 0.0;   // [K]
+    amrex::Real if_surf_heating_rate  = 0.0;   // [K/hr]
+    amrex::Real if_Olen_in            = 1e-8;  // [m]
+    bool        if_use_most           = false;
 
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt    = true;
