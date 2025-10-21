@@ -278,9 +278,9 @@ NOAHMP::Advance_With_State (const int& lev,
         FArrayBox tmp_albsfcdif_nir(bx, 1, The_Pinned_Arena());
 
         // Get array views
-        auto const& tmp_u_arr = tmp_u_phy.array();
-        auto const& tmp_v_arr = tmp_v_phy.array();
-        auto const& tmp_t_arr = tmp_t_phy.array();
+        auto const& tmp_u_phy_arr = tmp_u_phy.array();
+        auto const& tmp_v_phy_arr = tmp_v_phy.array();
+        auto const& tmp_t_phy_arr = tmp_t_phy.array();
         auto const& tmp_qv_curr_arr = tmp_qv_curr.array();
         auto const& tmp_p8w_arr = tmp_p8w.array();
         auto const& tmp_swdown_arr = tmp_swdown.array();
@@ -294,7 +294,7 @@ NOAHMP::Advance_With_State (const int& lev,
             tmp_v_phy_arr(i,j,0)   = 0.5*(V_PHY(i,j,0)+V_PHY(i  ,j+1,0));
             tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(QV_TH(i,j,0,Rho_comp),QV_TH(i,j,0,RhoTheta_comp));
             tmp_qv_curr_arr(i,j,0) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
-            tmp_p9w_arr(i,j,0)     = getPgivenRTh(QV_TH(i,j,0,RhoTheta_comp));
+            tmp_p8w_arr(i,j,0)     = getPgivenRTh(QV_TH(i,j,0,RhoTheta_comp));
             tmp_swdown_arr(i,j,0)    = SWDOWN(i,j,0);
             tmp_glw_arr(i,j,0)       = GLW(i,j,0);
             tmp_coszen_arr(i,j,0)    = COSZEN(i,j,0);
@@ -313,7 +313,7 @@ NOAHMP::Advance_With_State (const int& lev,
         const auto& h_swdown_arr = tmp_swdown.const_array();
         const auto& h_glw_arr = tmp_glw.const_array();
         const auto& h_coszen_arr = tmp_coszen.const_array();
-        
+
         LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
         {
             noahmpio->U_PHY(i,1,j) = h_u_arr(i,j,0);
@@ -334,8 +334,7 @@ NOAHMP::Advance_With_State (const int& lev,
         // Copy results from NoahmpIO back to temporary arrays
         auto h_hfx_arr = tmp_hfx.array();
         auto h_lh_arr = tmp_lh.array();
-        auto h_lh_arr = tmp_lh.array();
-        auto h_tau_ew_arr = tmp_tau_ew.array();
+    auto h_tau_ew_arr = tmp_tau_ew.array();
         auto h_tau_ns_arr = tmp_tau_ns.array();
         auto h_tsk_arr = tmp_tsk.array();
         auto h_emiss_arr = tmp_emiss.array();
