@@ -1414,19 +1414,43 @@ ERF::InitData_post ()
 #endif
 
     if (solverChoice.lsm_type != LandSurfaceType::None) {
-        // || (solverChoice.urban_type != UrbanModelType::None)) {
-        m_SurfaceModel = std::make_unique<SurfaceModel>(max_level+1, grids, geom, dmap, solverChoice);
-        for (int lev = 0; lev <= finest_level; ++lev)
-        {
-            m_SurfaceModel->set_model_data(lev, lsm_data[lev], SurfaceModelType::LAND);
-            //m_SurfaceModel->set_model_data(lev, urban_data[lev], SurfaceModelType::URBAN);
+        // || solverChoice.urban_type != UrbanType::None) {
+        m_SurfaceModel = std::make_unique<SurfaceModel>(max_level+1, grids, geom, dmap, solverChoice, lmask_lev);
+        if (solverChoice.lsm_type != LandSurfaceType::None) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                m_SurfaceModel->set_model_data(lev, lsm_data[lev], lsm_data_name, SurfaceModelType::LAND);
+            }
+
+            // For SLM:
+            m_SurfaceModel->set_model_fields(SurfaceModelType::LAND, amrex::Vector<int>{lsm.Get_DataIdx(0, "surface_u"),
+                                                                                        lsm.Get_DataIdx(0, "surface_v"),
+                                                                                        lsm.Get_DataIdx(0, "surface_heat"),
+                                                                                        lsm.Get_DataIdx(0, "surface_vapor"),
+                                                                                        lsm.Get_DataIdx(0, "tsurf")}, true);
         }
-        // For SLM:
-        m_SurfaceModel->set_model_fields(SurfaceModelType::LAND, amrex::Vector<int>{lsm.Get_DataIdx(0, "surface_u"),
-                                                                                    lsm.Get_DataIdx(0, "surface_v"),
-                                                                                    lsm.Get_DataIdx(0, "surface_heat"),
-                                                                                    lsm.Get_DataIdx(0, "surface_vapor"),
-                                                                                    lsm.Get_DataIdx(0, "tsurf")}, true);
+
+        /*
+        if (solverChoice.urban_type != UrbanType::None) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                m_SurfaceModel->set_model_data(lev, urban_data[lev], urban_data_name, SurfaceModelType::URBAN);
+            }
+            m_SurfaceModel->set_model_fields(SurfaceModelType::URBAN, amrex::Vector<int>{UrbanVar_BEP::tau13,
+                                                                                         UrbanVar_BEP::tau23,
+                                                                                         UrbanVar_BEP::hfx,
+                                                                                         UrbanVar_BEP::qfx,
+                                                                                         UrbanVar_BEP::tsk,
+                                                                                         UrbanVar_BEP::a_u,
+                                                                                         UrbanVar_BEP::a_v,
+                                                                                         UrbanVar_BEP::a_t,
+                                                                                         UrbanVar_BEP::a_e,
+                                                                                         UrbanVar_BEP::a_q,
+                                                                                         UrbanVar_BEP::b_u,
+                                                                                         UrbanVar_BEP::b_v,
+                                                                                         UrbanVar_BEP::b_t,
+                                                                                         UrbanVar_BEP::b_e,
+                                                                                         UrbanVar_BEP::b_q}, true);
+        }
+        */
     }
 
     // Configure SurfaceLayer params if used
@@ -2179,6 +2203,9 @@ ERF::ReadParameters ()
 #ifdef ERF_USE_RRTMGP
         pp.query("plot_rad", plot_rad);
 #endif
+        if (plot_lsm) { // || plot_urban) {
+            plot_surfmodel = true;
+        }
         pp.query("plot_micro_src", plot_micro_src);
         pp.query("plot_buoy_src", plot_buoy_src);
         pp.query("profile_rad_int", rad_datalog_int);

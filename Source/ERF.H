@@ -1059,6 +1059,7 @@ private:
     bool m_plot_face_vels = false;
 
     bool plot_lsm = false;
+    bool plot_surfmodel = false;
 
     // other sampling output control
     int profile_int = -1;

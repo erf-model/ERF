@@ -20,7 +20,8 @@ public:
                           const amrex::Vector<amrex::BoxArray> &ba,
                           const amrex::Vector<amrex::Geometry> &geom,
                           const amrex::Vector<amrex::DistributionMapping> &dm,
-                          const SolverChoice &solverChoice) 
+                          const SolverChoice &solverChoice,
+                          amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_lev)
         : m_nlevs(nlevs), m_ba(ba), m_geom(geom), m_dmap(dm) {
         
         u_star.resize(m_nlevs);
@@ -30,6 +31,9 @@ public:
 
         wavg.resize(m_nlevs);
 
+        m_ba2d.resize(m_nlevs);
+        m_geom2d.resize(m_nlevs);
+        m_lmask.resize(m_nlevs);
 
         for (int lev = 0; lev < m_nlevs; lev++)
         {
@@ -39,15 +43,20 @@ public:
             for (auto& b : bl2d) {
                 b.setRange(2, 0);
             }
-            amrex::BoxArray ba2d(std::move(bl2d));
+            m_ba2d[lev] = amrex::BoxArray(std::move(bl2d));
 
+            amrex::RealBox dom2d = m_geom[lev].ProbDomain();
+            dom2d.setHi(2, m_geom[lev].CellSize(2));
+            m_geom2d[lev].define(m_ba2d[lev].minimalBox(), dom2d, m_geom[lev].Coord(), m_geom[lev].isPeriodic());
+
+            m_lmask[lev] = lmask_lev[lev][0].get();
 
             amrex::IntVect ng(1,1,0);
             // Create output arrays for surface boundary condition
-            u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap[lev], 2, ng);
-            t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap[lev], 1, ng);
-            q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap[lev], 1, ng);
-            t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap[lev], 1, ng);
+            u_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 2, ng);
+            t_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
+            q_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
+            t_surf[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
 
             u_star[lev]->setVal(0.0);
             t_star[lev]->setVal(0.0);
@@ -55,12 +64,13 @@ public:
             t_surf[lev]->setVal(300.0);
 
             // Initialize storage for weight average factors
-            wavg[lev] = std::make_unique<amrex::MultiFab>(ba2d, m_dmap[lev], 2, ng);
+            wavg[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 2, ng);
             //  - default to land=1, urban=0 (i.e, 100% land, no urban fraction)
             wavg[lev]->setVal(1.0, SurfaceModelType::LAND, 1, 0);
             wavg[lev]->setVal(0.0, SurfaceModelType::URBAN, 1, 0);
         }
 
+        urban_frac_lev.resize(m_nlevs);
         lsm_data_lev.resize(m_nlevs);
         urban_data_lev.resize(m_nlevs);
 
@@ -72,10 +82,19 @@ public:
     /**
      * Sets the urban or land data pointers that are used to compute weight averages
      */
-    void set_model_data(int lev, amrex::Vector<amrex::MultiFab*> model_data, SurfaceModelType type)
+    void set_model_data(int lev, amrex::Vector<amrex::MultiFab*> model_data, amrex::Vector<std::string>& data_names, SurfaceModelType type)
     {
         if (type == SurfaceModelType::LAND) {
             lsm_data_lev[lev].resize(model_data.size());
+            if (lev == 0) {
+                // only set names on first level, since they are the same for all levels
+                m_lsm_names.resize(model_data.size());
+                AMREX_ALWAYS_ASSERT(data_names.size() == model_data.size());
+                for (int i = 0; i < data_names.size(); i++) {
+                    m_lsm_names[i] = data_names[i];
+                }
+            }
+
             for (int i = 0; i < lsm_data_lev[lev].size(); i++) {
                 AMREX_ALWAYS_ASSERT(model_data[i]);
                 lsm_data_lev[lev][i] = model_data[i];
@@ -83,6 +102,14 @@ public:
             m_use_land = true;
         } else if (type == SurfaceModelType::URBAN) {
             urban_data_lev[lev].resize(model_data.size());
+            if (lev == 0) {
+                // only set names on first level, since they are the same for all levels
+                m_urban_names.resize(model_data.size());
+                AMREX_ALWAYS_ASSERT(data_names.size() == model_data.size());
+                for (int i = 0; i < data_names.size(); i++) {
+                    m_urban_names[i] = data_names[i];
+                }
+            }
             for (int i = 0; i < urban_data_lev[lev].size(); i++) {
                 AMREX_ALWAYS_ASSERT(model_data[i]);
                 urban_data_lev[lev][i] = model_data[i];
@@ -150,10 +177,46 @@ public:
         return wavg[lev].get();
     }
 
+    void write_output(int lev, const amrex::Real time, const std::string plot_prefix, const int level_step);
+
+    void register_field_map(std::string name, const std::pair<int, int> &lsm_urb_map);
+
+    amrex::MultiFab* get_field(const std::string &name, int lev = 0) {
+        auto &field = fieldmap.at(name);
+        AMREX_ASSERT(field.mf_ind != -1);
+
+        return fields[field.mf_ind][lev].get();
+    }
+
+    const amrex::Vector<const amrex::MultiFab*> get_radiation_fields() {
+        // check if we need to build the radiation list (for first time step,)
+        if (rad_fields.size() == 0) {
+            build_radiation_fieldlist();
+        }
+        return rad_fields;
+    }
+
 private:
 
     // Internal function to update weights using urban fraction
     void calculate_simple_average(int lev, amrex::MultiFab* const urban_frac);
+
+    void build_radiation_fieldlist() {
+        amrex::Print() << "  --- building radiation field list" << std::endl;
+
+        // loop over fields and check against names of radiation variables
+        for (int i = 0; i < radnames.size(); i++) {
+            amrex::Print() << "    - Checking for radiation variable '" << radnames[i] << "'" << std::endl;
+
+            auto mf = get_field(radnames[i]);
+            if (mf) {
+                rad_fields.push_back(mf);
+            }
+        }
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rad_fields.size() == radnames.size(), "Did not find all radiation fields");
+    }
+
+    void weight_average_fields(int lev, amrex::MultiFab* const urban_frac);
 
     int m_nlevs;
 
@@ -166,11 +229,15 @@ private:
     bool m_weights_updated = false;
     
     amrex::Vector<amrex::BoxArray> m_ba;
+    amrex::Vector<amrex::BoxArray> m_ba2d;
     amrex::Vector<amrex::Geometry> m_geom;
     amrex::Vector<amrex::DistributionMapping> m_dmap;
 
+    amrex::Vector<amrex::Geometry> m_geom2d;
+    amrex::Vector<amrex::iMultiFab*> m_lmask;
+
     // Pointers to LSM and Urban model data
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>>  urban_frac_lev; // Urban fraction for each level [0-1.0]
+    amrex::Vector<amrex::MultiFab*>  urban_frac_lev; // Urban fraction for each level [0-1.0]
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  lsm_data_lev;   // LSM data for each level
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  urban_data_lev; // Urban data for each level
 
@@ -189,7 +256,29 @@ private:
     // TODO: make this more flexible for different types of models
     amrex::Vector<int> lsm_fields;
     amrex::Vector<int> urban_fields;
+
+    inline static const std::vector<std::string> radnames = {"tskin", "emiss", "albedo_vis", "albedo_nir", "albedo_vis_diff", "albedo_nir_diff"};
+
+    struct Field {
+        std::pair<int, int> map;
+        int mf_ind;
+    };
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> fields; // NOTE: this is stored in inverse order: (field, nlev)
+    std::unordered_map<std::string, Field> fieldmap;
+
+    amrex::Vector<std::string> m_lsm_names;
+    amrex::Vector<std::string> m_urban_names;
+
+    amrex::Vector<const amrex::MultiFab*> rad_fields;
     
+    // plotfile names for outputs
+    inline static const std::vector<std::string> field_names = {
+        "uflux",
+        "vflux",
+        "hfx",
+        "qfx",
+        "tskin",
+    };
 };
 
 #endif

@@ -548,7 +548,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
             if (surf_uflux_arr && is_land) {
                 // use the flux directly from LSM+Urban
-                stressx = surf_uflux_arr(i,j,k);
+                int ic, jc;
+                ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
+                jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
+                ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
+                jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
+                stressx = 0.5*(surf_uflux_arr(ic-1, jc, 0) + surf_uflux_arr(ic, jc, 0));
             } else {
                 stressx = flux_comp.compute_u_flux(i, j, k,
                                                    cons_arr, velx_arr, vely_arr,
@@ -582,7 +587,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
                 if (surf_vflux_arr && is_land) {
                     // use the flux directly from LSM+Urban
-                    stressy = surf_vflux_arr(i,j,k);
+                    int ic, jc;
+                    ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
+                    jc = j  < lbound(cons_arr).y+1 ? lbound(cons_arr).y+1 : j;
+                    ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
+                    jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
+                    stressy = 0.5 * (surf_vflux_arr(ic, jc-1, 0) + surf_vflux_arr(ic, jc, 0));
                 } else {
                     stressy = flux_comp.compute_v_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
