@@ -15,10 +15,7 @@ using namespace amrex;
  * @param[in   ] u velocity in x-dir
  * @param[in   ] v velocity in y-dir
  * @param[inout] cell_data conserved cell center vars
- * @param[in   ] zflux flux in z-dir
- * @param[in   ] detJ Jacobian determinant
  * @param[in   ] cellSizeInv inverse cell size array
- * @param[in   ] SmnSmn_a strain rate magnitude in general; here just empty pointer
  * @param[inout] hfx_z heat flux in z-dir
  * @param[in   ] mu_turb turbulent viscosity
  * @param[in   ] diffChoice container of diffusion parameters
@@ -28,24 +25,24 @@ using namespace amrex;
  * @param[in   ] use_SurfLayer whether we have turned on subgrid diffusion
  */
 void
-ImplicitDiffForState_N (const Box& bx, const Box& domain, const Real dt,
+ImplicitDiffForState_N (const Box& bx, const Box& domain,
+                        const int level,
+                        const Real dt,
                         int start_comp, int num_comp,
                         const Array4<const Real>& u,
                         const Array4<const Real>& v,
                         const Array4<      Real>& cell_data,
-                        const Array4<      Real>& zflux,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                        const Array4<const Real>& SmnSmn_a,
                         const Array4<      Real>& hfx_z,
                         const Array4<const Real>& mu_turb,
                         const SolverChoice &solverChoice,
-                        const int level,
                         const BCRec* bc_ptr,
                         const bool use_SurfLayer,
                         const Real implicit_fac)
 {
     BL_PROFILE_VAR("ImplicitDiffForState_N()",ImplicitDiffForState_N);
 
+    // this uses domain, level, start_comp, num_comp
 #include "ERF_DiffSetup.H"
 
     const int         n = RhoTheta_comp;
