@@ -96,6 +96,110 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain, const Real dt,
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {
 
+        // Build the coefficients and RHS
+        for (int k(klo); k <= khi; k++)
+        {
+            if (l_consA && l_turb) {
+                rhoAlpha_lo = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
+                            + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_scal_index])
+                                    + mu_turb(i,j,k-1, d_eddy_diff_idz[prim_scal_index]) );
+                rhoAlpha_hi = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k+1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
+                            + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_scal_index])
+                                    + mu_turb(i,j,k+1, d_eddy_diff_idz[prim_scal_index]) );
+            }
+            else if (l_turb) // with MolecDiffType::Constant or None
+            {
+                rhoAlpha_lo = d_alpha_eff[prim_index]
+                            + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_index])
+                                    + mu_turb(i,j,k-1, d_eddy_diff_idz[prim_index]) );
+                rhoAlpha_hi =  d_alpha_eff[prim_index]
+                            + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_index])
+                                    + mu_turb(i,j,k+1, d_eddy_diff_idz[prim_index]) );
+            }
+            else if (l_consA) // without an LES/PBL model
+            {
+                rhoAlpha_lo = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) ) * d_alpha_eff[prim_index];
+                rhoAlpha_hi = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k+1,Rho_comp) ) * d_alpha_eff[prim_index];
+            }
+            else // with MolecDiffType::Constant or None - without an LES/PBL model
+            {
+                rhoAlpha_lo = d_alpha_eff[prim_index];
+                rhoAlpha_hi = d_alpha_eff[prim_index];
+            }
+
+            Real met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,k  ,cellSizeInv,z_nd);
+            Real met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,k+1,cellSizeInv,z_nd);
+
+            RHS_a(i,j,k)  = detJ(i,j,k) * cell_data(i,j,k,n); // Note this is rho*theta, whereas solution will be theta
+
+            // Note that the additional factor of detJ is multiplied through so we don't see it here
+            //      in the denominator but do see it multiplying the B coeff and the RHS
+            coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv / met_h_zeta_lo;
+            coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv / met_h_zeta_hi;
+
+            if (k == klo) {
+                if (neumann_on_zlo) {
+                    // TODO: get input theta_grad
+                    RHS_a(i,j,klo) -= coeffA_a(i,j,klo) * 0.010/dz_inv * met_h_zeta_lo;
+                } else if (use_SurfLayer) {
+                    RHS_a(i,j,klo) += implicit_fac * dt * dz_inv * hfx_z(i,j,0);
+                }
+
+                coeffA_a(i,j,klo) = 0.;
+            }
+            if (k == khi) {
+                if (neumann_on_zhi) {
+                    // TODO: get input theta_grad
+                  //if (cell_data(i,j,k+1,RhoTheta_comp) > 0) // WORKAROUND
+                  //{
+                  //      RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * dtheta;
+                  //}
+                    RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * 0.003/dz_inv * met_h_zeta_hi;
+                }
+
+                coeffC_a(i,j,khi) = 0.;
+            }
+
+            coeffB_a(i,j,k) = detJ(i,j,k)*cell_data(i,j,k,Rho_comp) - coeffA_a(i,j,k) - coeffC_a(i,j,k);
+
+            //amrex::Print() <<" A B C " << k << " " <<
+            //            coeffA_a(i,j,k) << " " << coeffB_a(i,j,k) << " " << coeffC_a(i,j,k) << std::endl;
+        } // k
+
+        // Forward sweep
+
+        Real bet = coeffB_a(i,j,klo);
+
+        for (int k(klo+1); k<=khi; ++k) {
+            Real gam = coeffC_a(i,j,k-1) / bet;
+            bet = coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam;
+            AMREX_ASSERT(bet != 0.0);
+            coeffB_a(i,j,k) = bet;
+        }
+
+        for (int k(klo); k<=khi; ++k) {
+            inv_coeffB_a(i,j,k) = 1.0 / coeffB_a(i,j,k);
+        }
+
+        //
+        // Tridiagonal solve
+        //
+        soln_a(i,j,klo) = RHS_a(i,j,klo) * inv_coeffB_a(i,j,klo);
+
+        for (int k(klo+1); k<=khi; ++k) {
+            soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
+        }
+
+        for (int k(khi-1); k>=klo; --k) {
+            soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) * soln_a(i,j,k+1);
+        }
+
+        //
+        // Transfer back to original array
+        //
+        for (int k(klo); k<=khi; ++k) {
+            cell_data(i,j,k,n) = soln_a(i,j,k) * cell_data(i,j,k,Rho_comp);
+        }
 
       } // i
     } // j

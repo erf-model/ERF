@@ -381,4 +381,22 @@ void ImplicitDiffForState_S (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
                              const amrex::Real implicit_fac);
+
+void ImplicitDiffForState_T (const amrex::Box& bx, const amrex::Box& domain,
+                             const amrex::Real dt, int start_comp, int num_comp,
+                             const amrex::Array4<const amrex::Real>& u,
+                             const amrex::Array4<const amrex::Real>& v,
+                             const amrex::Array4<      amrex::Real>& cell_data,
+                             const amrex::Array4<      amrex::Real>& zflux,
+                             const amrex::Array4<const amrex::Real>& z_nd,
+                             const amrex::Array4<const amrex::Real>& detJ,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                             const amrex::Array4<const amrex::Real>& SmnSmn_a,
+                             const amrex::Array4<      amrex::Real>& hfx_z,
+                             const amrex::Array4<const amrex::Real>& mu_turb,
+                             const SolverChoice& solverChoice,
+                             const int level,
+                             const amrex::BCRec* bc_ptr,
+                             const bool use_SurfLayer,
+                             const amrex::Real implicit_fac);
 #endif
