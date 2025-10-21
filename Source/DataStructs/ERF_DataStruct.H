@@ -1033,6 +1033,8 @@ struct SolverChoice {
     amrex::Real hindcast_zhi_sponge_strength = -1.0, hindcast_zhi_sponge_length = -1.0;
     bool hindcast_zhi_sponge_damping = false;
 
+    amrex::Real hindcast_data_interval_in_hrs;
+
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
 };
