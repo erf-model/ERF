@@ -645,12 +645,14 @@ struct SolverChoice {
 
     void check_params (int max_level)
     {
+#if 0
         // Warn for PBL models and moisture - these may not yet be compatible
         for (int lev = 0; lev <= max_level; lev++) {
             if ((moisture_type != MoistureType::None) && (turbChoice[lev].pbl_type != PBLType::None)) {
                 amrex::Warning("\n*** WARNING: Moisture may not yet be compatible with PBL models, \n    proceed with caution ***");
             }
         }
+#endif
         //
         // Buoyancy type check
         //
