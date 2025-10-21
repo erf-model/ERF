@@ -676,6 +676,11 @@ ERF::ReadCheckpointFile ()
            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
            update_terrain_arrays(lev);
 
+           // Compute the min dz and pass to the micro model
+           Real dz_min = get_dzmin_terrain(*z_phys_nd[lev]);
+           ParallelDescriptor::ReduceRealMin(dz_min);
+           micro->Set_dzmin(lev, dz_min);
+
            if (SolverChoice::mesh_type == MeshType::VariableDz) {
                MultiFab z_slab(convert(ba2d[lev],IntVect(1,1,1)),dmap[lev],1,0);
                int klo = geom[lev].Domain().smallEnd(2);
