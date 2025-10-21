@@ -81,7 +81,6 @@ public:
         const int klo = 0;
         const int khi = geom.Domain().bigEnd()[AMREX_SPACEDIM-1];
         const int Nz = geom.Domain().size()[AMREX_SPACEDIM-1];
-        const amrex::Real dz = geom.CellSize()[AMREX_SPACEDIM-1];
 
         const amrex::Real zbot = zlevels_stag[klo];
         const amrex::Real ztop = zlevels_stag[khi+1];
