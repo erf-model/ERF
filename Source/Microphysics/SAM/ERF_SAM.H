@@ -95,6 +95,13 @@ public:
           std::unique_ptr<amrex::MultiFab>& z_phys_nd,
           std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
 
+    // Import minimum dz at this level
+    void
+    Set_dzmin (const amrex::Real dz_min) override
+    {
+        m_dzmin = dz_min;
+    }
+
     // Copy state into micro vars
     void
     Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
@@ -310,6 +317,9 @@ private:
     amrex::Real m_rdOcp;
     bool m_do_cond;
 
+    // Minimum dz at this level
+    amrex::Real m_dzmin;
+
     // Pointer to terrain data
     amrex::MultiFab* m_z_phys_nd;
     amrex::MultiFab* m_detJ_cc;
@@ -338,8 +348,5 @@ private:
     amrex::TableData<amrex::Real, 1> qt1d;
     amrex::TableData<amrex::Real, 1> qv1d;
     amrex::TableData<amrex::Real, 1> qn1d;
-
-    amrex::TableData<amrex::Real, 1> gamaz;
-    amrex::TableData<amrex::Real, 1> zmid; // mid value of vertical coordinate in physical domain
 };
 #endif
