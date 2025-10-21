@@ -682,8 +682,13 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                  + yflux(i,j,k  ) + yflux(i  ,j+1,k  ) );
         }
 
-        Real zflux_lo = zflux(i,j,k  ) - met_h_xi_lo*mf_mx(i,j,0)*xfluxbar_lo - met_h_eta_lo*mf_my(i,j,0)*yfluxbar_lo;
-        Real zflux_hi = zflux(i,j,k+1) - met_h_xi_hi*mf_mx(i,j,0)*xfluxbar_hi - met_h_eta_hi*mf_my(i,j,0)*yfluxbar_hi;
+        // Allow semi-implicit discretization of the vertical diffusive terms
+        Real zflux_lo = (1.0 - implicit_fac) * zflux(i,j,k  )
+                      - met_h_xi_lo  * mf_mx(i,j,0) * xfluxbar_lo
+                      - met_h_eta_lo * mf_my(i,j,0) * yfluxbar_lo;
+        Real zflux_hi = (1.0 - implicit_fac) * zflux(i,j,k+1)
+                      - met_h_xi_hi  * mf_mx(i,j,0) * xfluxbar_hi
+                      - met_h_eta_hi * mf_my(i,j,0) * yfluxbar_hi;
 
         Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
         Real stateContrib = ( xflux(i+1,j  ,k  ) * ax(i+1,j,k) / mf_uy(i+1,j,0)
