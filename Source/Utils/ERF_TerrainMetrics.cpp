@@ -659,5 +659,7 @@ get_dzmin_terrain (MultiFab& z_phys_nd)
                                                         Compute_Z_AtWFace(i,j,k  ,ma_z_nd_arr[box_no]);
                                        return { dz };
                                    });
-    return (get<0>(min) + std::numeric_limits<amrex::Real>::epsilon());
+    Real r = (get<0>(min) + std::numeric_limits<amrex::Real>::epsilon());
+    ParallelDescriptor::ReduceRealMin(r);
+    return r;
 }
