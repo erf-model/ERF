@@ -637,7 +637,7 @@ ERF::init_zphys (int lev, Real time)
     // Compute the min dz and pass to the micro model
     Real dz_min = get_dzmin_terrain(*z_phys_nd[lev]);
     ParallelDescriptor::ReduceRealMin(dz_min);
-    micro->Set_dzmin (lev, dz_min);
+    micro->Set_dzmin(lev, dz_min);
 }
 
 void
@@ -677,7 +677,7 @@ ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys
     // Compute the min dz and pass to the micro model
     Real dz_min = get_dzmin_terrain(*z_phys_nd[lev]);
     ParallelDescriptor::ReduceRealMin(dz_min);
-    micro->Set_dzmin (lev, dz_min);
+    micro->Set_dzmin(lev, dz_min);
 }
 
 void
