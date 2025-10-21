@@ -334,7 +334,7 @@ NOAHMP::Advance_With_State (const int& lev,
         // Copy results from NoahmpIO back to temporary arrays
         auto h_hfx_arr = tmp_hfx.array();
         auto h_lh_arr = tmp_lh.array();
-    auto h_tau_ew_arr = tmp_tau_ew.array();
+        auto h_tau_ew_arr = tmp_tau_ew.array();
         auto h_tau_ns_arr = tmp_tau_ns.array();
         auto h_tsk_arr = tmp_tsk.array();
         auto h_emiss_arr = tmp_emiss.array();
