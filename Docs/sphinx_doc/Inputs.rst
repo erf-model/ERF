@@ -458,6 +458,18 @@ List of Parameters
 |                            | each RK stage?       | "Explicit",    | compressible,       |
 |                            |                      | "None"         | "None" if anelastic |
 +----------------------------+----------------------+----------------+---------------------+
+| **erf.vert_implicit_fac**  | How much implicit    | Real >= 0      | 0.0, 0.0, 0.0       |
+|                            | vertical diffusion   | (explicit) and | (fully explicit)    |
+|                            | to include in each   | <= 1 (implicit)|                     |
+|                            | RK stage? Currently, |                |                     |
+|                            | only applies to      |                |                     |
+|                            | rho*theta component. |                |                     |
+|                            |                      |                |                     |
+|                            | Specify either one   |                |                     |
+|                            | (the same for all    |                |                     |
+|                            | stages) or three     |                |                     |
+|                            | values, one per stage|                |                     |
++----------------------------+----------------------+----------------+---------------------+
 | **erf.cfl**                | CFL number used to   | Real > 0 and   | 0.8                 |
 |                            | compute level 0 dt   | <= 1           |                     |
 +----------------------------+----------------------+----------------+---------------------+

@@ -37,6 +37,9 @@ erf.fixed_dt           = 30.0
 erf.vert_implicit_fac  = 1.0  # fully implicit
 erf.fixed_dt           = 60.0
 
+erf.vert_implicit_fac  = 1.0 1.0 0.0  # implicit in first two stages, explicit in last RK stage
+erf.fixed_dt           = 60.0
+
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval    = 1       # timesteps between computing mass
 erf.v               = 1       # verbosity in ERF.cpp
