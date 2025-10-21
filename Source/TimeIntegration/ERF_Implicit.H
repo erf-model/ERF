@@ -59,7 +59,7 @@
                     ImplicitDiffForState_S(bx, fine_geom.Domain(), level, dtau,
                                            n_start, n_comp,
                                            cell_data,
-                                           z_nd_arr, detJ_arr, dxInv, hfx_z,
+                                           stretched_dz_d[level], hfx_z,
                                            mu_turb, solverChoice,
                                            bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
                 } else {

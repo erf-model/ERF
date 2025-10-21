@@ -13,8 +13,7 @@ using namespace amrex;
  * @param[in   ] start_comp starting component index
  * @param[in   ] num_comp number of components
  * @param[inout] cell_data conserved cell center vars
- * @param[in   ] detJ Jacobian determinant
- * @param[in   ] cellSizeInv inverse cell size array
+ * @param[in   ] stretched_dz_d vertical grid spacing
  * @param[inout] hfx_z heat flux in z-dir
  * @param[in   ] mu_turb turbulent viscosity
  * @param[in   ] diffChoice container of diffusion parameters
@@ -29,9 +28,7 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
                         const Real dt,
                         int start_comp, int num_comp,
                         const Array4<      Real>& cell_data,
-                        const Array4<const Real>& z_nd,
-                        const Array4<const Real>& detJ,
-                        const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                        const Gpu::DeviceVector<Real>& stretched_dz_d,
                         const Array4<      Real>& hfx_z,
                         const Array4<const Real>& mu_turb,
                         const SolverChoice &solverChoice,
@@ -78,7 +75,7 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
     Real rhoAlpha_lo;
     Real rhoAlpha_hi;
 
-    Real dz_inv        = cellSizeInv[2];
+    auto dz_ptr = stretched_dz_d.data();
 
 //  bool ext_dir_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
 //                         bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim)
@@ -121,20 +118,21 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
                 rhoAlpha_hi = d_alpha_eff[prim_index];
             }
 
-            Real met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,k  ,cellSizeInv,z_nd);
-            Real met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,k+1,cellSizeInv,z_nd);
+            Real dz_inv = 1.0 / dz_ptr[k];
+            Real dz_inv_lo = (k == dom_lo.z) ? dz_inv
+                                             : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+            Real dz_inv_hi = (k == dom_hi.z) ? dz_inv
+                                             : 2.0 / (dz_ptr[k] + dz_ptr[k+1]);
 
-            RHS_a(i,j,k)  = detJ(i,j,k) * cell_data(i,j,k,n); // Note this is rho*theta, whereas solution will be theta
+            RHS_a(i,j,k)  = cell_data(i,j,k,n); // Note this is rho*theta, whereas solution will be theta
 
-            // Note that the additional factor of detJ is multiplied through so we don't see it here
-            //      in the denominator but do see it multiplying the B coeff and the RHS
-            coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv / met_h_zeta_lo;
-            coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv / met_h_zeta_hi;
+            coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv_lo;
+            coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv_hi;
 
             if (k == dom_lo.z) {
                 if (neumann_on_zlo) {
                     // TODO: get input theta_grad
-                    RHS_a(i,j,klo) -= coeffA_a(i,j,klo) * 0.010/dz_inv * met_h_zeta_lo;
+                    RHS_a(i,j,klo) -= coeffA_a(i,j,klo) * 0.010/dz_inv_lo;
                 } else if (use_SurfLayer) {
                     RHS_a(i,j,klo) += implicit_fac * dt * dz_inv * hfx_z(i,j,0);
                 }
@@ -148,13 +146,13 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
                   //{
                   //      RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * dtheta;
                   //}
-                    RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * 0.003/dz_inv * met_h_zeta_hi;
+                    RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * 0.003/dz_inv_hi;
                 }
 
                 coeffC_a(i,j,khi) = 0.;
             }
 
-            coeffB_a(i,j,k) = detJ(i,j,k)*cell_data(i,j,k,Rho_comp) - coeffA_a(i,j,k) - coeffC_a(i,j,k);
+            coeffB_a(i,j,k) = cell_data(i,j,k,Rho_comp) - coeffA_a(i,j,k) - coeffC_a(i,j,k);
 
             //amrex::Print() <<" A B C " << k << " " <<
             //            coeffA_a(i,j,k) << " " << coeffB_a(i,j,k) << " " << coeffC_a(i,j,k) << std::endl;
