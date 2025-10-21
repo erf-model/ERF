@@ -135,7 +135,7 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
             coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv / met_h_zeta_lo;
             coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv / met_h_zeta_hi;
 
-            if (k == klo) {
+            if (k == dom_lo.z) {
                 if (neumann_on_zlo) {
                     // TODO: get input theta_grad
                     RHS_a(i,j,klo) -= coeffA_a(i,j,klo) * 0.010/dz_inv * met_h_zeta_lo;
@@ -145,7 +145,7 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
 
                 coeffA_a(i,j,klo) = 0.;
             }
-            if (k == khi) {
+            if (k == dom_hi.z) {
                 if (neumann_on_zhi) {
                     // TODO: get input theta_grad
                   //if (cell_data(i,j,k+1,RhoTheta_comp) > 0) // WORKAROUND
