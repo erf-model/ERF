@@ -140,6 +140,7 @@ where :math:`\beta_1 = 0.5 (1 - \beta_s)` and :math:`\beta_2 = 0.5 (1 + \beta_s)
 :math:`\beta_s` is the acoustic step off-centering coefficient.  When we do implicit substepping, we use
 the typical WRF value of 0.1. This off-centering is intended to provide damping of both horizontally
 and vertically propagating sound waves by biasing the time average toward the future time step.
+This may be controlled with the ``erf.beta_s`` parameter.
 
 When we do fully explicit substepping, we set :math:`\beta_s = -1.0`, which sets
 :math:`\beta_1 = 1` and :math:`\beta_2 = 0`.

@@ -8,16 +8,16 @@
 /* #undef SCREAM_FPE */
 
 // The number of scalars in a scream::pack::Pack and Mask.
-#define SCREAM_PACK_SIZE 16
+#define SCREAM_PACK_SIZE 1
 
 // The number of scalars in a scream::pack::SmallPack and SmallMask.
-#define SCREAM_SMALL_PACK_SIZE 16
+#define SCREAM_SMALL_PACK_SIZE 1
 
 // The number of scalars in a possibly-no-pack. Use this packsize when a routine does better with pksize=1 on some architectures (SKX).
-#define SCREAM_POSSIBLY_NO_PACK_SIZE 16
+#define SCREAM_POSSIBLY_NO_PACK_SIZE 1
 
 // How many levels to use for the vertical grid
-#define SCREAM_NUM_VERTICAL_LEV 72
+/* #define SCREAM_NUM_VERTICAL_LEV 72 */
 
 // Whether this is a CUDA/HIP build
 /* #undef EAMXX_ENABLE_GPU */

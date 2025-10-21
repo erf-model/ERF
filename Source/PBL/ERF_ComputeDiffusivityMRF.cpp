@@ -75,14 +75,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real t_surf  = t_surf_arr(i, j, 0);
             const Real t_layer = t10av_arr(i, j, 0);
 
-            int kpbl  = klo;
-            Real zval = 10;
+            Real zval;
+            int kpbl = klo;
             bool above_critical = false;
             while (!above_critical && ((kpbl + 1) <= khi)) {
+                kpbl += 1;
+
+                // height above ground level
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
-                     : gdata.ProbLo(2) + (kpbl + 0.5) * gdata.CellSize(2);
-                kpbl += 1;
+                     : (kpbl + 0.5) * gdata.CellSize(2);
 
                 const Real theta = cell_data(i, j, kpbl, RhoTheta_comp) /
                                    cell_data(i, j, kpbl, Rho_comp);
@@ -93,6 +95,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real Rib = CONST_GRAV * zval * (theta - t_surf) / (ws2 * t_layer);
                 above_critical = (Rib >= Ribcr);
             }
+
             // Initial PBL Height
             // Avoiding detailed interpolation here and just using map-nearest
             // neighbor Empirical expression for PBLH is given by h = c u* / f
@@ -101,7 +104,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             //const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
             const Real pblh_emp = gdata.ProbLo(2) + 0.5 * gdata.CellSize(2);
             pblh_arr(i, j, 0) = (above_critical) ? zval : pblh_emp;
-            pbli_arr(i, j, 0) = (above_critical) ? kpbl : 1;
+            pbli_arr(i, j, 0) = (above_critical) ? kpbl : klo+1;  // k < kpbl is considered the PBL
         });
 
         // Corrector PBL height for thermal excess
@@ -140,7 +143,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             //const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
             const Real pblh_emp = gdata.ProbLo(2) + 0.5 * gdata.CellSize(2);
             pblh_corr_arr(i, j, 0) = (above_critical) ? zval : pblh_emp;
-                 pbli_arr(i, j, 0) = (above_critical) ? kpbl : 1;
+                 pbli_arr(i, j, 0) = (above_critical) ? kpbl : klo+1;  // k < kpbl is considered the PBL
         });
         /*
           amrex::Print() << "PBL height computed for MRF scheme at level "

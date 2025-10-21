@@ -11,6 +11,7 @@ using namespace amrex;
 void
 SAM::Cloud (const SolverChoice& sc)
 {
+    if (!m_do_cond) { return; }
 
     constexpr Real an = 1.0/(tbgmax-tbgmin);
     constexpr Real bn = tbgmin*an;

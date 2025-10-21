@@ -503,6 +503,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     Morrison::Advance (const amrex::Real& dt_advance,
                        const SolverChoice& sc)
     {
+        // Expose for GPU
+        bool do_cond = m_do_cond;
+
         // Store timestep
         amrex::Real dt = dt_advance;
 
@@ -1855,9 +1858,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 pcc = -dumqc / dt;
               }
 
+              if (!do_cond) { pcc = 0.0; }
+
               // Update tendencies
               morr_arr(i,j,k,MORRInd::qv3dten) -= pcc;
-              morr_arr(i,j,k,MORRInd::t3dten) += pcc * morr_arr(i,j,k,MORRInd::xxlv) / morr_arr(i,j,k,MORRInd::cpm);
+              morr_arr(i,j,k,MORRInd::t3dten)  += pcc * morr_arr(i,j,k,MORRInd::xxlv) / morr_arr(i,j,k,MORRInd::cpm);
               morr_arr(i,j,k,MORRInd::qc3dten) += pcc;
             } else { //cold
               //......................................................................

@@ -83,6 +83,7 @@ public:
         m_gOcp     = CONST_GRAV / sc.c_p;
         m_axis     = sc.ave_plane;
         m_rdOcp    = sc.rdOcp;
+        m_do_cond  = (!sc.use_shoc);
     }
 
     // init
@@ -307,6 +308,7 @@ private:
     amrex::Real m_fac_sub;
     amrex::Real m_gOcp;
     amrex::Real m_rdOcp;
+    bool m_do_cond;
 
     // Pointer to terrain data
     amrex::MultiFab* m_z_phys_nd;

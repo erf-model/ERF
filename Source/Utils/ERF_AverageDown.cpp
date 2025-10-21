@@ -91,8 +91,20 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                            BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
     }
 
-    average_down(vars_new[crse_lev+1][Vars::cons],vars_new[crse_lev  ][Vars::cons],
-                 scomp, ncomp, refRatio(crse_lev));
+    if (SolverChoice::terrain_type != TerrainType::EB) {
+        average_down(vars_new[crse_lev+1][Vars::cons],vars_new[crse_lev  ][Vars::cons],
+                    scomp, ncomp, refRatio(crse_lev));
+    } else {
+        const auto dx = geom[fine_lev].CellSize();
+        const Real cell_vol = dx[0]*dx[1]*dx[2];
+        const BoxArray& ba = vars_new[fine_lev][IntVars::cons].boxArray();
+        const DistributionMapping& dm = vars_new[fine_lev][IntVars::cons].DistributionMap();
+        MultiFab vol_fine(ba, dm, 1, 0);
+        vol_fine.setVal(cell_vol);
+        EB_average_down(vars_new[fine_lev][Vars::cons],vars_new[crse_lev][Vars::cons],
+                    *detJ_cc[fine_lev], vol_fine,
+                    scomp, ncomp, refRatio(crse_lev));
+    }
 
     if (interpolation_type == StateInterpType::Perturbational) {
         // Restore the fine data to what it was
@@ -120,16 +132,16 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
     for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
       for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
-        const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
+        const Array4<      Real> cons_arr = vars_new[lev][Vars::cons].array(mfi);
         const Array4<const Real> mfx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
         const Array4<const Real> mfy_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
         if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-            const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
+            const Array4<const Real> detJ_arr = detJ_cc[lev]->const_array(mfi);
             ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
                 cons_arr(i,j,k,scomp+n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0)) / detJ_arr(i,j,k);
             });
-        } else {
+        } else { // MeshType::ConstantDz
             ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
                 cons_arr(i,j,k,scomp+n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0));
@@ -137,6 +149,25 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         }
       } // mfi
     } // lev
+
+    // Fill EB covered cells by old values
+    // (This won't be needed because EB_average_down copyies the covered value.)
+    if (SolverChoice::terrain_type == TerrainType::EB) {
+        for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
+            for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                const Array4<      Real> cons_new = vars_new[lev][Vars::cons].array(mfi);
+                const Array4<const Real> cons_old = vars_old[lev][Vars::cons].array(mfi);
+                const Array4<const Real> detJ_arr = detJ_cc[lev]->const_array(mfi);
+                ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                {
+                    if (detJ_arr(i,j,k) == 0.0) {
+                        cons_new(i,j,k,scomp+n) = cons_old(i,j,k,scomp+n);
+                    }
+                });
+            } // mfi
+        } // lev
+    }
 
     // ******************************************************************************************
     // Now average down momenta.
@@ -149,30 +180,66 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         // FillBoundary for density so we can go back and forth between velocity and momentum
         vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
 
-        VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect(0,0,0),
-                           vars_new[lev][Vars::yvel], IntVect(0,0,0),
-                           vars_new[lev][Vars::zvel], IntVect(0,0,0),
-                           vars_new[lev][Vars::cons],
-                             rU_new[lev],
-                             rV_new[lev],
-                             rW_new[lev],
-                           Geom(lev).Domain(),
-                           domain_bcs_type);
+        if (SolverChoice::terrain_type != TerrainType::EB) {
+            VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect(0,0,0),
+                            vars_new[lev][Vars::yvel], IntVect(0,0,0),
+                            vars_new[lev][Vars::zvel], IntVect(0,0,0),
+                            vars_new[lev][Vars::cons],
+                                rU_new[lev],
+                                rV_new[lev],
+                                rW_new[lev],
+                            Geom(lev).Domain(),
+                            domain_bcs_type);
+        } else {
+            const MultiFab& c_vfrac = (get_eb(lev).get_const_factory())->getVolFrac();
+
+            VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect(0,0,0),
+                            vars_new[lev][Vars::yvel], IntVect(0,0,0),
+                            vars_new[lev][Vars::zvel], IntVect(0,0,0),
+                            vars_new[lev][Vars::cons],
+                                rU_new[lev],
+                                rV_new[lev],
+                                rW_new[lev],
+                            Geom(lev).Domain(),
+                            domain_bcs_type,
+                            &c_vfrac);
+        }
     }
 
-    average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-    average_down_faces(rV_new[crse_lev+1], rV_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-    average_down_faces(rW_new[crse_lev+1], rW_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+    if (SolverChoice::terrain_type != TerrainType::EB) {
+        average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+        average_down_faces(rV_new[crse_lev+1], rV_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+        average_down_faces(rW_new[crse_lev+1], rW_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+    } else {
+        EB_average_down_faces({&rU_new[crse_lev+1], &rV_new[crse_lev+1], &rW_new[crse_lev+1]},
+                            {&rU_new[crse_lev], &rV_new[crse_lev], &rW_new[crse_lev]},
+                            refRatio(crse_lev), 0);
+    }
 
     for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
-        MomentumToVelocity(vars_new[lev][Vars::xvel],
-                           vars_new[lev][Vars::yvel],
-                           vars_new[lev][Vars::zvel],
-                           vars_new[lev][Vars::cons],
-                             rU_new[lev],
-                             rV_new[lev],
-                             rW_new[lev],
-                           Geom(lev).Domain(),
-                           domain_bcs_type);
+        if (SolverChoice::terrain_type != TerrainType::EB) {
+            MomentumToVelocity(vars_new[lev][Vars::xvel],
+                            vars_new[lev][Vars::yvel],
+                            vars_new[lev][Vars::zvel],
+                            vars_new[lev][Vars::cons],
+                                rU_new[lev],
+                                rV_new[lev],
+                                rW_new[lev],
+                            Geom(lev).Domain(),
+                            domain_bcs_type);
+        } else {
+            const MultiFab& c_vfrac = (get_eb(lev).get_const_factory())->getVolFrac();
+
+            MomentumToVelocity(vars_new[lev][Vars::xvel],
+                            vars_new[lev][Vars::yvel],
+                            vars_new[lev][Vars::zvel],
+                            vars_new[lev][Vars::cons],
+                                rU_new[lev],
+                                rV_new[lev],
+                                rW_new[lev],
+                            Geom(lev).Domain(),
+                            domain_bcs_type,
+                            &c_vfrac);
+        }
     }
 }

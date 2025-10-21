@@ -84,8 +84,11 @@ read_from_wrfinput (int lev,
                     "amr.n_cell[0] does not match wrfinput");
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(south_north_stag == geom.Domain().length(1)+1,
                     "amr.n_cell[1] does not match wrfinput");
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bottom_top == geom.Domain().length(2),
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bottom_top >= geom.Domain().length(2),
                     "amr.n_cell[2] does not match wrfinput");
+            if (geom.Domain().length(2) < bottom_top) {
+                Warning("Fewer vertical levels in ERF domain than the wrfinput");
+            }
 
             Real rtol  = 1.0e-7;
             Real Len_x = NC_dx * Real(NC_nx-1);
@@ -120,7 +123,9 @@ read_from_wrfinput (int lev,
     else if (NC_name == "MAPFAC_U" || NC_name == "MAPFAC_V" || NC_name == "MAPFAC_M" ||
              NC_name == "MUB"      || NC_name == "SST"      || NC_name == "LANDMASK"  ||
              NC_name == "XLAT_V"   || NC_name == "XLONG_U"  || NC_name == "TSK" ||
-             NC_name == "PSFC")
+             NC_name == "PSFC"     || NC_name == "IVGTYP"   || NC_name == "ISLTYP" ||
+             NC_name == "LAI"      || NC_name == "VEGFRA"   || NC_name == "TMN" ||
+             NC_name == "SHDMIN"   || NC_name == "SHDMAX")
     {
         // Note: staggering is handled in `fill_fab_from_arrays`
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
@@ -128,6 +133,16 @@ read_from_wrfinput (int lev,
     else if (NC_name == "C1H" || NC_name == "C2H")
     {
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);
+    }
+    else if (NC_name == "TSLB" || NC_name == "SMOIS" || NC_name == "SH2O")
+    {
+        NC_dim_types.push_back(NC_Data_Dims_Type::Time_SL_SN_WE);
+    }
+    else if (NC_name == "ZS" || NC_name == "DZS") {
+        NC_dim_types.push_back(NC_Data_Dims_Type::Time_SL);
+    }
+    else {
+        amrex::Print() << " ERROR: no NC dim type for NC_name = '" << NC_name << "'" << std::endl;
     }
 
     // Read the netcdf file and fill these FABs

@@ -278,7 +278,7 @@ AdvectionSrcForScalars (const Box& bx,
               ( (flx_arr[1])(i,j+1,k) - (flx_arr[1])(i,j,k) ) * dyInv +
               ( (flx_arr[2])(i,j,k+1) - (flx_arr[2])(i,j,k) ) * dzInv );
         } else {
-            advectionSrc(i,j,k) = 0.;
+            advectionSrc(i,j,k,cons_index) = 0.;
         }
     });
 
