@@ -86,6 +86,13 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
 
     Real dz_inv        = cellSizeInv[2];
 
+//  bool ext_dir_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
+//                         bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim)
+//  bool ext_dir_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir ||
+//                         bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim)
+    bool neumann_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::neumann);
+    bool neumann_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::neumann);
+
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {
 
@@ -102,12 +109,6 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
         // Build the coefficients and RHS
         for (int k(klo); k <= khi; k++)
         {
-//          bool ext_dir_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
-//                                 bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim)
-//          bool ext_dir_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir ||
-//                                 bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim)
-            bool neumann_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::neumann);
-
             if (l_consA && l_turb) {
                 rhoAlpha_lo = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
                             + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_scal_index])
@@ -162,22 +163,17 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain, const Real dt,
             coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv / met_h_zeta_hi;
 
             if (k == klo) {
-                // TODO: inhomogeneous BCs
-                coeffA_a(i,j,klo) = 0.; // Zero gradient at bottom boundary
+                if (neumann_on_zlo) {
+                    // TODO: get input theta_grad
+                    RHS_a(i,j,klo) -= coeffA_a(i,j,klo) * 0.010/dz_inv * met_h_zeta_lo;
+                } else if (use_SurfLayer) {
+                    RHS_a(i,j,klo) += implicit_fac * dt * dz_inv * hfx_z(i,j,0);
+                }
+
+                coeffA_a(i,j,klo) = 0.;
             }
             if (k == khi) {
                 if (neumann_on_zhi) {
-                    // Calculate gradient of rhotheta for RHS
-                    Real dtheta = cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)
-                                - cell_data(i, j, k  , RhoTheta_comp) / cell_data(i, j, k  , Rho_comp);
-
-                    // TODO: why is ghost value for theta at k+1 == 0 in the first step?
-                  //Print() << "neumann dtheta/dz"<<IntVect(i,j,k)<<"= " << dtheta * dz_inv
-                  //    << " from " << cell_data(i, j, k  , RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp)
-                  //    << " "      << cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k  , Rho_comp)
-                  //    << " C= " << coeffC_a(i,j,khi)
-                  //    << std::endl;
-
                     // TODO: get input theta_grad
                   //if (cell_data(i,j,k+1,RhoTheta_comp) > 0) // WORKAROUND
                   //{

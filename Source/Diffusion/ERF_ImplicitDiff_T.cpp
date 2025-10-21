@@ -86,6 +86,13 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain, const Real dt,
 
     Real dz_inv        = cellSizeInv[2];
 
+//  bool ext_dir_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
+//                         bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim)
+//  bool ext_dir_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir ||
+//                         bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim)
+    bool neumann_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::neumann);
+    bool neumann_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::neumann);
+
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {
 
