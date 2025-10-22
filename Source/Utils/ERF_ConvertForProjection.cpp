@@ -80,6 +80,7 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             momx(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i-1,j,k,Rho_comp) )
                          / ( den_div_arr(i,j,k,Rho_comp) + den_div_arr(i-1,j,k,Rho_comp) );
+
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             momy(i,j,k) *= ( den_mlt_arr(i,j,k,Rho_comp) + den_mlt_arr(i,j-1,k,Rho_comp) )
@@ -172,4 +173,184 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
 
 
     } // end MFIter
+}
+
+void compute_influx_outflux(
+    Array<MultiFab*, AMREX_SPACEDIM>& vels_vec,
+    Array<MultiFab*, AMREX_SPACEDIM>& area_vec,
+    const Geometry& geom,
+    Real& influx, Real& outflux)
+{
+    influx = 0.0, outflux = 0.0;
+
+    const Box domain = geom.Domain();
+    const auto& domlo = lbound(domain);
+    const auto& domhi = ubound(domain);
+
+    // Normal face area (of undistorted mesh)
+    const Real* a_dx = geom.CellSize();
+    const Real ds_x = a_dx[1];
+    const Real ds_y = a_dx[0];
+
+    IntVect ngrow = {0,0,0};
+
+    // X-dir
+    auto const&  vel_x = vels_vec[0]->const_arrays();
+    auto const& area_x = area_vec[0]->const_arrays();
+    influx += ds_x *
+        ParReduce(TypeList<ReduceOpSum>{},
+                  TypeList<Real>{},
+                  *vels_vec[0], ngrow,
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+            noexcept -> GpuTuple<Real>
+        {
+            if ( (i == domlo.x   && vel_x[box_no](i,j,k) > 0.0) ||
+                 (i == domhi.x+1 && vel_x[box_no](i,j,k) < 0.0) ) {
+                return { std::abs(vel_x[box_no](i,j,k)) * area_x[box_no](i,j,k) };
+            } else {
+                return { 0. };
+            }
+        });
+
+    outflux += ds_x *
+        ParReduce(TypeList<ReduceOpSum>{},
+                  TypeList<Real>{},
+                  *vels_vec[0], ngrow,
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+            noexcept -> GpuTuple<Real>
+        {
+            if ( (i == domlo.x   && vel_x[box_no](i,j,k) < 0.0) ||
+                 (i == domhi.x+1 && vel_x[box_no](i,j,k) > 0.0) ) {
+                return { std::abs(vel_x[box_no](i,j,k)) * area_x[box_no](i,j,k) };
+            } else {
+                return { 0. };
+            }
+        });
+
+    // Y-dir
+    auto const&  vel_y=  vels_vec[1]->const_arrays();
+    auto const& area_y = area_vec[1]->const_arrays();
+    influx += ds_y *
+        ParReduce(TypeList<ReduceOpSum>{},
+                  TypeList<Real>{},
+                  *vels_vec[1], ngrow,
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+            noexcept -> GpuTuple<Real>
+        {
+            if ( (j == domlo.y   && vel_y[box_no](i,j,k) > 0.0) ||
+                 (j == domhi.y+1 && vel_y[box_no](i,j,k) < 0.0) ) {
+                return { std::abs(vel_y[box_no](i,j,k)) * area_y[box_no](i,j,k) };
+            } else {
+                return { 0. };
+            }
+        });
+
+    outflux += ds_y *
+        ParReduce(TypeList<ReduceOpSum>{},
+                  TypeList<Real>{},
+                  *vels_vec[1], ngrow,
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+            noexcept -> GpuTuple<Real>
+        {
+            if ( (j == domlo.y   && vel_y[box_no](i,j,k) < 0.0) ||
+                 (j == domhi.y+1 && vel_y[box_no](i,j,k) > 0.0) ) {
+                return { std::abs(vel_y[box_no](i,j,k)) * area_y[box_no](i,j,k) };
+            } else {
+                return { 0. };
+            }
+        });
+
+    ParallelDescriptor::ReduceRealSum(influx);
+    ParallelDescriptor::ReduceRealSum(outflux);
+}
+
+void correct_outflow(
+    const Geometry& geom_lev,
+    Array<MultiFab*, AMREX_SPACEDIM>& vels_vec,
+    const Box& domain,
+    const Real alpha_fcf)
+{
+    for (OrientationIter oit; oit != nullptr; ++oit) {
+        const auto ori = oit();
+        const int dir = ori.coordDir();
+        const auto oriIsLow = ori.isLow();
+        const auto oriIsHigh = ori.isHigh();
+
+        if (dir < 2) {
+
+        // MultiFab for normal velocity
+        const auto& vel_mf = vels_vec[dir];
+
+        // Domain extent indices for the velocities
+        int dlo = domain.smallEnd(dir);
+        int dhi = domain.bigEnd(dir)+1;
+
+        // get BCs for the normal velocity and set the boundary index
+        int bndry;
+        if (oriIsLow) {
+            bndry = dlo;
+        } else {
+            bndry = dhi;
+        }
+
+        // Assume here that all domain boundaries are viewed as direction_dependent!
+        if (!geom_lev.isPeriodic(dir))
+        {
+            for (MFIter mfi(*vel_mf, false); mfi.isValid(); ++mfi) {
+
+                Box box = mfi.validbox();
+
+                // Enter further only if the box boundary is at the domain boundary
+                if ((oriIsLow  && (box.smallEnd(dir) == dlo))
+                 || (oriIsHigh && (box.bigEnd(dir)   == dhi))) {
+
+                    // create a 2D box normal to dir at the low/high boundary
+                    Box box2d(box); box2d.setRange(dir, bndry);
+
+                    auto vel_arr = vel_mf->array(mfi);
+
+                    ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        if ((oriIsLow  && vel_arr(i,j,k) < 0)
+                         || (oriIsHigh && vel_arr(i,j,k) > 0)) {
+                            vel_arr(i,j,k) *= alpha_fcf;
+                        }
+                    });
+                }
+            } // mfi
+        } // geom
+      } // dir < 2
+    } // ori
+}
+
+void enforceInOutSolvability (int /*lev*/,
+    Array<MultiFab*, AMREX_SPACEDIM>& vels_vec,
+    Array<MultiFab*, AMREX_SPACEDIM>& area_vec,
+    const Geometry& geom)
+{
+    Real small_vel = 1.e-8;
+
+    Real influx = 0.0, outflux = 0.0;
+
+    const Box domain = geom.Domain();
+
+    Real influx_lev = 0.0, outflux_lev = 0.0;
+    compute_influx_outflux(vels_vec, area_vec, geom, influx_lev, outflux_lev);
+    influx += influx_lev;
+    outflux += outflux_lev;
+    amrex::Print() <<" TOTAL INFLUX / OUTFLOW " << influx << " " << outflux << std::endl;
+
+    if ((influx > small_vel) && (outflux < small_vel)) {
+        Abort("Cannot enforce solvability, no outflow from the direction dependent boundaries");
+    } else if ((influx < small_vel) && (outflux < small_vel)) {
+        return; // do nothing
+    } else {
+        const Real alpha_fcf = influx/outflux;  // flux correction factor
+        correct_outflow(geom, vels_vec, domain, alpha_fcf);
+
+        // Just for diagnostic purposes!
+        // Real influx_lev = 0.0, outflux_lev = 0.0;
+        // compute_influx_outflux(vels_vec, area_vec, geom, influx_lev, outflux_lev);
+        // amrex::Print() <<" TOTAL INFLUX / OUTFLOW " << influx_lev << " " << outflux_lev << std::endl;
+    }
 }

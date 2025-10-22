@@ -144,6 +144,13 @@ public:
         m_moist_model[a_lev]->GetPlotVar(a_name, a_mf);
     }
 
+    /*! \brief Populates dz_min in micro model for precipitation */
+    virtual void Set_dzmin (const int a_lev,
+                            const amrex::Real dz_min) const override
+    {
+        m_moist_model[a_lev]->Set_dzmin(dz_min);
+    }
+
 protected:
 
     /*! \brief Create and set the specified moisture model */

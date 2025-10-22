@@ -27,7 +27,7 @@ using namespace amrex;
 void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                    const MultiFab& cons_in, MultiFab& eddyViscosity,
                                    MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
-                                   const Geometry& geom, bool use_terrain,
+                                   const Geometry& geom, bool use_terrain_fitted_coords,
                                    Vector<std::unique_ptr<MultiFab>>& mapfac,
                                    const std::unique_ptr<MultiFab>& z_phys_nd,
                                    const TurbChoice& turbChoice, const Real const_grav,
@@ -101,7 +101,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 Real dxInv = cellSizeInv[0];
                 Real dyInv = cellSizeInv[1];
                 Real dzInv = cellSizeInv[2];
-                if (use_terrain) {
+                if (use_terrain_fitted_coords) {
                     dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
                 }
 
@@ -214,7 +214,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 Real dxInv = cellSizeInv[0];
                 Real dyInv = cellSizeInv[1];
                 Real dzInv = cellSizeInv[2];
-                if (use_terrain) {
+                if (use_terrain_fitted_coords) {
                     // the terrain grid is only deformed in z for now
                     dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
                 }
@@ -376,7 +376,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                                     MultiFab& Hfx3,
                                     MultiFab& Diss,
                                     const Geometry& geom,
-                                    bool use_terrain,
+                                    bool use_terrain_fitted_coords,
                                     Vector<std::unique_ptr<MultiFab>>& /*mapfac*/,
                                     const std::unique_ptr<MultiFab>& z_phys_nd,
                                     const TurbChoice& turbChoice,
@@ -433,7 +433,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
 
                 // Estimate stratification
                 Real dzInv = cellSizeInv[2];
-                if (use_terrain) {
+                if (use_terrain_fitted_coords) {
                     // the terrain grid is only deformed in z for now
                     dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
                 }

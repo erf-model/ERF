@@ -8,58 +8,58 @@ using namespace amrex;
 inline Array<std::pair<FFT::Boundary,FFT::Boundary>,AMREX_SPACEDIM>
 get_fft_bc (Geometry const& lev_geom,
             Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type,
-            Box const& bounding_box) noexcept
+            Box const& bounding_box, bool use_real_bcs) noexcept
 {
     Array<std::pair<FFT::Boundary,FFT::Boundary>,AMREX_SPACEDIM> r;
+
+    FFT::Boundary first, secnd;
 
     for (int dir = 0; dir <= 2; dir++)
     {
         auto bc_type_lo = l_domain_bc_type[Orientation(dir,Orientation::low)];
-        auto bc_type_hi = l_domain_bc_type[Orientation(dir,Orientation::high)];
-
         if ( lev_geom.isPeriodic(dir) &&
-            (lev_geom.Domain().smallEnd(dir) == bounding_box.smallEnd(dir)) &&
-            (lev_geom.Domain().bigEnd(dir)   == bounding_box.bigEnd(dir)) ) {
-            r[dir] = std::make_pair(FFT::Boundary::periodic,FFT::Boundary::periodic);
-             // amrex::Print() << "SETTING " << dir << " TO PERIODIC " << std::endl;
+            (lev_geom.Domain().smallEnd(dir) == bounding_box.smallEnd(dir)) )
+        {
+            first = FFT::Boundary::periodic;
+             // amrex::Print() << "SETTING FIRST OF " << dir << " TO PERIODIC " << std::endl;
         }
 
         else if ( (lev_geom.Domain().smallEnd(dir) == bounding_box.smallEnd(dir)) &&
-                  (lev_geom.Domain().bigEnd(dir)   == bounding_box.bigEnd(dir)) &&
-                  (bc_type_lo != "Outflow" && bc_type_lo != "Open") &&
-                  (bc_type_hi != "Outflow" && bc_type_hi != "Open") )
+                  (bc_type_lo == "Outflow" || bc_type_lo == "Open") && !use_real_bcs)
         {
-            r[dir] = std::make_pair(FFT::Boundary::even,FFT::Boundary::even);
-            // amrex::Print() << "SETTING " << dir << " TO EVEN EVEN " << std::endl;
+            first = FFT::Boundary::odd;
+             // amrex::Print() << "SETTING FIRST OF " << dir << " TO ODD " << std::endl;
         }
 
-        else if ( (lev_geom.Domain().smallEnd(dir) == bounding_box.smallEnd(dir)) &&
-                  (lev_geom.Domain().bigEnd(dir)   == bounding_box.bigEnd(dir)) &&
-                  (bc_type_lo == "Outflow" || bc_type_lo == "Open") &&
-                  (bc_type_hi == "Outflow" || bc_type_hi == "Open") )
-        {
-            r[dir] = std::make_pair(FFT::Boundary::odd,FFT::Boundary::odd);
-            // amrex::Print() << "SETTING " << dir << " TO ODD ODD " << std::endl;
-        }
-
-        else if ( (lev_geom.Domain().smallEnd(dir)   == bounding_box.smallEnd(dir)) &&
-                  (bc_type_lo == "Outflow" || bc_type_lo == "Open") )
-        {
-                r[dir] = std::make_pair(FFT::Boundary::odd,FFT::Boundary::even);
-             // amrex::Print() << "SETTING " << dir << " TO ODD EVEN " << std::endl;
-        }
-
-        else if ( (lev_geom.Domain().bigEnd(dir)   == bounding_box.bigEnd(dir)) &&
-                  (bc_type_hi == "Outflow" || bc_type_hi == "Open") )
-        {
-            r[dir] = std::make_pair(FFT::Boundary::even,FFT::Boundary::odd);
-            // amrex::Print() << "SETTING " << dir << " TO EVEN ODD " << std::endl;
-        }
         else
         {
-            r[dir] = std::make_pair(FFT::Boundary::even,FFT::Boundary::even);
-            // amrex::Print() << "SETTING " << dir << " TO EVEN EVEN " << std::endl;
+            first = FFT::Boundary::even;
+            // amrex::Print() << "SETTING FIRST OF " << dir << " TO EVEN " << std::endl;
         }
+
+        auto bc_type_hi = l_domain_bc_type[Orientation(dir,Orientation::high)];
+        if ( lev_geom.isPeriodic(dir) &&
+            (lev_geom.Domain().bigEnd(dir) == bounding_box.bigEnd(dir)) )
+        {
+            secnd = FFT::Boundary::periodic;
+             // amrex::Print() << "SETTING SECND OF " << dir << " TO PERIODIC " << std::endl;
+        }
+
+        else if ( (lev_geom.Domain().bigEnd(dir) == bounding_box.bigEnd(dir)) &&
+                  (bc_type_hi == "Outflow" || bc_type_hi == "Open") && !use_real_bcs)
+        {
+            secnd = FFT::Boundary::odd;
+             // amrex::Print() << "SETTING SECND OF " << dir << " TO ODD " << std::endl;
+        }
+
+        else
+        {
+            secnd = FFT::Boundary::even;
+            // amrex::Print() << "SETTING SECND OF " << dir << " TO EVEN " << std::endl;
+        }
+
+        r[dir] = std::make_pair(first,secnd);
+
     } // dir
 
     return r;

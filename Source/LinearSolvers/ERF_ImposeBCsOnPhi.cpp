@@ -41,7 +41,7 @@ void ERF::ImposeBCsOnPhi (int lev, MultiFab& phi, const Box& subdomain)
         auto bc_type_yhi = domain_bc_type[Orientation(1,Orientation::high)];
         auto bc_type_zhi = domain_bc_type[Orientation(2,Orientation::high)];
 
-        if ( (bx_lo.x == dom_lo.x) && (bc_type_xlo == "Outflow" || bc_type_xlo == "Open") ) {
+        if ( (bx_lo.x == dom_lo.x) && (bc_type_xlo == "Outflow" || bc_type_xlo == "Open") && !solverChoice.use_real_bcs) {
             ParallelFor(makeSlab(bx,0,dom_lo.x), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 pp_arr(i-1,j,k) = -pp_arr(i,j,k);
@@ -53,7 +53,7 @@ void ERF::ImposeBCsOnPhi (int lev, MultiFab& phi, const Box& subdomain)
             });
         }
 
-        if ( (bx_hi.x == dom_hi.x) && (bc_type_xhi == "Outflow" || bc_type_xhi == "Open") ) {
+        if ( (bx_hi.x == dom_hi.x) && (bc_type_xhi == "Outflow" || bc_type_xhi == "Open") && !solverChoice.use_real_bcs) {
             ParallelFor(makeSlab(bx,0,dom_hi.x), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 pp_arr(i+1,j,k) = -pp_arr(i,j,k);
@@ -65,7 +65,7 @@ void ERF::ImposeBCsOnPhi (int lev, MultiFab& phi, const Box& subdomain)
             });
         }
 
-        if ( (bx_lo.y == dom_lo.y) && (bc_type_ylo == "Outflow" || bc_type_ylo == "Open") ) {
+        if ( (bx_lo.y == dom_lo.y) && (bc_type_ylo == "Outflow" || bc_type_ylo == "Open") && !solverChoice.use_real_bcs) {
             ParallelFor(makeSlab(bx,1,dom_lo.y), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 pp_arr(i,j-1,k) = -pp_arr(i,j,k);
@@ -77,7 +77,7 @@ void ERF::ImposeBCsOnPhi (int lev, MultiFab& phi, const Box& subdomain)
             });
         }
 
-        if ( (bx_hi.y == dom_hi.y) && (bc_type_yhi == "Outflow" || bc_type_yhi == "Open") ) {
+        if ( (bx_hi.y == dom_hi.y) && (bc_type_yhi == "Outflow" || bc_type_yhi == "Open") && !solverChoice.use_real_bcs) {
             ParallelFor(makeSlab(bx,1,dom_hi.y), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 pp_arr(i,j+1,k) = -pp_arr(i,j,k);

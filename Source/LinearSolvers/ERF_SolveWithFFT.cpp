@@ -22,7 +22,7 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
     auto dx    = geom[lev].CellSizeArray();
     auto dxInv = geom[lev].InvCellSizeArray();
 
-    auto bc_fft = get_fft_bc(geom[lev],domain_bc_type,subdomain);
+    auto bc_fft = get_fft_bc(geom[lev],domain_bc_type,subdomain,solverChoice.use_real_bcs);
 
     Geometry my_geom;
 
@@ -30,7 +30,9 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
     if (geom[lev].isPeriodic(0) && sub_lo.x == dom_lo.x && sub_hi.x == dom_hi.x) { is_per[0] = 1;}
     if (geom[lev].isPeriodic(1) && sub_lo.y == dom_lo.y && sub_hi.y == dom_hi.y) { is_per[1] = 1;}
 
-    amrex::Print() <<" Periodic flag " << is_per[0] << " " << is_per[1] << " " << is_per[2] << std::endl;
+    if (mg_verbose > 0) {
+    // amrex::Print() <<" Periodic flag " << is_per[0] << " " << is_per[1] << " " << is_per[2] << std::endl;
+    }
 
     int coord_sys = 0;
 
@@ -72,7 +74,7 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
     // and Neumann at top and bottom z-boundaries
     //
     }
-    else if (solverChoice.mesh_type == MeshType::StretchedDz)
+    else
     {
         if (mg_verbose > 0) {
             amrex::Print() << "Using the hybrid FFT solver on domain " << my_geom.Domain() << std::endl;
@@ -82,12 +84,11 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
         }
         m_2D_poisson[lev] = std::make_unique<FFT::PoissonHybrid<MultiFab>>(my_geom,bc_fft);
         m_2D_poisson[lev]->solve(phi, rhs, stretched_dz_d[lev]);
-
-    } else {
-        amrex::Abort("FFT isn't appropriate for spatially varying terrain");
     }
 
-    amrex::Print() << "FFT solve complete on domain " << my_geom.Domain() << std::endl;
+    if (mg_verbose > 0) {
+        amrex::Print() << "FFT solve complete on domain " << my_geom.Domain() << std::endl;
+    }
 
     // ****************************************************************************
     // Impose bc's on pprime
@@ -122,7 +123,7 @@ void ERF::solve_with_fft (int lev, const Box& subdomain,
 
         Box const& zbx = mfi.nodaltilebox(2);
         Array4<Real> const& fz_arr  = fluxes[2].array(mfi);
-        if (solverChoice.mesh_type == MeshType::StretchedDz) {
+        if (solverChoice.mesh_type != MeshType::ConstantDz) {
             Real* stretched_dz_d_ptr = stretched_dz_d[lev].data();
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {

@@ -94,6 +94,7 @@
         // *****************************************************************************
         make_sources(level, nrk, slow_dt, old_stage_time,
                      S_data, S_prim, cc_src, base_state[level], zpc_to_use,
+                     xvel_new, yvel_new,
                      qheating_rates[level].get(),
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
@@ -105,7 +106,9 @@
         // Define the pressure gradient
         // *****************************************************************************
         make_gradp_pert(level, solverChoice, fine_geom, S_data,
-                        p0_to_use, *zpn_to_use, *zpc_to_use, get_eb(level), gradp[level]);
+                        p0_to_use, *zpn_to_use, *zpc_to_use,
+                        mapfac[level],
+                        get_eb(level), gradp[level]);
 
         // *****************************************************************************
         // Define the buoyancy forcing term in the z-direction

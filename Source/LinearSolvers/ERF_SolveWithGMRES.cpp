@@ -65,6 +65,25 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
     gmsolver.solve(phi, rhs, reltol, abstol);
 
     tp.getFluxes(phi, fluxes);
+
+    for (MFIter mfi(phi); mfi.isValid(); ++mfi)
+    {
+        Box xbx = mfi.nodaltilebox(0);
+        Box ybx = mfi.nodaltilebox(1);
+        const Array4<Real      >& fx_ar = fluxes[0].array(mfi);
+        const Array4<Real      >& fy_ar = fluxes[1].array(mfi);
+        const Array4<Real const>& mf_ux = mapfac[lev][MapFacType::u_x]->const_array(mfi);
+        const Array4<Real const>& mf_vy = mapfac[lev][MapFacType::v_y]->const_array(mfi);
+        ParallelFor(xbx,ybx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            fx_ar(i,j,k) *= mf_ux(i,j,0);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            fy_ar(i,j,k) *= mf_vy(i,j,0);
+        });
+    } // mfi
 #else
     amrex::ignore_unused(lev, rhs, phi, fluxes, ax_sub, ay_sub, znd_sub);
 #endif
