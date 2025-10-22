@@ -22,7 +22,7 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
 {
     if (!m_2D_fft_precond) {
         Box bounding_box = ba.minimalBox();
-        bc_fft = get_fft_bc(geom,domain_bcs_type,bounding_box);
+        bc_fft = get_fft_bc(geom,domain_bcs_type,bounding_box, false);
         m_2D_fft_precond = std::make_unique<FFT::PoissonHybrid<MultiFab>>(geom,bc_fft);
     }
 }
