@@ -133,7 +133,7 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
             if (k == dom_lo.z) {
                 if (neumann_on_zlo) {
                     // TODO: get input theta_grad
-                    RHS_a(i,j,klo) -= coeffA_a(i,j,klo) * bc_neumann_vals[2] / dz_inv_lo;
+                    RHS_a(i,j,klo) += coeffA_a(i,j,klo) * bc_neumann_vals[2] / dz_inv_lo;
                 } else if (use_SurfLayer) {
                     RHS_a(i,j,klo) += implicit_fac * dt * dz_inv * hfx_z(i,j,0);
                 }
