@@ -793,6 +793,7 @@ private:
     bool use_wrf_lai = false;     // whether to use WRF-Noah style LAI (interpolate between min and max lai)
 
     std::vector<std::vector<amrex::Real>> param_table;
+    amrex::TableData<amrex::Real, 2> d_param_table;
 
     amrex::Real m_calday = -1.0;
     int m_orbital_year = -1;

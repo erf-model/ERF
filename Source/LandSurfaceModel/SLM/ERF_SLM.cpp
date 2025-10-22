@@ -401,6 +401,25 @@ void SLM::init_from_file()
 
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(param_table[t].size() == nparam, "Invalid param table, inconsistent number of parameters for landtype");
         }
+
+        // Copy parameter table to GPU
+        d_param_table = TableData<Real, 2>({0, 0}, {static_cast<int>(param_table.size()), nparam});
+        amrex::Arena* Arena_Used = amrex::The_Arena();
+#ifdef AMREX_USE_GPU
+        TableData<Real, 2> h_param_table({0, 0}, {static_cast<int>(param_table.size()), nparam}, amrex::The_Pinned_Arena());
+        auto const &h_tab = h_param_table.table();
+#else
+        auto const &h_tab = d_param_table.table();
+#endif
+        for (int t = 0; t < param_table.size(); t++) {
+            for (int i = 0; i < param_table[t].size(); i++) {
+                h_tab(t, i) = param_table[t][i];
+            }
+        }
+#ifdef AMREX_USE_GPU
+        d_param_table.copy(h_param_table);
+        Gpu::streamSynchronize();
+#endif
     }
 
     pp.query("rad_input_file", rad_input_file);
@@ -1543,13 +1562,15 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
         auto vegetype_arr = vegetype.const_array(mfi);
 
         auto veg_frac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->array(mfi);
-        auto veg_frac_min_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_min]->array(mfi);
-        auto veg_frac_max_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_max]->array(mfi);
+        auto veg_frac_min_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_min]->const_array(mfi);
+        auto veg_frac_max_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_max]->const_array(mfi);
 
         auto IR_emis_veg = IR_emis_vege.array(mfi);
 
         auto LAI_arr = LAI.array(mfi);
         auto SAI_arr = SAI.array(mfi);
+
+        auto const& d_params = d_param_table.const_table();
 
         // Update LAI = LAI + SAI
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
@@ -1558,10 +1579,10 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
 
                 const int ltype = landtype_arr(i,j,0) - 1; // shift by one to match table index (i.e, types 1-20 -> 0-19)
 
-                AMREX_ALWAYS_ASSERT(param_table[ltype][0] == ltype + 1); // debug to make sure landtypes match
+                AMREX_ASSERT(d_params(ltype, 0) == ltype + 1); // debug to make sure landtypes match
 
                 if (ltype + 1 == 13) { // urban cells
-                    veg_frac_arr(i,j,0) = param_table[ltype][1];
+                    veg_frac_arr(i,j,0) = d_params(ltype,1);
                 }
 
                 //    LAI min = col 8, lai max = col 9
@@ -1570,10 +1591,10 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
 
                 if (veg_frac_arr(i,j,0) >= veg_frac_max_arr(i,j,0)) {
                     //emis_sfc_arr(i,j,0) = emissmax;
-                    LAI_arr(i,j,0) = param_table[ltype][9];
+                    LAI_arr(i,j,0) = d_params(ltype, 9);
                 } else if (veg_frac_arr(i,j,0) <= veg_frac_min_arr(i,j,0)) {
                     //emis_sfc_arr(i,j,0) = emissmin;
-                    LAI_arr(i,j,0) = param_table[ltype][8];
+                    LAI_arr(i,j,0) = d_params(ltype, 8);
                 } else {
                     if (veg_frac_max_arr(i,j,0) > veg_frac_min_arr(i,j,0)) {
 
@@ -1581,12 +1602,12 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
                         interp_frac = std::min(std::max(interp_frac, 0.0), 1.0); // bound between 0.0 and 1.0
 
                         // Scale emissivitiy and LAI between min/max by interp_frac
-                        //emis_sfc_arr(i,j,0) = ( (1.0 - interp_frac) * param_table[ltype][10]) + interp_frac * param_table[ltype][11];
+                        //emis_sfc_arr(i,j,0) = ( (1.0 - interp_frac) * d_params(ltype, 10)) + interp_frac * d_params(ltype, 11);
 
-                        LAI_arr(i,j,0) = ( (1.0 - interp_frac) * param_table[ltype][8]) + interp_frac * param_table[ltype][9];
+                        LAI_arr(i,j,0) = ( (1.0 - interp_frac) * d_params(ltype, 8)) + interp_frac * d_params(ltype, 9);
                     } else {
-                        // emis_sfc_arr(i,j,0) = 0.5 * param_table[ltype][10] + 0.5 * param_table[ltype][11];
-                        LAI_arr(i,j,0) = 0.5 * param_table[ltype][8] + 0.5 * param_table[ltype][9];
+                        // emis_sfc_arr(i,j,0) = 0.5 * d_params(ltype,10) + 0.5 * d_params(ltype, 11);
+                        LAI_arr(i,j,0) = 0.5 * d_params(ltype, 8) + 0.5 * d_params(ltype, 9);
                     }
                 }
 
