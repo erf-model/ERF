@@ -10,7 +10,8 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
                                 Array<std::string,2*AMREX_SPACEDIM>& domain_bcs_type,
                                 Gpu::DeviceVector<Real>& stretched_dz_lev_d,
                                 const MultiFab& ax, const MultiFab& ay,
-                                MultiFab const* z_phys_nd)
+                                MultiFab const* z_phys_nd,
+                                const bool use_real_bcs)
     : m_geom(geom),
       m_grids(ba),
       m_dmap(dm),
@@ -22,7 +23,7 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
 {
     if (!m_2D_fft_precond) {
         Box bounding_box = ba.minimalBox();
-        bc_fft = get_fft_bc(geom,domain_bcs_type,bounding_box);
+        bc_fft = get_fft_bc(geom,domain_bcs_type,bounding_box,use_real_bcs);
         m_2D_fft_precond = std::make_unique<FFT::PoissonHybrid<MultiFab>>(geom,bc_fft);
     }
 }
