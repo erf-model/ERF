@@ -9,7 +9,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                         Vector<MultiFab>& S_stage,
                         Vector<MultiFab>& S_data,
                         const Real dtau,
-                        const Real slow_dt,
+                        const Real /*slow_dt*/,
                         const Real inv_fac,
                         const Real old_substep_time,
                         const Real new_substep_time)

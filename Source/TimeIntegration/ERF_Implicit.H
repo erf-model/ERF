@@ -27,11 +27,11 @@
             {
                 Box bx  = mfi.tilebox();
 
-                const Array4<Real const> u_arr = xvel_new.const_array(mfi);
-                const Array4<Real const> v_arr = yvel_new.const_array(mfi);
+              //const Array4<Real const> u_arr = xvel_new.const_array(mfi);
+              //const Array4<Real const> v_arr = yvel_new.const_array(mfi);
 
                 const Array4<      Real> & cell_data  = S_data[IntVars::cons].array(mfi);
-                const Array4<const Real> & cell_prim  = S_prim.array(mfi);
+              //const Array4<const Real> & cell_prim  = S_prim.array(mfi);
 
                 const Array4<const Real>& z_nd_arr = z_phys_nd[level]->const_array(mfi);
                 const Array4<const Real>& detJ_arr = detJ_cc[level]->const_array(mfi);
