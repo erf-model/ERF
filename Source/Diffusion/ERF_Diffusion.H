@@ -350,6 +350,7 @@ void ComputeStrain_T (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz, amrex
 
 void ImplicitDiffForState_N (const amrex::Box& bx, const amrex::Box& domain, const int level,
                              const amrex::Real dt, int start_comp, int num_comp,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                              const amrex::Array4<      amrex::Real>& cell_data,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                              const amrex::Array4<      amrex::Real>& hfx_z,
@@ -361,6 +362,7 @@ void ImplicitDiffForState_N (const amrex::Box& bx, const amrex::Box& domain, con
 
 void ImplicitDiffForState_S (const amrex::Box& bx, const amrex::Box& domain, const int level,
                              const amrex::Real dt, int start_comp, int num_comp,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                              const amrex::Array4<      amrex::Real>& cell_data,
                              const amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                              const amrex::Array4<      amrex::Real>& hfx_z,
@@ -372,6 +374,7 @@ void ImplicitDiffForState_S (const amrex::Box& bx, const amrex::Box& domain, con
 
 void ImplicitDiffForState_T (const amrex::Box& bx, const amrex::Box& domain, const int level,
                              const amrex::Real dt, int start_comp, int num_comp,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                              const amrex::Array4<      amrex::Real>& cell_data,
                              const amrex::Array4<      amrex::Real>& zflux,
                              const amrex::Array4<const amrex::Real>& z_nd,

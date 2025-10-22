@@ -29,6 +29,7 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
                         const int level,
                         const Real dt,
                         int start_comp, int num_comp,
+                        const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                         const Array4<      Real>& cell_data,
                         const Array4<      Real>& zflux,
                         const Array4<const Real>& z_nd,
@@ -136,7 +137,7 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
             if (k == dom_lo.z) {
                 if (neumann_on_zlo) {
                     // TODO: get input theta_grad
-                    RHS_a(i,j,klo) -= coeffA_a(i,j,klo) * 0.010/dz_inv * met_h_zeta_lo;
+                    RHS_a(i,j,klo) -= coeffA_a(i,j,klo) * bc_neumann_vals[2] / dz_inv*met_h_zeta_lo;
                 } else if (use_SurfLayer) {
                     RHS_a(i,j,klo) += implicit_fac * dt * dz_inv * hfx_z(i,j,0);
                 }
@@ -150,7 +151,7 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
                   //{
                   //      RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * dtheta;
                   //}
-                    RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * 0.003/dz_inv * met_h_zeta_hi;
+                    RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * bc_neumann_vals[5] / dz_inv*met_h_zeta_hi;
                 }
 
                 coeffC_a(i,j,khi) = 0.;

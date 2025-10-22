@@ -4,6 +4,12 @@
 
         const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
 
+        GpuArray<Real, AMREX_SPACEDIM*2> l_bc_neumann_vals_d;
+        const int bc_comp = RhoTheta_comp;
+        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
+            l_bc_neumann_vals_d[ori] = m_bc_neumann_vals[bc_comp][ori];
+        }
+
         if (l_vert_implicit_fac > 0.) {
             const bool l_use_stretched_dz = (solverChoice.mesh_type == MeshType::StretchedDz);
             const bool l_use_SurfLayer = (m_SurfaceLayer != nullptr);
@@ -43,6 +49,7 @@
                 if (l_use_stretched_dz) {
                     ImplicitDiffForState_S(bx, fine_geom.Domain(), level, dtau,
                                            n_start, n_comp,
+                                           l_bc_neumann_vals_d,
                                            cell_data,
                                            stretched_dz_d[level], hfx_z,
                                            mu_turb, solverChoice,
@@ -58,6 +65,7 @@
 #endif
                     ImplicitDiffForState_T(bx, fine_geom.Domain(), level, dtau,
                                            n_start, n_comp,
+                                           l_bc_neumann_vals_d,
                                            cell_data, diffflux_z,
                                            z_nd_arr, detJ_arr, dxInv, hfx_z,
                                            mu_turb, solverChoice,
@@ -65,6 +73,7 @@
                 } else {
                     ImplicitDiffForState_N(bx, fine_geom.Domain(), level, dtau,
                                            n_start, n_comp,
+                                           l_bc_neumann_vals_d,
                                            cell_data,
                                            dxInv, hfx_z,
                                            mu_turb, solverChoice,
