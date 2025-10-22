@@ -267,6 +267,8 @@ public:
 
                     auto const& d_params = d_param_table.const_table();
 
+                    const bool d_use_wrf_lai = use_wrf_lai;
+
                     amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
                         landtype_arr(i,j,0) = vegtype_arr(i,j,d_khi_lsm);
                         //soiltype_arr(i,j,0) = in_soiltype_arr(i,j,d_khi_lsm);
@@ -316,7 +318,7 @@ public:
                             // amrex::Print() << "     -- urban cell (i = " << i << " j = " << j << ") - setting landtype=" << isnature << " (orig landtype = " << landtype_arr(i,j,0) << ")" << std::endl;
                             // for urban cells, set as a nature landtype for the non-building part
                             landtype_arr(i,j,0) = isnature;
-                            if (use_wrf_lai) {
+                            if (d_use_wrf_lai) {
                                 // set the vegetation frac
                                 in_vegfrac_arr(i,j,0) = d_params(isnature-1, 1);
                             }
