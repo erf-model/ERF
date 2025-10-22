@@ -13,7 +13,6 @@ using namespace amrex;
  * @param[in   ] start_comp starting component index
  * @param[in   ] num_comp number of components
  * @param[inout] cell_data conserved cell center vars
- * @param[in   ] zflux flux in z-dir
  * @param[in   ] detJ Jacobian determinant
  * @param[in   ] cellSizeInv inverse cell size array
  * @param[inout] hfx_z heat flux in z-dir
@@ -28,10 +27,9 @@ void
 ImplicitDiffForState_T (const Box& bx, const Box& domain,
                         const int level,
                         const Real dt,
-                        int start_comp, int num_comp,
+                        /*int start_comp, int num_comp,*/
                         const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                         const Array4<      Real>& cell_data,
-                        const Array4<      Real>& zflux,
                         const Array4<const Real>& z_nd,
                         const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,

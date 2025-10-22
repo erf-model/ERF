@@ -26,7 +26,7 @@ void
 ImplicitDiffForState_S (const Box& bx, const Box& domain,
                         const int level,
                         const Real dt,
-                        int start_comp, int num_comp,
+                        /*int start_comp, int num_comp,*/
                         const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                         const Array4<      Real>& cell_data,
                         const Gpu::DeviceVector<Real>& stretched_dz_d,

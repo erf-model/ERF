@@ -48,31 +48,23 @@
 
                 if (l_use_stretched_dz) {
                     ImplicitDiffForState_S(bx, fine_geom.Domain(), level, dtau,
-                                           n_start, n_comp,
+                                           /*n_start, n_comp,*/
                                            l_bc_neumann_vals_d,
                                            cell_data,
                                            stretched_dz_d[level], hfx_z,
                                            mu_turb, solverChoice,
                                            bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
                 } else if (l_use_terrain_fitted_coords) {
-#if 0
-                    ImplicitDiffForState_T(bx, fine_geom.Domain(), dtau, n_start, n_comp, l_rotate, u_arr, v_arr,
-                                           cell_data, cell_prim, diffflux_z,
-                                           z_nd_arr, detJ_arr, ax_arr, ay_arr, az_arr, detJ_arr,
-                                           dxInv, SmnSmn_a, hfx_z,
-                                           mu_turb, solverChoice, level,
-                                           bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
-#endif
                     ImplicitDiffForState_T(bx, fine_geom.Domain(), level, dtau,
-                                           n_start, n_comp,
+                                           /*n_start, n_comp,*/
                                            l_bc_neumann_vals_d,
-                                           cell_data, diffflux_z,
+                                           cell_data,
                                            z_nd_arr, detJ_arr, dxInv, hfx_z,
                                            mu_turb, solverChoice,
                                            bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
                 } else {
                     ImplicitDiffForState_N(bx, fine_geom.Domain(), level, dtau,
-                                           n_start, n_comp,
+                                           /*n_start, n_comp,*/
                                            l_bc_neumann_vals_d,
                                            cell_data,
                                            dxInv, hfx_z,
