@@ -530,7 +530,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         {
             // Valid theta flux from LSM and over land
             Real Tflux;
-            int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
+            int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
             if (lsm_t_flux_arr && is_land) {
                 Tflux = lsm_t_flux_arr(i,j,k);
             } else {
@@ -586,7 +586,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             {
                 // Valid qv flux from LSM and over land
                 Real Qflux;
-                int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
+                int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
                 if (lsm_q_flux_arr && is_land) {
                     Qflux = lsm_q_flux_arr(i,j,k);
                 } else {
@@ -651,7 +651,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             {
                 // Valid tau13 from LSM and over land
                 Real stressx;
-                int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
+                int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
                 if (lsm_tau13_arr && is_land) {
                     stressx = lsm_tau13_arr(i,j,k);
                 } else {
@@ -710,7 +710,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             {
                 // Valid tau13 from LSM and over land
                 Real stressy;
-                int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
+                int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
                 if (lsm_tau23_arr && is_land) {
                     stressy = lsm_tau23_arr(i,j,k);
                 } else {
@@ -876,7 +876,7 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+            int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
             if (!is_land) {
                 auto deltaZ = (z_arr) ? Compute_Zrel_AtCellCenter(i,j,k,z_arr) :
                                         0.5*dz;
