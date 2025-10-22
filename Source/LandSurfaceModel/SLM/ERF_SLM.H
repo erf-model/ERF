@@ -265,6 +265,8 @@ public:
                     auto vegetype_arr = vegetype.array(mfi);
                     auto vege_YES_arr = vege_YES.array(mfi);
 
+                    auto const& d_params = d_param_table.const_table();
+
                     amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
                         landtype_arr(i,j,0) = vegtype_arr(i,j,d_khi_lsm);
                         //soiltype_arr(i,j,0) = in_soiltype_arr(i,j,d_khi_lsm);
@@ -316,7 +318,7 @@ public:
                             landtype_arr(i,j,0) = isnature;
                             if (use_wrf_lai) {
                                 // set the vegetation frac
-                                in_vegfrac_arr(i,j,0) = param_table[isnature-1][1];
+                                in_vegfrac_arr(i,j,0) = d_params(isnature-1, 1);
                             }
                             //landtype_arr(i,j,0) = isurban;
                         }
