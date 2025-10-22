@@ -131,22 +131,16 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
             coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv_hi;
 
             if (k == dom_lo.z) {
-                if (neumann_on_zlo) {
-                    // TODO: get input theta_grad
-                    RHS_a(i,j,klo) += coeffA_a(i,j,klo) * bc_neumann_vals[2] / dz_inv_lo;
-                } else if (use_SurfLayer) {
+                if (use_SurfLayer) {
                     RHS_a(i,j,klo) += implicit_fac * dt * dz_inv * hfx_z(i,j,0);
+                } else if (neumann_on_zlo) {
+                    RHS_a(i,j,klo) += coeffA_a(i,j,klo) * bc_neumann_vals[2] / dz_inv_lo;
                 }
 
                 coeffA_a(i,j,klo) = 0.;
             }
             if (k == dom_hi.z) {
                 if (neumann_on_zhi) {
-                    // TODO: get input theta_grad
-                  //if (cell_data(i,j,k+1,RhoTheta_comp) > 0) // WORKAROUND
-                  //{
-                  //      RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * dtheta;
-                  //}
                     RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * bc_neumann_vals[5] / dz_inv_hi;
                 }
 
@@ -154,9 +148,6 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
             }
 
             coeffB_a(i,j,k) = cell_data(i,j,k,Rho_comp) - coeffA_a(i,j,k) - coeffC_a(i,j,k);
-
-            //amrex::Print() <<" A B C " << k << " " <<
-            //            coeffA_a(i,j,k) << " " << coeffB_a(i,j,k) << " " << coeffC_a(i,j,k) << std::endl;
         } // k
 
         // Forward sweep
