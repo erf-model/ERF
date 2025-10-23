@@ -95,14 +95,16 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         average_down(vars_new[crse_lev+1][Vars::cons],vars_new[crse_lev  ][Vars::cons],
                     scomp, ncomp, refRatio(crse_lev));
     } else {
-        const auto dx = geom[fine_lev].CellSize();
-        const Real cell_vol = dx[0]*dx[1]*dx[2];
+        // const auto dx = geom[fine_lev].CellSize();
+        // Setting cell_vol to the exact value may cause round-off errors in volume average.
+        // const Real cell_vol = dx[0]*dx[1]*dx[2];
+        constexpr Real cell_vol = 1.0;
         const BoxArray& ba = vars_new[fine_lev][IntVars::cons].boxArray();
         const DistributionMapping& dm = vars_new[fine_lev][IntVars::cons].DistributionMap();
         MultiFab vol_fine(ba, dm, 1, 0);
         vol_fine.setVal(cell_vol);
         EB_average_down(vars_new[fine_lev][Vars::cons],vars_new[crse_lev][Vars::cons],
-                    *detJ_cc[fine_lev], vol_fine,
+                    vol_fine, *detJ_cc[fine_lev],
                     scomp, ncomp, refRatio(crse_lev));
     }
 

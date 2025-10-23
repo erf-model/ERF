@@ -52,7 +52,8 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
     amrex::GMRES<MultiFab, TerrainPoisson> gmsolver;
 
     TerrainPoisson tp(my_geom, rhs.boxArray(), rhs.DistributionMap(), domain_bc_type,
-                      stretched_dz_d[lev], ax_sub, ay_sub, &znd_sub);
+                      stretched_dz_d[lev], ax_sub, ay_sub, &znd_sub,
+                      solverChoice.use_real_bcs);
 
     gmsolver.define(tp);
 

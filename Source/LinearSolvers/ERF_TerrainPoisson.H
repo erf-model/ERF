@@ -21,7 +21,8 @@ public:
                     amrex::Array<std::string,2*AMREX_SPACEDIM>& domain_bcs_type,
                     amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_lev_d,
                     const amrex::MultiFab& ax, const amrex::MultiFab& ay,
-                    amrex::MultiFab const* z_phys_nd);
+                    amrex::MultiFab const* z_phys_nd,
+                    const bool use_real_bcs);
 
     void apply(amrex::MultiFab& lhs, amrex::MultiFab const& rhs);
 
