@@ -95,7 +95,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         average_down(vars_new[crse_lev+1][Vars::cons],vars_new[crse_lev  ][Vars::cons],
                     scomp, ncomp, refRatio(crse_lev));
     } else {
-        const auto dx = geom[fine_lev].CellSize();
+        // const auto dx = geom[fine_lev].CellSize();
         // Setting cell_vol to the exact value may cause round-off errors in volume average.
         // const Real cell_vol = dx[0]*dx[1]*dx[2];
         constexpr Real cell_vol = 1.0;
