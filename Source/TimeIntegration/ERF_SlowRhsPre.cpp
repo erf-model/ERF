@@ -670,11 +670,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // x-momentum equation
 
-            Real gpx = gpx_arr(i,j,k) * mf_ux(i,j,0);
+            // Note that gradp arrays now carry the map factor in them
 
             Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : 0.0;
 
-            rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k);
+            rho_u_rhs(i, j, k) += (-gpx_arr(i,j,k) - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
@@ -689,11 +689,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // y-momentum equation
 
-            Real gpy = gpy_arr(i,j,k) * mf_vy(i,j,0);
+            // Note that gradp arrays now carry the map factor in them
 
             Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : 0.0;
 
-            rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k);
+            rho_v_rhs(i, j, k) += (-gpy_arr(i,j,k) - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);

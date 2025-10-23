@@ -18,24 +18,30 @@ init_default_zphys (int lev, const amrex::Geometry& geom,
  */
 
 // Declare functions for ERF.cpp
-void init_zlevels (amrex::Vector<amrex::Vector<amrex::Real>> & zlevels_stag,
-                   amrex::Vector<amrex::Vector<amrex::Real>> & stretched_dz_h,
-                   amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> & stretched_dz_d,
-                   amrex::Vector<amrex::Geometry> const& geom,
-                   amrex::Vector<amrex::IntVect>  const& ref_ratio,
-                   const amrex::Real grid_stretching_ratio,
-                   const amrex::Real zsurf,
-                   const amrex::Real dz0);
+void
+init_zlevels (amrex::Vector<amrex::Vector<amrex::Real>>& zlevels_stag,
+              amrex::Vector<amrex::Vector<amrex::Real>>& stretched_dz_h,
+              amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>>& stretched_dz_d,
+              amrex::Vector<amrex::Geometry> const& geom,
+              amrex::Vector<amrex::IntVect>  const& ref_ratio,
+              const amrex::Real grid_stretching_ratio,
+              const amrex::Real zsurf,
+              const amrex::Real dz0);
 
-void make_terrain_fitted_coords (int lev, const amrex::Geometry& geom,
-                                 amrex::MultiFab& z_phys_nd,
-                                 amrex::Vector<amrex::Real> const& z_levels_h,
-                                 amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type);
+void
+make_terrain_fitted_coords (int lev, const amrex::Geometry& geom,
+                            amrex::MultiFab& z_phys_nd,
+                            amrex::Vector<amrex::Real> const& z_levels_h,
+                            amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type);
 
-void init_which_terrain_grid (int lev, const amrex::Geometry& geom,
-                              amrex::MultiFab& z_phys_nd,
-                              amrex::Vector<amrex::Real> const& z_levels_h);
+void
+init_which_terrain_grid (int lev, const amrex::Geometry& geom,
+                         amrex::MultiFab& z_phys_nd,
+                         amrex::Vector<amrex::Real> const& z_levels_h);
 
+// Compute the min dz at cell center with terrain
+amrex::Real
+get_dzmin_terrain (amrex::MultiFab& z_phys_nd);
 
 //*****************************************************************************************
 // Compute terrain metric terms at cell-center

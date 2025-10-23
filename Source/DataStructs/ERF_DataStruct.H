@@ -237,24 +237,15 @@ struct SolverChoice {
         std::string init_type_temp_string;
         pp.query("init_type",init_type_temp_string);
         if ( (init_type_temp_string == "Real") || (init_type_temp_string == "real") ) {
-            amrex::Warning("erf.init_type = Real is deprecated; please replace Real by WRFInput");
-            init_type = InitType::WRFInput;
-            use_real_bcs = true;
-            pp.query("upwind_real_bcs",upwind_real_bcs);
+            amrex::Abort("erf.init_type = Real is deprecated; please replace Real by WRFInput");
         } else if ( (init_type_temp_string == "Ideal") || (init_type_temp_string == "ideal") ) {
-            amrex::Warning("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
-            init_type = InitType::WRFInput;
-            use_real_bcs = false;
+            amrex::Abort("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
         } else if (init_type_temp_string == "hindcast") {
             init_type = InitType::HindCast;
-            use_real_bcs = false;
         }
         else {
             pp.query_enum_case_insensitive("init_type",init_type);
             use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
-            if (use_real_bcs) {
-                pp.query("upwind_real_bcs",upwind_real_bcs);
-            }
         }
 
         if ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) ) {
@@ -278,9 +269,10 @@ struct SolverChoice {
             if (use_real_bcs && !use_real_bcs_temp) {
                 use_real_bcs = false;
             }
-            if (use_real_bcs) {
-                pp.query("upwind_real_bcs",upwind_real_bcs);
-            }
+        }
+
+        if (use_real_bcs) {
+            pp.query("upwind_real_bcs",upwind_real_bcs);
         }
 
         // Check for rebalancing with wrfinput
@@ -340,6 +332,11 @@ struct SolverChoice {
         rdOcp = R_d / c_p;
 
         read_int_string(max_level, "anelastic", anelastic, 0);
+
+        if (!upwind_real_bcs && anelastic[0]) {
+            amrex::Print() << "Setting upwind_real_bcs to true because we are doing anelastic at level 0" << std::endl;
+            upwind_real_bcs = true;
+        }
 
         // *******************************************************************************
         // Read substepping_type and allow for different values at each level
@@ -587,10 +584,15 @@ struct SolverChoice {
 
         if(hindcast_lateral_forcing) {
             pp.query("hindcast_boundary_data_dir", hindcast_boundary_data_dir);
+
             if(hindcast_boundary_data_dir.empty()) {
                 amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_boundary_data_dir' for boundary data for lateral forcing");
             }
-
+            pp.query("hindcast_data_interval_in_hrs", hindcast_data_interval_in_hrs);
+            if(hindcast_data_interval_in_hrs < -1.0) {
+                amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_data_interval_in_hrs' which is the time interval between the "
+                             "data files ");
+            }
             pp.query("hindcast_lateral_sponge_strength", hindcast_lateral_sponge_strength);
             pp.query("hindcast_lateral_sponge_length", hindcast_lateral_sponge_length);
 
@@ -1028,6 +1030,7 @@ struct SolverChoice {
     int massflux_khi {0};
 
     std::string hindcast_boundary_data_dir;
+    amrex::Real hindcast_data_interval_in_hrs = -1.0;
     bool hindcast_lateral_forcing = false;
     amrex::Real hindcast_lateral_sponge_strength = -1.0, hindcast_lateral_sponge_length = -1.0;
     amrex::Real hindcast_zhi_sponge_strength = -1.0, hindcast_zhi_sponge_length = -1.0;

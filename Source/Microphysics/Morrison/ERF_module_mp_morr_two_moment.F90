@@ -102,6 +102,7 @@ MODULE MODULE_MP_MORR_TWO_MOMENT
 
    PUBLIC  ::  MP_MORR_TWO_MOMENT
    PUBLIC  ::  POLYSVP
+   PUBLIC  ::  SET_MORRISON_NDCNST
 
    ! PRIVATE :: GAMMA, DERF1
    PRIVATE :: GAMMA
@@ -567,6 +568,19 @@ endif
          CONS41=PI*PI*ECR*RHOW
 
 END SUBROUTINE MORR_TWO_MOMENT_INIT
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+SUBROUTINE SET_MORRISON_NDCNST(ndcnst_in) BIND(C, name='set_morrison_ndcnst_c')
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! THIS SUBROUTINE SETS THE CONSTANT DROPLET CONCENTRATION (NDCNST)
+! ALLOWS RUNTIME CONFIGURATION FROM INPUT FILE
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      IMPLICIT NONE
+      REAL(C_DOUBLE), INTENT(IN) :: ndcnst_in
+
+      NDCNST = ndcnst_in
+
+END SUBROUTINE SET_MORRISON_NDCNST
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! THIS SUBROUTINE IS MAIN INTERFACE WITH THE TWO-MOMENT MICROPHYSICS SCHEME
