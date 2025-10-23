@@ -553,13 +553,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_comp  = 1;
 
             if (l_use_stretched_dz) {
-                DiffusionSrcForState_S(bx, domain, n_start, n_comp, l_rotate, u, v,
+                DiffusionSrcForState_S(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        stretched_dz_d, dxInv, SmnSmn_a,
                                        mf_mx, mf_ux, mf_vx,
                                        mf_my, mf_uy, mf_vy,
-                                       hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
+                                       hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer);
             } else if (l_use_terrain_fitted_coords) {
@@ -670,11 +670,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // x-momentum equation
 
-            Real gpx = gpx_arr(i,j,k) * mf_ux(i,j,0);
+            // Note that gradp arrays now carry the map factor in them
 
             Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : 0.0;
 
-            rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k);
+            rho_u_rhs(i, j, k) += (-gpx_arr(i,j,k) - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
@@ -689,11 +689,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // y-momentum equation
 
-            Real gpy = gpy_arr(i,j,k) * mf_vy(i,j,0);
+            // Note that gradp arrays now carry the map factor in them
 
             Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : 0.0;
 
-            rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k);
+            rho_v_rhs(i, j, k) += (-gpy_arr(i,j,k) - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);

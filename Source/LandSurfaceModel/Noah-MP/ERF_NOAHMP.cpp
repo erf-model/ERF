@@ -7,6 +7,8 @@
 #include <AMReX_ParallelDescriptor.H>
 
 #include <ERF_NOAHMP.H>
+#include <ERF_Constants.H>
+#include <ERF_EOS.H>
 
 using namespace amrex;
 
@@ -251,16 +253,17 @@ NOAHMP::Advance_With_State (const int& lev,
         // NOTE: Need to expose stresses and get stresses from NOAHMP
         Array4<Real> q_flux_arr    = lsm_fab_flux[LsmFlux_NOAHMP::q_flux]->array(mfi);
         Array4<Real> t_flux_arr    = lsm_fab_flux[LsmFlux_NOAHMP::t_flux]->array(mfi);
-        //Array4<Real> tau13_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau13]->array(mfi);
-        //Array4<Real> tau23_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau23]->array(mfi);
+        Array4<Real> tau13_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau13]->array(mfi);
+        Array4<Real> tau23_arr     = lsm_fab_flux[LsmFlux_NOAHMP::tau23]->array(mfi);
 
         // Copy forcing data from ERF to Noahmp.
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
         {
             noahmpio->U_PHY(i,1,j)   = 0.5*(U_PHY(i,j,0)+U_PHY(i+1,j  ,0));
             noahmpio->V_PHY(i,1,j)   = 0.5*(V_PHY(i,j,0)+V_PHY(i  ,j+1,0));
-            noahmpio->T_PHY(i,1,j)   = QV_TH(i,j,0,RhoTheta_comp)/QV_TH(i,j,0,Rho_comp);
+            noahmpio->T_PHY(i,1,j)   = getTgivenRandRTh(QV_TH(i,j,0,Rho_comp),QV_TH(i,j,0,RhoTheta_comp));
             noahmpio->QV_CURR(i,1,j) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
+            noahmpio->P8W(i,1,j)     = getPgivenRTh(QV_TH(i,j,0,RhoTheta_comp));
             noahmpio->SWDOWN(i,j)    = SWDOWN(i,j,0);
             noahmpio->GLW(i,j)       = GLW(i,j,0);
             noahmpio->COSZEN(i,j)    = COSZEN(i,j,0);
@@ -274,8 +277,10 @@ NOAHMP::Advance_With_State (const int& lev,
         // Copy forcing data from Noahmp to ERF
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
         {
-            q_flux_arr(i,j,0) = noahmpio->SHBXY(i,j);
-            t_flux_arr(i,j,0) = noahmpio->EVBXY(i,j);
+            t_flux_arr(i,j,0) = noahmpio->HFX(i,j)/(QV_TH(i,j,0,Rho_comp)*Cp_d);
+            q_flux_arr(i,j,0) = noahmpio->LH(i,j)/(QV_TH(i,j,0,Rho_comp)*L_v);
+            tau13_arr(i,j,0)  = noahmpio->TAU_EW(i,j)/QV_TH(i,j,0,Rho_comp);
+            tau23_arr(i,j,0)  = noahmpio->TAU_NS(i,j)/QV_TH(i,j,0,Rho_comp);
             TSK(i,j,0)        = noahmpio->TSK(i,j);
             EMISS(i,j,0)      = noahmpio->EMISS(i,j);
             ALBSFCDIR_VIS(i,j,0) = noahmpio->ALBSFCDIRXY(i,1,j);

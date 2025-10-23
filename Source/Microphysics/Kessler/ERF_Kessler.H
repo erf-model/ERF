@@ -70,6 +70,13 @@ public:
           std::unique_ptr<amrex::MultiFab>& z_phys_nd,
           std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
 
+    // Import minimum dz at this level
+    void
+    Set_dzmin (const amrex::Real dz_min) override
+    {
+        m_dzmin = dz_min;
+    }
+
     // Copy state into micro vars
     void
     Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
@@ -148,6 +155,9 @@ private:
 
     // timestep
     amrex::Real dt;
+
+    // Minimum dz at this level
+    amrex::Real m_dzmin;
 
     // number of vertical levels
     int nlev, zlo, zhi;

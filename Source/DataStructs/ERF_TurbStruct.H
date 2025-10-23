@@ -202,6 +202,10 @@ public:
        (pbl_type == PBLType::MYJ)       || (pbl_type == PBLType::MYNN25) ||
        (pbl_type == PBLType::MYNNEDMF)  || (pbl_type == PBLType::SHOC));
 
+    if (use_tke) {
+        query_one_or_per_level(pp, "init_tke_from_ustar", init_tke_from_ustar, lev, max_level);
+    }
+
     // Validate inputs
     if (les_type == LESType::Smagorinsky) {
       if (Cs == 0) {
@@ -379,7 +383,7 @@ public:
   PBLType pbl_type;
 
   MYNNLevel25 pbl_mynn;
-  MYNNLevel2 pbl_mynn_level2; // for filtering
+  MYNNLevel2 pbl_mynn_level2; // limiting in the decaying turbulence regime
 
   // Common Flags
   bool use_kturb = false; // Any turbulence modeling?
@@ -387,8 +391,13 @@ public:
     false; // Any microscale turbulence modeling (LES, RANS) with TKE closure?
            // Then need to populate SmnSmn_lev for production term.
   bool use_pbl_tke =
-    false; // Any mesoscale  turbulence modeling (PBL) with TKE closure?
+    false; // Any mesoscale turbulence modeling (PBL) with TKE closure?
   bool use_tke = false; // Any TKE closure (meso or microscale)?
+
+  // Initialize TKE/QKE with linear profiles whose surface values are a
+  // function of the friction velocity calculated by the surface layer scheme
+  // (e.g., as done in MYNN-EDMF)
+  bool init_tke_from_ustar = false;
 
   // Model coefficients - YSU
   // TODO: Add parmparse for all of these above

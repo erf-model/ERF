@@ -137,6 +137,64 @@ The sponge data is input as a text file with 3 columns containing :math:`z, u, v
           erf.use_xlo_sponge_damping = true
           erf.xlo_sponge_end = 4.0
 
+
+Immersed forcing to represent terrain
+----------------------
+
+An additional option for representing terrain in ERF is to use an immersed forcing method where large body forces are applied to the momentum equations as sinks to force the velocity to near zero or to a desired value.
+This method follows the methods of `Chan and Leach (2007) <https://doi.org/10.1175/2006JAMC1321.1>`_ and `Muñoz-Esparza et al. (2020) <https://doi.org/10.1029/2020MS002141>`_, but is expanded to allow the user to utilize a wall-model (based on Monin Obukhov similarity theory, :ref:`sec:surface_layer`).
+During initialization, we determine a mask (:math:`\beta_r`) over the entire domain by calculating each cell's volume fraction, which indicates how much of a cell is filled by terrain.
+Fully immersed cells have a value of 1, free cells have a value of 0, and partially immersed cells have a value between 0 and 1.
+The goal is to force interior cells to near-zero velocities using the following formulation:
+
+.. math::
+
+    F_{\rho u_i} = -C_{d,m} \beta_r \sqrt[3]{\Delta x \Delta y \Delta z} \rho u_i U
+
+where :math:`C_{d,m}` is a drag coefficient and :math:`U` is the wind speed magnitude.
+The drag coefficient can be specified by the user using ``erf.if_Cd_momentum``, which defaults to a value of 10.
+A larger drag coefficient results in smaller velocities for immersed cells but may require a smaller timestep due to the stiffness of the force.
+
+For partially immersed cells, the user has the option to specify whether to use MOST: ``erf.if_use_most``.
+If the user does not specify MOST, then the equation above will be applied and there is an implicit no-slip boundary condition.
+If the user does specify MOST, then the following formulation is applied to partially immersed cells:
+
+.. math::
+
+    F_{\rho u_i} = -C_{d,m} (1 - \beta_r) \sqrt[3]{\Delta x \Delta y \Delta z} \rho |U_s| (u_i - u_{i,target})
+
+where :math:`u_{i,target}` is a value determined through MOST and :math:`|U_s|` is a unit velocity scale.
+This formulation essentially forces the velocity at the wall to a value determined by using MOST, but the strength forcing is inversely related to how immersed the cell is.
+For cells that are more immersed, there is weaker forcing to the target velocit while for cells that are less immsered, there is stronger forcing to the MOST value.
+
+Temperature forcing is also available to represent the temperature of the 'surface'.
+The user can specify either a surface temperature and heating rate, a surface flux, or an Obukhov length.
+The temperature forcing is then formulated as follows:
+
+.. math::
+
+    F_{\rho\theta} = -C_{d,s} \beta_r \sqrt[3]{\Delta x \Delta y \Delta z} |U_s| (\rho \theta_{target} - \rho\theta)
+
+The target temperature :math:`\theta_{target}`` is straightforward when using a surface temperature and heating rate; when specifying a surface flux or Obukhov length, the target temperature is determined using MOST.
+The following inputs are available when representing terrain using immersed forcing:
+
+::
+
+        erf.if_Cd_scalar               = FLOAT
+        erf.if_Cd_momentum             = FLOAT
+        erf.if_z0                      = FLOAT
+        erf.if_surf_temp_flux          = FLOAT
+        erf.if_init_surf_temp          = FLOAT
+        erf.if_surf_heating_rate       = FLOAT
+        erf.if_Olen                    = FLOAT
+        erf.if_use_most                = BOOL
+        erf.immersed_forcing_substep   = BOOL
+
+An example of using immersed forcing for a Witch of Agnesi hill is available in ``Exec/ABL/immersed_forcing``.
+
+.. note:: When using fully compressible simulations, it is recommended to apply immersed forcing on the substep for numerical stability.
+
+
 Problem-Specific Forcing
 ========================
 

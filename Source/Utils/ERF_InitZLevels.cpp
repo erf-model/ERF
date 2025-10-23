@@ -23,19 +23,19 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
     {
         auto dx = geom[lev].CellSizeArray();
         const Box& domain = geom[lev].Domain();
-        int nz = domain.length(2)+1; // staggered
+        int nz = domain.length(2);
 
-        zlevels_stag[lev].resize(nz);
+        zlevels_stag[lev].resize(nz+1);
 
         stretched_dz_h[lev].resize(domain.length(2));
 
         if (grid_stretching_ratio == 0) {
             // This is the default for z_levels
-            for (int k = 0; k < nz; k++)
+            for (int k = 0; k < nz+1; k++)
             {
                 zlevels_stag[lev][k] = k * dx[2];
             }
-            for (int k = 0; k < nz-1; k++)
+            for (int k = 0; k < nz; k++)
             {
                 stretched_dz_h[lev][k] = dx[2];
             }
@@ -43,14 +43,11 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
             // Create stretched grid based on initial dz and stretching ratio
             zlevels_stag[lev][0] = zsurf;
             Real dz = dz0;
-            stretched_dz_h[lev][0] = dz0;
             Print() << "Stretched grid levels at level : " << lev << " is " <<  zsurf;
-            for (int k = 1; k < nz; k++)
+            for (int k = 1; k < nz+1; k++)
             {
+                stretched_dz_h[lev][k-1] = dz;
                 zlevels_stag[lev][k] = zlevels_stag[lev][k-1] + dz;
-                if (k < nz-1) {
-                    stretched_dz_h[lev][k] = dz;
-                }
                 Print() << " " << zlevels_stag[lev][k];
                 dz *= grid_stretching_ratio;
             }
@@ -58,7 +55,7 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
         } else if (lev > 0) {
             int rr = ref_ratio[lev-1][2];
             expand_and_interpolate_1d(zlevels_stag[lev], zlevels_stag[lev-1], rr, false);
-            for (int k = 0; k < nz-1; k++)
+            for (int k = 0; k < nz; k++)
             {
                 stretched_dz_h[lev][k] = (zlevels_stag[lev][k+1] - zlevels_stag[lev][k]);
             }
@@ -72,10 +69,10 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
     int n_zlevels = pp.countval("terrain_z_levels");
     if (n_zlevels > 0)
     {
-        int nz = geom[0].Domain().length(2)+1; // staggered
-        if (n_zlevels != nz) {
+        int nz = geom[0].Domain().length(2);
+        if (n_zlevels != nz+1) {
             Print() << "You supplied " << n_zlevels << " staggered terrain_z_levels " << std::endl;
-            Print() << "but n_cell+1 in the z-direction is " <<  nz << std::endl;
+            Print() << "but n_cell+1 in the z-direction is " << nz+1 << std::endl;
             Abort("You must specify a z_level for every value of k");
         }
 
@@ -83,7 +80,7 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
             Print() << "Note: Found terrain_z_levels, ignoring grid_stretching_ratio" << std::endl;
         }
 
-        pp.getarr("terrain_z_levels", zlevels_stag[0], 0, nz);
+        pp.getarr("terrain_z_levels", zlevels_stag[0], 0, nz+1);
 
         // These levels should range from 0 at the surface to the height of the
         // top of model domain (see the coordinate surface height, zeta, in

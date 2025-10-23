@@ -87,14 +87,20 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
     const Real dz_inv = cellSizeInv[2];
 
-    Box zbx3 = zbx;
+    // We need to grow these boxes in the vertical direction when tiling so that we can access xflux and yflux
+    //    to modify zflux
+    Box xbx_g1(xbx); Box ybx_g1(ybx);
+    if (xbx_g1.smallEnd(2) != dom_lo.z) xbx_g1.growLo(2,1);
+    if (ybx_g1.smallEnd(2) != dom_lo.z) ybx_g1.growLo(2,1);
+    if (xbx_g1.bigEnd(2)   != dom_hi.z) xbx_g1.growHi(2,1);
+    if (ybx_g1.bigEnd(2)   != dom_hi.z) ybx_g1.growHi(2,1);
 
     for (int n(0); n<num_comp; ++n) {
         const int qty_index = start_comp + n;
 
     // Constant alpha & Turb model
     if (l_consA && l_turb) {
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(xbx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
@@ -126,7 +132,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - met_h_xi*GradCz );
             }
         });
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(ybx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
             const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
@@ -235,7 +241,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         });
     // Constant rho*alpha & Turb model
     } else if (l_turb) {
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(xbx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
@@ -264,7 +270,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - met_h_xi*GradCz );
             }
         });
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(ybx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
@@ -298,7 +304,6 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             const int prim_index = qty_index - 1;
 
             Real rhoAlpha = d_alpha_eff[prim_index];
-
             rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
@@ -367,10 +372,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
+
         });
     // Constant alpha & no LES/PBL model
     } else if(l_consA) {
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(xbx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
@@ -398,7 +404,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - met_h_xi*GradCz );
             }
         });
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(ybx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
@@ -501,7 +507,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         });
     // Constant rho*alpha & no LES/PBL model
     } else {
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(xbx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
@@ -525,10 +531,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 xflux(i,j,k) = qfx1_x(i,j,0);
             } else {
-              xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - met_h_xi*GradCz );
+                xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - met_h_xi*GradCz );
             }
         });
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(ybx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const int prim_index = qty_index - 1;
 
@@ -630,81 +636,62 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         });
     }
 
-    // Linear combinations for z-flux with terrain
     //-----------------------------------------------------------------------------------
-    // Extrapolate top and bottom cells
-    {
-      Box planexy = zbx; planexy.setBig(2, planexy.smallEnd(2) );
-      int k_lo = zbx.smallEnd(2); int k_hi = zbx.bigEnd(2);
-      zbx3.growLo(2,-1); zbx3.growHi(2,-1);
-      ParallelFor(planexy, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
-      {
-          Real met_h_xi,met_h_eta;
-
-          { // Bottom face
-              met_h_xi  = Compute_h_xi_AtKface (i,j,k_lo,cellSizeInv,z_nd);
-              met_h_eta = Compute_h_eta_AtKface(i,j,k_lo,cellSizeInv,z_nd);
-
-              Real xfluxlo  = 0.5 * ( xflux(i  , j  , k_lo  ) + xflux(i+1, j  , k_lo  ) );
-              Real xfluxhi  = 0.5 * ( xflux(i  , j  , k_lo+1) + xflux(i+1, j  , k_lo+1) );
-              Real xfluxbar = 1.5*xfluxlo - 0.5*xfluxhi;
-
-              Real yfluxlo  = 0.5 * ( yflux(i  , j  , k_lo  ) + yflux(i  , j+1, k_lo  ) );
-              Real yfluxhi  = 0.5 * ( yflux(i  , j  , k_lo+1) + yflux(i  , j+1, k_lo+1) );
-              Real yfluxbar = 1.5*yfluxlo - 0.5*yfluxhi;
-
-              zflux(i,j,k_lo) -= met_h_xi*mf_mx(i,j,0)*xfluxbar + met_h_eta*mf_my(i,j,0)*yfluxbar;
-          }
-
-          { // Top face
-              met_h_xi  = Compute_h_xi_AtKface (i,j,k_hi,cellSizeInv,z_nd);
-              met_h_eta = Compute_h_eta_AtKface(i,j,k_hi,cellSizeInv,z_nd);
-
-              Real xfluxlo  = 0.5 * ( xflux(i  , j  , k_hi-2) + xflux(i+1, j  , k_hi-2) );
-              Real xfluxhi  = 0.5 * ( xflux(i  , j  , k_hi-1) + xflux(i+1, j  , k_hi-1) );
-              Real xfluxbar = 1.5*xfluxhi - 0.5*xfluxlo;
-
-              Real yfluxlo  = 0.5 * ( yflux(i  , j  , k_hi-2) + yflux(i  , j+1, k_hi-2) );
-              Real yfluxhi  = 0.5 * ( yflux(i  , j  , k_hi-1) + yflux(i  , j+1, k_hi-1) );
-              Real yfluxbar = 1.5*yfluxhi - 0.5*yfluxlo;
-
-              zflux(i,j,k_hi) -= met_h_xi*mf_mx(i,j,0)*xfluxbar + met_h_eta*mf_my(i,j,0)*yfluxbar;
-          }
-      });
-    }
-    // Average interior cells
-    ParallelFor(zbx3, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        Real met_h_xi,met_h_eta;
-        met_h_xi  = Compute_h_xi_AtKface (i,j,k,cellSizeInv,z_nd);
-        met_h_eta = Compute_h_eta_AtKface(i,j,k,cellSizeInv,z_nd);
-
-        Real xfluxbar = 0.25 * ( xflux(i  , j  , k  ) + xflux(i+1, j  , k  )
-                               + xflux(i  , j  , k-1) + xflux(i+1, j  , k-1) );
-        Real yfluxbar = 0.25 * ( yflux(i  , j  , k  ) + yflux(i  , j+1, k  )
-                               + yflux(i  , j  , k-1) + yflux(i  , j+1, k-1) );
-
-        zflux(i,j,k) -= met_h_xi*mf_mx(i,j,0)*xfluxbar + met_h_eta*mf_my(i,j,0)*yfluxbar;
-    });
-    // Multiply h_zeta by x/y-fluxes
-    ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        xflux(i,j,k) *= ax(i,j,k)/mf_uy(i,j,0);
-    });
-    ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        yflux(i,j,k) *= ay(i,j,k)/mf_vx(i,j,0);
-    });
-
-
-    // Use fluxes to compute RHS
+    //
+    // Modify fluxes by terrain and use fluxes to compute RHS
+    //
+    // Note that we combine all of these operations in order to keep this section
+    //      of the loop tiling-safe.
     //-----------------------------------------------------------------------------------
     ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
+        Real met_h_xi_lo  = Compute_h_xi_AtKface (i,j,k  ,cellSizeInv,z_nd);
+        Real met_h_xi_hi  = Compute_h_xi_AtKface (i,j,k+1,cellSizeInv,z_nd);
+
+        Real met_h_eta_lo = Compute_h_eta_AtKface(i,j,k  ,cellSizeInv,z_nd);
+        Real met_h_eta_hi = Compute_h_eta_AtKface(i,j,k+1,cellSizeInv,z_nd);
+
+        Real xfluxbar_lo, yfluxbar_lo;
+        if (k == dom_lo.z) {
+            Real xfluxlo  = 0.5 * ( xflux(i,j,k  ) + xflux(i+1,j,k  ) );
+            Real xfluxhi  = 0.5 * ( xflux(i,j,k+1) + xflux(i+1,j,k+1) );
+            xfluxbar_lo = 1.5*xfluxlo - 0.5*xfluxhi;
+
+            Real yfluxlo  = 0.5 * ( yflux(i,j,k  ) + yflux(i,j+1,k  ) );
+            Real yfluxhi  = 0.5 * ( yflux(i,j,k+1) + yflux(i,j+1,k+1) );
+            yfluxbar_lo = 1.5*yfluxlo - 0.5*yfluxhi;
+        } else {
+            xfluxbar_lo = 0.25 * ( xflux(i,j,k  ) + xflux(i+1,j  ,k  )
+                                 + xflux(i,j,k-1) + xflux(i+1,j  ,k-1) );
+            yfluxbar_lo = 0.25 * ( yflux(i,j,k  ) + yflux(i  ,j+1,k  )
+                                 + yflux(i,j,k-1) + yflux(i  ,j+1,k-1) );
+        }
+
+        Real xfluxbar_hi, yfluxbar_hi;
+        if (k == dom_hi.z) {
+            Real xfluxlo  = 0.5 * ( xflux(i,j,k-1) + xflux(i+1,j,k-1) );
+            Real xfluxhi  = 0.5 * ( xflux(i,j,k  ) + xflux(i+1,j,k  ) );
+            xfluxbar_hi = 1.5*xfluxhi - 0.5*xfluxlo;
+
+            Real yfluxlo  = 0.5 * ( yflux(i,j,k-1) + yflux(i,j+1,k-1) );
+            Real yfluxhi  = 0.5 * ( yflux(i,j,k  ) + yflux(i,j+1,k  ) );
+            yfluxbar_hi = 1.5*yfluxhi - 0.5*yfluxlo;
+        } else {
+            xfluxbar_hi = 0.25 * ( xflux(i,j,k+1) + xflux(i+1,j  ,k+1)
+                                 + xflux(i,j,k  ) + xflux(i+1,j  ,k  ) );
+            yfluxbar_hi = 0.25 * ( yflux(i,j,k+1) + yflux(i  ,j+1,k+1)
+                                 + yflux(i,j,k  ) + yflux(i  ,j+1,k  ) );
+        }
+
+        Real zflux_lo = zflux(i,j,k  ) - met_h_xi_lo*mf_mx(i,j,0)*xfluxbar_lo - met_h_eta_lo*mf_my(i,j,0)*yfluxbar_lo;
+        Real zflux_hi = zflux(i,j,k+1) - met_h_xi_hi*mf_mx(i,j,0)*xfluxbar_hi - met_h_eta_hi*mf_my(i,j,0)*yfluxbar_hi;
+
         Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
-        Real stateContrib = (xflux(i+1,j  ,k  ) - xflux(i, j, k)) * dx_inv * mfsq  // Diffusive flux in x-dir
-                           +(yflux(i  ,j+1,k  ) - yflux(i, j, k)) * dy_inv * mfsq  // Diffusive flux in y-dir
-                           +(zflux(i  ,j  ,k+1) - zflux(i, j, k)) * dz_inv;        // Diffusive flux in z-dir
+        Real stateContrib = ( xflux(i+1,j  ,k  ) * ax(i+1,j,k) / mf_uy(i+1,j,0)
+                             -xflux(i  ,j  ,k  ) * ax(i  ,j,k) / mf_uy(i  ,j,0) ) * dx_inv * mfsq  // Diffusive flux in x-dir
+                           +( yflux(i  ,j+1,k  ) * ay(i,j+1,k) / mf_vx(i,j+1,0)
+                             -yflux(i  ,j  ,k  ) * ay(i,j  ,k) / mf_vx(i,j  ,0) ) * dy_inv * mfsq  // Diffusive flux in y-dir
+                           +( zflux_hi - zflux_lo)                                * dz_inv;        // Diffusive flux in z-dir
 
         stateContrib /= detJ(i,j,k);
 
