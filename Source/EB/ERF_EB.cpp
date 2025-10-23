@@ -111,7 +111,7 @@ eb_::set_connection_flags ()
         Array4<Real const> const& vfrac = volfrac.const_array(mfi);
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {           
+        {
             for(int kk(-1); kk<=1; kk++) {
             for(int jj(-1); jj<=1; jj++) {
             for(int ii(-1); ii<=1; ii++)
@@ -123,7 +123,7 @@ eb_::set_connection_flags ()
         });
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {           
+        {
             if (vfrac(i,j,k)==0.0) {
                 flag(i,j,k).setCovered();
             }

@@ -303,7 +303,7 @@ compute_gradp (const MultiFab& p,
                             gpx_arr(i,j,k) = dxInv[0] * (p_arr(i-3,j,k) - 3.*p_arr(i-2,j,k) + 2.*p_arr(i-1,j,k));
                         } else if (cellflg(i-1,j,k).isCovered()) {
                             gpx_arr(i,j,k) = dxInv[0] * (3.*p_arr(i+1,j,k) - p_arr(i+2,j,k) - 2.*p_arr(i,j,k));
-                        } else {    
+                        } else {
                             gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
                         }
                     } else {

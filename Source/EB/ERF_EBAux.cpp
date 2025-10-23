@@ -1124,7 +1124,7 @@ define( [[maybe_unused]] int const& a_level,
     });
 
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {           
+    {
         if (aux_vfrac(i,j,k)==0.0) {
             aux_flag(i,j,k).setCovered();
         }
