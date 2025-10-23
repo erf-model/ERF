@@ -1,6 +1,7 @@
 CEXE_sources += ERF_InitMorrison.cpp
 CEXE_sources += ERF_UpdateMorrison.cpp
 CEXE_sources += ERF_AdvanceMorrison.cpp
+CEXE_sources += ERF_Morrison_Plot.cpp
 CEXE_headers += ERF_Morrison.H
 
 ifeq ($(USE_MORR_FORT),TRUE)

@@ -286,6 +286,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Morrison/ERF_InitMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_AdvanceMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_UpdateMorrison.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Plot.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_IceFall.cpp
