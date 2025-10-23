@@ -100,6 +100,21 @@ define( [[maybe_unused]] int const& a_level,
         aux_afrac_x(i,j,k) = 0.0;
         aux_afrac_y(i,j,k) = 0.0;
         aux_afrac_z(i,j,k) = 0.0;
+        if (i==bx.bigEnd(0)) {
+          aux_flag(i+1,j,k).setCovered();
+          aux_vfrac(i+1,j,k) = 0.0;
+          aux_afrac_x(i+1,j,k) = 0.0;
+        }
+        if (j==bx.bigEnd(1)) {
+          aux_flag(i,j+1,k).setCovered();
+          aux_vfrac(i,j+1,k) = 0.0;
+          aux_afrac_y(i,j+1,k) = 0.0;
+        }
+        if (k==bx.bigEnd(2)) {
+          aux_flag(i,j,k+1).setCovered();
+          aux_vfrac(i,j,k+1) = 0.0;
+          aux_afrac_z(i,j,k+1) = 0.0;
+        }
       });
 
     } else if (FlagFab[mfi].getType(bx) == FabType::regular ) {
@@ -112,6 +127,21 @@ define( [[maybe_unused]] int const& a_level,
         aux_afrac_x(i,j,k) = 1.0;
         aux_afrac_y(i,j,k) = 1.0;
         aux_afrac_z(i,j,k) = 1.0;
+        if (i==bx.bigEnd(0)) {
+          aux_flag(i+1,j,k).setRegular();
+          aux_vfrac(i+1,j,k) = 1.0;
+          aux_afrac_x(i+1,j,k) = 1.0;
+        }
+        if (j==bx.bigEnd(1)) {
+          aux_flag(i,j+1,k).setRegular();
+          aux_vfrac(i,j+1,k) = 1.0;
+          aux_afrac_y(i,j+1,k) = 1.0;
+        }
+        if (k==bx.bigEnd(2)) {
+          aux_flag(i,j,k+1).setRegular();
+          aux_vfrac(i,j,k+1) = 1.0;
+          aux_afrac_z(i,j,k+1) = 1.0;
+        }
       });
 
     } else if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
@@ -908,12 +938,12 @@ define( [[maybe_unused]] int const& a_level,
           aux_flag(i,j,k).setCovered();
         }
 
-        if (aux_vcent(i,j,k,0) < small_value) aux_vcent(i,j,k,0) = 0.0;
-        if (aux_vcent(i,j,k,1) < small_value) aux_vcent(i,j,k,1) = 0.0;
-        if (aux_vcent(i,j,k,2) < small_value) aux_vcent(i,j,k,2) = 0.0;
-        if (aux_bcent(i,j,k,0) < small_value) aux_bcent(i,j,k,0) = 0.0;
-        if (aux_bcent(i,j,k,1) < small_value) aux_bcent(i,j,k,1) = 0.0;
-        if (aux_bcent(i,j,k,2) < small_value) aux_bcent(i,j,k,2) = 0.0;
+        if (std::abs(aux_vcent(i,j,k,0)) < small_value) aux_vcent(i,j,k,0) = 0.0;
+        if (std::abs(aux_vcent(i,j,k,1)) < small_value) aux_vcent(i,j,k,1) = 0.0;
+        if (std::abs(aux_vcent(i,j,k,2)) < small_value) aux_vcent(i,j,k,2) = 0.0;
+        if (std::abs(aux_bcent(i,j,k,0)) < small_value) aux_bcent(i,j,k,0) = 0.0;
+        if (std::abs(aux_bcent(i,j,k,1)) < small_value) aux_bcent(i,j,k,1) = 0.0;
+        if (std::abs(aux_bcent(i,j,k,2)) < small_value) aux_bcent(i,j,k,2) = 0.0;
       });
 
       // Area fraction MultiFab has one more slice at bigEnd(idim),
@@ -1064,10 +1094,43 @@ define( [[maybe_unused]] int const& a_level,
             aux_flag(i,j,k).setDisconnected(ii,jj, 1);
           }}
         });
-      }
-    }
+      } // !l_periodic_z
 
-  }
+    } // FabType::singlevalued
+
+  } // MFIter
+
+  // Set disconnected zero-volume-fraction cells
+  // (equivalent to eb_::set_connection_flags for CC grids)
+
+  for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
+
+    const Box& bx = mfi.validbox();
+    const Box gbx = amrex::grow(bx, m_cellflags->nGrow()-1); // Leave one cell layer
+
+    Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
+    Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
+
+    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+      for(int kk(-1); kk<=1; kk++) {
+      for(int jj(-1); jj<=1; jj++) {
+      for(int ii(-1); ii<=1; ii++)
+      {
+        if (aux_vfrac(i+ii,j+jj,k+kk) == 0.0) {
+            aux_flag(i,j,k).setDisconnected(ii,jj,kk);
+        }
+      }}}
+    });
+
+    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        if (aux_vfrac(i,j,k)==0.0) {
+            aux_flag(i,j,k).setCovered();
+        }
+    });
+
+  } // MFIter
 
   // Fill Boundary
 
