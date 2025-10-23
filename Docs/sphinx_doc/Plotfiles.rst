@@ -429,8 +429,123 @@ Output Options for 3D plotfiles
 |                             |                  |
 +-----------------------------+------------------+
 
+Morrison Microphysics Output
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Output Options for 3D plotfiles
+When using Morrison two-moment microphysics, additional diagnostic variables
+are available for output. These variables provide detailed information about
+cloud and precipitation processes. To enable Morrison output, include any of
+the variables below in your **erf.plot_vars_1** or **erf.plot_vars_2** list.
+
+**Thermodynamic State Variables:**
+
++-----------------------------+------------------+
+| Parameter                   | Definition       |
++=============================+==================+
+| **micro_rho**               | Air density      |
+|                             | (kg/m³)          |
++-----------------------------+------------------+
+| **micro_theta**             | Potential        |
+|                             | temperature (K)  |
++-----------------------------+------------------+
+| **micro_temp**              | Absolute         |
+|                             | temperature (K)  |
++-----------------------------+------------------+
+| **micro_pres**              | Pressure (Pa)    |
+|                             |                  |
++-----------------------------+------------------+
+
+**Non-Precipitating Moisture Variables (mixing ratios in kg/kg):**
+
++-----------------------------+------------------+
+| Parameter                   | Definition       |
++=============================+==================+
+| **micro_qv**                | Water vapor      |
+|                             | mixing ratio     |
++-----------------------------+------------------+
+| **micro_qc**                | Cloud liquid     |
+|                             | water mixing     |
+|                             | ratio            |
++-----------------------------+------------------+
+| **micro_qi**                | Cloud ice        |
+|                             | mixing ratio     |
++-----------------------------+------------------+
+| **micro_qn**                | Total cloud      |
+|                             | condensate       |
+|                             | (qc + qi)        |
++-----------------------------+------------------+
+| **micro_qt**                | Total water      |
+|                             | mixing ratio     |
+|                             | (qv + qn)        |
++-----------------------------+------------------+
+
+**Precipitating Hydrometeor Variables (mixing ratios in kg/kg):**
+
++-----------------------------+------------------+
+| Parameter                   | Definition       |
++=============================+==================+
+| **micro_qp**                | Total            |
+|                             | precipitation    |
+|                             | (qrain + qsnow + |
+|                             | qgraup)          |
++-----------------------------+------------------+
+| **micro_qrain**             | Rain water       |
+|                             | mixing ratio     |
++-----------------------------+------------------+
+| **micro_qsnow**             | Snow mixing      |
+|                             | ratio            |
++-----------------------------+------------------+
+| **micro_qgraup**            | Graupel mixing   |
+|                             | ratio            |
++-----------------------------+------------------+
+
+**Number Concentrations (1/kg):**
+
++-----------------------------+------------------+
+| Parameter                   | Definition       |
++=============================+==================+
+| **micro_nc**                | Cloud droplet    |
+|                             | number           |
+|                             | concentration    |
++-----------------------------+------------------+
+| **micro_nr**                | Rain drop number |
+|                             | concentration    |
++-----------------------------+------------------+
+| **micro_ni**                | Cloud ice number |
+|                             | concentration    |
++-----------------------------+------------------+
+| **micro_ns**                | Snow number      |
+|                             | concentration    |
++-----------------------------+------------------+
+| **micro_ng**                | Graupel number   |
+|                             | concentration    |
++-----------------------------+------------------+
+
+**Dynamical Variables:**
+
++-----------------------------+------------------+
+| Parameter                   | Definition       |
++=============================+==================+
+| **micro_omega**             | Grid-scale       |
+|                             | vertical         |
+|                             | velocity (m/s)   |
+|                             | used as input to |
+|                             | Morrison scheme  |
++-----------------------------+------------------+
+
+**Example Usage:**
+
+To output Morrison diagnostic variables, add them to your plot variables list:
+
+.. code-block:: text
+
+   erf.plot_vars_1 = density theta qv micro_qc micro_qrain micro_nc micro_nr
+
+This will output the base ERF variables (density, theta, qv) along with Morrison
+cloud water, rain water, cloud droplet number concentration, and rain drop number
+concentration.
+
+Output Options for 2D plotfiles
 -------------------------------
 
 +-------------------+----------------------------+
