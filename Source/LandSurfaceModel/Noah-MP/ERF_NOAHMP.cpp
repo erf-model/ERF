@@ -205,6 +205,14 @@ NOAHMP::Init (const int& lev,
 };
 
 void
+NOAHMP::Plot_Landfile(const int& nstep)
+{
+    for (NoahmpIO_type &noahmpio : noahmpio_vect) {
+        noahmpio.WriteLand(nstep);
+    }
+}
+
+void
 NOAHMP::Advance_With_State (const int& lev,
                             MultiFab& cons_in,
                             MultiFab& xvel_in,
@@ -384,10 +392,6 @@ NOAHMP::Advance_With_State (const int& lev,
             ALBSFCDIF_VIS(i,j,0) = tmp_albsfcdif_vis_arr(i,j,0);
             ALBSFCDIF_NIR(i,j,0) = tmp_albsfcdif_nir_arr(i,j,0);
         });
-
-        if((nstep+1)%m_plot_int_1 == 0) {
-            noahmpio->WriteLand(nstep+1);
-        }
     }
     Print () << "Noah-MP driver completed" << std::endl;
 };
