@@ -149,6 +149,16 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // Update the "old" state using SHOC
     // **************************************************************************************
     if (solverChoice.use_shoc) {
+        // Get SFC fluxes from SurfacLayer
+        if (m_SurfaceLayer) {
+            Vector<const MultiFab*> mfs = {&S_old, &U_old, &V_old, &W_old};
+            m_SurfaceLayer->impose_SurfaceLayer_bcs(lev, mfs, Tau[lev],
+                                                    SFS_hfx1_lev[lev].get() , SFS_hfx2_lev[lev].get() , SFS_hfx3_lev[lev].get(),
+                                                    SFS_q1fx1_lev[lev].get(), SFS_q1fx2_lev[lev].get(), SFS_q1fx3_lev[lev].get(),
+                                                    z_phys_nd[lev].get());
+        }
+
+        // Get Shoc tendencies and update the state
         Real* w_sub = (solverChoice.custom_w_subsidence) ? d_w_subsid[lev].data() : nullptr;
         compute_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
                                 Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),

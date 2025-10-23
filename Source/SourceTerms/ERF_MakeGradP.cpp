@@ -64,6 +64,14 @@ void make_gradp_pert (int level,
             {
                 Real qv_for_p = (l_use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0;
                 pptemp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
+
+                if (i==1 && j==1 && k>79 && k<86) {
+                    Print() << "GPZ: " << k << ' ' << pptemp_arr(i,j,k) << ' '
+                            << cell_data(i,j,k,RhoTheta_comp) << ' '
+                            << getRhoThetagivenP(p0_arr(i,j,k), qv_for_p) << ' '
+                            << getRhoThetagivenP(p0_arr(i,j,k), qv_for_p)/cell_data(i,j,k,Rho_comp) << ' '
+                            << qv_for_p << "\n";
+                }
             });
         }
 

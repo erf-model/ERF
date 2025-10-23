@@ -107,6 +107,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        Vector<MultiFab>& gradp,
                        Vector<std::unique_ptr<MultiFab>>& mapfac,
                        const eb_& ebfact,
+#ifdef ERF_USE_SHOC
+                       std::unique_ptr<SHOCInterface>& shoc_lev,
+#endif
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine)
 {
@@ -175,6 +178,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
     std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
+#ifdef ERF_USE_SHOC
+        // Populate vertical component of eddyDiffs
+        shoc_lev->set_eddy_diffs();
+#endif
+
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
                            S_data,xvel,yvel,zvel,Tau_lev,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
@@ -184,6 +192,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
+#ifdef ERF_USE_SHOC
+        // Zero out the surface stresses of tau13/tau23
+        shoc_lev->set_sfc_stresses();
+#else
+        // This is computed pre step in Advance if we use SHOC
         if (l_use_SurfLayer) {
             Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
             SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
@@ -191,6 +204,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                                Q1fx1, Q1fx2, Q1fx3,
                                                &z_phys_nd);
         }
+#endif
     } // l_use_diff
 
     // This is just cautionary to deal with grid boundaries that aren't domain boundaries
