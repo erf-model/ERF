@@ -345,10 +345,10 @@ NOAHMP::Advance_With_State (const int& lev,
 
         LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
         {
-            h_hfx_arr(i,j,0) = noahmpio->HFX(i,j)/(QV_TH(i,j,0,Rho_comp)*Cp_d);
-            h_lh_arr(i,j,0) = noahmpio->LH(i,j)/(QV_TH(i,j,0,Rho_comp)*L_v);
-            h_tau_ew_arr(i,j,0)  = noahmpio->TAU_EW(i,j)/QV_TH(i,j,0,Rho_comp);
-            h_tau_ns_arr(i,j,0)  = noahmpio->TAU_NS(i,j)/QV_TH(i,j,0,Rho_comp);
+            h_hfx_arr(i,j,0) = noahmpio->HFX(i,j);
+            h_lh_arr(i,j,0) = noahmpio->LH(i,j);
+            h_tau_ew_arr(i,j,0)  = noahmpio->TAU_EW(i,j);
+            h_tau_ns_arr(i,j,0)  = noahmpio->TAU_NS(i,j);
             h_tsk_arr(i,j,0)        = noahmpio->TSK(i,j);
             h_emiss_arr(i,j,0)      = noahmpio->EMISS(i,j);
             h_albsfcdir_vis_arr(i,j,0) = noahmpio->ALBSFCDIRXY(i,1,j);
@@ -373,10 +373,10 @@ NOAHMP::Advance_With_State (const int& lev,
         // Copy forcing data from Noahmp to ERF
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
         {
-            t_flux_arr(i,j,0) = tmp_hfx_arr(i,j,0);
-            q_flux_arr(i,j,0) = tmp_lh_arr(i,j,0);
-            tau13_arr(i,j,0)  = tmp_tau_ew_arr(i,j,0);
-            tau23_arr(i,j,0)  = tmp_tau_ns_arr(i,j,0);
+            t_flux_arr(i,j,0) = tmp_hfx_arr(i,j,0)/(QV_TH(i,j,0,Rho_comp)*Cp_d);
+            q_flux_arr(i,j,0) = tmp_lh_arr(i,j,0)/(QV_TH(i,j,0,Rho_comp)*L_v);
+            tau13_arr(i,j,0)  = tmp_tau_ew_arr(i,j,0)/QV_TH(i,j,0,Rho_comp);
+            tau23_arr(i,j,0)  = tmp_tau_ns_arr(i,j,0)/QV_TH(i,j,0,Rho_comp);
             TSK(i,j,0)        = tmp_tsk_arr(i,j,0);
             EMISS(i,j,0)      = tmp_emiss_arr(i,j,0);
             ALBSFCDIR_VIS(i,j,0) = tmp_albsfcdir_vis_arr(i,j,0);
