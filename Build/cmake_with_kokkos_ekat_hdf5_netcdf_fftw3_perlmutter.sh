@@ -18,7 +18,7 @@ CMAKE_CUDA_ARCH="80"
 
 #CC=$(which cc) CXX=$(which CC) FC=$(which ftn)
 
-cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
+cmake -DCMAKE_INSTALL_PREFIX:PATH=./install_erf_twice \
       -DCMAKE_CUDA_STANDARD_LIBRARIES="-lmpi_gtl_cuda" \
       -DCMAKE_CXX_STANDARD_LIBRARIES="-lmpi_gtl_cuda" \
       -DCMAKE_CXX_FLAGS="$(CC --cray-print-opts=cflags)" \
@@ -44,7 +44,8 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
       -DERF_ENABLE_FCOMPARE:BOOL=ON \
       -DERF_ENABLE_DOCUMENTATION:BOOL=OFF \
       -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
-      -B build_kokkos_ekat_gtl_sci ..
+      -B build_erf_twice ..
 
-cmake --build build_kokkos_ekat_gtl_sci -j10 -v
-cmake --install build_kokkos_ekat_gtl_sci
+cmake --build build_erf_twice -j10 -v
+cmake --build build_erf_twice -v
+cmake --install build_erf_twice --prefix=install_erf_twice
