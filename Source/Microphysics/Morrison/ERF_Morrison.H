@@ -269,6 +269,13 @@ public:
         a_idx.push_back(7); a_names.push_back("GraupAccum");
     }
 
+    void
+    GetPlotVarNames (amrex::Vector<std::string>& a_vec) const override;
+
+    void
+    GetPlotVar (const std::string& a_name,
+                amrex::MultiFab& a_mf) const override;
+
 private:
     // Number of qmoist variables (Ncloud, Nrain, Nice, Nsnow, Ngraup, rain_accum, snow_accum, graup_accum)
     int m_qmoist_size = 8;
