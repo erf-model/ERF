@@ -18,7 +18,6 @@ using namespace amrex;
  * @param[out] tau33 33 strain
  * @param[out] tau12 12 strain
  * @param[out] tau13 13 strain
- * @param[out] tau21 21 strain
  * @param[out] tau23 23 strain
  * @param[out] tau31 31 strain
  * @param[out] tau32 32 strain
@@ -37,7 +36,7 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  Array4<Real>& tau11,
                  Array4<Real>& tau22,
                  Array4<Real>& tau33,
-                 Array4<Real>& tau12, Array4<Real>& tau21,
+                 Array4<Real>& tau12,
                  Array4<Real>& tau13, Array4<Real>& tau31,
                  Array4<Real>& tau23, Array4<Real>& tau32,
                  const GpuArray<Real, AMREX_SPACEDIM>& dxInv,

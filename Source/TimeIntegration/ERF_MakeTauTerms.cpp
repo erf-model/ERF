@@ -440,7 +440,7 @@ void erf_make_tau_terms (int level, int nrk,
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
-                                s12, s21,
+                                s12, /*s21,*/
                                 s13, s31,
                                 s23, s32,
                                 dxInv,

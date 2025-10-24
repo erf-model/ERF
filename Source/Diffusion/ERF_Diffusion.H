@@ -295,7 +295,7 @@ void ComputeStrain_N (amrex::Box bxcc, amrex::Box tbxxy, amrex::Box tbxxz, amrex
                       amrex::Array4<amrex::Real>& tau11,
                       amrex::Array4<amrex::Real>& tau22,
                       amrex::Array4<amrex::Real>& tau33,
-                      amrex::Array4<amrex::Real>& tau12, amrex::Array4<amrex::Real>& tau21,
+                      amrex::Array4<amrex::Real>& tau12,
                       amrex::Array4<amrex::Real>& tau13, amrex::Array4<amrex::Real>& tau31,
                       amrex::Array4<amrex::Real>& tau23, amrex::Array4<amrex::Real>& tau32,
                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,

@@ -482,6 +482,10 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
     bool l_rotate      = (  solverChoice.use_rotate_surface_flux  );
 
+    bool l_implicit_diff = (solverChoice.vert_implicit_fac[0] > 0 ||
+                            solverChoice.vert_implicit_fac[1] > 0 ||
+                            solverChoice.vert_implicit_fac[2] > 0);
+
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
     BoxArray ba13 = convert(ba, IntVect(1,0,1));
     BoxArray ba23 = convert(ba, IntVect(0,1,1));
@@ -507,6 +511,11 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
             Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
             Tau[lev][TauType::tau21]->setVal(0.);
+            Tau[lev][TauType::tau31]->setVal(0.);
+            Tau[lev][TauType::tau32]->setVal(0.);
+        } else if (l_implicit_diff) {
+            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
+            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
             Tau[lev][TauType::tau31]->setVal(0.);
             Tau[lev][TauType::tau32]->setVal(0.);
         } else {

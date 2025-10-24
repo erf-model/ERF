@@ -197,7 +197,7 @@ void ERF::advance_dycore (int level,
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
-                                tau12, tau21,
+                                tau12, /*tau21,*/
                                 tau13, tau31,
                                 tau23, tau32,
                                 dxInv,
