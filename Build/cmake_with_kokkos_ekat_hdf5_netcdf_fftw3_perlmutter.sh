@@ -1,12 +1,12 @@
 #!/bin/bash
 
-module load gcc/12.2.0
-module load cray-mpich
-module load cray-hdf5-parallel
-module load cray-netcdf-hdf5parallel
-module load cmake
-module load cray-libsci
-module load cray-parallel-netcdf
+module load gcc-native/13.2
+module load cray-mpich/8.1.30
+module load cray-hdf5-parallel/1.14.3.1
+module load cray-netcdf-hdf5parallel/4.9.0.13
+module load cmake/3.30.2
+module load cray-libsci/24.07.0
+module load cray-parallel-netcdf/1.12.3.13
 module tablelist
 
 # Set environment for GPU-aware MPI with GTL
@@ -16,16 +16,16 @@ export MPICH_GPU_SUPPORT_ENABLED=1
 KOKKOS_GPU_ARCH="AMPERE80"  # A100 = Ampere 80
 CMAKE_CUDA_ARCH="80"
 
-#CC=$(which cc) CXX=$(which CC) FC=$(which ftn)
+CC=$(which cc) CXX=$(which CC) FC=$(which ftn)
 
-cmake -DCMAKE_INSTALL_PREFIX:PATH=./install_erf_twice \
+cmake -DCMAKE_INSTALL_PREFIX:PATH=./install_erf \
       -DCMAKE_CUDA_STANDARD_LIBRARIES="-lmpi_gtl_cuda" \
       -DCMAKE_CXX_STANDARD_LIBRARIES="-lmpi_gtl_cuda" \
       -DCMAKE_CXX_FLAGS="$(CC --cray-print-opts=cflags)" \
       -DCMAKE_C_FLAGS="$(cc --cray-print-opts=cflags)" \
       -DCMAKE_Fortran_FLAGS="$(ftn --cray-print-opts=cflags)" \
       -DCMAKE_CUDA_FLAGS="$(CC --cray-print-opts=cflags)" \
-      -DCMAKE_EXE_LINKER_FLAGS="$(CC --cray-print-opts=libs) $(cc --cray-print-opts=libs) $(ftn --cray-print-opts=libs)" \
+      -DCMAKE_EXE_LINKER_FLAGS="$(CC --cray-print-opts=libs) $(cc --cray-print-opts=libs) $(ftn --cray-print-opts=libs) -Wl,--no-as-needed" \
       -DMPIEXEC_PREFLAGS:STRING=--oversubscribe \
       -DCMAKE_BUILD_TYPE:STRING=Release \
       -DCMAKE_CXX_COMPILER:STRING=$(which CC) \
@@ -44,11 +44,7 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=./install_erf_twice \
       -DERF_ENABLE_FCOMPARE:BOOL=ON \
       -DERF_ENABLE_DOCUMENTATION:BOOL=OFF \
       -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
-      -B build_erf_twice ..
+      -B build_erf ..
 
-cmake --build build_erf_twice -j10 -v
-cmake --build build_erf_twice -v
-cmake --install build_erf_twice --prefix=install_erf_twice
-
-cmake --build build_erf_twice -v
-cmake --install build_erf_twice --prefix=install_erf_twice
+cmake --build build_erf -j10 -v
+cmake --install build_erf --prefix=install_erf
