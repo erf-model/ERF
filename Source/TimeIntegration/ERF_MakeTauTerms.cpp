@@ -52,6 +52,11 @@ void erf_make_tau_terms (int level, int nrk,
     const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||
                                    tc.rans_type == RANSType::kEqn);
 
+    const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
+    const bool need_tau31_tau32 = (solverChoice.mesh_type == MeshType::StretchedDz ||
+                                   l_use_terrain_fitted_coords ||
+                                   l_vert_implicit_fac > 0);
+
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
     const int domhi_z = domain.bigEnd(2);
@@ -82,7 +87,6 @@ void erf_make_tau_terms (int level, int nrk,
 #endif
         for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
-            const Box& bx = mfi.tilebox();
             const Box& valid_bx = mfi.validbox();
 
             // Velocities
@@ -156,29 +160,43 @@ void erf_make_tau_terms (int level, int nrk,
             // Temporary storage for tiling/OMP
             FArrayBox S11,S22,S33;
             FArrayBox S12,S13,S23;
-            S11.resize( bxcc,1,The_Async_Arena());  S22.resize(bxcc,1,The_Async_Arena());  S33.resize(bxcc,1,The_Async_Arena());
+            FArrayBox S21,S31,S32;
+
+            // Symmetric strain/stresses
+            S11.resize( bxcc,1,The_Async_Arena()); S22.resize( bxcc,1,The_Async_Arena()); S33.resize( bxcc,1,The_Async_Arena());
             S12.resize(tbxxy,1,The_Async_Arena()); S13.resize(tbxxz,1,The_Async_Arena()); S23.resize(tbxyz,1,The_Async_Arena());
             Array4<Real> s11 = S11.array();  Array4<Real> s22 = S22.array();  Array4<Real> s33 = S33.array();
             Array4<Real> s12 = S12.array();  Array4<Real> s13 = S13.array();  Array4<Real> s23 = S23.array();
-
-            // Symmetric strain/stresses
             Array4<Real> tau11 = Tau_lev[TauType::tau11]->array(mfi); Array4<Real> tau22 = Tau_lev[TauType::tau22]->array(mfi);
             Array4<Real> tau33 = Tau_lev[TauType::tau33]->array(mfi); Array4<Real> tau12 = Tau_lev[TauType::tau12]->array(mfi);
             Array4<Real> tau13 = Tau_lev[TauType::tau13]->array(mfi); Array4<Real> tau23 = Tau_lev[TauType::tau23]->array(mfi);
 
-            // Strain magnitude
-            Array4<Real> SmnSmn_a;
+            // Terrain or implicit non-symmetric terms
+            Array4<Real> s21{}, s31{}, s32{};
+            Array4<Real> tau21{}, tau31{}, tau32{};
+            if (solverChoice.mesh_type == MeshType::StretchedDz ||
+                l_use_terrain_fitted_coords)
+            {
+                S21.resize(tbxxy,1,The_Async_Arena());
+                s21 = S21.array();
+                tau21 = Tau_lev[TauType::tau21]->array(mfi);
+            }
+            if (need_tau31_tau32)
+            {
+                S31.resize(tbxxz,1,The_Async_Arena());
+                S32.resize(tbxyz,1,The_Async_Arena());
+                s31 = S31.array();
+                s32 = S32.array();
+                tau31 = Tau_lev[TauType::tau31]->array(mfi);
+                tau32 = Tau_lev[TauType::tau32]->array(mfi);
+            }
+
+            // Calculate strain-rate magnitude SmnSmn if using Deardorff or
+            // or k-eqn RANS (included in diffusion source in post) and in the
+            // first RK stage (TKE tendencies constant for nrk>0, following WRF)
+            Array4<Real> SmnSmn_a = ((nrk==0) && need_SmnSmn) ? SmnSmn_a = SmnSmn->array(mfi) : Array4<Real>{};
 
             if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                // Terrain non-symmetric terms
-                FArrayBox S21,S31,S32;
-                S21.resize(tbxxy,1,The_Async_Arena()); S31.resize(tbxxz,1,The_Async_Arena()); S32.resize(tbxyz,1,The_Async_Arena());
-                Array4<Real> s21   = S21.array();       Array4<Real> s31   = S31.array();       Array4<Real> s32   = S32.array();
-                Array4<Real> tau21 = Tau_lev[TauType::tau21]->array(mfi);
-                Array4<Real> tau31 = Tau_lev[TauType::tau31]->array(mfi);
-                Array4<Real> tau32 = Tau_lev[TauType::tau32]->array(mfi);
-
-
                 // *****************************************************************************
                 // Expansion rate compute terrain
                 // *****************************************************************************
@@ -206,18 +224,10 @@ void erf_make_tau_terms (int level, int nrk,
                                 s23, s32,
                                 stretched_dz_d, dxInv,
                                 mf_mx, mf_ux, mf_vx,
-                                mf_my, mf_uy, mf_vy, bc_ptr_h);
-                } // profile
-
-                // Populate SmnSmn if using Deardorff or k-eqn RANS (used as diff src in post)
-                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (need_SmnSmn)) {
-                    SmnSmn_a = SmnSmn->array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
-                    });
-                }
+                                mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                SmnSmn_a,
+                                l_vert_implicit_fac);
+                } // end profile
 
                 // *****************************************************************************
                 // Stress tensor compute terrain
@@ -283,16 +293,6 @@ void erf_make_tau_terms (int level, int nrk,
                 } // end profile
 
             } else if (l_use_terrain_fitted_coords) {
-
-                // Terrain non-symmetric terms
-                FArrayBox S21,S31,S32;
-                S21.resize(tbxxy,1,The_Async_Arena()); S31.resize(tbxxz,1,The_Async_Arena()); S32.resize(tbxyz,1,The_Async_Arena());
-                Array4<Real> s21   = S21.array();       Array4<Real> s31   = S31.array();       Array4<Real> s32   = S32.array();
-                Array4<Real> tau21 = Tau_lev[TauType::tau21]->array(mfi);
-                Array4<Real> tau31 = Tau_lev[TauType::tau31]->array(mfi);
-                Array4<Real> tau32 = Tau_lev[TauType::tau32]->array(mfi);
-
-
                 // *****************************************************************************
                 // Expansion rate compute terrain
                 // *****************************************************************************
@@ -348,20 +348,10 @@ void erf_make_tau_terms (int level, int nrk,
                                 s23, s32,
                                 z_nd, detJ_arr, dxInv,
                                 mf_mx, mf_ux, mf_vx,
-                                mf_my, mf_uy, mf_vy, bc_ptr_h);
-                } // profile
-
-                // Populate SmnSmn if using Deardorff or k-eqn RANS (used as diff src in post)
-                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (need_SmnSmn)) {
-                    SmnSmn_a = SmnSmn->array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
-                                                        s11,s22,s33,
-                                                        s12,s13,s23);
-                    });
-                }
+                                mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                SmnSmn_a,
+                                l_vert_implicit_fac);
+                } // end profile
 
                 // *****************************************************************************
                 // Stress tensor compute terrain
@@ -450,23 +440,15 @@ void erf_make_tau_terms (int level, int nrk,
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
-                                s12, s13, s23,
+                                s12, /*s21,*/
+                                s13, s31,
+                                s23, s32,
                                 dxInv,
                                 mf_mx, mf_ux, mf_vx,
-                                mf_my, mf_uy, mf_vy, bc_ptr_h);
+                                mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                SmnSmn_a,
+                                l_vert_implicit_fac);
                 } // end profile
-
-                // Populate SmnSmn if using Deardorff or k-eqn RANS (used as diff src in post)
-                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (need_SmnSmn)) {
-                    SmnSmn_a = SmnSmn->array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
-                                                        s11,s22,s33,
-                                                        s12,s13,s23);
-                    });
-                }
 
                 // *****************************************************************************
                 // Stress tensor compute no terrain

@@ -91,6 +91,7 @@ void ERF::advance_dycore (int level,
                            l_use_kturb );
     bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
     bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
+    bool l_vert_implicit_fac = solverChoice.vert_implicit_fac[0];
 
     const bool use_SurfLayer = (m_SurfaceLayer != nullptr);
     const MultiFab* z_0     = (use_SurfLayer) ? m_SurfaceLayer->get_z0(level) : nullptr;
@@ -153,9 +154,12 @@ void ERF::advance_dycore (int level,
             Array4<Real> tau13 = Tau[level][TauType::tau13].get()->array(mfi);
             Array4<Real> tau23 = Tau[level][TauType::tau23].get()->array(mfi);
 
-            Array4<Real> tau21  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau21].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau31  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau32  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
+            bool need_tau31_tau32 = (solverChoice.mesh_type == MeshType::StretchedDz ||
+                                     l_use_terrain_fitted_coords ||
+                                     l_vert_implicit_fac > 0);
+            Array4<Real> tau21 = l_use_terrain_fitted_coords ? Tau[level][TauType::tau21].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau31 = need_tau31_tau32            ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau32 = need_tau31_tau32            ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
             const Array4<const Real>& z_nd = z_phys_nd[level]->const_array(mfi);
 
             const Array4<const Real> mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
@@ -165,6 +169,8 @@ void ERF::advance_dycore (int level,
             const Array4<const Real> mf_uy = mapfac[level][MapFacType::u_y]->const_array(mfi);
             const Array4<const Real> mf_vy = mapfac[level][MapFacType::v_y]->const_array(mfi);
 
+            Array4<Real> no_SmnSmn_calc_here{};
+
             if (solverChoice.mesh_type == MeshType::StretchedDz) {
                 ComputeStrain_S(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
@@ -173,7 +179,9 @@ void ERF::advance_dycore (int level,
                                 tau13, tau31,
                                 tau23, tau32,
                                 stretched_dz_d[level], dxInv,
-                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h);
+                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                no_SmnSmn_calc_here,
+                                l_vert_implicit_fac);
             } else if (l_use_terrain_fitted_coords) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
@@ -182,14 +190,20 @@ void ERF::advance_dycore (int level,
                                 tau13, tau31,
                                 tau23, tau32,
                                 z_nd, detJ_cc[level]->const_array(mfi), dxInv,
-                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h);
+                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                no_SmnSmn_calc_here,
+                                l_vert_implicit_fac);
             } else {
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
-                                tau12, tau13, tau23,
+                                tau12, /*tau21,*/
+                                tau13, tau31,
+                                tau23, tau32,
                                 dxInv,
-                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h);
+                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                no_SmnSmn_calc_here,
+                                l_vert_implicit_fac);
             }
         } // mfi
     } // l_use_diff

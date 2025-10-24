@@ -364,6 +364,18 @@ struct SolverChoice {
         // Note: this will be overwritten with -1 on levels that have substepping_type == Explicit
         pp.query("beta_s", beta_s);
 
+        // This controls the time-centering of the vertical differences in the diffusive term for (rho theta) only
+        int n_impfac = pp.countval("vert_implicit_fac");
+        AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
+
+        if (n_impfac == 1) {
+            amrex::Real fac_in;
+            pp.get("vert_implicit_fac", fac_in);
+            for (int i=0; i<3; ++i) vert_implicit_fac[i] = fac_in;
+        } else if (n_impfac == 3) {
+            pp.getarr("vert_implicit_fac", vert_implicit_fac);
+        }
+
         // *******************************************************************************
         // Error check on deprecated input
         // *******************************************************************************
@@ -635,12 +647,14 @@ struct SolverChoice {
 
     void check_params (int max_level)
     {
+#if 0
         // Warn for PBL models and moisture - these may not yet be compatible
         for (int lev = 0; lev <= max_level; lev++) {
             if ((moisture_type != MoistureType::None) && (turbChoice[lev].pbl_type != PBLType::None)) {
                 amrex::Warning("\n*** WARNING: Moisture may not yet be compatible with PBL models, \n    proceed with caution ***");
             }
         }
+#endif
         //
         // Buoyancy type check
         //
@@ -679,7 +693,6 @@ struct SolverChoice {
     void display (int max_level, std::string pp_prefix)
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
-        amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
         for (int lev = 0; lev <= max_level; lev++) {
             if (anelastic[lev]) {
                 amrex::Print() << "Level " << lev << " is anelastic" << std::endl;
@@ -692,6 +705,9 @@ struct SolverChoice {
                 amrex::Print() << "Implicit substepping at level " << lev << std::endl;
             }
         }
+        amrex::Print() << "vert_implicit_fac           : " << vert_implicit_fac[0] << " "
+                                                           << vert_implicit_fac[1] << " "
+                                                           << vert_implicit_fac[2] << std::endl;
         amrex::Print() << "fixed_density               : " << fixed_density << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
@@ -889,6 +905,11 @@ struct SolverChoice {
     // time off-centering coefficient, > 0 for forward weighting (i.e., bias
     // towards the future time step)
     amrex::Real beta_s = 0.1;
+
+    // This controls the time-centering of the *vertical* differences in the diffusive term for (rho theta) only
+    // 0: fully explicit
+    // 1: fully implicit
+    amrex::Vector<amrex::Real> vert_implicit_fac = {0.0, 0.0, 0.0}; // one value per RK stage
 
     bool        fixed_density       = false;
     int         ncorr               = 1;
