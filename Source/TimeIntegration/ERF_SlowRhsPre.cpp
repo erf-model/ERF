@@ -172,6 +172,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
     std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
+        // With solverChoice.vert_implicit_fac > 0, tau31 and tau32 will always
+        // be calculated and scaled by (1 - implicit_fac)
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
                            S_data,xvel,yvel,zvel,Tau_lev,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
@@ -182,6 +184,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
         if (l_use_SurfLayer) {
+            // Set surface shear stresses, update heat and moisture fluxes
+            // (fluxes will be later applied in the diffusion source update)
             Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
             SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
                                                Hfx1, Hfx2, Hfx3,
@@ -549,7 +553,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_start = RhoTheta_comp;
             int n_comp  = 1;
 
-            // We use vert_implicit_fac because we are only diffusing RhoTheta here
+            // For implicit_fac > 0, we scale the rho*theta contribution by (1 - implicit_fac)
+            // and add in the implicit contribution in fast_rhs_fun scaled by implicit_fac
             const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
 
             if (l_use_stretched_dz) {
