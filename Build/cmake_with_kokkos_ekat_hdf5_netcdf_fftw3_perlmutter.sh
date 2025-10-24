@@ -49,3 +49,6 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=./install_erf_twice \
 cmake --build build_erf_twice -j10 -v
 cmake --build build_erf_twice -v
 cmake --install build_erf_twice --prefix=install_erf_twice
+
+cmake --build build_erf_twice -v
+cmake --install build_erf_twice --prefix=install_erf_twice
