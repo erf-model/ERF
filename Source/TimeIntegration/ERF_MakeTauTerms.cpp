@@ -194,7 +194,7 @@ void erf_make_tau_terms (int level, int nrk,
             // Calculate strain-rate magnitude SmnSmn if using Deardorff or
             // or k-eqn RANS (included in diffusion source in post) and in the
             // first RK stage (TKE tendencies constant for nrk>0, following WRF)
-            Array4<Real> SmnSmn_a = ((nrk==0) && need_SmnSmn) ? SmnSmn_a = SmnSmn->array(mfi) : Array4<Real>{};
+            Array4<Real> SmnSmn_a = ((nrk==0) && need_SmnSmn) ? SmnSmn->array(mfi) : Array4<Real>{};
 
             if (solverChoice.mesh_type == MeshType::StretchedDz) {
                 // *****************************************************************************
