@@ -56,7 +56,6 @@ public:
         m_fac_cond = lcond / sc.c_p;
         m_fac_fus  = lfus / sc.c_p;
         m_fac_sub  = lsub / sc.c_p;
-        m_gOcp     = CONST_GRAV / sc.c_p;
         m_axis     = sc.ave_plane;
         m_do_cond  = (!sc.use_shoc);
     }
@@ -169,7 +168,6 @@ private:
     amrex::Real m_fac_cond;
     amrex::Real m_fac_fus;
     amrex::Real m_fac_sub;
-    amrex::Real m_gOcp;
     bool m_do_cond;
 
     // Pointer to terrain data
