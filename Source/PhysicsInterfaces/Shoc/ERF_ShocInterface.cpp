@@ -480,8 +480,6 @@ SHOCInterface::mf_to_kokkos_buffers ()
                 qv_avg = 0.5 * (qv + qv_hi);
                 p_int_d(icol,ilay+1) = getPgivenRTh(rt_avg, qv_avg);
             }
-
-            if(i==1 && j==1 && k>79 && k<86) Print() << "RT in: " << k << ' ' << rt << ' ' << rt/r << ' ' << r << "\n";
         });
     }
 }
@@ -546,7 +544,6 @@ SHOCInterface::kokkos_buffers_to_mf ()
             if (moist) { cons_arr(i,j,k,RhoQ1_comp) = r * qv_d(icol,ilay)[0]; }
              cons_arr(i,j,k,RhoTheta_comp) = r * Th;
 
-             if(i==1 && j==1 && k>79 && k<86) Print() << "RT out: " << k << ' ' << r*Th << ' ' << Th << ' ' << r << "\n";
 
             // Input/Output data structures
             //=======================================================
