@@ -136,6 +136,12 @@ public:
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
 #endif
+          std::string zlo_bc = "none";
+          amrex::ParmParse pp_bc("zlo");
+          pp_bc.get("type",zlo_bc);
+          if (amrex::toLower(zlo_bc) != "surface_layer") {
+               amrex::Abort("You must use the surface_layer BC at zlo with SHOC.");
+          }
       }
     }
 

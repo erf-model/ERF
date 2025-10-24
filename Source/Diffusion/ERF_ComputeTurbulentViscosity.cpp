@@ -681,11 +681,8 @@ void ComputeTurbulentViscosity (Real dt,
                               level, bc_ptr, vert_only, z_phys_nd,
                               solverChoice.moisture_indices);
     } else if (turbChoice.pbl_type == PBLType::SHOC) {
-        IntVect ng = eddyViscosity.nGrowVect();
-        eddyViscosity.setVal(0.0, EddyDiff::Mom_v  , 1, ng);
-        eddyViscosity.setVal(0.0, EddyDiff::Theta_v, 1, ng);
-        eddyViscosity.setVal(0.0, EddyDiff::KE_v   , 1, ng);
-        eddyViscosity.setVal(0.0, EddyDiff::Q_v    , 1, ng);
+        // NOTE: Nothing to do here. The SHOC class handles setting the vertical
+        //       components of eddyDiffs in slow RHS pre.
     }
 
     //

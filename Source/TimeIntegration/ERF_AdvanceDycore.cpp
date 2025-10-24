@@ -243,7 +243,8 @@ void ERF::advance_dycore (int level,
                                   fine_geom, mapfac[level],
                                   z_phys_nd[level], solverChoice,
                                   m_SurfaceLayer, z_0, l_use_terrain_fitted_coords,
-                                  l_use_moisture, level, bc_ptr_h);
+                                  l_use_moisture, level,
+                                  bc_ptr_h);
     }
 
     // ***********************************************************************************************
