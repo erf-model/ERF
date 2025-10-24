@@ -87,7 +87,6 @@ void erf_make_tau_terms (int level, int nrk,
 #endif
         for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
-            const Box& bx = mfi.tilebox();
             const Box& valid_bx = mfi.validbox();
 
             // Velocities
@@ -186,14 +185,16 @@ void erf_make_tau_terms (int level, int nrk,
             {
                 S31.resize(tbxxz,1,The_Async_Arena());
                 S32.resize(tbxyz,1,The_Async_Arena());
-                Array4<Real> s31 = S31.array();
-                Array4<Real> s32 = S32.array();
+                s31 = S31.array();
+                s32 = S32.array();
                 tau31 = Tau_lev[TauType::tau31]->array(mfi);
                 tau32 = Tau_lev[TauType::tau32]->array(mfi);
             }
 
-            // Strain magnitude
-            Array4<Real> SmnSmn_a;
+            // Calculate strain-rate magnitude SmnSmn if using Deardorff or
+            // or k-eqn RANS (included in diffusion source in post) and in the
+            // first RK stage (TKE tendencies constant for nrk>0, following WRF)
+            Array4<Real> SmnSmn_a = ((nrk==0) && need_SmnSmn) ? SmnSmn_a = SmnSmn->array(mfi) : Array4<Real>{};
 
             if (solverChoice.mesh_type == MeshType::StretchedDz) {
                 // *****************************************************************************
@@ -224,20 +225,9 @@ void erf_make_tau_terms (int level, int nrk,
                                 stretched_dz_d, dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                SmnSmn_a,
                                 l_vert_implicit_fac);
-                } // profile
-
-                // Populate SmnSmn if using Deardorff or k-eqn RANS (used as diff src in post)
-                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (need_SmnSmn)) {
-                    SmnSmn_a = SmnSmn->array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
-                                                        s11,s22,s33,
-                                                        s12,s13,s23);
-                    });
-                }
+                } // end profile
 
                 // *****************************************************************************
                 // Stress tensor compute terrain
@@ -359,20 +349,9 @@ void erf_make_tau_terms (int level, int nrk,
                                 z_nd, detJ_arr, dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                SmnSmn_a,
                                 l_vert_implicit_fac);
-                } // profile
-
-                // Populate SmnSmn if using Deardorff or k-eqn RANS (used as diff src in post)
-                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (need_SmnSmn)) {
-                    SmnSmn_a = SmnSmn->array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
-                                                        s11,s22,s33,
-                                                        s12,s13,s23);
-                    });
-                }
+                } // end profile
 
                 // *****************************************************************************
                 // Stress tensor compute terrain
@@ -467,20 +446,9 @@ void erf_make_tau_terms (int level, int nrk,
                                 dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                SmnSmn_a,
                                 l_vert_implicit_fac);
                 } // end profile
-
-                // Populate SmnSmn if using Deardorff or k-eqn RANS (used as diff src in post)
-                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (need_SmnSmn)) {
-                    SmnSmn_a = SmnSmn->array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
-                                                        s11,s22,s33,
-                                                        s12,s13,s23);
-                    });
-                }
 
                 // *****************************************************************************
                 // Stress tensor compute no terrain
