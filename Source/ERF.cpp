@@ -573,11 +573,13 @@ ERF::Evolve ()
         if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
             last_plot3d_file_step_1 = step+1;
             Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+            for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
             if (m_plot3d_per_1 > 0.) {last_plot3d_file_time_1 += m_plot3d_per_1;}
         }
         if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
             last_plot3d_file_step_2 = step+1;
             Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+            for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
             if (m_plot3d_per_2 > 0.) {last_plot3d_file_time_2 += m_plot3d_per_2;}
         }
 

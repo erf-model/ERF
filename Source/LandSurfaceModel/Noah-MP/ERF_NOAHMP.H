@@ -82,6 +82,9 @@ public:
                         const amrex::Real& dt,
                         const int& nstep) override;
 
+    void
+    Plot_Landfile (const int& nstep) override;
+
     // Get state vars from lsm class
     amrex::MultiFab*
     Lsm_Data_Ptr (const int& varIdx) override
