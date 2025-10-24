@@ -18,14 +18,20 @@ CMAKE_CUDA_ARCH="80"
 
 CC=$(which cc) CXX=$(which CC) FC=$(which ftn)
 
+CRAY_LIBS_CLEAN=$(CC --cray-print-opts=libs | sed 's/-Wl,--as-needed,//g; s/,--no-as-needed//g; s/,-l/ -l/g')
+CRAY_LIBS_CLEAN="$CRAY_LIBS_CLEAN $(cc --cray-print-opts=libs | sed 's/-Wl,--as-needed,//g; s/,--no-as-needed//g; s/,-l/ -l/g')"
+CRAY_LIBS_CLEAN="$CRAY_LIBS_CLEAN $(ftn --cray-print-opts=libs | sed 's/-Wl,--as-needed,//g; s/,--no-as-needed//g; s/,-l/ -l/g')"
+
+echo $CRAY_LIBS_CLEAN
+
 cmake -DCMAKE_INSTALL_PREFIX:PATH=./install_erf \
-      -DCMAKE_CUDA_STANDARD_LIBRARIES="-lmpi_gtl_cuda" \
-      -DCMAKE_CXX_STANDARD_LIBRARIES="-lmpi_gtl_cuda" \
+      -DCMAKE_CUDA_STANDARD_LIBRARIES="-lmpi_gnu_123 -lmpi_gtl_cuda" \
+      -DCMAKE_CXX_STANDARD_LIBRARIES="-lmpi_gnu_123 -lmpi_gtl_cuda" \
       -DCMAKE_CXX_FLAGS="$(CC --cray-print-opts=cflags)" \
       -DCMAKE_C_FLAGS="$(cc --cray-print-opts=cflags)" \
       -DCMAKE_Fortran_FLAGS="$(ftn --cray-print-opts=cflags)" \
       -DCMAKE_CUDA_FLAGS="$(CC --cray-print-opts=cflags)" \
-      -DCMAKE_EXE_LINKER_FLAGS="$(CC --cray-print-opts=libs) $(cc --cray-print-opts=libs) $(ftn --cray-print-opts=libs) -Wl,--no-as-needed" \
+      -DCMAKE_EXE_LINKER_FLAGS="-Wl,--no-as-needed $CRAY_LIBS_CLEAN" \
       -DMPIEXEC_PREFLAGS:STRING=--oversubscribe \
       -DCMAKE_BUILD_TYPE:STRING=Release \
       -DCMAKE_CXX_COMPILER:STRING=$(which CC) \
