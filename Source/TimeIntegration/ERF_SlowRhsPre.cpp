@@ -86,13 +86,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
-                       MultiFab* Hfx1,
-                       MultiFab* Hfx2,
-                       MultiFab* Hfx3,
-                       MultiFab* Q1fx1,
-                       MultiFab* Q1fx2,
-                       MultiFab* Q1fx3,
-                       MultiFab* Q2fx3,
+                       MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3,
+                       MultiFab* Q1fx1, MultiFab* Q1fx2,
+                       MultiFab* Q1fx3, MultiFab* Q2fx3,
                        MultiFab* Diss,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
@@ -137,8 +133,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool    l_moving_terrain               = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_stretched_dz || l_use_terrain_fitted_coords);
 
-    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
-
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
                                     (tc.les_type        !=       LESType::None) ||
                                     (tc.rans_type       !=      RANSType::None) ||
@@ -152,6 +146,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const bool l_anelastic = solverChoice.anelastic[level];
     const bool l_fixed_rho = solverChoice.fixed_density;
+
+    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
+                            ( (l_anelastic && nrk == 1) || (!l_anelastic && nrk == 2) ) );
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real* dx = geom.CellSize();
@@ -183,6 +180,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
         shoc_lev->set_eddy_diffs();
 #endif
 
+        // With solverChoice.vert_implicit_fac > 0, tau31 and tau32 will always
+        // be calculated and scaled by (1 - implicit_fac)
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
                            S_data,xvel,yvel,zvel,Tau_lev,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
@@ -198,6 +197,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #else
         // This is computed pre step in Advance if we use SHOC
         if (l_use_SurfLayer) {
+            // Set surface shear stresses, update heat and moisture fluxes
+            // (fluxes will be later applied in the diffusion source update)
             Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
             SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
                                                Hfx1, Hfx2, Hfx3,
@@ -566,6 +567,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_start = RhoTheta_comp;
             int n_comp  = 1;
 
+            // For implicit_fac > 0, we scale the rho*theta contribution by (1 - implicit_fac)
+            // and add in the implicit contribution in fast_rhs_fun scaled by implicit_fac
+            const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
+
             if (l_use_stretched_dz) {
                 DiffusionSrcForState_S(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -575,7 +580,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
             } else if (l_use_terrain_fitted_coords) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -586,7 +591,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -596,7 +601,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_z, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
             }
         }
 

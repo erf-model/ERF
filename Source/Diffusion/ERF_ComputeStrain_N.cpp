@@ -1,4 +1,5 @@
 #include <ERF_Diffusion.H>
+#include "ERF_EddyViscosity.H"
 
 using namespace amrex;
 
@@ -18,11 +19,14 @@ using namespace amrex;
  * @param[out] tau12 12 strain
  * @param[out] tau13 13 strain
  * @param[out] tau23 23 strain
+ * @param[out] tau31 31 strain
+ * @param[out] tau32 32 strain
  * @param[in] bc_ptr container with boundary condition types
  * @param[in] dxInv inverse cell size array
  * @param[in] mf_m map factor at cell center
  * @param[in] mf_u map factor at x-face
  * @param[in] mf_v map factor at y-face
+ * @param[in] implicit_fac -- factor of implicitness for vertical differences only
  */
 void
 ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
@@ -33,8 +37,8 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  Array4<Real>& tau22,
                  Array4<Real>& tau33,
                  Array4<Real>& tau12,
-                 Array4<Real>& tau13,
-                 Array4<Real>& tau23,
+                 Array4<Real>& tau13, Array4<Real>& tau31,
+                 Array4<Real>& tau23, Array4<Real>& tau32,
                  const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                  const Array4<const Real>& mf_mx,
                  const Array4<const Real>& mf_ux,
@@ -42,7 +46,9 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& mf_my,
                  const Array4<const Real>& mf_uy,
                  const Array4<const Real>& mf_vy,
-                 const BCRec* bc_ptr)
+                 const BCRec* bc_ptr,
+                 Array4<Real>& SmnSmn_a,
+                 const Real implicit_fac)
 {
     // Convert domain to each index type to test if we are on Dirichlet boundary
     Box domain_xy = convert(domain, tbxxy.ixType());
@@ -111,12 +117,14 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                       (bc_ptr[BCVars::yvel_bc].hi(2) == ERFBCType::ext_dir_ingested) );
          zh_v_dir = ( zh_v_dir && (tbxyz.bigEnd(2) == domain_yz.bigEnd(2)) );
 
+    //***********************************************************************************
     // X-Dirichlet
     //***********************************************************************************
     if (xl_v_dir) {
         Box planexy = tbxxy; planexy.setBig(0, planexy.smallEnd(0) );
         tbxxy.growLo(0,-1);
         bool need_to_test = (bc_ptr[BCVars::yvel_bc].lo(0) == ERFBCType::ext_dir_upwind) ? true : false;
+
         ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
             Real mfx = 0.5 * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
@@ -134,6 +142,7 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         Box planexy = tbxxy; planexy.setSmall(0, planexy.bigEnd(0) );
         tbxxy.growHi(0,-1);
         bool need_to_test = (bc_ptr[BCVars::yvel_bc].hi(0) == ERFBCType::ext_dir_upwind) ? true : false;
+
         ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
             Real mfx = 0.5 * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
@@ -151,6 +160,7 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         Box planexz = tbxxz; planexz.setBig(0, planexz.smallEnd(0) );
         tbxxz.growLo(0,-1);
         bool need_to_test = (bc_ptr[BCVars::zvel_bc].lo(0) == ERFBCType::ext_dir_upwind) ? true : false;
+
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfx = mf_ux(i,j,0);
             if (!need_to_test || u(dom_lo.x,j,k) >= 0.) {
@@ -167,6 +177,7 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         Box planexz = tbxxz; planexz.setSmall(0, planexz.bigEnd(0) );
         tbxxz.growHi(0,-1);
         bool need_to_test = (bc_ptr[BCVars::zvel_bc].hi(0) == ERFBCType::ext_dir_upwind) ? true : false;
+
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfx = mf_ux(i,j,0);
             if (!need_to_test || u(dom_hi.x+1,j,k) <= 0.) {
@@ -179,12 +190,14 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         });
     }
 
+    //***********************************************************************************
     // Y-Dirichlet
     //***********************************************************************************
     if (yl_u_dir) {
         Box planexy = tbxxy; planexy.setBig(1, planexy.smallEnd(1) );
         tbxxy.growLo(1,-1);
         bool need_to_test = (bc_ptr[BCVars::xvel_bc].lo(1) == ERFBCType::ext_dir_upwind) ? true : false;
+
         ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
             Real mfx = 0.5 * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
@@ -202,6 +215,7 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         Box planexy = tbxxy; planexy.setSmall(1, planexy.bigEnd(1) );
         tbxxy.growHi(1,-1);
         bool need_to_test = (bc_ptr[BCVars::xvel_bc].hi(1) == ERFBCType::ext_dir_upwind) ? true : false;
+
         ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = 0.5 * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
             Real mfx = 0.5 * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
@@ -219,6 +233,7 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         Box planeyz = tbxyz; planeyz.setBig(1, planeyz.smallEnd(1) );
         tbxyz.growLo(1,-1);
         bool need_to_test = (bc_ptr[BCVars::zvel_bc].lo(1) == ERFBCType::ext_dir_upwind) ? true : false;
+
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = mf_vy(i,j,0);
             if (!need_to_test || v(i,dom_lo.y,k) >= 0.) {
@@ -235,6 +250,7 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         Box planeyz = tbxyz; planeyz.setSmall(1, planeyz.bigEnd(1) );
         tbxyz.growHi(1,-1);
         bool need_to_test = (bc_ptr[BCVars::zvel_bc].hi(1) == ERFBCType::ext_dir_upwind) ? true : false;
+
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = mf_vy(i,j,0);
             if (!need_to_test || v(i,dom_hi.y+1,k) <= 0.) {
@@ -247,11 +263,13 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         });
     }
 
+    //***********************************************************************************
     // Z-Dirichlet
     //***********************************************************************************
     if (zl_u_dir) {
         Box planexz = tbxxz; planexz.setBig(2, planexz.smallEnd(2) );
         tbxxz.growLo(2,-1);
+
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfx = mf_ux(i,j,0);
             tau13(i,j,k) = 0.5 * ( (-(8./3.) * u(i,j,k-1) + 3. * u(i,j,k) - (1./3.) * u(i,j,k+1))*dxInv[2]
@@ -262,6 +280,7 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         // note: tilebox xz should be nodal, so k|k-1|k-2 at the bigEnd is analogous to k-1|k|k+1 at the smallEnd
         Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
         tbxxz.growHi(2,-1);
+
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfx = mf_ux(i,j,0);
             tau13(i,j,k) = 0.5 * ( -(-(8./3.) * u(i,j,k) + 3. * u(i,j,k-1) - (1./3.) * u(i,j,k-2))*dxInv[2]
@@ -272,6 +291,7 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
     if (zl_v_dir) {
         Box planeyz = tbxyz; planeyz.setBig(2, planeyz.smallEnd(2) );
         tbxyz.growLo(2,-1);
+
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = mf_vy(i,j,0);
             tau23(i,j,k) = 0.5 * ( (-(8./3.) * v(i,j,k-1) + 3. * v(i,j,k  ) - (1./3.) * v(i,j,k+1))*dxInv[2]
@@ -282,6 +302,7 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         // note: tilebox yz should be nodal, so k|k-1|k-2 at the bigEnd is analogous to k-1|k|k+1 at the smallEnd
         Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
         tbxyz.growHi(2,-1);
+
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = mf_vy(i,j,0);
             tau23(i,j,k) = 0.5 * ( -(-(8./3.) * v(i,j,k  ) + 3. * v(i,j,k-1) - (1./3.) * v(i,j,k-2))*dxInv[2]
@@ -319,4 +340,12 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                              + (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mfy );
     });
 
+    if (SmnSmn_a) {
+        ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
+                                            tau11,tau22,tau33,
+                                            tau12,tau13,tau23);
+        });
+    }
 }

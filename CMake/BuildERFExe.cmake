@@ -238,6 +238,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_N.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_S.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_T.cpp
+       ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_N.cpp
+       ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_S.cpp
+       ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_T.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_S.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_T.cpp

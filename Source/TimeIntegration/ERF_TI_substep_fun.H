@@ -9,10 +9,11 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                         Vector<MultiFab>& S_stage,
                         Vector<MultiFab>& S_data,
                         const Real dtau,
+                        const Real /*slow_dt*/,
                         const Real inv_fac,
                         const Real old_substep_time,
                         const Real new_substep_time)
-    {
+{
         BL_PROFILE("fast_rhs_fun");
         if (verbose) amrex::Print() << "Fast time integration at level " << level
                                     << std::setprecision(timeprecision)
@@ -154,6 +155,10 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
 
+        const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
+
+#include "ERF_Implicit.H"
+
         // NOTE: Numerical diffusion is tested on in FillPatchIntermediate and dictates the size of the
         //       box over which VelocityToMomentum is computed. V2M requires one more ghost cell be
         //       filled for rho than velocity. This logical condition ensures we fill enough ghost cells
@@ -165,4 +170,4 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             ng_vel  = 1;
         }
         apply_bcs(S_data, new_substep_time, ng_cons, ng_vel, fast_only=true, vel_and_mom_synced=false);
-    };
+};
