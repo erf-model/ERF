@@ -35,7 +35,7 @@ using namespace amrex;
  * @param[in] implicit_fac -- factor of implicitness for vertical differences only
  */
 void
-ComputeStrain_T (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
+ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& u,
                  const Array4<const Real>& v,
                  const Array4<const Real>& w,
@@ -55,8 +55,7 @@ ComputeStrain_T (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& mf_uy,
                  const Array4<const Real>& mf_vy,
                  const BCRec* bc_ptr,
-                 Array4<Real>& SmnSmn_a,
-                 const Real /*implicit_fac*/)
+                 const Real implicit_fac)
 {
     // Convert domain to each index type to test if we are on dirichlet boundary
     Box domain_xy = convert(domain, tbxxy.ixType());
@@ -791,13 +790,4 @@ ComputeStrain_T (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                                - (met_h_eta)*GradWz ) * mfy );
         tau32(i,j,k) = tau23(i,j,k);
     });
-
-    if (SmnSmn_a) {
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
-                                            tau11,tau22,tau33,
-                                            tau12,tau13,tau23);
-        });
-    }
 }

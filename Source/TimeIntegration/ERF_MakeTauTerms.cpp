@@ -193,7 +193,7 @@ void erf_make_tau_terms (int level, int nrk,
                 tau32 = Tau_lev[TauType::tau32]->array(mfi);
             }
 
-            // Calculate strain-rate magnitude SmnSmn if using Deardorff or
+            // Calculate strain-rate magnitude (SmnSmn) if using Deardorff or
             // or k-eqn RANS (included in diffusion source in post) and in the
             // first RK stage (TKE tendencies constant for nrk>0, following WRF)
             Array4<Real> SmnSmn_a = ((nrk==0) && need_SmnSmn) ? SmnSmn->array(mfi) : Array4<Real>{};
@@ -218,7 +218,7 @@ void erf_make_tau_terms (int level, int nrk,
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_strain_S");
-                ComputeStrain_S(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_S(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
                                 s12, s21,
@@ -227,9 +227,17 @@ void erf_make_tau_terms (int level, int nrk,
                                 stretched_dz_d, dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                SmnSmn_a,
                                 l_vert_implicit_fac);
                 } // end profile
+
+                if (SmnSmn_a) {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
+                                                        tau11,tau22,tau33,
+                                                        tau12,tau13,tau23);
+                    });
+                }
 
                 // *****************************************************************************
                 // Stress tensor compute terrain
@@ -342,7 +350,7 @@ void erf_make_tau_terms (int level, int nrk,
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_strain_T");
-                ComputeStrain_T(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
                                 s12, s21,
@@ -351,9 +359,17 @@ void erf_make_tau_terms (int level, int nrk,
                                 z_nd, detJ_arr, dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                SmnSmn_a,
                                 l_vert_implicit_fac);
                 } // end profile
+
+                if (SmnSmn_a) {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
+                                                        tau11,tau22,tau33,
+                                                        tau12,tau13,tau23);
+                    });
+                }
 
                 // *****************************************************************************
                 // Stress tensor compute terrain
@@ -439,7 +455,7 @@ void erf_make_tau_terms (int level, int nrk,
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_strain_N");
-                ComputeStrain_N(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
                                 s12, /*s21,*/
@@ -448,9 +464,17 @@ void erf_make_tau_terms (int level, int nrk,
                                 dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                SmnSmn_a,
                                 l_vert_implicit_fac);
                 } // end profile
+
+                if (SmnSmn_a) {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
+                                                        tau11,tau22,tau33,
+                                                        tau12,tau13,tau23);
+                    });
+                }
 
                 // *****************************************************************************
                 // Stress tensor compute no terrain

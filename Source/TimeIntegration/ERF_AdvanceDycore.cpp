@@ -125,7 +125,6 @@ void ERF::advance_dycore (int level,
 #endif
         for ( MFIter mfi(state_new[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
-            Box bx    = mfi.tilebox();
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
             Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
@@ -171,10 +170,9 @@ void ERF::advance_dycore (int level,
             const Array4<const Real> mf_uy = mapfac[level][MapFacType::u_y]->const_array(mfi);
             const Array4<const Real> mf_vy = mapfac[level][MapFacType::v_y]->const_array(mfi);
 
-            Array4<Real> no_SmnSmn_calc_here{};
-
+            Print() << "Computing strain during stage 0" << std::endl;
             if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                ComputeStrain_S(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_S(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau21,
@@ -182,10 +180,9 @@ void ERF::advance_dycore (int level,
                                 tau23, tau32,
                                 stretched_dz_d[level], dxInv,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                no_SmnSmn_calc_here,
                                 l_vert_implicit_fac);
             } else if (l_use_terrain_fitted_coords) {
-                ComputeStrain_T(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau21,
@@ -193,10 +190,9 @@ void ERF::advance_dycore (int level,
                                 tau23, tau32,
                                 z_nd, detJ_cc[level]->const_array(mfi), dxInv,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                no_SmnSmn_calc_here,
                                 l_vert_implicit_fac);
             } else {
-                ComputeStrain_N(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, /*tau21,*/
@@ -204,7 +200,6 @@ void ERF::advance_dycore (int level,
                                 tau23, tau32,
                                 dxInv,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                no_SmnSmn_calc_here,
                                 l_vert_implicit_fac);
             }
         } // mfi
