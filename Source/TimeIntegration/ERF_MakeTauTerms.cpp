@@ -193,10 +193,34 @@ void erf_make_tau_terms (int level, int nrk,
                 tau32 = Tau_lev[TauType::tau32]->array(mfi);
             }
 
-            // Calculate strain-rate magnitude (SmnSmn) if using Deardorff or
-            // or k-eqn RANS (included in diffusion source in post) and in the
+            // Calculate the magnitude of the strain-rate tensor squared if
+            // using Deardorff or k-eqn RANS. This contributes to the production
+            // term, included in diffusion source in slow RHS post and in the
             // first RK stage (TKE tendencies constant for nrk>0, following WRF)
             Array4<Real> SmnSmn_a = ((nrk==0) && need_SmnSmn) ? SmnSmn->array(mfi) : Array4<Real>{};
+
+            // ****************************************************************
+            //
+            // These are the steps taken below...
+            //
+            // 1. Calculate expansion rate
+            //    - will be added to the normal strain rates in ComputeStress
+            //
+            // 2. Call ComputeStrain
+            //    - IMPLICIT path: S31 and S32 are modified in here
+            //
+            // 3. Call ComputeSmnSmn, if needed for turbulence model
+            //
+            // 4. Call ComputeStress
+            //    - add expansion rates to terms on diagonal
+            //    - IMPLICIT path: S33 is modified in here
+            //    - multiply strain rates by diffusivities
+            //
+            // 5. Copy temp Sij fabs into Tau_lev multifabs
+            //    - stress tensor is symmetric if no terrain and no implicit diffusion
+            //    - otherwise, stress tensor is asymmetric
+            //
+            // ****************************************************************
 
             if (solverChoice.mesh_type == MeshType::StretchedDz) {
                 // *****************************************************************************
@@ -259,7 +283,8 @@ void erf_make_tau_terms (int level, int nrk,
                                             s23, s32,
                                             er_arr, stretched_dz_d, dxInv,
                                             mf_mx, mf_ux, mf_vx,
-                                            mf_my, mf_uy, mf_vy);
+                                            mf_my, mf_uy, mf_vy,
+                                            l_vert_implicit_fac);
                 } else {
                     ComputeStressVarVisc_S(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -269,7 +294,8 @@ void erf_make_tau_terms (int level, int nrk,
                                            s23, s32,
                                            er_arr, stretched_dz_d, dxInv,
                                            mf_mx, mf_ux, mf_vx,
-                                           mf_my, mf_uy, mf_vy);
+                                           mf_my, mf_uy, mf_vy,
+                                           l_vert_implicit_fac);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -391,7 +417,8 @@ void erf_make_tau_terms (int level, int nrk,
                                             s23, s32,
                                             er_arr, z_nd, detJ_arr, dxInv,
                                             mf_mx, mf_ux, mf_vx,
-                                            mf_my, mf_uy, mf_vy);
+                                            mf_my, mf_uy, mf_vy,
+                                            l_vert_implicit_fac);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -401,7 +428,8 @@ void erf_make_tau_terms (int level, int nrk,
                                            s23, s32,
                                            er_arr, z_nd, detJ_arr, dxInv,
                                            mf_mx, mf_ux, mf_vx,
-                                           mf_my, mf_uy, mf_vy);
+                                           mf_my, mf_uy, mf_vy,
+                                           l_vert_implicit_fac);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -502,13 +530,15 @@ void erf_make_tau_terms (int level, int nrk,
                                             cell_data,
                                             s11, s22, s33,
                                             s12, s13, s23,
-                                            er_arr);
+                                            er_arr,
+                                            l_vert_implicit_fac);
                 } else {
                     ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
                                            s11, s22, s33,
                                            s12, s13, s23,
-                                           er_arr);
+                                           er_arr,
+                                           l_vert_implicit_fac);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry

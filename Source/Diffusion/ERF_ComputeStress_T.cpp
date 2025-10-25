@@ -41,7 +41,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          const Array4<const Real>& mf_vx,
                          const Array4<const Real>& mf_my,
                          const Array4<const Real>& mf_uy,
-                         const Array4<const Real>& mf_vy)
+                         const Array4<const Real>& mf_vy,
+                         const Real implicit_fac)
 {
     // Handle constant alpha case, in which the provided mu_eff is actually
     // "alpha" and the viscosity needs to be scaled by rho. This can be further
@@ -349,7 +350,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         const Array4<const Real>& mf_vx,
                         const Array4<const Real>& mf_my,
                         const Array4<const Real>& mf_uy,
-                        const Array4<const Real>& mf_vy)
+                        const Array4<const Real>& mf_vy,
+                        const Real implicit_fac)
 {
     // Handle constant alpha case, in which the provided mu_eff is actually
     // "alpha" and the viscosity needs to be scaled by rho. This can be further

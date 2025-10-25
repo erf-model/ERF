@@ -24,7 +24,8 @@ ComputeStressConsVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          const Array4<const Real>& cell_data,
                          Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
                          Array4<Real>& tau12, Array4<Real>& tau13, Array4<Real>& tau23,
-                         const Array4<const Real>& er_arr)
+                         const Array4<const Real>& er_arr,
+                         const Real implicit_fac)
 {
     Real OneThird   = (1./3.);
 
@@ -107,7 +108,8 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         const Array4<const Real>& cell_data,
                         Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
                         Array4<Real>& tau12, Array4<Real>& tau13, Array4<Real>& tau23,
-                        const Array4<const Real>& er_arr)
+                        const Array4<const Real>& er_arr,
+                        const Real implicit_fac)
 {
     Real OneThird   = (1./3.);
 
