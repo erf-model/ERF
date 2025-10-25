@@ -329,9 +329,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_MakeTauTerms.cpp
        ${SRC_DIR}/TimeIntegration/ERF_SlowRhsPre.cpp
        ${SRC_DIR}/TimeIntegration/ERF_SlowRhsPost.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_FastRhs_N.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_FastRhs_T.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_FastRhs_MT.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_Substep_N.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_Substep_T.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_Substep_MT.cpp
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp

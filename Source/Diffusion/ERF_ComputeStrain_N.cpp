@@ -37,8 +37,8 @@ ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  Array4<Real>& tau22,
                  Array4<Real>& tau33,
                  Array4<Real>& tau12,
-                 Array4<Real>& tau13, Array4<Real>& tau31,
-                 Array4<Real>& tau23, Array4<Real>& tau32,
+                 Array4<Real>& tau13, Array4<Real>& /*tau31*/,
+                 Array4<Real>& tau23, Array4<Real>& /*tau32*/,
                  const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                  const Array4<const Real>& mf_mx,
                  const Array4<const Real>& mf_ux,
@@ -48,7 +48,7 @@ ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& mf_vy,
                  const BCRec* bc_ptr,
                  Array4<Real>& SmnSmn_a,
-                 const Real implicit_fac)
+                 const Real /*implicit_fac*/)
 {
     // Convert domain to each index type to test if we are on Dirichlet boundary
     Box domain_xy = convert(domain, tbxxy.ixType());

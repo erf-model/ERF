@@ -996,6 +996,10 @@ List of Parameters
 |                                  | model, and if so,  | "Smagorinsky",      |              |
 |                                  | which type?        | "Deardorff"         |              |
 +----------------------------------+--------------------+---------------------+--------------+
+| **erf.rans_type**                | Using a RANS       | "None" or "kEqn"    | "None"       |
+|                                  | model, and if so,  |                     |              |
+|                                  | which type?        |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
 | **erf.molec_diff_type**          | Using molecular    | "None",             | "None"       |
 |                                  | viscosity and      | "Constant", or      |              |
 |                                  | diffusivity?       | "ConstantAlpha"     |              |

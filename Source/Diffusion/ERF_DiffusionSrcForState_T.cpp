@@ -85,6 +85,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 {
     BL_PROFILE_VAR("DiffusionSrcForState_T()",DiffusionSrcForState_T);
 
+    const Real explicit_fac = 1.0 - implicit_fac;
+
 #include "ERF_SetupDiff.H"
     Real l_abs_g      = std::abs(grav_gpu[2]);
 
@@ -231,7 +233,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!SurfLayer_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k) * (1.0 - implicit_fac);
+                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
@@ -364,7 +366,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!SurfLayer_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k) * (1.0 - implicit_fac);
+                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
@@ -495,7 +497,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!SurfLayer_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k) * (1.0 - implicit_fac);
+                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
@@ -623,7 +625,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!SurfLayer_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k) * (1.0 - implicit_fac);
+                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
@@ -683,10 +685,10 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         }
 
         // Allow semi-implicit discretization of the vertical diffusive terms
-        Real zflux_lo = (1.0 - implicit_fac) * zflux(i,j,k  )
+        Real zflux_lo = explicit_fac * zflux(i,j,k  )
                       - met_h_xi_lo  * mf_mx(i,j,0) * xfluxbar_lo
                       - met_h_eta_lo * mf_my(i,j,0) * yfluxbar_lo;
-        Real zflux_hi = (1.0 - implicit_fac) * zflux(i,j,k+1)
+        Real zflux_hi = explicit_fac * zflux(i,j,k+1)
                       - met_h_xi_hi  * mf_mx(i,j,0) * xfluxbar_hi
                       - met_h_eta_hi * mf_my(i,j,0) * yfluxbar_hi;
 

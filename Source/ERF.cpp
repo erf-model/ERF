@@ -552,9 +552,8 @@ ERF::Evolve ()
 
         auto dEvolveTime0 = amrex::second();
 
-        int lev = 0;
         int iteration = 1;
-        timeStep(lev, cur_time, iteration);
+        timeStep(0, cur_time, iteration);
 
         cur_time  += dt[0];
 

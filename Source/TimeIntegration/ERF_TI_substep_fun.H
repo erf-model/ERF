@@ -3,18 +3,18 @@
 /**
  *  Wrapper for calling the routine that creates the fast RHS
  */
-auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
-                        Vector<MultiFab>& S_slow_rhs,
-                        const Vector<MultiFab>& S_old,
-                        Vector<MultiFab>& S_stage,
-                        Vector<MultiFab>& S_data,
-                        const Real dtau,
-                        const Real /*slow_dt*/,
-                        const Real inv_fac,
-                        const Real old_substep_time,
-                        const Real new_substep_time)
+auto acoustic_substepping_fun = [&](int fast_step, int /*n_sub*/, int nrk,
+                                    Vector<MultiFab>& S_slow_rhs,
+                                    const Vector<MultiFab>& S_old,
+                                    Vector<MultiFab>& S_stage,
+                                    Vector<MultiFab>& S_data,
+                                    const Real dtau,
+                                    const Real /*slow_dt*/,
+                                    const Real inv_fac,
+                                    const Real old_substep_time,
+                                    const Real new_substep_time)
 {
-        BL_PROFILE("fast_rhs_fun");
+        BL_PROFILE("acoustic_substepping_fun");
         if (verbose) amrex::Print() << "Fast time integration at level " << level
                                     << std::setprecision(timeprecision)
                                     << " from " << old_substep_time << " to " << new_substep_time
@@ -109,6 +109,8 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             update_terrain_substep(level, old_substep_time, new_substep_time, dtau, S_data, z_t_pert);
         }
 
+        bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
+
         if ( (fast_step == 0) || (solverChoice.terrain_type == TerrainType::MovingFittedMesh) )
         {
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
@@ -118,38 +120,38 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
-            erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
-                            S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
-                            S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
-                            cc_src, xmom_src, ymom_src, zmom_src,
-                            fine_geom,
-                            solverChoice.gravity, solverChoice.use_lagged_delta_rt,
-                            z_t_rk[level], z_t_pert.get(),
-                            z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
-                              detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
-                            dtau, beta_s, inv_fac, mapfac[level],
-                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
+            erf_substep_MT(fast_step, nrk, level, finest_level,
+                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
+                           S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
+                           cc_src, xmom_src, ymom_src, zmom_src,
+                           fine_geom,
+                           solverChoice.gravity, solverChoice.use_lagged_delta_rt,
+                           z_t_rk[level], z_t_pert.get(),
+                           z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
+                             detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
+                           dtau, beta_s, inv_fac, mapfac[level],
+                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
 
         } else if (solverChoice.mesh_type != MeshType::ConstantDz) {
 
-            erf_fast_rhs_T(fast_step, nrk, level, finest_level,
-                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
-                           S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
-                           cc_src, xmom_src, ymom_src, zmom_src,
-                           fine_geom, solverChoice.gravity,
-                           z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
-                           mapfac[level],
-                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
+            erf_substep_T(fast_step, nrk, level, finest_level,
+                          S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
+                          S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
+                          cc_src, xmom_src, ymom_src, zmom_src,
+                          fine_geom, solverChoice.gravity,
+                          z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
+                          mapfac[level],
+                          fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
 
         } else {
 
-            erf_fast_rhs_N(fast_step, nrk, level, finest_level,
-                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
-                           S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
-                           cc_src, xmom_src, ymom_src, zmom_src,
-                           fine_geom, solverChoice.gravity,
-                           dtau, beta_s, inv_fac, mapfac[level],
-                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
+            erf_substep_N(fast_step, nrk, level, finest_level,
+                          S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
+                          S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
+                          cc_src, xmom_src, ymom_src, zmom_src,
+                          fine_geom, solverChoice.gravity,
+                          dtau, beta_s, inv_fac, mapfac[level],
+                          fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
         }
 
         // Even if we update all the conserved variables we don't need
