@@ -3,13 +3,13 @@
 /**
  *  Wrapper for calling the routine that creates the fast RHS
  */
-auto acoustic_substepping_fun = [&](int fast_step, int /*n_sub*/, int nrk,
+auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                                     Vector<MultiFab>& S_slow_rhs,
                                     const Vector<MultiFab>& S_old,
                                     Vector<MultiFab>& S_stage,
                                     Vector<MultiFab>& S_data,
                                     const Real dtau,
-                                    const Real /*slow_dt*/,
+                                    const Real slow_dt,
                                     const Real inv_fac,
                                     const Real old_substep_time,
                                     const Real new_substep_time)
@@ -159,7 +159,12 @@ auto acoustic_substepping_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
+        if (solverChoice.vert_implicit_fac[nrk] && !solverChoice.implicit_before_substep &&
+            fast_step == n_sub-1)
+        {
+            MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);
 #include "ERF_Implicit.H"
+        }
 
         // NOTE: Numerical diffusion is tested on in FillPatchIntermediate and dictates the size of the
         //       box over which VelocityToMomentum is computed. V2M requires one more ghost cell be

@@ -159,6 +159,20 @@
 #endif
                          fr_as_crse, fr_as_fine);
 
+        if (solverChoice.vert_implicit_fac[nrk] && solverChoice.implicit_before_substep) {
+            MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
+                             S_data[IntVars::cons].nGrowVect());
+            MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old (for both)
+            MultiFab::Saxpy(scratch, slow_dt, S_rhs[IntVars::cons], 0, 0, 2, 0);                       // scratch := S_old + slow_dt*Src (for both)
+            scratch.FillBoundary(geom[level].periodicity());
+
+#include "ERF_Implicit.H"
+
+            MultiFab::Saxpy(scratch, -1.0, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)        (for rho theta only)
+            scratch.mult(1.0 / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
+            MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / dtau (for rho theta only)
+        }
+
         // *****************************************************************************
         // Update for moving terrain
         // *****************************************************************************
