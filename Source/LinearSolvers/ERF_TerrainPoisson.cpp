@@ -10,8 +10,9 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
                                 Array<std::string,2*AMREX_SPACEDIM>& domain_bcs_type,
                                 Gpu::DeviceVector<Real>& stretched_dz_lev_d,
                                 const MultiFab& ax, const MultiFab& ay,
+                                const MultiFab& dJ,
                                 MultiFab const* z_phys_nd,
-                                const bool use_real_bcs)
+                                bool use_real_bcs)
     : m_geom(geom),
       m_grids(ba),
       m_dmap(dm),
@@ -19,6 +20,7 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
       m_stretched_dz_d(stretched_dz_lev_d),
       m_ax(ax),
       m_ay(ay),
+      m_dJ(dJ),
       m_zphys(z_phys_nd)
 {
     if (!m_2D_fft_precond) {
@@ -45,13 +47,14 @@ void TerrainPoisson::apply (MultiFab& lhs, MultiFab const& rhs)
     auto const& zpa = m_zphys->const_arrays();
     auto const& axa = m_ax.const_arrays();
     auto const& aya = m_ay.const_arrays();
+    auto const& dJa = m_dJ.const_arrays();
 
     apply_bcs(xx);
 
     auto const& xc = xx.const_arrays();
     ParallelFor(rhs, [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
     {
-        terrpoisson_adotx(i, j, k, y[b], xc[b], axa[b], aya[b], zpa[b], dxinv[0], dxinv[1], dxinv[2]);
+        terrpoisson_adotx(i, j, k, y[b], xc[b], axa[b], aya[b], dJa[b], zpa[b], dxinv[0], dxinv[1], dxinv[2]);
     });
 }
 
@@ -147,10 +150,17 @@ void TerrainPoisson::apply_bcs (MultiFab& phi)
             });
         } // lo z
         if (bx.bigEnd(2) >= domhi.z) {
-            ParallelFor(makeSlab(gbx,2,domhi.z), [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                phi_arr(i,j,k+1) = phi_arr(i,j,k);
-            });
+            if (bc_fft[2].second == FFT::Boundary::even) {
+                ParallelFor(makeSlab(gbx,2,domhi.z), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    phi_arr(i,j,k+1) =  phi_arr(i,j,k);
+                });
+            } else if (bc_fft[2].second == FFT::Boundary::odd) {
+                ParallelFor(makeSlab(gbx,2,domhi.z), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    phi_arr(i,j,k+1) =  -phi_arr(i,j,k);
+                });
+            }
         } // hi z
     } // mfi
 
@@ -238,6 +248,7 @@ void TerrainPoisson::precond (MultiFab& lhs, MultiFab const& rhs)
 
         lhs.setVal(0.);
         m_2D_fft_precond->solve(lhs, rhs_tmp, m_stretched_dz_d);
+
 #if 0
         AMREX_ASSERT(m_zphys_fft.local_size() <= 1);
         FArrayBox const* zfab = nullptr;
@@ -252,7 +263,7 @@ void TerrainPoisson::precond (MultiFab& lhs, MultiFab const& rhs)
             {
                 int i = 0; int j = 0;
                 Real hzeta_inv_on_cc = Real(4.0) / ( (za(i,j,k+1) + za(i+1,j,k+1) + za(i,j+1,k+1) + za(i+1,j+1,k+1))
-                                                   -(za(i,j,k  ) + za(i+1,j,k  ) + za(i,j+1,k  ) + za(i+1,j+1,k  )) );
+                                                    -(za(i,j,k  ) + za(i+1,j,k  ) + za(i,j+1,k  ) + za(i+1,j+1,k  )) );
                 eal hzeta_inv_on_zlo = Real(8.0) / ( (za(i,j,k+1) + za(i+1,j,k+1) + za(i,j+1,k+1) + za(i+1,j+1,k+1))
                                                     -(za(i,j,k-1) + za(i+1,j,k-1) + za(i,j+1,k-1) + za(i+1,j+1,k-1)) );
                 Real h_xi_on_zlo  = Real(0.5) * (za(i+1,j+1,k  ) + za(i+1,j,k  ) - za(i,j+1,k  ) - za(i,j,k  )) * dxinv;
