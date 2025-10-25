@@ -53,9 +53,10 @@ void erf_make_tau_terms (int level, int nrk,
                                    tc.rans_type == RANSType::kEqn);
 
     const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
+    const bool do_implicit = (l_vert_implicit_fac > 0);
     const bool need_tau31_tau32 = (solverChoice.mesh_type == MeshType::StretchedDz ||
                                    l_use_terrain_fitted_coords ||
-                                   l_vert_implicit_fac > 0);
+                                   do_implicit);
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
@@ -506,12 +507,18 @@ void erf_make_tau_terms (int level, int nrk,
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     tau13(i,j,k) = s13(i,j,k);
+                    if (do_implicit) {
+                        tau31(i,j,k) = s31(i,j,k);
+                    }
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     tau23(i,j,k) = s23(i,j,k);
+                    if (do_implicit) {
+                        tau32(i,j,k) = s32(i,j,k);
+                    }
                 });
                 } // end profile
-            } // l_use_terrain_fitted_coords
+            } // no terrain
         } // MFIter
     } // l_use_diff
 }
