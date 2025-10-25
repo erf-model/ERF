@@ -7,26 +7,24 @@ using namespace amrex;
 /**
  * Function for computing the scalar RHS for diffusion operator without terrain.
  *
- * @param[in   ] bx cell-centered box to loop over
+ * @param[in   ] bx     cell-centered box to loop over
+ * @param[in   ] level  AMR level
  * @param[in   ] domain box of the whole domain
- * @param[in   ] dt time step
- * @param[in   ] start_comp starting component index
- * @param[in   ] num_comp number of components
+ * @param[in   ] dt     time step
+ * @param[in   ] bc_neumann_vals values of derivatives if bc_type == Neumann
  * @param[inout] cell_data conserved cell center vars
  * @param[in   ] cellSizeInv inverse cell size array
  * @param[inout] hfx_z heat flux in z-dir
  * @param[in   ] mu_turb turbulent viscosity
- * @param[in   ] diffChoice container of diffusion parameters
- * @param[in   ] turbChoice container of turbulence parameters
- * @param[in   ] tm_arr theta mean array
+ * @param[in   ] solverChoice container of parameters
  * @param[in   ] bc_ptr container with boundary conditions
  * @param[in   ] use_SurfLayer whether we have turned on subgrid diffusion
+ * @param[in   ] implicit_fac if 1 then fully implicit; if 0 then fully explicit
  */
 void
 ImplicitDiffForState_N (const Box& bx, const Box& domain,
                         const int level,
                         const Real dt,
-                        /*int start_comp, int num_comp,*/
                         const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                         const Array4<      Real>& cell_data,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,

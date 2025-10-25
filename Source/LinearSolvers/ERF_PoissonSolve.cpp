@@ -161,12 +161,11 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                     rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
     }
 
-    if (lev == 0) {
+    if (lev == 0 && solverChoice.use_real_bcs) {
         // Note that we always impose the projections one level at a time so this will always be a vector of length 1
         Array<MultiFab*, AMREX_SPACEDIM> rho0_u_vec =
            {&mom_mf[IntVars::xmom], &mom_mf[IntVars::ymom], &mom_mf[IntVars::zmom]};
         Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
-
 #if 0
         //
         // Modify ax,ay,ax to include the map factors as used in the divergence calculation
@@ -199,7 +198,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                     az_ar(i,j,k) /= (mf_mx(i,j,0)*mf_my(i,j,0));
                 });
             } // mfi
-        }
+        } // variable dz
 #endif
 
         if (mg_verbose > 0) {
@@ -238,9 +237,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                     az_ar(i,j,k) *= (mf_mx(i,j,0)*mf_my(i,j,0));
                 });
             } // mfi
-        }
+        } // variabledz
 #endif
-
         compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
 
         // Max norm over the entire MultiFab
@@ -252,63 +250,75 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " <<
                         rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
         }
-    }
+    } // lev 0 && use_real_bcs
 
-    if (lev > 0)
-    {
-        Vector<Real> sum_sub; sum_sub.resize(subdomains[lev].size(),Real(0.));
+    // ****************************************************************************
+    // Enforce solvability if the problem is singular (i.e all sides Neumann or periodic)
+    // ****************************************************************************
+    bool is_singular = true;
+    if ( (domain_bc_type[0] == "Outflow" || domain_bc_type[0] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
+    if ( (domain_bc_type[1] == "Outflow" || domain_bc_type[1] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
+    if ( (domain_bc_type[3] == "Outflow" || domain_bc_type[3] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
+    if ( (domain_bc_type[4] == "Outflow" || domain_bc_type[4] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
+    if ( (domain_bc_type[5] == "Outflow" || domain_bc_type[5] == "Open")                               ) is_singular = false;
 
-        for (MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
+    if (is_singular) {
+        if (lev > 0)
         {
-            Box bx = mfi.validbox();
-            for (int i = 0; i < subdomains[lev].size(); ++i) {
-                if (subdomains[lev][i].intersects(bx)) {
-                    sum_sub[i] += rhs_lev[mfi.index()].template sum<RunOn::Device>(0);
-                }
-            }
-        }
-        ParallelDescriptor::ReduceRealSum(sum_sub.data(), sum_sub.size());
+            Vector<Real> sum_sub; sum_sub.resize(subdomains[lev].size(),Real(0.));
 
-        for (int i = 0; i < subdomains[lev].size(); ++i) {
-            sum_sub[i] /= static_cast<Real>(subdomains[lev][i].numPts());
-        }
-
-        for ( MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
-        {
-            Box bx = mfi.validbox();
-            for (int i = 0; i < subdomains[lev].size(); ++i) {
-                if (subdomains[lev][i].intersects(bx)) {
-                    rhs_lev[mfi.index()].template minus<RunOn::Device>(sum_sub[i]);
-                    if (mg_verbose > 1) {
-                        amrex::Print() << " Subtracting " << sum_sub[i] << " in " << rhs_lev[mfi.index()].box() << std::endl;
+            for (MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
+            {
+                Box bx = mfi.validbox();
+                for (int i = 0; i < subdomains[lev].size(); ++i) {
+                    if (subdomains[lev][i].intersects(bx)) {
+                        sum_sub[i] += rhs_lev[mfi.index()].template sum<RunOn::Device>(0);
                     }
                 }
             }
-        }
-    } else {
+            ParallelDescriptor::ReduceRealSum(sum_sub.data(), sum_sub.size());
 
-        sum = volWgtSumMF(lev,rhs_lev,0,false);
-
-        Real vol = detJ_cc[lev]->sum() / (dxInv[0] * dxInv[1] * dxInv[2]);
-
-        Print() << "Vol wgt sum " << sum << std::endl;
-        Print() << "Vol         " << vol << std::endl;
-
-        sum /= vol;
-
-        for ( MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
-        {
-            Box bx = mfi.validbox();
             for (int i = 0; i < subdomains[lev].size(); ++i) {
-                rhs_lev[mfi.index()].template minus<RunOn::Device>(sum);
-                amrex::Print() << " Subtracting " << sum << " in " << rhs_lev[mfi.index()].box() << std::endl;
+                sum_sub[i] /= static_cast<Real>(subdomains[lev][i].numPts());
             }
+
+            for ( MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
+            {
+                Box bx = mfi.validbox();
+                for (int i = 0; i < subdomains[lev].size(); ++i) {
+                    if (subdomains[lev][i].intersects(bx)) {
+                        rhs_lev[mfi.index()].template minus<RunOn::Device>(sum_sub[i]);
+                        if (mg_verbose > 1) {
+                            amrex::Print() << " Subtracting " << sum_sub[i] << " in " << rhs_lev[mfi.index()].box() << std::endl;
+                        }
+                    }
+                }
+            }
+        } else {
+
+            sum = volWgtSumMF(lev,rhs_lev,0,false);
+
+            Real vol = detJ_cc[lev]->sum() / (dxInv[0] * dxInv[1] * dxInv[2]);
+
+            Print() << "Vol wgt sum " << sum << std::endl;
+            Print() << "Vol         " << vol << std::endl;
+
+            sum /= vol;
+
+            for ( MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
+            {
+                Box bx = mfi.validbox();
+                for (int i = 0; i < subdomains[lev].size(); ++i) {
+                    rhs_lev[mfi.index()].template minus<RunOn::Device>(sum);
+                    amrex::Print() << " Subtracting " << sum << " in " << rhs_lev[mfi.index()].box() << std::endl;
+                }
+            }
+
+            sum = volWgtSumMF(lev,rhs_lev,0,false);
+
+            Print() << "SUM AFTER SUBTRACTION " << sum << std::endl;
         }
-
-        sum = volWgtSumMF(lev,rhs_lev,0,false);
-
-        Print() << "SUM AFTER SUBTRACTION " << sum << std::endl;
-    }
+    } // if is_singular
 
     // ****************************************************************************
     //
@@ -611,7 +621,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         sum = volWgtSumMF(lev,rhs_lev,0,false);
 
         if (mg_verbose > 0) {
-            Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhs_lev.norm0() << " " <<
+            Print() << "Max/L2 norm of divergence after  solve at level " << lev << " : " << rhs_lev.norm0() << " " <<
                         rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
         }
 

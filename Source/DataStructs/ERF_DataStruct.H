@@ -376,6 +376,11 @@ struct SolverChoice {
             pp.getarr("vert_implicit_fac", vert_implicit_fac);
         }
 
+        // This controls when the vertical implicit solve for the diffusive terms will happen relative to
+        //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > 0.)
+        // The default is false (i.e. that it happens after the acoustic substepping).
+        pp.query("implicit_before_substep", implicit_before_substep);
+
         // *******************************************************************************
         // Error check on deprecated input
         // *******************************************************************************
@@ -910,6 +915,8 @@ struct SolverChoice {
     // 0: fully explicit
     // 1: fully implicit
     amrex::Vector<amrex::Real> vert_implicit_fac = {0.0, 0.0, 0.0}; // one value per RK stage
+
+    bool implicit_before_substep = false;
 
     bool        fixed_density       = false;
     int         ncorr               = 1;

@@ -10,23 +10,20 @@ using namespace amrex;
  * @param[in   ] bx cell-centered box to loop over
  * @param[in   ] domain box of the whole domain
  * @param[in   ] dt time step
- * @param[in   ] start_comp starting component index
- * @param[in   ] num_comp number of components
+ * @param[in   ] bc_neumann_vals values of derivatives if bc_type == Neumann
  * @param[inout] cell_data conserved cell center vars
- * @param[in   ] stretched_dz_d vertical grid spacing
+ * @param[in   ] stretched_dz_d array over z of dz[k]
  * @param[inout] hfx_z heat flux in z-dir
  * @param[in   ] mu_turb turbulent viscosity
- * @param[in   ] diffChoice container of diffusion parameters
- * @param[in   ] turbChoice container of turbulence parameters
- * @param[in   ] tm_arr theta mean array
+ * @param[in   ] solverChoice container of parameters
  * @param[in   ] bc_ptr container with boundary conditions
  * @param[in   ] use_SurfLayer whether we have turned on subgrid diffusion
+ * @param[in   ] implicit_fac if 1 then fully implicit; if 0 then fully explicit
  */
 void
 ImplicitDiffForState_S (const Box& bx, const Box& domain,
                         const int level,
                         const Real dt,
-                        /*int start_comp, int num_comp,*/
                         const GpuArray<Real, AMREX_SPACEDIM*2>& bc_neumann_vals,
                         const Array4<      Real>& cell_data,
                         const Gpu::DeviceVector<Real>& stretched_dz_d,
