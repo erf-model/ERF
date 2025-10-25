@@ -391,11 +391,9 @@ SHOCInterface::mf_to_kokkos_buffers ()
         const Array4<const Real>& hfx3_arr  = m_hfx3->const_array(mfi);
         const Array4<const Real>& qfx3_arr  = m_qfx3->const_array(mfi);
 
-        const Array4<const Real>& mu_arr    = m_mu->const_array(mfi);
-
         const Array4<const Real>& z_arr    = (m_z_phys) ? m_z_phys->const_array(mfi) :
                                                           Array4<const Real>{};
-        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // NOTE: k gets permuted with ilay
             // map [i,j,k] 0-based to [icol, ilay] 0-based
@@ -450,8 +448,8 @@ SHOCInterface::mf_to_kokkos_buffers ()
             if (k==0) {
                 surf_mom_flux_d(icol,0)  = 0.5 * (t13_arr(i,j,k) + t13_arr(i+1,j  ,k));
                 surf_mom_flux_d(icol,1)  = 0.5 * (t23_arr(i,j,k) + t23_arr(i  ,j+1,k));
-                // Unit conversion to W/m^2 (eamxx_shoc_process_interface.cpp L62)
-                surf_sens_flux_d(icol)   = hfx3_arr(i,j,k) * r * Cp_d;
+                // No unit conversion to W/m^2 (ERF_ShocInterface.H L224)
+                surf_sens_flux_d(icol)   = hfx3_arr(i,j,k);
                 surf_evap_d(icol)        = (moist) ? qfx3_arr(i,j,k) : 0.0;
                 // Back out the drag coeff
                 Real wsp = sqrt( horiz_wind_d(icol,0,ilay)[0]*horiz_wind_d(icol,0,ilay)[0]
@@ -494,33 +492,20 @@ SHOCInterface::kokkos_buffers_to_mf ()
     // Expose for device capture
     //
 
+    // Buffer data structures
+    //=======================================================
+    auto thlm_d = m_buffer.thlm;
+
     // Interface data structures
     //=======================================================
     auto T_mid_d = T_mid;
     auto qv_d = qv;
 
-    // Input data structures
-    //=======================================================
-    auto p_mid_d = p_mid;
-
     // Input/Output data structures
     //=======================================================
     auto horiz_wind_d = horiz_wind;
-    //auto sgs_buoy_flux_d = sgs_buoy_flux;
-    //auto tk_d = tk;
-    //auto cldfrac_liq_d = cldfrac_liq;
     auto tke_d = tke;
-    auto qc_d = qc;
-
-    // Output data structures
-    //=======================================================
-    //auto pblh_d = pblh;
-    //auto inv_qc_relvar_d = inv_qc_relvar;
-    //auto tkh_d = tkh;
-    //auto w_sec_d = w_sec;
-    //auto cldfrac_liq_prev_d = cldfrac_liq_prev;
-    //auto ustar_d = ustar;
-    //auto obklen_d = obklen;
+    auto qc_d  = qc;
 
     bool moist = (m_cons->nComp() > RhoQ1_comp);
     for (MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
@@ -536,14 +521,12 @@ SHOCInterface::kokkos_buffers_to_mf ()
         const Array4<Real>& u_arr    = m_xvel->array(mfi);
         const Array4<Real>& v_arr    = m_yvel->array(mfi);
 
-        const Array4<Real>& mu_arr   = m_mu->array(mfi);
-
         int ilo = vbx.smallEnd(0);
         int ihi = vbx.bigEnd(0);
         int jlo = vbx.smallEnd(1);
         int jhi = vbx.bigEnd(1);
 
-        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // NOTE: k gets permuted with ilay
             // map [i,j,k] 0-based to [icol, ilay] 0-based
@@ -553,13 +536,14 @@ SHOCInterface::kokkos_buffers_to_mf ()
             // Density at CC
             Real r  = cons_arr(i,j,k,Rho_comp);
 
-            // Theta at CC
-            Real Th = getThgivenTandP(T_mid_d(icol,ilay)[0], p_mid_d(icol,ilay)[0], R_d/Cp_d);
+            // Theta at CC (eamxx_common_physics_functions_impl.hpp L123)
+            Real Th = thlm_d(icol,ilay)[0] / (1.0 - (1.0 / T_mid_d(icol,ilay)[0]) * (C::LatVap/C::Cpair) * qc_d(icol,ilay)[0] );
 
             // Interface data structures
             //=======================================================
             if (moist) { cons_arr(i,j,k,RhoQ1_comp) = r * qv_d(icol,ilay)[0]; }
-            cons_arr(i,j,k,RhoTheta_comp) = r * Th;
+             cons_arr(i,j,k,RhoTheta_comp) = r * Th;
+
 
             // Input/Output data structures
             //=======================================================
@@ -575,7 +559,7 @@ SHOCInterface::kokkos_buffers_to_mf ()
                     u_arr(i+1,j,k) = 1.5 * horiz_wind_d(icol,0,ilay)[0] - 0.5 * horiz_wind_d(icolim,0,ilay)[0];
                 }
             }
-            if (j==ilo) {
+            if (j==jlo) {
                 int icoljp = (j+1-jmin)*nx + (i  -imin) + offset;
                 v_arr(i,j,k) = 1.5 * horiz_wind_d(icol,1,ilay)[0] - 0.5 * horiz_wind_d(icoljp,1,ilay)[0];
             } else {
@@ -584,16 +568,96 @@ SHOCInterface::kokkos_buffers_to_mf ()
                     v_arr(i,j+1,k) = 1.5 * horiz_wind_d(icol,1,ilay)[0] - 0.5 * horiz_wind_d(icoljm,1,ilay)[0];
                 }
             }
-            //mu_arr(i,j,k,EddyDiff::Mom_v) = tk_d(icol,ilay)[0];
             cons_arr(i,j,k,RhoKE_comp) = std::max(r*tke_d(icol,ilay)[0],0.0);
             if (moist) { cons_arr(i,j,k,RhoQ2_comp) = r * qc_d(icol,ilay)[0]; }
-
-            // Output data structures
-            //=======================================================
-            //mu_arr(i,j,k,EddyDiff::Theta_v) = tkh_d(icol,ilay)[0];
         });
     }
 
+}
+
+
+void
+SHOCInterface::set_eddy_diffs ()
+{
+    //
+    // Expose for device capture
+    //
+
+    // Input/Output data structures
+    //=======================================================
+    auto tk_d = tk;
+
+    // NOTE: Loop on grown box to fill ghost cells but limit
+    //       to valid box where views are defined.
+    for (MFIter mfi(*m_mu); mfi.isValid(); ++mfi) {
+        const auto& gbx  = mfi.growntilebox();
+        const auto& vbx  = mfi.validbox();
+
+        const int nx     = vbx.length(0);
+        const int imin   = vbx.smallEnd(0);
+        const int imax   = vbx.bigEnd(0);
+        const int jmin   = vbx.smallEnd(1);
+        const int jmax   = vbx.bigEnd(1);
+        const int kmin   = vbx.smallEnd(2);
+        const int kmax   = vbx.bigEnd(2);
+        const int offset = m_col_offsets[mfi.index()];
+
+        const Array4<Real>& mu_arr   = m_mu->array(mfi);
+
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Limiting
+            int ii = std::min(std::max(i,imin),imax);
+            int jj = std::min(std::max(j,jmin),jmax);
+            int kk = std::min(std::max(k,kmin),kmax);
+
+            // NOTE: k gets permuted with ilay
+            // map [i,j,k] 0-based to [icol, ilay] 0-based
+            const int icol   = (jj-jmin)*nx + (ii-imin) + offset;
+            const int ilay   = kmax - kk;
+
+            // NOTE: Set mom_v for tau_33, all other vertical comps are 0
+            mu_arr(i,j,k,EddyDiff::Mom_v)   = tk_d(icol,ilay)[0];
+            mu_arr(i,j,k,EddyDiff::Theta_v) = 0.0;
+            mu_arr(i,j,k,EddyDiff::KE_v)    = 0.0;
+            mu_arr(i,j,k,EddyDiff::Q_v)     = 0.0;
+        });
+    }
+
+    // Correct the internal ghost cells that have foextrap
+    m_mu->FillBoundary(m_geom.periodicity());
+}
+
+
+void
+SHOCInterface::set_sfc_stresses ()
+{
+    for (MFIter mfi(*m_hfx3); mfi.isValid(); ++mfi) {
+        const auto& bx_cc  = mfi.validbox();
+        const auto& bx_xz  = amrex::convert(bx_cc,IntVect(1,0,1));
+        const auto& bx_yz  = amrex::convert(bx_cc,IntVect(0,1,1));
+
+        const Array4<Real>& hfx_arr   = m_hfx3->array(mfi);
+        const Array4<Real>& qfx_arr   = m_qfx3->array(mfi);
+
+        const Array4<Real>& t13_arr   = m_tau13->array(mfi);
+        const Array4<Real>& t23_arr   = m_tau23->array(mfi);
+
+        ParallelFor(bx_cc, bx_xz, bx_yz,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            hfx_arr(i,j,k) = 0.;
+            qfx_arr(i,j,k) = 0.;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            t13_arr(i,j,k) = 0.;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            t23_arr(i,j,k) = 0.;
+        });
+    }
 }
 
 

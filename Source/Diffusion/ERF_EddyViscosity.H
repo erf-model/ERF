@@ -10,6 +10,10 @@
 #include "ERF_Constants.H"
 #include "ERF_EOS.H"
 
+#ifdef ERF_USE_SHOC
+#include "ERF_ShocInterface.H"
+#endif
+
 void
 ComputeTurbulentViscosity (amrex::Real dt,
                            const amrex::MultiFab& xvel ,

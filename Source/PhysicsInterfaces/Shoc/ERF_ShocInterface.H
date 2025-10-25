@@ -116,6 +116,14 @@ public:
     std::string
     name () const { return "shoc"; }
 
+    // Fill the vert comps of ERF eddyDiffs
+    void
+    set_eddy_diffs ();
+
+    // Fill the surface stresses
+    void
+    set_sfc_stresses ();
+
 #ifndef KOKKOS_ENABLE_CUDA
   // Cuda requires methods enclosing __device__ lambda's to be public
 protected:
@@ -135,7 +143,7 @@ protected:
             const int i = team.league_rank();
 
             const Real zvir    = C::ZVIR;
-            const Real cpair   = C::Cpair;
+            //const Real cpair   = C::Cpair;
             const Real ggr     = C::gravit;
             const Real inv_ggr = 1/ggr;
             const Real mintke  = SC::mintke;
@@ -210,10 +218,10 @@ protected:
             SHF::linear_interp(team,zt_grid_s,zi_grid_s,rrho_s,rrho_i_s,nlev,nlev+1,0);
             team.team_barrier();
 
-            const auto exner_int = PF::exner_function(p_int(i,nlevi_v)[nlevi_p]);
-            const auto inv_exner_int_surf = 1/exner_int;
+            //const auto exner_int = PF::exner_function(p_int(i,nlevi_v)[nlevi_p]);
+            //const auto inv_exner_int_surf = 1/exner_int;
 
-            wpthlp_sfc(i) = (surf_sens_flux(i)/(cpair*rrho_i(i,nlevi_v)[nlevi_p]))*inv_exner_int_surf;
+            wpthlp_sfc(i) = surf_sens_flux(i)/rrho_i(i,nlevi_v)[nlevi_p]; //(surf_sens_flux(i)/(cpair*rrho_i(i,nlevi_v)[nlevi_p]))*inv_exner_int_surf;
             wprtp_sfc(i)  = surf_evap(i)/rrho_i(i,nlevi_v)[nlevi_p];
             upwp_sfc(i)   = surf_mom_flux(i,0)/rrho_i(i,nlevi_v)[nlevi_p];
             vpwp_sfc(i)   = surf_mom_flux(i,1)/rrho_i(i,nlevi_v)[nlevi_p];

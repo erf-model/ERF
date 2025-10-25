@@ -1495,7 +1495,7 @@ ERF::InitData_post ()
         }
 
         //
-        // This constructor will make the ABLMost object but not allocate the arrays at each level.
+        // This constructor will make the SurfaceLayer object but not allocate the arrays at each level.
         //
         m_SurfaceLayer = std::make_unique<SurfaceLayer>(geom, rotate, pp_prefix, Qv_prim,
                                                         z_phys_nd,
@@ -1507,7 +1507,7 @@ ERF::InitData_post ()
 #endif
                                                         );
         // This call will allocate the arrays at each level. If we regrid later, either changing
-        // the number of level sor just the grids at each existing level, we will call an update routine
+        // the number of levels or just the grids at each existing level, we will call an update routine
         // to redefine the internal arrays in m_SurfaceLayer.
         int nlevs = geom.size();
         for (int lev = 0; lev < nlevs; lev++)

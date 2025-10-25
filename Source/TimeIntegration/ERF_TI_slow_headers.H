@@ -85,6 +85,9 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       amrex::Vector<amrex::MultiFab>& gradp,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                       const eb_& ebfact,
+#ifdef ERF_USE_SHOC
+                      std::unique_ptr<SHOCInterface>& shoc_lev,
+#endif
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine);
 

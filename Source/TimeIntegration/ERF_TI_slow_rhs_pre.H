@@ -153,7 +153,11 @@
                          fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                          *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
                          stretched_dz_d[level], gradp[level],
-                         mapfac[level], get_eb(level), fr_as_crse, fr_as_fine);
+                         mapfac[level], get_eb(level),
+#ifdef ERF_USE_SHOC
+                         shoc_interface[level],
+#endif
+                         fr_as_crse, fr_as_fine);
 
         // *****************************************************************************
         // Update for moving terrain
