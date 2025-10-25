@@ -568,7 +568,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_comp  = 1;
 
             // For implicit_fac > 0, we scale the rho*theta contribution by (1 - implicit_fac)
-            // and add in the implicit contribution in fast_rhs_fun scaled by implicit_fac
+            // and add in the implicit contribution in acoustic_substepping_fun scaled by implicit_fac
             const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
 
             if (l_use_stretched_dz) {

@@ -25,7 +25,7 @@ get_fft_bc (Geometry const& lev_geom,
         }
 
         else if ( (lev_geom.Domain().smallEnd(dir) == bounding_box.smallEnd(dir)) &&
-                  (bc_type_lo == "Outflow" || bc_type_lo == "Open") && !use_real_bcs)
+                  (bc_type_lo == "Outflow" || bc_type_lo == "Open") && (dir == 2 || !use_real_bcs) )
         {
             first = FFT::Boundary::odd;
              // amrex::Print() << "SETTING FIRST OF " << dir << " TO ODD " << std::endl;
@@ -46,7 +46,7 @@ get_fft_bc (Geometry const& lev_geom,
         }
 
         else if ( (lev_geom.Domain().bigEnd(dir) == bounding_box.bigEnd(dir)) &&
-                  (bc_type_hi == "Outflow" || bc_type_hi == "Open") && !use_real_bcs)
+                  (bc_type_hi == "Outflow" || bc_type_hi == "Open") && (dir == 2 || !use_real_bcs) )
         {
             second = FFT::Boundary::odd;
              // amrex::Print() << "SETTING SECOND OF " << dir << " TO ODD " << std::endl;

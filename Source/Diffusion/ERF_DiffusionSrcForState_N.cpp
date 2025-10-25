@@ -71,6 +71,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 {
     BL_PROFILE_VAR("DiffusionSrcForState_N()",DiffusionSrcForState_N);
 
+    const Real explicit_fac = 1.0 - implicit_fac;
+
 #include "ERF_SetupDiff.H"
     Real l_abs_g      = std::abs(grav_gpu[2]);
 
@@ -192,7 +194,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!SurfLayer_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k) * (1.0 - implicit_fac);
+                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
@@ -310,7 +312,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!SurfLayer_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k) * (1.0 - implicit_fac);
+                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
@@ -425,7 +427,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!SurfLayer_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k) * (1.0 - implicit_fac);
+                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
@@ -537,7 +539,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!SurfLayer_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k) * (1.0 - implicit_fac);
+                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
@@ -553,7 +555,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     if (qty_index == RhoTheta_comp) {
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            zflux(i,j,k) *= (1.0 - implicit_fac);
+            zflux(i,j,k) *= explicit_fac;
         });
     }
 

@@ -20,9 +20,6 @@
             std::unique_ptr<MultiFab> dflux_z;
             dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 0);
 
-            int n_start = RhoTheta_comp;
-            int n_comp  = 1;
-
             for ( MFIter mfi(S_old[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
             {
                 Box bx  = mfi.tilebox();
@@ -40,15 +37,8 @@
 
                 const Array4<Real>& hfx_z   = Hfx3->array(mfi);
 
-                // Strain magnitude but we don't actually need it here
-                const Array4<const Real>& SmnSmn_a = Array4<const Real>{};
-
-                // This is just used for scratch
-                const Array4<Real>& diffflux_z = dflux_z->array(mfi);
-
                 if (l_use_stretched_dz) {
                     ImplicitDiffForState_S(bx, fine_geom.Domain(), level, dtau,
-                                           /*n_start, n_comp,*/
                                            l_bc_neumann_vals_d,
                                            cell_data,
                                            stretched_dz_d[level], hfx_z,
@@ -56,7 +46,6 @@
                                            bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
                 } else if (l_use_terrain_fitted_coords) {
                     ImplicitDiffForState_T(bx, fine_geom.Domain(), level, dtau,
-                                           /*n_start, n_comp,*/
                                            l_bc_neumann_vals_d,
                                            cell_data,
                                            z_nd_arr, detJ_arr, dxInv, hfx_z,
@@ -64,7 +53,6 @@
                                            bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
                 } else {
                     ImplicitDiffForState_N(bx, fine_geom.Domain(), level, dtau,
-                                           /*n_start, n_comp,*/
                                            l_bc_neumann_vals_d,
                                            cell_data,
                                            dxInv, hfx_z,

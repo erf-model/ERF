@@ -89,9 +89,7 @@ void ERF::advance_dycore (int level,
     bool l_use_kturb   = tc.use_kturb;
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
                            l_use_kturb );
-    bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
     bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
-    bool l_vert_implicit_fac = solverChoice.vert_implicit_fac[0];
 
     const bool use_SurfLayer = (m_SurfaceLayer != nullptr);
     const MultiFab* z_0     = (use_SurfLayer) ? m_SurfaceLayer->get_z0(level) : nullptr;
@@ -115,6 +113,9 @@ void ERF::advance_dycore (int level,
     {
     BL_PROFILE("erf_advance_strain");
     if (l_use_diff) {
+
+        // Here we use the implicit flag from first RK stage
+        bool l_vert_implicit_fac = solverChoice.vert_implicit_fac[0];
 
         const BCRec* bc_ptr_h = domain_bcs_type.data();
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
@@ -236,6 +237,7 @@ void ERF::advance_dycore (int level,
     if (l_use_kturb)
     {
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
+        bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
         const BCRec* bc_ptr_h = domain_bcs_type.data();
         ComputeTurbulentViscosity(dt_advance, xvel_old, yvel_old,Tau[level],
                                   state_old[IntVars::cons],
@@ -329,7 +331,7 @@ void ERF::advance_dycore (int level,
     mri_integrator.set_slow_rhs_pre(slow_rhs_fun_pre);
     mri_integrator.set_slow_rhs_post(slow_rhs_fun_post);
 
-    mri_integrator.set_fast_rhs(fast_rhs_fun);
+    mri_integrator.set_acoustic_substepping(acoustic_substepping_fun);
     mri_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
     mri_integrator.set_no_substep(no_substep_fun);
 
