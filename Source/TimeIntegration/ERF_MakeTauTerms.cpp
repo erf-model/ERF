@@ -129,6 +129,7 @@ void erf_make_tau_terms (int level, int nrk,
             //-------------------------------------------------------------------------------
 
             // Strain/Stress tile boxes
+            Box bx    = mfi.tilebox();
             Box bxcc  = mfi.tilebox();
             Box tbxxy = mfi.tilebox(IntVect(1,1,0));
             Box tbxxz = mfi.tilebox(IntVect(1,0,1));
@@ -216,7 +217,7 @@ void erf_make_tau_terms (int level, int nrk,
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_strain_S");
-                ComputeStrain_S(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_S(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
                                 s12, s21,
@@ -340,7 +341,7 @@ void erf_make_tau_terms (int level, int nrk,
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_strain_T");
-                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_T(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
                                 s12, s21,
@@ -437,7 +438,7 @@ void erf_make_tau_terms (int level, int nrk,
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_strain_N");
-                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_N(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
                                 s12, /*s21,*/

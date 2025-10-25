@@ -29,7 +29,7 @@ using namespace amrex;
  * @param[in] implicit_fac -- factor of implicitness for vertical differences only
  */
 void
-ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
+ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& u,
                  const Array4<const Real>& v,
                  const Array4<const Real>& w,
@@ -341,7 +341,7 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
     });
 
     if (SmnSmn_a) {
-        ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
                                             tau11,tau22,tau33,

@@ -645,7 +645,7 @@ struct SolverChoice {
         check_params(max_level);
     }
 
-    void check_params (int max_level)
+    void check_params (int /*max_level*/)
     {
 #if 0
         // Warn for PBL models and moisture - these may not yet be compatible

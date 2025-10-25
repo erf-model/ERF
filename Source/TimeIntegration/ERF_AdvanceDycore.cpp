@@ -124,6 +124,7 @@ void ERF::advance_dycore (int level,
 #endif
         for ( MFIter mfi(state_new[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
+            Box bx    = mfi.tilebox();
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
             Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
@@ -172,7 +173,7 @@ void ERF::advance_dycore (int level,
             Array4<Real> no_SmnSmn_calc_here{};
 
             if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                ComputeStrain_S(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_S(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau21,
@@ -183,7 +184,7 @@ void ERF::advance_dycore (int level,
                                 no_SmnSmn_calc_here,
                                 l_vert_implicit_fac);
             } else if (l_use_terrain_fitted_coords) {
-                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_T(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau21,
@@ -194,7 +195,7 @@ void ERF::advance_dycore (int level,
                                 no_SmnSmn_calc_here,
                                 l_vert_implicit_fac);
             } else {
-                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_N(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, /*tau21,*/
