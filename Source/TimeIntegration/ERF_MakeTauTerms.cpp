@@ -52,11 +52,8 @@ void erf_make_tau_terms (int level, int nrk,
     const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||
                                    tc.rans_type == RANSType::kEqn);
 
-    const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
-    const bool do_implicit = (l_vert_implicit_fac > 0);
-    const bool need_tau31_tau32 = (solverChoice.mesh_type == MeshType::StretchedDz ||
-                                   l_use_terrain_fitted_coords ||
-                                   do_implicit);
+    const Real l_explicit_fac = 1.0 - solverChoice.vert_implicit_fac[nrk];
+    const bool do_implicit = (l_explicit_fac < 1);
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
@@ -183,7 +180,9 @@ void erf_make_tau_terms (int level, int nrk,
                 s21 = S21.array();
                 tau21 = Tau_lev[TauType::tau21]->array(mfi);
             }
-            if (need_tau31_tau32)
+            if (solverChoice.mesh_type == MeshType::StretchedDz ||
+                l_use_terrain_fitted_coords ||
+                do_implicit)
             {
                 S31.resize(tbxxz,1,The_Async_Arena());
                 S32.resize(tbxyz,1,The_Async_Arena());
@@ -251,7 +250,7 @@ void erf_make_tau_terms (int level, int nrk,
                                 stretched_dz_d, dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                l_vert_implicit_fac);
+                                l_explicit_fac);
                 } // end profile
 
                 if (SmnSmn_a) {
@@ -284,7 +283,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             er_arr, stretched_dz_d, dxInv,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy,
-                                            l_vert_implicit_fac);
+                                            l_explicit_fac);
                 } else {
                     ComputeStressVarVisc_S(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -295,7 +294,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            er_arr, stretched_dz_d, dxInv,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy,
-                                           l_vert_implicit_fac);
+                                           l_explicit_fac);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -385,7 +384,7 @@ void erf_make_tau_terms (int level, int nrk,
                                 z_nd, detJ_arr, dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                l_vert_implicit_fac);
+                                l_explicit_fac);
                 } // end profile
 
                 if (SmnSmn_a) {
@@ -418,7 +417,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             er_arr, z_nd, detJ_arr, dxInv,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy,
-                                            l_vert_implicit_fac);
+                                            l_explicit_fac);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -429,7 +428,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            er_arr, z_nd, detJ_arr, dxInv,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy,
-                                           l_vert_implicit_fac);
+                                           l_explicit_fac);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -492,7 +491,7 @@ void erf_make_tau_terms (int level, int nrk,
                                 dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                l_vert_implicit_fac);
+                                l_explicit_fac);
                 } // end profile
 
                 if (SmnSmn_a) {
@@ -531,14 +530,14 @@ void erf_make_tau_terms (int level, int nrk,
                                             s11, s22, s33,
                                             s12, s13, s23,
                                             er_arr,
-                                            l_vert_implicit_fac);
+                                            l_explicit_fac);
                 } else {
                     ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
                                            s11, s22, s33,
                                            s12, s13, s23,
                                            er_arr,
-                                           l_vert_implicit_fac);
+                                           l_explicit_fac);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry

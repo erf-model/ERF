@@ -54,10 +54,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& mf_uy,
                  const Array4<const Real>& mf_vy,
                  const BCRec* bc_ptr,
-                 const Real implicit_fac)
+                 const Real expfac)
 {
-    const Real expfac = 1.0 - implicit_fac;
-
     // Convert domain to each index type to test if we are on dirichlet boundary
     Box domain_xy = convert(domain, tbxxy.ixType());
     Box domain_xz = convert(domain, tbxxz.ixType());
