@@ -195,7 +195,8 @@ public:
     query_one_or_per_level(pp, "theta_ref", theta_ref, lev, max_level);
 
     query_one_or_per_level(pp, "mix_isotropic", mix_isotropic, lev, max_level);
-    query_one_or_per_level(pp, "use_smag_stratification", use_smag_stratification, lev, max_level);
+    query_one_or_per_level(pp, "use_moist_Ri_correction", use_moist_Ri_correction, lev, max_level);
+    query_one_or_per_level(pp, "Ri_crit", Ri_crit, lev, max_level);
 
     // Set common flags
     use_kturb =
@@ -238,8 +239,9 @@ public:
       } else {
         amrex::Print() << "    Using Smagorinsky LES model at level " << lev << std::endl;
       }
-      if (use_smag_stratification) {
-        amrex::Print() << "    Smagorinsky accounts for moist stratification" << std::endl;
+      if (use_moist_Ri_correction) {
+        amrex::Print() << "    Smagorinsky uses moist Richardson number correction with Ri_crit = "
+                       << Ri_crit << std::endl;
       }
     } else if (les_type == LESType::Deardorff) {
       amrex::Print() << "    Using Deardorff LES model at level " << lev << std::endl;
@@ -290,8 +292,7 @@ public:
       }
     }
 
-    if ((les_type  == LESType::Deardorff)                              ||
-        (les_type  == LESType::Smagorinsky && use_smag_stratification) ||
+    if ((les_type  == LESType::Deardorff) ||
         (rans_type == RANSType::kEqn)) {
       if (theta_ref > 0) {
         amrex::Print() << "    reference theta         : " << theta_ref << std::endl;
@@ -379,8 +380,8 @@ public:
   // Anistropic length scales
   bool mix_isotropic = true;
 
-  // Use the stratification adjustment for the Smagorinsky Scheme
-  bool use_smag_stratification = true;
+  bool use_moist_Ri_correction = false;
+  amrex::Real Ri_crit = 0.25;
 
   // RANS type
   RANSType rans_type;

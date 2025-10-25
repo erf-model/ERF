@@ -1006,10 +1006,9 @@ List of Parameters
 | **erf.Cs**                       | Constant           | Real                | 0.0          |
 |                                  | Smagorinsky coeff. |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.use_smag_stratification**  | Enable             | Boolean             | true         |
-|                                  | stratification     |                     |              |
-|                                  | effects (dry and   |                     |              |
-|                                  | moist) in          |                     |              |
+| **erf.use_moist_Ri_correction**  | Apply moist        | Boolean             | false        |
+|                                  | Richardson number  |                     |              |
+|                                  | limiter to the     |                     |              |
 |                                  | Smagorinsky model  |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.Ck**                       | Constant           | Real                | 0.1          |
