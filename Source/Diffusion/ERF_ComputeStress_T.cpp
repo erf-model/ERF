@@ -42,7 +42,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          const Array4<const Real>& mf_my,
                          const Array4<const Real>& mf_uy,
                          const Array4<const Real>& mf_vy,
-                         const Real implicit_fac)
+                         const Real expfac)
 {
     // Handle constant alpha case, in which the provided mu_eff is actually
     // "alpha" and the viscosity needs to be scaled by rho. This can be further
@@ -79,7 +79,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         tau11(i,j,k) -= OneThird*er_arr(i,j,k);
         tau22(i,j,k) -= OneThird*er_arr(i,j,k);
-        tau33(i,j,k) -= OneThird*er_arr(i,j,k);
+        tau33(i,j,k) = expfac*tau33(i,j,k) - OneThird*er_arr(i,j,k);
     });
 
     // Second block: compute 2mu*JT*(S-D)
@@ -351,7 +351,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         const Array4<const Real>& mf_my,
                         const Array4<const Real>& mf_uy,
                         const Array4<const Real>& mf_vy,
-                        const Real implicit_fac)
+                        const Real expfac)
 {
     // Handle constant alpha case, in which the provided mu_eff is actually
     // "alpha" and the viscosity needs to be scaled by rho. This can be further
@@ -388,7 +388,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         tau11(i,j,k) -= OneThird*er_arr(i,j,k);
         tau22(i,j,k) -= OneThird*er_arr(i,j,k);
-        tau33(i,j,k) -= OneThird*er_arr(i,j,k);
+        tau33(i,j,k) = expfac*tau33(i,j,k) - OneThird*er_arr(i,j,k);
     });
 
     // Second block: compute 2mu*JT*(S-D)

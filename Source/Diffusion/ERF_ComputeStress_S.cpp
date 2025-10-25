@@ -41,7 +41,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          const Array4<const Real>& mf_my,
                          const Array4<const Real>& mf_uy,
                          const Array4<const Real>& mf_vy,
-                         const Real implicit_fac)
+                         const Real expfac)
 {
     // Handle constant alpha case, in which the provided mu_eff is actually
     // "alpha" and the viscosity needs to be scaled by rho. This can be further
@@ -79,7 +79,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau11(i,j,k) = -mu_tot * (met_h_zeta/mfy) * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
         tau22(i,j,k) = -mu_tot * (met_h_zeta/mfx) * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
-        tau33(i,j,k) = -mu_tot * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+        tau33(i,j,k) = -mu_tot * ( expfac*tau33(i,j,k) - OneThird*er_arr(i,j,k) );
     });
 
     // Second block: off diagonal stresses
@@ -164,7 +164,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         const Array4<const Real>& mf_my,
                         const Array4<const Real>& mf_uy,
                         const Array4<const Real>& mf_vy,
-                        const Real implicit_fac)
+                        const Real expfac)
 {
     // Handle constant alpha case, in which the provided mu_eff is actually
     // "alpha" and the viscosity needs to be scaled by rho. This can be further
@@ -202,7 +202,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau11(i,j,k) = -mu_tot * (met_h_zeta/mfy) * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
         tau22(i,j,k) = -mu_tot * (met_h_zeta/mfx) * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
-        tau33(i,j,k) = -mu_tot * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+        tau33(i,j,k) = -mu_tot * ( expfac*tau33(i,j,k) - OneThird*er_arr(i,j,k) );
     });
 
     // Second block: off diagonal stresses
