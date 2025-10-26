@@ -227,7 +227,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             fluxes_sub[0][2].setFab(mfi,FArrayBox(fluxes[0][2][orig_index], amrex::make_alias, 0, 1));
         }
 
-        if (solverChoice.mesh_type == MeshType::VariableDz) {
+        if (solverChoice.mesh_type != MeshType::ConstantDz) {
             ax_sub.define(convert(ba_sub,IntVect(1,0,0)), DistributionMapping(dm_sub), 1,
                           ax[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
             ay_sub.define(convert(ba_sub,IntVect(0,1,0)), DistributionMapping(dm_sub), 1,
@@ -374,14 +374,16 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
         if (is_singular)
         {
-            Real sum = 0.;
-            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
-            {
-                sum = volWgtSumMF(lev,rhs_sub[0],0,false);
-                Real vol = dJ_sub.sum() / (dxInv[0] * dxInv[1] * dxInv[2]);
-                sum /= vol;
-            }
+            Real sum = volWgtSumMF(lev,rhs_sub[0],0,false);
             ParallelDescriptor::ReduceRealSum(sum);
+
+            Real vol;
+            if (solverChoice.mesh_type == MeshType::ConstantDz) {
+                vol = rhs_sub[0].boxArray().numPts();
+            } else {
+                vol = dJ_sub.sum() / (dxInv[0] * dxInv[1] * dxInv[2]);
+            }
+            sum /= vol;
 
             for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
             {
@@ -389,11 +391,11 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             }
             if (mg_verbose > 0) {
                 amrex::Print() << " Subtracting " << sum << " from rhs in subdomain " << isub << std::endl;
+
+                sum = volWgtSumMF(lev,rhs_sub[0],0,false);
+                Real sum = volWgtSumMF(lev,rhs_sub[0],0,false);
+                Print() << "Sum after subtraction " << sum << " in subdomain " << isub << std::endl;
             }
-
-            sum = volWgtSumMF(lev,rhs_sub[0],0,false);
-
-            Print() << "Sum after subtraction " << sum << " in subdomain " << isub << std::endl;
 
         } // if is_singular
 
