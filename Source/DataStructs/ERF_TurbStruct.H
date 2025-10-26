@@ -380,7 +380,7 @@ public:
   // Anistropic length scales
   bool mix_isotropic = true;
 
-  bool use_moist_Ri_correction = false;
+  bool use_moist_Ri_correction = true;
   amrex::Real Ri_crit = 0.25;
 
   // RANS type
