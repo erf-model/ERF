@@ -195,7 +195,7 @@ public:
     query_one_or_per_level(pp, "theta_ref", theta_ref, lev, max_level);
 
     query_one_or_per_level(pp, "mix_isotropic", mix_isotropic, lev, max_level);
-    query_one_or_per_level(pp, "use_moist_Ri_correction", use_moist_Ri_correction, lev, max_level);
+    query_one_or_per_level(pp, "use_Ri_correction", use_Ri_correction, lev, max_level);
     query_one_or_per_level(pp, "Ri_crit", Ri_crit, lev, max_level);
 
     // Set common flags
@@ -239,8 +239,8 @@ public:
       } else {
         amrex::Print() << "    Using Smagorinsky LES model at level " << lev << std::endl;
       }
-      if (use_moist_Ri_correction) {
-        amrex::Print() << "    Smagorinsky uses moist Richardson number correction with Ri_crit = "
+      if (use_Ri_correction) {
+        amrex::Print() << "    Smagorinsky uses Richardson number correction with Ri_crit = "
                        << Ri_crit << std::endl;
       }
     } else if (les_type == LESType::Deardorff) {
@@ -380,7 +380,7 @@ public:
   // Anistropic length scales
   bool mix_isotropic = true;
 
-  bool use_moist_Ri_correction = true;
+  bool use_Ri_correction = true;
   amrex::Real Ri_crit = 0.25;
 
   // RANS type
