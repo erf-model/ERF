@@ -606,9 +606,9 @@ struct SolverChoice {
                 amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_boundary_data_dir' for boundary data for lateral forcing");
             }
             pp.query("hindcast_data_interval_in_hrs", hindcast_data_interval_in_hrs);
-            if(hindcast_data_interval_in_hrs < -1.0) {
-                amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_data_interval_in_hrs' which is the time interval between the "
-                             "data files ");
+            if(hindcast_data_interval_in_hrs < 0.0) {
+                amrex::Abort("ERROR: Input parameter 'erf.hindcast_data_interval_in_hrs' which is the time interval between the "
+                             "data files is either missing or set to less than zero");
             }
             pp.query("hindcast_lateral_sponge_strength", hindcast_lateral_sponge_strength);
             pp.query("hindcast_lateral_sponge_length", hindcast_lateral_sponge_length);
