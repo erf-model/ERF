@@ -74,9 +74,6 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
 
     int bc_comp = qty_index;
 
-    Real rhoAlpha_lo;
-    Real rhoAlpha_hi;
-
     Real dz_inv        = cellSizeInv[2];
 
 //  bool ext_dir_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
@@ -96,6 +93,9 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
         // Build the coefficients and RHS
         for (int k(klo); k <= khi; k++)
         {
+            Real rhoAlpha_lo;
+            Real rhoAlpha_hi;
+
             if (l_consA && l_turb) {
                 rhoAlpha_lo = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
                             + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_scal_index])
