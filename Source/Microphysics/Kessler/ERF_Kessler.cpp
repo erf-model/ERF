@@ -12,8 +12,8 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 {
     bool do_cond = m_do_cond;
     auto tabs    = mic_fab_vars[MicVar_Kess::tabs];
-    if (solverChoice.moisture_type == MoistureType::Kessler){
-        auto dz = m_geom.CellSize(2);
+    if (solverChoice.moisture_type == MoistureType::Kessler)
+    {
         auto domain = m_geom.Domain();
         int k_lo = domain.smallEnd(2);
         int k_hi = domain.bigEnd(2);
@@ -24,7 +24,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
         fz.define(convert(ba, IntVect(0,0,1)), dm, 1, 0); // No ghost cells
 
         Real dtn  = dt;
-        Real coef = dtn/dz;
+        Real coef = dtn/m_dzmin;
 
         // Saturation and evaporation calculations go first
         for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {

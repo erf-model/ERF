@@ -11,6 +11,7 @@
                                 const Real new_stage_time,
                                 const int nrk)
     {
+        BL_PROFILE("slow_rhs_fun_pre");
         //
         // Define primitive variables for all later RK stages
         // (We have already done this for the first RK step)
@@ -22,13 +23,14 @@
             cons_to_prim(S_data[IntVars::cons], ng_cons);
         }
 
-        BL_PROFILE("slow_rhs_fun_pre");
         if (verbose) Print() << std::setprecision(timeprecision)
                              << "Making slow rhs at time " << old_stage_time
                              << " for fast variables advancing from " << old_step_time
                              << " to " << new_stage_time << std::endl;
 
         Real slow_dt = new_stage_time - old_step_time;
+
+        const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
         // *************************************************************************
         // Set up flux registers if using two_way coupling
@@ -106,7 +108,9 @@
         // Define the pressure gradient
         // *****************************************************************************
         make_gradp_pert(level, solverChoice, fine_geom, S_data,
-                        p0_to_use, *zpn_to_use, *zpc_to_use, get_eb(level), gradp[level]);
+                        p0_to_use, *zpn_to_use, *zpc_to_use,
+                        mapfac[level],
+                        get_eb(level), gradp[level]);
 
         // *****************************************************************************
         // Define the buoyancy forcing term in the z-direction
@@ -149,7 +153,25 @@
                          fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                          *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
                          stretched_dz_d[level], gradp[level],
-                         mapfac[level], get_eb(level), fr_as_crse, fr_as_fine);
+                         mapfac[level], get_eb(level),
+#ifdef ERF_USE_SHOC
+                         shoc_interface[level],
+#endif
+                         fr_as_crse, fr_as_fine);
+
+        if (solverChoice.vert_implicit_fac[nrk] && solverChoice.implicit_before_substep) {
+            MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
+                             S_data[IntVars::cons].nGrowVect());
+            MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old (for both)
+            MultiFab::Saxpy(scratch, slow_dt, S_rhs[IntVars::cons], 0, 0, 2, 0);                       // scratch := S_old + slow_dt*Src (for both)
+            scratch.FillBoundary(geom[level].periodicity());
+
+#include "ERF_Implicit.H"
+
+            MultiFab::Saxpy(scratch, -1.0, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)        (for rho theta only)
+            scratch.mult(1.0 / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
+            MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / dtau (for rho theta only)
+        }
 
         // *****************************************************************************
         // Update for moving terrain
@@ -179,8 +201,6 @@
             AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
 
             Real dt_base  = (new_stage_time - old_step_time);
-
-            const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
             const Real l_rdOcp   = solverChoice.rdOcp;
 

@@ -552,9 +552,8 @@ ERF::Evolve ()
 
         auto dEvolveTime0 = amrex::second();
 
-        int lev = 0;
         int iteration = 1;
-        timeStep(lev, cur_time, iteration);
+        timeStep(0, cur_time, iteration);
 
         cur_time  += dt[0];
 
@@ -573,11 +572,13 @@ ERF::Evolve ()
         if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
             last_plot3d_file_step_1 = step+1;
             Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+            for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
             if (m_plot3d_per_1 > 0.) {last_plot3d_file_time_1 += m_plot3d_per_1;}
         }
         if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
             last_plot3d_file_step_2 = step+1;
             Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+            for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
             if (m_plot3d_per_2 > 0.) {last_plot3d_file_time_2 += m_plot3d_per_2;}
         }
 
@@ -1493,7 +1494,7 @@ ERF::InitData_post ()
         }
 
         //
-        // This constructor will make the ABLMost object but not allocate the arrays at each level.
+        // This constructor will make the SurfaceLayer object but not allocate the arrays at each level.
         //
         m_SurfaceLayer = std::make_unique<SurfaceLayer>(geom, rotate, pp_prefix, Qv_prim,
                                                         z_phys_nd,
@@ -1505,7 +1506,7 @@ ERF::InitData_post ()
 #endif
                                                         );
         // This call will allocate the arrays at each level. If we regrid later, either changing
-        // the number of level sor just the grids at each existing level, we will call an update routine
+        // the number of levels or just the grids at each existing level, we will call an update routine
         // to redefine the internal arrays in m_SurfaceLayer.
         int nlevs = geom.size();
         for (int lev = 0; lev < nlevs; lev++)

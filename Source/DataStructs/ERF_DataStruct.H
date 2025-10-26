@@ -237,24 +237,15 @@ struct SolverChoice {
         std::string init_type_temp_string;
         pp.query("init_type",init_type_temp_string);
         if ( (init_type_temp_string == "Real") || (init_type_temp_string == "real") ) {
-            amrex::Warning("erf.init_type = Real is deprecated; please replace Real by WRFInput");
-            init_type = InitType::WRFInput;
-            use_real_bcs = true;
-            pp.query("upwind_real_bcs",upwind_real_bcs);
+            amrex::Abort("erf.init_type = Real is deprecated; please replace Real by WRFInput");
         } else if ( (init_type_temp_string == "Ideal") || (init_type_temp_string == "ideal") ) {
-            amrex::Warning("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
-            init_type = InitType::WRFInput;
-            use_real_bcs = false;
+            amrex::Abort("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
         } else if (init_type_temp_string == "hindcast") {
             init_type = InitType::HindCast;
-            use_real_bcs = false;
         }
         else {
             pp.query_enum_case_insensitive("init_type",init_type);
             use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
-            if (use_real_bcs) {
-                pp.query("upwind_real_bcs",upwind_real_bcs);
-            }
         }
 
         if ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) ) {
@@ -278,9 +269,10 @@ struct SolverChoice {
             if (use_real_bcs && !use_real_bcs_temp) {
                 use_real_bcs = false;
             }
-            if (use_real_bcs) {
-                pp.query("upwind_real_bcs",upwind_real_bcs);
-            }
+        }
+
+        if (use_real_bcs) {
+            pp.query("upwind_real_bcs",upwind_real_bcs);
         }
 
         // Check for rebalancing with wrfinput
@@ -341,6 +333,11 @@ struct SolverChoice {
 
         read_int_string(max_level, "anelastic", anelastic, 0);
 
+        if (!upwind_real_bcs && anelastic[0]) {
+            amrex::Print() << "Setting upwind_real_bcs to true because we are doing anelastic at level 0" << std::endl;
+            upwind_real_bcs = true;
+        }
+
         // *******************************************************************************
         // Read substepping_type and allow for different values at each level
         // *******************************************************************************
@@ -366,6 +363,23 @@ struct SolverChoice {
 
         // Note: this will be overwritten with -1 on levels that have substepping_type == Explicit
         pp.query("beta_s", beta_s);
+
+        // This controls the time-centering of the vertical differences in the diffusive term for (rho theta) only
+        int n_impfac = pp.countval("vert_implicit_fac");
+        AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
+
+        if (n_impfac == 1) {
+            amrex::Real fac_in;
+            pp.get("vert_implicit_fac", fac_in);
+            for (int i=0; i<3; ++i) vert_implicit_fac[i] = fac_in;
+        } else if (n_impfac == 3) {
+            pp.getarr("vert_implicit_fac", vert_implicit_fac);
+        }
+
+        // This controls when the vertical implicit solve for the diffusive terms will happen relative to
+        //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > 0.)
+        // The default is false (i.e. that it happens after the acoustic substepping).
+        pp.query("implicit_before_substep", implicit_before_substep);
 
         // *******************************************************************************
         // Error check on deprecated input
@@ -636,14 +650,16 @@ struct SolverChoice {
         check_params(max_level);
     }
 
-    void check_params (int max_level)
+    void check_params (int /*max_level*/)
     {
+#if 0
         // Warn for PBL models and moisture - these may not yet be compatible
         for (int lev = 0; lev <= max_level; lev++) {
             if ((moisture_type != MoistureType::None) && (turbChoice[lev].pbl_type != PBLType::None)) {
                 amrex::Warning("\n*** WARNING: Moisture may not yet be compatible with PBL models, \n    proceed with caution ***");
             }
         }
+#endif
         //
         // Buoyancy type check
         //
@@ -682,7 +698,6 @@ struct SolverChoice {
     void display (int max_level, std::string pp_prefix)
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
-        amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
         for (int lev = 0; lev <= max_level; lev++) {
             if (anelastic[lev]) {
                 amrex::Print() << "Level " << lev << " is anelastic" << std::endl;
@@ -695,6 +710,9 @@ struct SolverChoice {
                 amrex::Print() << "Implicit substepping at level " << lev << std::endl;
             }
         }
+        amrex::Print() << "vert_implicit_fac           : " << vert_implicit_fac[0] << " "
+                                                           << vert_implicit_fac[1] << " "
+                                                           << vert_implicit_fac[2] << std::endl;
         amrex::Print() << "fixed_density               : " << fixed_density << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
@@ -892,6 +910,13 @@ struct SolverChoice {
     // time off-centering coefficient, > 0 for forward weighting (i.e., bias
     // towards the future time step)
     amrex::Real beta_s = 0.1;
+
+    // This controls the time-centering of the *vertical* differences in the diffusive term for (rho theta) only
+    // 0: fully explicit
+    // 1: fully implicit
+    amrex::Vector<amrex::Real> vert_implicit_fac = {0.0, 0.0, 0.0}; // one value per RK stage
+
+    bool implicit_before_substep = false;
 
     bool        fixed_density       = false;
     int         ncorr               = 1;

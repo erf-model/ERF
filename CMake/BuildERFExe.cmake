@@ -238,6 +238,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_N.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_S.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_T.cpp
+       ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_N.cpp
+       ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_S.cpp
+       ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_T.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_S.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_T.cpp
@@ -286,6 +289,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Morrison/ERF_InitMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_AdvanceMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_UpdateMorrison.cpp
+       ${SRC_DIR}/Microphysics/Morrison/ERF_Morrison_Plot.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_InitSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_CloudSAM.cpp
        ${SRC_DIR}/Microphysics/SAM/ERF_IceFall.cpp
@@ -325,9 +329,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_MakeTauTerms.cpp
        ${SRC_DIR}/TimeIntegration/ERF_SlowRhsPre.cpp
        ${SRC_DIR}/TimeIntegration/ERF_SlowRhsPost.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_FastRhs_N.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_FastRhs_T.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_FastRhs_MT.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_Substep_N.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_Substep_T.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_Substep_MT.cpp
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
@@ -339,6 +343,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
        ${SRC_DIR}/Utils/ERF_ThinBodyWallDist.cpp
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
+       ${SRC_DIR}/Utils/ERF_VolWgtSum.cpp
        ${SRC_DIR}/Utils/ERF_WeatherDataInterpolation.cpp
        ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
        ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp

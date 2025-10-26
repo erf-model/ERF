@@ -11,7 +11,8 @@ using namespace amrex;
  */
 void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiFab& phi,
                             Array<MultiFab,AMREX_SPACEDIM>& fluxes,
-                            MultiFab& ax_sub, MultiFab& ay_sub, MultiFab& znd_sub)
+                            MultiFab& ax_sub, MultiFab& ay_sub, MultiFab& az_sub,
+                            MultiFab& dJ_sub, MultiFab& znd_sub)
 {
 #ifdef ERF_USE_FFT
     BL_PROFILE("ERF::solve_with_gmres()");
@@ -52,7 +53,8 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
     amrex::GMRES<MultiFab, TerrainPoisson> gmsolver;
 
     TerrainPoisson tp(my_geom, rhs.boxArray(), rhs.DistributionMap(), domain_bc_type,
-                      stretched_dz_d[lev], ax_sub, ay_sub, &znd_sub);
+                      stretched_dz_d[lev], ax_sub, ay_sub, az_sub, dJ_sub, &znd_sub,
+                      solverChoice.use_real_bcs);
 
     gmsolver.define(tp);
 
@@ -65,8 +67,27 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
     gmsolver.solve(phi, rhs, reltol, abstol);
 
     tp.getFluxes(phi, fluxes);
+
+    for (MFIter mfi(phi); mfi.isValid(); ++mfi)
+    {
+        Box xbx = mfi.nodaltilebox(0);
+        Box ybx = mfi.nodaltilebox(1);
+        const Array4<Real      >& fx_ar = fluxes[0].array(mfi);
+        const Array4<Real      >& fy_ar = fluxes[1].array(mfi);
+        const Array4<Real const>& mf_ux = mapfac[lev][MapFacType::u_x]->const_array(mfi);
+        const Array4<Real const>& mf_vy = mapfac[lev][MapFacType::v_y]->const_array(mfi);
+        ParallelFor(xbx,ybx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            fx_ar(i,j,k) *= mf_ux(i,j,0);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            fy_ar(i,j,k) *= mf_vy(i,j,0);
+        });
+    } // mfi
 #else
-    amrex::ignore_unused(lev, rhs, phi, fluxes, ax_sub, ay_sub, znd_sub);
+    amrex::ignore_unused(lev, rhs, phi, fluxes, ax_sub, ay_sub, az_sub, znd_sub);
 #endif
 
     // ****************************************************************************
