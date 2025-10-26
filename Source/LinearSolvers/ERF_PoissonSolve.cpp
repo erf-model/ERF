@@ -50,6 +50,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(mom_mf[Vars::cons].DistributionMap());
     Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
 
+    Box domain = geom[lev].Domain();
+
     MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp, 1);
 
     Vector<MultiFab> rhs;
@@ -65,6 +67,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     }
 
     MultiFab rhs_lev(rhs[0], make_alias, 0, 1);
+    MultiFab phi_lev(phi[0], make_alias, 0, 1);
 
     auto dxInv = geom[lev].InvCellSizeArray();
 
@@ -139,204 +142,6 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     }
 
     // ****************************************************************************
-    // Compute divergence which will form RHS
-    // Note that we replace "rho0w" with the contravariant momentum, Omega
-    // ****************************************************************************
-    Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
-    rho0_u_const[0] = &mom_mf[IntVars::xmom];
-    rho0_u_const[1] = &mom_mf[IntVars::ymom];
-    rho0_u_const[2] = &mom_mf[IntVars::zmom];
-
-    compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
-
-    Real rhsnorm, sum;
-
-    // Max norm over the entire MultiFab
-    rhsnorm = rhs_lev.norm0();
-
-    sum = volWgtSumMF(lev,rhs_lev,0,false);
-
-    if (mg_verbose > 0) {
-        Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " <<
-                    rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
-    }
-
-    if (lev == 0 && solverChoice.use_real_bcs) {
-        // Note that we always impose the projections one level at a time so this will always be a vector of length 1
-        Array<MultiFab*, AMREX_SPACEDIM> rho0_u_vec =
-           {&mom_mf[IntVars::xmom], &mom_mf[IntVars::ymom], &mom_mf[IntVars::zmom]};
-        Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
-#if 0
-        //
-        // Modify ax,ay,ax to include the map factors as used in the divergence calculation
-        // We do this here so that it is seen in the call to enforceInOutSolvability
-        //
-        if (solverChoice.mesh_type == MeshType::VariableDz) {
-            for (MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
-            {
-                Box xbx = mfi.nodaltilebox(0);
-                Box ybx = mfi.nodaltilebox(1);
-                Box zbx = mfi.nodaltilebox(2);
-                const Array4<Real      >& ax_ar = ax[lev]->array(mfi);
-                const Array4<Real      >& ay_ar = ay[lev]->array(mfi);
-                const Array4<Real      >& az_ar = az[lev]->array(mfi);
-                const Array4<Real const>& mf_uy = mapfac[lev][MapFacType::u_y]->const_array(mfi);
-                const Array4<Real const>& mf_vx = mapfac[lev][MapFacType::v_x]->const_array(mfi);
-                const Array4<Real const>& mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-                const Array4<Real const>& mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
-                ParallelFor(xbx,ybx,zbx,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    ax_ar(i,j,k) /= mf_uy(i,j,0);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    ay_ar(i,j,k) /= mf_vx(i,j,0);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    az_ar(i,j,k) /= (mf_mx(i,j,0)*mf_my(i,j,0));
-                });
-            } // mfi
-        } // variable dz
-#endif
-
-        if (mg_verbose > 0) {
-            Print() << "Calling enforceInOutSolvability" << std::endl;
-        }
-        enforceInOutSolvability(lev, rho0_u_vec, area_vec, geom[lev]);
-
-#if 0
-        //
-        // Return ax,ay,ax to their original definition
-        //
-        if (solverChoice.mesh_type == MeshType::VariableDz) {
-            for (MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
-            {
-                Box xbx = mfi.nodaltilebox(0);
-                Box ybx = mfi.nodaltilebox(1);
-                Box zbx = mfi.nodaltilebox(2);
-                const Array4<Real      >& ax_ar = ax[lev]->array(mfi);
-                const Array4<Real      >& ay_ar = ay[lev]->array(mfi);
-                const Array4<Real      >& az_ar = az[lev]->array(mfi);
-                const Array4<Real const>& mf_uy = mapfac[lev][MapFacType::u_y]->const_array(mfi);
-                const Array4<Real const>& mf_vx = mapfac[lev][MapFacType::v_x]->const_array(mfi);
-                const Array4<Real const>& mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-                const Array4<Real const>& mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
-                ParallelFor(xbx,ybx,zbx,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    ax_ar(i,j,k) *= mf_uy(i,j,0);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    ay_ar(i,j,k) *= mf_vx(i,j,0);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    az_ar(i,j,k) *= (mf_mx(i,j,0)*mf_my(i,j,0));
-                });
-            } // mfi
-        } // variabledz
-#endif
-        compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
-
-        // Max norm over the entire MultiFab
-        rhsnorm = rhs_lev.norm0();
-
-        sum = volWgtSumMF(lev,rhs_lev,0,false);
-
-        if (mg_verbose > 0) {
-            Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " <<
-                        rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
-        }
-    } // lev 0 && use_real_bcs
-
-    // ****************************************************************************
-    // Enforce solvability if the problem is singular (i.e all sides Neumann or periodic)
-    // ****************************************************************************
-    bool is_singular = true;
-    if ( (domain_bc_type[0] == "Outflow" || domain_bc_type[0] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
-    if ( (domain_bc_type[1] == "Outflow" || domain_bc_type[1] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
-    if ( (domain_bc_type[3] == "Outflow" || domain_bc_type[3] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
-    if ( (domain_bc_type[4] == "Outflow" || domain_bc_type[4] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
-    if ( (domain_bc_type[5] == "Outflow" || domain_bc_type[5] == "Open")                               ) is_singular = false;
-
-    if (is_singular) {
-        if (lev > 0)
-        {
-            Vector<Real> sum_sub; sum_sub.resize(subdomains[lev].size(),Real(0.));
-
-            for (MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
-            {
-                Box bx = mfi.validbox();
-                for (int i = 0; i < subdomains[lev].size(); ++i) {
-                    if (subdomains[lev][i].intersects(bx)) {
-                        sum_sub[i] += rhs_lev[mfi.index()].template sum<RunOn::Device>(0);
-                    }
-                }
-            }
-            ParallelDescriptor::ReduceRealSum(sum_sub.data(), sum_sub.size());
-
-            for (int i = 0; i < subdomains[lev].size(); ++i) {
-                sum_sub[i] /= static_cast<Real>(subdomains[lev][i].numPts());
-            }
-
-            for ( MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
-            {
-                Box bx = mfi.validbox();
-                for (int i = 0; i < subdomains[lev].size(); ++i) {
-                    if (subdomains[lev][i].intersects(bx)) {
-                        rhs_lev[mfi.index()].template minus<RunOn::Device>(sum_sub[i]);
-                        if (mg_verbose > 1) {
-                            amrex::Print() << " Subtracting " << sum_sub[i] << " in " << rhs_lev[mfi.index()].box() << std::endl;
-                        }
-                    }
-                }
-            }
-        } else {
-
-            sum = volWgtSumMF(lev,rhs_lev,0,false);
-
-            Real vol = detJ_cc[lev]->sum() / (dxInv[0] * dxInv[1] * dxInv[2]);
-
-            Print() << "Vol wgt sum " << sum << std::endl;
-            Print() << "Vol         " << vol << std::endl;
-
-            sum /= vol;
-
-            for ( MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
-            {
-                Box bx = mfi.validbox();
-                for (int i = 0; i < subdomains[lev].size(); ++i) {
-                    rhs_lev[mfi.index()].template minus<RunOn::Device>(sum);
-                    amrex::Print() << " Subtracting " << sum << " in " << rhs_lev[mfi.index()].box() << std::endl;
-                }
-            }
-
-            sum = volWgtSumMF(lev,rhs_lev,0,false);
-
-            Print() << "SUM AFTER SUBTRACTION " << sum << std::endl;
-        }
-    } // if is_singular
-
-    // ****************************************************************************
-    //
-    // No need to build the solver if RHS == 0
-    //
-    if (rhsnorm <= solverChoice.poisson_abstol) return;
-    // ****************************************************************************
-
-    // ****************************************************************************
-    // Initialize phi to 0
-    // (It is essential that we do this in order to fill the corners; these are never
-    //  used but the Saxpy requires the values to be initialized.)
-    // ****************************************************************************
-    phi[0].setVal(0.0);
-
-    Real start_step = static_cast<Real>(ParallelDescriptor::second());
-
-    // ****************************************************************************
     // Allocate fluxes
     // ****************************************************************************
     Vector<Array<MultiFab,AMREX_SPACEDIM> > fluxes;
@@ -349,8 +154,20 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         }
     }
 
+    Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
+    rho0_u_const[0] = &mom_mf[IntVars::xmom];
+    rho0_u_const[1] = &mom_mf[IntVars::ymom];
+    rho0_u_const[2] = &mom_mf[IntVars::zmom];
+
     // ****************************************************************************
-    // Choose the solver and solve
+    // Initialize phi to 0
+    // (It is essential that we do this in order to fill the corners; these are never
+    //  used but the Saxpy requires the values to be initialized.)
+    // ****************************************************************************
+    phi_lev.setVal(0.0);
+
+    // ****************************************************************************
+    // Break into subdomains
     // ****************************************************************************
 
     std::map<int,int> index_map;
@@ -365,10 +182,6 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
     for (int isub = 0; isub < subdomains[lev].size(); ++isub)
     {
-        if (mg_verbose > 0) {
-            amrex::Print() << " Solving in subdomain " << isub << " of " << subdomains[lev].size() << " bins at level " << lev << std::endl;
-        }
-
         BoxList bl_sub;
         Vector<int> dm_sub;
 
@@ -395,8 +208,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         BoxArray ba_sub(bl_sub);
 
         // Define MultiFabs that hold only the data in this particular subdomain
-        rhs_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, rhs[0].nGrowVect(), MFInfo{}.SetAlloc(false));
-        phi_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, phi[0].nGrowVect(), MFInfo{}.SetAlloc(false));
+        rhs_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, rhs_lev.nGrowVect(), MFInfo{}.SetAlloc(false));
+        phi_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, phi_lev.nGrowVect(), MFInfo{}.SetAlloc(false));
 
         for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
             fluxes_sub[0][idim].define(convert(ba_sub, IntVect::TheDimensionVector(idim)), DistributionMapping(dm_sub), 1,
@@ -407,8 +220,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
             int orig_index = index_map[mfi.index()];
             // amrex::Print() << " INDEX        " << orig_index << " TO " << mfi.index() << std::endl;
-            rhs_sub[0].setFab(mfi, FArrayBox(rhs[0][orig_index], amrex::make_alias, 0, 1));
-            phi_sub[0].setFab(mfi, FArrayBox(phi[0][orig_index], amrex::make_alias, 0, 1));
+            rhs_sub[0].setFab(mfi, FArrayBox(rhs_lev[orig_index], amrex::make_alias, 0, 1));
+            phi_sub[0].setFab(mfi, FArrayBox(phi_lev[orig_index], amrex::make_alias, 0, 1));
             fluxes_sub[0][0].setFab(mfi,FArrayBox(fluxes[0][0][orig_index], amrex::make_alias, 0, 1));
             fluxes_sub[0][1].setFab(mfi,FArrayBox(fluxes[0][1][orig_index], amrex::make_alias, 0, 1));
             fluxes_sub[0][2].setFab(mfi,FArrayBox(fluxes[0][2][orig_index], amrex::make_alias, 0, 1));
@@ -432,9 +245,172 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                 ay_sub.setFab(mfi, FArrayBox((*ay[lev])[orig_index], amrex::make_alias, 0, 1));
                 az_sub.setFab(mfi, FArrayBox((*az[lev])[orig_index], amrex::make_alias, 0, 1));
                 znd_sub.setFab(mfi, FArrayBox((*z_phys_nd[lev])[orig_index], amrex::make_alias, 0, 1));
-                 dJ_sub.setFab(mfi, FArrayBox((*detJ_cc[lev])[orig_index], amrex::make_alias, 0, 1));
+                dJ_sub.setFab(mfi, FArrayBox((*detJ_cc[lev])[orig_index], amrex::make_alias, 0, 1));
+            }
+        }
+
+       // ****************************************************************************
+       // Compute divergence which will form RHS
+       // Note that we replace "rho0w" with the contravariant momentum, Omega
+       // ****************************************************************************
+
+       compute_divergence(lev, rhs_sub[0], rho0_u_const, geom_tmp[0]);
+
+        Real rhsnorm;
+
+        // Max norm over the entire MultiFab
+        rhsnorm = rhs_lev.norm0();
+
+        Real sum = volWgtSumMF(lev,rhs_lev,0,false);
+
+        if (mg_verbose > 0) {
+            Print() << "Max/L2 norm of divergence before solve in subdomain " << isub << " at level " << lev << " : " << rhsnorm << " " <<
+                        rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
+        }
+
+        if (lev == 0 && solverChoice.use_real_bcs)
+        {
+            // We always use VariableDz if use_real_bcs is true
+            AMREX_ALWAYS_ASSERT(solverChoice.mesh_type == MeshType::VariableDz);
+
+            // Note that we always impose the projections one level at a time so this will always be a vector of length 1
+            Array<MultiFab*, AMREX_SPACEDIM> rho0_u_vec =
+               {&mom_mf[IntVars::xmom], &mom_mf[IntVars::ymom], &mom_mf[IntVars::zmom]};
+            Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[lev].get(), ay[lev].get(), az[lev].get()};
+            //
+            // Modify ax,ay,ax to include the map factors as used in the divergence calculation
+            // We do this here so that it is seen in the call to enforceInOutSolvability
+            //
+            for (MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
+            {
+                Box xbx = mfi.nodaltilebox(0);
+                Box ybx = mfi.nodaltilebox(1);
+                Box zbx = mfi.nodaltilebox(2);
+                const Array4<Real      >& ax_ar = ax[lev]->array(mfi);
+                const Array4<Real      >& ay_ar = ay[lev]->array(mfi);
+                const Array4<Real      >& az_ar = az[lev]->array(mfi);
+                const Array4<Real const>& mf_uy = mapfac[lev][MapFacType::u_y]->const_array(mfi);
+                const Array4<Real const>& mf_vx = mapfac[lev][MapFacType::v_x]->const_array(mfi);
+                const Array4<Real const>& mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+                const Array4<Real const>& mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+                ParallelFor(xbx,ybx,zbx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    ax_ar(i,j,k) /= mf_uy(i,j,0);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    ay_ar(i,j,k) /= mf_vx(i,j,0);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    az_ar(i,j,k) /= (mf_mx(i,j,0)*mf_my(i,j,0));
+                });
+            } // mfi
+
+            if (mg_verbose > 0) {
+                Print() << "Calling enforceInOutSolvability" << std::endl;
+            }
+            enforceInOutSolvability(lev, rho0_u_vec, area_vec, geom[lev]);
+
+            //
+            // Return ax,ay,ax to their original definition
+            //
+            for (MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
+            {
+                Box xbx = mfi.nodaltilebox(0);
+                Box ybx = mfi.nodaltilebox(1);
+                Box zbx = mfi.nodaltilebox(2);
+                const Array4<Real      >& ax_ar = ax[lev]->array(mfi);
+                const Array4<Real      >& ay_ar = ay[lev]->array(mfi);
+                const Array4<Real      >& az_ar = az[lev]->array(mfi);
+                const Array4<Real const>& mf_uy = mapfac[lev][MapFacType::u_y]->const_array(mfi);
+                const Array4<Real const>& mf_vx = mapfac[lev][MapFacType::v_x]->const_array(mfi);
+                const Array4<Real const>& mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+                const Array4<Real const>& mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+                ParallelFor(xbx,ybx,zbx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    ax_ar(i,j,k) *= mf_uy(i,j,0);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    ay_ar(i,j,k) *= mf_vx(i,j,0);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    az_ar(i,j,k) *= (mf_mx(i,j,0)*mf_my(i,j,0));
+                });
+            } // mfi
+
+            compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
+
+            // Re-define max norm over the entire MultiFab
+            rhsnorm = rhs_lev.norm0();
+
+            if (mg_verbose > 0)
+            {
+                sum = volWgtSumMF(lev,rhs_lev,0,false);
+                Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " <<
+                            rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
+            }
+        } // lev 0 && use_real_bcs
+
+        // *******************************************************************************************
+        // Enforce solvability if the problem is singular (i.e all sides Neumann or periodic)
+        // Note that solves at lev > 0 are always singular because we impose Neumann bc's on all sides
+        // *******************************************************************************************
+        bool is_singular = true;
+        if (lev == 0) {
+            if ( (domain_bc_type[0] == "Outflow" || domain_bc_type[0] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
+            if ( (domain_bc_type[1] == "Outflow" || domain_bc_type[1] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
+            if ( (domain_bc_type[3] == "Outflow" || domain_bc_type[3] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
+            if ( (domain_bc_type[4] == "Outflow" || domain_bc_type[4] == "Open") && !solverChoice.use_real_bcs ) is_singular = false;
+            if ( (domain_bc_type[5] == "Outflow" || domain_bc_type[5] == "Open")                               ) is_singular = false;
+        } else {
+            Box my_region(subdomains[lev][isub].minimalBox());
+            if ( (domain_bc_type[5] == "Outflow" || domain_bc_type[5] == "Open") && (my_region.bigEnd(2) == domain.bigEnd(2)) ) is_singular = false;
+        }
+
+        if (is_singular)
+        {
+            Real sum = 0.;
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
+            {
+                sum = volWgtSumMF(lev,rhs_sub[0],0,false);
+                Real vol = dJ_sub.sum() / (dxInv[0] * dxInv[1] * dxInv[2]);
+                sum /= vol;
+            }
+            ParallelDescriptor::ReduceRealSum(sum);
+
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
+            {
+                rhs_sub[0][mfi.index()].template minus<RunOn::Device>(sum);
+            }
+            if (mg_verbose > 0) {
+                amrex::Print() << " Subtracting " << sum << " from rhs in subdomain " << isub << std::endl;
             }
 
+            sum = volWgtSumMF(lev,rhs_sub[0],0,false);
+
+            Print() << "Sum after subtraction " << sum << " in subdomain " << isub << std::endl;
+
+        } // if is_singular
+
+        rhsnorm = rhs_sub[0].norm0();
+
+        // ****************************************************************************
+        // No need to build the solver if RHS == 0
+        // ****************************************************************************
+        if (rhsnorm <= solverChoice.poisson_abstol) return;
+
+        Real start_step = static_cast<Real>(ParallelDescriptor::second());
+
+        if (mg_verbose > 0) {
+            amrex::Print() << " Solving in subdomain " << isub << " of " << subdomains[lev].size() << " bins at level " << lev << std::endl;
+        }
+
+        if (solverChoice.mesh_type == MeshType::VariableDz) {
             //
             // Modify ax,ay,ax to include the map factors as used in the divergence calculation
             // We do this here to set the coefficients used in the stencil -- the extra factor
@@ -535,7 +511,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             if (!boxes_make_rectangle) {
                 amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
             } else {
-                solve_with_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0], ax_sub, ay_sub, dJ_sub, znd_sub);
+                solve_with_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0], ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
             }
 #else
             amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT preconditioner for GMRES");
@@ -577,15 +553,14 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
         } // not EB
 
+        // ****************************************************************************
+        // Print time in solve
+        // ****************************************************************************
+        Real end_step = static_cast<Real>(ParallelDescriptor::second());
+        if (mg_verbose > 0) {
+            amrex::Print() << "Time in solve " << end_step - start_step << std::endl;
+        }
     } // loop over subdomains (i)
-
-    // ****************************************************************************
-    // Print time in solve
-    // ****************************************************************************
-    Real end_step = static_cast<Real>(ParallelDescriptor::second());
-    if (mg_verbose > 0) {
-        amrex::Print() << "Time in solve " << end_step - start_step << std::endl;
-    }
 
     // ****************************************************************************
     // Subtract dt grad(phi) from the momenta (rho0u, rho0v, Omega)
@@ -618,7 +593,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     {
         compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
 
-        sum = volWgtSumMF(lev,rhs_lev,0,false);
+        Real sum = volWgtSumMF(lev,rhs_lev,0,false);
 
         if (mg_verbose > 0) {
             Print() << "Max/L2 norm of divergence after  solve at level " << lev << " : " << rhs_lev.norm0() << " " <<
@@ -681,5 +656,5 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     // ****************************************************************************
     // Update pressure variable with phi -- note that phi is dt * change in pressure
     // ****************************************************************************
-    MultiFab::Saxpy(pp_inc[lev], 1.0/l_dt, phi[0],0,0,1,1);
+    MultiFab::Saxpy(pp_inc[lev], 1.0/l_dt, phi_lev,0,0,1,1);
 }

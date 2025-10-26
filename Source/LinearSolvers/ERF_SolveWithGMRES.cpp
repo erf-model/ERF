@@ -11,7 +11,7 @@ using namespace amrex;
  */
 void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiFab& phi,
                             Array<MultiFab,AMREX_SPACEDIM>& fluxes,
-                            MultiFab& ax_sub, MultiFab& ay_sub,
+                            MultiFab& ax_sub, MultiFab& ay_sub, MultiFab& az_sub,
                             MultiFab& dJ_sub, MultiFab& znd_sub)
 {
 #ifdef ERF_USE_FFT
@@ -53,7 +53,7 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
     amrex::GMRES<MultiFab, TerrainPoisson> gmsolver;
 
     TerrainPoisson tp(my_geom, rhs.boxArray(), rhs.DistributionMap(), domain_bc_type,
-                      stretched_dz_d[lev], ax_sub, ay_sub, dJ_sub, &znd_sub,
+                      stretched_dz_d[lev], ax_sub, ay_sub, az_sub, dJ_sub, &znd_sub,
                       solverChoice.use_real_bcs);
 
     gmsolver.define(tp);
@@ -87,7 +87,7 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
         });
     } // mfi
 #else
-    amrex::ignore_unused(lev, rhs, phi, fluxes, ax_sub, ay_sub, znd_sub);
+    amrex::ignore_unused(lev, rhs, phi, fluxes, ax_sub, ay_sub, az_sub, znd_sub);
 #endif
 
     // ****************************************************************************

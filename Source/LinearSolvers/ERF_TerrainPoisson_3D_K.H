@@ -159,6 +159,7 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
                         amrex::Array4<T const> const& x,
                         amrex::Array4<T const> const& ax,
                         amrex::Array4<T const> const& ay,
+                        amrex::Array4<T const> const& az,
                         amrex::Array4<T const> const& dJ,
                         amrex::Array4<T const> const& zp,
                         T dxinv, T dyinv, T dzinv) noexcept
@@ -355,7 +356,7 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
 
     y(i,j,k) =  (ax(i+1,j,k)*px_hi - ax(i,j,k)*px_lo) * dxinv
                +(ay(i,j+1,k)*py_hi - ay(i,j,k)*py_lo) * dyinv
-               +(            pz_hi -           pz_lo) * dzinv;
+               +(az(i,j,k+1)*pz_hi - az(i,j,k)*pz_lo) * dzinv;
     y(i,j,k) /=  dJ(i,j,k);
 }
 #endif
