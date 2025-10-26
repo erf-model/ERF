@@ -10,7 +10,7 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
                                 Array<std::string,2*AMREX_SPACEDIM>& domain_bcs_type,
                                 Gpu::DeviceVector<Real>& stretched_dz_lev_d,
                                 const MultiFab& ax, const MultiFab& ay,
-                                const MultiFab& dJ,
+                                const MultiFab& az, const MultiFab& dJ,
                                 MultiFab const* z_phys_nd,
                                 bool use_real_bcs)
     : m_geom(geom),
@@ -20,6 +20,7 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, BoxArray const& ba,
       m_stretched_dz_d(stretched_dz_lev_d),
       m_ax(ax),
       m_ay(ay),
+      m_az(az),
       m_dJ(dJ),
       m_zphys(z_phys_nd)
 {
@@ -47,6 +48,7 @@ void TerrainPoisson::apply (MultiFab& lhs, MultiFab const& rhs)
     auto const& zpa = m_zphys->const_arrays();
     auto const& axa = m_ax.const_arrays();
     auto const& aya = m_ay.const_arrays();
+    auto const& aza = m_az.const_arrays();
     auto const& dJa = m_dJ.const_arrays();
 
     apply_bcs(xx);
@@ -54,7 +56,7 @@ void TerrainPoisson::apply (MultiFab& lhs, MultiFab const& rhs)
     auto const& xc = xx.const_arrays();
     ParallelFor(rhs, [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
     {
-        terrpoisson_adotx(i, j, k, y[b], xc[b], axa[b], aya[b], dJa[b], zpa[b], dxinv[0], dxinv[1], dxinv[2]);
+        terrpoisson_adotx(i, j, k, y[b], xc[b], axa[b], aya[b], aza[b], dJa[b], zpa[b], dxinv[0], dxinv[1], dxinv[2]);
     });
 }
 
