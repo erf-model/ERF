@@ -123,11 +123,11 @@ IsSaturated(int i, int j, int k,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-ComputeMoistN2(int i, int j, int k,
-               amrex::Real dzInv,
-               amrex::Real const_grav,
-               const amrex::Array4<const amrex::Real>& cell_data,
-               const MoistureComponentIndices& moisture_indices)
+ComputeN2(int i, int j, int k,
+          amrex::Real dzInv,
+          amrex::Real const_grav,
+          const amrex::Array4<const amrex::Real>& cell_data,
+          const MoistureComponentIndices& moisture_indices)
 {
     const int rho_comp       = Rho_comp;
     const int rhoTheta_comp  = RhoTheta_comp;

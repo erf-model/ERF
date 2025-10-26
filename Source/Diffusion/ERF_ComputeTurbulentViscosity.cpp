@@ -61,7 +61,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         // Define variables required inside device lambdas (scalars only)
         Real l_abs_g = const_grav;
         Real l_Ri_crit = turbChoice.Ri_crit;
-        bool l_use_moist_Ri = turbChoice.use_moist_Ri_correction;
+        bool l_use_Ri_corr = turbChoice.use_Ri_correction;
         bool l_has_xvel = (xvel != nullptr);
         bool l_has_yvel = (yvel != nullptr);
         bool l_has_moisture = (moisture_indices.qv >= 0);
@@ -133,12 +133,11 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
 
                 Real stability_factor = 1.0;
 
-                if (l_use_moist_Ri && l_has_moisture && l_has_xvel && l_has_yvel) {
-                    Real N2_moist = ComputeMoistN2(i, j, k, dzInv, l_abs_g,
-                                                   cell_data, moisture_indices);
+                if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
+                    Real N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
                     Real S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
-                    Real Ri_moist = ComputeRichardson(N2_moist, S2_vert);
-                    stability_factor = StabilityFunction(Ri_moist, l_Ri_crit);
+                    Real Ri = ComputeRichardson(N2, S2_vert);
+                    stability_factor = StabilityFunction(Ri, l_Ri_crit);
                 }
 
                 if (isotropic) {
