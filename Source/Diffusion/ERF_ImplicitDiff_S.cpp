@@ -5,13 +5,14 @@
 using namespace amrex;
 
 /**
- * Function for computing the scalar RHS for diffusion operator without terrain.
+ * Function for computing the implicit contribution to the vertical diffusion
+ * of theta, with a vertically stretched grid over flat terrain.
  *
  * @param[in   ] bx cell-centered box to loop over
  * @param[in   ] domain box of the whole domain
  * @param[in   ] dt time step
  * @param[in   ] bc_neumann_vals values of derivatives if bc_type == Neumann
- * @param[inout] cell_data conserved cell center vars
+ * @param[inout] cell_data conserved cell-centered rho, rho theta
  * @param[in   ] stretched_dz_d array over z of dz[k]
  * @param[inout] hfx_z heat flux in z-dir
  * @param[in   ] mu_turb turbulent viscosity
@@ -70,9 +71,6 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
 
     int bc_comp = qty_index;
 
-    Real rhoAlpha_lo;
-    Real rhoAlpha_hi;
-
     auto dz_ptr = stretched_dz_d.data();
 
 //  bool ext_dir_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
@@ -82,12 +80,19 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
     bool neumann_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::neumann);
     bool neumann_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::neumann);
 
+#ifdef AMREX_USE_GPU
+    ParallelFor(makeSlab(bx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
+    {
+#else
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {
-
+#endif
         // Build the coefficients and RHS
         for (int k(klo); k <= khi; k++)
         {
+            Real rhoAlpha_lo;
+            Real rhoAlpha_hi;
+
             if (l_consA && l_turb) {
                 rhoAlpha_lo = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
                             + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_scal_index])
@@ -181,7 +186,10 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
         for (int k(klo); k<=khi; ++k) {
             cell_data(i,j,k,n) = soln_a(i,j,k) * cell_data(i,j,k,Rho_comp);
         }
-
+#ifdef AMREX_USE_GPU
+    });
+#else
       } // i
     } // j
+#endif
 }

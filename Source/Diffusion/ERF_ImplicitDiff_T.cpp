@@ -5,13 +5,14 @@
 using namespace amrex;
 
 /**
- * Function for computing the scalar RHS for diffusion operator without terrain.
+ * Function for computing the implicit contribution to the vertical diffusion
+ * of theta, with terrain.
  *
  * @param[in   ] bx cell-centered box to loop over
  * @param[in   ] domain box of the whole domain
  * @param[in   ] dt time step
  * @param[in   ] bc_neumann_vals values of derivatives if bc_type == Neumann
- * @param[inout] cell_data conserved cell center vars
+ * @param[inout] cell_data conserved cell-centered rho, rho theta
  * @param[in   ] z_nd nodal array of z
  * @param[in   ] detJ Jacobian determinant
  * @param[in   ] cellSizeInv inverse cell size array
