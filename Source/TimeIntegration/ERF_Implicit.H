@@ -14,7 +14,7 @@
 
                 const bool l_use_stretched_dz = (solverChoice.mesh_type == MeshType::StretchedDz);
                 const bool l_use_SurfLayer = (m_SurfaceLayer != nullptr);
-                const BCRec* bc_ptr_d = domain_bcs_type_d.data();
+                const BCRec* bc_ptr_h = domain_bcs_type.data();
 
                 const bool l_use_turb       = solverChoice.turbChoice[level].use_kturb;
 
@@ -40,21 +40,21 @@
                                                cell_data,
                                                stretched_dz_d[level], hfx_z,
                                                mu_turb, solverChoice,
-                                               bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+                                               bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
                     } else if (l_use_terrain_fitted_coords) {
                         ImplicitDiffForState_T(bx, fine_geom.Domain(), level, slow_dt,
                                                l_bc_neumann_vals_d,
                                                cell_data,
                                                z_nd_arr, detJ_arr, dxInv, hfx_z,
                                                mu_turb, solverChoice,
-                                               bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+                                               bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
                     } else {
                         ImplicitDiffForState_N(bx, fine_geom.Domain(), level, slow_dt,
                                                l_bc_neumann_vals_d,
                                                cell_data,
                                                dxInv, hfx_z,
                                                mu_turb, solverChoice,
-                                               bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+                                               bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
                     }
                 } // mfi
 
