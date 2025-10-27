@@ -97,8 +97,8 @@ namespace LsmVar_SLM {
 namespace LsmFlux_SLM {
     enum {
       // 2D SurfaceLayer flux vars
+      t_flux = 0,
       q_flux,
-      t_flux,
       tau13,
       tau23,
       NumVars

@@ -68,10 +68,10 @@ SLM::Init (const int& /*lev*/,
     AMREX_ALWAYS_ASSERT(LsmDataMap.size() == m_lsm_data_size);
 
     LsmFluxMap.resize(m_lsm_flux_size);
-    LsmFluxMap = {LsmFlux_SLM::q_flux, LsmFlux_SLM::t_flux, LsmFlux_SLM::tau13, LsmFlux_SLM::tau23};
+    LsmFluxMap = {LsmFlux_SLM::t_flux, LsmFlux_SLM::q_flux, LsmFlux_SLM::tau13, LsmFlux_SLM::tau23};
 
     LsmFluxName.resize(m_lsm_flux_size);
-    LsmFluxName = {"tstar", "qstar", "tau13", "tau23"};
+    LsmFluxName = {"t_flux", "q_flux", "tau13", "tau23"};
 
     AMREX_ALWAYS_ASSERT(LsmFluxMap.size() == LsmFluxName.size());
     AMREX_ALWAYS_ASSERT(LsmFluxMap.size() == m_lsm_flux_size);
