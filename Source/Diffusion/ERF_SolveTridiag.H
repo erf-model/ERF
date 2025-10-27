@@ -25,10 +25,3 @@
         for (int k(khi-1); k>=klo; --k) {
             soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) * soln_a(i,j,k+1);
         }
-
-        //
-        // Transfer back to original array
-        //
-        for (int k(klo); k<=khi; ++k) {
-            cell_data(i,j,k,n) = soln_a(i,j,k) * cell_data(i,j,k,Rho_comp);
-        }

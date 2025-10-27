@@ -130,6 +130,9 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
         } // k
 
 #include "ERF_SolveTridiag.H"
+        for (int k(klo); k<=khi; ++k) {
+            cell_data(i,j,k,n) = soln_a(i,j,k) * cell_data(i,j,k,Rho_comp);
+        }
 
 #ifdef AMREX_USE_GPU
     });
