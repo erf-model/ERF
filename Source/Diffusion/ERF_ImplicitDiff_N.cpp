@@ -74,12 +74,15 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain,
 
     Real dz_inv        = cellSizeInv[2];
 
-//  bool ext_dir_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
-//                         bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim)
-//  bool ext_dir_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir ||
-//                         bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim)
-    bool neumann_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::neumann);
-    bool neumann_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::neumann);
+    bool foextrap_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap);
+    bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
+    bool neumann_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::neumann);
+    bool neumann_on_zhi  = (bc_ptr[bc_comp].hi(2) == ERFBCType::neumann);
+
+    AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zlo || neumann_on_zlo || use_SurfLayer,
+                              "Unexpected lower BC used with implicit vertical diffusion");
+    AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi || neumann_on_zhi,
+                              "Unexpected upper BC used with implicit vertical diffusion");
 
 #ifdef AMREX_USE_GPU
     ParallelFor(makeSlab(bx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
