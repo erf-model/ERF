@@ -40,6 +40,7 @@ struct DiffChoice {
             if(pp.query("alpha_C", alpha_C)) { AMREX_ALWAYS_ASSERT(alpha_C > 0.); }
             if(pp.query("dynamic_viscosity", dynamic_viscosity)) { AMREX_ALWAYS_ASSERT(dynamic_viscosity > 0.); }
             if(pp.query("rho0_trans", rho0_trans)) { AMREX_ALWAYS_ASSERT(rho0_trans > 0.); }
+            AMREX_ALWAYS_ASSERT( (alpha_T > 0.) || (alpha_C > 0.) || (dynamic_viscosity > 0.));
             pp.query("eb_diff_constraint_x", eb_diff_constraint_x);
             pp.query("eb_diff_constraint_y", eb_diff_constraint_y);
             pp.query("eb_diff_constraint_z", eb_diff_constraint_z);
