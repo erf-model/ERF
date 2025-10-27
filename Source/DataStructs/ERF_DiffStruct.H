@@ -36,10 +36,10 @@ struct DiffChoice {
         }
 
         if (molec_diff_type != MolecDiffType::None) {
-            pp.query("alpha_T", alpha_T);
-            pp.query("alpha_C", alpha_C);
-            pp.query("dynamic_viscosity", dynamic_viscosity);
-            pp.query("rho0_trans", rho0_trans);
+            if(pp.query("alpha_T", alpha_T)) { AMREX_ALWAYS_ASSERT(alpha_T > 0.); }
+            if(pp.query("alpha_C", alpha_C)) { AMREX_ALWAYS_ASSERT(alpha_C > 0.); }
+            if(pp.query("dynamic_viscosity", dynamic_viscosity)) { AMREX_ALWAYS_ASSERT(dynamic_viscosity > 0.); }
+            if(pp.query("rho0_trans", rho0_trans)) { AMREX_ALWAYS_ASSERT(rho0_trans > 0.); }
             pp.query("eb_diff_constraint_x", eb_diff_constraint_x);
             pp.query("eb_diff_constraint_y", eb_diff_constraint_y);
             pp.query("eb_diff_constraint_z", eb_diff_constraint_z);
@@ -81,7 +81,7 @@ struct DiffChoice {
     }
 
     // Molecular transport model
-    MolecDiffType molec_diff_type = MolecDiffType::Constant;
+    MolecDiffType molec_diff_type = MolecDiffType::None;
 
     // Diffusive/viscous coefficients [m2/s]
     amrex::Real alpha_T = 0.0;
