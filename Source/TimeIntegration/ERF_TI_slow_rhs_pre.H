@@ -173,6 +173,10 @@
             MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / dtau (for rho theta only)
         }
 
+#ifdef ERF_USE_SHOC
+        shoc_interface[level]->add_fast_tend(S_rhs);
+#endif
+
         // *****************************************************************************
         // Update for moving terrain
         // *****************************************************************************
