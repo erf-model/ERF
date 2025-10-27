@@ -30,9 +30,9 @@
                     const Array4<const Real>& z_nd_arr = z_phys_nd[level]->const_array(mfi);
                     const Array4<const Real>& detJ_arr = detJ_cc[level]->const_array(mfi);
 
-                    const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
+                    const Array4<const Real>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
-                    const Array4<Real>& hfx_z   = Hfx3->array(mfi);
+                    const Array4<const Real>& hfx_z   = Hfx3->const_array(mfi);
 
                     if (l_use_stretched_dz) {
                         ImplicitDiffForState_S(bx, fine_geom.Domain(), level, slow_dt,
