@@ -162,15 +162,37 @@
         if (solverChoice.vert_implicit_fac[nrk] && solverChoice.implicit_before_substep) {
             MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
                              S_data[IntVars::cons].nGrowVect());
-            MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old (for both)
-            MultiFab::Saxpy(scratch, slow_dt, S_rhs[IntVars::cons], 0, 0, 2, 0);                       // scratch := S_old + slow_dt*Src (for both)
+            MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old (for rho, rho theta)
+            MultiFab::Saxpy(scratch, slow_dt, S_rhs[IntVars::cons], 0, 0, 2, 0);                       // scratch := S_old + slow_dt*Src (for rho, rho theta)
             scratch.FillBoundary(geom[level].periodicity());
+
+            MultiFab scratch_xmom(S_data[IntVars::xmom].boxArray(),
+                                  S_data[IntVars::xmom].DistributionMap(), 1,
+                                  S_data[IntVars::xmom].nGrowVect());
+            MultiFab::Copy(scratch_xmom, S_old[IntVars::xmom], 0, 0, 1,  S_data[IntVars::xmom].nGrowVect()); // scratch := S_old
+            MultiFab::Saxpy(scratch_xmom, slow_dt, S_rhs[IntVars::xmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+            scratch_xmom.FillBoundary(geom[level].periodicity());
+
+            MultiFab scratch_ymom(S_data[IntVars::ymom].boxArray(),
+                                  S_data[IntVars::ymom].DistributionMap(), 1,
+                                  S_data[IntVars::ymom].nGrowVect());
+            MultiFab::Copy(scratch_ymom, S_old[IntVars::ymom], 0, 0, 1,  S_data[IntVars::ymom].nGrowVect()); // scratch := S_old
+            MultiFab::Saxpy(scratch_ymom, slow_dt, S_rhs[IntVars::ymom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+            scratch_ymom.FillBoundary(geom[level].periodicity());
 
 #include "ERF_Implicit.H"
 
             MultiFab::Saxpy(scratch, -1.0, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)        (for rho theta only)
             scratch.mult(1.0 / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
             MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / dtau (for rho theta only)
+
+            MultiFab::Saxpy(scratch_xmom, -1.0, S_old[IntVars::xmom], 1, 1, 1, 0); // scratch  := (S_new - S_old)        (for rho theta only)
+            scratch_xmom.mult(1.0 / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
+            MultiFab::Copy(S_rhs[IntVars::xmom], scratch_xmom, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / dtau (for rho theta only)
+
+            MultiFab::Saxpy(scratch_ymom, -1.0, S_old[IntVars::ymom], 1, 1, 1, 0); // scratch  := (S_new - S_old)        (for rho theta only)
+            scratch_ymom.mult(1.0 / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
+            MultiFab::Copy(S_rhs[IntVars::ymom], scratch_ymom, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / dtau (for rho theta only)
         }
 
         // *****************************************************************************
