@@ -52,7 +52,8 @@ void erf_make_tau_terms (int level, int nrk,
     const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||
                                    tc.rans_type == RANSType::kEqn);
 
-    const Real expfac = 1.0 - solverChoice.vert_implicit_fac[nrk];
+    const Real expfac = (solverChoice.implicit_divtau_terms) ?
+                        1.0 - solverChoice.vert_implicit_fac[nrk] : 1.0;
     const bool do_implicit = (expfac < 1);
 
     const Box& domain = geom.Domain();

@@ -12,6 +12,8 @@
 
             if (l_vert_implicit_fac > 0.) {
 
+                const bool l_do_implicit_mom = solverChoice.implicit_divtau_terms;
+
                 const bool l_use_stretched_dz = (solverChoice.mesh_type == MeshType::StretchedDz);
                 const bool l_use_SurfLayer = (m_SurfaceLayer != nullptr);
                 const BCRec* bc_ptr_h = domain_bcs_type.data();
@@ -26,8 +28,8 @@
                     Box bx  = mfi.tilebox();
 
                     const Array4<      Real> & cell_data  = scratch.array(mfi);
-                    const Array4<      Real> & rho_u      = scratch_xmom.array(mfi);
-                    const Array4<      Real> & rho_v      = scratch_ymom.array(mfi);
+                    const Array4<      Real> & rho_u      = (l_do_implicit_mom) ? scratch_xmom.array(mfi) : Array4<Real>{};
+                    const Array4<      Real> & rho_v      = (l_do_implicit_mom) ? scratch_ymom.array(mfi) : Array4<Real>{};
 
                     const Array4<const Real>& z_nd_arr = z_phys_nd[level]->const_array(mfi);
                     const Array4<const Real>& detJ_arr = detJ_cc[level]->const_array(mfi);
