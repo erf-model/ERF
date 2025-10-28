@@ -37,7 +37,6 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
 {
     BL_PROFILE_VAR("ImplicitDiffForState_S()",ImplicitDiffForState_S);
 
-    // this uses domain, level, start_comp, num_comp
 #include "ERF_SetupVertDiff.H"
 
     const int         n = RhoTheta_comp;
@@ -103,6 +102,8 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
 
             RHS_a(i,j,k)  = cell_data(i,j,k,n); // Note this is rho*theta, whereas solution will be theta
 
+            // This represents the cell-centered finite difference of two
+            // face-centered finite differences (hi and lo)
             coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv_lo;
             coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv_hi;
 
@@ -138,3 +139,161 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
     } // j
 #endif
 }
+
+/**
+ * Function for computing the implicit contribution to the vertical diffusion
+ * of momentum, with a vertically stretched grid over flat terrain.
+ *
+ * @param[in   ] bx cell-centered box to loop over
+ * @param[in   ] domain box of the whole domain
+ * @param[in   ] dt time step
+ * @param[in   ] cell_data conserved cell-centered rho, rho theta
+ * @param[inout] face_data conserved momentum
+ * @param[in   ] stretched_dz_d array over z of dz[k]
+ * @param[inout] hfx_z heat flux in z-dir
+ * @param[in   ] mu_turb turbulent viscosity
+ * @param[in   ] solverChoice container of parameters
+ * @param[in   ] bc_ptr container with boundary conditions
+ * @param[in   ] use_SurfLayer whether we have turned on subgrid diffusion
+ * @param[in   ] implicit_fac if 1 then fully implicit; if 0 then fully explicit
+ */
+template <int stagdir>
+void
+ImplicitDiffForMom_S (const Box& bx,
+                      const Box& domain,
+                      const int level,
+                      const Real dt,
+                      const Array4<const Real>& cell_data,
+                      const Array4<      Real>& face_data,
+                      const Gpu::DeviceVector<Real>& stretched_dz_d,
+                      const Array4<const Real>& mu_turb,
+                      const SolverChoice &solverChoice,
+                      const BCRec* bc_ptr,
+                      const bool use_SurfLayer,
+                      const Real implicit_fac)
+{
+    BL_PROFILE_VAR("ImplicitDiffForMom_S()",ImplicitDiffForMom_S);
+
+#include "ERF_SetupVertDiff.H"
+
+//  const int         n = RhoTheta_comp;
+//  const int qty_index = RhoTheta_comp;
+//  const int prim_index = qty_index - 1;
+//  const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
+
+    // offsets used to average to faces
+    constexpr int ioff = (stagdir == 0) ? 1 : 0;
+    constexpr int joff = (stagdir == 1) ? 1 : 0;
+
+    // Box bounds
+    const Box bxx = convert(bx, IntVect(ioff, joff, 0));
+    int ilo = bxx.smallEnd(0);
+    int ihi = bxx.bigEnd(0);
+    int jlo = bxx.smallEnd(1);
+    int jhi = bxx.bigEnd(1);
+    int klo = bxx.smallEnd(2);
+    int khi = bxx.bigEnd(2);
+
+    // Temporary FABs for tridiagonal solve (allocated on column)
+    //   A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
+    amrex::FArrayBox RHS_fab, soln_fab, coeffA_fab, coeffB_fab, inv_coeffB_fab, coeffC_fab;
+           RHS_fab.resize(bxx,1, amrex::The_Async_Arena());
+          soln_fab.resize(bxx,1, amrex::The_Async_Arena());
+        coeffA_fab.resize(bxx,1, amrex::The_Async_Arena());
+        coeffB_fab.resize(bxx,1, amrex::The_Async_Arena());
+    inv_coeffB_fab.resize(bxx,1, amrex::The_Async_Arena());
+        coeffC_fab.resize(bxx,1, amrex::The_Async_Arena());
+    auto const& RHS_a        =        RHS_fab.array();
+    auto const& soln_a       =       soln_fab.array();
+    auto const& coeffA_a     =     coeffA_fab.array(); // lower diagonal
+    auto const& coeffB_a     =     coeffB_fab.array(); // diagonal
+    auto const& inv_coeffB_a = inv_coeffB_fab.array();
+    auto const& coeffC_a     =     coeffC_fab.array(); // upper diagonal
+
+    int bc_comp = BCVars::xvel_bc + stagdir;
+
+    auto dz_ptr = stretched_dz_d.data();
+
+    bool ext_dir_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
+                            bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim);
+    bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
+
+    AMREX_ASSERT_WITH_MESSAGE(ext_dir_on_zlo || use_SurfLayer,
+                              "Unexpected lower BC used with implicit vertical diffusion");
+    AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi,
+                              "Unexpected upper BC used with implicit vertical diffusion");
+
+#ifdef AMREX_USE_GPU
+    ParallelFor(makeSlab(bxx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
+    {
+#else
+    for (int j(jlo); j<=jhi; ++j) {
+      for (int i(ilo); i<=ihi; ++i) {
+#endif
+        // Build the coefficients and RHS
+        for (int k(klo); k <= khi; k++)
+        {
+            // Note: either ioff or joff are 1
+            Real rhoface = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+#include "ERF_GetRhoAlphaAtFaces.H"
+
+            Real dz_inv = 1.0 / dz_ptr[k];
+            Real dz_inv_lo = (k == dom_lo.z) ? dz_inv
+                                             : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
+            Real dz_inv_hi = (k == dom_hi.z) ? dz_inv
+                                             : 2.0 / (dz_ptr[k] + dz_ptr[k+1]);
+
+            RHS_a(i,j,k) = face_data(i,j,k); // Note this is momentum but solution will be velocity
+
+            // This represents the face-centered finite difference of two
+            // edge-centered finite differences (hi and lo)
+            coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv_lo;
+            coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv_hi;
+
+            if (k == dom_lo.z) {
+                if (use_SurfLayer) {
+                    //RHS_a(i,j,klo) += implicit_fac * dt * dz_inv * hfx_z(i,j,0);
+                } else if (ext_dir_on_zlo) {
+                    //RHS_a(i,j,klo) += coeffA_a(i,j,klo) * bc_neumann_vals[2] / dz_inv_lo;
+                }
+
+                coeffA_a(i,j,klo) = 0.; // foextrap
+            }
+            if (k == dom_hi.z) {
+                coeffC_a(i,j,khi) = 0.; // foextrap
+            }
+
+            coeffB_a(i,j,k) = rhoface - coeffA_a(i,j,k) - coeffC_a(i,j,k);
+        } // k
+
+#include "ERF_SolveTridiag.H"
+        for (int k(klo); k<=khi; ++k) {
+            face_data(i,j,k) = soln_a(i,j,k);
+        }
+
+#ifdef AMREX_USE_GPU
+    });
+#else
+      } // i
+    } // j
+#endif
+}
+
+
+#define INSTANTIATE_IMPLICIT_DIFF_FOR_MOM(STAGDIR) \
+    template void ImplicitDiffForMom_S<STAGDIR> ( \
+        const Box&, \
+        const Box&, \
+        const int, \
+        const Real, \
+        const Array4<const Real>&, \
+        const Array4<      Real>&, \
+        const Gpu::DeviceVector<Real>&, \
+        const Array4<const Real>&, \
+        const SolverChoice&, \
+        const BCRec*, \
+        const bool, \
+        const Real);
+INSTANTIATE_IMPLICIT_DIFF_FOR_MOM(0)
+INSTANTIATE_IMPLICIT_DIFF_FOR_MOM(1)
+#undef INSTANTIATE_IMPLICIT_DIFF_FOR_MOM

@@ -26,6 +26,8 @@
                     Box bx  = mfi.tilebox();
 
                     const Array4<      Real> & cell_data  = scratch.array(mfi);
+                    const Array4<      Real> & rho_u      = scratch_xmom.array(mfi);
+                    const Array4<      Real> & rho_v      = scratch_ymom.array(mfi);
 
                     const Array4<const Real>& z_nd_arr = z_phys_nd[level]->const_array(mfi);
                     const Array4<const Real>& detJ_arr = detJ_cc[level]->const_array(mfi);
@@ -41,6 +43,19 @@
                                                stretched_dz_d[level], hfx_z,
                                                mu_turb, solverChoice,
                                                bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+
+                        ImplicitDiffForMom_S<0>(bx, fine_geom.Domain(), level, slow_dt,
+                                                cell_data, rho_u,
+                                                stretched_dz_d[level],
+                                                mu_turb, solverChoice,
+                                                bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+
+                        ImplicitDiffForMom_S<1>(bx, fine_geom.Domain(), level, slow_dt,
+                                                cell_data, rho_v,
+                                                stretched_dz_d[level],
+                                                mu_turb, solverChoice,
+                                                bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+
                     } else if (l_use_terrain_fitted_coords) {
                         ImplicitDiffForState_T(bx, fine_geom.Domain(), level, slow_dt,
                                                l_bc_neumann_vals_d,
