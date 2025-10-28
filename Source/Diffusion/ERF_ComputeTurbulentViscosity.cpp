@@ -64,7 +64,6 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         bool l_use_Ri_corr = turbChoice.use_Ri_correction;
         bool l_has_xvel = (xvel != nullptr);
         bool l_has_yvel = (yvel != nullptr);
-        bool l_has_moisture = (moisture_indices.qv >= 0);
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

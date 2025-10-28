@@ -104,7 +104,7 @@ ERF::compute_shoc_tendencies (int lev,
 
     shoc_interface[lev]->initialize_impl();
     shoc_interface[lev]->run_impl(dt_advance);
-    shoc_interface[lev]->finalize_impl();
+    shoc_interface[lev]->finalize_impl(dt_advance);
 
     Print() << "Done advancing SHOC\n";
 }
@@ -151,7 +151,7 @@ SHOCInterface::set_grids (int& level,
     int num_cols = 0;
     m_col_offsets.clear();
     m_col_offsets.resize(int(ba.size()));
-    for (amrex::MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
         const auto& vbx = mfi.validbox();
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
                                          (khi == vbx.bigEnd(2)),
@@ -162,7 +162,7 @@ SHOCInterface::set_grids (int& level,
         num_cols += nx * ny;
     }
 
-    // Resize variables that persist in memory
+    // Resize the Kokkos variables that persist in memory
     if (num_cols != m_num_cols) {
         sgs_buoy_flux = view_2d();
         tk            = view_2d();
@@ -170,6 +170,11 @@ SHOCInterface::set_grids (int& level,
         tk            = view_2d("eddy_diff_mom", num_cols, m_num_layers);
     }
     m_num_cols = num_cols;
+
+    // Allocate the tendency MultiFabs
+    c_tend.define(m_cons->boxArray(), m_cons->DistributionMap(), m_cons->nComp(), 0);
+    u_tend.define(m_xvel->boxArray(), m_xvel->DistributionMap(), m_xvel->nComp(), 0);
+    v_tend.define(m_yvel->boxArray(), m_yvel->DistributionMap(), m_yvel->nComp(), 0);
 
     // Allocate the buffer arrays in ERF
     alloc_buffers();
@@ -486,7 +491,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
 
 
 void
-SHOCInterface::kokkos_buffers_to_mf ()
+SHOCInterface::kokkos_buffers_to_mf (const Real dt)
 {
     //
     // Expose for device capture
@@ -509,24 +514,31 @@ SHOCInterface::kokkos_buffers_to_mf ()
 
     bool moist = (m_cons->nComp() > RhoQ1_comp);
     for (MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
-        const auto& vbx  = mfi.validbox();
-        const int nx     = vbx.length(0);
-        const int imin   = vbx.smallEnd(0);
-        const int jmin   = vbx.smallEnd(1);
-        const int kmax   = vbx.bigEnd(2);
-        const int offset = m_col_offsets[mfi.index()];
+        const auto& vbx_cc = mfi.validbox();
+        const auto& vbx_x  = convert(vbx_cc,IntVect(1,0,0));
+        const auto& vbx_y  = convert(vbx_cc,IntVect(0,1,0));
 
-        const Array4<Real>& cons_arr = m_cons->array(mfi);
+        const int nx        = vbx_cc.length(0);
+        const int imin      = vbx_cc.smallEnd(0);
+        const int jmin      = vbx_cc.smallEnd(1);
+        const int kmax      = vbx_cc.bigEnd(2);
+        const int offset    = m_col_offsets[mfi.index()];
 
-        const Array4<Real>& u_arr    = m_xvel->array(mfi);
-        const Array4<Real>& v_arr    = m_yvel->array(mfi);
+        int ilo = vbx_x.smallEnd(0);
+        int ihi = vbx_x.bigEnd(0);
+        int jlo = vbx_y.smallEnd(1);
+        int jhi = vbx_y.bigEnd(1);
 
-        int ilo = vbx.smallEnd(0);
-        int ihi = vbx.bigEnd(0);
-        int jlo = vbx.smallEnd(1);
-        int jhi = vbx.bigEnd(1);
+        const Array4<const Real>& cons_arr = m_cons->const_array(mfi);
+        const Array4<const Real>& u_arr    = m_xvel->const_array(mfi);
+        const Array4<const Real>& v_arr    = m_yvel->const_array(mfi);
 
-        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        const Array4<Real>& c_tend_arr     = c_tend.array(mfi);
+        const Array4<Real>& u_tend_arr     = u_tend.array(mfi);
+        const Array4<Real>& v_tend_arr     = v_tend.array(mfi);
+
+        ParallelFor(vbx_cc, vbx_x, vbx_y,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // NOTE: k gets permuted with ilay
             // map [i,j,k] 0-based to [icol, ilay] 0-based
@@ -539,40 +551,59 @@ SHOCInterface::kokkos_buffers_to_mf ()
             // Theta at CC (eamxx_common_physics_functions_impl.hpp L123)
             Real Th = thlm_d(icol,ilay)[0] / (1.0 - (1.0 / T_mid_d(icol,ilay)[0]) * (C::LatVap/C::Cpair) * qc_d(icol,ilay)[0] );
 
-            // Interface data structures
-            //=======================================================
-            if (moist) { cons_arr(i,j,k,RhoQ1_comp) = r * qv_d(icol,ilay)[0]; }
-             cons_arr(i,j,k,RhoTheta_comp) = r * Th;
+            // Populate the tendencies
+            c_tend_arr(i,j,k,RhoTheta_comp)  = ( Th                  - cons_arr(i,j,k,RhoTheta_comp)/r ) / dt;
+            c_tend_arr(i,j,k,RhoKE_comp)     = ( tke_d(icol,ilay)[0] - cons_arr(i,j,k,RhoKE_comp   )/r ) / dt;
+            if (moist) {
+                c_tend_arr(i,j,k,RhoQ1_comp) = ( qv_d(icol,ilay)[0] - cons_arr(i,j,k,RhoQ1_comp)/r ) / dt;
+                c_tend_arr(i,j,k,RhoQ2_comp) = ( qc_d(icol,ilay)[0] - cons_arr(i,j,k,RhoQ2_comp)/r ) / dt;
+            }
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Limit i to CC box where views are valid
+            int ii = std::max(std::min(i,ihi-1),ilo);
 
+            // NOTE: k gets permuted with ilay
+            // map [i,j,k] 0-based to [icol, ilay] 0-based
+            const int icol   = (j-jmin)*nx + (ii-imin) + offset;
+            const int ilay   = kmax - k;
 
-            // Input/Output data structures
-            //=======================================================
-            // NOTE: Averaging for U/V to account for the CC data
-            int icolim = (j  -jmin)*nx + (i-1-imin) + offset;
-            int icoljm = (j-1-jmin)*nx + (i  -imin) + offset;
+            Real uvel;
+            int icolim = (j-jmin)*nx + (ii-1-imin) + offset;
             if (i==ilo) {
-                int icolip = (j  -jmin)*nx + (i+1-imin) + offset;
-                u_arr(i,j,k) = 1.5 * horiz_wind_d(icol,0,ilay)[0] - 0.5 * horiz_wind_d(icolip,0,ilay)[0];
+                int icolip = (j-jmin)*nx + (ii+1-imin) + offset;
+                uvel = 1.5 * horiz_wind_d(icol,0,ilay)[0] - 0.5 * horiz_wind_d(icolip,0,ilay)[0];
+            } else if (i==ihi) {
+                uvel = 1.5 * horiz_wind_d(icol,0,ilay)[0] - 0.5 * horiz_wind_d(icolim,0,ilay)[0];
             } else {
-                u_arr(i,j,k) = 0.5 * (horiz_wind_d(icol,0,ilay)[0] + horiz_wind_d(icolim,0,ilay)[0]);
-                if (i==ihi) {
-                    u_arr(i+1,j,k) = 1.5 * horiz_wind_d(icol,0,ilay)[0] - 0.5 * horiz_wind_d(icolim,0,ilay)[0];
-                }
+                uvel = 0.5 * (horiz_wind_d(icol,0,ilay)[0] + horiz_wind_d(icolim,0,ilay)[0]);
             }
+            u_tend_arr(i,j,k) = ( uvel - u_arr(i,j,k) ) / dt;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Limit j to CC box where views are valid
+            int jj = std::max(std::min(j,jhi-1),jlo);
+
+            // NOTE: k gets permuted with ilay
+            // map [i,j,k] 0-based to [icol, ilay] 0-based
+            const int icol   = (jj-jmin)*nx + (i-imin) + offset;
+            const int ilay   = kmax - k;
+
+            Real vvel;
+            int icoljm = (jj-1-jmin)*nx + (i-imin) + offset;
             if (j==jlo) {
-                int icoljp = (j+1-jmin)*nx + (i  -imin) + offset;
-                v_arr(i,j,k) = 1.5 * horiz_wind_d(icol,1,ilay)[0] - 0.5 * horiz_wind_d(icoljp,1,ilay)[0];
+                int icoljp = (jj+1-jmin)*nx + (i-imin) + offset;
+                vvel = 1.5 * horiz_wind_d(icol,1,ilay)[0] - 0.5 * horiz_wind_d(icoljp,1,ilay)[0];
+            } else if (j==jhi) {
+                vvel = 1.5 * horiz_wind_d(icol,1,ilay)[0] - 0.5 * horiz_wind_d(icoljm,1,ilay)[0];
             } else {
-                v_arr(i,j,k) = 0.5 * (horiz_wind_d(icol,1,ilay)[0] + horiz_wind_d(icoljm,1,ilay)[0]);
-                if (j==jhi) {
-                    v_arr(i,j+1,k) = 1.5 * horiz_wind_d(icol,1,ilay)[0] - 0.5 * horiz_wind_d(icoljm,1,ilay)[0];
-                }
+                vvel = 0.5 * (horiz_wind_d(icol,1,ilay)[0] + horiz_wind_d(icoljm,1,ilay)[0]);
             }
-            cons_arr(i,j,k,RhoKE_comp) = std::max(r*tke_d(icol,ilay)[0],0.0);
-            if (moist) { cons_arr(i,j,k,RhoQ2_comp) = r * qc_d(icol,ilay)[0]; }
+            v_tend_arr(i,j,k) = ( vvel - v_arr(i,j,k) ) / dt;
         });
     }
-
 }
 
 
@@ -590,21 +621,21 @@ SHOCInterface::set_eddy_diffs ()
     // NOTE: Loop on grown box to fill ghost cells but limit
     //       to valid box where views are defined.
     for (MFIter mfi(*m_mu); mfi.isValid(); ++mfi) {
-        const auto& gbx  = mfi.growntilebox();
-        const auto& vbx  = mfi.validbox();
+        const auto& gbx_cc = mfi.growntilebox();
+        const auto& vbx_cc = mfi.validbox();
 
-        const int nx     = vbx.length(0);
-        const int imin   = vbx.smallEnd(0);
-        const int imax   = vbx.bigEnd(0);
-        const int jmin   = vbx.smallEnd(1);
-        const int jmax   = vbx.bigEnd(1);
-        const int kmin   = vbx.smallEnd(2);
-        const int kmax   = vbx.bigEnd(2);
+        const int nx     = vbx_cc.length(0);
+        const int imin   = vbx_cc.smallEnd(0);
+        const int imax   = vbx_cc.bigEnd(0);
+        const int jmin   = vbx_cc.smallEnd(1);
+        const int jmax   = vbx_cc.bigEnd(1);
+        const int kmin   = vbx_cc.smallEnd(2);
+        const int kmax   = vbx_cc.bigEnd(2);
         const int offset = m_col_offsets[mfi.index()];
 
-        const Array4<Real>& mu_arr   = m_mu->array(mfi);
+        const Array4<Real>& mu_arr = m_mu->array(mfi);
 
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(gbx_cc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Limiting
             int ii = std::min(std::max(i,imin),imax);
@@ -630,20 +661,20 @@ SHOCInterface::set_eddy_diffs ()
 
 
 void
-SHOCInterface::set_sfc_stresses ()
+SHOCInterface::set_diff_stresses ()
 {
     for (MFIter mfi(*m_hfx3); mfi.isValid(); ++mfi) {
-        const auto& bx_cc  = mfi.validbox();
-        const auto& bx_xz  = amrex::convert(bx_cc,IntVect(1,0,1));
-        const auto& bx_yz  = amrex::convert(bx_cc,IntVect(0,1,1));
+        const auto& vbx_cc  = mfi.validbox();
+        const auto& vbx_xz  = convert(vbx_cc,IntVect(1,0,1));
+        const auto& vbx_yz  = convert(vbx_cc,IntVect(0,1,1));
 
-        const Array4<Real>& hfx_arr   = m_hfx3->array(mfi);
-        const Array4<Real>& qfx_arr   = m_qfx3->array(mfi);
+        const Array4<Real>& hfx_arr = m_hfx3->array(mfi);
+        const Array4<Real>& qfx_arr = m_qfx3->array(mfi);
 
-        const Array4<Real>& t13_arr   = m_tau13->array(mfi);
-        const Array4<Real>& t23_arr   = m_tau23->array(mfi);
+        const Array4<Real>& t13_arr = m_tau13->array(mfi);
+        const Array4<Real>& t23_arr = m_tau23->array(mfi);
 
-        ParallelFor(bx_cc, bx_xz, bx_yz,
+        ParallelFor(vbx_cc, vbx_xz, vbx_yz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             hfx_arr(i,j,k) = 0.;
@@ -661,7 +692,65 @@ SHOCInterface::set_sfc_stresses ()
 }
 
 
-size_t SHOCInterface::requested_buffer_size_in_bytes() const
+void
+SHOCInterface::add_fast_tend (Vector<MultiFab>& S_rhs)
+{
+    for (MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
+        const auto& vbx_cc  = mfi.validbox();
+        const auto& vbx_x   = convert(vbx_cc,IntVect(1,0,0));
+        const auto& vbx_y   = convert(vbx_cc,IntVect(0,1,0));
+
+        const Array4<const Real>& c_arr = m_cons->const_array(mfi);
+
+        const Array4<Real>& cc_rhs_arr = S_rhs[IntVars::cons].array(mfi);
+        const Array4<Real>& ru_rhs_arr = S_rhs[IntVars::xmom].array(mfi);
+        const Array4<Real>& rv_rhs_arr = S_rhs[IntVars::ymom].array(mfi);
+
+        const Array4<const Real>& c_tend_arr = c_tend.const_array(mfi);
+        const Array4<const Real>& u_tend_arr = u_tend.const_array(mfi);
+        const Array4<const Real>& v_tend_arr = v_tend.const_array(mfi);
+
+        ParallelFor(vbx_cc, vbx_x, vbx_y,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            cc_rhs_arr(i,j,k,RhoTheta_comp) += c_arr(i,j,k,Rho_comp) * c_tend_arr(i,j,k,RhoTheta_comp);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            ru_rhs_arr(i,j,k) += c_arr(i,j,k,Rho_comp) * u_tend_arr(i,j,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            rv_rhs_arr(i,j,k) += c_arr(i,j,k,Rho_comp) * v_tend_arr(i,j,k);
+        });
+    }
+}
+
+
+void
+SHOCInterface::add_slow_tend (const MFIter& mfi,
+                              const Box& tbx,
+                              const Array4<Real>& cc_rhs_arr)
+{
+    bool moist = (m_cons->nComp() > RhoQ1_comp);
+
+    const Array4<const Real>& c_arr = m_cons->const_array(mfi);
+
+    const Array4<const Real>& c_tend_arr = c_tend.const_array(mfi);
+
+    ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        cc_rhs_arr(i,j,k,RhoKE_comp) += c_arr(i,j,k,Rho_comp) * c_tend_arr(i,j,k,RhoKE_comp);
+        if (moist) {
+            cc_rhs_arr(i,j,k,RhoQ1_comp) += c_arr(i,j,k,Rho_comp) * c_tend_arr(i,j,k,RhoQ1_comp);
+            cc_rhs_arr(i,j,k,RhoQ2_comp) += c_arr(i,j,k,Rho_comp) * c_tend_arr(i,j,k,RhoQ2_comp);
+        }
+    });
+}
+
+
+size_t
+SHOCInterface::requested_buffer_size_in_bytes() const
 {
     using TPF = ekat::TeamPolicyFactory<KT::ExeSpace>;
 
@@ -686,7 +775,8 @@ size_t SHOCInterface::requested_buffer_size_in_bytes() const
 }
 
 
-void SHOCInterface::init_buffers()
+void
+SHOCInterface::init_buffers()
 {
 
     // Buffer of contiguous memory
@@ -991,12 +1081,12 @@ SHOCInterface::run_impl (const Real dt)
 
 
 void
-SHOCInterface::finalize_impl ()
+SHOCInterface::finalize_impl (const Real dt)
 {
     // Do nothing (per SHOCMacrophysics::finalize_impl())
 
     // Fill the AMReX MFs from Kokkos Views
-    kokkos_buffers_to_mf();
+    kokkos_buffers_to_mf(dt);
 
     // Deallocate the buffer arrays
     dealloc_buffers();

@@ -94,7 +94,7 @@ public:
 
     // Finalize the implementation
     void
-    finalize_impl ();
+    finalize_impl (const Real dt);
 
     // Allocate buffer space
     void
@@ -110,7 +110,7 @@ public:
 
     // Fill AMReX MultiFabs from KOKKOS Views
     void
-    kokkos_buffers_to_mf ();
+    kokkos_buffers_to_mf (const Real dt);
 
     // The name of the subcomponent
     std::string
@@ -122,7 +122,17 @@ public:
 
     // Fill the surface stresses
     void
-    set_sfc_stresses ();
+    set_diff_stresses ();
+
+    // Add SHOC tendencies to the RHS of the fast vars
+    void
+    add_fast_tend (amrex::Vector<amrex::MultiFab>& S_rhs);
+
+    // Add SHOC tendencies to the RHS of the slow vars
+    void
+    add_slow_tend (const amrex::MFIter& mfi,
+                   const amrex::Box& tbx,
+                   const amrex::Array4<amrex::Real>& cc_rhs_arr);
 
 #ifndef KOKKOS_ENABLE_CUDA
   // Cuda requires methods enclosing __device__ lambda's to be public
@@ -599,6 +609,11 @@ protected:
 
     // Pointer to the terrain heights
     amrex::MultiFab* m_z_phys = nullptr;
+
+    // MultiFabs for tendencies
+    amrex::MultiFab c_tend;
+    amrex::MultiFab u_tend;
+    amrex::MultiFab v_tend;
 
     // Flag for first step
     bool m_first_step = true;
