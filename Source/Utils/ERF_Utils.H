@@ -83,6 +83,15 @@ ConvertForProjection (const amrex::MultiFab& den_div, const amrex::MultiFab& den
                       const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
+ * \brief Enforces solvablity by scaling outflow to match with inflow.
+ *
+ */
+void enforceInOutSolvability (int lev,
+                              amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& vels_vec,
+                              amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
+                              const amrex::Geometry& geom);
+
+/*
  * Compute boxes for looping over interior/exterior ghost cells
  * for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post
  */

@@ -90,7 +90,6 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
         int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
         auto* vterm_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::term_vel).data();
-        auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
         const ParticleReal *a_ptr(nullptr), *c_ptr(nullptr);
         if (idx_i >= 0) {

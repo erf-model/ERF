@@ -1,4 +1,4 @@
-set(erf_exe_name erf_couette_poiseuille)
+set(erf_exe_name erf_eb_squarecylinder)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}

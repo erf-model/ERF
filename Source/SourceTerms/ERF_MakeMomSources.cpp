@@ -684,10 +684,28 @@ void make_mom_sources (Real time,
         // *****************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
-            const Real drag_coefficient=10.0/dz;
+
+            // geometric properties
+            const Real* dx_arr = geom.CellSize();
+            const Real dx_x = dx_arr[0];
+            const Real dx_y = dx_arr[1];
+            const Real dx_z = dx_arr[2];
+
+            const Real alpha_m = solverChoice.if_Cd_momentum;
+            const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, 1./3.);
             const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
-            ParallelFor(tbx, tby, tbz,
-            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            const Real U_s = 1.0; // unit velocity scale
+
+            // MOST parameters
+            similarity_funs sfuns;
+            const Real ggg        = CONST_GRAV;
+            const Real kappa      = KAPPA;
+            const Real z0                 = solverChoice.if_z0;
+            const Real tflux_in           = solverChoice.if_surf_temp_flux;
+            const Real Olen_in            = solverChoice.if_Olen_in;
+            const bool l_use_most         = solverChoice.if_use_most;
+
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = u(i, j, k);
                 const Real uy = 0.25 * ( v(i, j  , k  ) + v(i-1, j  , k  )
@@ -696,32 +714,113 @@ void make_mom_sources (Real time,
                                        + w(i, j  , k+1) + w(i-1, j  , k+1) );
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+                const Real t_blank_above = 0.5 * (t_blank_arr(i, j, k+1) + t_blank_arr(i-1, j, k+1));
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
-                xmom_src_arr(i, j, k) -= t_blank * CdM * ux * windspeed;
-            },
-            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                const Real rho_xface = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+
+                if ((t_blank > 0 && (t_blank_above == 0.0)) && l_use_most) { // force to MOST value
+                    // calculate tangential velocity one cell above
+                    const Real ux2r = u(i, j, k+1) ;
+                    const Real uy2r = 0.25 * ( v(i, j  , k+1) + v(i-1, j  , k+1)
+                                       + v(i, j+1, k+1) + v(i-1, j+1, k+1) ) ;
+                    const Real h_windspeed2r = std::sqrt(ux2r * ux2r + uy2r * uy2r);
+
+                    // MOST
+                    const Real theta_xface = (0.5 * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i-1,j,k, RhoTheta_comp))) / rho_xface;
+                    const Real rho_xface_below    = 0.5 * ( cell_data(i,j,k-1,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp) );
+                    const Real theta_xface_below  = (0.5 * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i-1,j,k-1, RhoTheta_comp))) / rho_xface_below;
+                    const Real theta_surf         = theta_xface_below;
+
+                    Real psi_m = 0.0;
+                    Real psi_h = 0.0;
+                    Real ustar = h_windspeed2r * kappa / (std::log(1.5 * dx_z / z0) - psi_m); // calculated from bottom of cell. Maintains flexibility for different Vf values
+                    Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_xface - theta_surf) * ustar * kappa / (std::log(1.5 * dx_z / z0) - psi_h);
+                    Real Olen = (Olen_in != 1e-8)   ? Olen_in  : -ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny);
+                    Real zeta  = 1.5 * dx_z / Olen;
+
+                    // similarity functions
+                    psi_m          = sfuns.calc_psi_m(zeta);
+                    psi_h          = sfuns.calc_psi_h(zeta);
+                    ustar = h_windspeed2r * kappa / (std::log(1.5 * dx_z / z0) - psi_m);
+
+                    // prevent some unphysical math
+                    if (!(ustar > 0.0 && !std::isnan(ustar))) { ustar = 0.0; }
+                    if (!(ustar < 2.0 && !std::isnan(ustar))) { ustar = 2.0; }
+                    if (psi_m > std::log(0.5 * dx_z / z0)) { psi_m = std::log(0.5 * dx_z / z0); }
+
+                    // determine target velocity
+                    const Real uTarget  = ustar / kappa * (std::log(0.5 * dx_z / z0) - psi_m);
+                    Real uxTarget = uTarget * ux2r / (tiny + h_windspeed2r);
+                    const Real bc_forcing_x = -(uxTarget - ux); // BC forcing pushes nonrelative velocity toward target velocity
+                    xmom_src_arr(i, j, k) -= (1-t_blank) * rho_xface * CdM * U_s * bc_forcing_x; // if Vf low, force more strongly to MOST. If high, less forcing.
+                } else {
+                    xmom_src_arr(i, j, k) -= t_blank * rho_xface * CdM * ux * windspeed;
+                }
+            });
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 const Real ux = 0.25 * ( u(i  , j  , k  ) + u(i  , j-1, k  )
                                        + u(i+1, j  , k  ) + u(i+1, j-1, k  ) );
                 const Real uy = v(i, j, k);
                 const Real uz = 0.25 * ( w(i  , j  , k  ) + w(i  , j-1, k  )
                                        + w(i  , j  , k+1) + w(i  , j-1, k+1) );
-                const amrex::Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+                const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+                const Real t_blank_above = 0.5 * (t_blank_arr(i, j, k+1) + t_blank_arr(i, j-1, k+1));
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
-                ymom_src_arr(i, j, k) -= t_blank * CdM * uy * windspeed;
-            },
-            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                const Real rho_yface =  0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+
+                if ((t_blank > 0 && (t_blank_above == 0.0)) && l_use_most) { // force to MOST value
+                    // calculate tangential velocity one cell above
+                    const Real ux2r = 0.25 * ( u(i  , j  , k+1) + u(i  , j-1, k+1)
+                                       + u(i+1, j  , k+1) + u(i+1, j-1, k+1) );
+                    const Real uy2r = v(i, j, k+1) ;
+                    const Real h_windspeed2r = std::sqrt(ux2r * ux2r + uy2r * uy2r);
+
+                    // MOST
+                    const Real theta_yface = (0.5 * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i,j-1,k, RhoTheta_comp))) / rho_yface;
+                    const Real rho_yface_below    =  0.5 * ( cell_data(i,j,k-1,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
+                    const Real theta_yface_below  = (0.5 * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i,j-1,k-1, RhoTheta_comp))) / rho_yface_below;
+                    const Real theta_surf         = theta_yface_below;
+
+                    Real psi_m = 0.0;
+                    Real psi_h = 0.0;
+                    Real ustar = h_windspeed2r * kappa / (std::log(1.5 * dx_z / z0) - psi_m); // calculated from bottom of cell. Maintains flexibility for different Vf values
+                    Real tflux = (tflux_in != 1e-8) ? tflux_in : -(theta_yface - theta_surf) * ustar * kappa / (std::log(1.5 * dx_z / z0) - psi_h);
+                    Real Olen = (Olen_in != 1e-8)   ? Olen_in  : -ustar * ustar * ustar * theta_yface / (kappa * ggg * tflux + tiny);
+                    Real zeta  = 1.5 * dx_z / Olen;
+
+                    // similarity functions
+                    psi_m          = sfuns.calc_psi_m(zeta);
+                    psi_h          = sfuns.calc_psi_h(zeta);
+                    ustar = h_windspeed2r * kappa / (std::log(1.5 * dx_z / z0) - psi_m);
+
+                    // prevent some unphysical math
+                    if (!(ustar > 0.0 && !std::isnan(ustar))) { ustar = 0.0; }
+                    if (!(ustar < 2.0 && !std::isnan(ustar))) { ustar = 2.0; }
+                    if (psi_m > std::log(0.5 * dx_z / z0)) { psi_m = std::log(0.5 * dx_z / z0); }
+
+                    // determine target velocity
+                    const Real uTarget  = ustar / kappa * (std::log(0.5 * dx_z / z0) - psi_m);
+                    Real uyTarget = uTarget * uy2r / (tiny + h_windspeed2r);
+                    const Real bc_forcing_y = -(uyTarget - uy);  // BC forcing pushes nonrelative velocity toward target velocity
+                    ymom_src_arr(i, j, k) -= (1 - t_blank) * rho_yface * CdM * U_s * bc_forcing_y; // if Vf low, force more strongly to MOST. If high, less forcing.
+                } else {
+                    ymom_src_arr(i, j, k) -= t_blank * rho_yface * CdM * uy * windspeed;
+                }
+            });
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                const amrex::Real ux = 0.25 * ( u(i  , j  , k  ) + u(i+1, j  , k  )
-                                              + u(i  , j  , k-1) + u(i+1, j  , k-1) );
-                const amrex::Real uy = 0.25 * ( v(i  , j  , k  ) + v(i  , j+1, k  )
-                                              + v(i  , j  , k-1) + v(i  , j+1, k-1) );
-                const amrex::Real uz = w(i, j, k);
-                const amrex::Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+                const Real ux = 0.25 * ( u(i  , j  , k  ) + u(i+1, j  , k  )
+                                       + u(i  , j  , k-1) + u(i+1, j  , k-1) );
+                const Real uy = 0.25 * ( v(i  , j  , k  ) + v(i  , j+1, k  )
+                                       + v(i  , j  , k-1) + v(i  , j+1, k-1) );
+                const Real uz = w(i, j, k);
+                const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
-                zmom_src_arr(i, j, k) -= t_blank * CdM * uz * windspeed;
+                const Real rho_zface =  0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                zmom_src_arr(i, j, k) -= t_blank * rho_zface * CdM * uz * windspeed;
             });
         }
 
