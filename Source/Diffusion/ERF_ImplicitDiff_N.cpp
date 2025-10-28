@@ -38,13 +38,14 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain,
 {
     BL_PROFILE_VAR("ImplicitDiffForState_N()",ImplicitDiffForState_N);
 
-    // this uses domain, level, start_comp, num_comp
 #include "ERF_SetupVertDiff.H"
 
+    // define get_rhoAlpha()
     const int         n = RhoTheta_comp;
     const int qty_index = RhoTheta_comp;
     const int prim_index = qty_index - 1;
     const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
+#include "ERF_GetRhoAlpha.H"
 
     // Box bounds
     int ilo = bx.smallEnd(0);
@@ -94,7 +95,8 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain,
         // Build the coefficients and RHS
         for (int k(klo); k <= khi; k++)
         {
-#include "ERF_GetRhoAlpha.H"
+            Real rhoAlpha_lo, rhoAlpha_hi;
+            get_rhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi);
 
             RHS_a(i,j,k)  = cell_data(i,j,k,n); // Note this is rho*theta, whereas solution will be theta
 

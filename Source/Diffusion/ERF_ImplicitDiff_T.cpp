@@ -41,13 +41,14 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
 {
     BL_PROFILE_VAR("ImplicitDiffForState_T()",ImplicitDiffForState_T);
 
-    // this uses domain, level, start_comp, num_comp
 #include "ERF_SetupVertDiff.H"
 
+    // define get_rhoAlpha()
     const int         n = RhoTheta_comp;
     const int qty_index = RhoTheta_comp;
     const int prim_index = qty_index - 1;
     const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
+#include "ERF_GetRhoAlpha.H"
 
     // Box bounds
     int ilo = bx.smallEnd(0);
@@ -97,7 +98,8 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
         // Build the coefficients and RHS
         for (int k(klo); k <= khi; k++)
         {
-#include "ERF_GetRhoAlpha.H"
+            Real rhoAlpha_lo, rhoAlpha_hi;
+            get_rhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi);
 
             Real met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,k  ,cellSizeInv,z_nd);
             Real met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,k+1,cellSizeInv,z_nd);

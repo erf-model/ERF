@@ -1,9 +1,7 @@
+        auto get_rhoAlpha = [&](int i, int j, int k, Real& rhoAlpha_lo, Real& rhoAlpha_hi) {
             DiffChoice dc = solverChoice.diffChoice;
             Real mu_eff = (l_consA) ? 2.0 * dc.dynamic_viscosity / dc.rho0_trans
                                     : 2.0 * dc.dynamic_viscosity;
-
-            Real rhoAlpha_lo;
-            Real rhoAlpha_hi;
 
             if (l_consA && l_turb) {
                 rhoAlpha_lo = 0.25 * ( cell_data(i,j,k  ,Rho_comp       ) + cell_data(i-ioff,j-joff,k  ,Rho_comp       )
@@ -36,3 +34,4 @@
                 rhoAlpha_lo = mu_eff;
                 rhoAlpha_hi = mu_eff;
             }
+        };

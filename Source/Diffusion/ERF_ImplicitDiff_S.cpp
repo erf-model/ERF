@@ -39,10 +39,12 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
 
 #include "ERF_SetupVertDiff.H"
 
+    // define get_rhoAlpha()
     const int         n = RhoTheta_comp;
     const int qty_index = RhoTheta_comp;
     const int prim_index = qty_index - 1;
     const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
+#include "ERF_GetRhoAlpha.H"
 
     // Box bounds
     int ilo = bx.smallEnd(0);
@@ -92,7 +94,8 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
         // Build the coefficients and RHS
         for (int k(klo); k <= khi; k++)
         {
-#include "ERF_GetRhoAlpha.H"
+            Real rhoAlpha_lo, rhoAlpha_hi;
+            get_rhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi);
 
             Real dz_inv = 1.0 / dz_ptr[k];
             Real dz_inv_lo = (k == dom_lo.z) ? dz_inv
@@ -176,14 +179,12 @@ ImplicitDiffForMom_S (const Box& bx,
 
 #include "ERF_SetupVertDiff.H"
 
-//  const int         n = RhoTheta_comp;
-//  const int qty_index = RhoTheta_comp;
-//  const int prim_index = qty_index - 1;
-//  const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
-
     // offsets used to average to faces
     constexpr int ioff = (stagdir == 0) ? 1 : 0;
     constexpr int joff = (stagdir == 1) ? 1 : 0;
+
+    // define get_rhoAlpha()
+#include "ERF_GetRhoAlphaAtFaces.H"
 
     // Box bounds
     const Box bxx = convert(bx, IntVect(ioff, joff, 0));
@@ -235,7 +236,9 @@ ImplicitDiffForMom_S (const Box& bx,
         {
             // Note: either ioff or joff are 1
             Real rhoface = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
-#include "ERF_GetRhoAlphaAtFaces.H"
+
+            Real rhoAlpha_lo, rhoAlpha_hi;
+            get_rhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi);
 
             Real dz_inv = 1.0 / dz_ptr[k];
             Real dz_inv_lo = (k == dom_lo.z) ? dz_inv

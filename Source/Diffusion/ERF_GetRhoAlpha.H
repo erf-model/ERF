@@ -1,6 +1,4 @@
-            Real rhoAlpha_lo;
-            Real rhoAlpha_hi;
-
+        auto get_rhoAlpha = [&](int i, int j, int k, Real& rhoAlpha_lo, Real& rhoAlpha_hi) {
             if (l_consA && l_turb) {
                 rhoAlpha_lo = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
                             + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_scal_index])
@@ -28,3 +26,4 @@
                 rhoAlpha_lo = d_alpha_eff[prim_index];
                 rhoAlpha_hi = d_alpha_eff[prim_index];
             }
+        };
