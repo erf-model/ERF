@@ -93,6 +93,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
                         Vector<Vector<FArrayBox>>& bdy_data_yhi,
 #endif
+#ifdef ERF_USE_SHOC
+                        std::unique_ptr<SHOCInterface>& shoc_lev,
+#endif
                         YAFluxRegister* fr_as_crse,
                         YAFluxRegister* fr_as_fine)
 {
@@ -475,6 +478,10 @@ void erf_slow_rhs_post (int level, int finest_level,
                           new_stage_time, dt, stop_time_elapsed, width, set_width, domain,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
         }
+#endif
+
+#ifdef ERF_USE_SHOC
+        shoc_lev->add_slow_tend(mfi,tbx,cell_rhs);
 #endif
 
         // This updates just the "slow" conserved variables
