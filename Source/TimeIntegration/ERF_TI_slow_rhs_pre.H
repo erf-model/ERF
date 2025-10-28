@@ -159,7 +159,7 @@
 #endif
                          fr_as_crse, fr_as_fine);
 
-        if (solverChoice.vert_implicit_fac[nrk] && solverChoice.implicit_before_substep) {
+        if ((solverChoice.vert_implicit_fac[nrk] > 0.) && solverChoice.implicit_before_substep) {
             MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
                              S_data[IntVars::cons].nGrowVect());
             MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old (for both)
