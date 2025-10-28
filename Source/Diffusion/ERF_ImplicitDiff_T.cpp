@@ -1,6 +1,6 @@
 #include "ERF_Diffusion.H"
 #include "ERF_EddyViscosity.H"
-#include "ERF_PBLModels.H"
+#include "ERF_SolveTridiag.H"
 
 using namespace amrex;
 
@@ -131,7 +131,7 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
             coeffB_a(i,j,k) = detJ(i,j,k)*cell_data(i,j,k,Rho_comp) - coeffA_a(i,j,k) - coeffC_a(i,j,k);
         } // k
 
-#include "ERF_SolveTridiag.H"
+        SolveTridiag(i,j,klo,khi,soln_a,coeffA_a,coeffB_a,inv_coeffB_a,coeffC_a,RHS_a);
         for (int k(klo); k<=khi; ++k) {
             cell_data(i,j,k,n) = soln_a(i,j,k) * cell_data(i,j,k,Rho_comp);
         }
