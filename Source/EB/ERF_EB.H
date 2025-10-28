@@ -45,6 +45,8 @@ class eb_ {
 
     const std::unique_ptr<amrex::EBFArrayBoxFactory>& get_const_factory () const noexcept { return m_factory; }
 
+    void set_connection_flags ();
+
     void WriteEBSurface (const amrex::BoxArray & ba,
                         const amrex::DistributionMapping & dmap,
                         const amrex::Geometry & geom,
@@ -71,7 +73,7 @@ class eb_ {
     //! EB level constructed from building GeometryShop
     amrex::EB2::Level const* m_eb_level;
 
-    std::unique_ptr<amrex::EBFArrayBoxFactory> m_factory;
+    std::unique_ptr<amrex::EBFArrayBoxFactory> m_factory = nullptr;
 
     eb_aux_ m_u_factory;
     eb_aux_ m_v_factory;
@@ -91,6 +93,14 @@ class eb_ {
       amrex::EB2::Build(a_gshop, a_geom, req_lev, max_lev);
       const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
       m_eb_level = &(ebis.getLevel(a_geom));
+    }
+
+    // Wrapper to get non-const version of EBCellFlagFab using const_cast
+    inline amrex::FabArray<amrex::EBCellFlagFab>&
+    getNonConstEBCellFlags(const amrex::EBFArrayBoxFactory& ebfact)
+    {
+        const amrex::FabArray<amrex::EBCellFlagFab>& flags_const = ebfact.getMultiEBCellFlagFab();
+        return const_cast<amrex::FabArray<amrex::EBCellFlagFab>&>(flags_const);
     }
 
 };

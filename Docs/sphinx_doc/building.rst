@@ -318,7 +318,7 @@ For Perlmutter at NERSC, look at the general instructions for building ERF using
    module load PrgEnv-gnu
    module load cudatoolkit
 
-If you will be using NetCDF, we suggest you add the following four lines to you ``.bashrc_ext``  file.
+If you will be using NetCDF, we suggest you add the following four lines to your ``.bashrc_ext`` file.
 
 ::
 
@@ -333,6 +333,20 @@ Then build ERF as, for example (specify your own path to the AMReX submodule in 
    make -j 4 COMP=gnu USE_MPI=TRUE USE_OMP=FALSE USE_CUDA=TRUE AMREX_HOME=/path_to_here/ERF/Submodules/AMReX
 
 where ``/path_to_here`` is the path to your ERF repository.
+
+**Using the Provided CMake Build Scripts**
+
+If you prefer to use one of the provided CMake build scripts, first load the following modules:
+
+::
+
+   module load gcc/12.2.0 cmake cudatoolkit cray-mpich cray-hdf5-parallel cray-netcdf-hdf5parallel
+
+Note that the latest cmake module helps with finding the CUDA math libraries. The gcc version should be a gcc variant such as ``gcc/12.2.0`` that has been tested to reliably find the filesystem functionality used in some utilities. Also note that the ``cray-hdf5-parallel`` module matches with the parallel configuration requirements.
+
+Then build with one of the provided build scripts. We suggest using ``Build/cmake_cuda.sh`` for a basic CUDA build, or ``Build/cmake_with_netcdf.sh`` if you need NetCDF support.
+
+**Submitting Jobs**
 
 Finally, you can prepare your SLURM job script, using the following as a guide:
 

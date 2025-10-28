@@ -7,16 +7,27 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent = 400.0 400.0  10000.0
-amr.n_cell           = 4     4      100
+geometry.prob_extent = 4000.0 4000.0  2000.0
+amr.n_cell           = 4      4       200
     
 geometry.is_periodic = 1 1 0
-zlo.type = "SlipWall"
+
+# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
+zlo.type = "surface_layer"
+erf.surface_layer.flux_type = "bulk_coeff"
+erf.most.Cd  = 0.0011 # ustar
+erf.most.Ch  = 0.0011 # theta flux
+erf.most.Cq  = 0.0011 # qv    flux
+erf.most.surf_temp  = 291.044 # Result of the T=292.5K SST
+erf.most.surf_moist = 0.01181 # Result of 115 W/m^2 flux
+erf.most.z0     = 0.1
+erf.most.zref   = 10.0
+     
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt = 0.5
-erf.fixed_mri_dt_ratio = 4
+erf.fixed_dt = 1.0
+erf.fixed_mri_dt_ratio = 6
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -36,26 +47,34 @@ erf.plot_int_1      = 100        # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhotheta rhoQ1 rhoQ2 rhoadv_0 x_velocity y_velocity z_velocity pressure theta scalar temp KE Kmh Kmv Khh Khv pres_hse dens_hse pert_pres pert_dens qt qv qc qrain
 
 # SOLVER CHOICES
-erf.use_gravity          = true
-erf.use_coriolis         = false
+erf.use_gravity     = true
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_forcing = 7.0 -5.5 0.0
+erf.use_coriolis    = true
+erf.latitude        = 90.
+erf.rotational_time_period = 86164.0900027328
+
+erf.four_stream_radiation              = true
+erf.add_custom_w_subsidence            = true
+erf.custom_forcing_uses_primitive_vars = true
     
 erf.dycore_horiz_adv_type    = "Upwind_3rd"
 erf.dycore_vert_adv_type     = "Upwind_3rd"
-erf.dryscal_horiz_adv_type   = "Upwind_3rd"
-erf.dryscal_vert_adv_type    = "Upwind_3rd"
-erf.moistscal_horiz_adv_type = "Upwind_3rd"
-erf.moistscal_vert_adv_type  = "Upwind_3rd"       
+erf.dryscal_horiz_adv_type   = "Upwind_3rd_SL"
+erf.dryscal_vert_adv_type    = "Upwind_3rd_SL"
+erf.moistscal_horiz_adv_type = "Upwind_3rd_SL"
+erf.moistscal_vert_adv_type  = "Upwind_3rd_SL"       
 
 # PHYSICS OPTIONS
 erf.les_type        = "Smagorinsky2D"
-erf.Cs              = 0.1
+erf.Cs              = 0.17
 erf.pbl_type        = "SHOC"
 erf.moisture_model  = "Kessler"
 
-erf.molec_diff_type   = "ConstantAlpha"
-erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
-erf.alpha_T           = 0.0 # [m^2/s]
-erf.alpha_C           = 0.0
+erf.molec_diff_type   = "None"
+#erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
+#erf.alpha_T           = 0.0 # [m^2/s]
+#erf.alpha_C           = 0.0
 
 # INITIAL CONDITIONS
 erf.init_type = "input_sounding"

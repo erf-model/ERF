@@ -68,6 +68,12 @@ public:
     }
 
     void
+    Plot(const int& lev, const int& nstep)
+    {
+        m_lsm_model[lev]->Plot_Landfile(nstep);
+    }
+
+    void
     Update_Micro_Vars_Lev (const int& lev, amrex::MultiFab& cons_in)
     {
         m_lsm_model[lev]->Update_Micro_Vars(cons_in);
@@ -105,6 +111,9 @@ public:
 
     int
     Get_FluxIdx (const int& lev, std::string& varname) { return m_lsm_model[lev]->Lsm_FluxIndex(varname); }
+
+    std::unordered_map<std::string,std::string>&
+    Get_WRFInputNames() { return m_lsm_model[0]->Lsm_WRFInputNames(); }
 
     void
     Plot_Lsm_Data (amrex::Real time,
