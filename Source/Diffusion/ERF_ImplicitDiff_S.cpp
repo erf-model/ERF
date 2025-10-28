@@ -271,7 +271,8 @@ ImplicitDiffForMom_S (const Box& bx,
 
         SolveTridiag(i,j,klo,khi,soln_a,coeffA_a,coeffB_a,inv_coeffB_a,coeffC_a,RHS_a);
         for (int k(klo); k<=khi; ++k) {
-            face_data(i,j,k) = soln_a(i,j,k);
+            Real rhoface = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+            face_data(i,j,k) = rhoface * soln_a(i,j,k);
         }
 
 #ifdef AMREX_USE_GPU

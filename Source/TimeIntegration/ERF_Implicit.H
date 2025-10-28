@@ -46,18 +46,19 @@
                                                mu_turb, solverChoice,
                                                bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
 
-                        ImplicitDiffForMom_S<0>(bx, fine_geom.Domain(), level, slow_dt,
-                                                cell_data, rho_u,
-                                                stretched_dz_d[level],
-                                                mu_turb, solverChoice,
-                                                bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                        if (l_do_implicit_mom) {
+                            ImplicitDiffForMom_S<0>(bx, fine_geom.Domain(), level, slow_dt,
+                                                    cell_data, rho_u,
+                                                    stretched_dz_d[level],
+                                                    mu_turb, solverChoice,
+                                                    bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
 
-                        ImplicitDiffForMom_S<1>(bx, fine_geom.Domain(), level, slow_dt,
-                                                cell_data, rho_v,
-                                                stretched_dz_d[level],
-                                                mu_turb, solverChoice,
-                                                bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
-
+                            ImplicitDiffForMom_S<1>(bx, fine_geom.Domain(), level, slow_dt,
+                                                    cell_data, rho_v,
+                                                    stretched_dz_d[level],
+                                                    mu_turb, solverChoice,
+                                                    bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                        }
                     } else if (l_use_terrain_fitted_coords) {
                         ImplicitDiffForState_T(bx, fine_geom.Domain(), level, slow_dt,
                                                l_bc_neumann_vals_d,
