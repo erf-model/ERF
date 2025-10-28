@@ -12,7 +12,7 @@ using namespace amrex;
 void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiFab& phi,
                             Array<MultiFab,AMREX_SPACEDIM>& fluxes,
                             MultiFab& ax_sub, MultiFab& ay_sub, MultiFab& az_sub,
-                            MultiFab& dJ_sub, MultiFab& znd_sub)
+                            MultiFab& /*dJ_sub*/, MultiFab& znd_sub)
 {
 #ifdef ERF_USE_FFT
     BL_PROFILE("ERF::solve_with_gmres()");

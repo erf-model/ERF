@@ -115,7 +115,7 @@ void ERF::advance_dycore (int level,
     if (l_use_diff) {
 
         // Here we use the implicit flag from first RK stage
-        bool l_vert_implicit_fac = solverChoice.vert_implicit_fac[0];
+        bool l_vert_implicit_fac = (solverChoice.vert_implicit_fac[0] > 0.);
 
         const BCRec* bc_ptr_h = domain_bcs_type.data();
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();

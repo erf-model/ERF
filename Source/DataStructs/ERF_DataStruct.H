@@ -364,6 +364,7 @@ struct SolverChoice {
         // Note: this will be overwritten with -1 on levels that have substepping_type == Explicit
         pp.query("beta_s", beta_s);
 
+# ifndef ERF_USE_SHOC
         // This controls the time-centering of the vertical differences in the diffusive term for (rho theta) only
         int n_impfac = pp.countval("vert_implicit_fac");
         AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
@@ -380,6 +381,7 @@ struct SolverChoice {
         //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > 0.)
         // The default is false (i.e. that it happens after the acoustic substepping).
         pp.query("implicit_before_substep", implicit_before_substep);
+#endif
 
         // *******************************************************************************
         // Error check on deprecated input

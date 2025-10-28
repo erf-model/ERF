@@ -159,7 +159,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
-        if (solverChoice.vert_implicit_fac[nrk] && !solverChoice.implicit_before_substep &&
+        if ((solverChoice.vert_implicit_fac[nrk] > 0.) && !solverChoice.implicit_before_substep &&
             fast_step == n_sub-1)
         {
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);
