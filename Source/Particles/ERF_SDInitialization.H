@@ -15,16 +15,15 @@
 
 using MatVec = std::vector<std::unique_ptr<MaterialProperties>>;
 
+AMREX_ENUM(SDInitShape,
+    uniform,
+    bubble,
+    null
+);
+
 /*! \brief List of super-droplet initializations */
 namespace SupDropInit
 {
-    /*! Uniform distribution throughout domain */
-    const std::string init_uniform = "uniform";
-    /*! Uniform distribution inside a bubble */
-    const std::string init_bubble = "bubble";
-    /*! No particles are initialized; nucleation generates them */
-    const std::string init_null = "null";
-
     /*! Maximum number of vapour/condensate species */
     const int num_species_max = 10;
 
@@ -46,7 +45,7 @@ struct SDInitialization
 {
 
     /*! Initial distribution type */
-    std::string m_type = SupDropInit::init_uniform;
+    SDInitShape m_type = SDInitShape::uniform;
 
     /*!< Maximum multiplicity */
     amrex::Real m_max_multiplicity = 1000000;

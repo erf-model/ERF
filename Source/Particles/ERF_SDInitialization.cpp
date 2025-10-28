@@ -80,7 +80,7 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
 
     pp.query("multiplicity_type", m_mult_type);
 
-    if (m_type == SupDropInit::init_uniform) {
+    if (m_type == SDInitShape::uniform) {
 
         pp.queryAdd("particle_box_lo", m_init_particle_p1, AMREX_SPACEDIM);
         AMREX_ASSERT(m_init_particle_p1.size() == AMREX_SPACEDIM);
@@ -90,7 +90,7 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
 
         m_init_particle_box.setLo(m_init_particle_p1);
         m_init_particle_box.setHi(m_init_particle_p2);
-    } else if (m_type == SupDropInit::init_bubble){
+    } else if (m_type == SDInitShape::bubble){
 
         pp.queryAdd("particle_bubble_center", m_init_particle_p1, AMREX_SPACEDIM);
         AMREX_ASSERT(m_init_particle_p1.size() == AMREX_SPACEDIM);

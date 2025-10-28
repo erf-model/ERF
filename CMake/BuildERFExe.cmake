@@ -42,6 +42,7 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Particles/ERFPCUtils.cpp
                    ${SRC_DIR}/Particles/ERFTracers.cpp
                    ${SRC_DIR}/Particles/ERF_SDInitialization.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCAddParticles.cpp
                    ${SRC_DIR}/Particles/ERF_SuperDropletPCAdvection.cpp
                    ${SRC_DIR}/Particles/ERF_SuperDropletPCBoundaries.cpp
                    ${SRC_DIR}/Particles/ERF_SuperDropletPCCoalescence.cpp

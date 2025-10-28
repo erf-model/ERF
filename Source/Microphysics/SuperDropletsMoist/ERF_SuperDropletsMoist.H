@@ -102,12 +102,10 @@ static int a_accum_idx (const int a_ns, /*!< number of species */
 }
 
 /*! \brief List of super-droplet moisture model initializations */
-namespace SuperDropletsMoistInitializations
-{
-    /*! Create super-droplets based on given condensate mass density */
-    const std::string init_rhoc = "condensate_density";
-
-}
+AMREX_ENUM(SDMoistInit,
+    uniform,
+    condensate_density
+);
 
 AMREX_ENUM(SDMSimulationDim,
     one_d_z, two_d_xz, two_d_yz, three_d
@@ -392,7 +390,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         int m_diagnostics_iter; /*!< number of iterations between computing diagnostics */
 
         /*! initialization type */
-        std::string m_init_type;
+        SDMoistInit m_init_type;
 
         /*! name of model and its particle container */
         std::string m_name;

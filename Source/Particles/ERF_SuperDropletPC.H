@@ -105,7 +105,7 @@ class SuperDropletPC : public ERFPC
         virtual void InitializeParticles (const amrex::Real, const MFPtr& a_ptr) override;
 
         /*! \brief Initialize particles for a given set of initialization parameters */
-        void initializeParticles ( const MFPtr&, const SDInitialization& );
+        void addParticles ( const MFPtr&, const SDInitialization& );
 
         /*! \brief Set initial number of superdroplets per cell as a box with uniform density */
         void setNumSDBoxDistribution( amrex::iMultiFab&,
