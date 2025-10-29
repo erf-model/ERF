@@ -63,6 +63,7 @@ void SDInitProperties::setDefaults ( const amrex::Geometry& a_geom,
 }
 
 void SDInitProperties::readInputs ( const std::string& a_prefix,
+                                    const std::string& a_key,
                                     const amrex::Geometry& a_geom,
                                     const MatVec& a_species_mat,
                                     const MatVec& a_aerosol_mat )
@@ -72,7 +73,7 @@ void SDInitProperties::readInputs ( const std::string& a_prefix,
     using namespace amrex;
 
     amrex::ParmParse pp(a_prefix);
-    pp.query("initial_distribution_type", m_type);
+    pp.query(std::string(a_key+"distribution_type").c_str(), m_type);
     pp.query("maximum_multiplicity", m_max_multiplicity);
     pp.query("multiplicity_type", m_mult_type);
 
@@ -100,45 +101,45 @@ void SDInitProperties::readInputs ( const std::string& a_prefix,
 
     // Backward compatibility
     for (int i = 0; i < m_num_species; i++) {
-        pp.query("initial_condensate_distribution_type", m_species_init_type[i]);
-        pp.query("initial_condensate_mass_min", m_mass_species_min[i]);
-        pp.query("initial_condensate_mass_mean", m_mass_species_mean[i]);
-        pp.query("initial_condensate_min_radius", m_radius_species_min[i]);
-        pp.query("initial_condensate_max_radius", m_radius_species_max[i]);
+        pp.query(std::string(a_key+"condensate_distribution_type").c_str(), m_species_init_type[i]);
+        pp.query(std::string(a_key+"condensate_mass_min").c_str(), m_mass_species_min[i]);
+        pp.query(std::string(a_key+"condensate_mass_mean").c_str(), m_mass_species_mean[i]);
+        pp.query(std::string(a_key+"condensate_min_radius").c_str(), m_radius_species_min[i]);
+        pp.query(std::string(a_key+"condensate_max_radius").c_str(), m_radius_species_max[i]);
     }
     for (int i = 0; i < m_num_species; i++) {
         {
-            std::string key = "initial_species_distribution_type_"+getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_distribution_type_"+getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_species_init_type[i]);
         }
         {
-            std::string key = "initial_species_min_mass_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_min_mass_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_species_min[i]);
         }
         {
-            std::string key = "initial_species_mean_mass_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_mean_mass_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_species_mean[i]);
         }
         {
             m_mass_species_max[i] = 5 * m_mass_species_mean[i]; // default
-            std::string key = "initial_species_max_mass_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_max_mass_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_species_max[i]);
         }
         {
-            std::string key = "initial_species_min_radius_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_min_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_species_min[i]);
         }
         {
-            std::string key = "initial_species_max_radius_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_max_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_species_max[i]);
         }
         {
-            std::string key = "initial_species_mean_radius_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_mean_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_species_mean[i]);
         }
         {
-            std::string key_std = "initial_species_std_radius_" + getEnumNameString(a_species_mat[i]->m_name);
-            std::string key_gstd = "initial_species_geomstd_radius_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key_std = a_key+"species_std_radius_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key_gstd = a_key+"species_geomstd_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             if (pp.contains(key_std.c_str()) && pp.contains(key_gstd.c_str())) {
                 amrex::Abort("Cannot specify BOTH initial_species_std_radius and initial_species_geomstd_radius");
             }
@@ -153,37 +154,37 @@ void SDInitProperties::readInputs ( const std::string& a_prefix,
 
     for (int i = 0; i < m_num_aerosols; i++) {
         {
-            std::string key = "initial_aerosol_distribution_type_"+getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_distribution_type_"+getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_aerosol_init_type[i]);
         }
         {
-            std::string key = "initial_aerosol_min_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_min_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_aerosol_min[i]);
         }
         {
-            std::string key = "initial_aerosol_mean_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_mean_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_aerosol_mean[i]);
         }
         {
             m_mass_aerosol_max[i] = 5 * m_mass_aerosol_mean[i]; // default
-            std::string key = "initial_aerosol_max_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_max_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_aerosol_max[i]);
         }
         {
-            std::string key = "initial_aerosol_min_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_min_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_aerosol_min[i]);
         }
         {
-            std::string key = "initial_aerosol_max_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_max_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_aerosol_max[i]);
         }
         {
-            std::string key = "initial_aerosol_mean_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_mean_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_aerosol_mean[i]);
         }
         {
-            std::string key_std = "initial_aerosol_std_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
-            std::string key_gstd = "initial_aerosol_geomstd_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key_std = a_key+"aerosol_std_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key_gstd = a_key+"aerosol_geomstd_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             if (pp.contains(key_std.c_str()) && pp.contains(key_gstd.c_str())) {
                 amrex::Abort("Cannot specify BOTH initial_species_std_radius and initial_species_geomstd_radius");
             }
@@ -205,7 +206,7 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
 {
     BL_PROFILE("SDInitialization::readInputs");
 
-    SDInitProperties::readInputs( a_prefix, a_geom, a_species_mat, a_aerosol_mat);
+    SDInitProperties::readInputs( a_prefix, "initial_", a_geom, a_species_mat, a_aerosol_mat);
 
     amrex::ignore_unused(a_geom);
     using namespace amrex;
@@ -224,7 +225,7 @@ void SDInjection::readInputs ( const std::string& a_prefix,
 {
     BL_PROFILE("SDInjection::readInputs");
 
-    SDInitProperties::readInputs( a_prefix, a_geom, a_species_mat, a_aerosol_mat);
+    SDInitProperties::readInputs( a_prefix, "", a_geom, a_species_mat, a_aerosol_mat);
 
     amrex::ignore_unused(a_geom);
     using namespace amrex;

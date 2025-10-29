@@ -111,6 +111,7 @@ class SDInitProperties
 
         /*! read super-droplets initialization parameters */
         virtual void readInputs ( const std::string&,
+                                  const std::string&,
                                   const amrex::Geometry&,
                                   const MatVec&,
                                   const MatVec& );
@@ -286,8 +287,9 @@ class SDInjection : public SDInitProperties
             m_numdens_sd = m_sd_inj_rate * a_dt / volume;
         }
 
-        /*! read super-droplets initialization parameters */
+        /*! read super-droplets injection parameters */
         void readInputs ( const std::string&,
+                          const std::string&,
                           const amrex::Geometry&,
                           const MatVec&,
                           const MatVec& ) override
@@ -295,14 +297,14 @@ class SDInjection : public SDInitProperties
             amrex::Abort("SDInjection::readInputs(): Do not use this interface");
         }
 
-        /*! read super-droplets initialization parameters */
+        /*! read super-droplets injection parameters */
         void readInputs ( const std::string&,
                           const amrex::Geometry&,
                           const MatVec&,
                           const MatVec&,
                           const amrex::Real );
 
-        /*! print super-droplets initialization parameters to screen */
+        /*! print super-droplets injection parameters to screen */
         void printParameters ( const MatVec&, const MatVec& ) const override;
 
         /*! Compute number of super-droplets per grid cell */
@@ -343,9 +345,19 @@ class SDInitialization : public SDInitProperties
 
         /*! read super-droplets initialization parameters */
         void readInputs ( const std::string&,
+                          const std::string&,
                           const amrex::Geometry&,
                           const MatVec&,
-                          const MatVec& ) override;
+                          const MatVec& ) override
+        {
+            amrex::Abort("SDInjection::readInputs(): Do not use this interface");
+        }
+
+        /*! read super-droplets initialization parameters */
+        void readInputs ( const std::string&,
+                          const amrex::Geometry&,
+                          const MatVec&,
+                          const MatVec& );
 
         /*! print super-droplets initialization parameters to screen */
         void printParameters ( const MatVec&, const MatVec& ) const override;
