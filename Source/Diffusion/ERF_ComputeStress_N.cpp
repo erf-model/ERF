@@ -18,7 +18,9 @@ using namespace amrex;
  * @param[in,out] tau13 13 strain -> stress
  * @param[in,out] tau23 23 strain -> stress
  * @param[in] er_arr expansion rate
- * @param[in] tau33i contribution to stress from dw/dz
+ * @param[in,out] tau31i contribution to stress from du/dz
+ * @param[in,out] tau32i contribution to stress from dv/dz
+ * @param[in,out] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressConsVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -26,10 +28,13 @@ ComputeStressConsVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
                          Array4<Real>& tau12, Array4<Real>& tau13, Array4<Real>& tau23,
                          const Array4<const Real>& er_arr,
-                         Array4<Real>& tau33i,
-                         const Real expfac)
+                         Array4<Real>& tau31i,
+                         Array4<Real>& tau32i,
+                         Array4<Real>& tau33i)
 {
     Real OneThird   = (1./3.);
+
+    // NOTE: mu_eff includes factor of 2
 
     if (cell_data)
     // constant alpha (stored in mu_eff)
@@ -38,9 +43,9 @@ ComputeStressConsVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real rhoAlpha  = cell_data(i, j, k, Rho_comp) * mu_eff;
-            tau11(i,j,k) = -rhoAlpha * (        tau11(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau22(i,j,k) = -rhoAlpha * (        tau22(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau33(i,j,k) = -rhoAlpha * ( expfac*tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+            tau11(i,j,k) = -rhoAlpha * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
+            tau22(i,j,k) = -rhoAlpha * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
+            tau33(i,j,k) = -rhoAlpha * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
         });
 
         // Off-diagonal strains
@@ -67,9 +72,9 @@ ComputeStressConsVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         // Cell centered strains
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            tau11(i,j,k) = -mu_eff * (        tau11(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau22(i,j,k) = -mu_eff * (        tau22(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau33(i,j,k) = -mu_eff * ( expfac*tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+            tau11(i,j,k) = -mu_eff * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
+            tau22(i,j,k) = -mu_eff * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
+            tau33(i,j,k) = -mu_eff * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
         });
 
         // Off-diagonal strains
@@ -103,7 +108,9 @@ ComputeStressConsVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in,out] tau13 13 strain -> stress
  * @param[in,out] tau23 23 strain -> stress
  * @param[in] er_arr expansion rate
- * @param[in] tau33i contribution to stress from dw/dz
+ * @param[in,out] tau31i contribution to stress from du/dz
+ * @param[in,out] tau32i contribution to stress from dv/dz
+ * @param[in,out] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -112,10 +119,13 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
                         Array4<Real>& tau12, Array4<Real>& tau13, Array4<Real>& tau23,
                         const Array4<const Real>& er_arr,
-                        Array4<Real>& tau33i,
-                        const Real expfac)
+                        Array4<Real>& tau31i,
+                        Array4<Real>& tau32i,
+                        Array4<Real>& tau33i)
 {
     Real OneThird   = (1./3.);
+
+    // NOTE: mu_eff includes factor of 2
 
     if (cell_data)
     // constant alpha (stored in mu_eff)
@@ -126,9 +136,9 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real mu_11 = rhoAlpha + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_h);
             Real mu_22 = mu_11;
             Real mu_33 = rhoAlpha + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_v);
-            tau11(i,j,k) = -mu_11 * (        tau11(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau22(i,j,k) = -mu_22 * (        tau22(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau33(i,j,k) = -mu_33 * ( expfac*tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+            tau11(i,j,k) = -mu_11 * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
+            tau22(i,j,k) = -mu_22 * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
+            tau33(i,j,k) = -mu_33 * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
         });
 
         // Off-diagonal strains
@@ -166,9 +176,9 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real mu_11 = mu_eff + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_h);
             Real mu_22 = mu_11;
             Real mu_33 = mu_eff + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_v);
-            tau11(i,j,k) = -mu_11 * (        tau11(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau22(i,j,k) = -mu_22 * (        tau22(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau33(i,j,k) = -mu_33 * ( expfac*tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+            tau11(i,j,k) = -mu_11 * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
+            tau22(i,j,k) = -mu_22 * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
+            tau33(i,j,k) = -mu_33 * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
         });
 
         // Off-diagonal strains

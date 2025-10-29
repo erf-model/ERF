@@ -179,8 +179,7 @@ void ComputeStressConsVisc_N (amrex::Box bxcc,
                               const amrex::Array4<const amrex::Real>& er_arr,
                               amrex::Array4<amrex::Real>& tau31i,
                               amrex::Array4<amrex::Real>& tau32i,
-                              amrex::Array4<amrex::Real>& tau33i,
-                              const amrex::Real explicit_fac);
+                              amrex::Array4<amrex::Real>& tau33i);
 
 void ComputeStressConsVisc_S (amrex::Box bxcc,
                               amrex::Box tbxxy,
@@ -205,8 +204,7 @@ void ComputeStressConsVisc_S (amrex::Box bxcc,
                               const amrex::Array4<const amrex::Real>& mf_vy,
                               amrex::Array4<amrex::Real>& tau31i,
                               amrex::Array4<amrex::Real>& tau32i,
-                              amrex::Array4<amrex::Real>& tau33i,
-                              const amrex::Real explicit_fac);
+                              amrex::Array4<amrex::Real>& tau33i);
 
 void ComputeStressConsVisc_T (amrex::Box bxcc,
                               amrex::Box tbxxy,
@@ -232,8 +230,7 @@ void ComputeStressConsVisc_T (amrex::Box bxcc,
                               const amrex::Array4<const amrex::Real>& mf_vy,
                               amrex::Array4<amrex::Real>& tau31i,
                               amrex::Array4<amrex::Real>& tau32i,
-                              amrex::Array4<amrex::Real>& tau33i,
-                              const amrex::Real explicit_fac);
+                              amrex::Array4<amrex::Real>& tau33i);
 
 void ComputeStressVarVisc_N (amrex::Box bxcc,
                              amrex::Box tbxxy,
@@ -251,8 +248,7 @@ void ComputeStressVarVisc_N (amrex::Box bxcc,
                              const amrex::Array4<const amrex::Real>& er_arr,
                              amrex::Array4<amrex::Real>& tau31i,
                              amrex::Array4<amrex::Real>& tau32i,
-                             amrex::Array4<amrex::Real>& tau33i,
-                             const amrex::Real explicit_fac);
+                             amrex::Array4<amrex::Real>& tau33i);
 
 void ComputeStressVarVisc_S (amrex::Box bxcc,
                              amrex::Box tbxxy,
@@ -278,8 +274,7 @@ void ComputeStressVarVisc_S (amrex::Box bxcc,
                              const amrex::Array4<const amrex::Real>& mf_vy,
                              amrex::Array4<amrex::Real>& tau31i,
                              amrex::Array4<amrex::Real>& tau32i,
-                             amrex::Array4<amrex::Real>& tau33i,
-                             const amrex::Real explicit_fac);
+                             amrex::Array4<amrex::Real>& tau33i);
 
 void ComputeStressVarVisc_T (amrex::Box bxcc,
                              amrex::Box tbxxy,
@@ -306,8 +301,7 @@ void ComputeStressVarVisc_T (amrex::Box bxcc,
                              const amrex::Array4<const amrex::Real>& mf_vy,
                              amrex::Array4<amrex::Real>& tau31i,
                              amrex::Array4<amrex::Real>& tau32i,
-                             amrex::Array4<amrex::Real>& tau33i,
-                             const amrex::Real explicit_fac);
+                             amrex::Array4<amrex::Real>& tau33i);
 
 
 
@@ -320,8 +314,8 @@ void ComputeStrain_N (amrex::Box bxcc, amrex::Box tbxxy,
                       amrex::Array4<amrex::Real>& tau22,
                       amrex::Array4<amrex::Real>& tau33,
                       amrex::Array4<amrex::Real>& tau12,
-                      amrex::Array4<amrex::Real>& tau13, amrex::Array4<amrex::Real>& tau31,
-                      amrex::Array4<amrex::Real>& tau23, amrex::Array4<amrex::Real>& tau32,
+                      amrex::Array4<amrex::Real>& tau13,
+                      amrex::Array4<amrex::Real>& tau23,
                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
                       const amrex::Array4<const amrex::Real>& mf_mx,
                       const amrex::Array4<const amrex::Real>& mf_ux,
@@ -331,8 +325,7 @@ void ComputeStrain_N (amrex::Box bxcc, amrex::Box tbxxy,
                       const amrex::Array4<const amrex::Real>& mf_vy,
                       const amrex::BCRec* bc_ptr,
                       amrex::Array4<amrex::Real>& tau31i,
-                      amrex::Array4<amrex::Real>& tau32i,
-                      const amrex::Real explicit_fac);
+                      amrex::Array4<amrex::Real>& tau32i);
 
 void ComputeStrain_S (amrex::Box bxcc, amrex::Box tbxxy,
                       amrex::Box tbxxz, amrex::Box tbxyz, amrex::Box domain,
@@ -355,8 +348,7 @@ void ComputeStrain_S (amrex::Box bxcc, amrex::Box tbxxy,
                       const amrex::Array4<const amrex::Real>& mf_vy,
                       const amrex::BCRec* bc_ptr,
                       amrex::Array4<amrex::Real>& tau31i,
-                      amrex::Array4<amrex::Real>& tau32i,
-                      const amrex::Real explicit_fac);
+                      amrex::Array4<amrex::Real>& tau32i);
 
 void ComputeStrain_T (amrex::Box bxcc, amrex::Box tbxxy,
                       amrex::Box tbxxz, amrex::Box tbxyz, amrex::Box domain,
@@ -380,8 +372,7 @@ void ComputeStrain_T (amrex::Box bxcc, amrex::Box tbxxy,
                       const amrex::Array4<const amrex::Real>& mf_vy,
                       const amrex::BCRec* bc_ptr,
                       amrex::Array4<amrex::Real>& tau31i,
-                      amrex::Array4<amrex::Real>& tau32i,
-                      const amrex::Real explicit_fac);
+                      amrex::Array4<amrex::Real>& tau32i);
 
 void ImplicitDiffForState_N (const amrex::Box& bx, const amrex::Box& domain, const int level,
                              const amrex::Real dt,

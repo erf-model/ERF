@@ -53,9 +53,7 @@ void erf_make_tau_terms (int level, int nrk,
     const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||
                                    tc.rans_type == RANSType::kEqn);
 
-    const Real expfac = (solverChoice.implicit_divtau_terms) ?
-                        1.0 - solverChoice.vert_implicit_fac[nrk] : 1.0;
-    const bool do_implicit = (expfac < 1);
+    const bool do_implicit = (solverChoice.vert_implicit_fac[nrk] > 0) && solverChoice.implicit_divtau_terms;
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
@@ -161,7 +159,6 @@ void erf_make_tau_terms (int level, int nrk,
             // Temporary storage for tiling/OMP
             FArrayBox S11,S22,S33;
             FArrayBox S12,S13,S23;
-            FArrayBox S21,S31,S32;
 
             // Symmetric strain/stresses
             S11.resize( bxcc,1,The_Async_Arena()); S22.resize( bxcc,1,The_Async_Arena()); S33.resize( bxcc,1,The_Async_Arena());
@@ -171,28 +168,6 @@ void erf_make_tau_terms (int level, int nrk,
             Array4<Real> tau11 = Tau_lev[TauType::tau11]->array(mfi); Array4<Real> tau22 = Tau_lev[TauType::tau22]->array(mfi);
             Array4<Real> tau33 = Tau_lev[TauType::tau33]->array(mfi); Array4<Real> tau12 = Tau_lev[TauType::tau12]->array(mfi);
             Array4<Real> tau13 = Tau_lev[TauType::tau13]->array(mfi); Array4<Real> tau23 = Tau_lev[TauType::tau23]->array(mfi);
-
-            // Terrain or implicit non-symmetric terms
-            Array4<Real> s21{}, s31{}, s32{};
-            Array4<Real> tau21{}, tau31{}, tau32{};
-            if (solverChoice.mesh_type == MeshType::StretchedDz ||
-                l_use_terrain_fitted_coords)
-            {
-                S21.resize(tbxxy,1,The_Async_Arena());
-                s21 = S21.array();
-                tau21 = Tau_lev[TauType::tau21]->array(mfi);
-            }
-            if (solverChoice.mesh_type == MeshType::StretchedDz ||
-                l_use_terrain_fitted_coords ||
-                do_implicit)
-            {
-                S31.resize(tbxxz,1,The_Async_Arena());
-                S32.resize(tbxyz,1,The_Async_Arena());
-                s31 = S31.array();
-                s32 = S32.array();
-                tau31 = Tau_lev[TauType::tau31]->array(mfi);
-                tau32 = Tau_lev[TauType::tau32]->array(mfi);
-            }
 
             // We cannot simply scale the tau3* terms since our implicit
             // correction to vertical diffusion only applies to the
@@ -236,6 +211,14 @@ void erf_make_tau_terms (int level, int nrk,
             // ****************************************************************
 
             if (solverChoice.mesh_type == MeshType::StretchedDz) {
+                // Terrain non-symmetric terms
+                FArrayBox S21,S31,S32;
+                S21.resize(tbxxy,1,The_Async_Arena()); S31.resize(tbxxz,1,The_Async_Arena()); S32.resize(tbxyz,1,The_Async_Arena());
+                Array4<Real> s21   = S21.array();       Array4<Real> s31   = S31.array();       Array4<Real> s32   = S32.array();
+                Array4<Real> tau21 = Tau_lev[TauType::tau21]->array(mfi);
+                Array4<Real> tau31 = Tau_lev[TauType::tau31]->array(mfi);
+                Array4<Real> tau32 = Tau_lev[TauType::tau32]->array(mfi);
+
                 // *****************************************************************************
                 // Expansion rate compute terrain
                 // *****************************************************************************
@@ -246,7 +229,7 @@ void erf_make_tau_terms (int level, int nrk,
                     Real mfsq = mf_mx(i,j,0)*mf_my(i,j,0);
                     er_arr(i,j,k) = (u(i+1, j  , k  )/mf_uy(i+1,j,0) - u(i, j, k)/mf_uy(i,j,0))*dxInv[0] * mfsq +
                                     (v(i  , j+1, k  )/mf_vx(i,j+1,0) - v(i, j, k)/mf_vx(i,j,0))*dxInv[1] * mfsq +
-                             expfac*(w(i  , j  , k+1)                - w(i, j, k)             )/dz_ptr[k];
+                                    (w(i  , j  , k+1)                - w(i, j, k)             )/dz_ptr[k];
                 });
                 } // end profile
 
@@ -264,16 +247,15 @@ void erf_make_tau_terms (int level, int nrk,
                                 stretched_dz_d, dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                s31i, s32i,
-                                expfac);
+                                s31i, s32i);
                 } // end profile
 
                 if (SmnSmn_a) {
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
                         SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
-                                                        tau11,tau22,tau33,
-                                                        tau12,tau13,tau23);
+                                                        s11,s22,s33,
+                                                        s12,s13,s23);
                     });
                 }
 
@@ -298,8 +280,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             er_arr, stretched_dz_d, dxInv,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy,
-                                            s31i, s32i, s33i,
-                                            expfac);
+                                            s31i, s32i, s33i);
                 } else {
                     ComputeStressVarVisc_S(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -310,8 +291,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            er_arr, stretched_dz_d, dxInv,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy,
-                                           s31i, s32i, s33i,
-                                           expfac);
+                                           s31i, s32i, s33i);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -345,6 +325,16 @@ void erf_make_tau_terms (int level, int nrk,
                 } // end profile
 
             } else if (l_use_terrain_fitted_coords) {
+
+                // Terrain non-symmetric terms
+                FArrayBox S21,S31,S32;
+                S21.resize(tbxxy,1,The_Async_Arena()); S31.resize(tbxxz,1,The_Async_Arena()); S32.resize(tbxyz,1,The_Async_Arena());
+                Array4<Real> s21   = S21.array();       Array4<Real> s31   = S31.array();       Array4<Real> s32   = S32.array();
+                Array4<Real> tau21 = Tau_lev[TauType::tau21]->array(mfi);
+                Array4<Real> tau31 = Tau_lev[TauType::tau31]->array(mfi);
+                Array4<Real> tau32 = Tau_lev[TauType::tau32]->array(mfi);
+
+
                 // *****************************************************************************
                 // Expansion rate compute terrain
                 // *****************************************************************************
@@ -381,7 +371,7 @@ void erf_make_tau_terms (int level, int nrk,
 
                     Real expansionRate = (u(i+1,j  ,k)/mf_uy(i+1,j,0)*met_u_h_zeta_hi - u(i,j,k)/mf_uy(i,j,0)*met_u_h_zeta_lo)*dxInv[0]*mfsq +
                                          (v(i  ,j+1,k)/mf_vx(i,j+1,0)*met_v_h_zeta_hi - v(i,j,k)/mf_vx(i,j,0)*met_v_h_zeta_lo)*dxInv[1]*mfsq +
-                                         expfac*(Omega_hi - Omega_lo)*dxInv[2];
+                                         (Omega_hi - Omega_lo)*dxInv[2];
 
                     er_arr(i,j,k) = expansionRate / detJ_arr(i,j,k);
                 });
@@ -401,16 +391,15 @@ void erf_make_tau_terms (int level, int nrk,
                                 z_nd, detJ_arr, dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                s31i, s32i,
-                                expfac);
+                                s31i, s32i);
                 } // end profile
 
                 if (SmnSmn_a) {
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
                         SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
-                                                        tau11,tau22,tau33,
-                                                        tau12,tau13,tau23);
+                                                        s11,s22,s33,
+                                                        s12,s13,s23);
                     });
                 }
 
@@ -435,8 +424,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             er_arr, z_nd, detJ_arr, dxInv,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy,
-                                            s31i, s32i, s33i,
-                                            expfac);
+                                            s31i, s32i, s33i);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -447,8 +435,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            er_arr, z_nd, detJ_arr, dxInv,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy,
-                                           s31i, s32i, s33i,
-                                           expfac);
+                                           s31i, s32i, s33i);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -492,7 +479,7 @@ void erf_make_tau_terms (int level, int nrk,
                     Real mfsq = mf_mx(i,j,0)*mf_my(i,j,0);
                     er_arr(i,j,k) = (u(i+1, j  , k  )/mf_uy(i+1,j,0) - u(i, j, k)/mf_uy(i,j,0))*dxInv[0]*mfsq +
                                     (v(i  , j+1, k  )/mf_vx(i,j+1,0) - v(i, j, k)/mf_vx(i,j,0))*dxInv[1]*mfsq +
-                             expfac*(w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
+                                    (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
                 });
                 } // end profile
 
@@ -505,22 +492,19 @@ void erf_make_tau_terms (int level, int nrk,
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
-                                s12, /*s21,*/
-                                s13, s31,
-                                s23, s32,
+                                s12, s13, s23,
                                 dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                s31i, s32i,
-                                expfac);
+                                s31i, s32i);
                 } // end profile
 
                 if (SmnSmn_a) {
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
                         SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
-                                                        tau11,tau22,tau33,
-                                                        tau12,tau13,tau23);
+                                                        s11,s22,s33,
+                                                        s12,s13,s23);
                     });
                 }
 
@@ -551,16 +535,14 @@ void erf_make_tau_terms (int level, int nrk,
                                             s11, s22, s33,
                                             s12, s13, s23,
                                             er_arr,
-                                            s31i, s32i, s33i,
-                                            expfac);
+                                            s31i, s32i, s33i);
                 } else {
                     ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
                                            s11, s22, s33,
                                            s12, s13, s23,
                                            er_arr,
-                                           s31i, s32i, s33i,
-                                           expfac);
+                                           s31i, s32i, s33i);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -583,15 +565,9 @@ void erf_make_tau_terms (int level, int nrk,
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     tau13(i,j,k) = s13(i,j,k);
-                    if (do_implicit) {
-                        tau31(i,j,k) = s31(i,j,k);
-                    }
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     tau23(i,j,k) = s23(i,j,k);
-                    if (do_implicit) {
-                        tau32(i,j,k) = s32(i,j,k);
-                    }
                 });
                 } // end profile
             } // no terrain

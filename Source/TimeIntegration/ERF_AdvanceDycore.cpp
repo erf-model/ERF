@@ -182,8 +182,7 @@ void ERF::advance_dycore (int level,
                                 tau23, tau32,
                                 stretched_dz_d[level], dxInv,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                no_tau_corr_update_here, no_tau_corr_update_here,
-                                l_vert_implicit_fac);
+                                no_tau_corr_update_here, no_tau_corr_update_here);
             } else if (l_use_terrain_fitted_coords) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
@@ -193,19 +192,15 @@ void ERF::advance_dycore (int level,
                                 tau23, tau32,
                                 z_nd, detJ_cc[level]->const_array(mfi), dxInv,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                no_tau_corr_update_here, no_tau_corr_update_here,
-                                l_vert_implicit_fac);
+                                no_tau_corr_update_here, no_tau_corr_update_here);
             } else {
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
-                                tau12, /*tau21,*/
-                                tau13, tau31,
-                                tau23, tau32,
+                                tau12, tau13, tau23,
                                 dxInv,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                no_tau_corr_update_here, no_tau_corr_update_here,
-                                l_vert_implicit_fac);
+                                no_tau_corr_update_here, no_tau_corr_update_here);
             }
         } // mfi
     } // l_use_diff

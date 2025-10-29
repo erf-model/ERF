@@ -19,8 +19,6 @@ using namespace amrex;
  * @param[out] tau12 12 strain
  * @param[out] tau13 13 strain
  * @param[out] tau23 23 strain
- * @param[out] tau31 31 strain
- * @param[out] tau32 32 strain
  * @param[in] bc_ptr container with boundary condition types
  * @param[in] dxInv inverse cell size array
  * @param[in] mf_m map factor at cell center
@@ -28,7 +26,6 @@ using namespace amrex;
  * @param[in] mf_v map factor at y-face
  * @param[in] tau31i contribution to strain from du/dz
  * @param[in] tau32i contribution to strain from dv/dz
- * @param[in] implicit_fac -- factor of implicitness for vertical differences only
  */
 void
 ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
@@ -39,8 +36,8 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  Array4<Real>& tau22,
                  Array4<Real>& tau33,
                  Array4<Real>& tau12,
-                 Array4<Real>& tau13, Array4<Real>& /*tau31*/,
-                 Array4<Real>& tau23, Array4<Real>& /*tau32*/,
+                 Array4<Real>& tau13,
+                 Array4<Real>& tau23,
                  const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                  const Array4<const Real>& mf_mx,
                  const Array4<const Real>& mf_ux,
@@ -49,8 +46,7 @@ ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& mf_uy,
                  const Array4<const Real>& mf_vy,
                  const BCRec* bc_ptr,
-                 Array4<Real>& tau31i, Array4<Real>& tau32i,
-                 const Real expfac)
+                 Array4<Real>& tau31i, Array4<Real>& tau32i)
 {
     // Convert domain to each index type to test if we are on Dirichlet boundary
     Box domain_xy = convert(domain, tbxxy.ixType());

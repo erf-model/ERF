@@ -46,8 +46,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          const Array4<const Real>& mf_vy,
                          Array4<Real>& tau31i,
                          Array4<Real>& tau32i,
-                         Array4<Real>& tau33i,
-                         const Real expfac)
+                         Array4<Real>& tau33i)
 {
     // NOTE: mu_eff includes factor of 2
 
@@ -93,9 +92,9 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_tot * tau33(i,j,k);
 
-        tau11(i,j,k) = -mu_tot * (met_h_zeta/mfy) * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
-        tau22(i,j,k) = -mu_tot * (met_h_zeta/mfx) * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
-        tau33(i,j,k) = -mu_tot * ( expfac*tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+        tau11(i,j,k) = -mu_tot * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) ) * (met_h_zeta/mfy);
+        tau22(i,j,k) = -mu_tot * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) ) * (met_h_zeta/mfx);
+        tau33(i,j,k) = -mu_tot * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
     });
 
     // Second block: off diagonal stresses
@@ -189,8 +188,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         const Array4<const Real>& mf_vy,
                         Array4<Real>& tau31i,
                         Array4<Real>& tau32i,
-                        Array4<Real>& tau33i,
-                        const Real expfac)
+                        Array4<Real>& tau33i)
 {
     // NOTE: mu_eff includes factor of 2
 
@@ -236,9 +234,9 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_tot * tau33(i,j,k);
 
-        tau11(i,j,k) = -mu_tot * (met_h_zeta/mfy) * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
-        tau22(i,j,k) = -mu_tot * (met_h_zeta/mfx) * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
-        tau33(i,j,k) = -mu_tot * ( expfac*tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+        tau11(i,j,k) = -mu_tot * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) ) * (met_h_zeta/mfy);
+        tau22(i,j,k) = -mu_tot * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) ) * (met_h_zeta/mfx);
+        tau33(i,j,k) = -mu_tot * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
     });
 
     // Second block: off diagonal stresses

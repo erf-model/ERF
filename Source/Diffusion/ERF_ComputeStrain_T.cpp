@@ -34,7 +34,6 @@ using namespace amrex;
  * @param[in] mf_vy map factor at y-face
  * @param[in] tau31i contribution to strain from du/dz
  * @param[in] tau32i contribution to strain from dv/dz
- * @param[in] implicit_fac -- factor of implicitness for vertical differences only
  */
 void
 ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
@@ -57,8 +56,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& mf_uy,
                  const Array4<const Real>& mf_vy,
                  const BCRec* bc_ptr,
-                 Array4<Real>& tau31i, Array4<Real>& tau32i,
-                 const Real expfac)
+                 Array4<Real>& tau31i, Array4<Real>& tau32i)
 {
     // Convert domain to each index type to test if we are on dirichlet boundary
     Box domain_xy = convert(domain, tbxxy.ixType());
