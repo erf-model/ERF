@@ -57,15 +57,13 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
 
     // Temporary FABs for tridiagonal solve (allocated on column)
     //   A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
-    amrex::FArrayBox RHS_fab, soln_fab, coeffA_fab, inv_coeffB_fab, coeffC_fab;
+    amrex::FArrayBox RHS_fab, soln_fab, inv_coeffB_fab, coeffC_fab;
            RHS_fab.resize(bx,1, amrex::The_Async_Arena());
           soln_fab.resize(bx,1, amrex::The_Async_Arena());
-        coeffA_fab.resize(bx,1, amrex::The_Async_Arena());
     inv_coeffB_fab.resize(bx,1, amrex::The_Async_Arena());
         coeffC_fab.resize(bx,1, amrex::The_Async_Arena());
     auto const& RHS_a        =        RHS_fab.array();
     auto const& soln_a       =       soln_fab.array();
-    auto const& coeffA_a     =     coeffA_fab.array(); // lower diagonal
     auto const& inv_coeffB_a = inv_coeffB_fab.array();
     auto const& coeffC_a     =     coeffC_fab.array(); // upper diagonal
 
@@ -83,49 +81,56 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {
 #endif
+          Real rhoAlpha_lo, rhoAlpha_hi;
           Real dz_inv, dz_inv_lo, dz_inv_hi;
 
           // Bottom boundary coefficients and RHS for L decomp
           //===================================================
-          Real b_tmp;
+          Real a_tmp, b_tmp;
           {
               dz_inv    = 1.0 / dz_ptr[klo];
               dz_inv_lo = dz_inv;
               dz_inv_hi = 2.0 / (dz_ptr[klo] + dz_ptr[klo+1]);
 
-              Real rhoAlpha_hi;
               if (l_consA && l_turb) {
+                  rhoAlpha_lo = 0.5 * ( cell_data(i,j,klo,Rho_comp) + cell_data(i,j,klo-1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
+                              + 0.5 * ( mu_turb(i,j,klo  , d_eddy_diff_idz[prim_scal_index])
+                                      + mu_turb(i,j,klo-1, d_eddy_diff_idz[prim_scal_index]) );
                   rhoAlpha_hi = 0.5 * ( cell_data(i,j,klo,Rho_comp) + cell_data(i,j,klo+1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
                               + 0.5 * ( mu_turb(i,j,klo  , d_eddy_diff_idz[prim_scal_index])
                                       + mu_turb(i,j,klo+1, d_eddy_diff_idz[prim_scal_index]) );
               }
               else if (l_turb) // with MolecDiffType::Constant or None
               {
+                  rhoAlpha_lo = d_alpha_eff[prim_index]
+                              + 0.5 * ( mu_turb(i,j,klo  , d_eddy_diff_idz[prim_index])
+                                      + mu_turb(i,j,klo-1, d_eddy_diff_idz[prim_index]) );
                   rhoAlpha_hi =  d_alpha_eff[prim_index]
                               + 0.5 * ( mu_turb(i,j,klo  , d_eddy_diff_idz[prim_index])
                                       + mu_turb(i,j,klo+1, d_eddy_diff_idz[prim_index]) );
               }
               else if (l_consA) // without an LES/PBL model
               {
+                  rhoAlpha_lo = 0.5 * ( cell_data(i,j,klo,Rho_comp) + cell_data(i,j,klo-1,Rho_comp) ) * d_alpha_eff[prim_index];
                   rhoAlpha_hi = 0.5 * ( cell_data(i,j,klo,Rho_comp) + cell_data(i,j,klo+1,Rho_comp) ) * d_alpha_eff[prim_index];
               }
               else // with MolecDiffType::Constant or None - without an LES/PBL model
               {
+                  rhoAlpha_lo = d_alpha_eff[prim_index];
                   rhoAlpha_hi = d_alpha_eff[prim_index];
               }
 
-              coeffA_a(i,j,klo) = 0.;
+              a_tmp             = 0.;
               coeffC_a(i,j,klo) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv_hi;
 
-              //coeffB_a(i,j,klo) = cell_data(i,j,klo,Rho_comp) - coeffA_a(i,j,klo) - coeffC_a(i,j,klo);
-              b_tmp                 = cell_data(i,j,klo,Rho_comp) - coeffA_a(i,j,klo) - coeffC_a(i,j,klo);
+              b_tmp                 = cell_data(i,j,klo,Rho_comp) - a_tmp - coeffC_a(i,j,klo);
               inv_coeffB_a(i,j,klo) = 1.;
 
               RHS_a(i,j,klo) = cell_data(i,j,klo,n); // Note this is rho*theta, whereas solution will be theta
               if (use_SurfLayer) {
-                  RHS_a(i,j,klo) += implicit_fac * dt * dz_inv * hfx_z(i,j,klo);
+                  RHS_a(i,j,klo) +=  implicit_fac * dt * dz_inv * hfx_z(i,j,klo);
               } else if (neumann_on_zlo) {
-                  RHS_a(i,j,klo) += coeffA_a(i,j,klo) * bc_neumann_vals[2] / dz_inv_lo;
+                  RHS_a(i,j,klo) += -implicit_fac * dt * dz_inv * rhoAlpha_lo * bc_neumann_vals[2];
               }
 
               RHS_a(i,j,klo)    /= b_tmp; // NOTE: this is now "rho"
@@ -141,8 +146,6 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
               dz_inv_lo = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
               dz_inv_hi = 2.0 / (dz_ptr[k] + dz_ptr[k+1]);
 
-              Real rhoAlpha_lo;
-              Real rhoAlpha_hi;
               if (l_consA && l_turb) {
                   rhoAlpha_lo = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
                               + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_scal_index])
@@ -171,16 +174,15 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
                   rhoAlpha_hi = d_alpha_eff[prim_index];
               }
 
-              coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv_lo;
+              a_tmp           = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv_lo;
               coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv_hi;
 
-              //coeffB_a(i,j,k) = cell_data(i,j,k,Rho_comp) - coeffA_a(i,j,k) - coeffC_a(i,j,k);
-              b_tmp               = cell_data(i,j,k,Rho_comp) - coeffA_a(i,j,k) - coeffC_a(i,j,k);
-              inv_coeffB_a(i,j,k) = 1. / (b_tmp - coeffA_a(i,j,k) * coeffC_a(i,j,k-1));
+              b_tmp               = cell_data(i,j,k,Rho_comp) - a_tmp - coeffC_a(i,j,k);
+              inv_coeffB_a(i,j,k) = 1. / (b_tmp - a_tmp * coeffC_a(i,j,k-1));
 
               RHS_a(i,j,k)     = cell_data(i,j,k,n); // NOTE: this is rho*theta, whereas solution will be theta
 
-              RHS_a(i,j,k)     = (RHS_a(i,j,k) - coeffA_a(i,j,k) * RHS_a(i,j,k-1)) * inv_coeffB_a(i,j,k); // NOTE: This is now "rho"
+              RHS_a(i,j,k)     = (RHS_a(i,j,k) - a_tmp * RHS_a(i,j,k-1)) * inv_coeffB_a(i,j,k); // NOTE: This is now "rho"
               coeffC_a(i,j,k) *= inv_coeffB_a(i,j,k); // NOTE: this is now "gamma"
           } // k
 
@@ -192,40 +194,46 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
               dz_inv_lo = 2.0 / (dz_ptr[khi] + dz_ptr[khi-1]);
               dz_inv_hi = dz_inv;
 
-              Real rhoAlpha_lo;
               if (l_consA && l_turb) {
                   rhoAlpha_lo = 0.5 * ( cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi-1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
                               + 0.5 * ( mu_turb(i,j,khi  , d_eddy_diff_idz[prim_scal_index])
                                       + mu_turb(i,j,khi-1, d_eddy_diff_idz[prim_scal_index]) );
+                  rhoAlpha_hi = 0.5 * ( cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi+1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
+                              + 0.5 * ( mu_turb(i,j,khi  , d_eddy_diff_idz[prim_scal_index])
+                                      + mu_turb(i,j,khi+1, d_eddy_diff_idz[prim_scal_index]) );
               }
               else if (l_turb) // with MolecDiffType::Constant or None
               {
                   rhoAlpha_lo = d_alpha_eff[prim_index]
                               + 0.5 * ( mu_turb(i,j,khi  , d_eddy_diff_idz[prim_index])
                                       + mu_turb(i,j,khi-1, d_eddy_diff_idz[prim_index]) );
+                  rhoAlpha_hi = d_alpha_eff[prim_index]
+                              + 0.5 * ( mu_turb(i,j,khi  , d_eddy_diff_idz[prim_index])
+                                      + mu_turb(i,j,khi+1, d_eddy_diff_idz[prim_index]) );
               }
               else if (l_consA) // without an LES/PBL model
               {
                   rhoAlpha_lo = 0.5 * ( cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi-1,Rho_comp) ) * d_alpha_eff[prim_index];
+                  rhoAlpha_hi = 0.5 * ( cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi+1,Rho_comp) ) * d_alpha_eff[prim_index];
               }
               else // with MolecDiffType::Constant or None - without an LES/PBL model
               {
                   rhoAlpha_lo = d_alpha_eff[prim_index];
+                  rhoAlpha_hi = d_alpha_eff[prim_index];
               }
 
-              coeffA_a(i,j,khi) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv_lo;
+              a_tmp             = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv_lo;
               coeffC_a(i,j,khi) = 0.;
 
-              //coeffB_a(i,j,khi) = cell_data(i,j,khi,Rho_comp) - coeffA_a(i,j,khi) - coeffC_a(i,j,khi);
-              b_tmp                 = cell_data(i,j,khi,Rho_comp) - coeffA_a(i,j,khi) - coeffC_a(i,j,khi);
-              inv_coeffB_a(i,j,khi) = 1. / (b_tmp - coeffA_a(i,j,khi) * coeffC_a(i,j,khi-1));
+              b_tmp                 = cell_data(i,j,khi,Rho_comp) - a_tmp - coeffC_a(i,j,khi);
+              inv_coeffB_a(i,j,khi) = 1. / (b_tmp - a_tmp * coeffC_a(i,j,khi-1));
 
               RHS_a(i,j,khi)    = cell_data(i,j,khi,n); // Note this is rho*theta, whereas solution will be theta
               if (neumann_on_zhi) {
-                  RHS_a(i,j,khi) -= coeffC_a(i,j,khi) * bc_neumann_vals[5] / dz_inv_hi;
+                  RHS_a(i,j,khi) -= -implicit_fac * dt * dz_inv * rhoAlpha_hi * bc_neumann_vals[5];
               }
 
-             soln_a(i,j,khi) = (RHS_a(i,j,khi) - coeffA_a(i,j,khi) * RHS_a(i,j,khi-1)) * inv_coeffB_a(i,j,khi);
+             soln_a(i,j,khi) = (RHS_a(i,j,khi) - a_tmp * RHS_a(i,j,khi-1)) * inv_coeffB_a(i,j,khi);
           }
 
 
