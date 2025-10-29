@@ -71,7 +71,6 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
 
     int bc_comp = qty_index;
 
-    Real dz_inv, dz_inv_lo, dz_inv_hi;
     auto dz_ptr = stretched_dz_d.data();
 
     bool neumann_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::neumann);
@@ -84,6 +83,8 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {
 #endif
+          Real dz_inv, dz_inv_lo, dz_inv_hi;
+
           // Bottom boundary coefficients and RHS for L decomp
           //===================================================
           Real b_tmp;
