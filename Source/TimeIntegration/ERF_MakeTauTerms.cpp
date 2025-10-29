@@ -17,8 +17,7 @@ void erf_make_tau_terms (int level, int nrk,
                          const MultiFab& yvel,
                          const MultiFab& zvel,
                          Vector<std::unique_ptr<MultiFab>>& Tau_lev,
-                         MultiFab* Tau31corr,
-                         MultiFab* Tau32corr,
+                         Vector<std::unique_ptr<MultiFab>>& Tau_corr_lev,
                          MultiFab* SmnSmn,
                          MultiFab* eddyDiffs,
                          const Geometry geom,
@@ -199,11 +198,13 @@ void erf_make_tau_terms (int level, int nrk,
             // correction to vertical diffusion only applies to the
             // second-order derivatives in the vertical and we don't want to
             // touch the cross terms
-            FArrayBox S31_impl, S32_impl;
-            Array4<Real> s31i = (do_implicit) ? S31_impl.array() : Array4<Real>{};
-            Array4<Real> s32i = (do_implicit) ? S32_impl.array() : Array4<Real>{};
-            Array4<Real> tau31_corr = (do_implicit) ? Tau31corr->array(mfi) : Array4<Real>{};
-            Array4<Real> tau32_corr = (do_implicit) ? Tau32corr->array(mfi) : Array4<Real>{};
+            FArrayBox S31_for_impl, S32_for_impl, S33_for_impl;
+            Array4<Real> s31i = (do_implicit) ? S31_for_impl.array() : Array4<Real>{};
+            Array4<Real> s32i = (do_implicit) ? S32_for_impl.array() : Array4<Real>{};
+            Array4<Real> s33i = (do_implicit) ? S33_for_impl.array() : Array4<Real>{};
+            Array4<Real> tau31_corr = (do_implicit) ? Tau_corr_lev[0]->array(mfi) : Array4<Real>{};
+            Array4<Real> tau32_corr = (do_implicit) ? Tau_corr_lev[1]->array(mfi) : Array4<Real>{};
+            Array4<Real> tau33_corr = (do_implicit) ? Tau_corr_lev[2]->array(mfi) : Array4<Real>{};
 
             // Calculate the magnitude of the strain-rate tensor squared if
             // using Deardorff or k-eqn RANS. This contributes to the production
@@ -297,6 +298,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             er_arr, stretched_dz_d, dxInv,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy,
+                                            s33i,
                                             expfac);
                 } else {
                     ComputeStressVarVisc_S(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
@@ -308,6 +310,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            er_arr, stretched_dz_d, dxInv,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy,
+                                           s33i,
                                            expfac);
                 }
 
@@ -432,6 +435,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             er_arr, z_nd, detJ_arr, dxInv,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy,
+                                            s33i,
                                             expfac);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
@@ -443,6 +447,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            er_arr, z_nd, detJ_arr, dxInv,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy,
+                                           s33i,
                                            expfac);
                 }
 
@@ -546,6 +551,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             s11, s22, s33,
                                             s12, s13, s23,
                                             er_arr,
+                                            s33i,
                                             expfac);
                 } else {
                     ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
@@ -553,6 +559,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            s11, s22, s33,
                                            s12, s13, s23,
                                            er_arr,
+                                           s33i,
                                            expfac);
                 }
 

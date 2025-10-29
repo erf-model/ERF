@@ -47,6 +47,10 @@
             }
         }
 
+        // *************************************************************************
+        // Get multifab pointers
+        // *************************************************************************
+
         // Canopy data for mom sources
         MultiFab* forest_drag = (solverChoice.do_forest_drag) ?
             m_forest_drag[level]->get_drag_field() : nullptr;
@@ -96,6 +100,7 @@
                                      && (solverChoice.implicit_divtau_terms);
         MultiFab* Tau31corr = (do_implicit_mom) ? Tau_corr[level][0].get() : nullptr;
         MultiFab* Tau32corr = (do_implicit_mom) ? Tau_corr[level][1].get() : nullptr;
+        MultiFab* Tau33corr = (do_implicit_mom) ? Tau_corr[level][2].get() : nullptr;
 
         // *****************************************************************************
         // Construct the source terms for the cell-centered (conserved) variables
@@ -155,7 +160,7 @@
                          xvel_new, yvel_new, zvel_new,
                          z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src, buoyancy,
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
-                         Tau[level], Tau31corr, Tau32corr,
+                         Tau[level], Tau_corr[level],
                          SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                          fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                          *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,

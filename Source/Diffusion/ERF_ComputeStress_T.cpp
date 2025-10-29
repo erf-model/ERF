@@ -24,6 +24,7 @@ using namespace amrex;
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
  * @param[in]  dxInv inverse cell size array
+ * @param[in] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -42,6 +43,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          const Array4<const Real>& mf_my,
                          const Array4<const Real>& mf_uy,
                          const Array4<const Real>& mf_vy,
+                         Array4<Real>& tau33i,
                          const Real expfac)
 {
     // Handle constant alpha case, in which the provided mu_eff is actually
@@ -332,6 +334,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
  * @param[in]  dxInv inverse cell size array
+ * @param[in] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -351,6 +354,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         const Array4<const Real>& mf_my,
                         const Array4<const Real>& mf_uy,
                         const Array4<const Real>& mf_vy,
+                        Array4<Real>& tau33i,
                         const Real expfac)
 {
     // Handle constant alpha case, in which the provided mu_eff is actually

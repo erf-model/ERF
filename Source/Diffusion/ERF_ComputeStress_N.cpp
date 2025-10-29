@@ -18,6 +18,7 @@ using namespace amrex;
  * @param[in,out] tau13 13 strain -> stress
  * @param[in,out] tau23 23 strain -> stress
  * @param[in] er_arr expansion rate
+ * @param[in] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressConsVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -25,6 +26,7 @@ ComputeStressConsVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
                          Array4<Real>& tau12, Array4<Real>& tau13, Array4<Real>& tau23,
                          const Array4<const Real>& er_arr,
+                         Array4<Real>& tau33i,
                          const Real expfac)
 {
     Real OneThird   = (1./3.);
@@ -101,6 +103,7 @@ ComputeStressConsVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in,out] tau13 13 strain -> stress
  * @param[in,out] tau23 23 strain -> stress
  * @param[in] er_arr expansion rate
+ * @param[in] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -109,6 +112,7 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
                         Array4<Real>& tau12, Array4<Real>& tau13, Array4<Real>& tau23,
                         const Array4<const Real>& er_arr,
+                        Array4<Real>& tau33i,
                         const Real expfac)
 {
     Real OneThird   = (1./3.);
