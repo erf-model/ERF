@@ -895,6 +895,7 @@ private:
 
     // Diffusive stresses and Smag
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau_corr; // correction to tau for implicit
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 

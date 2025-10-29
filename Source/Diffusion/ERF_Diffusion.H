@@ -313,6 +313,8 @@ void ComputeStrain_N (amrex::Box bxcc, amrex::Box tbxxy,
                       const amrex::Array4<const amrex::Real>& mf_uy,
                       const amrex::Array4<const amrex::Real>& mf_vy,
                       const amrex::BCRec* bc_ptr,
+                      amrex::Array4<amrex::Real>& tau31i,
+                      amrex::Array4<amrex::Real>& tau32i,
                       const amrex::Real explicit_fac);
 
 void ComputeStrain_S (amrex::Box bxcc, amrex::Box tbxxy,
@@ -335,6 +337,8 @@ void ComputeStrain_S (amrex::Box bxcc, amrex::Box tbxxy,
                       const amrex::Array4<const amrex::Real>& mf_uy,
                       const amrex::Array4<const amrex::Real>& mf_vy,
                       const amrex::BCRec* bc_ptr,
+                      amrex::Array4<amrex::Real>& tau31i,
+                      amrex::Array4<amrex::Real>& tau32i,
                       const amrex::Real explicit_fac);
 
 void ComputeStrain_T (amrex::Box bxcc, amrex::Box tbxxy,
@@ -358,6 +362,8 @@ void ComputeStrain_T (amrex::Box bxcc, amrex::Box tbxxy,
                       const amrex::Array4<const amrex::Real>& mf_uy,
                       const amrex::Array4<const amrex::Real>& mf_vy,
                       const amrex::BCRec* bc_ptr,
+                      amrex::Array4<amrex::Real>& tau31i,
+                      amrex::Array4<amrex::Real>& tau32i,
                       const amrex::Real explicit_fac);
 
 void ImplicitDiffForState_N (const amrex::Box& bx, const amrex::Box& domain, const int level,

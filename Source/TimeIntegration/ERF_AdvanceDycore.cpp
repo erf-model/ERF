@@ -170,6 +170,8 @@ void ERF::advance_dycore (int level,
             const Array4<const Real> mf_uy = mapfac[level][MapFacType::u_y]->const_array(mfi);
             const Array4<const Real> mf_vy = mapfac[level][MapFacType::v_y]->const_array(mfi);
 
+            Array4<Real> no_tau_corr_update_here{};
+
             Print() << "Computing strain during stage 0" << std::endl;
             if (solverChoice.mesh_type == MeshType::StretchedDz) {
                 ComputeStrain_S(bxcc, tbxxy, tbxxz, tbxyz, domain,
@@ -180,6 +182,7 @@ void ERF::advance_dycore (int level,
                                 tau23, tau32,
                                 stretched_dz_d[level], dxInv,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                no_tau_corr_update_here, no_tau_corr_update_here,
                                 l_vert_implicit_fac);
             } else if (l_use_terrain_fitted_coords) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
@@ -190,6 +193,7 @@ void ERF::advance_dycore (int level,
                                 tau23, tau32,
                                 z_nd, detJ_cc[level]->const_array(mfi), dxInv,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                no_tau_corr_update_here, no_tau_corr_update_here,
                                 l_vert_implicit_fac);
             } else {
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
@@ -200,6 +204,7 @@ void ERF::advance_dycore (int level,
                                 tau23, tau32,
                                 dxInv,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                no_tau_corr_update_here, no_tau_corr_update_here,
                                 l_vert_implicit_fac);
             }
         } // mfi

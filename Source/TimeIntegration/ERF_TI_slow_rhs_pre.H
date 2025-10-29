@@ -91,6 +91,12 @@
               dJ_to_use =   detJ_cc[level].get();
         }
 
+        // Save d/dz components of Tau31, Tau32, Tau33 for implicit correction
+        const bool do_implicit_mom = (solverChoice.vert_implicit_fac[nrk] > 0)
+                                     && (solverChoice.implicit_divtau_terms);
+        MultiFab* Tau31corr = (do_implicit_mom) ? Tau_corr[level][0].get() : nullptr;
+        MultiFab* Tau32corr = (do_implicit_mom) ? Tau_corr[level][1].get() : nullptr;
+
         // *****************************************************************************
         // Construct the source terms for the cell-centered (conserved) variables
         // *****************************************************************************
@@ -149,7 +155,8 @@
                          xvel_new, yvel_new, zvel_new,
                          z_t_rk[level], cc_src, xmom_src, ymom_src, zmom_src, buoyancy,
                          (level > 0) ? &zmom_crse_rhs[level] : nullptr,
-                         Tau[level], SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
+                         Tau[level], Tau31corr, Tau32corr,
+                         SmnSmn, eddyDiffs, Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
                          fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                          *zpn_to_use, *zpc_to_use, *ax_to_use, *ay_to_use, *az_to_use, *dJ_to_use,
                          stretched_dz_d[level], gradp[level],

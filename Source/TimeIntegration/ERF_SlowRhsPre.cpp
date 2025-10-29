@@ -84,6 +84,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& buoyancy,
                        const MultiFab* zmom_crse_rhs,
                        Vector<std::unique_ptr<MultiFab>>& Tau_lev,
+                       MultiFab* Tau31corr,
+                       MultiFab* Tau32corr,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
                        MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3,
@@ -180,10 +182,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
         shoc_lev->set_eddy_diffs();
 #endif
 
-        // With solverChoice.vert_implicit_fac > 0, tau31 and tau32 will always
-        // be calculated and scaled by (1 - implicit_fac)
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
-                           S_data,xvel,yvel,zvel,Tau_lev,
+                           S_data,xvel,yvel,zvel,Tau_lev,Tau31corr,Tau32corr,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
                            stretched_dz_d, detJ,mapfac);
 

@@ -17,6 +17,8 @@ void erf_make_tau_terms (int level, int nrk,
                          const MultiFab& yvel,
                          const MultiFab& zvel,
                          Vector<std::unique_ptr<MultiFab>>& Tau_lev,
+                         MultiFab* Tau31corr,
+                         MultiFab* Tau32corr,
                          MultiFab* SmnSmn,
                          MultiFab* eddyDiffs,
                          const Geometry geom,
@@ -193,6 +195,16 @@ void erf_make_tau_terms (int level, int nrk,
                 tau32 = Tau_lev[TauType::tau32]->array(mfi);
             }
 
+            // We cannot simply scale the tau3* terms since our implicit
+            // correction to vertical diffusion only applies to the
+            // second-order derivatives in the vertical and we don't want to
+            // touch the cross terms
+            FArrayBox S31_impl, S32_impl;
+            Array4<Real> s31i = (do_implicit) ? S31_impl.array() : Array4<Real>{};
+            Array4<Real> s32i = (do_implicit) ? S32_impl.array() : Array4<Real>{};
+            Array4<Real> tau31_corr = (do_implicit) ? Tau31corr->array(mfi) : Array4<Real>{};
+            Array4<Real> tau32_corr = (do_implicit) ? Tau32corr->array(mfi) : Array4<Real>{};
+
             // Calculate the magnitude of the strain-rate tensor squared if
             // using Deardorff or k-eqn RANS. This contributes to the production
             // term, included in diffusion source in slow RHS post and in the
@@ -251,6 +263,7 @@ void erf_make_tau_terms (int level, int nrk,
                                 stretched_dz_d, dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                s31i, s32i,
                                 expfac);
                 } // end profile
 
@@ -385,6 +398,7 @@ void erf_make_tau_terms (int level, int nrk,
                                 z_nd, detJ_arr, dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                s31i, s32i,
                                 expfac);
                 } // end profile
 
@@ -492,6 +506,7 @@ void erf_make_tau_terms (int level, int nrk,
                                 dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                s31i, s32i,
                                 expfac);
                 } // end profile
 

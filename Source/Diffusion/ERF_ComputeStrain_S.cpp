@@ -32,6 +32,8 @@ using namespace amrex;
  * @param[in] mf_my map factor at cell center
  * @param[in] mf_uy map factor at x-face
  * @param[in] mf_vy map factor at y-face
+ * @param[in] tau31i contribution to strain from du/dz
+ * @param[in] tau32i contribution to strain from dv/dz
  * @param[in] implicit_fac -- factor of implicitness for vertical differences only
  */
 void
@@ -54,6 +56,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& mf_uy,
                  const Array4<const Real>& mf_vy,
                  const BCRec* bc_ptr,
+                 Array4<Real>& tau31i, Array4<Real>& tau32i,
                  const Real expfac)
 {
     // Convert domain to each index type to test if we are on dirichlet boundary
@@ -188,6 +191,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             tau13(i,j,k) = 0.5 * (       du_dz + dw_dx);
             tau31(i,j,k) = 0.5 * (expfac*du_dz + dw_dx);
+
+            if (tau31i) tau31i(i,j,k) = du_dz;
         });
     }
 
@@ -212,6 +217,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             tau13(i,j,k) = 0.5 * (       du_dz + dw_dx);
             tau31(i,j,k) = 0.5 * (expfac*du_dz + dw_dx);
+
+            if (tau31i) tau31i(i,j,k) = du_dz;
         });
     }
 
@@ -278,6 +285,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             tau23(i,j,k) = 0.5 * (       dv_dz + dw_dy);
             tau32(i,j,k) = 0.5 * (expfac*dv_dz + dw_dy);
+
+            if (tau32i) tau32i(i,j,k) = dv_dz;
         });
     }
     if (yh_w_dir) {
@@ -301,6 +310,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             tau23(i,j,k) = 0.5 * (       dv_dz + dw_dy);
             tau32(i,j,k) = 0.5 * (expfac*dv_dz + dw_dy);
+
+            if (tau32i) tau32i(i,j,k) = dv_dz;
         });
     }
 
@@ -329,6 +340,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             tau13(i,j,k) = 0.5 * (       du_dz + dw_dx);
             tau31(i,j,k) = 0.5 * (expfac*du_dz + dw_dx);
+
+            if (tau31i) tau31i(i,j,k) = du_dz;
         });
     }
     if (zh_u_dir) {
@@ -354,6 +367,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             tau13(i,j,k) = 0.5 * (       du_dz + dw_dx);
             tau31(i,j,k) = 0.5 * (expfac*du_dz + dw_dx);
+
+            if (tau31i) tau31i(i,j,k) = du_dz;
         });
     }
 
@@ -379,6 +394,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             tau23(i,j,k) = 0.5 * (       dv_dz + dw_dy);
             tau32(i,j,k) = 0.5 * (expfac*dv_dz + dw_dy);
+
+            if (tau32i) tau32i(i,j,k) = dv_dz;
         });
     }
     if (zh_v_dir && (tbxyz.bigEnd(2) == domain_yz.bigEnd(2))) {
@@ -404,6 +421,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             tau23(i,j,k) = 0.5 * (       dv_dz + dw_dy);
             tau32(i,j,k) = 0.5 * (expfac*dv_dz + dw_dy);
+
+            if (tau32i) tau32i(i,j,k) = dv_dz;
         });
     }
 
@@ -454,6 +473,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             tau13(i,j,k) = 0.5 * (       du_dz + dw_dx);
             tau31(i,j,k) = 0.5 * (expfac*du_dz + dw_dx);
+
+            if (tau31i) tau31i(i,j,k) = du_dz;
         });
     }
     if (!zl_v_dir && (tbxyz.smallEnd(2) == domain_yz.smallEnd(2))) {
@@ -470,6 +491,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             tau23(i,j,k) = 0.5 * (       dv_dz + dw_dy);
             tau32(i,j,k) = 0.5 * (expfac*dv_dz + dw_dy);
+
+            if (tau32i) tau32i(i,j,k) = dv_dz;
         });
     }
 
@@ -490,6 +513,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             tau13(i,j,k) = 0.5 * (       du_dz + dw_dx);
             tau31(i,j,k) = 0.5 * (expfac*du_dz + dw_dx);
+
+            if (tau31i) tau31i(i,j,k) = du_dz;
         });
     }
     if (!zh_v_dir && (tbxyz.bigEnd(2) == domain_yz.bigEnd(2))) {
@@ -506,6 +531,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             tau23(i,j,k) = 0.5 * (       dv_dz + dw_dy);
             tau32(i,j,k) = 0.5 * (expfac*dv_dz + dw_dy);
+
+            if (tau32i) tau32i(i,j,k) = dv_dz;
         });
     }
 
@@ -544,6 +571,8 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         tau13(i,j,k) = 0.5 * (       du_dz + dw_dx);
         tau31(i,j,k) = 0.5 * (expfac*du_dz + dw_dx);
+
+        if (tau31i) tau31i(i,j,k) = du_dz;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real mfy = mf_vy(i,j,0);
@@ -555,5 +584,7 @@ ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         tau23(i,j,k) = 0.5 * (       dv_dz + dw_dy);
         tau32(i,j,k) = 0.5 * (expfac*dv_dz + dw_dy);
+
+        if (tau32i) tau32i(i,j,k) = dv_dz;
     });
 }
