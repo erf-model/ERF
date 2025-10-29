@@ -73,7 +73,6 @@ public:
         m_fac_cond = lcond / sc.c_p;
         m_fac_fus  = lfus / sc.c_p;
         m_fac_sub  = lsub / sc.c_p;
-        m_gOcp     = CONST_GRAV / sc.c_p;
         m_axis     = sc.ave_plane;
         m_rdOcp    = sc.rdOcp;
         m_do_cond  = (!sc.use_shoc);
@@ -269,6 +268,13 @@ public:
         a_idx.push_back(7); a_names.push_back("GraupAccum");
     }
 
+    void
+    GetPlotVarNames (amrex::Vector<std::string>& a_vec) const override;
+
+    void
+    GetPlotVar (const std::string& a_name,
+                amrex::MultiFab& a_mf) const override;
+
 private:
     // Number of qmoist variables (Ncloud, Nrain, Nice, Nsnow, Ngraup, rain_accum, snow_accum, graup_accum)
     int m_qmoist_size = 8;
@@ -298,7 +304,6 @@ private:
     amrex::Real m_fac_cond;
     amrex::Real m_fac_fus;
     amrex::Real m_fac_sub;
-    amrex::Real m_gOcp;
     amrex::Real m_rdOcp;
     bool m_do_cond;
 

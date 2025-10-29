@@ -74,7 +74,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                                         &vars_new[level][Vars::yvel],
                                                         &vars_new[level][Vars::zvel]});
 
-    int l_implicit_substepping = (solverChoice.substepping_type[level] == SubsteppingType::Implicit);
+    bool l_implicit_substepping = (solverChoice.substepping_type[level] == SubsteppingType::Implicit);
     int l_anelastic      = solverChoice.anelastic[level];
 
     Real estdt_comp_inv;

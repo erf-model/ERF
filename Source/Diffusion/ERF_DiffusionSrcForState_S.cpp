@@ -19,7 +19,6 @@ using namespace amrex;
  * @param[in]  xflux flux in x-dir
  * @param[in]  yflux flux in y-dir
  * @param[in]  zflux flux in z-dir
- * @param[in]  detJ Jacobian determinant
  * @param[in]  cellSizeInv inverse cell size array
  * @param[in]  SmnSmn_a strain rate magnitude
  * @param[in]  mf_m map factor at cell center
@@ -36,6 +35,7 @@ using namespace amrex;
  * @param[in]  grav_gpu gravity vector
  * @param[in]  bc_ptr container with boundary conditions
  * @param[in]  use_SurfLayer whether we have turned on subgrid diffusion
+ * @param[in]  implicit_fac -- factor of implicitness for vertical differences only
  */
 void
 DiffusionSrcForState_S (const Box& bx, const Box& domain,
@@ -68,11 +68,15 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const BCRec* bc_ptr,
                         const bool use_SurfLayer,
-                              Array4<      Real>& buoy_fluxes)
+                              Array4<      Real>& buoy_fluxes,
+                        const Real implicit_fac)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_S()",DiffusionSrcForState_S);
 
-#include "ERF_DiffSetup.H"
+    const Real explicit_fac = 1.0 - implicit_fac;
+
+#include "ERF_SetupDiff.H"
+    Real l_abs_g      = std::abs(grav_gpu[2]);
 
     int klo = domain.smallEnd(2);
     int khi = domain.bigEnd(2);
@@ -189,7 +193,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!SurfLayer_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k);
+                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
@@ -251,7 +255,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -291,6 +294,8 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
+
             if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k) = hfx_z(i,j,0);
             } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
@@ -301,7 +306,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!SurfLayer_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k);
+                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
@@ -360,7 +365,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -400,6 +404,8 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
+
             if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k) = hfx_z(i,j,0);
             } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
@@ -410,7 +416,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!SurfLayer_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k);
+                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
@@ -466,7 +472,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].lo(5) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -506,6 +511,8 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 GradCz = dzk_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
+            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
+
             if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 zflux(i,j,k) = hfx_z(i,j,0);
             } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
@@ -516,7 +523,7 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!SurfLayer_on_zlo) {
-                    hfx_z(i,j,k) = zflux(i,j,k);
+                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!SurfLayer_on_zlo) {
@@ -538,6 +545,13 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
         yflux(i,j,k) /= mf_vx(i,j,0);
     });
 
+    // This allows us to do semi-implicit discretization of the vertical diffusive terms
+    if (qty_index == RhoTheta_comp) {
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            zflux(i,j,k) *= explicit_fac;
+        });
+    }
 
     // Use fluxes to compute RHS
     //-----------------------------------------------------------------------------------
@@ -554,6 +568,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
     } // n
 
-#include "ERF_DiffTKEAdjustment.H"
-#include "ERF_DiffQKEAdjustment.H"
+#include "ERF_AddTKESources.H"
+#include "ERF_AddQKESources.H"
 }

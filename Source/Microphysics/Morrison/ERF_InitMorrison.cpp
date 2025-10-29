@@ -201,8 +201,6 @@ void Morrison::Compute_Coefficients ()
     Real* theta_dptr = theta_d.data();
     Real* qv_dptr    = qv_d.data();
 
-    Real gOcp = m_gOcp;
-
     ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept
     {
         Real RhoTheta = rho_dptr[k]*theta_dptr[k];

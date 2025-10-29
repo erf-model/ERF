@@ -1,0 +1,99 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 5
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 3750000. 	3750000. 	16500.
+amr.n_cell           = 200   		200   		176
+#amr.blocking_factor  = 1
+
+geometry.is_periodic = 0 0 0
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+
+zlo.type = "Surface_Layer"
+zhi.type = "SlipWall"
+erf.most.zref = 1.0
+
+# TIME STEP CONTROL
+erf.fixed_dt           = 0.5  # fixed time step depending on grid resolution
+    
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = -100    # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 1       # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoQ1 x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys qt qp qv qc
+
+# SOLVER CHOICE
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
+erf.use_gravity = true
+
+erf.terrain_type = StaticFittedMesh
+
+erf.land_surface_model = "NOAHMP"
+erf.coupling_type = "OneWay"
+
+erf.moisture_model = "Kessler"
+
+erf.les_type          = "None"
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 5.0
+
+erf.use_coriolis = true
+erf.abl_driver_type = "GeostrophicWind"
+erf.latitude = 90.
+erf.abl_geo_wind = 15.0 0.0 0.0
+erf.rotational_time_period = 86164.0900027328
+
+# RADIATION INPUTS
+erf.radiation_model        = "RRTMGP"
+erf.rad.datalog            = "radiation"
+erf.profile_rad_int        = 100
+erf.rad_freq_in_steps      = 100
+erf.rad_do_subcol_sampling = true
+erf.rad_write_fluxes       = false
+erf.co2vmr                 = 0.00036
+erf.o3vmr                  = 3.0e-8 
+erf.n2ovmr                 = 3.2e-7
+erf.covmr                  = 1.5e-7
+erf.ch4vmr                 = 1.7e-6
+erf.o2vmr                  = 0.209
+erf.n2vmr                  = 0.7906
+erf.nswbands               = 14
+erf.nlwbands               = 16
+erf.nswgpts                = 224
+erf.nlwgpts                = 256  
+erf.rrtmgp_file_path       = .
+erf.rrtmgp_coeffs_sw       = rrtmgp-data-sw-g224-2018-12-04.nc
+erf.rrtmgp_coeffs_lw       = rrtmgp-data-lw-g256-2018-12-04.nc
+erf.rrtmgp_cloud_optics_sw = rrtmgp-cloud-optics-coeffs-sw.nc
+erf.rrtmgp_cloud_optics_lw = rrtmgp-cloud-optics-coeffs-lw.nc
+
+# PROBLEM PARAMETERS (optional)
+prob.rho_0 = 1.0
+prob.T_0 = 300.0
+
+# INITIALIZATION WITH ATM DATA
+erf.real_width     = 1
+erf.real_set_width = 1
+erf.init_type      = "WRFInput"
+erf.nc_init_file_0 = "wrfinput_chisholmview_d01"
+erf.nc_bdy_file    = "wrfbdy_chisholmview_d01_width1"

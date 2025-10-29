@@ -72,6 +72,12 @@ public:
     }
 
     void
+    Plot(const int& lev, const int& nstep)
+    {
+        m_lsm_model[lev]->Plot_Landfile(nstep);
+    }
+
+    void
     Update_Lsm_Vars_Lev (const int& lev, amrex::MultiFab& cons_in,
                          amrex::MultiFab& u_in, amrex::MultiFab& v_in)
     {
