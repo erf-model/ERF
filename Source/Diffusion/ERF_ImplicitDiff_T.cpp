@@ -43,10 +43,12 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
     // this uses domain, level, start_comp, num_comp
 #include "ERF_SetupVertDiff.H"
 
+    // define get_rhoAlpha()
     const int         n = RhoTheta_comp;
     const int qty_index = RhoTheta_comp;
     const int prim_index = qty_index - 1;
     const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
+#include "ERF_GetRhoAlpha.H"
 
     // Box bounds
     int ilo = bx.smallEnd(0);
@@ -91,33 +93,8 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
           //===================================================
           Real a_tmp, b_tmp;
           {
-              if (l_consA && l_turb) {
-                  rhoAlpha_lo = 0.5 * ( cell_data(i,j,klo,Rho_comp) + cell_data(i,j,klo-1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
-                              + 0.5 * ( mu_turb(i,j,klo  , d_eddy_diff_idz[prim_scal_index])
-                                      + mu_turb(i,j,klo-1, d_eddy_diff_idz[prim_scal_index]) );
-                  rhoAlpha_hi = 0.5 * ( cell_data(i,j,klo,Rho_comp) + cell_data(i,j,klo+1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
-                              + 0.5 * ( mu_turb(i,j,klo  , d_eddy_diff_idz[prim_scal_index])
-                                      + mu_turb(i,j,klo+1, d_eddy_diff_idz[prim_scal_index]) );
-              }
-              else if (l_turb) // with MolecDiffType::Constant or None
-              {
-                  rhoAlpha_lo =  d_alpha_eff[prim_index]
-                              + 0.5 * ( mu_turb(i,j,klo  , d_eddy_diff_idz[prim_index])
-                                      + mu_turb(i,j,klo-1, d_eddy_diff_idz[prim_index]) );
-                  rhoAlpha_hi =  d_alpha_eff[prim_index]
-                              + 0.5 * ( mu_turb(i,j,klo  , d_eddy_diff_idz[prim_index])
-                                      + mu_turb(i,j,klo+1, d_eddy_diff_idz[prim_index]) );
-              }
-              else if (l_consA) // without an LES/PBL model
-              {
-                  rhoAlpha_lo = 0.5 * ( cell_data(i,j,klo,Rho_comp) + cell_data(i,j,klo-1,Rho_comp) ) * d_alpha_eff[prim_index];
-                  rhoAlpha_hi = 0.5 * ( cell_data(i,j,klo,Rho_comp) + cell_data(i,j,klo+1,Rho_comp) ) * d_alpha_eff[prim_index];
-              }
-              else // with MolecDiffType::Constant or None - without an LES/PBL model
-              {
-                  rhoAlpha_lo = d_alpha_eff[prim_index];
-                  rhoAlpha_hi = d_alpha_eff[prim_index];
-              }
+              get_rhoAlpha(i, j, klo, rhoAlpha_lo, rhoAlpha_hi);
+
               Real met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,klo+1,cellSizeInv,z_nd);
 
               // Note that the additional factor of detJ is multiplied through so we don't see it here
@@ -144,35 +121,7 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
           //===================================================
           for (int k(klo+1); k < khi; k++)
           {
-              if (l_consA && l_turb) {
-                  rhoAlpha_lo = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
-                              + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_scal_index])
-                                      + mu_turb(i,j,k-1, d_eddy_diff_idz[prim_scal_index]) );
-                  rhoAlpha_hi = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k+1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
-                              + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_scal_index])
-                                      + mu_turb(i,j,k+1, d_eddy_diff_idz[prim_scal_index]) );
-              }
-              else if (l_turb) // with MolecDiffType::Constant or None
-              {
-                  rhoAlpha_lo = d_alpha_eff[prim_index]
-                              + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_index])
-                                      + mu_turb(i,j,k-1, d_eddy_diff_idz[prim_index]) );
-                  rhoAlpha_hi =  d_alpha_eff[prim_index]
-                              + 0.5 * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_index])
-                                      + mu_turb(i,j,k+1, d_eddy_diff_idz[prim_index]) );
-              }
-              else if (l_consA) // without an LES/PBL model
-              {
-                  rhoAlpha_lo = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) ) * d_alpha_eff[prim_index];
-                  rhoAlpha_hi = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k+1,Rho_comp) ) * d_alpha_eff[prim_index];
-              }
-              else // with MolecDiffType::Constant or None - without an LES/PBL model
-              {
-                  rhoAlpha_lo = d_alpha_eff[prim_index];
-                  rhoAlpha_hi = d_alpha_eff[prim_index];
-              }
-              Real met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,k  ,cellSizeInv,z_nd);
-              Real met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,k+1,cellSizeInv,z_nd);
+              get_rhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi);
 
               // Note that the additional factor of detJ is multiplied through so we don't see it here
               //      in the denominator but do see it multiplying the B coeff and the RHS
@@ -192,33 +141,8 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
           // Top boundary coefficients and RHS for L decomp
           //===================================================
           {
-              if (l_consA && l_turb) {
-                  rhoAlpha_lo = 0.5 * ( cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi-1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
-                              + 0.5 * ( mu_turb(i,j,khi  , d_eddy_diff_idz[prim_scal_index])
-                                      + mu_turb(i,j,khi-1, d_eddy_diff_idz[prim_scal_index]) );
-                  rhoAlpha_hi = 0.5 * ( cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi+1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
-                              + 0.5 * ( mu_turb(i,j,khi  , d_eddy_diff_idz[prim_scal_index])
-                                      + mu_turb(i,j,khi+1, d_eddy_diff_idz[prim_scal_index]) );
-              }
-              else if (l_turb) // with MolecDiffType::Constant or None
-              {
-                  rhoAlpha_lo = d_alpha_eff[prim_index]
-                              + 0.5 * ( mu_turb(i,j,khi  , d_eddy_diff_idz[prim_index])
-                                      + mu_turb(i,j,khi-1, d_eddy_diff_idz[prim_index]) );
-                  rhoAlpha_hi = d_alpha_eff[prim_index]
-                              + 0.5 * ( mu_turb(i,j,khi  , d_eddy_diff_idz[prim_index])
-                                      + mu_turb(i,j,khi+1, d_eddy_diff_idz[prim_index]) );
-              }
-              else if (l_consA) // without an LES/PBL model
-              {
-                  rhoAlpha_lo = 0.5 * ( cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi-1,Rho_comp) ) * d_alpha_eff[prim_index];
-                  rhoAlpha_hi = 0.5 * ( cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi+1,Rho_comp) ) * d_alpha_eff[prim_index];
-              }
-              else // with MolecDiffType::Constant or None - without an LES/PBL model
-              {
-                  rhoAlpha_lo = d_alpha_eff[prim_index];
-                  rhoAlpha_hi = d_alpha_eff[prim_index];
-              }
+              get_rhoAlpha(i, j, khi, rhoAlpha_lo, rhoAlpha_hi);
+
               Real met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,khi  ,cellSizeInv,z_nd);
 
               // Note that the additional factor of detJ is multiplied through so we don't see it here
@@ -234,7 +158,7 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
                   RHS_a(i,j,khi) -= -implicit_fac * dt * dz_inv * rhoAlpha_hi * bc_neumann_vals[5];
               }
 
-             soln_a(i,j,khi) = (RHS_a(i,j,khi) - a_tmp * RHS_a(i,j,khi-1)) * inv_coeffB_a(i,j,khi);
+              soln_a(i,j,khi) = (RHS_a(i,j,khi) - a_tmp * RHS_a(i,j,khi-1)) * inv_coeffB_a(i,j,khi);
           }
 
 
