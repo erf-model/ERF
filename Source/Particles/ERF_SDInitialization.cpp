@@ -77,6 +77,8 @@ void SDInitProperties::readInputs ( const std::string& a_prefix,
     pp.query("maximum_multiplicity", m_max_multiplicity);
     pp.query("multiplicity_type", m_mult_type);
 
+    pp.query(std::string(a_key+"particles_per_cell").c_str(), m_ppc);
+
     if (m_type == SDInitShape::uniform) {
 
         pp.queryAdd("particle_box_lo", m_init_particle_p1, AMREX_SPACEDIM);
@@ -212,7 +214,6 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
     using namespace amrex;
 
     amrex::ParmParse pp(a_prefix);
-    pp.query("initial_particles_per_cell", m_ppc_init);
     pp.query("initial_number_density", this->m_numdens);
     pp.query("initial_super_droplet_density", m_numdens_sd_init);
 }
@@ -234,9 +235,8 @@ void SDInjection::readInputs ( const std::string& a_prefix,
     pp.query("rate", m_inj_rate);
     pp.query("sd_rate", m_sd_inj_rate);
 
-    auto volume = this->volume();
-    this->m_numdens = m_inj_rate * a_dt / volume;
-    m_numdens_sd = (m_sd_inj_rate > 0 ? std::max(m_sd_inj_rate*a_dt/volume, 1.0) : 0.0);
+    this->m_numdens = m_inj_rate * a_dt;
+    m_numdens_sd = (m_sd_inj_rate > 0 ? std::max(m_sd_inj_rate*a_dt, 1.0) : -1);
 }
 
 void SDInitProperties::printParameters ( const MatVec& a_species_mat,
@@ -332,7 +332,7 @@ void SDInjection::printParameters ( const MatVec& a_species_mat,
                                     const MatVec& a_aerosol_mat ) const
 {
     using namespace amrex;
-    Print() << "    Injection rate (num. physical particles per second): " << m_inj_rate << "\n"
+    Print() << "    Injection rate (# m^{-3} s^{-1}): " << m_inj_rate << "\n"
             << "    SD injection rate: " << m_sd_inj_rate << "\n";
     SDInitProperties::printParameters(a_species_mat, a_aerosol_mat);
 }

@@ -46,6 +46,9 @@ class SDInitProperties
 {
     public:
 
+        /*!< Initial number of super-droplets per cell */
+        int m_ppc = 1;
+
         /*! Initial distribution type */
         SDInitShape m_type = SDInitShape::uniform;
 
@@ -269,22 +272,19 @@ class SDInjection : public SDInitProperties
 {
     public:
 
-        /*!< Injection rate (number of physical particles per second) */
+        /*!< Injection rate (number of physical particles per meter^3 second) */
         amrex::Real m_inj_rate = 0;
-        /*!< Injection rate (number of SDs per second) */
+        /*!< Injection rate (number of SDs per meter^3 second) */
         amrex::Real m_sd_inj_rate = 0;
 
         /*!< Initial number density of super-droplets */
         amrex::Real m_numdens_sd = -1;
-        /*!< Initial number of super-droplets per cell */
-        int m_ppc = 1;
 
         /*! update dt-based quantities */
         inline void updateDt (const amrex::Real a_dt)
         {
-            auto volume = this->volume();
-            this->m_numdens = m_inj_rate * a_dt / volume;
-            m_numdens_sd = m_sd_inj_rate * a_dt / volume;
+            this->m_numdens = m_inj_rate * a_dt;
+            m_numdens_sd = (m_sd_inj_rate>0 ? std::max(m_sd_inj_rate*a_dt, 1.0) : -1);
         }
 
         /*! read super-droplets injection parameters */
@@ -314,7 +314,7 @@ class SDInjection : public SDInitProperties
             if (m_numdens_sd >= 0) {
                 num_sd_per_cell = static_cast<int>(std::ceil(m_numdens_sd*a_dv));
             } else {
-                num_sd_per_cell = m_ppc;
+                num_sd_per_cell = this->m_ppc;
             }
             return num_sd_per_cell;
         }
@@ -340,8 +340,6 @@ class SDInitialization : public SDInitProperties
 
         /*!< Initial number density of super-droplets */
         amrex::Real m_numdens_sd_init = -1;
-        /*!< Initial number of super-droplets per cell */
-        int m_ppc_init = 1;
 
         /*! read super-droplets initialization parameters */
         void readInputs ( const std::string&,
@@ -369,7 +367,7 @@ class SDInitialization : public SDInitProperties
             if (m_numdens_sd_init >= 0) {
                 num_sd_per_cell = static_cast<int>(std::ceil(m_numdens_sd_init*a_dv));
             } else {
-                num_sd_per_cell = m_ppc_init;
+                num_sd_per_cell = this->m_ppc;
             }
             return num_sd_per_cell;
         }

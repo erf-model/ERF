@@ -139,10 +139,10 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
 
     // number of physical particles per cell
     Real num_par_per_cell = a_init.numParticlesPerCell(cell_volume);
-    if (!num_par_per_cell) { return; }
 
     Print() << "    Number of physical particles per cell: " << num_par_per_cell << "\n"
             << "    Number of super droplets per cell: " << num_sd_per_cell << "\n";
+    if (!num_par_per_cell) { Print() << "HELLO!!\n"; return; }
 
     const int num_sp  = m_num_species;
     const int num_ae = m_num_aerosols;

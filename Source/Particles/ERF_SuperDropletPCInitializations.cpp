@@ -323,14 +323,14 @@ void SuperDropletPC::InjectParticles (const Real a_t, const MFPtr& a_ptr, const 
     amrex::ignore_unused(a_t);
 
     for (int i = 0; i < m_num_injections; i++) {
+        m_injections[i]->updateDt(a_dt);
         if (m_injections[i]->m_inj_rate > 0) {
-            m_injections[i]->updateDt(a_dt);
             Print() << "SuperDropletPC(" << m_name << "): "
                     << " injecting particles with the following parameters\n";
             Print() << "    Domain: " << getEnumNameString(m_injections[i]->m_type)
                     << " - " << m_injections[i]->m_particle_domain << "\n";
-            Print() << "    Injection rates: " << m_injections[i]->m_inj_rate << " [s^{-1}] (physical), "
-                    << m_injections[i]->m_sd_inj_rate << " [s^{-1}] (superdroplets)\n";
+            Print() << "    Injection rates: " << m_injections[i]->m_inj_rate << " [m^{-3} s^{-1}] (physical), "
+                    << m_injections[i]->m_sd_inj_rate << " [m^{-3} s^{-1}] (superdroplets)\n";
             addParticles( a_ptr, *(m_injections[i]) );
             Print() << "  Particle container size: " << NumSuperDroplets() << "\n";
         }

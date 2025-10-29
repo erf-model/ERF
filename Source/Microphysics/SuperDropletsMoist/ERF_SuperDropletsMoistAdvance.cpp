@@ -14,6 +14,9 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
 {
     BL_PROFILE("SuperDropletsMoist::Advance()");
 
+    // update dt
+    m_dt = a_dt;
+
     // inject particles
     m_super_droplets->InjectParticles(a_time, a_z[0], m_dt);
 
@@ -33,9 +36,6 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                    << " ("
                    << (num_SD > 0 ? amrex::Real(num_SD_inactive)/amrex::Real(num_SD)*100 : 0)
                    << "%).\n";
-
-    // update dt
-    m_dt = a_dt;
 
     // Compute mass/size change due to evaporation/condensation
     if (m_flag_phase_change) {
