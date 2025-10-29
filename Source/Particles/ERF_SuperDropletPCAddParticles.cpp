@@ -54,7 +54,7 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd, /*!< integer 
 void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */
                                                   const int a_n_per_cell, /*!< number of superdroplets per cell */
                                                   const MFPtr& a_height_ptr, /*!< terrain */
-                                                  const RealBox& a_box /*!< box within which to initialize particles */ )
+                                                  const RealBox& a_bubble /*!< bubble within which to initialize particles */ )
 {
     BL_PROFILE("SuperDropletPC::setNumSDBubbleDistribution()");
     a_num_sd.setVal(0);
@@ -76,9 +76,9 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                                   height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
                                   height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
 
-                // Extract bubble params from box parameters
-                const auto& x_c = a_box.lo();       // center
-                const auto& x_r = a_box.hi();       // radius
+                // Extract bubble params
+                const auto& x_c = a_bubble.lo(); // center
+                const auto& x_r = a_bubble.hi(); // radius
 
                 Real rad = 0.0;
                 if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
@@ -97,9 +97,9 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
                 Real y = plo[1] + (j + 0.5)*dx[1];
                 Real z = plo[2] + (k + 0.5)*dx[2];
 
-                // Extract bubble params from box parameters
-                const auto& x_c = a_box.lo();       // center
-                const auto& x_r = a_box.hi();       // radius
+                // Extract bubble params
+                const auto& x_c = a_bubble.lo();       // center
+                const auto& x_r = a_bubble.hi();       // radius
 
                 Real rad = 0.0;
                 if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
@@ -125,7 +125,7 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
       if specified (if not specified, it is set to the particles per cell, whose default value is 1).
 */
 void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
-                                    const SDInitialization& a_init /*!< initialization parameters */ )
+                                    const SDInitProperties& a_init /*!< initialization parameters */ )
 {
     BL_PROFILE("SuperDropletPC::addParticles");
 
@@ -136,7 +136,6 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
 
     // number of super-droplets per cell
     int num_sd_per_cell = a_init.numSDPerCell(cell_volume);
-    m_num_sd_per_cell += num_sd_per_cell;
 
     // number of physical particles per cell
     Real num_par_per_cell = a_init.numParticlesPerCell(cell_volume);
@@ -158,17 +157,17 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                                  1, 0 );
 
     if (a_init.m_type == SDInitShape::uniform) {
-        Print() << "Initializing as uniform distribution!";
+        Print() << "    Adding particles in box (volume: " << a_init.volume() << ")\n";
         setNumSDBoxDistribution( num_superdroplets,
                                  num_sd_per_cell,
                                  a_height_ptr,
-                                 a_init.m_init_particle_box );
+                                 a_init.m_particle_domain );
     } else if (a_init.m_type == SDInitShape::bubble) {
-        Print() << "Initializing as bubble distribution!";
+        Print() << "    Adding particles in bubble (volume: " << a_init.volume() << ")\n";
         setNumSDBubbleDistribution( num_superdroplets,
                                     num_sd_per_cell,
                                     a_height_ptr,
-                                    a_init.m_init_particle_box );
+                                    a_init.m_particle_domain );
     } else if (a_init.m_type == SDInitShape::null) {
         num_superdroplets.setVal(0);
     } else {

@@ -13,6 +13,10 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                                    const BCTypeArr& a_bc /*! Boundary types */)
 {
     BL_PROFILE("SuperDropletsMoist::Advance()");
+
+    // inject particles
+    m_super_droplets->InjectParticles(a_time, a_z[0], m_dt);
+
     auto num_particles = m_super_droplets->TotalNumberOfParticles();
     auto num_SD = m_super_droplets->NumSuperDroplets();
     auto num_SD_inactive = m_super_droplets->NumSDDeactivated();
@@ -27,7 +31,7 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
     amrex::Print() << "    Number of deactivated super-droplets: "
                    << num_SD_inactive
                    << " ("
-                   << amrex::Real(num_SD_inactive)/amrex::Real(num_SD)*100
+                   << (num_SD > 0 ? amrex::Real(num_SD_inactive)/amrex::Real(num_SD)*100 : 0)
                    << "%).\n";
 
     // update dt

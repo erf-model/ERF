@@ -137,6 +137,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                                             a_cons_vars.boxArray(),
                                             m_species,
                                             m_aerosols,
+                                            m_dt,
                                             m_name );
 
     amrex::Print() << "SuperDropletsMoist:\n"

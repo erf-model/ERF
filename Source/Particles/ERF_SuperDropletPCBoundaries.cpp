@@ -39,7 +39,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
     for (int i = 0; i < m_num_initializations; i++) {
         num_par_per_cell += m_initializations[i]->numParticlesPerCell(cell_volume);
     }
-    auto multiplicity = num_par_per_cell / num_sd_per_cell;
+    auto multiplicity = (num_sd_per_cell > 0 ? num_par_per_cell / num_sd_per_cell : 0.0);
 
     Long num_deactivated_particles = 0;
 

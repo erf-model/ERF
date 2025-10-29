@@ -11,6 +11,7 @@
 #include <AMReX_RealBox.H>
 #include <AMReX_Geometry.H>
 
+#include "ERF_Constants.H"
 #include "ERF_MaterialProperties.H"
 
 using MatVec = std::vector<std::unique_ptr<MaterialProperties>>;
@@ -40,238 +41,338 @@ AMREX_ENUM(SDMultiplicityType,
     constant, sampled
 );
 
-/*! \brief Super-droplets initialization structure */
-struct SDInitialization
+/*! \brief Super-droplets initial properties */
+class SDInitProperties
 {
+    public:
 
-    /*! Initial distribution type */
-    SDInitShape m_type = SDInitShape::uniform;
+        /*! Initial distribution type */
+        SDInitShape m_type = SDInitShape::uniform;
 
-    /*!< Maximum multiplicity */
-    amrex::Real m_max_multiplicity = 1000000;
+        /*!< Initial number density (m^{-3}) of physical particles */
+        amrex::Real m_numdens = -1;
+        /*!< Maximum multiplicity */
+        amrex::Real m_max_multiplicity = 1000000;
 
-    /*!< Initial number density (m^{-3}) of physical particles */
-    amrex::Real m_numdens_init = -1;
-    /*!< Initial number density of super-droplets */
-    amrex::Real m_numdens_sd_init = -1;
-    /*!< Initial number of super-droplets per cell */
-    int m_ppc_init = 1;
+        /*! Minimum species mass */
+        std::vector<amrex::Real> m_mass_species_min;
+        /*! Maximum species mass */
+        std::vector<amrex::Real> m_mass_species_max;
+        /*! Mean species mass */
+        std::vector<amrex::Real> m_mass_species_mean;
+        /*! Minimum species dry radius */
+        std::vector<amrex::Real> m_radius_species_min;
+        /*! Maximum species dry radius */
+        std::vector<amrex::Real> m_radius_species_max;
+        /*! Mean species dry radius */
+        std::vector<amrex::Real> m_radius_species_mean;
+        /*! Standard deviation of species dry radius */
+        std::vector<amrex::Real> m_radius_species_geom_std;
+        /*! Initial distribution type for species */
+        std::vector<std::string> m_species_init_type;
 
-    /*! Minimum species mass */
-    std::vector<amrex::Real> m_mass_species_min;
-    /*! Maximum species mass */
-    std::vector<amrex::Real> m_mass_species_max;
-    /*! Mean species mass */
-    std::vector<amrex::Real> m_mass_species_mean;
-    /*! Minimum species dry radius */
-    std::vector<amrex::Real> m_radius_species_min;
-    /*! Maximum species dry radius */
-    std::vector<amrex::Real> m_radius_species_max;
-    /*! Mean species dry radius */
-    std::vector<amrex::Real> m_radius_species_mean;
-    /*! Standard deviation of species dry radius */
-    std::vector<amrex::Real> m_radius_species_geom_std;
-    /*! Initial distribution type for species */
-    std::vector<std::string> m_species_init_type;
+        /*! Minimum aerosol mass */
+        std::vector<amrex::Real> m_mass_aerosol_min;
+        /*! Maximum aerosol mass */
+        std::vector<amrex::Real> m_mass_aerosol_max;
+        /*! Mean aerosol mass */
+        std::vector<amrex::Real> m_mass_aerosol_mean;
+        /*! Minimum aerosol dry radius */
+        std::vector<amrex::Real> m_radius_aerosol_min;
+        /*! Maximum aerosol dry radius */
+        std::vector<amrex::Real> m_radius_aerosol_max;
+        /*! Mean aerosol dry radius */
+        std::vector<amrex::Real> m_radius_aerosol_mean;
+        /*! Standard deviation of aerosol dry radius */
+        std::vector<amrex::Real> m_radius_aerosol_geom_std;
+        /*! Initial distribution type for aerosol */
+        std::vector<std::string> m_aerosol_init_type;
 
-    /*! Minimum aerosol mass */
-    std::vector<amrex::Real> m_mass_aerosol_min;
-    /*! Maximum aerosol mass */
-    std::vector<amrex::Real> m_mass_aerosol_max;
-    /*! Mean aerosol mass */
-    std::vector<amrex::Real> m_mass_aerosol_mean;
-    /*! Minimum aerosol dry radius */
-    std::vector<amrex::Real> m_radius_aerosol_min;
-    /*! Maximum aerosol dry radius */
-    std::vector<amrex::Real> m_radius_aerosol_max;
-    /*! Mean aerosol dry radius */
-    std::vector<amrex::Real> m_radius_aerosol_mean;
-    /*! Standard deviation of aerosol dry radius */
-    std::vector<amrex::Real> m_radius_aerosol_geom_std;
-    /*! Initial distribution type for aerosol */
-    std::vector<std::string> m_aerosol_init_type;
+        /*! Number of species */
+        int m_num_species = 0;
+        /*! Number of aerosols */
+        int m_num_aerosols = 0;
 
-    /*! Number of species */
-    int m_num_species = 0;
-    /*! Number of aerosols */
-    int m_num_aerosols = 0;
+        /*! box within which to place particles*/
+        amrex::RealBox m_particle_domain;
+        /*! Particle distribution shape parameters
+        Box shape, p1 -> lo end, p2 -> hi end
+        Bubble shape, p1 -> center, p2 -> radius */
+        amrex::Vector<amrex::Real> m_init_particle_p1;
+        amrex::Vector<amrex::Real> m_init_particle_p2;
 
-    /*! box within which to place particles*/
-    amrex::RealBox m_init_particle_box;
-    /*! Particle distribution shape parameters
-    Box shape, p1 -> lo end, p2 -> hi end
-    Bubble shape, p1 -> center, p2 -> radius */
-    amrex::Vector<amrex::Real> m_init_particle_p1;
-    amrex::Vector<amrex::Real> m_init_particle_p2;
+        /*! multiplicity type */
+        SDMultiplicityType m_mult_type;
 
-    /*! multiplicity type */
-    SDMultiplicityType m_mult_type;
+        /*! set default values */
+        virtual void setDefaults ( const amrex::Geometry&,
+                                   const MatVec&,
+                                   const MatVec& );
 
-    /*! set default values */
-    void setDefaults ( const amrex::Geometry&,
-                       const MatVec&,
-                       const MatVec& );
+        /*! read super-droplets initialization parameters */
+        virtual void readInputs ( const std::string&,
+                                  const amrex::Geometry&,
+                                  const MatVec&,
+                                  const MatVec& );
 
-    /*! read super-droplets initialization parameters */
-    void readInputs ( const std::string&,
-                      const amrex::Geometry&,
-                      const MatVec&,
-                      const MatVec& );
+        /*! print super-droplets initialization parameters to screen */
+        virtual void printParameters ( const MatVec&, const MatVec& ) const;
 
-    /*! print super-droplets initialization parameters to screen */
-    void printParameters ( const MatVec&, const MatVec& ) const;
+        /*! Get a distribution with constant multiplicity */
+        void getDistribution( amrex::Vector<amrex::Real>&,
+                              const int,
+                              const amrex::Real,
+                              const std::string&,
+                              const amrex::Real,
+                              const amrex::Real,
+                              const amrex::Real,
+                              const amrex::Real,
+                              const amrex::Real,
+                              const amrex::Real,
+                              const amrex::Real,
+                              std::mt19937& ) const;
 
-    /*! Get a distribution with constant multiplicity */
-    void getDistribution( amrex::Vector<amrex::Real>&,
-                          const int,
-                          const amrex::Real,
-                          const std::string&,
-                          const amrex::Real,
-                          const amrex::Real,
-                          const amrex::Real,
-                          const amrex::Real,
-                          const amrex::Real,
-                          const amrex::Real,
-                          const amrex::Real,
-                          std::mt19937& ) const;
+        /*! Get a distribution with sampled multiplicity */
+        void getDistribution( amrex::Vector<amrex::Real>&,
+                              amrex::Vector<amrex::Real>&,
+                              const amrex::Real,
+                              const int,
+                              const amrex::Real,
+                              const std::string&,
+                              const amrex::Real,
+                              const amrex::Real,
+                              const amrex::Real,
+                              const amrex::Real,
+                              const amrex::Real,
+                              const amrex::Real,
+                              const amrex::Real,
+                              std::mt19937& ) const;
 
-    /*! Get a distribution with sampled multiplicity */
-    void getDistribution( amrex::Vector<amrex::Real>&,
-                          amrex::Vector<amrex::Real>&,
-                          const amrex::Real,
-                          const int,
-                          const amrex::Real,
-                          const std::string&,
-                          const amrex::Real,
-                          const amrex::Real,
-                          const amrex::Real,
-                          const amrex::Real,
-                          const amrex::Real,
-                          const amrex::Real,
-                          const amrex::Real,
-                          std::mt19937& ) const;
-
-    /*! Compute the mass distribution */
-    void getAerosolDistribution ( amrex::Vector<amrex::Real>& a_mass,
-                                  const int a_idx,
-                                  const int a_np,
-                                  const amrex::Real a_density,
-                                  std::mt19937& a_rng ) const
-    {
-        getDistribution( a_mass,
-                         a_np,
-                         a_density,
-                         m_aerosol_init_type[a_idx],
-                         m_mass_aerosol_min[a_idx],
-                         m_mass_aerosol_max[a_idx],
-                         m_mass_aerosol_mean[a_idx],
-                         m_radius_aerosol_min[a_idx],
-                         m_radius_aerosol_max[a_idx],
-                         m_radius_aerosol_mean[a_idx],
-                         m_radius_aerosol_geom_std[a_idx],
-                         a_rng);
-    }
-
-    /*! Compute the mass distribution (sampled multiplicity) */
-    void getAerosolDistribution ( amrex::Vector<amrex::Real>& a_mass,
-                                  amrex::Vector<amrex::Real>& a_mult,
-                                  amrex::Real a_dV,
-                                  int a_idx,
-                                  int a_np,
-                                  amrex::Real a_density,
-                                  std::mt19937& a_rng ) const
-    {
-        getDistribution( a_mass,
-                         a_mult,
-                         a_dV,
-                         a_np,
-                         a_density,
-                         m_aerosol_init_type[a_idx],
-                         m_mass_aerosol_min[a_idx],
-                         m_mass_aerosol_max[a_idx],
-                         m_mass_aerosol_mean[a_idx],
-                         m_radius_aerosol_min[a_idx],
-                         m_radius_aerosol_max[a_idx],
-                         m_radius_aerosol_mean[a_idx],
-                         m_radius_aerosol_geom_std[a_idx],
-                         a_rng);
-    }
-
-    /*! Compute the mass distribution */
-    void getSpeciesDistribution ( amrex::Vector<amrex::Real>& a_mass,
-                                  const int a_idx,
-                                  const int a_np,
-                                  const amrex::Real a_density,
-                                  std::mt19937& a_rng ) const
-    {
-        getDistribution( a_mass,
-                         a_np,
-                         a_density,
-                         m_species_init_type[a_idx],
-                         m_mass_species_min[a_idx],
-                         m_mass_species_max[a_idx],
-                         m_mass_species_mean[a_idx],
-                         m_radius_species_min[a_idx],
-                         m_radius_species_max[a_idx],
-                         m_radius_species_mean[a_idx],
-                         m_radius_species_geom_std[a_idx],
-                         a_rng);
-    }
-
-    /*! Compute the mass distribution (sampled multiplicity) */
-    void getSpeciesDistribution ( amrex::Vector<amrex::Real>& a_mass,
-                                  amrex::Vector<amrex::Real>& a_mult,
-                                  amrex::Real a_dV,
-                                  int a_idx,
-                                  int a_np,
-                                  amrex::Real a_density,
-                                  std::mt19937& a_rng ) const
-    {
-        getDistribution( a_mass,
-                         a_mult,
-                         a_dV,
-                         a_np,
-                         a_density,
-                         m_species_init_type[a_idx],
-                         m_mass_species_min[a_idx],
-                         m_mass_species_max[a_idx],
-                         m_mass_species_mean[a_idx],
-                         m_radius_species_min[a_idx],
-                         m_radius_species_max[a_idx],
-                         m_radius_species_mean[a_idx],
-                         m_radius_species_geom_std[a_idx],
-                         a_rng);
-    }
-
-    /*! Compute number of super-droplets per grid cell */
-    [[nodiscard]] inline int numSDPerCell (const amrex::Real a_dv) const
-    {
-        int num_sd_per_cell = 0;
-        if (m_numdens_sd_init >= 0) {
-            num_sd_per_cell = static_cast<int>(std::ceil(m_numdens_sd_init*a_dv));
-        } else {
-            num_sd_per_cell = m_ppc_init;
+        /*! Compute the mass distribution */
+        void getAerosolDistribution ( amrex::Vector<amrex::Real>& a_mass,
+                                      const int a_idx,
+                                      const int a_np,
+                                      const amrex::Real a_density,
+                                      std::mt19937& a_rng ) const
+        {
+            getDistribution( a_mass,
+                             a_np,
+                             a_density,
+                             m_aerosol_init_type[a_idx],
+                             m_mass_aerosol_min[a_idx],
+                             m_mass_aerosol_max[a_idx],
+                             m_mass_aerosol_mean[a_idx],
+                             m_radius_aerosol_min[a_idx],
+                             m_radius_aerosol_max[a_idx],
+                             m_radius_aerosol_mean[a_idx],
+                             m_radius_aerosol_geom_std[a_idx],
+                             a_rng);
         }
-        return num_sd_per_cell;
-    }
 
-    /*! Compute number of physical particles per grid cell */
-    [[nodiscard]] inline amrex::Real numParticlesPerCell (const amrex::Real a_dv) const
-    {
-        amrex::Real num_par_per_cell = 0.0;
-        if (m_numdens_init >= 0) {
-            num_par_per_cell = std::ceil(m_numdens_init*a_dv);
-        } else {
-            num_par_per_cell = 1;
+        /*! Compute the mass distribution (sampled multiplicity) */
+        void getAerosolDistribution ( amrex::Vector<amrex::Real>& a_mass,
+                                      amrex::Vector<amrex::Real>& a_mult,
+                                      amrex::Real a_dV,
+                                      int a_idx,
+                                      int a_np,
+                                      amrex::Real a_density,
+                                      std::mt19937& a_rng ) const
+        {
+            getDistribution( a_mass,
+                             a_mult,
+                             a_dV,
+                             a_np,
+                             a_density,
+                             m_aerosol_init_type[a_idx],
+                             m_mass_aerosol_min[a_idx],
+                             m_mass_aerosol_max[a_idx],
+                             m_mass_aerosol_mean[a_idx],
+                             m_radius_aerosol_min[a_idx],
+                             m_radius_aerosol_max[a_idx],
+                             m_radius_aerosol_mean[a_idx],
+                             m_radius_aerosol_geom_std[a_idx],
+                             a_rng);
         }
-        return num_par_per_cell;
-    }
 
-    /* return whether multiplicity is sampled or constant */
-    [[nodiscard]] inline bool sampledMultiplicity() const
-    {
-        return (m_mult_type == SDMultiplicityType::sampled);
-    }
+        /*! Compute the mass distribution */
+        void getSpeciesDistribution ( amrex::Vector<amrex::Real>& a_mass,
+                                      const int a_idx,
+                                      const int a_np,
+                                      const amrex::Real a_density,
+                                      std::mt19937& a_rng ) const
+        {
+            getDistribution( a_mass,
+                             a_np,
+                             a_density,
+                             m_species_init_type[a_idx],
+                             m_mass_species_min[a_idx],
+                             m_mass_species_max[a_idx],
+                             m_mass_species_mean[a_idx],
+                             m_radius_species_min[a_idx],
+                             m_radius_species_max[a_idx],
+                             m_radius_species_mean[a_idx],
+                             m_radius_species_geom_std[a_idx],
+                             a_rng);
+        }
+
+        /*! Compute the mass distribution (sampled multiplicity) */
+        void getSpeciesDistribution ( amrex::Vector<amrex::Real>& a_mass,
+                                      amrex::Vector<amrex::Real>& a_mult,
+                                      amrex::Real a_dV,
+                                      int a_idx,
+                                      int a_np,
+                                      amrex::Real a_density,
+                                      std::mt19937& a_rng ) const
+        {
+            getDistribution( a_mass,
+                             a_mult,
+                             a_dV,
+                             a_np,
+                             a_density,
+                             m_species_init_type[a_idx],
+                             m_mass_species_min[a_idx],
+                             m_mass_species_max[a_idx],
+                             m_mass_species_mean[a_idx],
+                             m_radius_species_min[a_idx],
+                             m_radius_species_max[a_idx],
+                             m_radius_species_mean[a_idx],
+                             m_radius_species_geom_std[a_idx],
+                             a_rng);
+        }
+
+        /* return whether multiplicity is sampled or constant */
+        [[nodiscard]] inline bool sampledMultiplicity() const
+        {
+            return (m_mult_type == SDMultiplicityType::sampled);
+        }
+
+        /* return volume of particle domain */
+        [[nodiscard]] inline auto volume() const
+        {
+            amrex::Real vol = 0.0;
+            if (m_type == SDInitShape::uniform) {
+                vol = m_particle_domain.volume();
+            } else if (m_type == SDInitShape::bubble) {
+                const auto& radius = m_particle_domain.hi();
+                vol = (4.0/3.0)*PI*radius[0]*radius[1]*radius[2];
+            }
+            return vol;
+        }
+
+        virtual int numSDPerCell (const amrex::Real) const = 0;
+        virtual amrex::Real numParticlesPerCell (const amrex::Real) const = 0;
+};
+
+/*! \brief Super-droplets initialization structure */
+class SDInjection : public SDInitProperties
+{
+    public:
+
+        /*!< Injection rate (number of physical particles per second) */
+        amrex::Real m_inj_rate = 0;
+        /*!< Injection rate (number of SDs per second) */
+        amrex::Real m_sd_inj_rate = 0;
+
+        /*!< Initial number density of super-droplets */
+        amrex::Real m_numdens_sd = -1;
+        /*!< Initial number of super-droplets per cell */
+        int m_ppc = 1;
+
+        /*! update dt-based quantities */
+        inline void updateDt (const amrex::Real a_dt)
+        {
+            auto volume = this->volume();
+            this->m_numdens = m_inj_rate * a_dt / volume;
+            m_numdens_sd = m_sd_inj_rate * a_dt / volume;
+        }
+
+        /*! read super-droplets initialization parameters */
+        void readInputs ( const std::string&,
+                          const amrex::Geometry&,
+                          const MatVec&,
+                          const MatVec& ) override
+        {
+            amrex::Abort("SDInjection::readInputs(): Do not use this interface");
+        }
+
+        /*! read super-droplets initialization parameters */
+        void readInputs ( const std::string&,
+                          const amrex::Geometry&,
+                          const MatVec&,
+                          const MatVec&,
+                          const amrex::Real );
+
+        /*! print super-droplets initialization parameters to screen */
+        void printParameters ( const MatVec&, const MatVec& ) const override;
+
+        /*! Compute number of super-droplets per grid cell */
+        [[nodiscard]] inline int numSDPerCell (const amrex::Real a_dv) const override
+        {
+            int num_sd_per_cell = 0;
+            if (m_numdens_sd >= 0) {
+                num_sd_per_cell = static_cast<int>(std::ceil(m_numdens_sd*a_dv));
+            } else {
+                num_sd_per_cell = m_ppc;
+            }
+            return num_sd_per_cell;
+        }
+
+        /*! Compute number of physical particles per grid cell */
+        [[nodiscard]] inline amrex::Real numParticlesPerCell (const amrex::Real a_dv) const override
+        {
+            amrex::Real num_par_per_cell = 0.0;
+            if (this->m_numdens >= 0) {
+                num_par_per_cell = std::ceil(this->m_numdens*a_dv);
+            } else {
+                num_par_per_cell = 1;
+            }
+            return num_par_per_cell;
+        }
+
+};
+
+/*! \brief Super-droplets initialization structure */
+class SDInitialization : public SDInitProperties
+{
+    public:
+
+        /*!< Initial number density of super-droplets */
+        amrex::Real m_numdens_sd_init = -1;
+        /*!< Initial number of super-droplets per cell */
+        int m_ppc_init = 1;
+
+        /*! read super-droplets initialization parameters */
+        void readInputs ( const std::string&,
+                          const amrex::Geometry&,
+                          const MatVec&,
+                          const MatVec& ) override;
+
+        /*! print super-droplets initialization parameters to screen */
+        void printParameters ( const MatVec&, const MatVec& ) const override;
+
+        /*! Compute number of super-droplets per grid cell */
+        [[nodiscard]] inline int numSDPerCell (const amrex::Real a_dv) const override
+        {
+            int num_sd_per_cell = 0;
+            if (m_numdens_sd_init >= 0) {
+                num_sd_per_cell = static_cast<int>(std::ceil(m_numdens_sd_init*a_dv));
+            } else {
+                num_sd_per_cell = m_ppc_init;
+            }
+            return num_sd_per_cell;
+        }
+
+        /*! Compute number of physical particles per grid cell */
+        [[nodiscard]] inline amrex::Real numParticlesPerCell (const amrex::Real a_dv) const override
+        {
+            amrex::Real num_par_per_cell = 0.0;
+            if (this->m_numdens >= 0) {
+                num_par_per_cell = std::ceil(this->m_numdens*a_dv);
+            } else {
+                num_par_per_cell = 1;
+            }
+            return num_par_per_cell;
+        }
 
 };
 
