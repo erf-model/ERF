@@ -90,6 +90,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     //***********************************************************************************
     Real OneThird   = (1./3.);
     ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        if (tau33i) tau33i(i,j,k) = tau33(i,j,k);
+
         tau11(i,j,k) -= OneThird*er_arr(i,j,k);
         tau22(i,j,k) -= OneThird*er_arr(i,j,k);
         tau33(i,j,k) = tau33(i,j,k) - OneThird*er_arr(i,j,k);
@@ -117,6 +119,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau33(i,j,k) -= met_h_xi*mfx*tau31bar + met_h_eta*mfy*tau32bar;
         tau33(i,j,k) *= -mu_tot;
+
+        if (tau33i) tau33i(i,j,k) *= -(4./3.) * mu_tot;
     });
 
     // Second block: compute 2mu*JT*(S-D)
@@ -270,6 +274,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         tau13(i,j,k) *= -mu_tot;
 
         tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+
+        if (tau31i) tau31i(i,j,k) *= -mu_tot*met_h_zeta/mfy;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -292,6 +298,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         tau23(i,j,k) *= -mu_tot;
 
         tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+
+        if (tau32i) tau32i(i,j,k) *= -mu_tot*met_h_zeta/mfx;
     });
 
     // Fill the remaining components: tau11, tau22, tau12/21
@@ -412,6 +420,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     //***********************************************************************************
     Real OneThird   = (1./3.);
     ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        if (tau33i) tau33i(i,j,k) = tau33(i,j,k);
+
         tau11(i,j,k) -= OneThird*er_arr(i,j,k);
         tau22(i,j,k) -= OneThird*er_arr(i,j,k);
         tau33(i,j,k) = tau33(i,j,k) - OneThird*er_arr(i,j,k);
@@ -440,6 +450,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau33(i,j,k) -= met_h_xi*mfx*tau31bar + met_h_eta*mfy*tau32bar;
         tau33(i,j,k) *= -mu_tot;
+
+        if (tau33i) tau33i(i,j,k) *= -(4./3.) * mu_tot;
     });
 
     // Second block: compute 2mu*JT*(S-D)
@@ -609,6 +621,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         tau13(i,j,k) *= -mu_tot;
 
         tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+
+        if (tau31i) tau31i(i,j,k) *= -mu_tot*met_h_zeta/mfy;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -635,6 +649,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         tau23(i,j,k) *= -mu_tot;
 
         tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+
+        if (tau32i) tau32i(i,j,k) *= -mu_tot*met_h_zeta/mfx;
     });
 
     // Fill the remaining components: tau11, tau22, tau12/21
