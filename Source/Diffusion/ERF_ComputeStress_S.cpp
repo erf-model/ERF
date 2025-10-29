@@ -24,7 +24,9 @@ using namespace amrex;
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
  * @param[in]  dxInv inverse cell size array
- * @param[in] tau33i contribution to stress from dw/dz
+ * @param[in,out] tau31i contribution to stress from du/dz
+ * @param[in,out] tau32i contribution to stress from dv/dz
+ * @param[in,out] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -42,9 +44,13 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          const Array4<const Real>& mf_my,
                          const Array4<const Real>& mf_uy,
                          const Array4<const Real>& mf_vy,
+                         Array4<Real>& tau31i,
+                         Array4<Real>& tau32i,
                          Array4<Real>& tau33i,
                          const Real expfac)
 {
+    // NOTE: mu_eff includes factor of 2
+
     // Handle constant alpha case, in which the provided mu_eff is actually
     // "alpha" and the viscosity needs to be scaled by rho. This can be further
     // optimized with if statements below instead of creating a new FAB,
@@ -54,12 +60,18 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     gbx.grow(IntVect(0,0,1));
     temp.resize(gbx,1, The_Async_Arena());
     Array4<Real> rhoAlpha = temp.array();
-    if (cell_data) {
+
+    if (cell_data)
+    // constant alpha (stored in mu_eff)
+    {
         ParallelFor(gbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             rhoAlpha(i,j,k) = cell_data(i, j, k, Rho_comp) * mu_eff;
         });
-    } else {
+    }
+    else
+    // constant mu_eff
+    {
         ParallelFor(gbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             rhoAlpha(i,j,k) = mu_eff;
@@ -78,6 +90,8 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         Real mu_tot     = rhoAlpha(i,j,k);
         Real met_h_zeta = dz_ptr[k]*dxInv[2];
+
+        if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_tot * tau33(i,j,k);
 
         tau11(i,j,k) = -mu_tot * (met_h_zeta/mfy) * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
         tau22(i,j,k) = -mu_tot * (met_h_zeta/mfx) * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
@@ -111,6 +125,8 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau13(i,j,k) *= -mu_tot;
         tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+
+        if (tau31i) tau31i(i,j,k) *= -mu_tot*met_h_zeta/mfy;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -123,6 +139,8 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau23(i,j,k) *= -mu_tot;
         tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+
+        if (tau32i) tau32i(i,j,k) *= -mu_tot*met_h_zeta/mfx;
     });
 }
 
@@ -148,7 +166,9 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
  * @param[in]  dxInv inverse cell size array
- * @param[in] tau33i contribution to stress from dw/dz
+ * @param[in,out] tau31i contribution to stress from du/dz
+ * @param[in,out] tau32i contribution to stress from dv/dz
+ * @param[in,out] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -167,9 +187,13 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         const Array4<const Real>& mf_my,
                         const Array4<const Real>& mf_uy,
                         const Array4<const Real>& mf_vy,
+                        Array4<Real>& tau31i,
+                        Array4<Real>& tau32i,
                         Array4<Real>& tau33i,
                         const Real expfac)
 {
+    // NOTE: mu_eff includes factor of 2
+
     // Handle constant alpha case, in which the provided mu_eff is actually
     // "alpha" and the viscosity needs to be scaled by rho. This can be further
     // optimized with if statements below instead of creating a new FAB,
@@ -179,12 +203,18 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     gbx.grow(IntVect(0,0,1));
     temp.resize(gbx,1, The_Async_Arena());
     Array4<Real> rhoAlpha = temp.array();
-    if (cell_data) {
+
+    if (cell_data)
+    // constant alpha (stored in mu_eff)
+    {
         ParallelFor(gbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             rhoAlpha(i,j,k) = cell_data(i, j, k, Rho_comp) * mu_eff;
         });
-    } else {
+    }
+    else
+    // constant mu_eff
+    {
         ParallelFor(gbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             rhoAlpha(i,j,k) = mu_eff;
@@ -203,6 +233,8 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         Real mu_tot     = rhoAlpha(i,j,k) + 2.0*mu_turb(i, j, k, EddyDiff::Mom_h);
         Real met_h_zeta = dz_ptr[k]*dxInv[2];
+
+        if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_tot * tau33(i,j,k);
 
         tau11(i,j,k) = -mu_tot * (met_h_zeta/mfy) * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
         tau22(i,j,k) = -mu_tot * (met_h_zeta/mfx) * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
@@ -242,6 +274,8 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau13(i,j,k) *= -mu_tot;
         tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+
+        if (tau31i) tau31i(i,j,k) *= -mu_tot*met_h_zeta/mfy;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -257,5 +291,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau23(i,j,k) *= -mu_tot;
         tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+
+        if (tau32i) tau32i(i,j,k) *= -mu_tot*met_h_zeta/mfx;
     });
 }
