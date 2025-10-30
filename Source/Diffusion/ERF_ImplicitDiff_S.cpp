@@ -1,6 +1,6 @@
 #include "ERF_Diffusion.H"
 #include "ERF_EddyViscosity.H"
-#include "ERF_PBLModels.H"
+#include "ERF_GetRhoAlpha.H"
 
 using namespace amrex;
 
@@ -36,15 +36,12 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
 {
     BL_PROFILE_VAR("ImplicitDiffForState_S()",ImplicitDiffForState_T);
 
-    // this uses domain, level, start_comp, num_comp
+    // setup quantities for getRhoAlpha()
 #include "ERF_SetupVertDiff.H"
-
-    // define get_rhoAlpha()
     const int         n = RhoTheta_comp;
     const int qty_index = RhoTheta_comp;
     const int prim_index = qty_index - 1;
     const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
-#include "ERF_GetRhoAlpha.H"
 
     // Box bounds
     int ilo = bx.smallEnd(0);
@@ -90,7 +87,9 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
           //===================================================
           Real a_tmp, b_tmp;
           {
-              get_rhoAlpha(i, j, klo, rhoAlpha_lo, rhoAlpha_hi);
+              getRhoAlpha(i, j, klo, rhoAlpha_lo, rhoAlpha_hi,
+                           cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
+                           prim_index, prim_scal_index, l_consA, l_turb);
 
               dz_inv    = 1.0 / dz_ptr[klo];
               dz_inv_lo = dz_inv;
@@ -118,7 +117,9 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
           //===================================================
           for (int k(klo+1); k < khi; k++)
           {
-              get_rhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi);
+              getRhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi,
+                           cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
+                           prim_index, prim_scal_index, l_consA, l_turb);
 
               dz_inv    = 1.0 / dz_ptr[k];
               dz_inv_lo = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
@@ -140,7 +141,9 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
           // Top boundary coefficients and RHS for L decomp
           //===================================================
           {
-              get_rhoAlpha(i, j, khi, rhoAlpha_lo, rhoAlpha_hi);
+              getRhoAlpha(i, j, khi, rhoAlpha_lo, rhoAlpha_hi,
+                           cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
+                           prim_index, prim_scal_index, l_consA, l_turb);
 
               dz_inv    = 1.0 / dz_ptr[khi];
               dz_inv_lo = 2.0 / (dz_ptr[khi] + dz_ptr[khi-1]);
