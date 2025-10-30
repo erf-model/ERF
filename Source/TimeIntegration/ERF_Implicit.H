@@ -1,27 +1,31 @@
         // *****************************************************************************
-        // Do semi-implicit solve for theta
+        // Do semi-implicit solve for diffusion: theta, u, and v
         // *****************************************************************************
         {
             const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
 
-            GpuArray<Real, AMREX_SPACEDIM*2> l_bc_neumann_vals_d;
-            const int bc_comp = RhoTheta_comp;
-            for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
-                l_bc_neumann_vals_d[ori] = m_bc_neumann_vals[bc_comp][ori];
-            }
-
             if (l_vert_implicit_fac > 0.) {
 
+                // If we're doing an implicit solve for momenta (u and v only),
+                // then we use the explicit solution at this point to derive
+                // the surface velocity gradient -- to be consistent with the
+                // hoextrap used with the surface layer BC. We then subtract
+                // out the contribution from the gradient of tau_corr times
+                // (1 - implicit_fac) and add in the implicit solution scaled
+                // by implicit_fac.
                 const bool l_do_implicit_mom = solverChoice.implicit_divtau_terms;
 
-                const bool l_use_stretched_dz = (solverChoice.mesh_type == MeshType::StretchedDz);
-                const bool l_use_SurfLayer = (m_SurfaceLayer != nullptr);
+                // BCs
                 const BCRec* bc_ptr_h = domain_bcs_type.data();
+                GpuArray<Real, AMREX_SPACEDIM*2> l_bc_neumann_vals_d;
+                for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
+                    l_bc_neumann_vals_d[ori] = m_bc_neumann_vals[RhoTheta_comp][ori];
+                }
+                const bool l_use_SurfLayer = (m_SurfaceLayer != nullptr);
 
                 const bool l_use_turb       = solverChoice.turbChoice[level].use_kturb;
 
-                std::unique_ptr<MultiFab> dflux_z;
-                dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 0);
+                const bool l_use_stretched_dz = (solverChoice.mesh_type == MeshType::StretchedDz);
 
                 for ( MFIter mfi(S_old[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
                 {

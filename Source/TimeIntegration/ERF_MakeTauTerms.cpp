@@ -172,7 +172,8 @@ void erf_make_tau_terms (int level, int nrk,
             // We cannot simply scale the tau3* terms since our implicit
             // correction to vertical diffusion only applies to the
             // second-order derivatives in the vertical and we don't want to
-            // touch the cross terms
+            // touch the cross terms -- we save the terms here and
+            // manipulate them later.
             FArrayBox S31_for_impl, S32_for_impl, S33_for_impl;
             Array4<Real> s31i = (do_implicit) ? S31_for_impl.array() : Array4<Real>{};
             Array4<Real> s32i = (do_implicit) ? S32_for_impl.array() : Array4<Real>{};
