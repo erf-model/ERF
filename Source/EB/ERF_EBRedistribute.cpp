@@ -30,7 +30,12 @@ redistribute_term ( int ncomp,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(state,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+    //
+    // We set the tilesize small to ensure that the work is only done on regions where there is EB
+    //
+    IntVect tilesize = IntVect{8,8,8};
+    for (MFIter mfi(state,tilesize); mfi.isValid(); ++mfi)
     {
         Box const& bx = mfi.tilebox();
 
@@ -81,6 +86,7 @@ redistribute_term ( int ncomp,
             });
         }
     } // MFIter
+    } // OMP
 }
 
 void
@@ -105,7 +111,12 @@ redistribute_term ( int ncomp,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(state,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+    //
+    // We set the tilesize small to ensure that the work is only done on regions where there is EB
+    //
+    IntVect tilesize = IntVect{8,8,8};
+    for (MFIter mfi(state,tilesize); mfi.isValid(); ++mfi)
     {
         Box const& bx = mfi.tilebox();
 
@@ -171,4 +182,5 @@ redistribute_term ( int ncomp,
             });
         }
     } // MFIter
+    } // OMP
 }
