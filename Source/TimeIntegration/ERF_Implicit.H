@@ -16,7 +16,7 @@
                 const bool l_use_SurfLayer = (m_SurfaceLayer != nullptr);
                 const BCRec* bc_ptr_h = domain_bcs_type.data();
 
-                const bool l_use_turb       = solverChoice.turbChoice[level].use_kturb;
+                const bool l_use_turb = solverChoice.turbChoice[level].use_kturb;
 
                 std::unique_ptr<MultiFab> dflux_z;
                 dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 0);
@@ -32,7 +32,7 @@
 
                     const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
-                    const Array4<Real>& hfx_z   = Hfx3->array(mfi);
+                    const Array4<Real>& hfx_z = Hfx3->array(mfi);
 
                     if (l_use_stretched_dz) {
                         ImplicitDiffForState_S(bx, fine_geom.Domain(), level, slow_dt,

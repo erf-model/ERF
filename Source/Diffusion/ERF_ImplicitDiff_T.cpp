@@ -60,14 +60,12 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
 
     // Temporary FABs for tridiagonal solve (allocated on column)
     //   A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
-    amrex::FArrayBox RHS_fab, soln_fab, inv_coeffB_fab, coeffC_fab;
+    amrex::FArrayBox RHS_fab, soln_fab, coeffC_fab;
            RHS_fab.resize(bx,1, amrex::The_Async_Arena());
           soln_fab.resize(bx,1, amrex::The_Async_Arena());
-    inv_coeffB_fab.resize(bx,1, amrex::The_Async_Arena());
         coeffC_fab.resize(bx,1, amrex::The_Async_Arena());
     auto const& RHS_a        =        RHS_fab.array();
     auto const& soln_a       =       soln_fab.array();
-    auto const& inv_coeffB_a = inv_coeffB_fab.array();
     auto const& coeffC_a     =     coeffC_fab.array(); // upper diagonal
 
     int bc_comp = qty_index;
@@ -84,15 +82,15 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {
 #endif
-          Real rhoAlpha_lo, rhoAlpha_hi;
+          Real rhoAlpha_lo, rhoAlpha_hi, inv_b2_tmp;
 
           // Bottom boundary coefficients and RHS for L decomp
           //===================================================
           Real a_tmp, b_tmp;
           {
               getRhoAlpha(i, j, klo, rhoAlpha_lo, rhoAlpha_hi,
-                           cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                           prim_index, prim_scal_index, l_consA, l_turb);
+                          cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
+                          prim_index, prim_scal_index, l_consA, l_turb);
 
               Real met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,klo+1,cellSizeInv,z_nd);
 
@@ -101,8 +99,8 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
               a_tmp             = 0.;
               coeffC_a(i,j,klo) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv / met_h_zeta_hi;
 
-              b_tmp                 = detJ(i,j,klo) * cell_data(i,j,klo,Rho_comp) - a_tmp - coeffC_a(i,j,klo);
-              inv_coeffB_a(i,j,klo) = 1.;
+              b_tmp      = detJ(i,j,klo) * cell_data(i,j,klo,Rho_comp) - a_tmp - coeffC_a(i,j,klo);
+              inv_b2_tmp = 1.;
 
               RHS_a(i,j,klo) = detJ(i,j,klo) * cell_data(i,j,klo,n); // Note this is rho*theta, whereas solution will be theta
               if (use_SurfLayer) {
@@ -121,8 +119,8 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
           for (int k(klo+1); k < khi; k++)
           {
               getRhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi,
-                           cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                           prim_index, prim_scal_index, l_consA, l_turb);
+                          cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
+                          prim_index, prim_scal_index, l_consA, l_turb);
 
               Real met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,k  ,cellSizeInv,z_nd);
               Real met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,k+1,cellSizeInv,z_nd);
@@ -132,13 +130,13 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
               a_tmp           = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv / met_h_zeta_lo;
               coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv / met_h_zeta_hi;
 
-              b_tmp               = detJ(i,j,k) * cell_data(i,j,k,Rho_comp) - a_tmp - coeffC_a(i,j,k);
-              inv_coeffB_a(i,j,k) = 1. / (b_tmp - a_tmp * coeffC_a(i,j,k-1));
+              b_tmp      = detJ(i,j,k) * cell_data(i,j,k,Rho_comp) - a_tmp - coeffC_a(i,j,k);
+              inv_b2_tmp = 1. / (b_tmp - a_tmp * coeffC_a(i,j,k-1));
 
               RHS_a(i,j,k)    = detJ(i,j,k) * cell_data(i,j,k,n); // NOTE: this is rho*theta, whereas solution will be theta
 
-              RHS_a(i,j,k)     = (RHS_a(i,j,k) - a_tmp * RHS_a(i,j,k-1)) * inv_coeffB_a(i,j,k); // NOTE: This is now "rho"
-              coeffC_a(i,j,k) *= inv_coeffB_a(i,j,k); // NOTE: this is now "gamma"
+              RHS_a(i,j,k)     = (RHS_a(i,j,k) - a_tmp * RHS_a(i,j,k-1)) * inv_b2_tmp; // NOTE: This is now "rho"
+              coeffC_a(i,j,k) *= inv_b2_tmp; // NOTE: this is now "gamma"
           } // k
 
 
@@ -146,8 +144,8 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
           //===================================================
           {
               getRhoAlpha(i, j, khi, rhoAlpha_lo, rhoAlpha_hi,
-                           cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                           prim_index, prim_scal_index, l_consA, l_turb);
+                          cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
+                          prim_index, prim_scal_index, l_consA, l_turb);
 
               Real met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,khi  ,cellSizeInv,z_nd);
 
@@ -156,15 +154,15 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
               a_tmp             = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv / met_h_zeta_lo;
               coeffC_a(i,j,khi) = 0.;
 
-              b_tmp                 = detJ(i,j,khi) * cell_data(i,j,khi,Rho_comp) - a_tmp - coeffC_a(i,j,khi);
-              inv_coeffB_a(i,j,khi) = 1. / (b_tmp - a_tmp * coeffC_a(i,j,khi-1));
+              b_tmp      = detJ(i,j,khi) * cell_data(i,j,khi,Rho_comp) - a_tmp - coeffC_a(i,j,khi);
+              inv_b2_tmp = 1. / (b_tmp - a_tmp * coeffC_a(i,j,khi-1));
 
               RHS_a(i,j,khi)    = detJ(i,j,khi) * cell_data(i,j,khi,n); // Note this is rho*theta, whereas solution will be theta
               if (neumann_on_zhi) {
                   RHS_a(i,j,khi) -= -implicit_fac * dt * dz_inv * rhoAlpha_hi * bc_neumann_vals[5];
               }
 
-              soln_a(i,j,khi) = (RHS_a(i,j,khi) - a_tmp * RHS_a(i,j,khi-1)) * inv_coeffB_a(i,j,khi);
+              soln_a(i,j,khi) = (RHS_a(i,j,khi) - a_tmp * RHS_a(i,j,khi-1)) * inv_b2_tmp;
           }
 
 
