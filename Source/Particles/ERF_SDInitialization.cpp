@@ -234,6 +234,7 @@ void SDInjection::readInputs ( const std::string& a_prefix,
     amrex::ParmParse pp(a_prefix);
     pp.query("rate", m_inj_rate);
     pp.query("sd_rate", m_sd_inj_rate);
+    pp.queryarr("domain_velocity", m_domain_vel);
 
     this->m_numdens = m_inj_rate * a_dt;
     m_numdens_sd = (m_sd_inj_rate > 0 ? std::max(m_sd_inj_rate*a_dt, 1.0) : -1);
@@ -333,6 +334,10 @@ void SDInjection::printParameters ( const MatVec& a_species_mat,
 {
     using namespace amrex;
     Print() << "    Injection rate (# m^{-3} s^{-1}): " << m_inj_rate << "\n"
+            << "    Injection domain velocity [m/s]: "
+            << m_domain_vel[0] << ","
+            << m_domain_vel[1] << ","
+            << m_domain_vel[2] << "\n"
             << "    SD injection rate: " << m_sd_inj_rate << "\n";
     SDInitProperties::printParameters(a_species_mat, a_aerosol_mat);
 }

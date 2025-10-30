@@ -280,11 +280,31 @@ class SDInjection : public SDInitProperties
         /*!< Initial number density of super-droplets */
         amrex::Real m_numdens_sd = -1;
 
+        /*!< Injection domain velocity */
+        amrex::Vector<amrex::Real> m_domain_vel = {0.0,0.0,0.0};
+
         /*! update dt-based quantities */
         inline void updateDt (const amrex::Real a_dt)
         {
             this->m_numdens = m_inj_rate * a_dt;
             m_numdens_sd = (m_sd_inj_rate>0 ? std::max(m_sd_inj_rate*a_dt, 1.0) : -1);
+
+            if (this->m_type == SDInitShape::uniform) {
+                amrex::Vector<amrex::Real> lo = {0.0, 0.0, 0.0};;
+                amrex::Vector<amrex::Real> hi = {0.0, 0.0, 0.0};;
+                for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
+                    lo[dir] = this->m_particle_domain.lo(dir) + m_domain_vel[dir] * a_dt;
+                    hi[dir] = this->m_particle_domain.hi(dir) + m_domain_vel[dir] * a_dt;
+                }
+                this->m_particle_domain.setLo(lo);
+                this->m_particle_domain.setHi(hi);
+            } else if (m_type == SDInitShape::bubble) {
+                amrex::Vector<amrex::Real> center = {0.0, 0.0, 0.0};;
+                for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
+                    center[dir] = this->m_particle_domain.lo(dir) + m_domain_vel[dir] * a_dt;
+                }
+                this->m_particle_domain.setLo(center);
+            }
         }
 
         /*! read super-droplets injection parameters */

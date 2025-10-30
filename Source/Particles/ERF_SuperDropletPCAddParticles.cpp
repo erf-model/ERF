@@ -142,7 +142,9 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
 
     Print() << "    Number of physical particles per cell: " << num_par_per_cell << "\n"
             << "    Number of super droplets per cell: " << num_sd_per_cell << "\n";
-    if (!num_par_per_cell) { Print() << "HELLO!!\n"; return; }
+
+    if (num_par_per_cell == 0) { return; }
+    if (num_sd_per_cell == 0) { return; }
 
     const int num_sp  = m_num_species;
     const int num_ae = m_num_aerosols;
@@ -157,13 +159,13 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                                  1, 0 );
 
     if (a_init.m_type == SDInitShape::uniform) {
-        Print() << "    Adding particles in box (volume: " << a_init.volume() << ")\n";
+        Print() << "    Adding particles in box with volume " << a_init.volume() << ".\n";
         setNumSDBoxDistribution( num_superdroplets,
                                  num_sd_per_cell,
                                  a_height_ptr,
                                  a_init.m_particle_domain );
     } else if (a_init.m_type == SDInitShape::bubble) {
-        Print() << "    Adding particles in bubble (volume: " << a_init.volume() << ")\n";
+        Print() << "    Adding particles in bubble with volume: " << a_init.volume() << ".\n";
         setNumSDBubbleDistribution( num_superdroplets,
                                     num_sd_per_cell,
                                     a_height_ptr,
