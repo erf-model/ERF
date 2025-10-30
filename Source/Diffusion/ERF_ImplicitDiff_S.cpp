@@ -147,6 +147,9 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
  * Function for computing the implicit contribution to the vertical diffusion
  * of momentum, with a vertically stretched grid over flat terrain.
  *
+ * This function (explicitly instantiated below) handles staggering in x or y
+ * through the template parameter, stagdir.
+ *
  * @param[in   ] bx cell-centered box to loop over
  * @param[in   ] domain box of the whole domain
  * @param[in   ] dt time step
@@ -212,15 +215,17 @@ ImplicitDiffForMom_S (const Box& bx,
     auto const& inv_coeffB_a = inv_coeffB_fab.array();
     auto const& coeffC_a     =     coeffC_fab.array(); // upper diagonal
 
-    int bc_comp = BCVars::xvel_bc + stagdir;
-
     auto dz_ptr = stretched_dz_d.data();
 
-    bool ext_dir_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
-                            bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim);
+    int bc_comp = BCVars::xvel_bc + stagdir;
+
+
+  //bool ext_dir_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
+  //                        bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim);
     bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
 
-    AMREX_ASSERT_WITH_MESSAGE(ext_dir_on_zlo || use_SurfLayer,
+  //AMREX_ASSERT_WITH_MESSAGE(ext_dir_on_zlo || use_SurfLayer,
+    AMREX_ASSERT_WITH_MESSAGE(use_SurfLayer,
                               "Unexpected lower BC used with implicit vertical diffusion");
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi,
                               "Unexpected upper BC used with implicit vertical diffusion");
@@ -247,21 +252,32 @@ ImplicitDiffForMom_S (const Box& bx,
             Real dz_inv_hi = (k == dom_hi.z) ? dz_inv
                                              : 2.0 / (dz_ptr[k] + dz_ptr[k+1]);
 
+            // Face data currently holds the fully explicit solution, which is
+            // used below to determine the velocity gradient at the boundary
             RHS_a(i,j,k) = face_data(i,j,k); // Note this is momentum but solution will be velocity
+
+            // Note: in DiffusionSrcForMom, e.g., for x-mom
+            //     Real diffContrib = ...
+            //                      + (tau13(i,j,k+1) - tau13(i,j,k)) / dz_ptr[k]
+            //     rho_u_rhs(i,j,k) -= diffContrib;
+            // Need to scale diffContrib by (1 - implicit_fac)
+            RHS_a(i,j,k) += implicit_fac * (tau_corr(i,j,k+1) - tau_corr(i,j,k))*dz_inv * dt;
 
             // This represents the face-centered finite difference of two
             // edge-centered finite differences (hi and lo)
             coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv_lo;
             coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv_hi;
 
+            // Setup BCs
             if (k == dom_lo.z) {
                 if (use_SurfLayer) {
                     //RHS_a(i,j,klo) += implicit_fac * dt * dz_inv * hfx_z(i,j,0);
-                } else if (ext_dir_on_zlo) {
                     //RHS_a(i,j,klo) += coeffA_a(i,j,klo) * bc_neumann_vals[2] / dz_inv_lo;
+                    Real uhi = 2.0 * face_data(i,j,klo  ) / (cell_data(i,j,klo  ,Rho_comp) + cell_data(i,j,klo-1,Rho_comp));
+                    Real ulo = 2.0 * face_data(i,j,klo-1) / (cell_data(i,j,klo-1,Rho_comp) + cell_data(i,j,klo-2,Rho_comp));
+                    RHS_a(i,j,klo) += coeffA_a(i,j,klo) * (uhi - ulo);
                 }
-
-                coeffA_a(i,j,klo) = 0.; // foextrap
+                coeffA_a(i,j,klo) = 0.;
             }
             if (k == dom_hi.z) {
                 coeffC_a(i,j,khi) = 0.; // foextrap
