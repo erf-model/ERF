@@ -35,8 +35,8 @@
                     const Array4<      Real> & rho_u      = (l_do_implicit_mom) ? scratch_xmom.array(mfi) : Array4<Real>{};
                     const Array4<      Real> & rho_v      = (l_do_implicit_mom) ? scratch_ymom.array(mfi) : Array4<Real>{};
 
-                    const Array4<const Real> & tau31_corr = (l_do_implicit_mom) ? Tau31corr->array(mfi) : Array4<Real>{};
-                    const Array4<const Real> & tau32_corr = (l_do_implicit_mom) ? Tau32corr->array(mfi) : Array4<Real>{};
+                    const Array4<const Real> & tau13_corr = (l_do_implicit_mom) ? Tau13corr->array(mfi) : Array4<Real>{};
+                    const Array4<const Real> & tau23_corr = (l_do_implicit_mom) ? Tau23corr->array(mfi) : Array4<Real>{};
 
                     const Array4<const Real>& z_nd_arr = z_phys_nd[level]->const_array(mfi);
                     const Array4<const Real>& detJ_arr = detJ_cc[level]->const_array(mfi);
@@ -55,13 +55,13 @@
 
                         if (l_do_implicit_mom) {
                             ImplicitDiffForMom_S<0>(bx, fine_geom.Domain(), level, slow_dt,
-                                                    cell_data, rho_u, tau31_corr,
+                                                    cell_data, rho_u, tau13_corr,
                                                     stretched_dz_d[level],
                                                     mu_turb, solverChoice,
                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
 
                             ImplicitDiffForMom_S<1>(bx, fine_geom.Domain(), level, slow_dt,
-                                                    cell_data, rho_v, tau32_corr,
+                                                    cell_data, rho_v, tau23_corr,
                                                     stretched_dz_d[level],
                                                     mu_turb, solverChoice,
                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);

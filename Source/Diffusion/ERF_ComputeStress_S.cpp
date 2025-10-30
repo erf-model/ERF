@@ -24,8 +24,8 @@ using namespace amrex;
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
  * @param[in]  dxInv inverse cell size array
- * @param[in,out] tau31i contribution to stress from du/dz
- * @param[in,out] tau32i contribution to stress from dv/dz
+ * @param[in,out] tau13i contribution to stress from du/dz
+ * @param[in,out] tau23i contribution to stress from dv/dz
  * @param[in,out] tau33i contribution to stress from dw/dz
  */
 void
@@ -44,8 +44,8 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          const Array4<const Real>& mf_my,
                          const Array4<const Real>& mf_uy,
                          const Array4<const Real>& mf_vy,
-                         Array4<Real>& tau31i,
-                         Array4<Real>& tau32i,
+                         Array4<Real>& tau13i,
+                         Array4<Real>& tau23i,
                          Array4<Real>& tau33i)
 {
     // NOTE: mu_eff includes factor of 2
@@ -125,7 +125,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         tau13(i,j,k) *= -mu_tot;
         tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
 
-        if (tau31i) tau31i(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+        if (tau13i) tau13i(i,j,k) *= -mu_tot*met_h_zeta/mfy;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -139,7 +139,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         tau23(i,j,k) *= -mu_tot;
         tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
 
-        if (tau32i) tau32i(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+        if (tau23i) tau23i(i,j,k) *= -mu_tot*met_h_zeta/mfx;
     });
 }
 
@@ -165,8 +165,8 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
  * @param[in]  dxInv inverse cell size array
- * @param[in,out] tau31i contribution to stress from du/dz
- * @param[in,out] tau32i contribution to stress from dv/dz
+ * @param[in,out] tau13i contribution to stress from du/dz
+ * @param[in,out] tau23i contribution to stress from dv/dz
  * @param[in,out] tau33i contribution to stress from dw/dz
  */
 void
@@ -186,8 +186,8 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         const Array4<const Real>& mf_my,
                         const Array4<const Real>& mf_uy,
                         const Array4<const Real>& mf_vy,
-                        Array4<Real>& tau31i,
-                        Array4<Real>& tau32i,
+                        Array4<Real>& tau13i,
+                        Array4<Real>& tau23i,
                         Array4<Real>& tau33i)
 {
     // NOTE: mu_eff includes factor of 2
@@ -273,7 +273,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         tau13(i,j,k) *= -mu_tot;
         tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
 
-        if (tau31i) tau31i(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+        if (tau13i) tau13i(i,j,k) *= -mu_tot*met_h_zeta/mfy;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -290,6 +290,6 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         tau23(i,j,k) *= -mu_tot;
         tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
 
-        if (tau32i) tau32i(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+        if (tau23i) tau23i(i,j,k) *= -mu_tot*met_h_zeta/mfx;
     });
 }

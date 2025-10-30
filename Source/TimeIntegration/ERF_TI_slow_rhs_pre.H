@@ -96,13 +96,13 @@
         }
 
         // *****************************************************************************
-        // Save d/dz components of Tau31, Tau32, Tau33 for implicit diffusion
+        // Save d/dz components of Tau13, Tau23, Tau33 for implicit diffusion
         // including momenta
         // *****************************************************************************
         const bool do_implicit_mom = (solverChoice.vert_implicit_fac[nrk] > 0)
                                      && (solverChoice.implicit_divtau_terms);
-        MultiFab* Tau31corr = (do_implicit_mom) ? Tau_corr[level][0].get() : nullptr;
-        MultiFab* Tau32corr = (do_implicit_mom) ? Tau_corr[level][1].get() : nullptr;
+        MultiFab* Tau13corr = (do_implicit_mom) ? Tau_corr[level][0].get() : nullptr;
+        MultiFab* Tau23corr = (do_implicit_mom) ? Tau_corr[level][1].get() : nullptr;
       //MultiFab* Tau33corr = (do_implicit_mom) ? Tau_corr[level][2].get() : nullptr;
 
         // *****************************************************************************

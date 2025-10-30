@@ -174,12 +174,12 @@ void erf_make_tau_terms (int level, int nrk,
             // second-order derivatives in the vertical and we don't want to
             // touch the cross terms -- we save the terms here and
             // manipulate them later.
-            FArrayBox S31_for_impl, S32_for_impl, S33_for_impl;
-            Array4<Real> s31i = (do_implicit) ? S31_for_impl.array() : Array4<Real>{};
-            Array4<Real> s32i = (do_implicit) ? S32_for_impl.array() : Array4<Real>{};
+            FArrayBox S13_for_impl, S23_for_impl, S33_for_impl;
+            Array4<Real> s13i = (do_implicit) ? S13_for_impl.array() : Array4<Real>{};
+            Array4<Real> s23i = (do_implicit) ? S23_for_impl.array() : Array4<Real>{};
             Array4<Real> s33i = (do_implicit) ? S33_for_impl.array() : Array4<Real>{};
-            Array4<Real> tau31_corr = (do_implicit) ? Tau_corr_lev[0]->array(mfi) : Array4<Real>{};
-            Array4<Real> tau32_corr = (do_implicit) ? Tau_corr_lev[1]->array(mfi) : Array4<Real>{};
+            Array4<Real> tau13_corr = (do_implicit) ? Tau_corr_lev[0]->array(mfi) : Array4<Real>{};
+            Array4<Real> tau23_corr = (do_implicit) ? Tau_corr_lev[1]->array(mfi) : Array4<Real>{};
             Array4<Real> tau33_corr = (do_implicit) ? Tau_corr_lev[2]->array(mfi) : Array4<Real>{};
 
             // Calculate the magnitude of the strain-rate tensor squared if
@@ -248,7 +248,7 @@ void erf_make_tau_terms (int level, int nrk,
                                 stretched_dz_d, dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                s31i, s32i);
+                                s13i, s23i);
                 } // end profile
 
                 if (SmnSmn_a) {
@@ -281,7 +281,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             er_arr, stretched_dz_d, dxInv,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy,
-                                            s31i, s32i, s33i);
+                                            s13i, s23i, s33i);
                 } else {
                     ComputeStressVarVisc_S(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -292,7 +292,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            er_arr, stretched_dz_d, dxInv,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy,
-                                           s31i, s32i, s33i);
+                                           s13i, s23i, s33i);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -392,7 +392,7 @@ void erf_make_tau_terms (int level, int nrk,
                                 z_nd, detJ_arr, dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                s31i, s32i);
+                                s13i, s23i);
                 } // end profile
 
                 if (SmnSmn_a) {
@@ -425,7 +425,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             er_arr, z_nd, detJ_arr, dxInv,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy,
-                                            s31i, s32i, s33i);
+                                            s13i, s23i, s33i);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -436,7 +436,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            er_arr, z_nd, detJ_arr, dxInv,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy,
-                                           s31i, s32i, s33i);
+                                           s13i, s23i, s33i);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -497,7 +497,7 @@ void erf_make_tau_terms (int level, int nrk,
                                 dxInv,
                                 mf_mx, mf_ux, mf_vx,
                                 mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                s31i, s32i);
+                                s13i, s23i);
                 } // end profile
 
                 if (SmnSmn_a) {
@@ -536,14 +536,14 @@ void erf_make_tau_terms (int level, int nrk,
                                             s11, s22, s33,
                                             s12, s13, s23,
                                             er_arr,
-                                            s31i, s32i, s33i);
+                                            s13i, s23i, s33i);
                 } else {
                     ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
                                            s11, s22, s33,
                                            s12, s13, s23,
                                            er_arr,
-                                           s31i, s32i, s33i);
+                                           s13i, s23i, s33i);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
