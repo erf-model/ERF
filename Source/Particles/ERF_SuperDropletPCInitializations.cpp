@@ -335,7 +335,7 @@ void SuperDropletPC::InjectParticles (const Real a_t, const MFPtr& a_ptr, const 
             Print() << "SuperDropletPC(" << m_name << "): "
                     << " injecting particles.\n";
             addParticles( a_ptr, *(m_injections[i]) );
-            Print() << "  Particle container size: " << NumSuperDroplets() << "\n";
+            Print() << "    Particle container size: " << NumSuperDroplets() << "\n";
         }
     }
 }
