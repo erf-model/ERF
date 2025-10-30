@@ -331,9 +331,11 @@ void SuperDropletPC::InjectParticles (const Real a_t, const MFPtr& a_ptr, const 
 
     for (int i = 0; i < m_num_injections; i++) {
         m_injections[i]->updateDt(a_dt);
-        if (m_injections[i]->m_inj_rate > 0) {
+        if (    (m_injections[i]->m_inj_rate > 0)
+             && (a_t >= m_injections[i]->m_tstart)
+             && (a_t <= m_injections[i]->m_tstop) ) {
             Print() << "SuperDropletPC(" << m_name << "): "
-                    << " injecting particles.\n";
+                    << " injecting particles (" << i << ").\n";
             addParticles( a_ptr, *(m_injections[i]) );
             Print() << "    Particle container size: " << NumSuperDroplets() << "\n";
         }

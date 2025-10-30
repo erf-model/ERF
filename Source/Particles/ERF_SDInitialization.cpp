@@ -234,6 +234,8 @@ void SDInjection::readInputs ( const std::string& a_prefix,
     amrex::ParmParse pp(a_prefix);
     pp.query("rate", m_inj_rate);
     pp.query("sd_rate", m_sd_inj_rate);
+    pp.query("t_start", m_tstart);
+    pp.query("t_stop", m_tstop);
     pp.queryarr("domain_velocity", m_domain_vel);
 
     this->m_numdens = m_inj_rate * a_dt;
@@ -250,6 +252,7 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
         Print() << "    Particle bubble (radius, center): " << m_particle_domain << "\n";
     }
     Print() << "    Multiplicity type: " << amrex::getEnumNameString(m_mult_type) << "\n";
+    Print() << "    Particles per cell: " << m_ppc << "\n";
 
     Print() << "    Vapour/Condensate Species material:\n";
     for (unsigned long i=0; i < a_species_mat.size(); i++) {
@@ -338,6 +341,7 @@ void SDInjection::printParameters ( const MatVec& a_species_mat,
             << m_domain_vel[0] << ","
             << m_domain_vel[1] << ","
             << m_domain_vel[2] << "\n"
+            << "    Time (start, stop) [s]: " << m_tstart << ", " << m_tstop << "\n"
             << "    SD injection rate: " << m_sd_inj_rate << "\n";
     SDInitProperties::printParameters(a_species_mat, a_aerosol_mat);
 }

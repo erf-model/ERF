@@ -283,6 +283,12 @@ class SDInjection : public SDInitProperties
         /*!< Injection domain velocity */
         amrex::Vector<amrex::Real> m_domain_vel = {0.0,0.0,0.0};
 
+        /*!< Start time for injection */
+        amrex::Real m_tstart = 0.0;
+
+        /*!< Stop time for injection */
+        amrex::Real m_tstop = 1.0e17;
+
         /*! update dt-based quantities */
         inline void updateDt (const amrex::Real a_dt)
         {
