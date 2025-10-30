@@ -168,6 +168,7 @@ ImplicitDiffForMom_S (const Box& bx,
                       const Real dt,
                       const Array4<const Real>& cell_data,
                       const Array4<      Real>& face_data,
+                      const Array4<const Real>& tau_corr,
                       const Gpu::DeviceVector<Real>& stretched_dz_d,
                       const Array4<const Real>& mu_turb,
                       const SolverChoice &solverChoice,
@@ -292,6 +293,7 @@ ImplicitDiffForMom_S (const Box& bx,
         const Real, \
         const Array4<const Real>&, \
         const Array4<      Real>&, \
+        const Array4<const Real>&, \
         const Gpu::DeviceVector<Real>&, \
         const Array4<const Real>&, \
         const SolverChoice&, \
