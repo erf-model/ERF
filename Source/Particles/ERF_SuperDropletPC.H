@@ -151,7 +151,8 @@ class SuperDropletPC : public ERFPC
                                          const amrex::MultiFab&,
                                          const amrex::MultiFab&,
                                          const amrex::Vector<MFPtr>&,
-                                         const BCTypeArr& );
+                                         const BCTypeArr&,
+                                         const bool );
 
         /*! \brief Grow/shrink particles for one time step */
         virtual void MassChange (   int,
@@ -231,7 +232,7 @@ class SuperDropletPC : public ERFPC
         virtual void effectiveRadius ( amrex::MultiFab&, const int a_comp=0 ) const;
 
         /*! \brief Applies boundary treatment to the particle container */
-        virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr& );
+        virtual void applyBoundaryTreatment ( int, const amrex::Vector<MFPtr>&, const BCTypeArr&, const bool );
 
     protected:
 

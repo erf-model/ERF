@@ -52,7 +52,8 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                                             *(m_mic_fab_vars[MicVar_SD::pressure]),
                                             *(m_mic_fab_vars[MicVar_SD::temperature]),
                                             a_z,
-                                            a_bc );
+                                            a_bc,
+                                            m_recycle_particles );
     }
 
     // Coalescence of super-droplets

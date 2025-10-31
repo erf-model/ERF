@@ -9,7 +9,8 @@ using namespace amrex;
 /*! Handle the boundaries for the particles */
 void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                                               const Vector<MFPtr>&  a_z_phys_nd,
-                                              const BCTypeArr&      a_bctypes )
+                                              const BCTypeArr&      a_bctypes,
+                                              const bool            a_recycle )
 {
     BL_PROFILE("SuperDropletPC::applyBoundaryTreatment()");
     const MFPtr& z_height = a_z_phys_nd[a_lev];
@@ -99,6 +100,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     p.pos(2) = z_ground + 0.01*dx[2];
                     v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
                     active_ptr[i] = 0;
+                    if (!a_recycle) { p.id() = -1; }
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
                     update_location_idata(p,plo,dxi,zheight);
                 }
@@ -115,6 +117,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                     p.pos(2) = z_roof - dx[2];
                     v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
                     active_ptr[i] = 0;
+                    if (!a_recycle) { p.id() = -1; }
                     Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
                     update_location_idata(p,plo,dxi,zheight);
                 }
@@ -137,6 +140,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         p.pos(d) = x_min + 0.01*dx[d];
                         v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
                         active_ptr[i] = 0;
+                        if (!a_recycle) { p.id() = -1; }
                         Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
 
                     } else {
@@ -173,6 +177,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                         p.pos(d) = x_max - 0.01*dx[d];
                         v_ptr[0][i] = v_ptr[1][i] = v_ptr[2][i] = vterm_ptr[i] = 0.0;
                         active_ptr[i] = 0;
+                        if (!a_recycle) { p.id() = -1; }
                         Gpu::Atomic::Add(deactivated_particles_ptr, Long(1));
 
                     } else {
