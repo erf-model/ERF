@@ -415,7 +415,6 @@ SHOCInterface::mf_to_kokkos_buffers ()
             Real r_lo  = cons_arr(i,j,k-1,Rho_comp);
             Real rt_lo = cons_arr(i,j,k-1,RhoTheta_comp);
             Real qv_lo = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : 0.0;
-            Real r_avg  = 0.5 * (r  + r_lo);
             Real rt_avg = 0.5 * (rt + rt_lo);
             Real qv_avg = 0.5 * (qv + qv_lo);
 
@@ -480,7 +479,6 @@ SHOCInterface::mf_to_kokkos_buffers ()
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
                 Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
                 Real qv_hi = (moist) ? std::max(cons_arr(i,j,k+1,RhoQ1_comp)/r_hi,0.0) : 0.0;
-                r_avg  = 0.5 * (r  + r_hi);
                 rt_avg = 0.5 * (rt + rt_hi);
                 qv_avg = 0.5 * (qv + qv_hi);
                 p_int_d(icol,ilay+1) = getPgivenRTh(rt_avg, qv_avg);
