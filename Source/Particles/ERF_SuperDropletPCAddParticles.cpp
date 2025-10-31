@@ -9,7 +9,8 @@ using namespace amrex;
 void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */
                                               const int a_n_per_cell, /*!< number of superdroplets per cell */
                                               const MFPtr& a_height_ptr, /*!< terrain */
-                                              const RealBox& a_box /*!< box within which to initialize particles */ )
+                                              const RealBox& a_box, /*!< box within which to initialize particles */
+                                              const bool a_subgrid /*!< Is a_box smaller than grid cell */)
 {
     BL_PROFILE("SuperDropletPC::setNumSDBoxDistribution()");
     a_num_sd.setVal(0);
@@ -24,25 +25,45 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd, /*!< integer 
             const auto height_arr = (*a_height_ptr)[mfi].array();
             ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real x = plo[0] + (i + 0.5)*dx[0];
-                Real y = plo[1] + (j + 0.5)*dx[1];
-                Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
-                                  height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
-                                  height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
-                                  height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
-                if (a_box.contains(RealVect(x,y,z))) {
-                    num_superdroplets_arr(i,j,k) = a_n_per_cell;
+                bool flag = false;
+                if (a_subgrid) {
+                    RealBox gridcell( plo[0]+i*dx[0],
+                                      plo[1]+j*dx[1],
+                                      height_arr(i,j,k),
+                                      plo[0]+(i+1)*dx[0],
+                                      plo[1]+(j+1)*dx[1],
+                                      height_arr(i+1,j+1,k+1) );
+                    if (gridcell.contains(a_box)) { flag = true; }
+                } else {
+                    Real x = plo[0] + (i + 0.5)*dx[0];
+                    Real y = plo[1] + (j + 0.5)*dx[1];
+                    Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
+                                      height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
+                                      height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
+                                      height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
+                    if (a_box.contains(RealVect(x,y,z))) { flag = true; }
                 }
+                if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
             });
         } else {
             ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real x = plo[0] + (i + 0.5)*dx[0];
-                Real y = plo[1] + (j + 0.5)*dx[1];
-                Real z = plo[2] + (k + 0.5)*dx[2];
-                if (a_box.contains(RealVect(x,y,z))) {
-                    num_superdroplets_arr(i,j,k) = a_n_per_cell;
+                bool flag = false;
+                if (a_subgrid) {
+                    RealBox gridcell( plo[0]+i*dx[0],
+                                      plo[1]+j*dx[1],
+                                      plo[2]+j*dx[2],
+                                      plo[0]+(i+1)*dx[0],
+                                      plo[1]+(j+1)*dx[1],
+                                      plo[2]+(k+1)*dx[2] );
+                    if (gridcell.contains(a_box)) { flag = true; }
+                } else {
+                    Real x = plo[0] + (i + 0.5)*dx[0];
+                    Real y = plo[1] + (j + 0.5)*dx[1];
+                    Real z = plo[2] + (k + 0.5)*dx[2];
+                    if (a_box.contains(RealVect(x,y,z))) { flag = true; }
                 }
+                if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
             });
         }
     }
@@ -54,7 +75,8 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd, /*!< integer 
 void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */
                                                   const int a_n_per_cell, /*!< number of superdroplets per cell */
                                                   const MFPtr& a_height_ptr, /*!< terrain */
-                                                  const RealBox& a_bubble /*!< bubble within which to initialize particles */ )
+                                                  const RealBox& a_bubble, /*!< bubble within which to initialize particles */
+                                                  const bool a_subgrid /*!< Is a_box smaller than grid cell */)
 {
     BL_PROFILE("SuperDropletPC::setNumSDBubbleDistribution()");
     a_num_sd.setVal(0);
@@ -69,47 +91,67 @@ void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< inte
             const auto height_arr = (*a_height_ptr)[mfi].array();
             ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real x = plo[0] + (i + 0.5)*dx[0];
-                Real y = plo[1] + (j + 0.5)*dx[1];
-                Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
-                                  height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
-                                  height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
-                                  height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
+                bool flag = false;
+                if (a_subgrid) {
+                    RealBox gridcell( plo[0]+i*dx[0],
+                                      plo[1]+j*dx[1],
+                                      height_arr(i,j,k),
+                                      plo[0]+(i+1)*dx[0],
+                                      plo[1]+(j+1)*dx[1],
+                                      height_arr(i+1,j+1,k+1) );
+                    if (gridcell.contains(a_bubble.lo())) { flag = true; }
+                } else {
+                    Real x = plo[0] + (i + 0.5)*dx[0];
+                    Real y = plo[1] + (j + 0.5)*dx[1];
+                    Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
+                                      height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
+                                      height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
+                                      height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
 
-                // Extract bubble params
-                const auto& x_c = a_bubble.lo(); // center
-                const auto& x_r = a_bubble.hi(); // radius
+                    // Extract bubble params
+                    const auto& x_c = a_bubble.lo(); // center
+                    const auto& x_r = a_bubble.hi(); // radius
 
-                Real rad = 0.0;
-                if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
-                if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
-                if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
-                rad = std::sqrt(rad);
+                    Real rad = 0.0;
+                    if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
+                    if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
+                    if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
+                    rad = std::sqrt(rad);
 
-                if(rad <= 1.0){
-                    num_superdroplets_arr(i,j,k) = a_n_per_cell;
+                    if(rad <= 1.0) { flag = true; }
                 }
+                if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
             });
         } else {
             ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real x = plo[0] + (i + 0.5)*dx[0];
-                Real y = plo[1] + (j + 0.5)*dx[1];
-                Real z = plo[2] + (k + 0.5)*dx[2];
+                bool flag = false;
+                if (a_subgrid) {
+                    RealBox gridcell( plo[0]+i*dx[0],
+                                      plo[1]+j*dx[1],
+                                      plo[2]+j*dx[2],
+                                      plo[0]+(i+1)*dx[0],
+                                      plo[1]+(j+1)*dx[1],
+                                      plo[2]+(k+1)*dx[2] );
+                    if (gridcell.contains(a_bubble.lo())) { flag = true; }
+                } else {
+                    Real x = plo[0] + (i + 0.5)*dx[0];
+                    Real y = plo[1] + (j + 0.5)*dx[1];
+                    Real z = plo[2] + (k + 0.5)*dx[2];
 
-                // Extract bubble params
-                const auto& x_c = a_bubble.lo();       // center
-                const auto& x_r = a_bubble.hi();       // radius
+                    // Extract bubble params
+                    const auto& x_c = a_bubble.lo();       // center
+                    const auto& x_r = a_bubble.hi();       // radius
 
-                Real rad = 0.0;
-                if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
-                if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
-                if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
-                rad = std::sqrt(rad);
+                    Real rad = 0.0;
+                    if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
+                    if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
+                    if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
+                    rad = std::sqrt(rad);
 
-                if(rad <= 1.0){
-                    num_superdroplets_arr(i,j,k) = a_n_per_cell;
+                    if(rad <= 1.0) { flag = true; }
                 }
+                if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
             });
         }
     }
@@ -133,6 +175,9 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
     const auto dx = Geom(m_lev).CellSizeArray();
     const auto plo = Geom(m_lev).ProbLoArray();
+    const auto init_volume = a_init.volume();
+    const bool subgrid = (init_volume < cell_volume);
+    const auto itype = a_init.m_type;
 
     // number of super-droplets per cell
     int num_sd_per_cell = a_init.numSDPerCell(cell_volume);
@@ -163,13 +208,15 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
         setNumSDBoxDistribution( num_superdroplets,
                                  num_sd_per_cell,
                                  a_height_ptr,
-                                 a_init.m_particle_domain );
+                                 a_init.m_particle_domain,
+                                 subgrid );
     } else if (a_init.m_type == SDInitShape::bubble) {
         Print() << "    Adding particles in bubble with volume: " << a_init.volume() << ".\n";
         setNumSDBubbleDistribution( num_superdroplets,
                                     num_sd_per_cell,
                                     a_height_ptr,
-                                    a_init.m_particle_domain );
+                                    a_init.m_particle_domain,
+                                    subgrid );
     } else if (a_init.m_type == SDInitShape::null) {
         num_superdroplets.setVal(0);
     } else {
@@ -356,6 +403,8 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
         auto num_superdroplets_arr = num_superdroplets[mfi].array();
         auto random_place = m_place_randomly_in_cells;
 
+        auto pdomain = a_init.m_particle_domain;
+
         ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k, const RandomEngine& rnd_engine) noexcept
         {
             int num_sd_this_cell = num_superdroplets_arr(i,j,k);
@@ -377,14 +426,42 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                 p.id()  = pid + n;
                 p.cpu() = my_proc;
 
-                if (random_place) {
-                    p.pos(0) = plo[0] + (i + Random(rnd_engine))*dx[0];
-                    p.pos(1) = plo[1] + (j + Random(rnd_engine))*dx[1];
-                    p.pos(2) = plo[2] + (k + Random(rnd_engine))*dx[2];
+                if (subgrid) {
+                    if (itype == SDInitShape::uniform) {
+                        if (random_place) {
+                            p.pos(0) = pdomain.lo(0) + Random(rnd_engine) * (pdomain.hi(0) - pdomain.lo(0));
+                            p.pos(1) = pdomain.lo(1) + Random(rnd_engine) * (pdomain.hi(1) - pdomain.lo(1));
+                            p.pos(2) = pdomain.lo(2) + Random(rnd_engine) * (pdomain.hi(2) - pdomain.lo(2));
+                        } else {
+                            p.pos(0) = pdomain.lo(0) + 0.5 * (pdomain.hi(0) - pdomain.lo(0));
+                            p.pos(1) = pdomain.lo(1) + 0.5 * (pdomain.hi(1) - pdomain.lo(1));
+                            p.pos(2) = pdomain.lo(2) + 0.5 * (pdomain.hi(2) - pdomain.lo(2));
+                        }
+                    } else if (itype == SDInitShape::bubble) {
+                        if (random_place) {
+                            ParticleReal u[AMREX_SPACEDIM] = {Random(rnd_engine), Random(rnd_engine), Random(rnd_engine) };
+                            auto L = std::sqrt(u[0]*u[0]+ u[1]*u[1] + u[2]*u[2]);
+                            auto r = Random(rnd_engine);
+                            ParticleReal xs[AMREX_SPACEDIM] = {r*u[0]/L, r*u[1]/L, r*u[2]/L};
+                            p.pos(0) = pdomain.lo(0) + pdomain.hi(0) * xs[0];
+                            p.pos(1) = pdomain.lo(1) + pdomain.hi(1) * xs[1];
+                            p.pos(2) = pdomain.lo(2) + pdomain.hi(2) * xs[2];
+                        } else {
+                            p.pos(0) = pdomain.lo(0);
+                            p.pos(1) = pdomain.lo(1);
+                            p.pos(2) = pdomain.lo(2);
+                        }
+                    }
                 } else {
-                    p.pos(0) = plo[0] + (i + 0.5)*dx[0];
-                    p.pos(1) = plo[1] + (j + 0.5)*dx[1];
-                    p.pos(2) = plo[2] + (k + 0.5)*dx[2];
+                    if (random_place) {
+                        p.pos(0) = plo[0] + (i + Random(rnd_engine))*dx[0];
+                        p.pos(1) = plo[1] + (j + Random(rnd_engine))*dx[1];
+                        p.pos(2) = plo[2] + (k + Random(rnd_engine))*dx[2];
+                    } else {
+                        p.pos(0) = plo[0] + (i + 0.5)*dx[0];
+                        p.pos(1) = plo[1] + (j + 0.5)*dx[1];
+                        p.pos(2) = plo[2] + (k + 0.5)*dx[2];
+                    }
                 }
 
                 p.idata(SuperDropletsIntIdxAoS::k) = k;

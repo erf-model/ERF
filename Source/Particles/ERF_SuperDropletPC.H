@@ -117,13 +117,15 @@ class SuperDropletPC : public ERFPC
         void setNumSDBoxDistribution( amrex::iMultiFab&,
                                       const int,
                                       const MFPtr&,
-                                      const amrex::RealBox& );
+                                      const amrex::RealBox&,
+                                      const bool );
 
         /*! \brief Set initial number of superdroplets per cell as a bubble with uniform density */
         void setNumSDBubbleDistribution( amrex::iMultiFab&,
                                       const int,
                                       const MFPtr&,
-                                      const amrex::RealBox& );
+                                      const amrex::RealBox&,
+                                      const bool );
 
         /*! \brief Set super-droplets attributes from a given condensate mass density */
         virtual void SetAttributes (  amrex::MultiFab& );
