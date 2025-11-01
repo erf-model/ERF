@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# Example CMake config script for an OSX laptop with OpenMPI
-
 cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
       -DMPIEXEC_PREFLAGS:STRING=--oversubscribe \
       -DCMAKE_BUILD_TYPE:STRING=Release \
