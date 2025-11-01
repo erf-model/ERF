@@ -8,9 +8,13 @@ export ERF_DIR="$(dirname "$SCRIPT_DIR")"
 
 echo "ERF_DIR set to: $ERF_DIR"
 
-# 2. Source EKAT setup
-echo "Sourcing EKAT setup..."
+E3SM_DIR="$ERF_DIR/external/E3SM"
+if [ ! -d "$E3SM_DIR" ]; then
+echo "external/E3SM folder not found, running eamxx_clone.sh..."
 source "$ERF_DIR/Build/GNU_Ekat/eamxx_clone.sh"
+else
+echo "external/E3SM folder already exists, skipping clone."
+fi
 
 # 3. Prepare build directory
 echo "Preparing build directory..."
