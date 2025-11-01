@@ -139,6 +139,13 @@
                     }
                 }
             }
+
+            // FillBoundary is needed to get momenta in grown boxes for adevection flux calculation,
+            // and subsequently, flux interpolation.
+            for (int i = 0; i <= AMREX_SPACEDIM; ++i) {
+                S_new[i].FillBoundary(fine_geom.periodicity());
+            }
+
         } // EB
 
         // Apply boundary conditions on all the state variables that have been updated
