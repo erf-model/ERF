@@ -4,7 +4,7 @@
 using namespace amrex;
 
 /**
- * Function for computing the stress with constant viscosity and with terrain.
+ * Function for computing the stress with constant viscosity on a stretched grid.
  *
  * @param[in]  bxcc cell center box for tau_ii
  * @param[in]  tbxxy nodal xy box for tau_12
@@ -87,8 +87,9 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mfx = mf_mx(i,j,0);
         Real mfy = mf_my(i,j,0);
 
-        Real mu_tot     = rhoAlpha(i,j,k);
         Real met_h_zeta = dz_ptr[k]*dxInv[2];
+
+        Real mu_tot     = rhoAlpha(i,j,k);
 
         if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_tot * tau33(i,j,k);
 
@@ -144,7 +145,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 }
 
 /**
- * Function for computing the stress with constant viscosity and with terrain.
+ * Function for computing the stress with variable viscosity on a stretched grid.
  *
  * @param[in]  bxcc cell center box for tau_ii
  * @param[in]  tbxxy nodal xy box for tau_12
@@ -229,14 +230,17 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mfx = mf_mx(i,j,0);
         Real mfy = mf_my(i,j,0);
 
-        Real mu_tot     = rhoAlpha(i,j,k) + 2.0*mu_turb(i, j, k, EddyDiff::Mom_h);
         Real met_h_zeta = dz_ptr[k]*dxInv[2];
 
-        if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_tot * tau33(i,j,k);
+        Real mu_11 = rhoAlpha(i,j,k) + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_h);
+        Real mu_22 = mu_11;
+        Real mu_33 = rhoAlpha(i,j,k) + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_v);
 
-        tau11(i,j,k) = -mu_tot * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) ) * (met_h_zeta/mfy);
-        tau22(i,j,k) = -mu_tot * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) ) * (met_h_zeta/mfx);
-        tau33(i,j,k) = -mu_tot * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+        if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_33 * tau33(i,j,k);
+
+        tau11(i,j,k) = -mu_11 * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) ) * (met_h_zeta/mfy);
+        tau22(i,j,k) = -mu_22 * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) ) * (met_h_zeta/mfx);
+        tau33(i,j,k) = -mu_33 * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
     });
 
     // Second block: off diagonal stresses
