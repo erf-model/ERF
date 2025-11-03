@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set path to ERF
-${ERF_DIR:=/home/ERF}
+ERF_DIR="${ERF_DIR:-/home/ERF}"
 
 # Set the path to external in ERF
 EXT_DIR=${ERF_DIR}/external
