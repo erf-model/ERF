@@ -179,7 +179,10 @@ ImplicitDiffForMom_N (const Box& bx,
 #include "ERF_SetupVertDiff.H"
 
     // g(S*) coefficient
-    constexpr Real gfac = (stagdir == 2) ? 4.0/3.0 : 0.5;
+    // stagdir==0: tau_corr = 0.5 * du/dz
+    // stagdir==1: tau_corr = 0.5 * dv/dz
+    // stagdir==2: tau_corr =       dw/dz
+    constexpr Real gfac = (stagdir == 2) ? 2.0/3.0 : 1.0;
 
     // offsets used to average to faces
     constexpr int ioff = (stagdir == 0) ? 1 : 0;
@@ -229,7 +232,7 @@ ImplicitDiffForMom_N (const Box& bx,
                               "Unexpected upper BC used with implicit vertical diffusion");
 
 #ifdef AMREX_USE_GPU
-    ParallelFor(makeSlab(bx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
+    ParallelFor(makeSlab(bxx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
     {
 #else
     for (int j(jlo); j<=jhi; ++j) {
