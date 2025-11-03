@@ -349,7 +349,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
             if (mg_verbose > 0)
             {
-                sum = volWgtSumMF(lev,rhs_lev,0,false);
+                Real sum = volWgtSumMF(lev,rhs_lev,0,false);
                 Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " <<
                             rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
             }
