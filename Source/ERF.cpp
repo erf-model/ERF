@@ -980,6 +980,17 @@ ERF::InitData_post ()
         }
     }
 
+#ifdef ERF_IMPLICIT_W
+    if (SolverChoice::mesh_type == MeshType::VariableDz &&
+        (solverChoice.vert_implicit_fac[0] > 0 ||
+         solverChoice.vert_implicit_fac[1] > 0 ||
+         solverChoice.vert_implicit_fac[2] > 0  )       &&
+        solverChoice.implicit_divtau_terms)
+    {
+        amrex::Warning("Doing implicit solve for u, v, and w with terrain -- this has not been tested");
+    }
+#endif
+
     //
     // Copy vars_new into vars_old, then use vars_old to fill covered cells in vars_new during AverageDown
     //

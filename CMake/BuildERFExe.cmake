@@ -27,6 +27,10 @@ function(build_erf_lib erf_lib_name)
                               )
   endif()
 
+  if(ERF_ENABLE_IMPLICIT_W)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_IMPLICIT_W)
+  endif()
+
   if(ERF_ENABLE_MULTIBLOCK)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
   endif()

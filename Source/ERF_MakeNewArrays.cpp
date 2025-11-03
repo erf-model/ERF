@@ -532,10 +532,14 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         {
             Tau_corr[lev][0] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); // Tau31
             Tau_corr[lev][1] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); // Tau32
-            Tau_corr[lev][2] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); // Tau33
             Tau_corr[lev][0]->setVal(0.);
             Tau_corr[lev][1]->setVal(0.);
+#ifdef ERF_IMPLICIT_W
+            Tau_corr[lev][2] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); // Tau33
             Tau_corr[lev][2]->setVal(0.);
+#else
+            Tau_corr[lev][2] = nullptr;
+#endif
         } else {
             Tau_corr[lev][0] = nullptr;
             Tau_corr[lev][1] = nullptr;

@@ -174,16 +174,22 @@ void erf_make_tau_terms (int level, int nrk,
             // second-order derivatives in the vertical and we don't want to
             // touch the cross terms -- we save the terms here and
             // manipulate them later.
-            FArrayBox S13_for_impl, S23_for_impl, S33_for_impl;
+            FArrayBox S13_for_impl, S23_for_impl;
             S13_for_impl.resize(tbxxz,1,The_Async_Arena());
             S23_for_impl.resize(tbxyz,1,The_Async_Arena());
-            S33_for_impl.resize( bxcc,1,The_Async_Arena());
             Array4<Real> s13_corr = (do_implicit) ? S13_for_impl.array() : Array4<Real>{};
             Array4<Real> s23_corr = (do_implicit) ? S23_for_impl.array() : Array4<Real>{};
-            Array4<Real> s33_corr = (do_implicit) ? S33_for_impl.array() : Array4<Real>{};
             Array4<Real> tau13_corr = (do_implicit) ? Tau_corr_lev[0]->array(mfi) : Array4<Real>{};
             Array4<Real> tau23_corr = (do_implicit) ? Tau_corr_lev[1]->array(mfi) : Array4<Real>{};
+#ifdef ERF_IMPLICIT_W
+            FArrayBox S33_for_impl;
+            S33_for_impl.resize( bxcc,1,The_Async_Arena());
+            Array4<Real> s33_corr = (do_implicit) ? S33_for_impl.array() : Array4<Real>{};
             Array4<Real> tau33_corr = (do_implicit) ? Tau_corr_lev[2]->array(mfi) : Array4<Real>{};
+#else
+            Array4<Real> s33_corr = Array4<Real>{};
+            Array4<Real> tau33_corr = Array4<Real>{};
+#endif
 
             // Calculate the magnitude of the strain-rate tensor squared if
             // using Deardorff or k-eqn RANS. This contributes to the production
