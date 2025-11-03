@@ -122,9 +122,13 @@ ERF::initHSE (int lev)
         erf_enforce_hse(lev, new_r_hse, new_p_hse, new_pi_hse, new_th_hse, new_qv_hse, new_z_phys_cc);
 
         //
-        // Impose physical bc's on the base state
+        // Impose physical bc's on the base state (we must make new, temporary bcs object because the z_phys_nd is different)
         //
-        (*physbcs_base[lev])(new_base_state,0,new_base_state.nComp(),new_base_state.nGrowVect());
+        ERFPhysBCFunct_base* temp_physbcs_base =
+            new ERFPhysBCFunct_base(lev, geom[lev], domain_bcs_type, domain_bcs_type_d, new_z_phys_nd,
+                                    (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
+        (*temp_physbcs_base)(new_base_state,0,new_base_state.nComp(),new_base_state.nGrowVect());
+        delete temp_physbcs_base;
 
         // Now copy back into the original arrays
         base_state[lev].ParallelCopy(new_base_state,0,0,base_state[lev].nComp(),

@@ -45,6 +45,7 @@ else ()
   add_subdirectory(DevTests/Shoc)
   add_subdirectory(DevTests/TemperatureSource)
   add_subdirectory(DevTests/TropicalCyclone)
+  add_subdirectory(DevTests/Tornado)
 endif()
 
 if(ERF_ENABLE_TOOLS)
