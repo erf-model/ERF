@@ -88,6 +88,26 @@
                                                dxInv, hfx_z,
                                                mu_turb, solverChoice,
                                                bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+
+                        if (l_do_implicit_mom) {
+                            ImplicitDiffForMom_N<0>(bx, fine_geom.Domain(), level, slow_dt,
+                                                    cell_data, rho_u, tau13_corr,
+                                                    dxInv,
+                                                    mu_turb, solverChoice,
+                                                    bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+
+                            ImplicitDiffForMom_N<1>(bx, fine_geom.Domain(), level, slow_dt,
+                                                    cell_data, rho_v, tau23_corr,
+                                                    dxInv,
+                                                    mu_turb, solverChoice,
+                                                    bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+
+                            ImplicitDiffForMom_N<2>(bx, fine_geom.Domain(), level, slow_dt,
+                                                    cell_data, rho_w, tau33_corr,
+                                                    dxInv,
+                                                    mu_turb, solverChoice,
+                                                    bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                        }
                     }
                 } // mfi
 

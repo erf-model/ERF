@@ -147,8 +147,8 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
  * Function for computing the implicit contribution to the vertical diffusion
  * of momentum, with a vertically stretched grid over flat terrain.
  *
- * This function (explicitly instantiated below) handles staggering in x or y
- * through the template parameter, stagdir.
+ * This function (explicitly instantiated below) handles staggering in x, y, or
+ * z through the template parameter, stagdir.
  *
  * @param[in   ] bx cell-centered box to loop over
  * @param[in   ] domain box of the whole domain
@@ -156,7 +156,6 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
  * @param[in   ] cell_data conserved cell-centered rho, rho theta
  * @param[inout] face_data conserved momentum
  * @param[in   ] stretched_dz_d array over z of dz[k]
- * @param[inout] hfx_z heat flux in z-dir
  * @param[in   ] mu_turb turbulent viscosity
  * @param[in   ] solverChoice container of parameters
  * @param[in   ] bc_ptr container with boundary conditions
@@ -300,7 +299,7 @@ ImplicitDiffForMom_S (const Box& bx,
                     coeffC_a(i,j,klo) = 0.;
                     RHS_a(i,j,klo) = 0.;
                 } else if (use_SurfLayer) {
-                    // Match explicit grad(u)
+                    // Match explicit grad(u) at the surface
                     Real uhi = 2.0 * face_data(i,j,klo  ) / (cell_data(i,j,klo  ,Rho_comp) + cell_data(i,j,klo-1,Rho_comp));
                     Real ulo = 2.0 * face_data(i,j,klo-1) / (cell_data(i,j,klo-1,Rho_comp) + cell_data(i,j,klo-2,Rho_comp));
                     RHS_a(i,j,klo) += coeffA_a(i,j,klo) * (uhi - ulo);
