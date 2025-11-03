@@ -292,8 +292,8 @@ ImplicitDiffForMom_N (const Box& bx,
                     RHS_a(i,j,klo) = 0.;
                 } else if (use_SurfLayer) {
                     // Match explicit grad(u) at the surface
-                    Real uhi = 2.0 * face_data(i,j,klo  ) / (cell_data(i,j,klo  ,Rho_comp) + cell_data(i,j,klo-1,Rho_comp));
-                    Real ulo = 2.0 * face_data(i,j,klo-1) / (cell_data(i,j,klo-1,Rho_comp) + cell_data(i,j,klo-2,Rho_comp));
+                    Real uhi = 2.0 * face_data(i,j,klo  ) / (cell_data(i,j,klo  ,Rho_comp) + cell_data(i-ioff,j-joff,klo  ,Rho_comp));
+                    Real ulo = 2.0 * face_data(i,j,klo-1) / (cell_data(i,j,klo-1,Rho_comp) + cell_data(i-ioff,j-joff,klo-1,Rho_comp));
                     RHS_a(i,j,klo) += coeffA_a(i,j,klo) * (uhi - ulo);
                 }
 
