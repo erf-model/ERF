@@ -1,6 +1,4 @@
-
-[[chat]]
-role = "user"
+[[chat.user]]
 content = """
 You are a code-update assistant for extending the ERF-NoahMP C++ driver interface.
 
