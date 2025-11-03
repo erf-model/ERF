@@ -110,6 +110,7 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
             coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv_lo;
             coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv_hi;
 
+            // Setup BCs
             if (k == dom_lo.z) {
                 if (use_SurfLayer) {
                     RHS_a(i,j,klo) += implicit_fac * dt * dz_inv * hfx_z(i,j,0);
@@ -223,12 +224,13 @@ ImplicitDiffForMom_S (const Box& bx,
     int bc_comp = BCVars::xvel_bc + stagdir;
 
 
-  //bool ext_dir_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
-  //                        bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim);
+    bool ext_dir_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
+                            bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim);
+    bool ext_dir_on_zhi  = (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir ||
+                            bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim);
     bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
 
-  //AMREX_ASSERT_WITH_MESSAGE(ext_dir_on_zlo || use_SurfLayer,
-    AMREX_ASSERT_WITH_MESSAGE(use_SurfLayer,
+    AMREX_ASSERT_WITH_MESSAGE(ext_dir_on_zlo || ext_dir_on_zhi || use_SurfLayer,
                               "Unexpected lower BC used with implicit vertical diffusion");
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi,
                               "Unexpected upper BC used with implicit vertical diffusion");
@@ -294,17 +296,28 @@ ImplicitDiffForMom_S (const Box& bx,
 
             // Setup BCs
             if (k == dom_lo.z) {
-                if (use_SurfLayer) {
-                    //RHS_a(i,j,klo) += implicit_fac * dt * dz_inv * hfx_z(i,j,0);
-                    //RHS_a(i,j,klo) += coeffA_a(i,j,klo) * bc_neumann_vals[2] / dz_inv_lo;
+                if (ext_dir_on_zlo) {
+                    // This can be a no-slip wall (u = v = w = 0), slip wall (w = 0), or surface layer (w = 0)
+                    coeffC_a(i,j,klo) = 0.;
+                    RHS_a(i,j,klo) = 0.;
+                } else if (use_SurfLayer) {
+                    // Match explicit grad(u)
                     Real uhi = 2.0 * face_data(i,j,klo  ) / (cell_data(i,j,klo  ,Rho_comp) + cell_data(i,j,klo-1,Rho_comp));
                     Real ulo = 2.0 * face_data(i,j,klo-1) / (cell_data(i,j,klo-1,Rho_comp) + cell_data(i,j,klo-2,Rho_comp));
                     RHS_a(i,j,klo) += coeffA_a(i,j,klo) * (uhi - ulo);
                 }
+
+                // default is foextrap
                 coeffA_a(i,j,klo) = 0.;
             }
             if (k == dom_hi.z) {
-                coeffC_a(i,j,khi) = 0.; // foextrap
+                if (ext_dir_on_zhi) {
+                    coeffA_a(i,j,khi) = 0.;
+                    RHS_a(i,j,khi) = 0.;
+                }
+
+                // default is foextrap
+                coeffC_a(i,j,khi) = 0.;
             }
 
             coeffB_a(i,j,k) = rhoface - coeffA_a(i,j,k) - coeffC_a(i,j,k);
