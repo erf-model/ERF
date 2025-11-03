@@ -183,6 +183,9 @@ ImplicitDiffForMom_S (const Box& bx,
 
 #include "ERF_SetupVertDiff.H"
 
+    // g(S*) coefficient
+    constexpr Real gfac = (stagdir == 2) ? 4.0/3.0 : 0.5;
+
     // offsets used to average to faces
     constexpr int ioff = (stagdir == 0) ? 1 : 0;
     constexpr int joff = (stagdir == 1) ? 1 : 0;
@@ -252,21 +255,42 @@ ImplicitDiffForMom_S (const Box& bx,
             Real dz_inv_hi = (k == dom_hi.z) ? dz_inv
                                              : 2.0 / (dz_ptr[k] + dz_ptr[k+1]);
 
-            // Face data currently holds the fully explicit solution, which is
-            // used below to determine the velocity gradient at the boundary
+            // Face data currently holds the _fully_ explicit solution, which
+            // will be used to determine the velocity gradient for the bottom
+            // BC
             RHS_a(i,j,k) = face_data(i,j,k); // Note this is momentum but solution will be velocity
 
-            // Note: in DiffusionSrcForMom, e.g., for x-mom
+            // Notes:
+            //
+            // - In DiffusionSrcForMom (e.g., for x-mom)
+            //
             //     Real diffContrib = ...
             //                      + (tau13(i,j,k+1) - tau13(i,j,k)) / dz_ptr[k]
-            //     rho_u_rhs(i,j,k) -= diffContrib;
-            // Need to scale diffContrib by (1 - implicit_fac)
+            //     rho_u_rhs(i,j,k) -= diffContrib;  // note the negative sign
+            //
+            // - We need to scale the explicit _part_ of `tau13` (for x-mom) by (1 - implicit_fac)
+            //   The part that needs to be scaled is stored in `tau_corr`.
+            //   E.g., tau13 = 0.5 * (du/dz + dw/dx)
+            //         tau13_corr = 0.5 * du/dz
+            //
+            // - The momentum (`face_data`) was set to `S_old + S_rhs * dt`
+            //   prior to including "ERF_Implicit.H". Recall that S_rhs includes
+            //   sources from advection and other forcings, not just diffusion.
+            //
+            // - To correct momentum, we need to subtract `implicit_fac * diffContrib_corr`
+            //   from S_rhs to recover `(1 - implicit_fac) * diffContrib_corr`,
+            //   where `diffContrib_corr = -d(tau_corr)/dz`. The negative sign
+            //   comes from our convention for the RHS diffusion source.
+            //
+            //   Subtracting a negative gives the += below; multiply by dt to
+            //   get the intermediate momentum on the RHS of the tridiagonal
+            //   system.
             RHS_a(i,j,k) += implicit_fac * (tau_corr(i,j,k+1) - tau_corr(i,j,k))*dz_inv * dt;
 
             // This represents the face-centered finite difference of two
             // edge-centered finite differences (hi and lo)
-            coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv_lo;
-            coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv_hi;
+            coeffA_a(i,j,k) = -implicit_fac * gfac * rhoAlpha_lo * dt * dz_inv * dz_inv_lo;
+            coeffC_a(i,j,k) = -implicit_fac * gfac * rhoAlpha_hi * dt * dz_inv * dz_inv_hi;
 
             // Setup BCs
             if (k == dom_lo.z) {
@@ -318,4 +342,5 @@ ImplicitDiffForMom_S (const Box& bx,
         const Real);
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM(0)
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM(1)
+INSTANTIATE_IMPLICIT_DIFF_FOR_MOM(2)
 #undef INSTANTIATE_IMPLICIT_DIFF_FOR_MOM

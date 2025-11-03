@@ -165,10 +165,11 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);
             MultiFab scratch_xmom(S_data[IntVars::xmom], make_alias, 0, 1);
             MultiFab scratch_ymom(S_data[IntVars::ymom], make_alias, 0, 1);
+            MultiFab scratch_zmom(S_data[IntVars::zmom], make_alias, 0, 1);
             const bool l_do_implicit_mom = solverChoice.implicit_divtau_terms;
             MultiFab* Tau13corr = (l_do_implicit_mom) ? Tau_corr[level][0].get() : nullptr;
             MultiFab* Tau23corr = (l_do_implicit_mom) ? Tau_corr[level][1].get() : nullptr;
-          //MultiFab* Tau33corr = (l_do_implicit_mom) ? Tau_corr[level][2].get() : nullptr;
+            MultiFab* Tau33corr = (l_do_implicit_mom) ? Tau_corr[level][2].get() : nullptr;
 #include "ERF_Implicit.H"
         }
 

@@ -103,7 +103,7 @@
                                      && (solverChoice.implicit_divtau_terms);
         MultiFab* Tau13corr = (do_implicit_mom) ? Tau_corr[level][0].get() : nullptr;
         MultiFab* Tau23corr = (do_implicit_mom) ? Tau_corr[level][1].get() : nullptr;
-      //MultiFab* Tau33corr = (do_implicit_mom) ? Tau_corr[level][2].get() : nullptr;
+        MultiFab* Tau33corr = (do_implicit_mom) ? Tau_corr[level][2].get() : nullptr;
 
         // *****************************************************************************
         // Construct the source terms for the cell-centered (conserved) variables
@@ -187,6 +187,9 @@
             MultiFab scratch_ymom(S_data[IntVars::ymom].boxArray(),
                                   S_data[IntVars::ymom].DistributionMap(), 1,
                                   S_data[IntVars::ymom].nGrowVect());
+            MultiFab scratch_zmom(S_data[IntVars::zmom].boxArray(),
+                                  S_data[IntVars::zmom].DistributionMap(), 1,
+                                  S_data[IntVars::zmom].nGrowVect());
             if (solverChoice.implicit_divtau_terms) {
                 MultiFab::Copy(scratch_xmom, S_old[IntVars::xmom], 0, 0, 1,  S_data[IntVars::xmom].nGrowVect()); // scratch := S_old
                 MultiFab::Saxpy(scratch_xmom, slow_dt, S_rhs[IntVars::xmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
@@ -195,6 +198,10 @@
                 MultiFab::Copy(scratch_ymom, S_old[IntVars::ymom], 0, 0, 1,  S_data[IntVars::ymom].nGrowVect()); // scratch := S_old
                 MultiFab::Saxpy(scratch_ymom, slow_dt, S_rhs[IntVars::ymom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
                 scratch_ymom.FillBoundary(geom[level].periodicity());
+
+                MultiFab::Copy(scratch_zmom, S_old[IntVars::zmom], 0, 0, 1,  S_data[IntVars::zmom].nGrowVect()); // scratch := S_old
+                MultiFab::Saxpy(scratch_zmom, slow_dt, S_rhs[IntVars::zmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
+                scratch_zmom.FillBoundary(geom[level].periodicity());
             }
 
 #include "ERF_Implicit.H"
@@ -211,6 +218,10 @@
                 MultiFab::Saxpy(scratch_ymom, -1.0, S_old[IntVars::ymom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
                 scratch_ymom.mult(1.0 / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
                 MultiFab::Copy(S_rhs[IntVars::ymom], scratch_ymom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
+
+                MultiFab::Saxpy(scratch_zmom, -1.0, S_old[IntVars::ymom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
+                scratch_zmom.mult(1.0 / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
+                MultiFab::Copy(S_rhs[IntVars::zmom], scratch_zmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
             }
         }
 
