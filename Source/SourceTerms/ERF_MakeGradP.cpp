@@ -45,7 +45,7 @@ void make_gradp_pert (int level,
     //
     if (solverChoice.anelastic[level] == 0)
     {
-        const int ngrow = (l_eb_terrain) ? 2 : 1;
+        const int ngrow = (l_eb_terrain) ? 3 : 1;
         MultiFab p(S_data[Vars::cons].boxArray(), S_data[Vars::cons].DistributionMap(), 1, ngrow);
 
         // *****************************************************************************

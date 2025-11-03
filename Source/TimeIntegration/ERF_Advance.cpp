@@ -149,7 +149,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // Update the "old" state using SHOC
     // **************************************************************************************
     if (solverChoice.use_shoc) {
-        // Get SFC fluxes from SurfacLayer
+        // Get SFC fluxes from SurfaceLayer
         if (m_SurfaceLayer) {
             Vector<const MultiFab*> mfs = {&S_old, &U_old, &V_old, &W_old};
             m_SurfaceLayer->impose_SurfaceLayer_bcs(lev, mfs, Tau[lev],

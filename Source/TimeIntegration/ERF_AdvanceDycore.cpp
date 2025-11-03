@@ -115,7 +115,7 @@ void ERF::advance_dycore (int level,
     if (l_use_diff) {
 
         // Here we use the implicit flag from first RK stage
-        bool l_vert_implicit_fac = solverChoice.vert_implicit_fac[0];
+        bool l_vert_implicit_fac = (solverChoice.vert_implicit_fac[0] > 0.);
 
         const BCRec* bc_ptr_h = domain_bcs_type.data();
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
@@ -308,7 +308,9 @@ void ERF::advance_dycore (int level,
     // Define a new MultiFab that holds q_total and fill it by summing the moisture components --
     //      to be used in buoyancy calculation and as part of the inertial weighting in the
     // ***********************************************************************************************
-    MultiFab qt(grids[level], dmap[level], 1, 1);
+
+    const bool l_eb_terrain = (solverChoice.terrain_type == TerrainType::EB);
+    MultiFab qt(grids[level], dmap[level], 1, (l_eb_terrain) ? 2 : 1);
     qt.setVal(0.0);
 
 #include "ERF_TI_no_substep_fun.H"

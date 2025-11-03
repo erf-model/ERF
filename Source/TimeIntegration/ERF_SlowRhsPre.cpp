@@ -193,7 +193,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
 #ifdef ERF_USE_SHOC
         // Zero out the surface stresses of tau13/tau23
-        shoc_lev->set_sfc_stresses();
+        shoc_lev->set_diff_stresses();
 #else
         // This is computed pre step in Advance if we use SHOC
         if (l_use_SurfLayer) {

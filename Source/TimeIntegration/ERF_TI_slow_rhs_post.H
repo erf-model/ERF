@@ -59,6 +59,9 @@
                           real_width, real_set_width,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
+#ifdef ERF_USE_SHOC
+                          shoc_interface[level],
+#endif
                           fr_as_crse, fr_as_fine);
 
         // Apply state redistribution for cons states
