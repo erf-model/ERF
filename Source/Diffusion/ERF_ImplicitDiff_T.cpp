@@ -74,10 +74,9 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
     auto const& inv_coeffB_a = inv_coeffB_fab.array();
     auto const& coeffC_a     =     coeffC_fab.array(); // upper diagonal
 
-    int bc_comp = qty_index;
-
     Real dz_inv        = cellSizeInv[2];
 
+    int bc_comp = qty_index;
     bool foextrap_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap);
     bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
     bool neumann_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::neumann);
@@ -106,11 +105,16 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
 
             RHS_a(i,j,k)  = detJ(i,j,k) * cell_data(i,j,k,n); // Note this is rho*theta, whereas solution will be theta
 
-            // Note that the additional factor of detJ is multiplied through so we don't see it here
-            //      in the denominator but do see it multiplying the B coeff and the RHS
+            // This represents the cell-centered finite difference of two
+            // face-centered finite differences (hi and lo)
             coeffA_a(i,j,k) = -implicit_fac * rhoAlpha_lo * dt * dz_inv * dz_inv / met_h_zeta_lo;
             coeffC_a(i,j,k) = -implicit_fac * rhoAlpha_hi * dt * dz_inv * dz_inv / met_h_zeta_hi;
 
+            // Note: The additional factor of detJ was multiplied through so we
+            //       don't see it in the denominator of coeffs A and C but we
+            //       do see it multiplying the B coeff and the RHS
+
+            // Setup BCs
             if (k == dom_lo.z) {
                 if (use_SurfLayer) {
                     RHS_a(i,j,klo) += implicit_fac * dt * dz_inv * hfx_z(i,j,0);

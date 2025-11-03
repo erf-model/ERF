@@ -70,10 +70,9 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
     auto const& inv_coeffB_a = inv_coeffB_fab.array();
     auto const& coeffC_a     =     coeffC_fab.array(); // upper diagonal
 
-    int bc_comp = qty_index;
-
     auto dz_ptr = stretched_dz_d.data();
 
+    int bc_comp = qty_index;
     bool foextrap_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap);
     bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
     bool neumann_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::neumann);
