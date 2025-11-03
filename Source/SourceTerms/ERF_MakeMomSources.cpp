@@ -460,7 +460,6 @@ void make_mom_sources (Real time,
         // *****************************************************************************
         // 3b. Add height-dependent GEOSTROPHIC forcing
         // *****************************************************************************
-        /*
         if (geo_wind_profile && is_slow_step) {
             ParallelFor(tbx, tby,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -471,14 +470,9 @@ void make_mom_sources (Real time,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-                //ymom_src_arr(i, j, k) += coriolis_factor * rho_on_v_face * dptr_u_geos[k] * sinphi;
-                
-                //Real nudge_v = tau_inv * (dptr_v_geos[k] - (dptr_v_plane(k) / dptr_r_plane(k)));
-                Real nudge_v = tau_inv * (dptr_v_plane(k) / dptr_r_plane(k) - dptr_v_geos[k]);
-                ymom_src_arr(i, j, k) -= rho_on_v_face * nudge_v;
+                ymom_src_arr(i, j, k) += coriolis_factor * rho_on_v_face * dptr_u_geos[k] * sinphi;
             });
         } // geo_wind_profile
-        */
 
         // *****************************************************************************
         // 4. Add custom SUBSIDENCE terms
