@@ -100,13 +100,13 @@ public:
          amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs,
          amrex::MultiFab* qheating_rates,
          amrex::MultiFab* z_phys,
-         amrex::MultiFab* lat,
-         amrex::MultiFab* lon) override
+         amrex::MultiFab* lat_ptr,
+         amrex::MultiFab* lon_ptr) override
     {
         set_grids(level, step, time, dt, ba, geom,
                   cons_in, lsm_fluxes, lsm_zenith,
                   lsm_input_ptrs, qheating_rates,
-                  z_phys, lat, lon);
+                  z_phys, lat_ptr, lon_ptr);
         rad_run_impl(lsm_output_ptrs);
     }
 
