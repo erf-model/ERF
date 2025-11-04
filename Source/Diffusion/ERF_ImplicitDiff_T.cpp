@@ -301,7 +301,7 @@ ImplicitDiffForMom_T (const Box& bx,
             //   Subtracting a negative gives the += below; multiply by dt to
             //   get the intermediate momentum on the RHS of the tridiagonal
             //   system.
-            RHS_a(i,j,k) += implicit_fac * (tau_corr(i,j,k+1) - tau_corr(i,j,k))*dz_inv * dt;
+            RHS_a(i,j,k) += implicit_fac * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k))*dz_inv * dt;
 
             // This represents the face-centered finite difference of two
             // edge-centered finite differences (hi and lo)
