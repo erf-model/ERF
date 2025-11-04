@@ -263,6 +263,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
         if (mg_verbose > 0) {
             Real sum = volWgtSumMF(lev,rhs_lev,0,false);
+            ParallelDescriptor::ReduceRealSum(sum);
             Print() << "Max/L2 norm of divergence before solve in subdomain " << isub << " at level " << lev << " : " << rhsnorm << " " <<
                         rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
         }
@@ -350,6 +351,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             if (mg_verbose > 0)
             {
                 Real sum = volWgtSumMF(lev,rhs_lev,0,false);
+                ParallelDescriptor::ReduceRealSum(sum);
                 Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " <<
                             rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
             }
@@ -374,6 +376,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         if (is_singular)
         {
             Real sum = volWgtSumMF(lev,rhs_sub[0],0,false);
+            ParallelDescriptor::ReduceRealSum(sum);
 
             Real vol;
             if (solverChoice.mesh_type == MeshType::ConstantDz) {
