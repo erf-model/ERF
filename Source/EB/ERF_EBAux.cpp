@@ -100,17 +100,17 @@ define( [[maybe_unused]] int const& a_level,
         aux_afrac_x(i,j,k) = 0.0;
         aux_afrac_y(i,j,k) = 0.0;
         aux_afrac_z(i,j,k) = 0.0;
-        if (i==bx.bigEnd(0)) {
+        if (i==domain.bigEnd(0)) {
           aux_flag(i+1,j,k).setCovered();
           aux_vfrac(i+1,j,k) = 0.0;
           aux_afrac_x(i+1,j,k) = 0.0;
         }
-        if (j==bx.bigEnd(1)) {
+        if (j==domain.bigEnd(1)) {
           aux_flag(i,j+1,k).setCovered();
           aux_vfrac(i,j+1,k) = 0.0;
           aux_afrac_y(i,j+1,k) = 0.0;
         }
-        if (k==bx.bigEnd(2)) {
+        if (k==domain.bigEnd(2)) {
           aux_flag(i,j,k+1).setCovered();
           aux_vfrac(i,j,k+1) = 0.0;
           aux_afrac_z(i,j,k+1) = 0.0;
@@ -127,17 +127,17 @@ define( [[maybe_unused]] int const& a_level,
         aux_afrac_x(i,j,k) = 1.0;
         aux_afrac_y(i,j,k) = 1.0;
         aux_afrac_z(i,j,k) = 1.0;
-        if (i==bx.bigEnd(0)) {
+        if (i==domain.bigEnd(0)) {
           aux_flag(i+1,j,k).setRegular();
           aux_vfrac(i+1,j,k) = 1.0;
           aux_afrac_x(i+1,j,k) = 1.0;
         }
-        if (j==bx.bigEnd(1)) {
+        if (j==domain.bigEnd(1)) {
           aux_flag(i,j+1,k).setRegular();
           aux_vfrac(i,j+1,k) = 1.0;
           aux_afrac_y(i,j+1,k) = 1.0;
         }
-        if (k==bx.bigEnd(2)) {
+        if (k==domain.bigEnd(2)) {
           aux_flag(i,j,k+1).setRegular();
           aux_vfrac(i,j,k+1) = 1.0;
           aux_afrac_z(i,j,k+1) = 1.0;
