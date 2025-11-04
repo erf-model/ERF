@@ -1,6 +1,9 @@
 #include "ERF_Diffusion.H"
 #include "ERF_EddyViscosity.H"
 #include "ERF_SolveTridiag.H"
+#include "ERF_GetRhoAlpha.H"
+#include "ERF_GetRhoAlphaForFaces.H"
+
 
 using namespace amrex;
 
@@ -38,14 +41,12 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain,
 {
     BL_PROFILE_VAR("ImplicitDiffForState_N()",ImplicitDiffForState_N);
 
+    // setup quantities for getRhoAlpha()
 #include "ERF_SetupVertDiff.H"
-
-    // define get_rhoAlpha()
     const int         n = RhoTheta_comp;
     const int qty_index = RhoTheta_comp;
     const int prim_index = qty_index - 1;
     const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
-#include "ERF_GetRhoAlpha.H"
 
     // Box bounds
     int ilo = bx.smallEnd(0);
@@ -54,6 +55,7 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain,
     int jhi = bx.bigEnd(1);
     int klo = bx.smallEnd(2);
     int khi = bx.bigEnd(2);
+    amrex::ignore_unused(ilo, ihi, jlo, jhi);
 
     // Temporary FABs for tridiagonal solve (allocated on column)
     //   A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
@@ -95,7 +97,9 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain,
         for (int k(klo); k <= khi; k++)
         {
             Real rhoAlpha_lo, rhoAlpha_hi;
-            get_rhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi);
+            getRhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi,
+                        cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
+                        prim_index, prim_scal_index, l_consA, l_turb);
 
             RHS_a(i,j,k)  = cell_data(i,j,k,n); // Note this is rho*theta, whereas solution will be theta
 
@@ -176,7 +180,11 @@ ImplicitDiffForMom_N (const Box& bx,
 {
     BL_PROFILE_VAR("ImplicitDiffForMom_N()",ImplicitDiffForMom_N);
 
+    // setup quantities for getRhoAlphaAtFaces()
 #include "ERF_SetupVertDiff.H"
+    DiffChoice dc = solverChoice.diffChoice;
+    Real mu_eff = (l_consA) ? 2.0 * dc.dynamic_viscosity / dc.rho0_trans
+                            : 2.0 * dc.dynamic_viscosity;
 
     // g(S*) coefficient
     // stagdir==0: tau_corr = 0.5 * du/dz * mu_tot
@@ -187,9 +195,6 @@ ImplicitDiffForMom_N (const Box& bx,
     // offsets used to average to faces
     constexpr int ioff = (stagdir == 0) ? 1 : 0;
     constexpr int joff = (stagdir == 1) ? 1 : 0;
-
-    // define get_rhoAlpha()
-#include "ERF_GetRhoAlphaAtFaces.H"
 
     // Box bounds
     const Box bxx = convert(bx, IntVect(ioff, joff, 0));
@@ -245,7 +250,9 @@ ImplicitDiffForMom_N (const Box& bx,
             Real rhoface = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
 
             Real rhoAlpha_lo, rhoAlpha_hi;
-            get_rhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi);
+            getRhoAlphaForFaces(i, j, k, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
+                                cell_data, mu_turb, mu_eff,
+                                l_consA, l_turb);
 
             // Face data currently holds the _fully_ explicit solution, which
             // will be used to determine the velocity gradient for the bottom
