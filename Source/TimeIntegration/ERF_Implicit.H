@@ -85,7 +85,27 @@
                                                z_nd_arr, detJ_arr, dxInv, hfx_z,
                                                mu_turb, solverChoice,
                                                bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
-                    } else {
+                        if (l_do_implicit_mom) {
+                            ImplicitDiffForMom_T<0>(bx, fine_geom.Domain(), level, slow_dt,
+                                                    cell_data, rho_u, tau13_corr,
+                                                    z_nd_arr, detJ_arr, dxInv,
+                                                    mu_turb, solverChoice,
+                                                    bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+
+                            ImplicitDiffForMom_T<1>(bx, fine_geom.Domain(), level, slow_dt,
+                                                    cell_data, rho_v, tau23_corr,
+                                                    z_nd_arr, detJ_arr, dxInv,
+                                                    mu_turb, solverChoice,
+                                                    bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+#ifdef ERF_IMPLICIT_W
+                            ImplicitDiffForMom_T<2>(bx, fine_geom.Domain(), level, slow_dt,
+                                                    cell_data, rho_w, tau33_corr,
+                                                    z_nd_arr, detJ_arr, dxInv,
+                                                    mu_turb, solverChoice,
+                                                    bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+#endif
+                        }
+                    } else { // no terrain
                         ImplicitDiffForState_N(bx, fine_geom.Domain(), level, slow_dt,
                                                l_bc_neumann_vals_d,
                                                cell_data,

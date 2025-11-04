@@ -73,7 +73,7 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain,
     auto const& inv_coeffB_a = inv_coeffB_fab.array();
     auto const& coeffC_a     =     coeffC_fab.array(); // upper diagonal
 
-    Real dz_inv        = cellSizeInv[2];
+    Real dz_inv = cellSizeInv[2];
 
     int bc_comp = qty_index;
     bool foextrap_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap);
@@ -131,7 +131,7 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain,
 
         SolveTridiag(i,j,klo,khi,soln_a,coeffA_a,coeffB_a,inv_coeffB_a,coeffC_a,RHS_a);
         for (int k(klo); k<=khi; ++k) {
-            cell_data(i,j,k,n) = soln_a(i,j,k) * cell_data(i,j,k,Rho_comp);
+            cell_data(i,j,k,n) = cell_data(i,j,k,Rho_comp) * soln_a(i,j,k);
         }
 
 #ifdef AMREX_USE_GPU
@@ -153,8 +153,9 @@ ImplicitDiffForState_N (const Box& bx, const Box& domain,
  * @param[in   ] level  AMR level
  * @param[in   ] domain box of the whole domain
  * @param[in   ] dt     time step
- * @param[in   ] cell_data conserved cell-centered rho, rho theta
+ * @param[in   ] cell_data conserved cell-centered rho
  * @param[inout] face_data conserved momentum
+ * @param[in   ] tau_corr stress contribution to momentum that will be corrected by the implicit solve
  * @param[in   ] cellSizeInv inverse cell size array
  * @param[in   ] mu_turb turbulent viscosity
  * @param[in   ] solverChoice container of parameters
@@ -204,6 +205,7 @@ ImplicitDiffForMom_N (const Box& bx,
     int jhi = bxx.bigEnd(1);
     int klo = bxx.smallEnd(2);
     int khi = bxx.bigEnd(2);
+    amrex::ignore_unused(ilo, ihi, jlo, jhi);
 
     // Temporary FABs for tridiagonal solve (allocated on column)
     //   A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
@@ -224,7 +226,6 @@ ImplicitDiffForMom_N (const Box& bx,
     Real dz_inv = cellSizeInv[2];
 
     int bc_comp = BCVars::xvel_bc + stagdir;
-
     bool ext_dir_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
                             bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim);
     bool ext_dir_on_zhi  = (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir ||
