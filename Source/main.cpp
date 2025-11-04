@@ -109,7 +109,10 @@ int main (int argc, char* argv[])
 
 #ifdef ERF_USE_KOKKOS
     // Initialize kokkos
-    if (!Kokkos::is_initialized()) { Kokkos::initialize(); }
+    if (!Kokkos::is_initialized()) {
+        Kokkos::initialize(Kokkos::InitializationSettings()
+                           .set_device_id(amrex::Gpu::Device::deviceId()));
+    }
 #endif
 
     // Save the inputs file name for later.
