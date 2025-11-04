@@ -375,7 +375,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
         if (is_singular)
         {
-            sum = volWgtSumMF(lev,rhs_sub[0],0,false);
+            Real sum = volWgtSumMF(lev,rhs_sub[0],0,false);
             ParallelDescriptor::ReduceRealSum(sum);
 
             Real vol;
