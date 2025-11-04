@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Example CMake config script for an OSX laptop with OpenMPI
+
 cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
       -DMPIEXEC_PREFLAGS:STRING=--oversubscribe \
       -DCMAKE_BUILD_TYPE:STRING=Release \
@@ -8,6 +10,10 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
       -DERF_ENABLE_TESTS:BOOL=ON \
       -DERF_ENABLE_EKAT:BOOL=ON \
       -DERF_ENABLE_SHOC:BOOL=ON \
+      -DERF_ENABLE_HDF5:BOOL=ON \
+      -DAMReX_HDF5=ON \
+      -DHDF5_IS_PARALLEL=TRUE \
+      -DERF_ENABLE_NETCDF:BOOL=ON \
       -DERF_ENABLE_FCOMPARE:BOOL=ON \
       -DERF_ENABLE_DOCUMENTATION:BOOL=OFF \
       -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
