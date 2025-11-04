@@ -29,9 +29,10 @@ void make_gradp_pert (int level,
                       const SolverChoice& solverChoice,
                       const Geometry& geom,
                       Vector<MultiFab>& S_data,
-                      MultiFab& p0,
-                      MultiFab& z_phys_nd,
-                      MultiFab& z_phys_cc,
+                      const MultiFab& p0,
+                      const MultiFab& z_phys_nd,
+                      const MultiFab& z_phys_cc,
+                      Vector<std::unique_ptr<MultiFab>>& mapfac,
                       const eb_& ebfact,
                       Vector<MultiFab>& gradp)
 {
@@ -44,7 +45,7 @@ void make_gradp_pert (int level,
     //
     if (solverChoice.anelastic[level] == 0)
     {
-        const int ngrow = (l_eb_terrain) ? 2 : 1;
+        const int ngrow = (l_eb_terrain) ? 3 : 1;
         MultiFab p(S_data[Vars::cons].boxArray(), S_data[Vars::cons].DistributionMap(), 1, ngrow);
 
         // *****************************************************************************
@@ -67,11 +68,11 @@ void make_gradp_pert (int level,
         }
 
         if (solverChoice.gradp_type == 0) {
-            compute_gradp(p,geom,z_phys_nd,z_phys_cc,ebfact,gradp,solverChoice);
+            compute_gradp(p,geom,z_phys_nd,z_phys_cc,mapfac,ebfact,gradp,solverChoice);
         } else if (solverChoice.gradp_type == 1) {
             AMREX_ASSERT_WITH_MESSAGE(solverChoice.terrain_type != TerrainType::EB,
                 "gradp_type==1 not implemented for EB");
-            compute_gradp_interpz(p,geom,z_phys_nd,z_phys_cc,gradp,solverChoice);
+            compute_gradp_interpz(p,geom,z_phys_nd,z_phys_cc,mapfac,gradp,solverChoice);
         }
     }
 }
@@ -79,8 +80,9 @@ void make_gradp_pert (int level,
 void
 compute_gradp (const MultiFab& p,
                const Geometry& geom,
-               MultiFab& z_phys_nd,
-               MultiFab& z_phys_cc,
+               const MultiFab& z_phys_nd,
+               const MultiFab& z_phys_cc,
+               Vector<std::unique_ptr<MultiFab>>& mapfac,
                const eb_& ebfact,
                Vector<MultiFab>& gradp,
                const SolverChoice& solverChoice)
@@ -120,6 +122,9 @@ compute_gradp (const MultiFab& p,
         const Array4<      Real>& gpy_arr = gradp[GpVars::gpy].array(mfi);
         const Array4<      Real>& gpz_arr = gradp[GpVars::gpz].array(mfi);
 
+        const Array4<const Real>& mf_ux_arr = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_vy_arr = mapfac[MapFacType::v_y]->const_array(mfi);
+
         if (solverChoice.terrain_type != TerrainType::EB) {
 
             ParallelFor(tbx, tby, tbz,
@@ -153,6 +158,9 @@ compute_gradp (const MultiFab& p,
                     gpx -= gpx_metric;
                 }
                 gpx_arr(i,j,k) = gpx;
+
+                // NOTE that the gradp array now carries the map factor!
+                gpx_arr(i,j,k) *= mf_ux_arr(i,j,0);
             },
             [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -184,6 +192,9 @@ compute_gradp (const MultiFab& p,
                     gpy -= gpy_metric;
                 }
                 gpy_arr(i,j,k) = gpy;
+
+                // NOTE that the gradp array now carries the map factor!
+                gpy_arr(i,j,k) *= mf_vy_arr(i,j,0);
             },
             [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -288,14 +299,12 @@ compute_gradp (const MultiFab& p,
                 [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (u_volfrac(i,j,k) > 0.0) {
-                        if (!cellflg(i-1,j,k).isCovered()) {
-                            gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
+                        if (cellflg(i,j,k).isCovered()) {
+                            gpx_arr(i,j,k) = dxInv[0] * (p_arr(i-3,j,k) - 3.*p_arr(i-2,j,k) + 2.*p_arr(i-1,j,k));
+                        } else if (cellflg(i-1,j,k).isCovered()) {
+                            gpx_arr(i,j,k) = dxInv[0] * (3.*p_arr(i+1,j,k) - p_arr(i+2,j,k) - 2.*p_arr(i,j,k));
                         } else {
-                            if (!cellflg(i+1,j,k).isCovered()) {
-                                gpx_arr(i,j,k) = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
-                            } else {
-                                Abort("MakeGradP: both neighbors in x-direction are covered");
-                            }
+                            gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
                         }
                     } else {
                         gpx_arr(i,j,k) = 0.0;
@@ -304,14 +313,12 @@ compute_gradp (const MultiFab& p,
                 [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (v_volfrac(i,j,k) > 0.0) {
-                        if (!cellflg(i,j-1,k).isCovered()) {
-                            gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
+                        if (cellflg(i,j,k).isCovered()) {
+                            gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j-3,k) - 3.*p_arr(i,j-2,k) + 2.*p_arr(i,j-1,k));
+                        } else if (cellflg(i,j-1,k).isCovered()) {
+                            gpy_arr(i,j,k) = dxInv[1] * (3.*p_arr(i,j+1,k) - p_arr(i,j+2,k) - 2.*p_arr(i,j,k));
                         } else {
-                            if (!cellflg(i,j+1,k).isCovered()) {
-                                gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
-                            } else {
-                                Abort("MakeGradP: both neighbors in y-direction are covered");
-                            }
+                            gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
                         }
                     } else {
                         gpy_arr(i,j,k) = 0.0;
@@ -320,14 +327,12 @@ compute_gradp (const MultiFab& p,
                 [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (w_volfrac(i,j,k) > 0.0) {
-                        if (!cellflg(i,j,k-1).isCovered()) {
-                            gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) );
+                        if (cellflg(i,j,k).isCovered()) {
+                            gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k-3) - 3.*p_arr(i,j,k-2) + 2.*p_arr(i,j,k-1) );
+                        } else if (cellflg(i,j,k-1).isCovered()) {
+                            gpz_arr(i,j,k) = dxInv[2] * ( 3.*p_arr(i,j,k+1) - p_arr(i,j,k+2) - 2.*p_arr(i,j,k) );
                         } else {
-                            if (!cellflg(i,j,k+1).isCovered()) {
-                                gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k+1)-p_arr(i,j,k) );
-                            } else {
-                                Abort("MakeGradP: both neighbors in z-direction are covered");
-                            }
+                            gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) );
                         }
                     } else {
                         gpz_arr(i,j,k) = 0.0;
@@ -344,8 +349,9 @@ compute_gradp (const MultiFab& p,
 void
 compute_gradp_interpz (const MultiFab& p,
                        const Geometry& geom,
-                       MultiFab& z_phys_nd,
-                       MultiFab& z_phys_cc,
+                       const MultiFab& z_phys_nd,
+                       const MultiFab& z_phys_cc,
+                       Vector<std::unique_ptr<MultiFab>>& mapfac,
                        Vector<MultiFab>& gradp,
                        const SolverChoice& solverChoice)
 {
@@ -383,6 +389,9 @@ compute_gradp_interpz (const MultiFab& p,
         const Array4<      Real>& gpx_arr = gradp[GpVars::gpx].array(mfi);
         const Array4<      Real>& gpy_arr = gradp[GpVars::gpy].array(mfi);
         const Array4<      Real>& gpz_arr = gradp[GpVars::gpz].array(mfi);
+
+        const Array4<const Real>& mf_ux_arr = mapfac[MapFacType::u_x]->const_array(mfi);
+        const Array4<const Real>& mf_vy_arr = mapfac[MapFacType::v_y]->const_array(mfi);
 
         ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -436,6 +445,9 @@ compute_gradp_interpz (const MultiFab& p,
             } else {
                 gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
             }
+
+            // NOTE that the gradp array now carries the map factor!
+            gpx_arr(i,j,k) *= mf_ux_arr(i,j,0);
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -488,6 +500,9 @@ compute_gradp_interpz (const MultiFab& p,
             } else {
                 gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
             }
+
+            // NOTE that the gradp array now carries the map factor!
+            gpy_arr(i,j,k) *= mf_vy_arr(i,j,0);
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {

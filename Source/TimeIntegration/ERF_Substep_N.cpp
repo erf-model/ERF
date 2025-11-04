@@ -38,40 +38,40 @@ using namespace amrex;
  * @param[in   ]  l_implicit_substepping
  */
 
-void erf_fast_rhs_N (int step, int nrk,
-                     int level, int finest_level,
-                     Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
-                     const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
-                     Vector<MultiFab>& S_stage_data,                 // S_stage = S^n, S^* or S^**
-                     const  MultiFab & S_stage_prim,                 // Primitive version of S_stage_data[IntVars::cons]
-                     const  MultiFab & qt,                           // Total moisture
-                     const  MultiFab & pi_stage,                     // Exner function evaluated at last stage
-                     const  MultiFab &fast_coeffs,                   // Coeffs for tridiagonal solve
-                     Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
-                     MultiFab& lagged_delta_rt,
-                     MultiFab& avg_xmom,
-                     MultiFab& avg_ymom,
-                     MultiFab& avg_zmom,
-                     const MultiFab& cc_src,
-                     const MultiFab& xmom_src,
-                     const MultiFab& ymom_src,
-                     const MultiFab& zmom_src,
-                     const Geometry geom,
-                     const Real gravity,
-                     const Real dtau, const Real beta_s,
-                     const Real facinv,
-                     Vector<std::unique_ptr<MultiFab>>& mapfac,
-                     YAFluxRegister* fr_as_crse,
-                     YAFluxRegister* fr_as_fine,
-                     bool l_use_moisture,
-                     bool l_reflux,
-                     bool l_implicit_substepping)
+void erf_substep_N (int step, int nrk,
+                    int level, int finest_level,
+                    Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
+                    const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
+                    Vector<MultiFab>& S_stage_data,                 // S_stage = S^n, S^* or S^**
+                    const  MultiFab & S_stage_prim,                 // Primitive version of S_stage_data[IntVars::cons]
+                    const  MultiFab & qt,                           // Total moisture
+                    const  MultiFab & pi_stage,                     // Exner function evaluated at last stage
+                    const  MultiFab &fast_coeffs,                   // Coeffs for tridiagonal solve
+                    Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
+                    MultiFab& lagged_delta_rt,
+                    MultiFab& avg_xmom,
+                    MultiFab& avg_ymom,
+                    MultiFab& avg_zmom,
+                    const MultiFab& cc_src,
+                    const MultiFab& xmom_src,
+                    const MultiFab& ymom_src,
+                    const MultiFab& zmom_src,
+                    const Geometry geom,
+                    const Real gravity,
+                    const Real dtau, const Real beta_s,
+                    const Real facinv,
+                    Vector<std::unique_ptr<MultiFab>>& mapfac,
+                    YAFluxRegister* fr_as_crse,
+                    YAFluxRegister* fr_as_fine,
+                    bool l_use_moisture,
+                    bool l_reflux,
+                    bool l_implicit_substepping)
 {
     //
     // NOTE: for step > 0, S_data and S_prev point to the same MultiFab data!!
     //
 
-    BL_PROFILE_REGION("erf_fast_rhs_N()");
+    BL_PROFILE_REGION("erf_substep_N()");
 
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms

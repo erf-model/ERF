@@ -165,7 +165,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
     // This loops over every variable on every face, so nvars should be 4 * number of "ivartype" below
     for (int iv = 0; iv < nvars; iv++)
     {
-        Print() << "Building FAB for the NetCDF variable : " << nc_var_names[iv] << std::endl;
+        // Print() << "Building FAB for the NetCDF variable : " << nc_var_names[iv] << std::endl;
 
         int bdyVarType;
 

@@ -47,45 +47,45 @@ using namespace amrex;
  * @param[in   ]  l_implicit_substepping
  */
 
-void erf_fast_rhs_MT (int step, int /*nrk*/,
-                      int level, int finest_level,
-                      Vector<MultiFab>& S_slow_rhs,                  // the slow RHS already computed
-                      const Vector<MultiFab>& S_prev,                // if step == 0, this is S_old, else the previous solution
-                      Vector<MultiFab>& S_stg_data,                  // at last RK stg: S^n, S^* or S^**
-                      const MultiFab& S_stg_prim,                    // Primitive version of S_stg_data[IntVars::cons]
-                      const MultiFab& qt,                            // Total moisture
-                      const MultiFab& pi_stage,                      // Exner function evaluated at last RK stg
-                      const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
-                      Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
-                      MultiFab& lagged_delta_rt,
-                      MultiFab& avg_xmom,
-                      MultiFab& avg_ymom,
-                      MultiFab& avg_zmom,
-                      const MultiFab& cc_src,
-                      const MultiFab& xmom_src,
-                      const MultiFab& ymom_src,
-                      const MultiFab& zmom_src,
-                      const Geometry geom,
-                      const Real gravity,
-                      const bool use_lagged_delta_rt,
-                      std::unique_ptr<MultiFab>& z_t_rk,             // evaluated from previous RK stg to next RK stg
-                      const MultiFab* z_t_pert,                      // evaluated from tau to (tau + delta tau) - z_t_rk
-                      std::unique_ptr<MultiFab>& z_phys_nd_old,      // at previous substep time (tau)
-                      std::unique_ptr<MultiFab>& z_phys_nd_new,      // at      new substep time (tau + delta tau)
-                      std::unique_ptr<MultiFab>& z_phys_nd_stg,      // at last RK stg
-                      std::unique_ptr<MultiFab>& detJ_cc_old,        // at previous substep time (tau)
-                      std::unique_ptr<MultiFab>& detJ_cc_new,        // at      new substep time (tau + delta tau)
-                      std::unique_ptr<MultiFab>& detJ_cc_stg,        // at last RK stg
-                      const Real dtau, const Real beta_s,
-                      const Real facinv,
-                      Vector<std::unique_ptr<MultiFab>>& mapfac,
-                      YAFluxRegister* fr_as_crse,
-                      YAFluxRegister* fr_as_fine,
-                      bool l_use_moisture,
-                      bool l_reflux,
-                      bool /*l_implicit_substepping*/)
+void erf_substep_MT (int step, int /*nrk*/,
+                     int level, int finest_level,
+                     Vector<MultiFab>& S_slow_rhs,                  // the slow RHS already computed
+                     const Vector<MultiFab>& S_prev,                // if step == 0, this is S_old, else the previous solution
+                     Vector<MultiFab>& S_stg_data,                  // at last RK stg: S^n, S^* or S^**
+                     const MultiFab& S_stg_prim,                    // Primitive version of S_stg_data[IntVars::cons]
+                     const MultiFab& qt,                            // Total moisture
+                     const MultiFab& pi_stage,                      // Exner function evaluated at last RK stg
+                     const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
+                     Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
+                     MultiFab& lagged_delta_rt,
+                     MultiFab& avg_xmom,
+                     MultiFab& avg_ymom,
+                     MultiFab& avg_zmom,
+                     const MultiFab& cc_src,
+                     const MultiFab& xmom_src,
+                     const MultiFab& ymom_src,
+                     const MultiFab& zmom_src,
+                     const Geometry geom,
+                     const Real gravity,
+                     const bool use_lagged_delta_rt,
+                     std::unique_ptr<MultiFab>& z_t_rk,             // evaluated from previous RK stg to next RK stg
+                     const MultiFab* z_t_pert,                      // evaluated from tau to (tau + delta tau) - z_t_rk
+                     std::unique_ptr<MultiFab>& z_phys_nd_old,      // at previous substep time (tau)
+                     std::unique_ptr<MultiFab>& z_phys_nd_new,      // at      new substep time (tau + delta tau)
+                     std::unique_ptr<MultiFab>& z_phys_nd_stg,      // at last RK stg
+                     std::unique_ptr<MultiFab>& detJ_cc_old,        // at previous substep time (tau)
+                     std::unique_ptr<MultiFab>& detJ_cc_new,        // at      new substep time (tau + delta tau)
+                     std::unique_ptr<MultiFab>& detJ_cc_stg,        // at last RK stg
+                     const Real dtau, const Real beta_s,
+                     const Real facinv,
+                     Vector<std::unique_ptr<MultiFab>>& mapfac,
+                     YAFluxRegister* fr_as_crse,
+                     YAFluxRegister* fr_as_fine,
+                     bool l_use_moisture,
+                     bool l_reflux,
+                     bool /*l_implicit_substepping*/)
 {
-    BL_PROFILE_REGION("erf_fast_rhs_MT()");
+    BL_PROFILE_REGION("erf_substep_MT()");
 
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
@@ -205,8 +205,6 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         Box gtbx  = mfi.nodaltilebox(0); gtbx.grow(1); gtbx.setSmall(2,0);
         Box gtby  = mfi.nodaltilebox(1); gtby.grow(1); gtby.setSmall(2,0);
 
-        {
-        BL_PROFILE("fast_rhs_copies_0");
         if (step == 0) {
             ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -248,7 +246,6 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
                 theta_extrap(i,j,k) *= (1.0 + RvOverRd*qv);
             });
         } // if step
-        } // end profile
 
         RHS_fab.resize     (tbz,1, The_Async_Arena());
         soln_fab.resize    (tbz,1, The_Async_Arena());
@@ -268,7 +265,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
         {
-        BL_PROFILE("fast_rhs_xymom_T");
+        BL_PROFILE("substep_xymom_T");
         ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -484,7 +481,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         auto const hi = ubound(bx);
 
         {
-        BL_PROFILE("fast_rhs_b2d_loop_t");
+        BL_PROFILE("substep_b2d_loop_t");
 
 #ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
@@ -555,7 +552,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         } // end profile
 
         {
-        BL_PROFILE("fast_rhs_new_drhow");
+        BL_PROFILE("substep_new_drhow");
         tbz.setBig(2,hi.z);
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {

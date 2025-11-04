@@ -17,6 +17,13 @@ extern "C" {
 void morr_two_moment_init_c(int morr_rimed_ice, int morr_noice);
 
 /**
+ * Set the constant droplet concentration (NDCNST) for Morrison microphysics
+ *
+ * @param ndcnst_in: Droplet number concentration in cm^-3
+ */
+void set_morrison_ndcnst_c(double ndcnst_in);
+
+/**
  * C interface to the Fortran MP_MORR_TWO_MOMENT routine.
  *
  * @note: All array dimensions must match between C++ and Fortran calls.

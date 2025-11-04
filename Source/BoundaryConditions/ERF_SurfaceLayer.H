@@ -483,7 +483,7 @@ public:
               amrex::Print() << "sea: TSK)" << std::endl;
           } else {
               amrex::Print() << "sea: SST)" << std::endl;
-              AMREX_ALWAYS_ASSERT(m_sst_lev[lev][0]);
+              //AMREX_ALWAYS_ASSERT(m_sst_lev[lev][0]);
           }
       }
   }

@@ -204,7 +204,8 @@ public:
                            amrex::MultiFab& rhs, amrex::MultiFab& p,
                            amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
                            amrex::MultiFab& ax_sub, amrex::MultiFab& ay_sub,
-                           amrex::MultiFab& znd_sub);
+                           amrex::MultiFab& az_sub,
+                           amrex::MultiFab& /*dJ_sub*/, amrex::MultiFab& znd_sub);
 
     void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
@@ -455,6 +456,8 @@ public:
 #endif //ERF_USE_NETCDF
 
     void init_from_input_sounding (int lev);
+
+    void init_immersed_forcing (int lev);
 
     void input_sponge (int lev);
 

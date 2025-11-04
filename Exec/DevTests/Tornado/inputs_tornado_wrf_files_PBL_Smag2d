@@ -61,7 +61,7 @@ prob.KE_decay_order  = 3
 
 erf.les_type = "Smagorinsky2D"
 erf.Cs = 0.02
-erf.use_smag_stratification = false
+erf.use_moist_Ri_correction = false
 erf.mix_isotropic = false
 
 #erf.les_type  = "Deardorff"

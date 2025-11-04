@@ -47,6 +47,10 @@ class NullSurf {
 
     virtual
     void
+    Plot_Landfile (const int& /*nstep*/) { }
+
+    virtual
+    void
     Update_Lsm_Vars (amrex::MultiFab& /*cons_in*/,
                      amrex::MultiFab& /*u_in*/,
                      amrex::MultiFab& /*v_in*/) { }

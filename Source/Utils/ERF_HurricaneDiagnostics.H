@@ -107,7 +107,7 @@ void ComputeGlobalMinLocation(const amrex::Geometry& geom,
     amrex::Real eye_y =  prob_lo[1] + (global_j_min+0.5)*dx[1];
 
     hurricane_eye_track_xy.push_back({eye_x, eye_y});
-    hurricane_eye_track_latlon.push_back({eye_lat, eye_lon});
+    hurricane_eye_track_latlon.push_back({eye_lon, eye_lat});
 }
 
 void

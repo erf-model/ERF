@@ -141,13 +141,14 @@ make_terrain_fitted_coords (int lev, const Geometry& geom, MultiFab& z_phys_nd,
         // Note that domhi_z is already nodal in the z-direction
         if (nd_bx.bigEnd(2) >= domhi_z) {
             // Grown box with no z range
-            Box xybx = mfi.growntilebox(ngrow);
-            xybx.setRange(2,0);
+            Box bx_zhi = mfi.growntilebox(ngrow);
+            bx_zhi.setSmall(2,domhi_z+1);
             Array4<Real> const& z_arr = z_phys_nd.array(mfi);
 
             // Extrapolate top layer
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int ) {
-                z_arr(i,j,domhi_z+1) = 2.0*z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1);
+            ParallelFor(bx_zhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                z_arr(i,j,k) = z_arr(i,j,domhi_z)
+                             + (k-domhi_z) * (z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1));
             });
         }
     }
@@ -638,4 +639,27 @@ make_zcc (const Geometry& geom,
        });
     }
     z_phys_cc.FillBoundary(geom.periodicity());
+}
+
+
+/**
+ * Computation min dz at cell-center
+ */
+Real
+get_dzmin_terrain (MultiFab& z_phys_nd)
+{
+    auto const& ma_z_nd_arr = z_phys_nd.const_arrays();
+    GpuTuple<Real> min = ParReduce(TypeList<ReduceOpMin>{},
+                                   TypeList<Real>{},
+                                   z_phys_nd, IntVect(0),
+                                   [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+                                   -> GpuTuple<Real>
+                                   {
+                                       amrex::Real dz = Compute_Z_AtWFace(i,j,k+1,ma_z_nd_arr[box_no]) -
+                                                        Compute_Z_AtWFace(i,j,k  ,ma_z_nd_arr[box_no]);
+                                       return { dz };
+                                   });
+    Real r = (get<0>(min) + std::numeric_limits<amrex::Real>::epsilon());
+    ParallelDescriptor::ReduceRealMin(r);
+    return r;
 }

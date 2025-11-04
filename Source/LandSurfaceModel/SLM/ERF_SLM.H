@@ -97,8 +97,8 @@ namespace LsmVar_SLM {
 namespace LsmFlux_SLM {
     enum {
       // 2D SurfaceLayer flux vars
+      t_flux = 0,
       q_flux,
-      t_flux,
       tau13,
       tau23,
       NumVars
@@ -265,6 +265,10 @@ public:
                     auto vegetype_arr = vegetype.array(mfi);
                     auto vege_YES_arr = vege_YES.array(mfi);
 
+                    auto const& d_params = d_param_table.const_table();
+
+                    const bool d_use_wrf_lai = use_wrf_lai;
+
                     amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
                         landtype_arr(i,j,0) = vegtype_arr(i,j,d_khi_lsm);
                         //soiltype_arr(i,j,0) = in_soiltype_arr(i,j,d_khi_lsm);
@@ -314,9 +318,9 @@ public:
                             // amrex::Print() << "     -- urban cell (i = " << i << " j = " << j << ") - setting landtype=" << isnature << " (orig landtype = " << landtype_arr(i,j,0) << ")" << std::endl;
                             // for urban cells, set as a nature landtype for the non-building part
                             landtype_arr(i,j,0) = isnature;
-                            if (use_wrf_lai) {
+                            if (d_use_wrf_lai) {
                                 // set the vegetation frac
-                                in_vegfrac_arr(i,j,0) = param_table[isnature-1][1];
+                                in_vegfrac_arr(i,j,0) = d_params(isnature-1, 1);
                             }
                             //landtype_arr(i,j,0) = isurban;
                         }
@@ -591,7 +595,6 @@ private:
     // amrex::Real m_fac_cond;
     // amrex::Real m_fac_fus;
     // amrex::Real m_fac_sub;
-    // amrex::Real m_gOcp;
 
     // independent variables
     amrex::Array<FabPtr, LsmVar_SLM::NumVars> lsm_fab_vars;
@@ -795,6 +798,7 @@ private:
     bool use_wrf_lai = false;     // whether to use WRF-Noah style LAI (interpolate between min and max lai)
 
     std::vector<std::vector<amrex::Real>> param_table;
+    amrex::TableData<amrex::Real, 2> d_param_table;
 
     amrex::Real m_calday = -1.0;
     int m_orbital_year = -1;

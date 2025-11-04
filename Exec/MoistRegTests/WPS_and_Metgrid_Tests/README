@@ -1,3 +1,7 @@
 This problem setup is to test the ability of ERF to correctly use files created 
 by the WRF Preprocessing System (WPS), or initial data from a metgrid NetCDF file,
 to initialize the problem and provide time-dependent boundary conditions.
+
+Use inputs_wps_noahmp to run this test using the Noah-MP land surface model. Make
+sure to copy `../../../Submodules/Noah-MP/drivers/erf/NoahmpTable.TBL` into this
+directory before running the simulation. 

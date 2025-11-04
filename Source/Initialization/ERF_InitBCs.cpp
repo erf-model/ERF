@@ -651,8 +651,6 @@ void ERF::init_bcs ()
 
 void ERF::init_Dirichlet_bc_data (const std::string input_file)
 {
-    const bool use_terrain = (solverChoice.terrain_type != TerrainType::None);
-
     // Read the dirichlet_input file
     Print() << "dirichlet_input file location : " << input_file << std::endl;
     std::ifstream input_reader(input_file);
@@ -669,8 +667,8 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
     // Top and bot for domain
     const int  klo  = geom[0].Domain().smallEnd()[2];
     const int  khi  = geom[0].Domain().bigEnd()[2];
-    const Real zbot = (use_terrain) ? zlevels_stag[0][klo]   : geom[0].ProbLo(2);
-    const Real ztop = (use_terrain) ? zlevels_stag[0][khi+1] : geom[0].ProbHi(2);
+    const Real zbot = zlevels_stag[0][klo];
+    const Real ztop = zlevels_stag[0][khi+1];
 
     // Flag if theta input
     Real th_init = -300.0;
@@ -749,7 +747,6 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
     for (int lev = 0; lev <= max_level; lev++) {
 
         const int Nz  = geom[lev].Domain().size()[2];
-        const Real dz = geom[lev].CellSize()[2];
 
         // Size of Nz (domain grid)
         Vector<Real> zcc_inp(Nz  );
@@ -767,9 +764,8 @@ void ERF::init_Dirichlet_bc_data (const std::string input_file)
         // z_inp_tmp[N-1] >= ztop. Now, interpolate to grid level 0 heights
         const int Ninp = z_inp_tmp.size();
         for (int k(0); k<Nz; ++k) {
-            zcc_inp[k] = (use_terrain) ? 0.5 * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1])
-                                         : zbot + (k + 0.5) * dz;
-            znd_inp[k] = (use_terrain) ? zlevels_stag[lev][k+1] : zbot + (k) * dz;
+            zcc_inp[k] = 0.5 * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
+            znd_inp[k] = zlevels_stag[lev][k+1];
             u_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), u_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             v_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), v_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
             w_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), w_inp_tmp.dataPtr(), znd_inp[k], Ninp);

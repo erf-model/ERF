@@ -82,6 +82,10 @@ public:
                              amrex::MultiFab& a_mf,
                              const int a_lev) const = 0;
 
+    /*! \brief Import minimum dz at this level */
+    virtual void Set_dzmin (const int lev,
+                            const amrex::Real dz_min) const = 0;
+
     /*! \brief query if a specified moisture model is Eulerian or Lagrangian */
     static MoistureModelType modelType (const MoistureType a_moisture_type)
     {

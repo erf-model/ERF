@@ -310,6 +310,7 @@ Radiation::alloc_buffers ()
     // 2d size (ncol, nlwbands)
     emis_sfc    = real2d_k("emis_sfc", m_ncol, m_nlwbands);
 
+    /*
     // 3d size (ncol, nlay, n[sw,lw]bands)
     aero_tau_sw = real3d_k("aero_tau_sw", m_ncol, m_nlay, m_nswbands);
     aero_ssa_sw = real3d_k("aero_ssa_sw", m_ncol, m_nlay, m_nswbands);
@@ -323,6 +324,7 @@ Radiation::alloc_buffers ()
     // 3d size (ncol, nlay, n[sw,lw]gpts)
     cld_tau_sw_gpt = real3d_k("cld_tau_sw_gpt", m_ncol, m_nlay, m_nswgpts);
     cld_tau_lw_gpt = real3d_k("cld_tau_lw_gpt", m_ncol, m_nlay, m_nlwgpts);
+    */
 }
 
 void
@@ -414,6 +416,7 @@ Radiation::dealloc_buffers ()
     // 2d size (ncol, nlwbands)
     emis_sfc = real2d_k();
 
+    /*
     // 3d size (ncol, nlay, n[sw,lw]bands)
     aero_tau_sw = real3d_k();
     aero_ssa_sw = real3d_k();
@@ -427,6 +430,7 @@ Radiation::dealloc_buffers ()
     // 3d size (ncol, nlay, n[sw,lw]gpts)
     cld_tau_sw_gpt = real3d_k();
     cld_tau_lw_gpt = real3d_k();
+    */
 }
 
 

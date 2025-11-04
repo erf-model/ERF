@@ -56,15 +56,15 @@
         int n_qstate_moist = micro->Get_Qstate_Moist_Size();
 
         // All moisture models are guaranteed to have RhoQ1_comp
-        MultiFab::Copy(qt, cons_state, RhoQ1_comp, 0, 1, 1);
+        MultiFab::Copy(qt, cons_state, RhoQ1_comp, 0, 1, qt.nGrowVect());
 
         // Sum up each component
         for (int n(1); n<n_qstate_moist; ++n) {
-            MultiFab::Add(qt, cons_state, RhoQ1_comp+n, 0, 1, 1);
+            MultiFab::Add(qt, cons_state, RhoQ1_comp+n, 0, 1, qt.nGrowVect());
         }
 
         // Divide out the dry density
-        MultiFab::Divide(qt, cons_state, Rho_comp, 0, 1, 1);
+        MultiFab::Divide(qt, cons_state, Rho_comp, 0, 1, qt.nGrowVect());
     };
 
 /**

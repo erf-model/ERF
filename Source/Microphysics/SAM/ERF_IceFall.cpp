@@ -14,9 +14,8 @@ void SAM::IceFall (const SolverChoice& sc) {
        sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce)
       return;
 
-    Real dz   = m_geom.CellSize(2);
     Real dtn  = dt;
-    Real coef = dtn/dz;
+    Real coef = dtn/m_dzmin;
 
     auto domain = m_geom.Domain();
     int k_lo = domain.smallEnd(2);

@@ -1,0 +1,60 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+stop_time = 3600.0
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent =  40   40  1000
+amr.n_cell           =   4    4    51
+
+geometry.is_periodic = 1 1 0
+
+erf.initial_dz = 10.0
+erf.grid_stretching_ratio = 1.025
+
+# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
+zlo.type        = "SlipWall"
+zhi.type        = "SlipWall"
+zhi.theta_grad  = 0.003  # [K/m] to match the input sounding
+
+# INITIALIZATION
+erf.init_type          = "input_sounding"
+
+# TIME STEP CONTROL
+erf.fixed_mri_dt_ratio = 4
+
+erf.vert_implicit_fac  = 0.0  # fully explicit (default)
+erf.fixed_dt           = 0.5  # largest stable dt with explicit diffusion (CFL=0.375)
+
+erf.vert_implicit_fac  = 0.5
+erf.fixed_dt           = 30.0
+
+erf.vert_implicit_fac  = 1.0  # fully implicit
+erf.fixed_dt           = 60.0
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval    = 1       # timesteps between computing mass
+erf.v               = 1       # verbosity in ERF.cpp
+amr.v               = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = -1         # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt       # prefix of plotfile name
+erf.plot_per_1      = 300        # number of timesteps between plotfiles
+#erf.plot_int_1      = 1        # number of timesteps between plotfiles
+erf.plot_vars_1     = density theta
+
+# SOLVER CHOICE
+erf.molec_diff_type = "Constant"
+erf.alpha_T         = 75.0 # [m^2/s]
+
+erf.use_gravity = true
+erf.use_coriolis = false
+
+# Turbulence closure
+erf.les_type    = "None"
+erf.pbl_type    = "None"
