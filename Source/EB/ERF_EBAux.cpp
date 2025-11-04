@@ -53,8 +53,13 @@ define( [[maybe_unused]] int const& a_level,
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
       const BoxArray& faceba = amrex::convert(a_grids, IntVect::TheDimensionVector(idim));
-      m_areafrac[idim] = new MultiFab(faceba, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
-      m_facecent[idim] = new MultiFab(faceba, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+      if (idim == a_idim) {
+          m_areafrac[idim] = new MultiFab(a_grids, a_dmap,                1, a_ngrow[1]+1, MFInfo(), FArrayBoxFactory());
+          m_facecent[idim] = new MultiFab(a_grids, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+      } else {
+          m_areafrac[idim] = new MultiFab(faceba, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
+          m_facecent[idim] = new MultiFab(faceba, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+      }
   }
 
   m_bndryarea = new MultiFab(grids, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
@@ -893,22 +898,41 @@ define( [[maybe_unused]] int const& a_level,
       });
 
       // Corrections for small cells
+      Box my_xbx(bx); if (a_idim == 0) my_xbx.growLo(0,1);
+      ParallelFor(my_xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        if (aux_vfrac(i,j,k) < small_volfrac) {
+          aux_afrac_x(i  ,j  ,k  ) = 0.0;
+          aux_afrac_x(i+1,j  ,k  ) = 0.0;
+        }
+      });
+
+      Box my_ybx(bx); if (a_idim == 1) my_ybx.growLo(1,1);
+      ParallelFor(my_ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        if (aux_vfrac(i,j,k) < small_volfrac) {
+          aux_afrac_y(i  ,j  ,k  ) = 0.0;
+          aux_afrac_y(i  ,j+1,k  ) = 0.0;
+        }
+      });
+
+      Box my_zbx(bx); if (a_idim == 2) my_zbx.growLo(2,1);
+      ParallelFor(my_zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        if (aux_vfrac(i,j,k) < small_volfrac) {
+          aux_afrac_z(i  ,j  ,k+1) = 0.0;
+          aux_afrac_z(i  ,j  ,k  ) = 0.0;
+        }
+      });
 
       ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac) {
-
+        if (aux_vfrac(i,j,k) < small_volfrac)
+        {
           aux_vfrac(i,j,k)   = 0.0;
           aux_vcent(i,j,k,0) = 0.0;
           aux_vcent(i,j,k,1) = 0.0;
           aux_vcent(i,j,k,2) = 0.0;
-
-          aux_afrac_x(i  ,j  ,k  ) = 0.0;
-          aux_afrac_x(i+1,j  ,k  ) = 0.0;
-          aux_afrac_y(i  ,j  ,k  ) = 0.0;
-          aux_afrac_y(i  ,j+1,k  ) = 0.0;
-          aux_afrac_z(i  ,j  ,k+1) = 0.0;
-          aux_afrac_z(i  ,j  ,k  ) = 0.0;
 
           aux_fcent_x(i  ,j  ,k  ,0) = 0.0;
           aux_fcent_x(i  ,j  ,k  ,1) = 0.0;
