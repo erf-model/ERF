@@ -183,9 +183,9 @@ ImplicitDiffForMom_S (const Box& bx,
 #include "ERF_SetupVertDiff.H"
 
     // g(S*) coefficient
-    // stagdir==0: tau_corr = 0.5 * du/dz
-    // stagdir==1: tau_corr = 0.5 * dv/dz
-    // stagdir==2: tau_corr =       dw/dz
+    // stagdir==0: tau_corr = 0.5 * du/dz * mu_tot
+    // stagdir==1: tau_corr = 0.5 * dv/dz * mu_tot
+    // stagdir==2: tau_corr =       dw/dz * mu_tot
     constexpr Real gfac = (stagdir == 2) ? 2.0/3.0 : 1.0;
 
     // offsets used to average to faces

@@ -43,7 +43,7 @@ ComputeStressConsVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real rhoAlpha  = cell_data(i, j, k, Rho_comp) * mu_eff;
-            if (tau33i) tau33i(i,j,k) = -(4./3.) * rhoAlpha * tau33(i,j,k);
+            if (tau33i) tau33i(i,j,k) = -rhoAlpha * tau33(i,j,k);
             tau11(i,j,k) = -rhoAlpha * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
             tau22(i,j,k) = -rhoAlpha * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
             tau33(i,j,k) = -rhoAlpha * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
@@ -77,7 +77,7 @@ ComputeStressConsVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         // Cell centered strains
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_eff * tau33(i,j,k);
+            if (tau33i) tau33i(i,j,k) = -mu_eff * tau33(i,j,k);
             tau11(i,j,k) = -mu_eff * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
             tau22(i,j,k) = -mu_eff * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
             tau33(i,j,k) = -mu_eff * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
@@ -146,7 +146,7 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real mu_11 = rhoAlpha + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_h);
             Real mu_22 = mu_11;
             Real mu_33 = rhoAlpha + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_v);
-            if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_33 * tau33(i,j,k);
+            if (tau33i) tau33i(i,j,k) = -mu_33 * tau33(i,j,k);
             tau11(i,j,k) = -mu_11 * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
             tau22(i,j,k) = -mu_22 * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
             tau33(i,j,k) = -mu_33 * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
@@ -191,7 +191,7 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real mu_11 = mu_eff + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_h);
             Real mu_22 = mu_11;
             Real mu_33 = mu_eff + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_v);
-            if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_33 * tau33(i,j,k);
+            if (tau33i) tau33i(i,j,k) = -mu_33 * tau33(i,j,k);
             tau11(i,j,k) = -mu_11 * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
             tau22(i,j,k) = -mu_22 * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
             tau33(i,j,k) = -mu_33 * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );

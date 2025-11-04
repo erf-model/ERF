@@ -89,7 +89,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         Real mu_tot     = rhoAlpha(i,j,k);
 
-        if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_tot * tau33(i,j,k);
+        if (tau33i) tau33i(i,j,k) = -mu_tot * tau33(i,j,k);
 
         tau11(i,j,k) = -mu_tot / mfy * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
         tau22(i,j,k) = -mu_tot / mfx * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
@@ -226,7 +226,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mu_22 = mu_11;
         Real mu_33 = rhoAlpha(i,j,k) + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_v);
 
-        if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_33 * tau33(i,j,k);
+        if (tau33i) tau33i(i,j,k) = -mu_33 * tau33(i,j,k);
 
         tau11(i,j,k) = -mu_11 / mfy * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
         tau22(i,j,k) = -mu_22 / mfx * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
