@@ -7,7 +7,7 @@ Coupling to Noah-MP
 Overview
 --------
 
-The NOAH Land Surface Model (LSM) is integrated with ERF to facilitate
+The Noah-MP Land Surface Model (LSM) is integrated with ERF to facilitate
 interaction with the Noah-MP (Multi-Physics) land surface processes.
 
 This documentation covers key components of this interface and its
@@ -18,24 +18,24 @@ data structures necessary for these processes.
 Files Overview
 --------------
 
--  **Source/LandSurfaceModel/NOAH/ERF_NOAH.H**: Contains the declaration
+-  **Source/LandSurfaceModel/Noah-MP/ERF_NOAHMP.H**: Contains the declaration
    of the NOAH class, which extends the NullSurf.
 
--  **Source/LandSurfaceModel/NOAH/ERF_NOAH.cpp**: Implements the
+-  **Source/LandSurfaceModel/Noah-MP/ERF_NOAHMP.cpp**: Implements the
    initialization routine for the NOAH class.
 
--  **Submodules/NOAH-MP/drivers/hrldas/NoahmpIO.H**: Defines the C++
+-  **Submodules/Noah-MP/drivers/erf/NoahmpIO.H**: Defines the C++
    `NoahmpIO_type` that is used to interface with Noah-MP implementations
    following similar structure as the underlying Fortran interface
    (https://dx.doi.org/10.5065/ew8g-yr95).
 
--  **Submodules/NOAH-MP/drivers/hrldas/NoahmpIO.cpp**: Contains the
+-  **Submodules/Noah-MP/drivers/erf/NoahmpIO.cpp**: Contains the
    implementation of C++ routines interfacing with Fortran.
 
--  **Submodules/NOAH-MP/drivers/hrldas/NoahmpIO_fi.F90**: Fortran module
+-  **Submodules/Noah-MP/drivers/erf/NoahmpIO_fi.F90**: Fortran module
    responsible for managing mapping data between C++ and Fortran.
 
-NOAH Class
+NOAHMP Class
 ----------
 
 The NOAH class serves as the handler for initializing and managing the
@@ -55,17 +55,17 @@ arrays for geographic variables. At present this type exposes only a
 select set of variables. More variables should be exposed as needed by
 applications in ERF. The process of adding new variables is as follows:
 
-#. In **Submodules/NOAH-MP/drivers/hrldas/NoahmpIO.H** add pointers to
+#. In **Submodules/Noah-MP/drivers/erf/NoahmpIO.H** add pointers to
    the desired variable and set their initialization for
    `NoahmpIO_type_fi` similar to implementation of `WSLAKEXY` and
    `XLAT`.
 
-#. In **Submodules/NOAH-MP/drivers/hrldas/NoahmpIO.H** declare objects
+#. In **Submodules/Noah-MP/drivers/erf/NoahmpIO.H** declare objects
    for Fortran-style multidimensional arrays for the same variables in
    `NoahmpIO_type` similar to implemnation of `NoahArray2D<double> XLAT`
    and `NoahArray2D<double> WSLAKEXY`.
 
-#. In **Submodules/NOAH-MP/drivers/hrldas/NoahmpIO.cpp** cast the
+#. In **Submodules/Noah-MP/drivers/erf/NoahmpIO.cpp** cast the
    pointers from `NoahmpIO_type_fi` to multidimensional arrays in
    `NoahmpIO_type` within the implementation of `void
    NoahmpIOVarInitDefault(NoahmpIO_type* noahmpio)`.
@@ -97,3 +97,51 @@ handling, which is crucial for ensuring performance and correctness in
 simulations. The interface is designed to mimic the Fortran interface
 from documentation(https://dx.doi.org/10.5065/ew8g-yr95), therefore
 similar practices should be followed.
+
+Generating Fortran–C++ Bindings using CodeScribe
+================================================
+
+**CodeScribe** (https://github.com/akashdhruv/CodeScribe) can be used to
+automatically generate Fortran–C interoperability bindings and C++ interface code
+for the Noah-MP land-surface model within ERF.
+
+The following files can be generated or updated using CodeScribe:
+
+-  **Source/LandSurfaceModel/Noah-MP/ERF_NOAHMP.cpp**
+-  **Submodules/Noah-MP/drivers/erf/NoahmpIO.H**
+-  **Submodules/Noah-MP/drivers/erf/NoahmpIO.cpp**
+-  **Submodules/Noah-MP/drivers/erf/NoahmpIO_fi.F90**
+
+
+Follow the instructions in the `CodeScribe repository <https://github.com/akashdhruv/CodeScribe>`_
+to configure your LLM environment. You will need API access for your preferred
+model (e.g., OpenAI, Argo, etc.). Tutorials are available at
+`https://github.com/akashdhruv/codescribe-tutorial <https://github.com/akashdhruv/codescribe-tutorial>`_.
+
+1. Edit the prompt file ``prompts/noahmpio_update.toml`` to specify which
+   variables should be exposed to the C++ interface.
+2. Run the following commands to generate or update bindings::
+
+   # In Submodules/Noah-MP/drivers/erf
+   code-scribe update NoahmpIO.H NoahmpIO.cpp NoahmpIO_fi.F90 \
+       -p prompts/noahmpio_update.toml -m <openai|argo-gpt4o|...>
+
+   # In Source/LandSurfaceModel/Noah-MP
+   code-scribe update ERF_NOAHMP.cpp \
+       -p prompts/noahmpio_update.toml -m <openai|argo-gpt4o|...>
+
+You may need to manually edit **Submodules/Noah-MP/drivers/erf/NoahmpIOVarType.F90** to replace::
+
+   real(kind=kind_noahmp)
+
+with::
+
+   real(kind=C_DOUBLE)
+
+This ensures compatibility with the C++ side.
+
+Alternatively, CodeScribe can perform this update automatically (depending on your
+model’s context length) using::
+
+   code-scribe update NoahmpIOVarType.F90 \
+       -p prompts/noahmpio_update.toml -m <openai|argo-gpt4o|...>

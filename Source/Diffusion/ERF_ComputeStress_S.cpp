@@ -87,15 +87,13 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mfx = mf_mx(i,j,0);
         Real mfy = mf_my(i,j,0);
 
-        Real met_h_zeta = dz_ptr[k]*dxInv[2];
-
         Real mu_tot     = rhoAlpha(i,j,k);
 
         if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_tot * tau33(i,j,k);
 
-        tau11(i,j,k) = -mu_tot * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) ) * (met_h_zeta/mfy);
-        tau22(i,j,k) = -mu_tot * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) ) * (met_h_zeta/mfx);
-        tau33(i,j,k) = -mu_tot * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+        tau11(i,j,k) = -mu_tot / mfy * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
+        tau22(i,j,k) = -mu_tot / mfx * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
+        tau33(i,j,k) = -mu_tot       * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
     });
 
     // Second block: off diagonal stresses
@@ -106,41 +104,35 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mfx = 0.5 * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
         Real mfy = 0.5 * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
 
-        Real met_h_zeta = dz_ptr[k] * dxInv[2];
-
         Real mu_tot = 0.25*( rhoAlpha(i-1, j  , k) + rhoAlpha(i, j  , k)
                            + rhoAlpha(i-1, j-1, k) + rhoAlpha(i, j-1, k) );
 
-        tau12(i,j,k) *= -mu_tot*met_h_zeta/mfx;
-        tau21(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+        tau12(i,j,k) *= -mu_tot / mfx;
+        tau21(i,j,k) *= -mu_tot / mfy;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real mfy = mf_uy(i,j,0);
 
-        Real met_h_zeta = (k == 0) ? dz_ptr[k]*dxInv[2] : 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
-
         Real mu_tot = 0.25 * ( rhoAlpha(i-1, j  , k  ) + rhoAlpha(i  , j  , k  )
                              + rhoAlpha(i-1, j  , k-1) + rhoAlpha(i  , j  , k-1) );
 
         tau13(i,j,k) *= -mu_tot;
-        tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+        tau31(i,j,k) *= -mu_tot / mfy;
 
-        if (tau13i) tau13i(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+        if (tau13i) tau13i(i,j,k) *= -mu_tot;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real mfx = mf_vx(i,j,0);
 
-        Real met_h_zeta = (k == 0) ? dz_ptr[k]*dxInv[2] : 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
-
         Real mu_tot = 0.25 * ( rhoAlpha(i  , j-1, k  ) + rhoAlpha(i  , j  , k  )
                              + rhoAlpha(i  , j-1, k-1) + rhoAlpha(i  , j  , k-1) );
 
         tau23(i,j,k) *= -mu_tot;
-        tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+        tau32(i,j,k) *= -mu_tot / mfx;
 
-        if (tau23i) tau23i(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+        if (tau23i) tau23i(i,j,k) *= -mu_tot;
     });
 }
 
@@ -230,17 +222,15 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mfx = mf_mx(i,j,0);
         Real mfy = mf_my(i,j,0);
 
-        Real met_h_zeta = dz_ptr[k]*dxInv[2];
-
         Real mu_11 = rhoAlpha(i,j,k) + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_h);
         Real mu_22 = mu_11;
         Real mu_33 = rhoAlpha(i,j,k) + 2.0 * mu_turb(i, j, k, EddyDiff::Mom_v);
 
         if (tau33i) tau33i(i,j,k) = -(4./3.) * mu_33 * tau33(i,j,k);
 
-        tau11(i,j,k) = -mu_11 * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) ) * (met_h_zeta/mfy);
-        tau22(i,j,k) = -mu_22 * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) ) * (met_h_zeta/mfx);
-        tau33(i,j,k) = -mu_33 * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+        tau11(i,j,k) = -mu_11 / mfy * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
+        tau22(i,j,k) = -mu_22 / mfx * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
+        tau33(i,j,k) = -mu_33       * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
     });
 
     // Second block: off diagonal stresses
@@ -251,22 +241,18 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mfx = 0.5 * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
         Real mfy = 0.5 * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
 
-        Real met_h_zeta = dz_ptr[k]*dxInv[2];
-
         Real mu_bar = 0.25*( mu_turb(i-1, j  , k, EddyDiff::Mom_h) + mu_turb(i, j  , k, EddyDiff::Mom_h)
                            + mu_turb(i-1, j-1, k, EddyDiff::Mom_h) + mu_turb(i, j-1, k, EddyDiff::Mom_h) );
         Real rhoAlpha_bar = 0.25*( rhoAlpha(i-1, j  , k) + rhoAlpha(i, j  , k)
                                  + rhoAlpha(i-1, j-1, k) + rhoAlpha(i, j-1, k) );
         Real mu_tot = rhoAlpha_bar + 2.0*mu_bar;
 
-        tau12(i,j,k) *= -mu_tot*met_h_zeta/mfx;
-        tau21(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+        tau12(i,j,k) *= -mu_tot / mfx;
+        tau21(i,j,k) *= -mu_tot / mfy;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real mfy = mf_uy(i,j,0);
-
-        Real met_h_zeta = (k == 0) ? dz_ptr[k]*dxInv[2] : 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
 
         Real mu_bar = 0.25*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                            + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
@@ -275,15 +261,13 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mu_tot = rhoAlpha_bar + 2.0*mu_bar;
 
         tau13(i,j,k) *= -mu_tot;
-        tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+        tau31(i,j,k) *= -mu_tot / mfy;
 
-        if (tau13i) tau13i(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+        if (tau13i) tau13i(i,j,k) *= -mu_tot;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real mfx = mf_vx(i,j,0);
-
-        Real met_h_zeta = (k == 0) ? dz_ptr[k]*dxInv[2] : 0.5 * (dz_ptr[k] + dz_ptr[k-1]) * dxInv[2];
 
         Real mu_bar = 0.25*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                            + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
@@ -292,8 +276,8 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mu_tot = rhoAlpha_bar + 2.0*mu_bar;
 
         tau23(i,j,k) *= -mu_tot;
-        tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+        tau32(i,j,k) *= -mu_tot / mfx;
 
-        if (tau23i) tau23i(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+        if (tau23i) tau23i(i,j,k) *= -mu_tot;
     });
 }
