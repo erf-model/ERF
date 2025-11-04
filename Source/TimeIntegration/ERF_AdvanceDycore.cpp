@@ -155,12 +155,9 @@ void ERF::advance_dycore (int level,
             Array4<Real> tau13 = Tau[level][TauType::tau13].get()->array(mfi);
             Array4<Real> tau23 = Tau[level][TauType::tau23].get()->array(mfi);
 
-            bool need_tau31_tau32 = (solverChoice.mesh_type == MeshType::StretchedDz ||
-                                     l_use_terrain_fitted_coords ||
-                                     l_vert_implicit_fac > 0);
             Array4<Real> tau21 = l_use_terrain_fitted_coords ? Tau[level][TauType::tau21].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau31 = need_tau31_tau32            ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau32 = need_tau31_tau32            ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau31 = l_use_terrain_fitted_coords ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau32 = l_use_terrain_fitted_coords ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
             const Array4<const Real>& z_nd = z_phys_nd[level]->const_array(mfi);
 
             const Array4<const Real> mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
@@ -170,9 +167,9 @@ void ERF::advance_dycore (int level,
             const Array4<const Real> mf_uy = mapfac[level][MapFacType::u_y]->const_array(mfi);
             const Array4<const Real> mf_vy = mapfac[level][MapFacType::v_y]->const_array(mfi);
 
+            // We update Tau_corr[level] in erf_make_tau_terms, not here
             Array4<Real> no_tau_corr_update_here{};
 
-            Print() << "Computing strain during stage 0" << std::endl;
             if (solverChoice.mesh_type == MeshType::StretchedDz) {
                 ComputeStrain_S(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
