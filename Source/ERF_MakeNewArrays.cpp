@@ -700,11 +700,6 @@ ERF::update_terrain_arrays (int lev)
             const auto& ebfact = *eb[lev]->get_const_factory();
             const MultiFab& volfrac = ebfact.getVolFrac();
             detJ_cc[lev] = std::make_unique<MultiFab>(volfrac, amrex::make_alias, 0, volfrac.nComp());
-
-            // Array<const MultiCutFab*, AMREX_SPACEDIM> areafrac = ebfact.getAreaFrac();
-            // ax[lev] = std::make_unique<MultiFab>(*(areafrac[0]), amrex::make_alias, 0, areafrac[0]->nComp());
-            // ay[lev] = std::make_unique<MultiFab>(*(areafrac[1]), amrex::make_alias, 0, areafrac[1]->nComp());
-            // az[lev] = std::make_unique<MultiFab>(*(areafrac[2]), amrex::make_alias, 0, areafrac[2]->nComp());
         }
     }
 }
