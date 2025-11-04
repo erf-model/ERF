@@ -1,0 +1,35 @@
+#!/bin/bash
+
+cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
+      -DMPIEXEC_PREFLAGS:STRING=--oversubscribe \
+      -DCMAKE_BUILD_TYPE:STRING=Release \
+      -DERF_DIM:STRING=3 \
+      -DERF_ENABLE_MPI:BOOL=ON \
+      -DERF_ENABLE_TESTS:BOOL=ON \
+      -DERF_ENABLE_EKAT:BOOL=ON \
+      -DERF_ENABLE_SHOC:BOOL=ON \
+      -DERF_ENABLE_FCOMPARE:BOOL=ON \
+      -DERF_ENABLE_DOCUMENTATION:BOOL=OFF \
+      -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
+      -DERF_ENABLE_CUDA:BOOL=ON \
+      -DKokkos_ENABLE_CUDA=ON \
+      -DKokkos_ENABLE_CUDA_LAMBDA=ON \
+      -DKokkos_ARCH_AMPERE80=ON \
+      -DCMAKE_CXX_STANDARD=17 \
+      -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+      -DKokkos_ENABLE_CXX17=ON \
+      -DCMAKE_CUDA_STANDARD=17 \
+      -DCMAKE_CUDA_STANDARD_REQUIRED=ON \
+      -DKokkos_ENABLE_CUDA_RELOCATABLE_DEVICE_CODE=ON \
+      -DCMAKE_CXX_COMPILER=CC \
+      -DCMAKE_C_COMPILER=cc \
+      -DCMAKE_CUDA_COMPILER=nvcc \
+      -DCMAKE_CUDA_FLAGS="-I$CRAY_MPICH_DIR/include -L$CRAY_MPICH_DIR/lib " \
+      -DMPI_CXX_INCLUDE_PATH=$CRAY_MPICH_DIR/include \
+      -DMPI_CXX_LIBRARIES=$CRAY_MPICH_DIR/lib/libmpi.so \
+      -DMPI_LIBRARY="$CRAY_MPICH_DIR/lib/libmpi.so" \
+      -DCUDA_LIBRARY_DIRS=/opt/nvidia/hpc_sdk/Linux_x86_64/24.5/math_libs/12.4/targets/x86_64-linux/lib \
+      -DCUDAToolkit_ROOT=/opt/nvidia/hpc_sdk/Linux_x86_64/24.5/cuda/12.4 \
+      -DCUDA_curand_LIBRARY=/opt/nvidia/hpc_sdk/Linux_x86_64/24.5/math_libs/12.4/targets/x86_64-linux/lib/libcurand.so \
+      -DCUDA_cusparse_LIBRARY=/opt/nvidia/hpc_sdk/Linux_x86_64/24.5/math_libs/12.4/targets/x86_64-linux/lib/libcusparse.so \
+      .. && make -j8
