@@ -40,7 +40,6 @@ option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_REGRESSION_TESTS_ONLY "Enable only regression tests" OFF)
 option(ERF_USE_INTERNAL_AMREX "Add AMReX as subproject" ON)
 option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
-option(ERF_ENABLE_EKAT "Enable Ekat " OFF)
 option(ERF_ENABLE_HDF5 "Enable HDF5 IO" ${ERF_ENABLE_NETCDF})
 option(ERF_ENABLE_PARTICLES "Enable Lagrangian particles" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
@@ -155,7 +154,17 @@ endif()
 
 ########################## EKAT ##################################
 
+if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
+  set(ERF_ENABLE_EKAT ON)
+else()
+  set(ERF_ENABLE_EKAT OFF)
+endif()
+
 if(ERF_ENABLE_EKAT)
+
+  if(NOT ERF_ENABLE_MPI)
+    message(FATAL_ERROR "CMake Error: MPI must be enabled if EKAT is enabled.")
+  endif()
 
   # NOTE: EKAT provides KOKKOS, so set relevant flags for KOKKOS
   if(ERF_ENABLE_CUDA)
