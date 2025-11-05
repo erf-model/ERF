@@ -586,7 +586,18 @@ Output Options for 2D plotfiles
 | **z0**            | Roughness height           |
 |                   | (with SurfaceLayer only)   |
 +-------------------+----------------------------+
-
+| **OLR**           | Outgoing long wavelength   |
+|                   | radiation (with RRTMGP)    |
++-------------------+----------------------------+
+| **sens_flux**     | Sensible heat flux         |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **laten_flux**    | Latent heat flux           |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **surf_pres**     | Surface pressure           |
+|                   |                            |
++-------------------+----------------------------+
 
 Examples of Usage
 -----------------
