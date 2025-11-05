@@ -267,7 +267,8 @@ ImplicitDiffForMom_T (const Box& bx,
         for (int k(klo); k <= khi; k++)
         {
             // Note: either ioff or joff are 1
-            Real rhoface = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+            Real rhoface = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp) );
+            Real detJface = 0.5 * ( detJ(i,j,k) + detJ(i-ioff,j-joff,k) );
 
             Real rhoAlpha_lo, rhoAlpha_hi;
             getRhoAlphaForFaces(i, j, k, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
@@ -280,7 +281,7 @@ ImplicitDiffForMom_T (const Box& bx,
             // Face data currently holds the _fully_ explicit solution, which
             // will be used to determine the velocity gradient for the bottom
             // BC
-            RHS_a(i,j,k) = detJ(i,j,k) * face_data(i,j,k); // Note this is momentum but solution will be velocity
+            RHS_a(i,j,k) = detJface * face_data(i,j,k); // Note this is momentum but solution will be velocity
 
             // Notes:
             //
@@ -307,7 +308,7 @@ ImplicitDiffForMom_T (const Box& bx,
             //   Subtracting a negative gives the += below; multiply by dt to
             //   get the intermediate momentum on the RHS of the tridiagonal
             //   system.
-            RHS_a(i,j,k) += implicit_fac * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k))*dz_inv * dt;
+            RHS_a(i,j,k) += implicit_fac * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k))*dz_inv/detJface * dt;
 
             // This represents the face-centered finite difference of two
             // edge-centered finite differences (hi and lo)
