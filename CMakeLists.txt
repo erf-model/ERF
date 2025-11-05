@@ -176,6 +176,7 @@ if(ERF_ENABLE_EKAT)
   if(ERF_ENABLE_HIP)
     set(Kokkos_ENABLE_HIP ON CACHE BOOL "kokkos enable hip")
     set(Kokkos_ENABLE_HIP_LAMBDA ON CACHE BOOL "kokkos enable hip lambda")
+    set(Kokkos_ENABLE_HIP_RELOCATABLE_DEVICE_CODE ON CACHE BOOL "kokkos enable hip RDC")
   endif()
 
   if(ERF_ENABLE_SYCL)
