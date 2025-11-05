@@ -15,6 +15,12 @@
                 // by implicit_fac.
                 const bool l_do_implicit_mom = solverChoice.implicit_divtau_terms;
 
+                MultiFab* Tau13corr = (l_do_implicit_mom) ? Tau_corr[level][0].get() : nullptr;
+                MultiFab* Tau23corr = (l_do_implicit_mom) ? Tau_corr[level][1].get() : nullptr;
+#ifdef ERF_IMPLICIT_W
+                MultiFab* Tau33corr = (l_do_implicit_mom) ? Tau_corr[level][2].get() : nullptr;
+#endif
+
                 // BCs
                 const BCRec* bc_ptr_h = domain_bcs_type.data();
                 GpuArray<Real, AMREX_SPACEDIM*2> l_bc_neumann_vals_d;

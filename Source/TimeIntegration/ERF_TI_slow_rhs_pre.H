@@ -96,17 +96,6 @@
         }
 
         // *****************************************************************************
-        // Save d/dz components of Tau13, Tau23, Tau33 for implicit diffusion
-        // including momenta
-        // *****************************************************************************
-        const bool do_implicit_mom = (solverChoice.vert_implicit_fac[nrk] > 0)
-                                     && (solverChoice.implicit_divtau_terms);
-        MultiFab* Tau13corr = (do_implicit_mom) ? Tau_corr[level][0].get() : nullptr;
-        MultiFab* Tau23corr = (do_implicit_mom) ? Tau_corr[level][1].get() : nullptr;
-#ifdef ERF_IMPLICIT_W
-        MultiFab* Tau33corr = (do_implicit_mom) ? Tau_corr[level][2].get() : nullptr;
-#endif
-        // *****************************************************************************
         // Construct the source terms for the cell-centered (conserved) variables
         // *****************************************************************************
         make_sources(level, nrk, slow_dt, old_stage_time,

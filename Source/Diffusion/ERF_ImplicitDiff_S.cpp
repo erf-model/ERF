@@ -78,6 +78,7 @@ ImplicitDiffForState_S (const Box& bx, const Box& domain,
     bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
     bool neumann_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::neumann);
     bool neumann_on_zhi  = (bc_ptr[bc_comp].hi(2) == ERFBCType::neumann);
+    amrex::ignore_unused(foextrap_on_zlo, foextrap_on_zhi);
 
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zlo || neumann_on_zlo || use_SurfLayer,
                               "Unexpected lower BC used with implicit vertical diffusion");
@@ -185,8 +186,10 @@ ImplicitDiffForMom_S (const Box& bx,
     BL_PROFILE_VAR("ImplicitDiffForMom_S()",ImplicitDiffForMom_S);
 
     // setup quantities for getRhoAlphaAtFaces()
-#include "ERF_SetupVertDiff.H"
     DiffChoice dc = solverChoice.diffChoice;
+    TurbChoice tc = solverChoice.turbChoice[level];
+    bool l_consA  = (dc.molec_diff_type == MolecDiffType::ConstantAlpha);
+    bool l_turb   = tc.use_kturb;
     Real mu_eff = (l_consA) ? 2.0 * dc.dynamic_viscosity / dc.rho0_trans
                             : 2.0 * dc.dynamic_viscosity;
 
@@ -226,6 +229,8 @@ ImplicitDiffForMom_S (const Box& bx,
     auto const& inv_coeffB_a = inv_coeffB_fab.array();
     auto const& coeffC_a     =     coeffC_fab.array(); // upper diagonal
 
+    const auto& dom_lo = lbound(domain);
+    const auto& dom_hi = ubound(domain);
     auto dz_ptr = stretched_dz_d.data();
 
     int bc_comp = BCVars::xvel_bc + stagdir;
@@ -234,6 +239,7 @@ ImplicitDiffForMom_S (const Box& bx,
     bool ext_dir_on_zhi  = (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir ||
                             bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim);
     bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
+    amrex::ignore_unused(foextrap_on_zhi);
 
     AMREX_ASSERT_WITH_MESSAGE(ext_dir_on_zlo || ext_dir_on_zhi || use_SurfLayer,
                               "Unexpected lower BC used with implicit vertical diffusion");

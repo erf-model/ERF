@@ -40,4 +40,4 @@ void getRhoAlphaForFaces (int i, int j, int k, int ioff, int joff,
         rhoAlpha_lo = mu_eff;
         rhoAlpha_hi = mu_eff;
     }
-};
+}
