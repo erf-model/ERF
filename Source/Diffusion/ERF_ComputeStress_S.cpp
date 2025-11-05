@@ -23,7 +23,6 @@ using namespace amrex;
  * @param[in,out] tau32 32 strain -> stress
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
- * @param[in]  dxInv inverse cell size array
  */
 void
 ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -33,8 +32,6 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          Array4<Real>& tau13, Array4<Real>& tau31,
                          Array4<Real>& tau23, Array4<Real>& tau32,
                          const Array4<const Real>& er_arr,
-                         const Gpu::DeviceVector<Real>& stretched_dz_d,
-                         const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                          const Array4<const Real>& mf_mx,
                          const Array4<const Real>& mf_ux,
                          const Array4<const Real>& mf_vx,
@@ -62,8 +59,6 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             rhoAlpha(i,j,k) = mu_eff;
         });
     }
-
-    auto dz_ptr = stretched_dz_d.data();
 
     // First block: cell centered stresses
     //***********************************************************************************
@@ -137,7 +132,6 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in,out] tau32 32 strain -> stress
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
- * @param[in]  dxInv inverse cell size array
  */
 void
 ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -148,8 +142,6 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         Array4<Real>& tau13, Array4<Real>& tau31,
                         Array4<Real>& tau23, Array4<Real>& tau32,
                         const Array4<const Real>& er_arr,
-                        const Gpu::DeviceVector<Real>& stretched_dz_d,
-                        const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                         const Array4<const Real>& mf_mx,
                         const Array4<const Real>& mf_ux,
                         const Array4<const Real>& mf_vx,
@@ -177,8 +169,6 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             rhoAlpha(i,j,k) = mu_eff;
         });
     }
-
-    auto dz_ptr = stretched_dz_d.data();
 
     // First block: cell centered stresses
     //***********************************************************************************

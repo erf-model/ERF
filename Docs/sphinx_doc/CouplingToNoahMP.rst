@@ -118,15 +118,16 @@ to configure your LLM environment. You will need API access for your preferred
 model (e.g., OpenAI, Argo, etc.). Tutorials are available at
 `https://github.com/akashdhruv/codescribe-tutorial <https://github.com/akashdhruv/codescribe-tutorial>`_.
 
-1. Edit the prompt file ``prompts/noahmpio_update.toml`` to specify which
+1. Edit the prompt file **prompts/noahmpio_update.toml** to specify which
    variables should be exposed to the C++ interface.
-2. Run the following commands to generate or update bindings::
 
-   # In Submodules/Noah-MP/drivers/erf
+2. Run the following commands to generate or update bindings in **Submodules/Noah-MP/drivers/erf**::
+
    code-scribe update NoahmpIO.H NoahmpIO.cpp NoahmpIO_fi.F90 \
        -p prompts/noahmpio_update.toml -m <openai|argo-gpt4o|...>
 
-   # In Source/LandSurfaceModel/Noah-MP
+3. Run the following to generate or update bindings in **Source/LandSurfaceModel/Noah-MP**::
+
    code-scribe update ERF_NOAHMP.cpp \
        -p prompts/noahmpio_update.toml -m <openai|argo-gpt4o|...>
 
@@ -138,9 +139,7 @@ with::
 
    real(kind=C_DOUBLE)
 
-This ensures compatibility with the C++ side.
-
-Alternatively, CodeScribe can perform this update automatically (depending on your
+This ensures compatibility with the C++ side. Alternatively, CodeScribe can perform this update automatically (depending on your
 model’s context length) using::
 
    code-scribe update NoahmpIOVarType.F90 \
