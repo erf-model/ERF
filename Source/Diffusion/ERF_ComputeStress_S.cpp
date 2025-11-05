@@ -36,8 +36,6 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          Array4<Real>& tau13, Array4<Real>& tau31,
                          Array4<Real>& tau23, Array4<Real>& tau32,
                          const Array4<const Real>& er_arr,
-                         const Gpu::DeviceVector<Real>& stretched_dz_d,
-                         const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                          const Array4<const Real>& mf_mx,
                          const Array4<const Real>& mf_ux,
                          const Array4<const Real>& mf_vx,
@@ -76,8 +74,6 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             rhoAlpha(i,j,k) = mu_eff;
         });
     }
-
-    auto dz_ptr = stretched_dz_d.data();
 
     // First block: cell centered stresses
     //***********************************************************************************
@@ -171,8 +167,6 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         Array4<Real>& tau13, Array4<Real>& tau31,
                         Array4<Real>& tau23, Array4<Real>& tau32,
                         const Array4<const Real>& er_arr,
-                        const Gpu::DeviceVector<Real>& stretched_dz_d,
-                        const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                         const Array4<const Real>& mf_mx,
                         const Array4<const Real>& mf_ux,
                         const Array4<const Real>& mf_vx,
@@ -211,8 +205,6 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             rhoAlpha(i,j,k) = mu_eff;
         });
     }
-
-    auto dz_ptr = stretched_dz_d.data();
 
     // First block: cell centered stresses
     //***********************************************************************************
