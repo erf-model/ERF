@@ -2,6 +2,7 @@
 #include <AMReX_ParmParse.H>
 #include <ERF_EBAux.H>
 #include <ERF_EBCutCell.H>
+#include <AMReX_MultiFabUtil.H>
 
 using namespace amrex;
 
@@ -69,10 +70,12 @@ define( [[maybe_unused]] int const& a_level,
   // Initialize with zeros
   m_volfrac->setVal(0.0);
   m_volcent->setVal(0.0);
+
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
     m_areafrac[idim]->setVal(0.0);
     m_facecent[idim]->setVal(0.0);
   }
+
   m_bndryarea->setVal(0.0);
   m_bndrycent->setVal(0.0);
   m_bndrynorm->setVal(0.0);
@@ -101,24 +104,14 @@ define( [[maybe_unused]] int const& a_level,
       {
         aux_flag(i,j,k).setCovered();
         aux_flag(i,j,k).setDisconnected();
-        aux_vfrac(i,j,k) = 0.0;
-        aux_afrac_x(i,j,k) = 0.0;
-        aux_afrac_y(i,j,k) = 0.0;
-        aux_afrac_z(i,j,k) = 0.0;
         if (i==bx.bigEnd(0)) {
           aux_flag(i+1,j,k).setCovered();
-          aux_vfrac(i+1,j,k) = 0.0;
-          aux_afrac_x(i+1,j,k) = 0.0;
         }
         if (j==bx.bigEnd(1)) {
           aux_flag(i,j+1,k).setCovered();
-          aux_vfrac(i,j+1,k) = 0.0;
-          aux_afrac_y(i,j+1,k) = 0.0;
         }
         if (k==bx.bigEnd(2)) {
           aux_flag(i,j,k+1).setCovered();
-          aux_vfrac(i,j,k+1) = 0.0;
-          aux_afrac_z(i,j,k+1) = 0.0;
         }
       });
 
@@ -155,8 +148,6 @@ define( [[maybe_unused]] int const& a_level,
 
       // CC cell quantities
       Array4<EBCellFlag const> const& flag = FlagFab.const_array(mfi);
-      // Array4<Real const> const& vfrac = (a_factory->getVolFrac()).const_array(mfi);
-      // Array4<Real const> const& ccent = (a_factory->getCentroid()).const_array(mfi);
       Array4<Real const> const& afrac = (a_factory->getAreaFrac()[a_idim])->const_array(mfi);
       Array4<Real const> const& bnorm = a_factory->getBndryNormal()[mfi].const_array();
       Array4<Real const> const& bcent = a_factory->getBndryCent()[mfi].const_array();
@@ -204,62 +195,15 @@ define( [[maybe_unused]] int const& a_level,
         aux_flag(i,j,k).setCovered();
         aux_flag(i,j,k).setDisconnected();
 
-        aux_vfrac(i,j,k) = 0.0;
-        aux_vcent(i,j,k,0) = 0.0;
-        aux_vcent(i,j,k,1) = 0.0;
-        aux_vcent(i,j,k,2) = 0.0;
-
-        aux_afrac_x(i,j,k) = 0.0;
-        aux_afrac_y(i,j,k) = 0.0;
-        aux_afrac_z(i,j,k) = 0.0;
-
-        aux_fcent_x(i,j,k,0) = 0.0; aux_fcent_x(i,j,k,1) = 0.0;
-        aux_fcent_y(i,j,k,0) = 0.0; aux_fcent_y(i,j,k,1) = 0.0;
-        aux_fcent_z(i,j,k,0) = 0.0; aux_fcent_z(i,j,k,1) = 0.0;
-
         if (i==bx.bigEnd(0)) {
           aux_flag(i+1,j,k).setCovered();
-          aux_vfrac(i+1,j,k) = 0.0;
-          aux_vcent(i+1,j,k,0) = 0.0;
-          aux_vcent(i+1,j,k,1) = 0.0;
-          aux_vcent(i+1,j,k,2) = 0.0;
-
-          aux_afrac_x(i+1,j,k) = 0.0;
-          aux_fcent_x(i+1,j,k,0) = 0.0;
-          aux_fcent_x(i+1,j,k,1) = 0.0;
         }
         if (j==bx.bigEnd(1)) {
           aux_flag(i,j+1,k).setCovered();
-          aux_vfrac(i,j+1,k) = 0.0;
-          aux_vcent(i,j+1,k,0) = 0.0;
-          aux_vcent(i,j+1,k,1) = 0.0;
-          aux_vcent(i,j+1,k,2) = 0.0;
-
-          aux_afrac_y(i,j+1,k) = 0.0;
-          aux_fcent_y(i,j+1,k,0) = 0.0;
-          aux_fcent_y(i,j+1,k,1) = 0.0;
         }
         if (k==bx.bigEnd(2)) {
           aux_flag(i,j,k+1).setCovered();
-          aux_vfrac(i,j,k+1) = 0.0;
-          aux_vcent(i,j,k+1,0) = 0.0;
-          aux_vcent(i,j,k+1,1) = 0.0;
-          aux_vcent(i,j,k+1,2) = 0.0;
-
-          aux_afrac_z(i,j,k+1) = 0.0;
-          aux_fcent_z(i,j,k+1,0) = 0.0;
-          aux_fcent_z(i,j,k+1,1) = 0.0;
         }
-
-        aux_barea(i,j,k) = 0.0;
-
-        aux_bcent(i,j,k,0) = 0.0;
-        aux_bcent(i,j,k,1) = 0.0;
-        aux_bcent(i,j,k,2) = 0.0;
-
-        aux_bnorm(i,j,k,0) = 0.0;
-        aux_bnorm(i,j,k,1) = 0.0;
-        aux_bnorm(i,j,k,2) = 0.0;
 
         // Index for low and hi cells
         IntVect iv_hi(i,j,k);
@@ -348,24 +292,14 @@ define( [[maybe_unused]] int const& a_level,
           aux_afrac_y(i,j,k) = 1.0;
           aux_afrac_z(i,j,k) = 1.0;
 
-          aux_fcent_x(i,j,k,0) = 0.0; aux_fcent_x(i,j,k,1) = 0.0;
-          aux_fcent_y(i,j,k,0) = 0.0; aux_fcent_y(i,j,k,1) = 0.0;
-          aux_fcent_z(i,j,k,0) = 0.0; aux_fcent_z(i,j,k,1) = 0.0;
-
           if (i==bx.bigEnd(0)) {
             aux_afrac_x(i+1,j,k) = 1.0;
-            aux_fcent_x(i+1,j,k,0) = 0.0;
-            aux_fcent_x(i+1,j,k,1) = 0.0;
           }
           if (j==bx.bigEnd(1)) {
             aux_afrac_y(i,j+1,k) = 1.0;
-            aux_fcent_y(i,j+1,k,0) = 0.0;
-            aux_fcent_y(i,j+1,k,1) = 0.0;
           }
           if (k==bx.bigEnd(2)) {
             aux_afrac_z(i,j,k+1) = 1.0;
-            aux_fcent_z(i,j,k+1,0) = 0.0;
-            aux_fcent_z(i,j,k+1,1) = 0.0;
           }
 
         } else {
@@ -897,6 +831,43 @@ define( [[maybe_unused]] int const& a_level,
 
       });
 
+      ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        if (aux_vfrac(i,j,k) < small_volfrac)
+        {
+          aux_vfrac(i,j,k)   = 0.0;
+        }
+      });
+
+    } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued )
+
+  } // MFIter
+
+  // We FillBoundary volfrac here so that we can use tests on volfrac in ghost cells below
+  m_volfrac->FillBoundary(a_geom.periodicity());
+
+  for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
+
+      const Box& bx = mfi.validbox();
+      const Box& bx_grown = mfi.growntilebox();
+
+      Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
+      Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
+      Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
+      Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
+      Array4<Real>       const& aux_afrac_z = m_areafrac[2]->array(mfi);
+
+      Array4<Real>       const& aux_vcent = m_volcent->array(mfi);
+      Array4<Real>       const& aux_fcent_x = m_facecent[0]->array(mfi);
+      Array4<Real>       const& aux_fcent_y = m_facecent[1]->array(mfi);
+      Array4<Real>       const& aux_fcent_z = m_facecent[2]->array(mfi);
+      Array4<Real>       const& aux_barea = m_bndryarea->array(mfi);
+      Array4<Real>       const& aux_bcent = m_bndrycent->array(mfi);
+      Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
+
+
+    if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
+
       // Corrections for small cells
       Box my_xbx(bx); if (a_idim == 0) my_xbx.growLo(0,1);
       ParallelFor(my_xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -929,7 +900,6 @@ define( [[maybe_unused]] int const& a_level,
       {
         if (aux_vfrac(i,j,k) < small_volfrac)
         {
-          aux_vfrac(i,j,k)   = 0.0;
           aux_vcent(i,j,k,0) = 0.0;
           aux_vcent(i,j,k,1) = 0.0;
           aux_vcent(i,j,k,2) = 0.0;
@@ -998,7 +968,9 @@ define( [[maybe_unused]] int const& a_level,
 
   // Fill Boundary
 
-  m_volfrac->FillBoundary(a_geom.periodicity());
+  // The FB call for volfrac is done above
+  // m_volfrac->FillBoundary(a_geom.periodicity());
+
   m_volcent->FillBoundary(a_geom.periodicity());
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
     m_areafrac[idim]->FillBoundary(a_geom.periodicity());
@@ -1009,7 +981,6 @@ define( [[maybe_unused]] int const& a_level,
   m_bndrynorm->FillBoundary(a_geom.periodicity());
 
   // Set Connectivities
-
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
 
     const Box& bx = mfi.validbox();
