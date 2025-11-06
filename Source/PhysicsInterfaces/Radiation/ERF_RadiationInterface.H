@@ -35,6 +35,7 @@ public:
          amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
          amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs,
          amrex::MultiFab* qheating_rates,
+         amrex::MultiFab* rad_fluxes,
          amrex::MultiFab* z_phys,
          amrex::MultiFab* lat,
          amrex::MultiFab* lon) = 0;

@@ -1935,6 +1935,10 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         // Set all components to zero in case they aren't defined below
         mf[lev].setVal(0.0);
 
+        // Expose domain khi and klo at each level
+        int klo = geom[lev].Domain().smallEnd(2);
+        int khi = geom[lev].Domain().bigEnd(2);
+
         if (containerHasElement(plot_var_names, "z_surf")) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -2204,6 +2208,87 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
             mf_comp++;
         } // z0
+
+        if (containerHasElement(plot_var_names, "OLR")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (solverChoice.rad_type != RadiationType::None) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& olr    = rad_fluxes[lev]->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i, j, k, mf_comp) = olr(i, j, khi, 2);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // OLR
+
+        if (containerHasElement(plot_var_names, "sens_flux")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (SFS_hfx3_lev[lev]) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& hfx_arr = SFS_hfx3_lev[lev]->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i, j, k, mf_comp) = hfx_arr(i, j, klo);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // sens_flux
+
+        if (containerHasElement(plot_var_names, "laten_flux")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (SFS_hfx3_lev[lev]) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& qfx_arr = SFS_q1fx3_lev[lev]->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i, j, k, mf_comp) = qfx_arr(i, j, klo);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // laten_flux
+
+        if (containerHasElement(plot_var_names, "surf_pres")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            bool moist = (solverChoice.moisture_type != MoistureType::None);
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const auto& derdat   = mf[lev].array(mfi);
+                const auto& cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    auto rt = cons_arr(i,j,klo,RhoTheta_comp);
+                    auto qv = (moist) ? cons_arr(i,j,klo,RhoQ1_comp)/cons_arr(i,j,klo,Rho_comp)
+                                      : 0.0;
+                    derdat(i, j, k, mf_comp) = getPgivenRTh(rt, qv);
+                });
+            }
+            mf_comp++;
+        } // surf_pres
+
     } // lev
 
     std::string plotfilename;
