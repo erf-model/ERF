@@ -65,9 +65,7 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
     }
 
     // Recycle super-droplets
-    if (m_recycle_particles) {
-        m_super_droplets->Recycle( 0, a_z );
-    }
+    m_super_droplets->Recycle( 0, a_z, a_iter, a_dt, m_recycle_particles );
 
     m_super_droplets->Diagnostics(a_iter, a_time, (((a_iter+1)%m_diagnostics_iter==0) && (m_diagnostics_iter>0)));
 }

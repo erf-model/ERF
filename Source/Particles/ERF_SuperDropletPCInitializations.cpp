@@ -51,7 +51,8 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
 #endif
     m_sigma0 = 0.62;
     m_place_randomly_in_cells = true;
-    m_recycle_threshold = 0.01;
+    m_deac_threshold = 0.01;
+    m_save_inactive = false;
 
     /* Newton solver parameters */
     m_newton_rtol = 1.0e-6;
@@ -107,7 +108,13 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
     pp.query("sigma0", m_sigma0);
     pp.query("place_randomly_in_cells", m_place_randomly_in_cells);
 
-    pp.query("recycle_threshold", m_recycle_threshold);
+    if (pp.contains("recycle_threshold")) {
+        char err_msg[100];
+        sprintf(err_msg, "Use \"inactive_threshold\" instead of \"recycle_threshold\"");
+        amrex::Abort(err_msg);
+    }
+    pp.query("inactive_threshold", m_deac_threshold);
+    pp.query("write_inactive_plt", m_save_inactive);
     pp.query("recycle_xmin", m_recyc_xmin);
     pp.query("recycle_xmax", m_recyc_xmax);
     pp.query("recycle_ymin", m_recyc_ymin);
@@ -263,7 +270,7 @@ void SuperDropletPC::InitializeParticles (const Real a_t, const MFPtr& a_ptr)
     Print() << "SuperDropletPC(" << m_name << "):\n"
             << "  Density scaling: " << (m_density_scaling ? "true" : "false") << "\n"
             << "  Nucleate particles: " << (m_nucleate_particles ? "true" : "false") << "\n"
-            << "  Recycling threshold: " << m_recycle_threshold << "\n"
+            << "  Inactive particles threshold: " << m_deac_threshold << "\n"
             << "  Recycling bounding box: " <<    "[" << m_recyc_xmin << ", " << m_recyc_xmax << "] "
                                               << " x [" << m_recyc_ymin << ", " << m_recyc_ymax << "] "
                                               << " x [" << m_recyc_zmin << ", " << m_recyc_zmax << "]\n"

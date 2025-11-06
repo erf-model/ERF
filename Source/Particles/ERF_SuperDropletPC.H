@@ -172,7 +172,7 @@ class SuperDropletPC : public ERFPC
                                     const amrex::MultiFab& );
 
         /*! \brief Recycle super-droplets */
-        virtual void Recycle ( const int, const amrex::Vector<MFPtr>& );
+        virtual void Recycle ( const int, const amrex::Vector<MFPtr>&, const int, const amrex::Real, const bool );
 
         /*! \brief Return the number of super-droplets
             This returns the number of AMReX particles being used in the simulation. */
@@ -307,8 +307,11 @@ class SuperDropletPC : public ERFPC
         /*! species index of water */
         int m_idx_w;
 
-        /*! recycling threshold */
-        amrex::Real m_recycle_threshold;
+        /*! inactive particles threshold */
+        amrex::Real m_deac_threshold;
+
+        /*! save inactive particles to file */
+        bool m_save_inactive;
 
         /* recycled particle position bounds */
         amrex::Real m_recyc_xmin;
