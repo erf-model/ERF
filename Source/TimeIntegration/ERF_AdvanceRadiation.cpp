@@ -36,7 +36,7 @@ void ERF::advance_radiation (int lev,
                       cons.boxArray(), geom[lev], &(cons),
                       sw_lw_fluxes[lev].get(), solar_zenith[lev].get(),
                       lsm_input_ptrs, lsm_output_ptrs,
-                      qheating_rates[lev].get(), z_phys_nd[lev].get()   ,
-                      lat_ptr, lon_ptr);
+                      qheating_rates[lev].get(), rad_fluxes[lev].get(),
+                      z_phys_nd[lev].get()     , lat_ptr, lon_ptr);
     }
 }
