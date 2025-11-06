@@ -8,7 +8,7 @@ using namespace amrex;
 #ifdef ERF_USE_NETCDF
 
 Box
-read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio)
+read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio, int& klo, int& khi)
 {
     int is, js;
     int nx, ny, nz;
@@ -38,7 +38,7 @@ read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio)
     amrex::ParallelDescriptor::Bcast(&ny   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
     amrex::ParallelDescriptor::Bcast(&nz   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
     amrex::ParallelDescriptor::Bcast(&ratio,1,amrex::ParallelDescriptor::IOProcessorNumber());
-    return Box( IntVect(ratio*is,ratio*js,0), IntVect(ratio*is+nx-1, ratio*js+ny-1, nz-1) );
+    return Box( IntVect(ratio*is, ratio*js, klo), IntVect(ratio*is+nx-1, ratio*js+ny-1, khi) );
 }
 
 void

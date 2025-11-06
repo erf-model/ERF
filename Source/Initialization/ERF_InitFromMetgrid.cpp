@@ -269,6 +269,9 @@ ERF::init_from_metgrid (int lev)
             } // mf
 
             // This defines all the z(i,j,k) values given z(i,j,0) from above.
+            for (int k(0); k < zlevels_stag[lev].size(); k++) {
+                Print() << "zlevels_stag[" << lev << "][" << k << "] = " << zlevels_stag[lev][k] << std::endl;
+            }
             make_terrain_fitted_coords(lev, geom[lev], *z_phys, zlevels_stag[lev], phys_bc_type);
 
             // This makes the Jacobian.
@@ -276,6 +279,7 @@ ERF::init_from_metgrid (int lev)
             make_areas(geom[lev], *z_phys, *ax[lev], *ay[lev], *az[lev]);
 
             // This defines z at w-cell faces.
+            Print() << "make_zcc lev=" << lev << std::endl;
             make_zcc(geom[lev],*z_phys,*z_phys_cc[lev]);
 
         } // itime==0
