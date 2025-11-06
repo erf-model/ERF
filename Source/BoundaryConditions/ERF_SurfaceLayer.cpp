@@ -560,6 +560,14 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     {
         Box gtbx = mfi.growntilebox();
 
+        // NOTE: SST/TSK do not carry lateral ghost cells.
+        //       This copies the valid box into the ghost cells.
+        //       Fillboundary is called after this to pick up the
+        //       interior ghost and periodic directions.
+        Box vbx  = mfi.validbox();
+        int i_lo = vbx.smallEnd(0); int i_hi = vbx.bigEnd(0);
+        int j_lo = vbx.smallEnd(1); int j_hi = vbx.bigEnd(1);
+
         auto t_surf_arr = t_surf[lev]->array(mfi);
 
         const auto sst_lo_arr = m_sst_lev[lev][n_time_lo]->const_array(mfi);
@@ -573,20 +581,24 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+                int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                 if (!is_land && !ignore_sst) {
-                    t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
-                                      + alpha * sst_hi_arr(i,j,k);
+                    t_surf_arr(i,j,k) = oma   * sst_lo_arr(li,lj,k)
+                                      + alpha * sst_hi_arr(li,lj,k);
                 } else {
-                    t_surf_arr(i,j,k) = tsk_arr(i,j,k);
+                    t_surf_arr(i,j,k) = tsk_arr(li,lj,k);
                 }
             });
         } else {
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+                int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                 if (!is_land) {
-                    t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
-                                      + alpha * sst_hi_arr(i,j,k);
+                    t_surf_arr(i,j,k) = oma   * sst_lo_arr(li,lj,k)
+                                      + alpha * sst_hi_arr(li,lj,k);
                 } else {
                     t_surf_arr(i,j,k) = lst;
                 }
