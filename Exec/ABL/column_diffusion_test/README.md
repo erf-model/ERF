@@ -72,6 +72,12 @@ zhi.theta_grad = 0.003
 - [x] mixed implicit/explicit (fac=1 1 0), dt=60, `zhi.theta_grad = 0.003`: MAE = 2e-4, RMSE=1e-3
 
 
+## "T" path
+
+Verified that uniform grid solution is recovered (to machine precision) when
+specifying a custom terrain input file with z=0 everywhere.
+
+
 # Column diffusion test -- with heating, shear, and PBL scheme
 
 Input file: `inputs_sfclay_pbl`

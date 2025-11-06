@@ -490,6 +490,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             tau13(i,j,k) *= -mu_tot;
 
             tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+
+            if (tau13i) tau13i(i,j,k) *= -mu_tot;
         });
 
         Box planeyz = tbxyz; planeyz.setBig(2, planeyz.smallEnd(2) );
@@ -522,6 +524,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             tau23(i,j,k) *= -mu_tot;
 
             tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+
+            if (tau23i) tau23i(i,j,k) *= -mu_tot;
         });
     }
     // Extrapolate tau13 & tau23 to top
@@ -556,6 +560,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             tau13(i,j,k) *= -mu_tot;
 
             tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
+
+            if (tau13i) tau13i(i,j,k) *= -mu_tot;
         });
 
         Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
@@ -588,6 +594,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             tau23(i,j,k) *= -mu_tot;
 
             tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
+
+            if (tau23i) tau23i(i,j,k) *= -mu_tot;
         });
     }
 
