@@ -2270,10 +2270,10 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         } // laten_flux
 
         if (containerHasElement(plot_var_names, "surf_pres")) {
+            bool moist = (solverChoice.moisture_type != MoistureType::None);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            bool moist = (solverChoice.moisture_type != MoistureType::None);
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
