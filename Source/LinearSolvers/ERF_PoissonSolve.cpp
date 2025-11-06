@@ -261,9 +261,9 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         // Max norm over the entire MultiFab
         rhsnorm = rhs_lev.norm0();
 
-        Real sum = volWgtSumMF(lev,rhs_lev,0,false);
-
         if (mg_verbose > 0) {
+            Real sum = volWgtSumMF(lev,rhs_lev,0,false);
+            ParallelDescriptor::ReduceRealSum(sum);
             Print() << "Max/L2 norm of divergence before solve in subdomain " << isub << " at level " << lev << " : " << rhsnorm << " " <<
                         rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
         }
@@ -350,7 +350,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
             if (mg_verbose > 0)
             {
-                sum = volWgtSumMF(lev,rhs_lev,0,false);
+                Real sum = volWgtSumMF(lev,rhs_lev,0,false);
+                ParallelDescriptor::ReduceRealSum(sum);
                 Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " <<
                             rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
             }
@@ -393,7 +394,6 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                 amrex::Print() << " Subtracting " << sum << " from rhs in subdomain " << isub << std::endl;
 
                 sum = volWgtSumMF(lev,rhs_sub[0],0,false);
-                Real sum = volWgtSumMF(lev,rhs_sub[0],0,false);
                 Print() << "Sum after subtraction " << sum << " in subdomain " << isub << std::endl;
             }
 

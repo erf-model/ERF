@@ -109,7 +109,7 @@ Real SuperDropletPC::TotalNumberOfParticles ()
                                 auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                                 return ai*ni;
                            });
-    ParallelDescriptor::ReduceRealSum(&count, 1, ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealSum(&count, 1);
     return count;
 }
 
@@ -124,7 +124,7 @@ Long SuperDropletPC::NumSDDeactivated ()
                                 if (ai == 0) { return Long(1); }
                                 else         { return Long(0); }
                             } );
-    ParallelDescriptor::ReduceLongSum(&count, 1, ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceLongSum(&count, 1);
     return count;
 }
 

@@ -32,7 +32,7 @@ void SuperDropletsMoist::readInputs ()
     pp.query("include_cold_processes", m_with_ice);
 
     // initial distribution type
-    m_init_type = SupDropInit::init_uniform;
+    m_init_type = SDMoistInit::uniform;
     pp.query("initial_distribution_type", m_init_type);
 
     // minimum radius for rain
@@ -159,6 +159,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                                             a_cons_vars.boxArray(),
                                             m_species,
                                             m_aerosols,
+                                            m_dt,
                                             m_name );
 
     amrex::Print() << "SuperDropletsMoist:\n"
@@ -190,7 +191,7 @@ void SuperDropletsMoist::InitParticles ( MFPtr& a_z_phys_nd /*!< terrain */)
 {
     BL_PROFILE("SuperDropletsMoist::InitParticles()");
 
-    if (m_init_type == SuperDropletsMoistInitializations::init_rhoc) {
+    if (m_init_type == SDMoistInit::condensate_density) {
         /* The conserved variables are not set up yet; the initial condensate
            density is not available. So, just initialize with a uniform distribution
            for now; set the radius and multiplicity from condensate density when
@@ -244,7 +245,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
     BL_PROFILE("SuperDropletsMoist::FinishInit()");
     m_super_droplets->DensityScaling(*(m_mic_fab_vars[MicVar_SD::rho]));
 
-    if (m_init_type == SuperDropletsMoistInitializations::init_rhoc) {
+    if (m_init_type == SDMoistInit::condensate_density) {
 
         /* initial super-droplets attributes computed from condensate mass density */
         MultiFab rho_c ( m_mic_fab_vars[MicVar_SD::q_c]->boxArray(),

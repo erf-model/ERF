@@ -142,6 +142,7 @@ Radiation::set_grids (int& level,
                       MultiFab* lsm_zenith,
                       Vector<MultiFab*>& lsm_input_ptrs,
                       MultiFab* qheating_rates,
+                      MultiFab* rad_fluxes,
                       MultiFab* z_phys,
                       MultiFab* lat,
                       MultiFab* lon)
@@ -157,6 +158,7 @@ Radiation::set_grids (int& level,
     m_lsm_fluxes     = lsm_fluxes;
     m_lsm_zenith     = lsm_zenith;
     m_qheating_rates = qheating_rates;
+    m_rad_fluxes     = rad_fluxes;
     m_z_phys         = z_phys;
     m_lat            = lat;
     m_lon            = lon;
@@ -305,6 +307,7 @@ Radiation::alloc_buffers ()
     // 2d size (ncol, nlwbands)
     emis_sfc    = real2d_k("emis_sfc", m_ncol, m_nlwbands);
 
+    /*
     // 3d size (ncol, nlay, n[sw,lw]bands)
     aero_tau_sw = real3d_k("aero_tau_sw", m_ncol, m_nlay, m_nswbands);
     aero_ssa_sw = real3d_k("aero_ssa_sw", m_ncol, m_nlay, m_nswbands);
@@ -318,6 +321,7 @@ Radiation::alloc_buffers ()
     // 3d size (ncol, nlay, n[sw,lw]gpts)
     cld_tau_sw_gpt = real3d_k("cld_tau_sw_gpt", m_ncol, m_nlay, m_nswgpts);
     cld_tau_lw_gpt = real3d_k("cld_tau_lw_gpt", m_ncol, m_nlay, m_nlwgpts);
+    */
 }
 
 void
@@ -409,6 +413,7 @@ Radiation::dealloc_buffers ()
     // 2d size (ncol, nlwbands)
     emis_sfc = real2d_k();
 
+    /*
     // 3d size (ncol, nlay, n[sw,lw]bands)
     aero_tau_sw = real3d_k();
     aero_ssa_sw = real3d_k();
@@ -422,6 +427,7 @@ Radiation::dealloc_buffers ()
     // 3d size (ncol, nlay, n[sw,lw]gpts)
     cld_tau_sw_gpt = real3d_k();
     cld_tau_lw_gpt = real3d_k();
+    */
 }
 
 
@@ -610,6 +616,9 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
     auto sfc_flux_dir_nir_d = sfc_flux_dir_nir;
     auto sfc_flux_dif_vis_d = sfc_flux_dif_vis;
     auto sfc_flux_dif_nir_d = sfc_flux_dif_nir;
+    auto sw_flux_up_d = sw_flux_up;
+    auto sw_flux_dn_d = sw_flux_dn;
+    auto lw_flux_up_d = lw_flux_up;
     auto lw_flux_dn_d = lw_flux_dn;
     auto mu0_d = mu0;
 
@@ -621,6 +630,7 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
         const int jmin       = vbx.smallEnd(1);
         const int offset     = m_col_offsets[mfi.index()];
         const Array4<Real>& q_arr = m_qheating_rates->array(mfi);
+        const Array4<Real>& f_arr = m_rad_fluxes->array(mfi);
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // map [i,j,k] 0-based to [icol, ilay] 0-based
@@ -635,6 +645,12 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
             Real iexner = 1./getExnergivenP(Real(p_lay_d(icol,ilay)), R_d/Cp_d);
             q_arr(i,j,k,0) *= iexner;
             q_arr(i,j,k,1) *= iexner;
+
+            // Populate the fluxes
+            f_arr(i,j,k,0) = sw_flux_up_d(icol,ilay);
+            f_arr(i,j,k,1) = sw_flux_dn_d(icol,ilay);
+            f_arr(i,j,k,2) = lw_flux_up_d(icol,ilay);
+            f_arr(i,j,k,3) = lw_flux_dn_d(icol,ilay);
         });
         if (m_lsm_fluxes) {
             const Array4<Real>& lsm_arr =  m_lsm_fluxes->array(mfi);

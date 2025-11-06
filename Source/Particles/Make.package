@@ -3,6 +3,7 @@ CEXE_sources += ERFPCInitializations.cpp
 CEXE_sources += ERFPCEvolve.cpp
 CEXE_sources += ERFPCUtils.cpp
 CEXE_sources += ERF_SDInitialization.cpp
+CEXE_sources += ERF_SuperDropletPCAddParticles.cpp
 CEXE_sources += ERF_SuperDropletPCAdvection.cpp
 CEXE_sources += ERF_SuperDropletPCBoundaries.cpp
 CEXE_sources += ERF_SuperDropletPCCoalescence.cpp

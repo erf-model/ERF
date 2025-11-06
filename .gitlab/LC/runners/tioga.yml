@@ -71,7 +71,7 @@ is_machine_up:
 allocate_resources:
   variables:
     GIT_STRATEGY: none
-    ALLOC_TIME: 30
+    ALLOC_TIME: 60
   extends: .on_tioga
   stage: allocate-resources
   script:

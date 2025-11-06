@@ -13,6 +13,13 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                                    const BCTypeArr& a_bc /*! Boundary types */)
 {
     BL_PROFILE("SuperDropletsMoist::Advance()");
+
+    // update dt
+    m_dt = a_dt;
+
+    // inject particles
+    m_super_droplets->InjectParticles(a_time, a_z[0], m_dt);
+
     auto num_particles = m_super_droplets->TotalNumberOfParticles();
     auto num_SD = m_super_droplets->NumSuperDroplets();
     auto num_SD_inactive = m_super_droplets->NumSDDeactivated();
@@ -27,11 +34,8 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
     amrex::Print() << "    Number of deactivated super-droplets: "
                    << num_SD_inactive
                    << " ("
-                   << amrex::Real(num_SD_inactive)/amrex::Real(num_SD)*100
+                   << (num_SD > 0 ? amrex::Real(num_SD_inactive)/amrex::Real(num_SD)*100 : 0)
                    << "%).\n";
-
-    // update dt
-    m_dt = a_dt;
 
     // Compute mass/size change due to evaporation/condensation
     if (m_flag_phase_change) {
@@ -48,7 +52,8 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                                             *(m_mic_fab_vars[MicVar_SD::pressure]),
                                             *(m_mic_fab_vars[MicVar_SD::temperature]),
                                             a_z,
-                                            a_bc );
+                                            a_bc,
+                                            m_recycle_particles );
     }
 
     // Coalescence of super-droplets
@@ -82,9 +87,7 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
     }
 
     // Recycle super-droplets
-    if (m_recycle_particles) {
-        m_super_droplets->Recycle( 0, a_z );
-    }
+    m_super_droplets->Recycle( 0, a_z, a_iter, a_dt, m_recycle_particles );
 
     m_super_droplets->Diagnostics(a_iter, a_time, (((a_iter+1)%m_diagnostics_iter==0) && (m_diagnostics_iter>0)));
 }

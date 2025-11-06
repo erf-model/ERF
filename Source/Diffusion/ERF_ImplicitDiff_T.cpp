@@ -55,6 +55,7 @@ ImplicitDiffForState_T (const Box& bx, const Box& domain,
     int jhi = bx.bigEnd(1);
     int klo = bx.smallEnd(2);
     int khi = bx.bigEnd(2);
+    amrex::ignore_unused(ilo, ihi, jlo, jhi);
 
     // Temporary FABs for tridiagonal solve (allocated on column)
     //   A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]

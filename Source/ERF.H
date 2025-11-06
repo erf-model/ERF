@@ -210,7 +210,7 @@ public:
                            amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
                            amrex::MultiFab& ax_sub, amrex::MultiFab& ay_sub,
                            amrex::MultiFab& az_sub,
-                           amrex::MultiFab& dJ_sub, amrex::MultiFab& znd_sub);
+                           amrex::MultiFab& /*dJ_sub*/, amrex::MultiFab& znd_sub);
 
     void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
@@ -869,7 +869,7 @@ private:
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW)
-
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn)
 #ifdef ERF_USE_SHOC
     amrex::Vector<std::unique_ptr<SHOCInterface>> shoc_interface; // SHOC model at each level
 #endif
@@ -1138,7 +1138,8 @@ private:
     const amrex::Vector<std::string> derived_names_2d {
         "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
         "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
-        "t_surf", "q_surf", "z0"
+        "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
+        "surf_pres"
     };
 
     // algorithm choices

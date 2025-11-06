@@ -2,6 +2,7 @@
 #include <AMReX_ParmParse.H>
 #include <ERF_EBAux.H>
 #include <ERF_EBCutCell.H>
+#include <AMReX_MultiFabUtil.H>
 
 using namespace amrex;
 
@@ -53,8 +54,13 @@ define( [[maybe_unused]] int const& a_level,
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
       const BoxArray& faceba = amrex::convert(a_grids, IntVect::TheDimensionVector(idim));
-      m_areafrac[idim] = new MultiFab(faceba, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
-      m_facecent[idim] = new MultiFab(faceba, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+      if (idim == a_idim) {
+          m_areafrac[idim] = new MultiFab(a_grids, a_dmap,                1, a_ngrow[1]+1, MFInfo(), FArrayBoxFactory());
+          m_facecent[idim] = new MultiFab(a_grids, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+      } else {
+          m_areafrac[idim] = new MultiFab(faceba, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
+          m_facecent[idim] = new MultiFab(faceba, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+      }
   }
 
   m_bndryarea = new MultiFab(grids, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
@@ -64,10 +70,12 @@ define( [[maybe_unused]] int const& a_level,
   // Initialize with zeros
   m_volfrac->setVal(0.0);
   m_volcent->setVal(0.0);
+
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
     m_areafrac[idim]->setVal(0.0);
     m_facecent[idim]->setVal(0.0);
   }
+
   m_bndryarea->setVal(0.0);
   m_bndrycent->setVal(0.0);
   m_bndrynorm->setVal(0.0);
@@ -96,24 +104,14 @@ define( [[maybe_unused]] int const& a_level,
       {
         aux_flag(i,j,k).setCovered();
         aux_flag(i,j,k).setDisconnected();
-        aux_vfrac(i,j,k) = 0.0;
-        aux_afrac_x(i,j,k) = 0.0;
-        aux_afrac_y(i,j,k) = 0.0;
-        aux_afrac_z(i,j,k) = 0.0;
         if (i==bx.bigEnd(0)) {
           aux_flag(i+1,j,k).setCovered();
-          aux_vfrac(i+1,j,k) = 0.0;
-          aux_afrac_x(i+1,j,k) = 0.0;
         }
         if (j==bx.bigEnd(1)) {
           aux_flag(i,j+1,k).setCovered();
-          aux_vfrac(i,j+1,k) = 0.0;
-          aux_afrac_y(i,j+1,k) = 0.0;
         }
         if (k==bx.bigEnd(2)) {
           aux_flag(i,j,k+1).setCovered();
-          aux_vfrac(i,j,k+1) = 0.0;
-          aux_afrac_z(i,j,k+1) = 0.0;
         }
       });
 
@@ -150,8 +148,6 @@ define( [[maybe_unused]] int const& a_level,
 
       // CC cell quantities
       Array4<EBCellFlag const> const& flag = FlagFab.const_array(mfi);
-      // Array4<Real const> const& vfrac = (a_factory->getVolFrac()).const_array(mfi);
-      // Array4<Real const> const& ccent = (a_factory->getCentroid()).const_array(mfi);
       Array4<Real const> const& afrac = (a_factory->getAreaFrac()[a_idim])->const_array(mfi);
       Array4<Real const> const& bnorm = a_factory->getBndryNormal()[mfi].const_array();
       Array4<Real const> const& bcent = a_factory->getBndryCent()[mfi].const_array();
@@ -199,62 +195,15 @@ define( [[maybe_unused]] int const& a_level,
         aux_flag(i,j,k).setCovered();
         aux_flag(i,j,k).setDisconnected();
 
-        aux_vfrac(i,j,k) = 0.0;
-        aux_vcent(i,j,k,0) = 0.0;
-        aux_vcent(i,j,k,1) = 0.0;
-        aux_vcent(i,j,k,2) = 0.0;
-
-        aux_afrac_x(i,j,k) = 0.0;
-        aux_afrac_y(i,j,k) = 0.0;
-        aux_afrac_z(i,j,k) = 0.0;
-
-        aux_fcent_x(i,j,k,0) = 0.0; aux_fcent_x(i,j,k,1) = 0.0;
-        aux_fcent_y(i,j,k,0) = 0.0; aux_fcent_y(i,j,k,1) = 0.0;
-        aux_fcent_z(i,j,k,0) = 0.0; aux_fcent_z(i,j,k,1) = 0.0;
-
         if (i==bx.bigEnd(0)) {
           aux_flag(i+1,j,k).setCovered();
-          aux_vfrac(i+1,j,k) = 0.0;
-          aux_vcent(i+1,j,k,0) = 0.0;
-          aux_vcent(i+1,j,k,1) = 0.0;
-          aux_vcent(i+1,j,k,2) = 0.0;
-
-          aux_afrac_x(i+1,j,k) = 0.0;
-          aux_fcent_x(i+1,j,k,0) = 0.0;
-          aux_fcent_x(i+1,j,k,1) = 0.0;
         }
         if (j==bx.bigEnd(1)) {
           aux_flag(i,j+1,k).setCovered();
-          aux_vfrac(i,j+1,k) = 0.0;
-          aux_vcent(i,j+1,k,0) = 0.0;
-          aux_vcent(i,j+1,k,1) = 0.0;
-          aux_vcent(i,j+1,k,2) = 0.0;
-
-          aux_afrac_y(i,j+1,k) = 0.0;
-          aux_fcent_y(i,j+1,k,0) = 0.0;
-          aux_fcent_y(i,j+1,k,1) = 0.0;
         }
         if (k==bx.bigEnd(2)) {
           aux_flag(i,j,k+1).setCovered();
-          aux_vfrac(i,j,k+1) = 0.0;
-          aux_vcent(i,j,k+1,0) = 0.0;
-          aux_vcent(i,j,k+1,1) = 0.0;
-          aux_vcent(i,j,k+1,2) = 0.0;
-
-          aux_afrac_z(i,j,k+1) = 0.0;
-          aux_fcent_z(i,j,k+1,0) = 0.0;
-          aux_fcent_z(i,j,k+1,1) = 0.0;
         }
-
-        aux_barea(i,j,k) = 0.0;
-
-        aux_bcent(i,j,k,0) = 0.0;
-        aux_bcent(i,j,k,1) = 0.0;
-        aux_bcent(i,j,k,2) = 0.0;
-
-        aux_bnorm(i,j,k,0) = 0.0;
-        aux_bnorm(i,j,k,1) = 0.0;
-        aux_bnorm(i,j,k,2) = 0.0;
 
         // Index for low and hi cells
         IntVect iv_hi(i,j,k);
@@ -343,24 +292,14 @@ define( [[maybe_unused]] int const& a_level,
           aux_afrac_y(i,j,k) = 1.0;
           aux_afrac_z(i,j,k) = 1.0;
 
-          aux_fcent_x(i,j,k,0) = 0.0; aux_fcent_x(i,j,k,1) = 0.0;
-          aux_fcent_y(i,j,k,0) = 0.0; aux_fcent_y(i,j,k,1) = 0.0;
-          aux_fcent_z(i,j,k,0) = 0.0; aux_fcent_z(i,j,k,1) = 0.0;
-
           if (i==bx.bigEnd(0)) {
             aux_afrac_x(i+1,j,k) = 1.0;
-            aux_fcent_x(i+1,j,k,0) = 0.0;
-            aux_fcent_x(i+1,j,k,1) = 0.0;
           }
           if (j==bx.bigEnd(1)) {
             aux_afrac_y(i,j+1,k) = 1.0;
-            aux_fcent_y(i,j+1,k,0) = 0.0;
-            aux_fcent_y(i,j+1,k,1) = 0.0;
           }
           if (k==bx.bigEnd(2)) {
             aux_afrac_z(i,j,k+1) = 1.0;
-            aux_fcent_z(i,j,k+1,0) = 0.0;
-            aux_fcent_z(i,j,k+1,1) = 0.0;
           }
 
         } else {
@@ -892,23 +831,78 @@ define( [[maybe_unused]] int const& a_level,
 
       });
 
+      ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        if (aux_vfrac(i,j,k) < small_volfrac)
+        {
+          aux_vfrac(i,j,k)   = 0.0;
+        }
+      });
+
+    } // if (FlagFab[mfi].getType(bx) == FabType::singlevalued )
+
+  } // MFIter
+
+  // We FillBoundary volfrac here so that we can use tests on volfrac in ghost cells below
+  m_volfrac->FillBoundary(a_geom.periodicity());
+
+  for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
+
+      const Box& bx = mfi.validbox();
+      const Box& bx_grown = mfi.growntilebox();
+
+      Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
+      Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
+      Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
+      Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
+      Array4<Real>       const& aux_afrac_z = m_areafrac[2]->array(mfi);
+
+      Array4<Real>       const& aux_vcent = m_volcent->array(mfi);
+      Array4<Real>       const& aux_fcent_x = m_facecent[0]->array(mfi);
+      Array4<Real>       const& aux_fcent_y = m_facecent[1]->array(mfi);
+      Array4<Real>       const& aux_fcent_z = m_facecent[2]->array(mfi);
+      Array4<Real>       const& aux_barea = m_bndryarea->array(mfi);
+      Array4<Real>       const& aux_bcent = m_bndrycent->array(mfi);
+      Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
+
+
+    if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
+
       // Corrections for small cells
+      Box my_xbx(bx); if (a_idim == 0) my_xbx.growLo(0,1);
+      ParallelFor(my_xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        if (aux_vfrac(i,j,k) < small_volfrac) {
+          aux_afrac_x(i  ,j  ,k  ) = 0.0;
+          aux_afrac_x(i+1,j  ,k  ) = 0.0;
+        }
+      });
+
+      Box my_ybx(bx); if (a_idim == 1) my_ybx.growLo(1,1);
+      ParallelFor(my_ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        if (aux_vfrac(i,j,k) < small_volfrac) {
+          aux_afrac_y(i  ,j  ,k  ) = 0.0;
+          aux_afrac_y(i  ,j+1,k  ) = 0.0;
+        }
+      });
+
+      Box my_zbx(bx); if (a_idim == 2) my_zbx.growLo(2,1);
+      ParallelFor(my_zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+        if (aux_vfrac(i,j,k) < small_volfrac) {
+          aux_afrac_z(i  ,j  ,k+1) = 0.0;
+          aux_afrac_z(i  ,j  ,k  ) = 0.0;
+        }
+      });
 
       ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac) {
-
-          aux_vfrac(i,j,k)   = 0.0;
+        if (aux_vfrac(i,j,k) < small_volfrac)
+        {
           aux_vcent(i,j,k,0) = 0.0;
           aux_vcent(i,j,k,1) = 0.0;
           aux_vcent(i,j,k,2) = 0.0;
-
-          aux_afrac_x(i  ,j  ,k  ) = 0.0;
-          aux_afrac_x(i+1,j  ,k  ) = 0.0;
-          aux_afrac_y(i  ,j  ,k  ) = 0.0;
-          aux_afrac_y(i  ,j+1,k  ) = 0.0;
-          aux_afrac_z(i  ,j  ,k+1) = 0.0;
-          aux_afrac_z(i  ,j  ,k  ) = 0.0;
 
           aux_fcent_x(i  ,j  ,k  ,0) = 0.0;
           aux_fcent_x(i  ,j  ,k  ,1) = 0.0;
@@ -974,7 +968,9 @@ define( [[maybe_unused]] int const& a_level,
 
   // Fill Boundary
 
-  m_volfrac->FillBoundary(a_geom.periodicity());
+  // The FB call for volfrac is done above
+  // m_volfrac->FillBoundary(a_geom.periodicity());
+
   m_volcent->FillBoundary(a_geom.periodicity());
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
     m_areafrac[idim]->FillBoundary(a_geom.periodicity());
@@ -985,7 +981,6 @@ define( [[maybe_unused]] int const& a_level,
   m_bndrynorm->FillBoundary(a_geom.periodicity());
 
   // Set Connectivities
-
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
 
     const Box& bx = mfi.validbox();
@@ -1010,17 +1005,10 @@ define( [[maybe_unused]] int const& a_level,
       bool l_periodic_z = a_geom.isPeriodic(2);
 
       if (!l_periodic_x) {
-        Box dom_grown = grow(grow(domain,1,1),2,1);
-        Box dom_face_x_lo = dom_grown;
-        Box dom_face_x_hi = dom_grown;
-        dom_face_x_lo.setSmall(0, bx.smallEnd(0));
-        dom_face_x_lo.setBig(  0, bx.smallEnd(0));
-        dom_face_x_hi.setSmall(0, bx.bigEnd(0));
-        dom_face_x_hi.setBig(  0, bx.bigEnd(0));
-
-        const Box bx_grown  = grow(grow(bx,1,1),2,1);
-        const Box bx_face_x_lo = bx_grown & dom_face_x_lo;
-        const Box bx_face_x_hi = bx_grown & dom_face_x_hi;
+        const Box dom_grown = grow(grow(domain,1,1),2,1);
+        const Box bx_grown  = grow(grow(    bx,1,1),2,1);
+        const Box bx_face_x_lo = bx_grown & makeSlab(dom_grown,0,domain.smallEnd(0));
+        const Box bx_face_x_hi = bx_grown & makeSlab(dom_grown,0,domain.bigEnd(0));
 
         ParallelFor(bx_face_x_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -1039,17 +1027,10 @@ define( [[maybe_unused]] int const& a_level,
       }
 
       if (!l_periodic_y) {
-        Box dom_grown = grow(grow(domain,0,1),2,1);
-        Box dom_face_y_lo = dom_grown;
-        Box dom_face_y_hi = dom_grown;
-        dom_face_y_lo.setSmall(1, bx.smallEnd(1));
-        dom_face_y_lo.setBig(  1, bx.smallEnd(1));
-        dom_face_y_hi.setSmall(1, bx.bigEnd(1));
-        dom_face_y_hi.setBig(  1, bx.bigEnd(1));
-
-        const Box bx_grown  = grow(grow(bx,0,1),2,1);
-        const Box bx_face_y_lo = bx_grown & dom_face_y_lo;
-        const Box bx_face_y_hi = bx_grown & dom_face_y_hi;
+        const Box dom_grown = grow(grow(domain,0,1),2,1);
+        const Box bx_grown  = grow(grow(    bx,0,1),2,1);
+        const Box bx_face_y_lo = bx_grown & makeSlab(dom_grown,1,domain.smallEnd(1));
+        const Box bx_face_y_hi = bx_grown & makeSlab(dom_grown,1,domain.bigEnd(1));
 
         ParallelFor(bx_face_y_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -1068,17 +1049,10 @@ define( [[maybe_unused]] int const& a_level,
       }
 
       if (!l_periodic_z) {
-        Box dom_grown = grow(grow(domain,0,1),1,1);
-        Box dom_face_z_lo = dom_grown;
-        Box dom_face_z_hi = dom_grown;
-        dom_face_z_lo.setSmall(2, bx.smallEnd(2));
-        dom_face_z_lo.setBig(  2, bx.smallEnd(2));
-        dom_face_z_hi.setSmall(2, bx.bigEnd(2));
-        dom_face_z_hi.setBig(  2, bx.bigEnd(2));
-
-        const Box bx_grown  = grow(grow(bx,0,1),1,1);
-        const Box bx_face_z_lo = bx_grown & dom_face_z_lo;
-        const Box bx_face_z_hi = bx_grown & dom_face_z_hi;
+        const Box dom_grown = grow(grow(domain,0,1),1,1);
+        const Box bx_grown  = grow(grow(    bx,0,1),1,1);
+        const Box bx_face_z_lo = bx_grown & makeSlab(dom_grown,2,domain.smallEnd(2));
+        const Box bx_face_z_hi = bx_grown & makeSlab(dom_grown,2,domain.bigEnd(2));
 
         ParallelFor(bx_face_z_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -1094,7 +1068,7 @@ define( [[maybe_unused]] int const& a_level,
             aux_flag(i,j,k).setDisconnected(ii,jj, 1);
           }}
         });
-      } // !l_periodic_z
+      }
 
     } // FabType::singlevalued
 
