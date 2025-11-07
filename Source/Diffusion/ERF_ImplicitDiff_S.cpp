@@ -245,6 +245,9 @@ ImplicitDiffForMom_S (const Box& bx,
                               "Unexpected lower BC used with implicit vertical diffusion");
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi,
                               "Unexpected upper BC used with implicit vertical diffusion");
+    if (stagdir < 2 && (ext_dir_on_zlo || ext_dir_on_zhi)) {
+        amrex::Warning("No-slip walls have not been fully tested");
+    }
 
 #ifdef AMREX_USE_GPU
     ParallelFor(makeSlab(bxx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)

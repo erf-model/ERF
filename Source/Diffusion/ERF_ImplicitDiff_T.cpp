@@ -255,6 +255,9 @@ ImplicitDiffForMom_T (const Box& bx,
                               "Unexpected lower BC used with implicit vertical diffusion");
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi,
                               "Unexpected upper BC used with implicit vertical diffusion");
+    if (stagdir < 2 && (ext_dir_on_zlo || ext_dir_on_zhi)) {
+        amrex::Warning("No-slip walls have not been fully tested");
+    }
 
 #ifdef AMREX_USE_GPU
     ParallelFor(makeSlab(bxx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
@@ -330,7 +333,8 @@ ImplicitDiffForMom_T (const Box& bx,
             // - In DiffusionSrcForMom (e.g., for x-mom)
             //
             //     Real diffContrib = ...
-            //                      + (tau13(i,j,k+1) - tau13(i,j,k)) / dz_ptr[k]
+            //                      + (tau13(i,j,k+1) - tau13(i,j,k)) * dzinv
+            //     diffContrib      /= 0.5*(detJ(i,j,k) + detJ(i,j,k-1));
             //     rho_u_rhs(i,j,k) -= diffContrib;  // note the negative sign
             //
             // - We need to scale the explicit _part_ of `tau13` (for x-mom) by (1 - implicit_fac)
