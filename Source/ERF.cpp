@@ -971,6 +971,20 @@ ERF::InitData_pre ()
                 Warning("Should not use Deardorff LES for mesoscale resolution");
             }
         }
+
+        // Turn off implicit solve if we have no diffusion
+        bool l_use_kturb   = solverChoice.turbChoice[lev].use_kturb;
+        bool l_use_diff    = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
+                               l_use_kturb );
+        bool l_implicit_diff = (solverChoice.vert_implicit_fac[0] > 0 ||
+                                solverChoice.vert_implicit_fac[1] > 0 ||
+                                solverChoice.vert_implicit_fac[2] > 0);
+        if (l_implicit_diff && !l_use_diff) {
+            Print() << "No molecular or turbulent diffusion, turning off implicit solve" << std::endl;
+            solverChoice.vert_implicit_fac[0] = 0;
+            solverChoice.vert_implicit_fac[1] = 0;
+            solverChoice.vert_implicit_fac[2] = 0;
+        }
     }
 }
 
