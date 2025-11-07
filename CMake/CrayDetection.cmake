@@ -62,6 +62,117 @@ if(NOT ERF_ON_CRAY)
 endif()
 
 # ==============================================================================
+# Compiler Version Checks
+# ==============================================================================
+
+message(STATUS "ERF: Checking compiler versions...")
+
+# -----------------------------------------------------------------------------
+# GCC Version Check (for std::filesystem support)
+# -----------------------------------------------------------------------------
+# ERF uses C++17 <filesystem> which requires GCC 8.0+
+# Older GCC versions will fail with "fatal error: filesystem: No such file"
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    message(STATUS "  Detected GNU C++ compiler version: ${CMAKE_CXX_COMPILER_VERSION}")
+    
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "8.0")
+        message(FATAL_ERROR 
+            "\n"
+            "════════════════════════════════════════════════════════════════\n"
+            "ERF requires GCC 8.0+ for C++17 <filesystem> support\n"
+            "Found: GCC ${CMAKE_CXX_COMPILER_VERSION}\n"
+            "════════════════════════════════════════════════════════════════\n"
+            "\n"
+            "On Cray systems, fix by using the Cray wrapper with a modern compiler:\n"
+            "  1. Load a newer compiler module:\n"
+            "       module load PrgEnv-gnu\n"
+            "       module load gcc\n"
+            "\n"
+            "  2. Set compiler explicitly:\n"
+            "       -DCMAKE_CXX_COMPILER=\$(which CC)\n"
+            "     Or set environment variable:\n"
+            "       export CXX=\$(which CC)\n"
+            "\n"
+            "  3. Verify compiler version:\n"
+            "       CC --version\n"
+            "\n")
+    else()
+        message(STATUS "  GCC version ${CMAKE_CXX_COMPILER_VERSION} >= 8.0 ✓")
+        erf_cray_verbose("GCC version sufficient for C++17 <filesystem>")
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Cray")
+    message(STATUS "  Detected Cray C++ compiler version: ${CMAKE_CXX_COMPILER_VERSION}")
+    erf_cray_verbose("Cray compiler wrappers detected")
+    
+    # Cray wrappers forward to underlying compiler - check what's loaded
+    if(DEFINED ENV{PE_ENV})
+        message(STATUS "  Programming Environment: $ENV{PE_ENV}")
+        erf_cray_verbose("PE_ENV = $ENV{PE_ENV}")
+    endif()
+else()
+    message(STATUS "  Detected C++ compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+endif()
+
+# -----------------------------------------------------------------------------
+# GPU Compiler Checks (for CUDA builds)
+# -----------------------------------------------------------------------------
+# Kokkos and EKAT read CMAKE_CUDA_COMPILER and CMAKE_CUDA_FLAGS
+# We need to ensure these are set correctly for Cray systems
+
+if(ERF_ENABLE_CUDA)
+    message(STATUS "")
+    message(STATUS "ERF: Checking GPU compiler configuration...")
+    
+    # Check if CMAKE_CUDA_COMPILER is set
+    if(CMAKE_CUDA_COMPILER)
+        message(STATUS "  CMAKE_CUDA_COMPILER = ${CMAKE_CUDA_COMPILER}")
+        erf_cray_verbose("CUDA compiler explicitly set by user or CMake")
+    else()
+        message(STATUS "  CMAKE_CUDA_COMPILER not set (CMake will auto-detect)")
+        erf_cray_verbose("CMake will search for nvcc in PATH")
+    endif()
+    
+    # Check if CMAKE_CUDA_FLAGS has been set
+    if(CMAKE_CUDA_FLAGS)
+        message(STATUS "  CMAKE_CUDA_FLAGS = ${CMAKE_CUDA_FLAGS}")
+        erf_cray_verbose("CUDA flags explicitly set by user")
+    else()
+        message(STATUS "  CMAKE_CUDA_FLAGS not set (will be auto-configured)")
+        erf_cray_verbose("Cray-specific CUDA flags will be added by Fix 1 if needed")
+    endif()
+    
+    # Check AMReX_CUDA_ARCH
+    if(AMReX_CUDA_ARCH)
+        message(STATUS "  AMReX_CUDA_ARCH = ${AMReX_CUDA_ARCH}")
+        erf_cray_verbose("GPU architecture explicitly set")
+    elseif(DEFINED ENV{AMREX_CUDA_ARCH})
+        message(STATUS "  AMREX_CUDA_ARCH = $ENV{AMREX_CUDA_ARCH} (from environment)")
+        erf_cray_verbose("GPU architecture from environment variable")
+    else()
+        message(WARNING "")
+        message(WARNING "ERF: AMReX_CUDA_ARCH not set")
+        message(WARNING "  CMake will use default architecture (may not be optimal)")
+        message(WARNING "  For Perlmutter A100 GPUs, set:")
+        message(WARNING "    -DAMReX_CUDA_ARCH=8.0")
+        message(WARNING "")
+        erf_cray_verbose("GPU architecture not set - CMake will use defaults")
+    endif()
+    
+    # Important note about Kokkos/EKAT
+    if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
+        message(STATUS "")
+        message(STATUS "  Note: EKAT/Kokkos will use:")
+        message(STATUS "    - CMAKE_CUDA_COMPILER for nvcc detection")
+        message(STATUS "    - CMAKE_CUDA_FLAGS for compilation flags")
+        message(STATUS "    - Fix 1 will add Cray-specific flags automatically")
+        erf_cray_verbose("EKAT-based physics enabled - Kokkos will read CMAKE_CUDA_* variables")
+    endif()
+    
+    message(STATUS "")
+endif()
+
+# ==============================================================================
 # Prerequisite Checks
 # ==============================================================================
 
@@ -70,10 +181,10 @@ message(STATUS "ERF: Checking Cray prerequisites...")
 # -----------------------------------------------------------------------------
 # CMake Version Check
 # -----------------------------------------------------------------------------
-# Cray systems work best with CMake 3.24.5+
-# Earlier versions may have issues with Cray wrappers and CUDA
+# Cray systems work best with CMake 3.24.0+
+# Earlier versions may have issues with Cray wrappers and CUDA when NVHPC is splayed
 
-set(ERF_RECOMMENDED_CMAKE_VERSION "3.24.5")
+set(ERF_RECOMMENDED_CMAKE_VERSION "3.24.0")
 
 if(CMAKE_VERSION VERSION_LESS ${ERF_RECOMMENDED_CMAKE_VERSION})
     message(WARNING "")
@@ -82,7 +193,7 @@ if(CMAKE_VERSION VERSION_LESS ${ERF_RECOMMENDED_CMAKE_VERSION})
     message(WARNING "  You may experience issues with Cray compiler wrappers and CUDA")
     message(WARNING "")
     message(WARNING "  To fix:")
-    message(WARNING "    module load cmake/3.30.2    # or later")
+    message(WARNING "    module load cmake")
     message(WARNING "")
     
     erf_cray_verbose("Current CMake: ${CMAKE_VERSION}")
