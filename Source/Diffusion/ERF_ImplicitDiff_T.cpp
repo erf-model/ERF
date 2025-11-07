@@ -241,7 +241,7 @@ ImplicitDiffForMom_T (const Box& bx,
 
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
-    Real dz_inv        = cellSizeInv[2];
+    Real dz_inv0       = cellSizeInv[2];
 
     int bc_comp = BCVars::xvel_bc + stagdir;
     bool ext_dir_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
@@ -267,21 +267,63 @@ ImplicitDiffForMom_T (const Box& bx,
         for (int k(klo); k <= khi; k++)
         {
             // Note: either ioff or joff are 1
-            Real rhoface = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp) );
-            Real detJface = 0.5 * ( detJ(i,j,k) + detJ(i-ioff,j-joff,k) );
+            Real rhoface = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+            Real detJface = 0.5 * (detJ(i,j,k) + detJ(i-ioff,j-joff,k));
 
             Real rhoAlpha_lo, rhoAlpha_hi;
             getRhoAlphaForFaces(i, j, k, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                 cell_data, mu_turb, mu_eff,
                                 l_consA, l_turb);
 
-            Real met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,k  ,cellSizeInv,z_nd);
-            Real met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,k+1,cellSizeInv,z_nd);
+            Real dz_inv, dz_inv_lo, dz_inv_hi;
+            if (stagdir==0) {
+                dz_inv        = dz_inv0 / Compute_h_zeta_AtIface(i,j,k  ,cellSizeInv,z_nd);
+                if (k == dom_lo.z) {
+                    dz_inv_lo = dz_inv;
+                } else {
+                    dz_inv_lo = dz_inv0 / Compute_h_zeta_AtIface(i,j,k-1,cellSizeInv,z_nd);
+                    dz_inv_lo = 0.5 * (dz_inv + dz_inv_lo);
+                }
+                if (k == dom_hi.z) {
+                    dz_inv_hi = dz_inv;
+                } else {
+                    dz_inv_hi = dz_inv0 / Compute_h_zeta_AtIface(i,j,k+1,cellSizeInv,z_nd);
+                    dz_inv_hi = 0.5 * (dz_inv + dz_inv_hi);
+                }
+            } else if (stagdir==1) {
+                dz_inv        = dz_inv0 / Compute_h_zeta_AtJface(i,j,k  ,cellSizeInv,z_nd);
+                if (k == dom_lo.z) {
+                    dz_inv_lo = dz_inv;
+                } else {
+                    dz_inv_lo = dz_inv0 / Compute_h_zeta_AtJface(i,j,k-1,cellSizeInv,z_nd);
+                    dz_inv_lo = 0.5 * (dz_inv + dz_inv_lo);
+                }
+                if (k == dom_hi.z) {
+                    dz_inv_hi = dz_inv;
+                } else {
+                    dz_inv_hi = dz_inv0 / Compute_h_zeta_AtJface(i,j,k+1,cellSizeInv,z_nd);
+                    dz_inv_hi = 0.5 * (dz_inv + dz_inv_hi);
+                }
+            } else if (stagdir==2) {
+                if (k == dom_lo.z) {
+                    dz_inv_hi = dz_inv0 / detJ(i,j,k  );
+                    dz_inv_lo = dz_inv_hi;
+                    dz_inv    = dz_inv_hi;
+                } else if (k== dom_hi.z) {
+                    dz_inv_lo = dz_inv0 / detJ(i,j,k-1);
+                    dz_inv_hi = dz_inv_lo;
+                    dz_inv    = dz_inv_lo;
+                } else {
+                    dz_inv_lo = dz_inv0 / detJ(i,j,k-1);
+                    dz_inv_hi = dz_inv0 / detJ(i,j,k  );
+                    dz_inv = 0.5 * (dz_inv_lo + dz_inv_hi);
+                }
+            }
 
             // Face data currently holds the _fully_ explicit solution, which
             // will be used to determine the velocity gradient for the bottom
             // BC
-            RHS_a(i,j,k) = detJface * face_data(i,j,k); // Note this is momentum but solution will be velocity
+            RHS_a(i,j,k) = face_data(i,j,k); // Note this is momentum but solution will be velocity
 
             // Notes:
             //
@@ -312,8 +354,8 @@ ImplicitDiffForMom_T (const Box& bx,
 
             // This represents the face-centered finite difference of two
             // edge-centered finite differences (hi and lo)
-            coeffA_a(i,j,k) = -implicit_fac * gfac * rhoAlpha_lo * dt * dz_inv * dz_inv / met_h_zeta_lo;
-            coeffC_a(i,j,k) = -implicit_fac * gfac * rhoAlpha_hi * dt * dz_inv * dz_inv / met_h_zeta_hi;
+            coeffA_a(i,j,k) = -implicit_fac * gfac * rhoAlpha_lo * dt * dz_inv * dz_inv_lo;
+            coeffC_a(i,j,k) = -implicit_fac * gfac * rhoAlpha_hi * dt * dz_inv * dz_inv_hi;
 
             // Setup BCs
             if (k == dom_lo.z) {
@@ -341,7 +383,7 @@ ImplicitDiffForMom_T (const Box& bx,
                 coeffC_a(i,j,khi) = 0.;
             }
 
-            coeffB_a(i,j,k) = detJ(i,j,k)*rhoface - coeffA_a(i,j,k) - coeffC_a(i,j,k);
+            coeffB_a(i,j,k) = rhoface - coeffA_a(i,j,k) - coeffC_a(i,j,k);
         } // k
 
         SolveTridiag(i,j,klo,khi,soln_a,coeffA_a,coeffB_a,inv_coeffB_a,coeffC_a,RHS_a);
