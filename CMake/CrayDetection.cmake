@@ -142,31 +142,148 @@ if(ERF_ENABLE_CUDA)
         erf_cray_verbose("Cray-specific CUDA flags will be added by Fix 1 if needed")
     endif()
     
-    # Check AMReX_CUDA_ARCH
+    # -------------------------------------------------------------------------
+    # Detect AMReX CUDA architecture
+    # Priority: CMake var > AMREX_CUDA_ARCH env > CMAKE_CUDA_ARCH env > CRAY_ACCEL_TARGET
+    # -------------------------------------------------------------------------
+    
     if(AMReX_CUDA_ARCH)
-        message(STATUS "  AMReX_CUDA_ARCH = ${AMReX_CUDA_ARCH}")
-        erf_cray_verbose("GPU architecture explicitly set")
+        message(STATUS "  AMReX_CUDA_ARCH = ${AMReX_CUDA_ARCH} (user specified)")
+        erf_cray_verbose("AMReX CUDA arch set via CMake variable")
+        
     elseif(DEFINED ENV{AMREX_CUDA_ARCH})
-        message(STATUS "  AMREX_CUDA_ARCH = $ENV{AMREX_CUDA_ARCH} (from environment)")
-        erf_cray_verbose("GPU architecture from environment variable")
+        set(AMReX_CUDA_ARCH "$ENV{AMREX_CUDA_ARCH}" CACHE STRING "CUDA arch from AMREX_CUDA_ARCH")
+        message(STATUS "  AMReX_CUDA_ARCH = $ENV{AMREX_CUDA_ARCH} (from AMREX_CUDA_ARCH)")
+        erf_cray_verbose("AMReX CUDA arch from AMREX_CUDA_ARCH environment variable")
+        
+    elseif(DEFINED ENV{CMAKE_CUDA_ARCH})
+        # Common in build scripts: CMAKE_CUDA_ARCH="80"
+        set(ENV_CUDA_ARCH "$ENV{CMAKE_CUDA_ARCH}")
+        
+        # Convert to AMReX format (add decimal point if needed)
+        if(ENV_CUDA_ARCH MATCHES "^[0-9][0-9]$")
+            # Two-digit format: 70, 80, 90 -> 7.0, 8.0, 9.0
+            string(SUBSTRING "${ENV_CUDA_ARCH}" 0 1 MAJOR)
+            string(SUBSTRING "${ENV_CUDA_ARCH}" 1 1 MINOR)
+            set(DETECTED_CUDA_ARCH "${MAJOR}.${MINOR}")
+        else()
+            # Already in decimal format or other format
+            set(DETECTED_CUDA_ARCH "${ENV_CUDA_ARCH}")
+        endif()
+        
+        set(AMReX_CUDA_ARCH "${DETECTED_CUDA_ARCH}" CACHE STRING "CUDA arch from CMAKE_CUDA_ARCH")
+        message(STATUS "  AMReX_CUDA_ARCH = ${DETECTED_CUDA_ARCH} (from CMAKE_CUDA_ARCH=${ENV_CUDA_ARCH})")
+        erf_cray_verbose("Converted CMAKE_CUDA_ARCH=${ENV_CUDA_ARCH} -> AMReX_CUDA_ARCH=${DETECTED_CUDA_ARCH}")
+        
+    elseif(DEFINED ENV{CRAY_ACCEL_TARGET})
+        # Auto-detect from Cray accelerator module (set by 'module load gpu')
+        set(CRAY_ACCEL_TARGET "$ENV{CRAY_ACCEL_TARGET}")
+        message(STATUS "  Detected CRAY_ACCEL_TARGET = ${CRAY_ACCEL_TARGET}")
+        
+        if(CRAY_ACCEL_TARGET STREQUAL "nvidia70")
+            set(AMReX_CUDA_ARCH "7.0" CACHE STRING "CUDA arch from CRAY_ACCEL_TARGET")
+            message(STATUS "  AMReX_CUDA_ARCH = 7.0 (Tesla V100 from CRAY_ACCEL_TARGET)")
+        elseif(CRAY_ACCEL_TARGET STREQUAL "nvidia80")
+            set(AMReX_CUDA_ARCH "8.0" CACHE STRING "CUDA arch from CRAY_ACCEL_TARGET")
+            message(STATUS "  AMReX_CUDA_ARCH = 8.0 (A100 from CRAY_ACCEL_TARGET)")
+        elseif(CRAY_ACCEL_TARGET STREQUAL "nvidia90")
+            set(AMReX_CUDA_ARCH "9.0" CACHE STRING "CUDA arch from CRAY_ACCEL_TARGET")
+            message(STATUS "  AMReX_CUDA_ARCH = 9.0 (H100 from CRAY_ACCEL_TARGET)")
+        else()
+            message(WARNING "ERF: Unknown CRAY_ACCEL_TARGET = ${CRAY_ACCEL_TARGET}")
+        endif()
+        erf_cray_verbose("AMReX CUDA arch from CRAY_ACCEL_TARGET module variable")
     else()
         message(WARNING "")
-        message(WARNING "ERF: AMReX_CUDA_ARCH not set")
-        message(WARNING "  CMake will use default architecture (may not be optimal)")
-        message(WARNING "  For Perlmutter A100 GPUs, set:")
-        message(WARNING "    -DAMReX_CUDA_ARCH=8.0")
+        message(WARNING "ERF: AMReX_CUDA_ARCH not detected")
+        message(WARNING "  For Perlmutter: module load gpu")
+        message(WARNING "  Or set: export CMAKE_CUDA_ARCH=80")
+        message(WARNING "  Or set: -DAMReX_CUDA_ARCH=8.0")
         message(WARNING "")
-        erf_cray_verbose("GPU architecture not set - CMake will use defaults")
     endif()
     
-    # Important note about Kokkos/EKAT
+    # -------------------------------------------------------------------------
+    # Detect Kokkos architecture (for EKAT builds)
+    # Priority: CMake var > KOKKOS_GPU_ARCH env > CRAY_ACCEL_TARGET
+    # -------------------------------------------------------------------------
+    
     if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
         message(STATUS "")
-        message(STATUS "  Note: EKAT/Kokkos will use:")
-        message(STATUS "    - CMAKE_CUDA_COMPILER for nvcc detection")
-        message(STATUS "    - CMAKE_CUDA_FLAGS for compilation flags")
-        message(STATUS "    - Fix 1 will add Cray-specific flags automatically")
-        erf_cray_verbose("EKAT-based physics enabled - Kokkos will read CMAKE_CUDA_* variables")
+        message(STATUS "  EKAT-based physics enabled, checking Kokkos architecture...")
+        
+        # Check if user already set Kokkos_ARCH_* via CMake
+        set(KOKKOS_ARCH_SET FALSE)
+        if(Kokkos_ARCH_VOLTA70 OR Kokkos_ARCH_AMPERE80 OR Kokkos_ARCH_HOPPER90)
+            set(KOKKOS_ARCH_SET TRUE)
+            message(STATUS "    Kokkos_ARCH_* already set by user")
+            erf_cray_verbose("User specified Kokkos architecture via CMake variable")
+            
+        elseif(DEFINED ENV{KOKKOS_GPU_ARCH})
+            # Detect from KOKKOS_GPU_ARCH environment variable (build scripts)
+            set(KOKKOS_GPU_ARCH_ENV "$ENV{KOKKOS_GPU_ARCH}")
+            message(STATUS "    Detected KOKKOS_GPU_ARCH = ${KOKKOS_GPU_ARCH_ENV}")
+            
+            # Map to Kokkos_ARCH_* CMake variable
+            if(KOKKOS_GPU_ARCH_ENV STREQUAL "VOLTA70")
+                set(Kokkos_ARCH_VOLTA70 ON CACHE BOOL "Kokkos arch from KOKKOS_GPU_ARCH")
+                message(STATUS "    Set Kokkos_ARCH_VOLTA70 = ON")
+                set(KOKKOS_ARCH_SET TRUE)
+                erf_cray_verbose("Mapped KOKKOS_GPU_ARCH=VOLTA70 -> Kokkos_ARCH_VOLTA70=ON")
+                
+            elseif(KOKKOS_GPU_ARCH_ENV STREQUAL "AMPERE80")
+                set(Kokkos_ARCH_AMPERE80 ON CACHE BOOL "Kokkos arch from KOKKOS_GPU_ARCH")
+                message(STATUS "    Set Kokkos_ARCH_AMPERE80 = ON")
+                set(KOKKOS_ARCH_SET TRUE)
+                erf_cray_verbose("Mapped KOKKOS_GPU_ARCH=AMPERE80 -> Kokkos_ARCH_AMPERE80=ON")
+                
+            elseif(KOKKOS_GPU_ARCH_ENV STREQUAL "HOPPER90")
+                set(Kokkos_ARCH_HOPPER90 ON CACHE BOOL "Kokkos arch from KOKKOS_GPU_ARCH")
+                message(STATUS "    Set Kokkos_ARCH_HOPPER90 = ON")
+                set(KOKKOS_ARCH_SET TRUE)
+                erf_cray_verbose("Mapped KOKKOS_GPU_ARCH=HOPPER90 -> Kokkos_ARCH_HOPPER90=ON")
+                
+            else()
+                message(WARNING "ERF: Unknown KOKKOS_GPU_ARCH = ${KOKKOS_GPU_ARCH_ENV}")
+                message(WARNING "  Expected: VOLTA70, AMPERE80, or HOPPER90")
+            endif()
+            
+        elseif(DEFINED ENV{CRAY_ACCEL_TARGET})
+            # Fall back to CRAY_ACCEL_TARGET (set by 'module load gpu')
+            set(CRAY_ACCEL_TARGET "$ENV{CRAY_ACCEL_TARGET}")
+            
+            if(CRAY_ACCEL_TARGET STREQUAL "nvidia70")
+                set(Kokkos_ARCH_VOLTA70 ON CACHE BOOL "Kokkos arch from CRAY_ACCEL_TARGET")
+                message(STATUS "    Set Kokkos_ARCH_VOLTA70 = ON (from CRAY_ACCEL_TARGET)")
+                set(KOKKOS_ARCH_SET TRUE)
+                erf_cray_verbose("Mapped CRAY_ACCEL_TARGET=nvidia70 -> Kokkos_ARCH_VOLTA70=ON")
+                
+            elseif(CRAY_ACCEL_TARGET STREQUAL "nvidia80")
+                set(Kokkos_ARCH_AMPERE80 ON CACHE BOOL "Kokkos arch from CRAY_ACCEL_TARGET")
+                message(STATUS "    Set Kokkos_ARCH_AMPERE80 = ON (from CRAY_ACCEL_TARGET)")
+                set(KOKKOS_ARCH_SET TRUE)
+                erf_cray_verbose("Mapped CRAY_ACCEL_TARGET=nvidia80 -> Kokkos_ARCH_AMPERE80=ON")
+                
+            elseif(CRAY_ACCEL_TARGET STREQUAL "nvidia90")
+                set(Kokkos_ARCH_HOPPER90 ON CACHE BOOL "Kokkos arch from CRAY_ACCEL_TARGET")
+                message(STATUS "    Set Kokkos_ARCH_HOPPER90 = ON (from CRAY_ACCEL_TARGET)")
+                set(KOKKOS_ARCH_SET TRUE)
+                erf_cray_verbose("Mapped CRAY_ACCEL_TARGET=nvidia90 -> Kokkos_ARCH_HOPPER90=ON")
+            endif()
+        endif()
+        
+        if(NOT KOKKOS_ARCH_SET)
+            message(WARNING "")
+            message(WARNING "ERF: Kokkos architecture not detected")
+            message(WARNING "  For Perlmutter: module load gpu")
+            message(WARNING "  Or set: export KOKKOS_GPU_ARCH=AMPERE80")
+            message(WARNING "  Or set: -DKokkos_ARCH_AMPERE80=ON")
+            message(WARNING "")
+        else()
+            message(STATUS "")
+            message(STATUS "    Note: After Kokkos configures, CMAKE_CUDA_ARCHITECTURES")
+            message(STATUS "          will be set from Kokkos_CUDA_ARCHITECTURES")
+            erf_cray_verbose("Kokkos will set CMAKE_CUDA_ARCHITECTURES when CUDA language is enabled")
+        endif()
     endif()
     
     message(STATUS "")
