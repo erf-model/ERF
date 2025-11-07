@@ -30,6 +30,9 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
 include(CMakePackageConfigHelpers)
 
+# Include Cray/Perlmutter auto-detection and fixes
+include(CrayDetection)
+
 ########################## OPTIONS #####################################
 
 #General options for all executables in the project

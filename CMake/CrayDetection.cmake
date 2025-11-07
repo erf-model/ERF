@@ -1,0 +1,618 @@
+# ==============================================================================
+# Cray System Auto-Detection and Workarounds
+# ==============================================================================
+# This module detects Cray systems and automatically applies workarounds for
+# common build issues. Each fix corresponds to a checklist item.
+#
+# Options:
+#   -DERF_DISABLE_CRAY_AUTO_FIXES=ON   : Disable automatic Cray system fixes
+#   -DERF_VERBOSE_CRAY_FIXES=ON        : Show detailed info for each fix
+# ==============================================================================
+
+option(ERF_DISABLE_CRAY_AUTO_FIXES "Disable automatic Cray system fixes" OFF)
+option(ERF_VERBOSE_CRAY_FIXES "Show verbose output for Cray fixes" OFF)
+
+# Helper macro for verbose messages
+macro(erf_cray_verbose)
+    if(ERF_VERBOSE_CRAY_FIXES)
+        message(STATUS "  [VERBOSE] ${ARGN}")
+    endif()
+endmacro()
+
+if(ERF_DISABLE_CRAY_AUTO_FIXES)
+    message(STATUS "ERF: Cray auto-fixes disabled by user")
+    return()
+endif()
+
+# ==============================================================================
+# Detect Cray Environment
+# ==============================================================================
+
+set(ERF_ON_CRAY FALSE)
+
+erf_cray_verbose("Checking for Cray environment...")
+
+# Check for Cray compiler wrappers
+if(CMAKE_C_COMPILER MATCHES ".*cc$" AND 
+   CMAKE_CXX_COMPILER MATCHES ".*CC$" AND
+   DEFINED ENV{CRAY_MPICH_DIR})
+    set(ERF_ON_CRAY TRUE)
+    message(STATUS "ERF: Detected Cray system")
+    message(STATUS "  CMAKE_C_COMPILER   = ${CMAKE_C_COMPILER}")
+    message(STATUS "  CMAKE_CXX_COMPILER = ${CMAKE_CXX_COMPILER}")
+    message(STATUS "  CRAY_MPICH_DIR     = $ENV{CRAY_MPICH_DIR}")
+    erf_cray_verbose("Detection method: Cray compiler wrappers (cc, CC) + CRAY_MPICH_DIR")
+endif()
+
+# Additional check for Cray environment variables
+if(DEFINED ENV{CRAYPE_VERSION})
+    set(ERF_ON_CRAY TRUE)
+    message(STATUS "ERF: Detected Cray Programming Environment")
+    message(STATUS "  CRAYPE_VERSION = $ENV{CRAYPE_VERSION}")
+    erf_cray_verbose("Detection method: CRAYPE_VERSION environment variable")
+endif()
+
+if(NOT ERF_ON_CRAY)
+    message(STATUS "ERF: Not on a Cray system, skipping Cray-specific fixes")
+    erf_cray_verbose("CMAKE_C_COMPILER = ${CMAKE_C_COMPILER}")
+    erf_cray_verbose("CMAKE_CXX_COMPILER = ${CMAKE_CXX_COMPILER}")
+    erf_cray_verbose("CRAY_MPICH_DIR = $ENV{CRAY_MPICH_DIR}")
+    erf_cray_verbose("CRAYPE_VERSION = $ENV{CRAYPE_VERSION}")
+    return()
+endif()
+
+# ==============================================================================
+# Prerequisite Checks
+# ==============================================================================
+
+message(STATUS "ERF: Checking Cray prerequisites...")
+
+# -----------------------------------------------------------------------------
+# CMake Version Check
+# -----------------------------------------------------------------------------
+# Cray systems work best with CMake 3.24.5+
+# Earlier versions may have issues with Cray wrappers and CUDA
+
+set(ERF_RECOMMENDED_CMAKE_VERSION "3.24.5")
+
+if(CMAKE_VERSION VERSION_LESS ${ERF_RECOMMENDED_CMAKE_VERSION})
+    message(WARNING "")
+    message(WARNING "ERF: CMake version ${CMAKE_VERSION} detected")
+    message(WARNING "  Recommended minimum for Cray systems: ${ERF_RECOMMENDED_CMAKE_VERSION}")
+    message(WARNING "  You may experience issues with Cray compiler wrappers and CUDA")
+    message(WARNING "")
+    message(WARNING "  To fix:")
+    message(WARNING "    module load cmake/3.30.2    # or later")
+    message(WARNING "")
+    
+    erf_cray_verbose("Current CMake: ${CMAKE_VERSION}")
+    erf_cray_verbose("Recommended: ${ERF_RECOMMENDED_CMAKE_VERSION}+")
+    erf_cray_verbose("Known issues with older CMake on Cray:")
+    erf_cray_verbose("  - CUDA language detection failures")
+    erf_cray_verbose("  - Incorrect compiler wrapper handling")
+    erf_cray_verbose("  - Missing Cray-specific find modules")
+else()
+    message(STATUS "  CMake version ${CMAKE_VERSION} >= ${ERF_RECOMMENDED_CMAKE_VERSION} ✓")
+    erf_cray_verbose("CMake version check passed")
+endif()
+
+# -----------------------------------------------------------------------------
+# CUDA Toolkit Check
+# -----------------------------------------------------------------------------
+# When building with CUDA, the cudatoolkit module should be loaded
+# This sets CUDA_HOME and other necessary environment variables
+
+if(ERF_ENABLE_CUDA)
+    message(STATUS "  Checking for CUDA toolkit...")
+    
+    set(CUDA_TOOLKIT_LOADED FALSE)
+    
+    # Check for CUDA_HOME (set by cudatoolkit module)
+    if(DEFINED ENV{CUDA_HOME})
+        message(STATUS "    CUDA_HOME = $ENV{CUDA_HOME} ✓")
+        set(CUDA_TOOLKIT_LOADED TRUE)
+        erf_cray_verbose("CUDA toolkit appears to be loaded (CUDA_HOME set)")
+    endif()
+    
+    # Additional check for CUDATOOLKIT_HOME (alternative Cray variable)
+    if(DEFINED ENV{CUDATOOLKIT_HOME})
+        message(STATUS "    CUDATOOLKIT_HOME = $ENV{CUDATOOLKIT_HOME} ✓")
+        set(CUDA_TOOLKIT_LOADED TRUE)
+        erf_cray_verbose("CUDA toolkit appears to be loaded (CUDATOOLKIT_HOME set)")
+    endif()
+    
+    # Check for nvcc in PATH
+    find_program(NVCC_EXECUTABLE nvcc)
+    if(NVCC_EXECUTABLE)
+        message(STATUS "    Found nvcc: ${NVCC_EXECUTABLE} ✓")
+        set(CUDA_TOOLKIT_LOADED TRUE)
+        erf_cray_verbose("nvcc found in PATH")
+    endif()
+    
+    # Warn if CUDA toolkit doesn't appear to be loaded
+    if(NOT CUDA_TOOLKIT_LOADED)
+        message(WARNING "")
+        message(WARNING "ERF: CUDA enabled but CUDA toolkit not detected")
+        message(WARNING "  Expected environment variables not found:")
+        message(WARNING "    - CUDA_HOME")
+        message(WARNING "    - CUDATOOLKIT_HOME")
+        message(WARNING "    - nvcc in PATH")
+        message(WARNING "")
+        message(WARNING "  To fix:")
+        message(WARNING "    module load cudatoolkit")
+        message(WARNING "  Or on newer systems:")
+        message(WARNING "    module load cuda")
+        message(WARNING "")
+        message(WARNING "  Build may fail with CUDA-related errors")
+        message(WARNING "")
+        
+        erf_cray_verbose("CUDA_HOME = $ENV{CUDA_HOME}")
+        erf_cray_verbose("CUDATOOLKIT_HOME = $ENV{CUDATOOLKIT_HOME}")
+        erf_cray_verbose("nvcc search result: ${NVCC_EXECUTABLE}")
+    endif()
+    
+    # Check CUDA architecture is set for GPU builds
+    if(NOT AMReX_CUDA_ARCH AND NOT DEFINED ENV{AMREX_CUDA_ARCH})
+        message(WARNING "")
+        message(WARNING "ERF: CUDA enabled but GPU architecture not specified")
+        message(WARNING "  Set AMReX_CUDA_ARCH for optimal performance")
+        message(WARNING "  For Perlmutter A100 GPUs:")
+        message(WARNING "    -DAMReX_CUDA_ARCH=8.0")
+        message(WARNING "  Or set in environment:")
+        message(WARNING "    export AMREX_CUDA_ARCH=8.0")
+        message(WARNING "")
+        
+        erf_cray_verbose("AMReX_CUDA_ARCH not set (will use CMake default)")
+    else()
+        if(AMReX_CUDA_ARCH)
+            message(STATUS "    AMReX_CUDA_ARCH = ${AMReX_CUDA_ARCH} ✓")
+        else()
+            message(STATUS "    AMREX_CUDA_ARCH = $ENV{AMREX_CUDA_ARCH} ✓")
+        endif()
+    endif()
+else()
+    erf_cray_verbose("CUDA not enabled, skipping CUDA toolkit checks")
+endif()
+
+# -----------------------------------------------------------------------------
+# NetCDF Module Check
+# -----------------------------------------------------------------------------
+
+if(ERF_ENABLE_NETCDF)
+    message(STATUS "  Checking for NetCDF...")
+    
+    set(NETCDF_LOADED FALSE)
+    
+    if(DEFINED ENV{NETCDF_DIR})
+        message(STATUS "    NETCDF_DIR = $ENV{NETCDF_DIR} ✓")
+        set(NETCDF_LOADED TRUE)
+    endif()
+    
+    if(NOT NETCDF_LOADED)
+        message(WARNING "")
+        message(WARNING "ERF: NetCDF enabled but NETCDF_DIR not set")
+        message(WARNING "  To fix:")
+        message(WARNING "    module load cray-netcdf-hdf5parallel")
+        message(WARNING "  Or:")
+        message(WARNING "    module load cray-netcdf")
+        message(WARNING "")
+        
+        erf_cray_verbose("NETCDF_DIR not found in environment")
+    endif()
+else()
+    erf_cray_verbose("NetCDF not enabled, skipping NetCDF checks")
+endif()
+
+# -----------------------------------------------------------------------------
+# Module Environment Summary
+# -----------------------------------------------------------------------------
+
+if(ERF_VERBOSE_CRAY_FIXES)
+    message(STATUS "")
+    message(STATUS "[VERBOSE] Key environment variables:")
+    message(STATUS "[VERBOSE]   CRAYPE_VERSION      = $ENV{CRAYPE_VERSION}")
+    message(STATUS "[VERBOSE]   CRAY_MPICH_DIR      = $ENV{CRAY_MPICH_DIR}")
+    message(STATUS "[VERBOSE]   MPICH_DIR           = $ENV{MPICH_DIR}")
+    message(STATUS "[VERBOSE]   CUDA_HOME           = $ENV{CUDA_HOME}")
+    message(STATUS "[VERBOSE]   CUDATOOLKIT_HOME    = $ENV{CUDATOOLKIT_HOME}")
+    message(STATUS "[VERBOSE]   NETCDF_DIR          = $ENV{NETCDF_DIR}")
+    message(STATUS "[VERBOSE]   HDF5_DIR            = $ENV{HDF5_DIR}")
+    message(STATUS "[VERBOSE]   MPICH_GPU_SUPPORT   = $ENV{MPICH_GPU_SUPPORT_ENABLED}")
+    message(STATUS "")
+endif()
+
+message(STATUS "")
+
+# ==============================================================================
+# Fix 1: CUDA + EKAT -> nvcc_wrapper complications (Checklist Item 1)
+# ==============================================================================
+# PROBLEM: When building with EKAT, we get nvcc_wrapper which can cause 
+#          "mpi.h not found" errors because nvcc_wrapper doesn't know about
+#          Cray's include paths
+# SOLUTION: Add Cray compiler flags to CUDA compilation via --cray-print-opts
+
+if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3))
+    message(STATUS "ERF: [Fix 1] Applying CUDA+EKAT nvcc_wrapper fix")
+    
+    erf_cray_verbose("Problem: EKAT uses nvcc_wrapper which doesn't inherit Cray paths")
+    erf_cray_verbose("Condition: ERF_ENABLE_CUDA=ON and (RRTMGP or SHOC or P3 enabled)")
+    erf_cray_verbose("Solution: Add Cray-specific flags from 'CC --cray-print-opts=cflags'")
+    
+    # Get Cray-specific flags
+    execute_process(
+        COMMAND ${CMAKE_CXX_COMPILER} --cray-print-opts=cflags
+        OUTPUT_VARIABLE CRAY_CUDA_FLAGS
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE CRAY_CUDA_FLAGS_RESULT
+    )
+    
+    if(CRAY_CUDA_FLAGS_RESULT EQUAL 0 AND CRAY_CUDA_FLAGS)
+        message(STATUS "  Adding Cray flags to CUDA compilation")
+        erf_cray_verbose("Retrieved flags: ${CRAY_CUDA_FLAGS}")
+        erf_cray_verbose("Command used: ${CMAKE_CXX_COMPILER} --cray-print-opts=cflags")
+        
+        if(CMAKE_CUDA_FLAGS)
+            erf_cray_verbose("Appending to existing CMAKE_CUDA_FLAGS: ${CMAKE_CUDA_FLAGS}")
+            set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CRAY_CUDA_FLAGS}" CACHE STRING "" FORCE)
+        else()
+            erf_cray_verbose("Setting new CMAKE_CUDA_FLAGS")
+            set(CMAKE_CUDA_FLAGS "${CRAY_CUDA_FLAGS}" CACHE STRING "" FORCE)
+        endif()
+        
+        erf_cray_verbose("Final CMAKE_CUDA_FLAGS: ${CMAKE_CUDA_FLAGS}")
+    else()
+        message(WARNING "ERF: Could not retrieve Cray CUDA flags")
+        message(WARNING "  Command attempted: ${CMAKE_CXX_COMPILER} --cray-print-opts=cflags")
+        message(WARNING "  Return code: ${CRAY_CUDA_FLAGS_RESULT}")
+        message(WARNING "  You may need to set CMAKE_CUDA_FLAGS manually")
+        message(WARNING "  Example: -DCMAKE_CUDA_FLAGS=\"\$(CC --cray-print-opts=cflags)\"")
+    endif()
+else()
+    erf_cray_verbose("Fix 1 not needed (CUDA+EKAT not both enabled)")
+endif()
+
+# ==============================================================================
+# Fix 2: FCOMPARE + Cray -> mpi_gnu_123 not found (Checklist Item 2)
+# ==============================================================================
+# PROBLEM: When building with fcompare, Cray's --as-needed linker flag causes
+#          the linker to drop MPI libraries it thinks aren't needed, leading to
+#          "cannot find -lmpi_gnu_123" errors
+# SOLUTION: Remove --as-needed from Cray library flags and add --no-as-needed
+
+if(ERF_ENABLE_FCOMPARE)
+    message(STATUS "ERF: [Fix 2] Applying fcompare linker fix")
+    
+    erf_cray_verbose("Problem: Cray uses --as-needed which drops required MPI libs")
+    erf_cray_verbose("Condition: ERF_ENABLE_FCOMPARE=ON")
+    erf_cray_verbose("Solution: Clean Cray lib flags and add --no-as-needed")
+    
+    # Get Cray library paths and clean them
+    set(CRAY_LIBS_CLEAN "")
+    set(COMPILERS_CHECKED "")
+    
+    foreach(COMPILER IN ITEMS ${CMAKE_CXX_COMPILER} ${CMAKE_C_COMPILER} ${CMAKE_Fortran_COMPILER})
+        if(EXISTS ${COMPILER})
+            erf_cray_verbose("Checking compiler: ${COMPILER}")
+            
+            execute_process(
+                COMMAND ${COMPILER} --cray-print-opts=libs
+                OUTPUT_VARIABLE COMPILER_LIBS
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+                RESULT_VARIABLE COMPILER_LIBS_RESULT
+            )
+            
+            if(COMPILER_LIBS_RESULT EQUAL 0)
+                erf_cray_verbose("  Original libs: ${COMPILER_LIBS}")
+                
+                # Remove problematic --as-needed flags
+                string(REGEX REPLACE "-Wl,--as-needed," "" COMPILER_LIBS "${COMPILER_LIBS}")
+                string(REGEX REPLACE ",--no-as-needed" "" COMPILER_LIBS "${COMPILER_LIBS}")
+                string(REGEX REPLACE ",-l" " -l" COMPILER_LIBS "${COMPILER_LIBS}")
+                
+                erf_cray_verbose("  Cleaned libs:  ${COMPILER_LIBS}")
+                
+                set(CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN} ${COMPILER_LIBS}")
+                list(APPEND COMPILERS_CHECKED ${COMPILER})
+            else()
+                erf_cray_verbose("  Failed to get libs from ${COMPILER}")
+            endif()
+        endif()
+    endforeach()
+    
+    if(CRAY_LIBS_CLEAN)
+        message(STATUS "  Adding Cray linker flags: -Wl,--no-as-needed + libs")
+        erf_cray_verbose("Compilers checked: ${COMPILERS_CHECKED}")
+        erf_cray_verbose("Combined cleaned libs: ${CRAY_LIBS_CLEAN}")
+        erf_cray_verbose("Final linker flags: -Wl,--no-as-needed ${CRAY_LIBS_CLEAN}")
+        
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--no-as-needed ${CRAY_LIBS_CLEAN}" 
+            CACHE STRING "" FORCE)
+            
+        erf_cray_verbose("CMAKE_EXE_LINKER_FLAGS updated")
+    else()
+        message(WARNING "ERF: Could not retrieve Cray library paths")
+        message(WARNING "  Fcompare may fail to link with: cannot find -lmpi_gnu_123")
+        message(WARNING "  Workaround: Set CMAKE_EXE_LINKER_FLAGS manually")
+        message(WARNING "  Example: -DCMAKE_EXE_LINKER_FLAGS=\"-Wl,--no-as-needed \$CRAY_LIBS_CLEAN\"")
+        erf_cray_verbose("No compilers returned valid library flags")
+    endif()
+else()
+    erf_cray_verbose("Fix 2 not needed (ERF_ENABLE_FCOMPARE=OFF)")
+endif()
+
+# ==============================================================================
+# Fix 3: CUDA without cmake module -> math libs not found (Checklist Item 3)
+# ==============================================================================
+# PROBLEM: If 'module load cmake' isn't run, CMAKE_PREFIX_PATH may not include
+#          CUDA math libraries path, causing link errors for cuBLAS, cuRAND, etc.
+# SOLUTION: Add $CUDA_HOME/../../math_libs/lib64 to CMAKE_PREFIX_PATH
+
+if(ERF_ENABLE_CUDA AND DEFINED ENV{CUDA_HOME})
+    set(CUDA_MATH_PATH "$ENV{CUDA_HOME}/../../math_libs/lib64")
+    
+    erf_cray_verbose("Checking for CUDA math libraries...")
+    erf_cray_verbose("CUDA_HOME = $ENV{CUDA_HOME}")
+    erf_cray_verbose("Expected math libs path: ${CUDA_MATH_PATH}")
+    
+    if(EXISTS ${CUDA_MATH_PATH})
+        message(STATUS "ERF: [Fix 3] Adding CUDA math libraries path")
+        message(STATUS "  ${CUDA_MATH_PATH}")
+        
+        erf_cray_verbose("Problem: CUDA math libs may not be in default search path")
+        erf_cray_verbose("Condition: ERF_ENABLE_CUDA=ON and CUDA_HOME set")
+        erf_cray_verbose("Solution: Add CUDA_HOME/../../math_libs/lib64 to CMAKE_PREFIX_PATH")
+        erf_cray_verbose("Path exists: YES")
+        
+        list(APPEND CMAKE_PREFIX_PATH ${CUDA_MATH_PATH})
+        set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} CACHE STRING "" FORCE)
+        
+        erf_cray_verbose("CMAKE_PREFIX_PATH updated: ${CMAKE_PREFIX_PATH}")
+    else()
+        message(WARNING "ERF: CUDA math libs path not found at ${CUDA_MATH_PATH}")
+        message(WARNING "  You may need to 'module load cuda' or set CMAKE_PREFIX_PATH manually")
+        message(WARNING "  Expected libraries: cuBLAS, cuRAND, cuSPARSE, etc.")
+        erf_cray_verbose("Path exists: NO")
+        erf_cray_verbose("This may cause link errors for CUDA math libraries")
+    endif()
+else()
+    if(ERF_ENABLE_CUDA AND NOT DEFINED ENV{CUDA_HOME})
+        message(WARNING "ERF: CUDA enabled but CUDA_HOME not set")
+        message(WARNING "  Math libraries may not be found")
+        message(WARNING "  Solution: Load CUDA module or set CUDA_HOME")
+        erf_cray_verbose("CUDA_HOME not set in environment")
+    else()
+        erf_cray_verbose("Fix 3 not needed (ERF_ENABLE_CUDA=OFF)")
+    endif()
+endif()
+
+# ==============================================================================
+# Fix 4: GPU-aware MPI with Cray GTL (Checklist Item 4)
+# ==============================================================================
+# PROBLEM: GPU-aware MPI on Cray requires linking against mpi_gtl_cuda library
+#          which enables GPU Transfer Library for direct GPU-GPU communication
+# SOLUTION: Detect GPU-aware MPI and add GTL libraries to link flags
+
+if(ERF_ENABLE_CUDA AND ERF_ENABLE_MPI AND DEFINED ENV{MPICH_GPU_SUPPORT_ENABLED})
+    message(STATUS "ERF: [Fix 4] Applying GPU-aware MPI fix (Cray GTL)")
+    
+    erf_cray_verbose("Problem: GPU-aware MPI needs Cray GTL libraries")
+    erf_cray_verbose("Condition: CUDA + MPI + MPICH_GPU_SUPPORT_ENABLED=1")
+    erf_cray_verbose("Solution: Add -lmpi_gnu_123 -lmpi_gtl_cuda to link flags")
+    erf_cray_verbose("MPICH_GPU_SUPPORT_ENABLED = $ENV{MPICH_GPU_SUPPORT_ENABLED}")
+    
+    # Detect MPI library version for correct library name
+    # TODO: Could auto-detect the actual version instead of hardcoding _gnu_123
+    set(CRAY_MPI_LIBS "-lmpi_gnu_123 -lmpi_gtl_cuda")
+    
+    erf_cray_verbose("Looking for mpi_gtl_cuda library...")
+    if(DEFINED ENV{MPICH_DIR})
+        erf_cray_verbose("MPICH_DIR = $ENV{MPICH_DIR}")
+    endif()
+    
+    # Check if the libraries exist
+    find_library(CRAY_MPI_GTL_CUDA mpi_gtl_cuda HINTS ENV MPICH_DIR PATH_SUFFIXES lib)
+    
+    if(CRAY_MPI_GTL_CUDA)
+        message(STATUS "  Found Cray GPU-aware MPI library: ${CRAY_MPI_GTL_CUDA}")
+        erf_cray_verbose("Adding to CMAKE_CUDA_STANDARD_LIBRARIES")
+        erf_cray_verbose("Adding to CMAKE_CXX_STANDARD_LIBRARIES")
+        
+        set(CMAKE_CUDA_STANDARD_LIBRARIES "${CMAKE_CUDA_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
+            CACHE STRING "" FORCE)
+        set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
+            CACHE STRING "" FORCE)
+            
+        erf_cray_verbose("CMAKE_CUDA_STANDARD_LIBRARIES: ${CMAKE_CUDA_STANDARD_LIBRARIES}")
+        erf_cray_verbose("CMAKE_CXX_STANDARD_LIBRARIES: ${CMAKE_CXX_STANDARD_LIBRARIES}")
+    else()
+        message(WARNING "ERF: GPU-aware MPI requested but GTL libraries not found")
+        message(WARNING "  Set MPICH_GPU_SUPPORT_ENABLED=1 and check MPICH_DIR")
+        message(WARNING "  Manual workaround: -DCMAKE_CUDA_STANDARD_LIBRARIES=\"${CRAY_MPI_LIBS}\"")
+        message(WARNING "                     -DCMAKE_CXX_STANDARD_LIBRARIES=\"${CRAY_MPI_LIBS}\"")
+        erf_cray_verbose("Search paths: $ENV{MPICH_DIR}/lib")
+        erf_cray_verbose("Library not found: mpi_gtl_cuda")
+    endif()
+else()
+    if(ERF_ENABLE_CUDA AND ERF_ENABLE_MPI)
+        erf_cray_verbose("Fix 4 not applied: MPICH_GPU_SUPPORT_ENABLED not set")
+        erf_cray_verbose("Set MPICH_GPU_SUPPORT_ENABLED=1 to enable GPU-aware MPI")
+    else()
+        erf_cray_verbose("Fix 4 not needed (CUDA+MPI not both enabled)")
+    endif()
+endif()
+
+# ==============================================================================
+# Fix 5-6: NetCDF with cray-netcdf-hdf5parallel (Checklist Items 5-6)
+# ==============================================================================
+# PROBLEM 5: Cray NetCDF may use different C++ library names or structures
+# PROBLEM 6: pkg-config may not find MPI/NetCDF without correct PKG_CONFIG_PATH
+# SOLUTION: Set up pkg-config path and add NetCDF/HDF5 directories to search
+
+if(ERF_ENABLE_NETCDF AND DEFINED ENV{MPICH_DIR})
+    message(STATUS "ERF: [Fix 5-6] Configuring NetCDF with Cray paths")
+    
+    erf_cray_verbose("Problem 5: Cray NetCDF may have non-standard library names")
+    erf_cray_verbose("Problem 6: pkg-config needs MPICH_DIR in PKG_CONFIG_PATH")
+    erf_cray_verbose("Condition: ERF_ENABLE_NETCDF=ON and MPICH_DIR set")
+    erf_cray_verbose("Solution: Set PKG_CONFIG_PATH and add search paths")
+    
+    # Add MPICH pkg-config path
+    set(PKG_CONFIG_PATH "$ENV{MPICH_DIR}/lib/pkgconfig")
+    if(DEFINED ENV{PKG_CONFIG_PATH})
+        set(PKG_CONFIG_PATH "${PKG_CONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
+        erf_cray_verbose("Appending to existing PKG_CONFIG_PATH")
+    else()
+        erf_cray_verbose("Creating new PKG_CONFIG_PATH")
+    endif()
+    set(ENV{PKG_CONFIG_PATH} ${PKG_CONFIG_PATH})
+    
+    message(STATUS "  PKG_CONFIG_PATH = ${PKG_CONFIG_PATH}")
+    erf_cray_verbose("This allows cmake/gnumake to find MPI and NetCDF via pkg-config")
+    
+    # Help find NetCDF (may be named differently on Cray)
+    if(DEFINED ENV{NETCDF_DIR})
+        list(APPEND CMAKE_PREFIX_PATH $ENV{NETCDF_DIR})
+        message(STATUS "  Added NETCDF_DIR to search path: $ENV{NETCDF_DIR}")
+        erf_cray_verbose("NetCDF headers/libs will be searched in NETCDF_DIR")
+    else()
+        erf_cray_verbose("NETCDF_DIR not set (may still work via module)")
+    endif()
+    
+    if(DEFINED ENV{HDF5_DIR})
+        list(APPEND CMAKE_PREFIX_PATH $ENV{HDF5_DIR})
+        message(STATUS "  Added HDF5_DIR to search path: $ENV{HDF5_DIR}")
+        erf_cray_verbose("HDF5 headers/libs will be searched in HDF5_DIR")
+    else()
+        erf_cray_verbose("HDF5_DIR not set (may still work via module)")
+    endif()
+    
+    erf_cray_verbose("CMAKE_PREFIX_PATH now includes: ${CMAKE_PREFIX_PATH}")
+else()
+    if(ERF_ENABLE_NETCDF)
+        erf_cray_verbose("Fix 5-6 not fully applied: MPICH_DIR not set")
+        message(WARNING "ERF: NetCDF enabled but MPICH_DIR not set")
+        message(WARNING "  pkg-config may not find MPI libraries")
+        message(WARNING "  Load MPI module or set MPICH_DIR")
+    else()
+        erf_cray_verbose("Fix 5-6 not needed (ERF_ENABLE_NETCDF=OFF)")
+    endif()
+endif()
+
+# ==============================================================================
+# Summary
+# ==============================================================================
+
+message(STATUS "")
+message(STATUS "ERF: Cray system fixes summary")
+message(STATUS "══════════════════════════════════════════════════════════════")
+
+# Fix 1: CUDA + EKAT
+set(FIX1_ACTIVE OFF)
+if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3))
+    set(FIX1_ACTIVE ON)
+endif()
+message(STATUS "  Fix 1 (CUDA+EKAT):     ${FIX1_ACTIVE}")
+if(FIX1_ACTIVE AND CRAY_CUDA_FLAGS)
+    message(STATUS "    Applied Cray CUDA flags:")
+    message(STATUS "      ${CRAY_CUDA_FLAGS}")
+    message(STATUS "")
+    message(STATUS "    Command line equivalent:")
+    message(STATUS "      -DCMAKE_CUDA_FLAGS=\"\$(CC --cray-print-opts=cflags)\"")
+endif()
+
+# Fix 2: fcompare
+message(STATUS "")
+message(STATUS "  Fix 2 (fcompare):      ${ERF_ENABLE_FCOMPARE}")
+if(ERF_ENABLE_FCOMPARE AND CRAY_LIBS_CLEAN)
+    message(STATUS "    Applied Cray library cleanup:")
+    message(STATUS "      ${CRAY_LIBS_CLEAN}")
+    message(STATUS "")
+    message(STATUS "    Command line equivalent:")
+    message(STATUS "      CRAY_LIBS=\"\$(CC --cray-print-opts=libs | sed 's/-Wl,--as-needed,//g; s/,--no-as-needed//g; s/,-l/ -l/g')\"")
+    message(STATUS "      CRAY_LIBS=\"\$CRAY_LIBS \$(cc --cray-print-opts=libs | sed ...)\"")
+    message(STATUS "      CRAY_LIBS=\"\$CRAY_LIBS \$(ftn --cray-print-opts=libs | sed ...)\"")
+    message(STATUS "      -DCMAKE_EXE_LINKER_FLAGS=\"-Wl,--no-as-needed \$CRAY_LIBS\"")
+    message(STATUS "")
+    message(STATUS "    What was actually set:")
+    message(STATUS "      CMAKE_EXE_LINKER_FLAGS=\"-Wl,--no-as-needed ${CRAY_LIBS_CLEAN}\"")
+endif()
+
+# Fix 3: CUDA math libs
+set(FIX3_ACTIVE OFF)
+if(ERF_ENABLE_CUDA AND DEFINED ENV{CUDA_HOME})
+    set(CUDA_MATH_PATH_CHECK "$ENV{CUDA_HOME}/../../math_libs/lib64")
+    if(EXISTS ${CUDA_MATH_PATH_CHECK})
+        set(FIX3_ACTIVE ON)
+    endif()
+endif()
+message(STATUS "")
+message(STATUS "  Fix 3 (CUDA math):     ${FIX3_ACTIVE}")
+if(FIX3_ACTIVE)
+    message(STATUS "    Command line equivalent:")
+    message(STATUS "      -DCMAKE_PREFIX_PATH=\"\$CUDA_HOME/../../math_libs/lib64\"")
+endif()
+
+# Fix 4: GPU-aware MPI
+set(FIX4_ACTIVE OFF)
+if(ERF_ENABLE_CUDA AND ERF_ENABLE_MPI AND DEFINED ENV{MPICH_GPU_SUPPORT_ENABLED})
+    if(CRAY_MPI_GTL_CUDA)
+        set(FIX4_ACTIVE ON)
+    endif()
+endif()
+message(STATUS "")
+message(STATUS "  Fix 4 (GPU-aware MPI): ${FIX4_ACTIVE}")
+if(FIX4_ACTIVE)
+    message(STATUS "    Command line equivalent:")
+    message(STATUS "      export MPICH_GPU_SUPPORT_ENABLED=1")
+    message(STATUS "      -DCMAKE_CUDA_STANDARD_LIBRARIES=\"-lmpi_gnu_123 -lmpi_gtl_cuda\"")
+    message(STATUS "      -DCMAKE_CXX_STANDARD_LIBRARIES=\"-lmpi_gnu_123 -lmpi_gtl_cuda\"")
+endif()
+
+# Fix 5-6: NetCDF
+set(FIX56_ACTIVE OFF)
+if(ERF_ENABLE_NETCDF AND DEFINED ENV{MPICH_DIR})
+    set(FIX56_ACTIVE ON)
+endif()
+message(STATUS "")
+message(STATUS "  Fix 5-6 (NetCDF):      ${FIX56_ACTIVE}")
+if(FIX56_ACTIVE)
+    message(STATUS "    Command line equivalent:")
+    message(STATUS "      export PKG_CONFIG_PATH=\"\$MPICH_DIR/lib/pkgconfig:\$PKG_CONFIG_PATH\"")
+    if(DEFINED ENV{NETCDF_DIR})
+        message(STATUS "      -DCMAKE_PREFIX_PATH=\"\$NETCDF_DIR\"")
+    endif()
+    if(DEFINED ENV{HDF5_DIR})
+        message(STATUS "      -DCMAKE_PREFIX_PATH=\"\$CMAKE_PREFIX_PATH:\$HDF5_DIR\"")
+    endif()
+endif()
+
+message(STATUS "")
+message(STATUS "══════════════════════════════════════════════════════════════")
+message(STATUS "  To disable auto-fixes: -DERF_DISABLE_CRAY_AUTO_FIXES=ON")
+message(STATUS "  To see verbose output: -DERF_VERBOSE_CRAY_FIXES=ON")
+message(STATUS "  To override any fix:   Set the corresponding CMAKE_* variable explicitly")
+message(STATUS "")
+message(STATUS "  Complete manual equivalent (all active fixes):")
+message(STATUS "  ------------------------------------------------")
+if(FIX1_ACTIVE)
+message(STATUS "  -DCMAKE_CUDA_FLAGS=\"\$(CC --cray-print-opts=cflags)\" \\")
+endif()
+if(ERF_ENABLE_FCOMPARE AND CRAY_LIBS_CLEAN)
+message(STATUS "  -DCMAKE_EXE_LINKER_FLAGS=\"-Wl,--no-as-needed ${CRAY_LIBS_CLEAN}\" \\")
+endif()
+if(FIX3_ACTIVE)
+message(STATUS "  -DCMAKE_PREFIX_PATH=\"\$CUDA_HOME/../../math_libs/lib64\" \\")
+endif()
+if(FIX4_ACTIVE)
+message(STATUS "  -DCMAKE_CUDA_STANDARD_LIBRARIES=\"-lmpi_gnu_123 -lmpi_gtl_cuda\" \\")
+message(STATUS "  -DCMAKE_CXX_STANDARD_LIBRARIES=\"-lmpi_gnu_123 -lmpi_gtl_cuda\" \\")
+endif()
+message(STATUS "")
+
+if(ERF_VERBOSE_CRAY_FIXES)
+    message(STATUS "[VERBOSE] All Cray fixes processing complete")
+    message(STATUS "[VERBOSE] Review messages above for detailed information")
+    message(STATUS "[VERBOSE] The command-line equivalents above show what this module does automatically")
+endif()
