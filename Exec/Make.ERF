@@ -208,17 +208,17 @@ ifeq ($(USE_NOAHMP), TRUE)
     $(error USE_NETCDF must be true for using NOAH-MP interface)
   else
     DEFINES   += -DERF_USE_NOAHMP
-    
+
     # Try netcdf-fortran => netcdf-fortran_parallel
-    has_netcdf_fortran := $(shell pkg-config --exists netcdf-fortran 2>/dev/null; echo $$?)
+    has_netcdf_fortran := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran 2>/dev/null; echo $$?)
     ifeq ($(has_netcdf_fortran),0)
-      includes  += $(shell pkg-config --cflags netcdf-fortran)
-      LIBRARIES += $(shell pkg-config --libs netcdf-fortran)
+      includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran)
+      LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran)
     else
-      has_netcdf_fortran_parallel := $(shell pkg-config --exists netcdf-fortran_parallel 2>/dev/null; echo $$?)
+      has_netcdf_fortran_parallel := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran_parallel 2>/dev/null; echo $$?)
       ifeq ($(has_netcdf_fortran_parallel),0)
-        includes  += $(shell pkg-config --cflags netcdf-fortran_parallel)
-        LIBRARIES += $(shell pkg-config --libs netcdf-fortran_parallel)
+        includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran_parallel)
+        LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran_parallel)
       else
         $(error NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel)
       endif
@@ -409,7 +409,7 @@ endif
 # Turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
-  
+
   # Try netcdf => netcdf-cxx4_parallel => netcdf_parallel
   has_netcdf := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf 2>/dev/null; echo $$?)
   ifeq ($(has_netcdf),0)
