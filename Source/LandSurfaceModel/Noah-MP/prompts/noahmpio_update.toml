@@ -1,5 +1,7 @@
 # Usage: code-scribe update ERF_NOAHMP.cpp \
-#                           -p prompts/noahmpio_update.toml -m <openai|argo|..>
+#                           -p prompts/noahmpio_update.toml \
+#                           -p "Write a natural language prompt with variable name dimension etc." \
+#                           -m <openai|argo|..>
 
 [[chat.user]]
 content = '''
@@ -36,16 +38,16 @@ patterns used for existing variables such as `U_PHY`, `V_PHY`, `T_PHY`, `QV_CURR
 2. Task Details
 
 Update Advance_With_State() to include and correctly link new NoahmpIO
-variables RAINLSM and any other surface fields needed for the ERF side.
+variables and any other surface fields needed for the ERF side.
 
 Changes Required
 
 -  Host buffers
 Add new temporary FArrayBox allocations for each new variable:
-   FArrayBox tmp_rainlsm(bx, 1, The_Pinned_Arena());
+   FArrayBox tmp_variable(bx, 1, The_Pinned_Arena());
 
 and retrieve their array handles:
-   auto const& tmp_rainlsm_arr = tmp_rainlsm.array();
+   auto const& tmp_variable_arr = tmp_rainlsm.array();
 
 -  Device->Host copy (ParallelFor)
 If the new field originates on the ERF side (e.g., forcing input), copy it from
@@ -57,19 +59,19 @@ copy-back section.
 -  Host->NoahMP copy (LoopOnCpu)
 After GPU synchronization (Gpu::streamSynchronize()), extend the LoopOnCpu
 block that writes to noahmpio fields:
-   noahmpio->RAINLSM(i,j) = tmp_rainlsm_arr(i,j,0);
+   noahmpio->variable(i,j) = tmp_variable_arr(i,j,0);
 
 -  Post-DriverMain copy (LoopOnCpu)
-Add the reverse direction: copying noahmpio->RAINLSM values back into the
+Add the reverse direction: copying noahmpio->variable values back into the
 temporary FArrayBox before GPU upload:
-   h_rainlsm_arr(i,j,0) = noahmpio->RAINLSM(i,j);
+   h_variable_arr(i,j,0) = noahmpio->variable(i,j);
 
 -  Host->Device copy-back (ParallelFor)
 Finally, assign results into the correct ERF field:
-   RAINLSM(i,j,0) = tmp_rainlsm_arr(i,j,0);
+   variable(i,j,0) = tmp_variable_arr(i,j,0);
 
 Follow the same block and comment style used for variables like TSK, EMISS,
-and HFX.
+and HFX, and maintain case sensitivity as it is implemented for other variables.
 
 3. Validation
 
@@ -81,10 +83,7 @@ and HFX.
 
 4. Actual Task
 
-Modify and link the following variable declared in NoahmpIOVarType.F90 and
-allocated in NoahmpIOVarInitMod.F90:
-
--  RAINLSM, 2D array of type real(kind=kind_noahmp), with bounds (XSTART:XEND, YSTART:YEND)
+Modify and link the requested variables
 
 Ensure the field is fully integrated into the ERF-NoahMP coupling sequence
 inside Advance_With_State() following the memory flow used for TSK.
