@@ -311,8 +311,15 @@ ImplicitDiffForMom_S (const Box& bx,
             if (k == dom_lo.z) {
                 if (ext_dir_on_zlo) {
                     // This can be a no-slip wall (u = v = w = 0), slip wall (w = 0), or surface layer (w = 0)
-                    coeffC_a(i,j,klo) = 0.;
-                    RHS_a(i,j,klo) = 0.;
+                    if (stagdir==2) {
+                        coeffC_a(i,j,klo) = 0.;
+                        RHS_a(i,j,klo) = 0.;
+                    } else {
+                        // first-order:
+                        //   u(klo) - (u(klo+1) - u(klo))/dz_hi * dz/2 = u_dir
+                        coeffC_a(i,j,klo) = -0.5 * dz_inv_hi / dz_inv;
+                        RHS_a(i,j,klo) = face_data(i,j,klo-1); // Dirichlet value
+                    }
                 } else if (use_SurfLayer) {
                     // Match explicit grad(u) at the surface
                     Real uhi = 2.0 * face_data(i,j,klo  ) / (cell_data(i,j,klo  ,Rho_comp) + cell_data(i-ioff,j-joff,klo  ,Rho_comp));
@@ -325,8 +332,15 @@ ImplicitDiffForMom_S (const Box& bx,
             }
             if (k == dom_hi.z) {
                 if (ext_dir_on_zhi) {
-                    coeffA_a(i,j,khi) = 0.;
-                    RHS_a(i,j,khi) = 0.;
+                    if (stagdir==2) {
+                        coeffA_a(i,j,khi) = 0.;
+                        RHS_a(i,j,khi) = 0.;
+                    } else {
+                        // first-order:
+                        //   u(khi) + (u(khi) - u(khi-1))/dz_lo * dz/2 = u_dir
+                        coeffA_a(i,j,khi) = -0.5 * dz_inv_lo / dz_inv;
+                        RHS_a(i,j,khi) = face_data(i,j,khi+1); // Dirichlet value
+                    }
                 }
 
                 // default is foextrap
