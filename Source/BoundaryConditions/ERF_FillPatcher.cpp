@@ -156,6 +156,10 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
     Box fdomain = m_fgeom.Domain();
     fdomain.convert(fba.ixType());
 
+    // NOTE: If periodic, we should fill at the domain boundary
+    //       even if we don't have real bcs.
+    auto f_per = m_fgeom.periodicity();
+
     // Grow the complement boxes and trim with the bounding box
     Vector<Box>& com_bl_v = com_bl.data();
     for (int i(0); i<com_bl.size(); ++i) {
@@ -170,10 +174,11 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
         //       on a domain wall where BCs should be used.
         if (!m_real_bc) {
             for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-                bool is_node = (fba.ixType()[idim] == IndexType::NODE);
-                if ( (bx.bigEnd(idim) == fdomain.smallEnd(idim)) && is_node) {
+                bool is_node     = (fba.ixType()[idim] == IndexType::NODE);
+                bool is_periodic = f_per.isPeriodic(idim);
+                if ( (bx.bigEnd(idim) == fdomain.smallEnd(idim)) && is_node && !is_periodic) {
                     bx.growHi(idim,-1);
-                } else if ( (bx.smallEnd(idim) == fdomain.bigEnd(idim)) && is_node) {
+                } else if ( (bx.smallEnd(idim) == fdomain.bigEnd(idim)) && is_node && !is_periodic) {
                     bx.growLo(idim,-1);
                 }
             }
