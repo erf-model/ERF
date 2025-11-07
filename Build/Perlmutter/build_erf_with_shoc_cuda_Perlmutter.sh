@@ -19,11 +19,11 @@ fi
 # 3. Prepare build directory
 echo "Preparing build directory..."
 mkdir -p "$ERF_DIR/build"
-cp "$ERF_DIR/Build/cmake_with_shoc_cuda_Perlmutter.sh" "$ERF_DIR/build/"
+cp "$ERF_DIR/Build/Perlmutter/cmake_with_cuda_shoc_Perlmutter.sh" "$ERF_DIR/build/"
 
 # 4. Move into build directory
 cd "$ERF_DIR/build"
 
 # 5. Run cmake setup
-echo "Running cmake_with_shoc_cuda_Perlmutter.sh..."
-source cmake_with_shoc_cuda_Perlmutter.sh
+echo "Running cmake_with_cuda_shoc_Perlmutter.sh..."
+source cmake_with_cuda_shoc_Perlmutter.sh
