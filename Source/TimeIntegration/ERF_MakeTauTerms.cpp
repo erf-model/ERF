@@ -205,14 +205,17 @@ void erf_make_tau_terms (int level, int nrk,
             //    - will be added to the normal strain rates in ComputeStress
             //
             // 2. Call ComputeStrain
-            //    - IMPLICIT path: S31 and S32 are modified in here
+            //    - IMPLICIT path: s31_corr and s32_corr are modified in here
             //
             // 3. Call ComputeSmnSmn, if needed for turbulence model
             //
             // 4. Call ComputeStress
             //    - add expansion rates to terms on diagonal
-            //    - IMPLICIT path: S33 is modified in here
-            //    - multiply strain rates by diffusivities
+            //    - multiply strain rates by diffusivities, with the total
+            //      viscosity calculated as the sum of a constant viscosity (or
+            //      constant alpha with mu = rho*alpha) and the eddy viscosity
+            //      from the turbulence model
+            //    - IMPLICIT path: s33_corr is modified in here
             //
             // 5. Copy temp Sij fabs into Tau_lev multifabs
             //    - stress tensor is symmetric if no terrain and no implicit diffusion
