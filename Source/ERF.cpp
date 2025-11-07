@@ -288,8 +288,29 @@ ERF::ERF_shared ()
 
     istep.resize(nlevs_max, 0);
     nsubsteps.resize(nlevs_max, 1);
+    // This is the default
     for (int lev = 1; lev <= max_level; ++lev) {
         nsubsteps[lev] = MaxRefRatio(lev-1);
+    }
+
+    if (max_level > 0) {
+        ParmParse pp("erf");
+        int count = pp.countval("dt_ref_ratio");
+        if (count > 0) {
+            Vector<int> nsub;
+            nsub.resize(nlevs_max, 0);
+            if (count == 1) {
+                pp.queryarr("dt_ref_ratio", nsub, 0, 1);
+                for (int lev = 1; lev <= max_level; ++lev) {
+                    nsubsteps[lev] = nsub[0];
+                }
+            } else {
+                pp.queryarr("dt_ref_ratio", nsub, 0, max_level);
+                for (int lev = 1; lev <= max_level; ++lev) {
+                    nsubsteps[lev] = nsub[lev-1];
+                }
+            }
+        }
     }
 
     t_new.resize(nlevs_max, 0.0);
