@@ -22,8 +22,9 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping const& 
                                 Geometry const& fgeom,
                                 BoxArray const& cba, DistributionMapping const& cdm,
                                 Geometry const& cgeom,
-                                int nghost, int nghost_set,
-                                int ncomp, InterpBase* interp)
+                                int nghost, int nghost_set, int ncomp,
+                                bool real_bc,
+                                InterpBase* interp)
     : m_fba(fba),
       m_cba(cba),
       m_fdm(fdm),
@@ -37,7 +38,7 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping const& 
     m_crse_times.resize(2);
 
     // Define the coarse and fine MFs
-    Define(fba, fdm, fgeom, cba, cdm, cgeom,nghost, nghost_set, ncomp, interp);
+    Define(fba, fdm, fgeom, cba, cdm, cgeom,nghost, nghost_set, ncomp, real_bc, interp);
 }
 
 
@@ -58,8 +59,9 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm
                              Geometry const& fgeom,
                              BoxArray const& cba, DistributionMapping const& cdm,
                              Geometry const& cgeom,
-                             int nghost, int nghost_set,
-                             int ncomp, InterpBase* interp)
+                             int nghost, int nghost_set, int ncomp,
+                             bool real_bc,
+                             InterpBase* interp)
 {
     AMREX_ALWAYS_ASSERT(nghost <= 0);
     AMREX_ALWAYS_ASSERT(nghost_set <= 0);
@@ -68,9 +70,10 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm
     // Set data members
     m_fba = fba; m_cba = cba;
     m_fdm = fdm; m_cdm = cdm;
-    m_fgeom  = fgeom;  m_cgeom = cgeom;
-    m_nghost = nghost; m_nghost_subset = nghost_set;
-    m_ncomp  = ncomp;  m_interp = interp;
+    m_fgeom   = fgeom;  m_cgeom = cgeom;
+    m_nghost  = nghost; m_nghost_subset = nghost_set;
+    m_ncomp   = ncomp;  m_interp = interp;
+    m_real_bc = real_bc;
 
     // Delete old MFs if they exist
     if (m_cf_crse_data_old) m_cf_crse_data_old.reset();
@@ -148,14 +151,34 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
         }
     }
 
+    // NOTE: Ensure we don't touch a domain boundary
+    // Trim the fine domain to not include boundary faces
+    Box fdomain = m_fgeom.Domain();
+    fdomain.convert(fba.ixType());
+
     // Grow the complement boxes and trim with the bounding box
     Vector<Box>& com_bl_v = com_bl.data();
     for (int i(0); i<com_bl.size(); ++i) {
         Box& bx = com_bl_v[i];
         bx.grow(box_grow_vect);
         bx &= fba_bnd;
-    }
 
+        // NOTE: Without real_bcs, if the complement box coincides
+        //       with the domain boundary, we must trim it so that
+        //       the second complement (where the mask is set) includes
+        //       the domain boundary. This ensures we don't do a FillSet
+        //       on a domain wall where BCs should be used.
+        if (!m_real_bc) {
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                bool is_node = (fba.ixType()[idim] == IndexType::NODE);
+                if ( (bx.bigEnd(idim) == fdomain.smallEnd(idim)) && is_node) {
+                    bx.growHi(idim,-1);
+                } else if ( (bx.smallEnd(idim) == fdomain.bigEnd(idim)) && is_node) {
+                    bx.growLo(idim,-1);
+                }
+            }
+        }
+    }
 
     // Do second complement with the grown boxes
     com_ba.define(std::move(com_bl));

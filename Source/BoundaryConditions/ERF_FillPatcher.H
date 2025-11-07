@@ -13,13 +13,16 @@ public:
                     amrex::Geometry const& fgeom,
                     amrex::BoxArray const& cba, amrex::DistributionMapping const& cdm,
                     amrex::Geometry const& cgeom,
-                    int nghost, int nghost_set, int ncomp, amrex::InterpBase* interp);
+                    int nghost, int nghost_set, int ncomp,
+                    bool real_bc,
+                    amrex::InterpBase* interp);
 
     void Define (amrex::BoxArray const& fba, amrex::DistributionMapping const& fdm,
                  amrex::Geometry const& fgeom,
                  amrex::BoxArray const& cba, amrex::DistributionMapping const& cdm,
                  amrex::Geometry const& cgeom,
                  int nghost, int nghost_set, int ncomp,
+                 bool real_bc,
                  amrex::InterpBase* interp);
 
     void BuildMask (amrex::BoxArray const& fba, int nghost, int nghost_set);
@@ -65,6 +68,7 @@ private:
     int m_nghost;
     int m_nghost_subset;
     int m_ncomp;
+    bool m_real_bc;
     amrex::InterpBase* m_interp;
     amrex::IntVect m_ratio;
     std::unique_ptr<amrex::MultiFab> m_cf_crse_data_old;

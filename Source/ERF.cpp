@@ -2606,16 +2606,20 @@ ERF::Construct_ERFFillPatchers (int lev)
 
     FPr_c.emplace_back(ba_fine, dm_fine, geom[lev]  ,
                        ba_crse, dm_crse, geom[lev-1],
-                       -cf_width, -cf_set_width, ncomp, &cell_cons_interp);
+                       -cf_width, -cf_set_width, ncomp, solverChoice.use_real_bcs,
+                       &cell_cons_interp);
     FPr_u.emplace_back(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
                        convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
-                       -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
+                       -cf_width, -cf_set_width, 1, solverChoice.use_real_bcs,
+                       &face_cons_linear_interp);
     FPr_v.emplace_back(convert(ba_fine, IntVect(0,1,0)), dm_fine, geom[lev]  ,
                        convert(ba_crse, IntVect(0,1,0)), dm_crse, geom[lev-1],
-                       -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
+                       -cf_width, -cf_set_width, 1, solverChoice.use_real_bcs,
+                       &face_cons_linear_interp);
     FPr_w.emplace_back(convert(ba_fine, IntVect(0,0,1)), dm_fine, geom[lev]  ,
                        convert(ba_crse, IntVect(0,0,1)), dm_crse, geom[lev-1],
-                       -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
+                       -cf_width, -cf_set_width, 1, solverChoice.use_real_bcs,
+                       &face_cons_linear_interp);
 }
 
 void
@@ -2632,16 +2636,20 @@ ERF::Define_ERFFillPatchers (int lev)
 
     FPr_c[lev-1].Define(ba_fine, dm_fine, geom[lev]  ,
                         ba_crse, dm_crse, geom[lev-1],
-                        -cf_width, -cf_set_width, ncomp, &cell_cons_interp);
+                        -cf_width, -cf_set_width, ncomp, solverChoice.use_real_bcs,
+                        &cell_cons_interp);
     FPr_u[lev-1].Define(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
                         convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
-                        -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
+                        -cf_width, -cf_set_width, 1, solverChoice.use_real_bcs,
+                        &face_cons_linear_interp);
     FPr_v[lev-1].Define(convert(ba_fine, IntVect(0,1,0)), dm_fine, geom[lev]  ,
                         convert(ba_crse, IntVect(0,1,0)), dm_crse, geom[lev-1],
-                        -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
+                        -cf_width, -cf_set_width, 1, solverChoice.use_real_bcs,
+                        &face_cons_linear_interp);
     FPr_w[lev-1].Define(convert(ba_fine, IntVect(0,0,1)), dm_fine, geom[lev]  ,
                         convert(ba_crse, IntVect(0,0,1)), dm_crse, geom[lev-1],
-                        -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
+                        -cf_width, -cf_set_width, 1, solverChoice.use_real_bcs,
+                        &face_cons_linear_interp);
 }
 
 #ifdef ERF_USE_MULTIBLOCK
