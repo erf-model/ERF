@@ -78,25 +78,25 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "8.0")
         message(FATAL_ERROR 
-            "\n"
-            "════════════════════════════════════════════════════════════════\n"
-            "ERF requires GCC 8.0+ for C++17 <filesystem> support\n"
-            "Found: GCC ${CMAKE_CXX_COMPILER_VERSION}\n"
-            "════════════════════════════════════════════════════════════════\n"
-            "\n"
-            "On Cray systems, fix by using the Cray wrapper with a modern compiler:\n"
-            "  1. Load a newer compiler module:\n"
-            "       module load PrgEnv-gnu\n"
-            "       module load gcc\n"
-            "\n"
-            "  2. Set compiler explicitly:\n"
-            "       -DCMAKE_CXX_COMPILER=\$(which CC)\n"
-            "     Or set environment variable:\n"
-            "       export CXX=\$(which CC)\n"
-            "\n"
-            "  3. Verify compiler version:\n"
-            "       CC --version\n"
-            "\n")
+        "\n"
+        "════════════════════════════════════════════════════════════════\n"
+        "ERF requires GCC 8.0+ for C++17 <filesystem> support\n"
+        "Found: GCC ${CMAKE_CXX_COMPILER_VERSION}\n"
+        "════════════════════════════════════════════════════════════════\n"
+        "\n"
+        "On Cray systems, fix by using the Cray wrapper with a modern compiler:\n"
+        "  1. Load a newer compiler module:\n"
+        "       module load PrgEnv-gnu\n"
+        "       module load gcc\n"
+        "\n"
+        "  2. Set compiler explicitly:\n"
+        "       -DCMAKE_CXX_COMPILER=\$(which CC)\n"
+        "     Or set environment variable:\n"
+        "       export CXX=\$(which CC)\n"
+        "\n"
+        "  3. Verify compiler version:\n"
+        "       CC --version\n"
+        "")
     else()
         message(STATUS "  GCC version ${CMAKE_CXX_COMPILER_VERSION} >= 8.0 ✓")
         erf_cray_verbose("GCC version sufficient for C++17 <filesystem>")
@@ -304,14 +304,15 @@ message(STATUS "ERF: Checking Cray prerequisites...")
 set(ERF_RECOMMENDED_CMAKE_VERSION "3.24.0")
 
 if(CMAKE_VERSION VERSION_LESS ${ERF_RECOMMENDED_CMAKE_VERSION})
-    message(WARNING "")
-    message(WARNING "ERF: CMake version ${CMAKE_VERSION} detected")
-    message(WARNING "  Recommended minimum for Cray systems: ${ERF_RECOMMENDED_CMAKE_VERSION}")
-    message(WARNING "  You may experience issues with Cray compiler wrappers and CUDA")
-    message(WARNING "")
-    message(WARNING "  To fix:")
-    message(WARNING "    module load cmake")
-    message(WARNING "")
+    message(WARNING 
+        "\n"
+        "ERF: CMake version ${CMAKE_VERSION} detected\n"
+        "  Recommended minimum for Cray systems: ${ERF_RECOMMENDED_CMAKE_VERSION}\n"
+        "  You may experience issues with Cray compiler wrappers and CUDA\n"
+        "\n"
+        "  To fix:\n"
+        "    module load cmake\n"
+        "")
     
     erf_cray_verbose("Current CMake: ${CMAKE_VERSION}")
     erf_cray_verbose("Recommended: ${ERF_RECOMMENDED_CMAKE_VERSION}+")
@@ -359,20 +360,21 @@ if(ERF_ENABLE_CUDA)
     
     # Warn if CUDA toolkit doesn't appear to be loaded
     if(NOT CUDA_TOOLKIT_LOADED)
-        message(WARNING "")
-        message(WARNING "ERF: CUDA enabled but CUDA toolkit not detected")
-        message(WARNING "  Expected environment variables not found:")
-        message(WARNING "    - CUDA_HOME")
-        message(WARNING "    - CUDATOOLKIT_HOME")
-        message(WARNING "    - nvcc in PATH")
-        message(WARNING "")
-        message(WARNING "  To fix:")
-        message(WARNING "    module load cudatoolkit")
-        message(WARNING "  Or on newer systems:")
-        message(WARNING "    module load cuda")
-        message(WARNING "")
-        message(WARNING "  Build may fail with CUDA-related errors")
-        message(WARNING "")
+        message(WARNING
+            "\n"
+            "ERF: CUDA enabled but CUDA toolkit not detected\n"
+            "  Expected environment variables not found:\n"
+            "    - CUDA_HOME\n"
+            "    - CUDATOOLKIT_HOME\n"
+            "    - nvcc in PATH\n"
+            "\n"
+            "  To fix:\n"
+            "    module load cudatoolkit\n"
+            "  Or on newer systems:\n"
+            "    module load cuda\n"
+            "\n"
+            "  Build may fail with CUDA-related errors\n"
+            "")
         
         erf_cray_verbose("CUDA_HOME = $ENV{CUDA_HOME}")
         erf_cray_verbose("CUDATOOLKIT_HOME = $ENV{CUDATOOLKIT_HOME}")
@@ -622,7 +624,14 @@ endif()
 #          which enables GPU Transfer Library for direct GPU-GPU communication
 # SOLUTION: Detect GPU-aware MPI and add GTL libraries to link flags
 
-if(ERF_ENABLE_CUDA AND ERF_ENABLE_MPI AND DEFINED ENV{MPICH_GPU_SUPPORT_ENABLED})
+# ==============================================================================
+# Fix 4: GPU-aware MPI with Cray GTL (Checklist Item 4)
+# ==============================================================================
+# PROBLEM: GPU-aware MPI on Cray requires linking against mpi_gtl_cuda library
+#          which enables GPU Transfer Library for direct GPU-GPU communication
+# SOLUTION: Detect GPU-aware MPI and add GTL libraries to link flags
+
+if(ERF_ENABLE_CUDA AND ERF_ENABLE_MPI AND "$ENV{MPICH_GPU_SUPPORT_ENABLED}" STREQUAL "1")
     message(STATUS "ERF: [Fix 4] Applying GPU-aware MPI fix (Cray GTL)")
     
     erf_cray_verbose("Problem: GPU-aware MPI needs Cray GTL libraries")
@@ -630,42 +639,65 @@ if(ERF_ENABLE_CUDA AND ERF_ENABLE_MPI AND DEFINED ENV{MPICH_GPU_SUPPORT_ENABLED}
     erf_cray_verbose("Solution: Add -lmpi_gnu_123 -lmpi_gtl_cuda to link flags")
     erf_cray_verbose("MPICH_GPU_SUPPORT_ENABLED = $ENV{MPICH_GPU_SUPPORT_ENABLED}")
     
-    # Detect MPI library version for correct library name
-    # TODO: Could auto-detect the actual version instead of hardcoding _gnu_123
+    # Set the MPI+GTL libraries
+    # Note: We use -lmpi_gnu_123 explicitly because Cray's --as-needed can drop it
     set(CRAY_MPI_LIBS "-lmpi_gnu_123 -lmpi_gtl_cuda")
     
-    erf_cray_verbose("Looking for mpi_gtl_cuda library...")
+    # Try to verify the library exists (for diagnostics)
+    set(MPI_LIB_SEARCH_PATHS "")
     if(DEFINED ENV{MPICH_DIR})
-        erf_cray_verbose("MPICH_DIR = $ENV{MPICH_DIR}")
+        list(APPEND MPI_LIB_SEARCH_PATHS "$ENV{MPICH_DIR}/lib")
+    endif()
+    if(DEFINED ENV{CRAY_MPICH_DIR})
+        list(APPEND MPI_LIB_SEARCH_PATHS "$ENV{CRAY_MPICH_DIR}/lib")
     endif()
     
-    # Check if the libraries exist
-    find_library(CRAY_MPI_GTL_CUDA mpi_gtl_cuda HINTS ENV MPICH_DIR PATH_SUFFIXES lib)
+    erf_cray_verbose("Searching for mpi_gtl_cuda library in:")
+    foreach(path IN LISTS MPI_LIB_SEARCH_PATHS)
+        erf_cray_verbose("  ${path}")
+    endforeach()
+    
+    find_library(CRAY_MPI_GTL_CUDA 
+        NAMES mpi_gtl_cuda
+        HINTS ${MPI_LIB_SEARCH_PATHS}
+        NO_DEFAULT_PATH
+    )
     
     if(CRAY_MPI_GTL_CUDA)
-        message(STATUS "  Found Cray GPU-aware MPI library: ${CRAY_MPI_GTL_CUDA}")
-        erf_cray_verbose("Adding to CMAKE_CUDA_STANDARD_LIBRARIES")
-        erf_cray_verbose("Adding to CMAKE_CXX_STANDARD_LIBRARIES")
-        
-        set(CMAKE_CUDA_STANDARD_LIBRARIES "${CMAKE_CUDA_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
-            CACHE STRING "" FORCE)
-        set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
-            CACHE STRING "" FORCE)
-            
-        erf_cray_verbose("CMAKE_CUDA_STANDARD_LIBRARIES: ${CMAKE_CUDA_STANDARD_LIBRARIES}")
-        erf_cray_verbose("CMAKE_CXX_STANDARD_LIBRARIES: ${CMAKE_CXX_STANDARD_LIBRARIES}")
+        message(STATUS "  Found GTL library: ${CRAY_MPI_GTL_CUDA}")
+        erf_cray_verbose("Library verification successful")
     else()
-        message(WARNING "ERF: GPU-aware MPI requested but GTL libraries not found")
-        message(WARNING "  Set MPICH_GPU_SUPPORT_ENABLED=1 and check MPICH_DIR")
-        message(WARNING "  Manual workaround: -DCMAKE_CUDA_STANDARD_LIBRARIES=\"${CRAY_MPI_LIBS}\"")
-        message(WARNING "                     -DCMAKE_CXX_STANDARD_LIBRARIES=\"${CRAY_MPI_LIBS}\"")
-        erf_cray_verbose("Search paths: $ENV{MPICH_DIR}/lib")
-        erf_cray_verbose("Library not found: mpi_gtl_cuda")
+        message(STATUS "  GTL library not found via find_library (will rely on linker search)")
+        erf_cray_verbose("Library not found in search paths, but linker may still find it")
+        erf_cray_verbose("This is normal if libraries are in non-standard Cray locations")
     endif()
+    
+    # Apply the fix regardless of whether find_library succeeded
+    # The Cray linker knows where to find these libraries
+    message(STATUS "  Adding MPI+GTL libraries: ${CRAY_MPI_LIBS}")
+    erf_cray_verbose("Adding to CMAKE_CUDA_STANDARD_LIBRARIES")
+    erf_cray_verbose("Adding to CMAKE_CXX_STANDARD_LIBRARIES")
+    
+    set(CMAKE_CUDA_STANDARD_LIBRARIES "${CMAKE_CUDA_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
+        CACHE STRING "" FORCE)
+    set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
+        CACHE STRING "" FORCE)
+        
+    erf_cray_verbose("CMAKE_CUDA_STANDARD_LIBRARIES: ${CMAKE_CUDA_STANDARD_LIBRARIES}")
+    erf_cray_verbose("CMAKE_CXX_STANDARD_LIBRARIES: ${CMAKE_CXX_STANDARD_LIBRARIES}")
+    
 else()
     if(ERF_ENABLE_CUDA AND ERF_ENABLE_MPI)
-        erf_cray_verbose("Fix 4 not applied: MPICH_GPU_SUPPORT_ENABLED not set")
-        erf_cray_verbose("Set MPICH_GPU_SUPPORT_ENABLED=1 to enable GPU-aware MPI")
+        if(NOT DEFINED ENV{MPICH_GPU_SUPPORT_ENABLED})
+            message(STATUS "")
+            message(STATUS "  Note: MPICH_GPU_SUPPORT_ENABLED not set")
+            message(STATUS "    For GPU-aware MPI, add to your script:")
+            message(STATUS "      export MPICH_GPU_SUPPORT_ENABLED=1")
+            message(STATUS "")
+            erf_cray_verbose("Fix 4 not applied: MPICH_GPU_SUPPORT_ENABLED not set")
+        elseif(NOT "$ENV{MPICH_GPU_SUPPORT_ENABLED}" STREQUAL "1")
+            erf_cray_verbose("Fix 4 not applied: MPICH_GPU_SUPPORT_ENABLED=$ENV{MPICH_GPU_SUPPORT_ENABLED} (not '1')")
+        endif()
     else()
         erf_cray_verbose("Fix 4 not needed (CUDA+MPI not both enabled)")
     endif()

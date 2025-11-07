@@ -76,3 +76,43 @@ if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
 endif()
 
 message(STATUS "")
+
+# -----------------------------------------------------------------------------
+# GPU Host Compilers (for CUDA, HIP, SYCL)
+# -----------------------------------------------------------------------------
+
+# CUDA Host Compiler - detect via environment
+if(DEFINED ENV{CUDA_HOME} OR DEFINED ENV{CUDATOOLKIT_HOME} OR DEFINED ENV{CRAY_ACCEL_TARGET})
+    message(STATUS "  Detected CUDA environment, configuring CUDA host compiler...")
+    
+    # Only set if not already specified by user
+    if(NOT CMAKE_CUDA_HOST_COMPILER AND NOT DEFINED ENV{CUDAHOSTCXX})
+        if(ERF_CRAY_CXX)
+            set(CMAKE_CUDA_HOST_COMPILER "${ERF_CRAY_CXX}" CACHE FILEPATH "CUDA host compiler" FORCE)
+            message(STATUS "    Set CMAKE_CUDA_HOST_COMPILER = ${ERF_CRAY_CXX}")
+        endif()
+    else()
+        message(STATUS "    CUDA host compiler already set by user")
+    endif()
+endif()
+
+# HIP Host Compiler - detect via ROCM environment
+if(DEFINED ENV{ROCM_PATH} OR DEFINED ENV{HIP_PATH})
+    message(STATUS "  Detected ROCm/HIP environment, configuring HIP host compiler...")
+    
+    # Only set if not already specified by user
+    if(NOT CMAKE_HIP_HOST_COMPILER AND NOT DEFINED ENV{HIPHOSTCXX})
+        if(ERF_CRAY_CXX)
+            set(CMAKE_HIP_HOST_COMPILER "${ERF_CRAY_CXX}" CACHE FILEPATH "HIP host compiler" FORCE)
+            message(STATUS "    Set CMAKE_HIP_HOST_COMPILER = ${ERF_CRAY_CXX}")
+        endif()
+    else()
+        message(STATUS "    HIP host compiler already set by user")
+    endif()
+endif()
+
+# SYCL - detect via Intel oneAPI
+if(DEFINED ENV{ONEAPI_ROOT} OR DEFINED ENV{I_MPI_ROOT})
+    message(STATUS "  Detected Intel oneAPI environment")
+    message(STATUS "    SYCL will use CMAKE_CXX_COMPILER = ${CMAKE_CXX_COMPILER}")
+endif()

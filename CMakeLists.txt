@@ -3,7 +3,8 @@
 cmake_minimum_required (VERSION 3.14 FATAL_ERROR)
 
 # Include Cray compiler detection BEFORE project() to set compilers
-include(CMake/CrayCompilerDetection)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
+include(CrayCompilerDetection)
 
 if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
   project(ERF CXX C Fortran)
