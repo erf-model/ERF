@@ -1,3 +1,16 @@
+# Add uninstall target
+if(NOT TARGET uninstall)
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/CMake/cmake_uninstall.cmake.in"
+        "${CMAKE_BINARY_DIR}/cmake_uninstall.cmake"
+        IMMEDIATE @ONLY)
+
+    add_custom_target(uninstall
+        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/cmake_uninstall.cmake
+        COMMENT "Uninstalling files listed in install_manifest.txt"
+    )
+endif()
+
 add_custom_target(distclean
     # Header
     COMMAND ${CMAKE_COMMAND} -E echo "=========================================="
