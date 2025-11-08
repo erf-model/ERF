@@ -710,23 +710,30 @@ endif()
 # PROBLEM 6: pkg-config may not find MPI/NetCDF without correct PKG_CONFIG_PATH
 # SOLUTION: Set up pkg-config path and add NetCDF/HDF5 directories to search
 
-if(ERF_ENABLE_NETCDF AND DEFINED ENV{MPICH_DIR})
+if(ERF_ENABLE_NETCDF)
     message(STATUS "ERF: [Fix 5-6] Configuring NetCDF with Cray paths")
     
-    erf_cray_verbose("Problem 5: Cray NetCDF may have non-standard library names")
-    erf_cray_verbose("Problem 6: pkg-config needs MPICH_DIR in PKG_CONFIG_PATH")
-    erf_cray_verbose("Condition: ERF_ENABLE_NETCDF=ON and MPICH_DIR set")
-    erf_cray_verbose("Solution: Set PKG_CONFIG_PATH and add search paths")
+    # Get PKG_CONFIG_PATH directly from Cray wrapper
+    execute_process(
+        COMMAND ${CMAKE_CXX_COMPILER} --cray-print-opts=PKG_CONFIG_PATH
+        OUTPUT_VARIABLE CRAY_PKG_CONFIG_PATH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE PKG_RESULT
+    )
     
-    # Add MPICH pkg-config path
-    set(PKG_CONFIG_PATH "$ENV{MPICH_DIR}/lib/pkgconfig")
-    if(DEFINED ENV{PKG_CONFIG_PATH})
-        set(PKG_CONFIG_PATH "${PKG_CONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
-        erf_cray_verbose("Appending to existing PKG_CONFIG_PATH")
-    else()
-        erf_cray_verbose("Creating new PKG_CONFIG_PATH")
+    if(PKG_RESULT EQUAL 0 AND CRAY_PKG_CONFIG_PATH)
+        message(STATUS "  Setting PKG_CONFIG_PATH from Cray wrapper")
+        
+        # Append to existing PKG_CONFIG_PATH
+        if(DEFINED ENV{PKG_CONFIG_PATH})
+            set(ENV{PKG_CONFIG_PATH} "${CRAY_PKG_CONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
+        else()
+            set(ENV{PKG_CONFIG_PATH} "${CRAY_PKG_CONFIG_PATH}")
+        endif()
+        
+        message(STATUS "  PKG_CONFIG_PATH = $ENV{PKG_CONFIG_PATH}")
     endif()
-    set(ENV{PKG_CONFIG_PATH} ${PKG_CONFIG_PATH})
     
     message(STATUS "  PKG_CONFIG_PATH = ${PKG_CONFIG_PATH}")
     erf_cray_verbose("This allows cmake/gnumake to find MPI and NetCDF via pkg-config")

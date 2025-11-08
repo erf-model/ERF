@@ -116,3 +116,87 @@ if(DEFINED ENV{ONEAPI_ROOT} OR DEFINED ENV{I_MPI_ROOT})
     message(STATUS "  Detected Intel oneAPI environment")
     message(STATUS "    SYCL will use CMAKE_CXX_COMPILER = ${CMAKE_CXX_COMPILER}")
 endif()
+
+# -----------------------------------------------------------------------------
+# Detect Cray MPI and GTL Library Names (with smart fallbacks)
+# -----------------------------------------------------------------------------
+
+set(CRAY_MPI_LIB "")
+set(CRAY_GTL_LIB "")
+
+# Method 1: Parse from CC --cray-print-opts=libs (BEST)
+if(ERF_CRAY_CXX)
+    execute_process(
+        COMMAND ${ERF_CRAY_CXX} --cray-print-opts=libs
+        OUTPUT_VARIABLE CRAY_LIBS_OUTPUT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE CRAY_LIBS_RESULT
+    )
+    
+    if(CRAY_LIBS_RESULT EQUAL 0 AND CRAY_LIBS_OUTPUT)
+        string(REGEX MATCH "-lmpi_gnu_[0-9]+" CRAY_MPI_LIB "${CRAY_LIBS_OUTPUT}")
+        string(REGEX MATCH "-lmpi_gtl_[a-z]+" CRAY_GTL_LIB "${CRAY_LIBS_OUTPUT}")
+    endif()
+endif()
+
+# Method 2: Fallback from environment variables
+if(NOT CRAY_MPI_LIB AND DEFINED ENV{CRAY_MPICH_DIR})
+    string(REGEX MATCH "/gnu/([0-9]+)\\.([0-9]+)" MATCH_RESULT "$ENV{CRAY_MPICH_DIR}")
+    if(CMAKE_MATCH_1 AND CMAKE_MATCH_2)
+        set(CRAY_MPI_LIB "-lmpi_gnu_${CMAKE_MATCH_1}${CMAKE_MATCH_2}")
+    endif()
+endif()
+
+if(NOT CRAY_GTL_LIB AND DEFINED ENV{CRAY_ACCEL_TARGET})
+    set(GTL_VAR "PE_MPICH_GTL_LIBS_$ENV{CRAY_ACCEL_TARGET}")
+    if(DEFINED ENV{${GTL_VAR}})
+        set(CRAY_GTL_LIB "$ENV{${GTL_VAR}}")
+    elseif("$ENV{CRAY_ACCEL_TARGET}" MATCHES "nvidia")
+        set(CRAY_GTL_LIB "-lmpi_gtl_cuda")
+    elseif("$ENV{CRAY_ACCEL_TARGET}" MATCHES "amd")
+        set(CRAY_GTL_LIB "-lmpi_gtl_hsa")
+    endif()
+endif()
+
+# Method 3: Ultimate fallback
+if(NOT CRAY_MPI_LIB)
+    set(CRAY_MPI_LIB "-lmpi")
+endif()
+
+# Combine
+if(CRAY_MPI_LIB AND CRAY_GTL_LIB)
+    set(GTL_LIBS "${CRAY_MPI_LIB} ${CRAY_GTL_LIB}")
+elseif(CRAY_MPI_LIB)
+    set(GTL_LIBS "${CRAY_MPI_LIB}")
+endif()
+
+# -----------------------------------------------------------------------------
+# Set Minimal Flags for Compiler Tests (using detected libraries)
+# -----------------------------------------------------------------------------
+message(STATUS "ERF: Setting minimal flags for compiler tests...")
+
+if(DEFINED ENV{MPICH_GPU_SUPPORT_ENABLED} AND "$ENV{MPICH_GPU_SUPPORT_ENABLED}" STREQUAL "1")
+    message(STATUS "  GPU-aware MPI detected, adding CUDA runtime for tests")
+    message(STATUS "  Detected libraries: ${GTL_LIBS}")
+
+    # APPEND to linker flags
+    if(CMAKE_EXE_LINKER_FLAGS)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lcudart -lcuda" CACHE STRING "" FORCE)
+    else()
+        set(CMAKE_EXE_LINKER_FLAGS "-lcudart -lcuda" CACHE STRING "" FORCE)
+    endif()
+
+    # APPEND to standard libraries (use DETECTED GTL_LIBS, not hardcoded!)
+    if(CMAKE_CXX_STANDARD_LIBRARIES)
+        set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} ${GTL_LIBS}" CACHE STRING "" FORCE)
+    else()
+        set(CMAKE_CXX_STANDARD_LIBRARIES "${GTL_LIBS}" CACHE STRING "" FORCE)
+    endif()
+
+    if(CMAKE_CUDA_STANDARD_LIBRARIES)
+        set(CMAKE_CUDA_STANDARD_LIBRARIES "${CMAKE_CUDA_STANDARD_LIBRARIES} ${GTL_LIBS}" CACHE STRING "" FORCE)
+    else()
+        set(CMAKE_CUDA_STANDARD_LIBRARIES "${GTL_LIBS}" CACHE STRING "" FORCE)
+    endif()
+endif()
