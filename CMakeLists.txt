@@ -203,20 +203,71 @@ if(ERF_ENABLE_EKAT)
 endif()
 ########################### MPI #####################################
 
-##if(ERF_ENABLE_MPI)
-##  set(_mpi_comps C CXX)  # Do we need MPI_C ?
-##  if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
-##    list(APPEND _mpi_comps Fortran)
-##  endif()
-##  find_package(MPI REQUIRED ${_mpi_comps})
-###  list(TRANSFORM _mpi_comps PREPEND "MPI::MPI_")
-###  foreach(D IN LISTS AMReX_SPACEDIM)
-###      target_link_libraries(amrex_${D}d PUBLIC ${_mpi_comps})
-###  endforeach()
-###  unset(_mpi_comps)
-##endif()
-     message(STATUS "mpi section done")
+if(ERF_ENABLE_MPI)
+  # Check if we're on Cray with bare MPI wrappers (which will hang)
+  set(SKIP_MPI_DETECTION FALSE)
+  
+  if(DEFINED ENV{CRAYPE_VERSION} OR DEFINED ENV{CRAY_MPICH_DIR})
+    # On Cray system - check if using problematic bare MPI wrappers
+    if(CMAKE_CXX_COMPILER MATCHES "mpicxx" OR 
+       CMAKE_C_COMPILER MATCHES "mpicc" OR
+       CMAKE_Fortran_COMPILER MATCHES "mpifort")
+      message(STATUS "Detected bare MPI wrappers on Cray - skipping MPI detection (would hang)")
+      set(SKIP_MPI_DETECTION TRUE)
+    endif()
+  endif()
+  
+  if(SKIP_MPI_DETECTION)
+    # Workaround: Manual MPI setup (avoids hang)
+    message(STATUS "Manually configuring MPI (bypassing find_package)...")
+    
+    # Get Cray MPICH version for informational purposes
+    set(MPICH_VERSION "UNKNOWN")
+    if(DEFINED ENV{CRAY_MPICH_VERSION})
+      set(MPICH_VERSION "$ENV{CRAY_MPICH_VERSION}")
+    elseif(DEFINED ENV{CRAY_MPICH_VER})
+      set(MPICH_VERSION "$ENV{CRAY_MPICH_VER}")
+    endif()
+    
+    # Cray MPICH 8.x supports MPI 3.1 standard
+    set(MPI_VERSION "3.1")
+    
+    # Create MPI targets
+    if(NOT TARGET MPI::MPI_CXX)
+      add_library(MPI::MPI_CXX INTERFACE IMPORTED)
+    endif()
+    
+    if(NOT TARGET MPI::MPI_C)
+      add_library(MPI::MPI_C INTERFACE IMPORTED)
+    endif()
+    
+    # Set MPI variables
+    set(MPI_FOUND TRUE)
+    set(MPI_CXX_FOUND TRUE)
+    set(MPI_C_FOUND TRUE)
+    set(MPI_C_VERSION "${MPI_VERSION}")
+    set(MPI_CXX_VERSION "${MPI_VERSION}")
+    
+    message(STATUS "  Cray MPICH implementation: ${MPICH_VERSION}")
+    message(STATUS "  MPI API standard: ${MPI_VERSION}")
+    message(STATUS "  Created MPI::MPI_CXX and MPI::MPI_C targets")
+  else()
+    # Normal path: Use find_package
+    message(STATUS "Using find_package(MPI) for detection...")
+    set(_mpi_comps C CXX)
+    if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
+      list(APPEND _mpi_comps Fortran)
+    endif()
+    find_package(MPI REQUIRED ${_mpi_comps})
+  endif()
+endif()
+
+message(STATUS "MPI section complete")
+
 ########################## NETCDF ##################################
+message(STATUS "DEBUG: ERF_ENABLE_NETCDF = ${ERF_ENABLE_NETCDF}")
+message(STATUS "DEBUG: ERF_ENABLE_TOOLS = ${ERF_ENABLE_TOOLS}")
+message(STATUS "DEBUG: About to check NetCDF section...")
 
 if(ERF_ENABLE_NETCDF OR ERF_ENABLE_TOOLS)
   set(CMAKE_PREFIX_PATH ${NETCDF_DIR} ${CMAKE_PREFIX_PATH})
@@ -226,6 +277,8 @@ if(ERF_ENABLE_NETCDF OR ERF_ENABLE_TOOLS)
      message(STATUS "Found NetCDF, NETCDF_DIR = ${NETCDF_DIR}")
   endif()
 endif()
+
+message(STATUS "DEBUG: NetCDF section complete")
 
 ########################## NOAH-MP ##################################
 
@@ -237,6 +290,7 @@ if(ERF_ENABLE_NOAHMP)
   else()
      message(FATAL_ERROR "Noah-MP requires NetCDF be enabled")
   endif()
+message(STATUS "DEBUG: NOAH-MP section complete")
 endif()
 
 ########################### RRTMGP #################################
@@ -260,6 +314,7 @@ if(ERF_ENABLE_RRTMGP)
     set(RRTMGP_ENABLE_KOKKOS TRUE)
     target_compile_definitions(rrtmgp PUBLIC RRTMGP_ENABLE_KOKKOS)
     target_link_libraries(rrtmgp kokkos)
+message(STATUS "DEBUG: RRTMGP section complete")
 endif()
 
 ########################### SHOC #################################
@@ -270,23 +325,10 @@ if(ERF_ENABLE_SHOC)
     endif()
 
     # NOTE: We compile shoc src files directly
-
+message(STATUS "DEBUG: SHOC section complete")
 endif()
 
 ########################### ERF #####################################
-
-if(ERF_ENABLE_MPI)
-  set(_mpi_comps C CXX)  # Do we need MPI_C ?
-  if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
-    list(APPEND _mpi_comps Fortran)
-  endif()
-  find_package(MPI REQUIRED ${_mpi_comps})
-#  list(TRANSFORM _mpi_comps PREPEND "MPI::MPI_")
-#  foreach(D IN LISTS AMReX_SPACEDIM)
-#      target_link_libraries(amrex_${D}d PUBLIC ${_mpi_comps})
-#  endforeach()
-#  unset(_mpi_comps)
-endif()
 
 # General information about machine, compiler, and build type
 message(STATUS "ERF Information:")
