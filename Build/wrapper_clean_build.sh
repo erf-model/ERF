@@ -113,6 +113,76 @@ fi
 [ -d "_deps" ] && FILES_TO_DELETE="$FILES_TO_DELETE _deps/"
 [ -f "compile_commands.json" ] && FILES_TO_DELETE="$FILES_TO_DELETE compile_commands.json"
 
+# === Add after initial FILES_TO_DELETE setup ===
+
+# Built artifact directories (these are built, not source)
+for d in Exec Submodules Tests bin cmake_packages externals; do
+    [ -d "$d" ] && FILES_TO_DELETE="$FILES_TO_DELETE $d/"
+done
+
+# CTest artifacts
+[ -f "DartConfiguration.tcl" ] && FILES_TO_DELETE="$FILES_TO_DELETE DartConfiguration.tcl"
+
+# Generated project config
+[ -f "ERFConfig.cmake" ] && FILES_TO_DELETE="$FILES_TO_DELETE ERFConfig.cmake"
+
+# pkg-config files  
+find . -maxdepth 1 -name "*.pc" -type f 2>/dev/null | while read -r f; do
+    FILES_TO_DELETE="$FILES_TO_DELETE $f"
+done
+
+# Build artifacts (libraries)
+find . -maxdepth 1 \( -name "lib*.a" -o -name "lib*.so" \) -type f 2>/dev/null | while read -r f; do
+    FILES_TO_DELETE="$FILES_TO_DELETE $f"
+done
+
+# Build logs
+for f in build_*.log git-state.txt; do
+    [ -f "$f" ] && FILES_TO_DELETE="$FILES_TO_DELETE $f"
+done
+
+# === Check for install directory from CMakeCache.txt ===
+INSTALL_DIR=""
+if [ -f "CMakeCache.txt" ]; then
+    # Extract CMAKE_INSTALL_PREFIX from cache
+    INSTALL_PREFIX=$(grep "^CMAKE_INSTALL_PREFIX:" CMakeCache.txt | cut -d'=' -f2)
+    
+    if [ -n "$INSTALL_PREFIX" ] && [ -d "$INSTALL_PREFIX" ]; then
+        # Convert to absolute path for comparison
+        INSTALL_DIR=$(cd "$INSTALL_PREFIX" 2>/dev/null && pwd || echo "$INSTALL_PREFIX")
+        
+        # Check if it's a subdirectory of current directory (local install)
+        CURRENT_DIR=$(pwd)
+        if [[ "$INSTALL_DIR" == "$CURRENT_DIR"/* ]]; then
+            # It's a local install directory
+            INSTALL_DIR_RELATIVE=$(realpath --relative-to="$CURRENT_DIR" "$INSTALL_DIR" 2>/dev/null || \
+                                   python3 -c "import os.path; print(os.path.relpath('$INSTALL_DIR', '$CURRENT_DIR'))" 2>/dev/null || \
+                                   echo "$INSTALL_DIR")
+            
+            echo ""
+            echo "=========================================="
+            echo "Install Directory Detected"
+            echo "=========================================="
+            echo "This build is configured to install to:"
+            echo "  $INSTALL_DIR_RELATIVE"
+            echo ""
+            echo "This directory contains installed artifacts and is separate"
+            echo "from the build configuration (distclean does NOT remove it)."
+            echo ""
+            
+            if [ -d "$INSTALL_DIR" ]; then
+                read -p "Also remove install directory? [y/N] " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    CLEAN_INSTALL_DIR="$INSTALL_DIR"
+                fi
+            fi
+        fi
+    fi
+fi
+
+# === Then in the deletion section, after FILES_TO_DELETE cleanup ===
+
 # If there's nothing to clean, just run the script
 if [ -z "$FILES_TO_DELETE" ]; then
     echo "Directory is already clean, proceeding with build..."
@@ -168,6 +238,14 @@ else
             rm -f "$f" && echo "  ✓ Deleted file: $f"
         fi
     done
+
+    # Clean install directory if requested
+    if [ -n "$CLEAN_INSTALL_DIR" ]; then
+	echo ""
+	echo "Removing install directory..."
+	rm -rf "$CLEAN_INSTALL_DIR" && echo "  ✓ Deleted: $CLEAN_INSTALL_DIR"
+    fi
+
     echo ""
     echo "Distclean complete. Ready for fresh configuration."
     echo ""

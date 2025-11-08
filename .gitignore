@@ -31,3 +31,41 @@ cmake*ser*
 cmake*par*
 .idea
 *.ipynb
+
+# CMake build artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+DartConfiguration.tcl
+Makefile
+compile_commands.json
+Testing/
+_deps/
+
+# Project-specific generated files
+ERFConfig.cmake
+*.pc
+git-state.txt
+
+# Build outputs
+lib*.a
+lib*.so
+bin/
+Exec/
+Submodules/
+Tests/
+cmake_packages/
+externals/
+
+# Build and install directories
+build_*/
+install_*/
+
+# Log files
+build_*.log
+
+# Editor backups
+*~
+\#*\#
+.#*
