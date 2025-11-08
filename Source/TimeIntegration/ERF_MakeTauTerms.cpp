@@ -596,3 +596,36 @@ void erf_make_tau_terms (int level, int nrk,
         } // MFIter
     } // l_use_diff
 }
+
+
+void copy_surface_tau_for_implicit (
+    int level,
+    Vector<std::unique_ptr<MultiFab>>& Tau_lev,
+    Vector<std::unique_ptr<MultiFab>>& Tau_corr_lev)
+{
+    // This is only neeed if we're using a surface layer, which overwrites the
+    // shear stresses at klo
+
+    for ( MFIter mfi(*Tau_lev[TauType::tau11],TileNoZ()); mfi.isValid(); ++mfi)
+    {
+        Array4<Real> tau13 = Tau_lev[TauType::tau13]->array(mfi);
+        Array4<Real> tau23 = Tau_lev[TauType::tau23]->array(mfi);
+
+        Array4<Real> tau13_corr = Tau_corr_lev[0]->array(mfi);
+        Array4<Real> tau23_corr = Tau_corr_lev[1]->array(mfi);
+
+        const int klo{0};
+        Box bx = mfi.tilebox();
+        bx.makeSlab(2,klo);
+        Box bxx = surroundingNodes(bx,0);
+        Box bxy = surroundingNodes(bx,1);
+
+        ParallelFor(bxx, bxy,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            tau13_corr(i,j,k) = tau13(i,j,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            tau23_corr(i,j,k) = tau23(i,j,k);
+        });
+    }
+}

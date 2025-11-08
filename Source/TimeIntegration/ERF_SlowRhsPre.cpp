@@ -141,6 +141,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_use_turb       = tc.use_kturb;
     const bool l_need_SmnSmn    = tc.use_keqn;
 
+    const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
+
     const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
     const bool l_use_SurfLayer = (SurfLayer != nullptr);
     const bool l_rotate        = (solverChoice.use_rotate_surface_flux);
@@ -204,6 +206,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                                Hfx1, Hfx2, Hfx3,
                                                Q1fx1, Q1fx2, Q1fx3,
                                                &z_phys_nd);
+
+            //if (l_vert_implicit_fac > 0 && solverChoice.implicit_divtau_terms) {
+            //    copy_surface_tau_for_implicit(level, Tau_lev, Tau_corr_lev);
+            //}
         }
 #endif
     } // l_use_diff
@@ -567,10 +573,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_start = RhoTheta_comp;
             int n_comp  = 1;
 
-            // For implicit_fac > 0, we scale the rho*theta contribution by (1 - implicit_fac)
-            // and add in the implicit contribution in acoustic_substepping_fun scaled by implicit_fac
-            const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
-
+            // For l_vert_implicit_fac > 0, we scale the rho*theta contribution
+            // by (1 - implicit_fac) and add in the implicit contribution with
+            // ERF_Implicit.H
             if (l_use_stretched_dz) {
                 DiffusionSrcForState_S(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
