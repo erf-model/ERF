@@ -37,6 +37,7 @@ include(CMakePackageConfigHelpers)
 
 # Include Cray/Perlmutter auto-detection and fixes
 include(CrayDetection)
+include(UtilityTargets)
 
 ########################## OPTIONS #####################################
 
