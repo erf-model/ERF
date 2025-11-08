@@ -286,33 +286,6 @@ ERF::ERF_shared ()
     // No valid BoxArray and DistributionMapping have been defined.
     // But the arrays for them have been resized.
 
-    istep.resize(nlevs_max, 0);
-    nsubsteps.resize(nlevs_max, 1);
-    // This is the default
-    for (int lev = 1; lev <= max_level; ++lev) {
-        nsubsteps[lev] = MaxRefRatio(lev-1);
-    }
-
-    if (max_level > 0) {
-        ParmParse pp("erf");
-        int count = pp.countval("dt_ref_ratio");
-        if (count > 0) {
-            Vector<int> nsub;
-            nsub.resize(nlevs_max, 0);
-            if (count == 1) {
-                pp.queryarr("dt_ref_ratio", nsub, 0, 1);
-                for (int lev = 1; lev <= max_level; ++lev) {
-                    nsubsteps[lev] = nsub[0];
-                }
-            } else {
-                pp.queryarr("dt_ref_ratio", nsub, 0, max_level);
-                for (int lev = 1; lev <= max_level; ++lev) {
-                    nsubsteps[lev] = nsub[lev-1];
-                }
-            }
-        }
-    }
-
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);
     dt.resize(nlevs_max, std::min(1.e100,dt_max_initial));
@@ -2120,10 +2093,39 @@ ERF::ReadParameters ()
         pp.query("fixed_dt", fixed_dt[0]);
         pp.query("fixed_fast_dt", fixed_fast_dt[0]);
 
+        int nlevs_max = max_level + 1;
+        istep.resize(nlevs_max, 0);
+        nsubsteps.resize(nlevs_max, 1);
+        // This is the default
+        for (int lev = 1; lev <= max_level; ++lev) {
+            nsubsteps[lev] = MaxRefRatio(lev-1);
+        }
+
+        if (max_level > 0) {
+            ParmParse pp("erf");
+            int count = pp.countval("dt_ref_ratio");
+            if (count > 0) {
+                Vector<int> nsub;
+                nsub.resize(nlevs_max, 0);
+                if (count == 1) {
+                    pp.queryarr("dt_ref_ratio", nsub, 0, 1);
+                    for (int lev = 1; lev <= max_level; ++lev) {
+                        nsubsteps[lev] = nsub[0];
+                    }
+                } else {
+                    pp.queryarr("dt_ref_ratio", nsub, 0, max_level);
+                    for (int lev = 1; lev <= max_level; ++lev) {
+                        nsubsteps[lev] = nsub[lev-1];
+                    }
+                }
+            }
+        }
+
+        // Make sure we do this after we have defined nsubsteps above
         for (int lev = 1; lev <= max_level; lev++)
         {
-            fixed_dt[lev]      = fixed_dt[lev-1]      / static_cast<Real>(MaxRefRatio(lev-1));
-            fixed_fast_dt[lev] = fixed_fast_dt[lev-1] / static_cast<Real>(MaxRefRatio(lev-1));
+            fixed_dt[lev]      = fixed_dt[lev-1]      / static_cast<Real>(nsubsteps[lev]);
+            fixed_fast_dt[lev] = fixed_fast_dt[lev-1] / static_cast<Real>(nsubsteps[lev]);
         }
 
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
