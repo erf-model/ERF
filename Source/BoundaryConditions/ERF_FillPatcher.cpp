@@ -151,13 +151,11 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
         }
     }
 
-    // NOTE: Ensure we don't touch a domain boundary
-    // Trim the fine domain to not include boundary faces
+    // Get the fine domain
     Box fdomain = m_fgeom.Domain();
     fdomain.convert(fba.ixType());
 
-    // NOTE: If periodic, we should fill at the domain boundary
-    //       even if we don't have real bcs.
+    // Get the periodicity
     auto f_per = m_fgeom.periodicity();
 
     // Grow the complement boxes and trim with the bounding box
@@ -185,6 +183,44 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
         }
     }
 
+    // NOTE: Fill periodic BCs when we can.
+    //       The above will NOT trim the complement
+    //       with periodic BCs. Therefore, the domain
+    //       boundary will not be filled with the mask.
+    //       Thus, the default mask (FillSet) would
+    //       result.
+    int dir = -1;
+    int ind_lo = -1;
+    int ind_hi = -1;
+    bool periodic_and_node = false;
+    for (int idim(0); idim<AMREX_SPACEDIM; ++idim) {
+        dir = idim;
+        ind_lo = fdomain.smallEnd(idim);
+        ind_hi = fdomain.bigEnd(idim);
+        periodic_and_node = ( (fba.ixType()[idim] == IndexType::NODE) && f_per.isPeriodic(idim) );
+        if (periodic_and_node) { break; }
+    }
+    BoxList bl_hi, bl_lo, per_bl;
+    if (periodic_and_node) {
+        for (int ibx(0); ibx<fba.size(); ++ibx) {
+            Box fbx = fba[ibx];
+            if (fbx.smallEnd(dir) == fdomain.smallEnd(dir)) {
+                bl_lo.push_back(makeSlab(fbx,dir,ind_lo));
+            }
+            if (fbx.bigEnd(dir) == fdomain.bigEnd(dir)) {
+                bl_hi.push_back(makeSlab(fbx,dir,ind_lo));
+            }
+        }
+        for (auto const& bl : bl_lo) {
+            for (auto const& bh : bl_hi) {
+                Box per_un = bl & bh;
+                if (per_un.ok()) {
+                    per_bl.push_back(per_un);
+                }
+            }
+        }
+    }
+
     // Do second complement with the grown boxes
     com_ba.define(std::move(com_bl));
     com_ba.complementIn(com_bl, fba_bnd);
@@ -200,6 +236,28 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
             {
                 mask_arr(i,j,k) = mask_val;
             });
+        }
+    }
+
+    // Correct the periodic planes if needed
+    if (per_bl.size() > 0) {
+        for (MFIter mfi(*m_cf_mask); mfi.isValid(); ++mfi) {
+            const Box& vbx = mfi.validbox();
+            const Array4<int>& mask_arr = m_cf_mask->array(mfi);
+
+            for (auto const& b : per_bl) {
+                Box per_bx_lo = vbx & b;
+                Box per_bx_hi = makeSlab(per_bx_lo,dir,ind_hi);
+                ParallelFor(per_bx_lo, per_bx_hi,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    mask_arr(i,j,k) = mask_val;
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    mask_arr(i,j,k) = mask_val;
+                });
+            }
         }
     }
 }
