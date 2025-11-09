@@ -37,9 +37,9 @@ define( [[maybe_unused]] int const& a_level,
 
   const IntVect vdim(IntVect::TheDimensionVector(a_idim));
 
-  const BoxArray& grids = amrex::convert(a_grids, vdim);
+  const BoxArray& my_grids = amrex::convert(a_grids, vdim);
 
-  m_cellflags = new FabArray<EBCellFlagFab>(grids, a_dmap, 1, a_ngrow[0], MFInfo(),
+  m_cellflags = new FabArray<EBCellFlagFab>(my_grids, a_dmap, 1, a_ngrow[0], MFInfo(),
                                             DefaultFabFactory<EBCellFlagFab>());
 
   // Set m_cellflags type to singlevalued
@@ -49,8 +49,8 @@ define( [[maybe_unused]] int const& a_level,
     fab.setType(FabType::singlevalued);
   }
 
-  m_volfrac = new MultiFab(grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
-  m_volcent = new MultiFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_volfrac = new MultiFab(my_grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
+  m_volcent = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
       const BoxArray& faceba = amrex::convert(a_grids, IntVect::TheDimensionVector(idim));
@@ -63,9 +63,9 @@ define( [[maybe_unused]] int const& a_level,
       }
   }
 
-  m_bndryarea = new MultiFab(grids, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-  m_bndrycent = new MultiFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-  m_bndrynorm = new MultiFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndryarea = new MultiFab(my_grids, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndrycent = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndrynorm = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
 
   // Initialize with zeros
   m_volfrac->setVal(0.0);

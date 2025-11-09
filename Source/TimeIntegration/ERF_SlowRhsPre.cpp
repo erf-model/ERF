@@ -159,6 +159,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
+    // **************************************************************************************
+    // If doing advection with EB we need the extra values for tangential interpolation
+    // **************************************************************************************
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        S_data[IntVars::xmom].FillBoundary(geom.periodicity());
+        S_data[IntVars::ymom].FillBoundary(geom.periodicity());
+        S_data[IntVars::zmom].FillBoundary(geom.periodicity());
+    }
+
     // *****************************************************************************
     // Pre-computed quantities
     // *****************************************************************************
