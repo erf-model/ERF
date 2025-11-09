@@ -211,7 +211,7 @@
                 MultiFab::Subtract(S_pert_cons, base_state[level], BaseState::r0_comp,0,1,ngv);
                 MultiFab::Subtract(S_pert_cons, rt0              ,                  0,1,1,ngv);
 
-                // Update F_slow for perturbational fast quantites (rho - rho0) and (rho_theta - rho_theta_0)
+                // Update F_slow for perturbational fast quantities (rho - rho0) and (rho_theta - rho_theta_0)
                 redistribute_term(ncomp_fast[IntVars::cons], fine_geom, F_slow[IntVars::cons], dUdt[IntVars::cons],
                                   S_pert_cons, EBFactory(level), bc_ptr_d, slow_dt);
 
