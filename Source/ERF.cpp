@@ -2102,18 +2102,18 @@ ERF::ReadParameters ()
         }
 
         if (max_level > 0) {
-            ParmParse pp("erf");
-            int count = pp.countval("dt_ref_ratio");
+            ParmParse pp_erf("erf");
+            int count = pp_erf.countval("dt_ref_ratio");
             if (count > 0) {
                 Vector<int> nsub;
                 nsub.resize(nlevs_max, 0);
                 if (count == 1) {
-                    pp.queryarr("dt_ref_ratio", nsub, 0, 1);
+                    pp_erf.queryarr("dt_ref_ratio", nsub, 0, 1);
                     for (int lev = 1; lev <= max_level; ++lev) {
                         nsubsteps[lev] = nsub[0];
                     }
                 } else {
-                    pp.queryarr("dt_ref_ratio", nsub, 0, max_level);
+                    pp_erf.queryarr("dt_ref_ratio", nsub, 0, max_level);
                     for (int lev = 1; lev <= max_level; ++lev) {
                         nsubsteps[lev] = nsub[lev-1];
                     }
