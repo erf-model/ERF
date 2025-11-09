@@ -145,12 +145,6 @@ List of Parameters
 |                                   | subsequent         |                 |             |
 |                                   | levels             |                 |             |
 +-----------------------------------+--------------------+-----------------+-------------+
-| **amr.dt_ref_ratio**              | ratio of coarse    | Integer >= 1    | same as     |
-|                                   | to fine grid       | (one per level) | ref_ratio   |
-|                                   | time steps between |                 |             |
-|                                   | subsequent         |                 |             |
-|                                   | levels             |                 |             |
-+-----------------------------------+--------------------+-----------------+-------------+
 | **amr.regrid_int**                | how often to       | Integer > 0     | -1          |
 |                                   | regrid             | (if negative,   |             |
 |                                   |                    | no regridding)  |             |
@@ -512,6 +506,12 @@ List of Parameters
 +----------------------------+----------------------+----------------+---------------------+
 | **erf.dt_max_initial**     | maximum initial      | Real > 0       | 1.0                 |
 |                            | timestep             |                |                     |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.dt_ref_ratio**       | ratio of coarse      | Integer >= 1   | same as             |
+|                            | to fine grid         | (one per level)| maximum over        | 
+|                            | time steps between   |                | directions of       |
+|                            | subsequent           |                | ref_ratio           |
+|                            | levels               |                |                     |
 +----------------------------+----------------------+----------------+---------------------+
 
 Notes

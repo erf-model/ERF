@@ -147,7 +147,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
                 // if there are newly created levels, set the time step
                 for (int k = old_finest+1; k <= finest_level; ++k) {
-                    dt[k] = dt[k-1] / MaxRefRatio(k-1);
+                    dt[k] = dt[k-1] / static_cast<Real>(nsubsteps[k]);
                 }
             } // if
         } // lev
