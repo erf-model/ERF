@@ -508,7 +508,7 @@ List of Parameters
 |                            | timestep             |                |                     |
 +----------------------------+----------------------+----------------+---------------------+
 | **erf.dt_ref_ratio**       | ratio of coarse      | Integer >= 1   | same as             |
-|                            | to fine grid         | (one per level)| maximum over        | 
+|                            | to fine grid         | (one per level)| maximum over        |
 |                            | time steps between   |                | directions of       |
 |                            | subsequent           |                | ref_ratio           |
 |                            | levels               |                |                     |
