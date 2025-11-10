@@ -603,8 +603,8 @@ void copy_surface_tau_for_implicit (
     Vector<std::unique_ptr<MultiFab>>& Tau_lev,
     Vector<std::unique_ptr<MultiFab>>& Tau_corr_lev)
 {
-    // This is only neeed if we're using a surface layer, which overwrites the
-    // shear stresses at klo
+    // This is only needed if we're using a surface layer, which overwrites the
+    // shear stresses at klo -- at the moment, this is for testing
 
     for ( MFIter mfi(*Tau_lev[TauType::tau11],TileNoZ()); mfi.isValid(); ++mfi)
     {
