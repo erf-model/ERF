@@ -212,6 +212,7 @@ ImplicitDiffForMom_T (const Box& bx,
     // offsets used to average to faces
     constexpr int ioff = (stagdir == 0) ? 1 : 0;
     constexpr int joff = (stagdir == 1) ? 1 : 0;
+    constexpr int koff = (stagdir == 2) ? 1 : 0;
 
     // Box bounds
     const Box bxx = convert(bx, IntVect(ioff, joff, 0));
@@ -241,7 +242,7 @@ ImplicitDiffForMom_T (const Box& bx,
 
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
-    Real dz_inv0       = cellSizeInv[2];
+    Real dz_inv        = cellSizeInv[2];
 
     int bc_comp = BCVars::xvel_bc + stagdir;
     bool ext_dir_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir ||
@@ -269,64 +270,43 @@ ImplicitDiffForMom_T (const Box& bx,
         // Build the coefficients and RHS
         for (int k(klo); k <= khi; k++)
         {
-            // Note: either ioff or joff are 1
-            Real rhoface = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
-            Real detJface = 0.5 * (detJ(i,j,k) + detJ(i-ioff,j-joff,k));
-
+            Real rhoface, detJface; // at staggered location
             Real rhoAlpha_lo, rhoAlpha_hi;
-            getRhoAlphaForFaces(i, j, k, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
-                                cell_data, mu_turb, mu_eff,
-                                l_consA, l_turb);
+            Real met_h_zeta_lo, met_h_zeta_hi;
+            if (stagdir < 2) {
+                // Note: either ioff or joff are 1
+                rhoface = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+                detJface = 0.5 * (detJ(i,j,k) + detJ(i-ioff,j-joff,k));
 
-            Real dz_inv, dz_inv_lo, dz_inv_hi;
-            if (stagdir==0) {
-                dz_inv        = dz_inv0 / Compute_h_zeta_AtIface(i,j,k  ,cellSizeInv,z_nd);
-                if (k == dom_lo.z) {
-                    dz_inv_lo = dz_inv;
-                } else {
-                    dz_inv_lo = dz_inv0 / Compute_h_zeta_AtIface(i,j,k-1,cellSizeInv,z_nd);
-                    dz_inv_lo = 0.5 * (dz_inv + dz_inv_lo);
-                }
-                if (k == dom_hi.z) {
-                    dz_inv_hi = dz_inv;
-                } else {
-                    dz_inv_hi = dz_inv0 / Compute_h_zeta_AtIface(i,j,k+1,cellSizeInv,z_nd);
-                    dz_inv_hi = 0.5 * (dz_inv + dz_inv_hi);
-                }
-            } else if (stagdir==1) {
-                dz_inv        = dz_inv0 / Compute_h_zeta_AtJface(i,j,k  ,cellSizeInv,z_nd);
-                if (k == dom_lo.z) {
-                    dz_inv_lo = dz_inv;
-                } else {
-                    dz_inv_lo = dz_inv0 / Compute_h_zeta_AtJface(i,j,k-1,cellSizeInv,z_nd);
-                    dz_inv_lo = 0.5 * (dz_inv + dz_inv_lo);
-                }
-                if (k == dom_hi.z) {
-                    dz_inv_hi = dz_inv;
-                } else {
-                    dz_inv_hi = dz_inv0 / Compute_h_zeta_AtJface(i,j,k+1,cellSizeInv,z_nd);
-                    dz_inv_hi = 0.5 * (dz_inv + dz_inv_hi);
-                }
-            } else if (stagdir==2) {
-                if (k == dom_lo.z) {
-                    dz_inv_hi = dz_inv0 / detJ(i,j,k  );
-                    dz_inv_lo = dz_inv_hi;
-                    dz_inv    = dz_inv_hi;
-                } else if (k== dom_hi.z) {
-                    dz_inv_lo = dz_inv0 / detJ(i,j,k-1);
-                    dz_inv_hi = dz_inv_lo;
-                    dz_inv    = dz_inv_lo;
-                } else {
-                    dz_inv_lo = dz_inv0 / detJ(i,j,k-1);
-                    dz_inv_hi = dz_inv0 / detJ(i,j,k  );
-                    dz_inv = 0.5 * (dz_inv_lo + dz_inv_hi);
-                }
+                // average to lo/hi edges
+                getRhoAlphaForFaces(i, j, k, ioff, joff,
+                                    rhoAlpha_lo, rhoAlpha_hi,
+                                    cell_data, mu_turb, mu_eff,
+                                    l_consA, l_turb);
+
+                Real met_h_zeta_lo = 0.5 * ( Compute_h_zeta_AtKface(i     ,j     ,k  ,cellSizeInv,z_nd)
+                                           + Compute_h_zeta_AtKface(i-ioff,j-joff,k  ,cellSizeInv,z_nd) );
+                Real met_h_zeta_hi = 0.5 * ( Compute_h_zeta_AtKface(i     ,j     ,k+1,cellSizeInv,z_nd)
+                                           + Compute_h_zeta_AtKface(i-ioff,j-joff,k+1,cellSizeInv,z_nd) );
+            } else {
+                rhoface = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
+                detJface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
+
+                // no averaging, lo/hi at cc
+                getRhoAlphaForFaces(i, j, k, /*ioff, joff,*/
+                                    rhoAlpha_lo, rhoAlpha_hi,
+                                    cell_data, mu_turb, mu_eff,
+                                    l_consA, l_turb);
+
+                met_h_zeta_lo = detJ(i,j,k-1);
+                met_h_zeta_hi = detJ(i,j,k  );;
             }
 
             // Face data currently holds the _fully_ explicit solution, which
             // will be used to determine the velocity gradient for the bottom
             // BC
-            RHS_a(i,j,k) = face_data(i,j,k); // Note this is momentum but solution will be velocity
+
+            RHS_a(i,j,k) = detJface * face_data(i,j,k); // Note this is momentum but solution will be velocity
 
             // Notes:
             //
@@ -354,12 +334,17 @@ ImplicitDiffForMom_T (const Box& bx,
             //   Subtracting a negative gives the += below; multiply by dt to
             //   get the intermediate momentum on the RHS of the tridiagonal
             //   system.
-            RHS_a(i,j,k) += implicit_fac * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k))*dz_inv/detJface * dt;
+
+            RHS_a(i,j,k) += implicit_fac * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k))*dz_inv * dt;
 
             // This represents the face-centered finite difference of two
             // edge-centered finite differences (hi and lo)
-            coeffA_a(i,j,k) = -implicit_fac * gfac * rhoAlpha_lo * dt * dz_inv * dz_inv_lo;
-            coeffC_a(i,j,k) = -implicit_fac * gfac * rhoAlpha_hi * dt * dz_inv * dz_inv_hi;
+            coeffA_a(i,j,k) = -implicit_fac * gfac * rhoAlpha_lo * dt * dz_inv * dz_inv/met_h_zeta_lo;
+            coeffC_a(i,j,k) = -implicit_fac * gfac * rhoAlpha_hi * dt * dz_inv * dz_inv/met_h_zeta_hi;
+
+            // We multiplied through by detJ (at faces) for numerical stability; as a
+            // result, it does not show up in the denominator of coeffs A and C
+            // but we see it multiplying the B coeff and the RHS
 
             // Setup BCs
             if (k == dom_lo.z) {
@@ -371,8 +356,8 @@ ImplicitDiffForMom_T (const Box& bx,
                     } else {
                         // first-order:
                         //   u(klo) - (u(klo+1) - u(klo))/dz_hi * dz/2 = u_dir
-                        coeffC_a(i,j,klo) = -0.5 * dz_inv_hi / dz_inv;
-                        RHS_a(i,j,klo) = face_data(i,j,klo-1); // Dirichlet value
+                        coeffC_a(i,j,klo) = -0.5 * detJface * detJface / met_h_zeta_hi; // -0.5 * dz/dz_hi * detJ
+                        RHS_a(i,j,klo) = detJface * face_data(i,j,klo-1); // Dirichlet value
                     }
                 } else if (use_SurfLayer) {
                     // Match explicit grad(u) at the surface
@@ -392,8 +377,8 @@ ImplicitDiffForMom_T (const Box& bx,
                     } else {
                         // first-order:
                         //   u(khi) + (u(khi) - u(khi-1))/dz_lo * dz/2 = u_dir
-                        coeffA_a(i,j,khi) = -0.5 * dz_inv_lo / dz_inv;
-                        RHS_a(i,j,khi) = face_data(i,j,khi+1); // Dirichlet value
+                        coeffA_a(i,j,khi) = -0.5 * detJface * detJface / met_h_zeta_lo; // -0.5 * dz/dz_lo * detJ;
+                        RHS_a(i,j,khi) = detJface * face_data(i,j,khi+1); // Dirichlet value
                     }
                 }
 
@@ -401,7 +386,7 @@ ImplicitDiffForMom_T (const Box& bx,
                 coeffC_a(i,j,khi) = 0.;
             }
 
-            coeffB_a(i,j,k) = rhoface - coeffA_a(i,j,k) - coeffC_a(i,j,k);
+            coeffB_a(i,j,k) = detJface * rhoface - coeffA_a(i,j,k) - coeffC_a(i,j,k);
         } // k
 
         SolveTridiag(i,j,klo,khi,soln_a,coeffA_a,coeffB_a,inv_coeffB_a,coeffC_a,RHS_a);
