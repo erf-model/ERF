@@ -284,10 +284,10 @@ ImplicitDiffForMom_T (const Box& bx,
                                     cell_data, mu_turb, mu_eff,
                                     l_consA, l_turb);
 
-                Real met_h_zeta_lo = 0.5 * ( Compute_h_zeta_AtKface(i     ,j     ,k  ,cellSizeInv,z_nd)
-                                           + Compute_h_zeta_AtKface(i-ioff,j-joff,k  ,cellSizeInv,z_nd) );
-                Real met_h_zeta_hi = 0.5 * ( Compute_h_zeta_AtKface(i     ,j     ,k+1,cellSizeInv,z_nd)
-                                           + Compute_h_zeta_AtKface(i-ioff,j-joff,k+1,cellSizeInv,z_nd) );
+                met_h_zeta_lo = 0.5 * ( Compute_h_zeta_AtKface(i     ,j     ,k  ,cellSizeInv,z_nd)
+                                      + Compute_h_zeta_AtKface(i-ioff,j-joff,k  ,cellSizeInv,z_nd) );
+                met_h_zeta_hi = 0.5 * ( Compute_h_zeta_AtKface(i     ,j     ,k+1,cellSizeInv,z_nd)
+                                      + Compute_h_zeta_AtKface(i-ioff,j-joff,k+1,cellSizeInv,z_nd) );
             } else {
                 rhoface = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
                 detJface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
