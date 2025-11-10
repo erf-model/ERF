@@ -36,7 +36,7 @@ Files Overview
    responsible for managing mapping data between C++ and Fortran.
 
 NOAHMP Class
-----------
+------------
 
 The NOAH class serves as the handler for initializing and managing the
 data structures required for NOAH-MP operations. It inherits from the
@@ -121,26 +121,51 @@ model (e.g., OpenAI, Argo, etc.). Tutorials are available at
 1. Edit the prompt file **prompts/noahmpio_update.toml** to specify which
    variables should be exposed to the C++ interface.
 
-2. Run the following commands to generate or update bindings in **Submodules/Noah-MP/drivers/erf**::
+2. Run the following commands to generate or update bindings in **Submodules/Noah-MP/drivers/erf** directory:
+
+.. code-block:: bash
 
    code-scribe update NoahmpIO.H NoahmpIO.cpp NoahmpIO_fi.F90 \
-       -p prompts/noahmpio_update.toml -m <openai|argo-gpt4o|...>
+       -r prompts/noahmpio_update.toml \
+       -p "Write a natural language prompt with variable names, dimensions, etc." \
+       -m <openai|argo-gpt4o|...>
 
-3. Run the following to generate or update bindings in **Source/LandSurfaceModel/Noah-MP**::
+3. Run the following to generate or update bindings in **Source/LandSurfaceModel/Noah-MP** directory:
+
+.. code-block:: bash
 
    code-scribe update ERF_NOAHMP.cpp \
-       -p prompts/noahmpio_update.toml -m <openai|argo-gpt4o|...>
+       -r prompts/noahmpio_update.toml \
+       -p "Write a natural language prompt with variable names, dimensions, etc." \
+       -m <openai|argo-gpt4o|...>
 
-You may need to manually edit **Submodules/Noah-MP/drivers/erf/NoahmpIOVarType.F90** to replace::
+You may need to manually edit **Submodules/Noah-MP/drivers/erf/NoahmpIOVarType.F90** to replace:
+
+.. code-block:: fortran
 
    real(kind=kind_noahmp)
 
-with::
+with:
+
+.. code-block:: fortran
 
    real(kind=C_DOUBLE)
 
 This ensures compatibility with the C++ side. Alternatively, CodeScribe can perform this update automatically (depending on your
-model’s context length) using::
+model’s context length) using:
+
+.. code-block:: bash
 
    code-scribe update NoahmpIOVarType.F90 \
-       -p prompts/noahmpio_update.toml -m <openai|argo-gpt4o|...>
+       -r prompts/noahmpio_update.toml \
+       -p "Write a natural language prompt with variable names, dimensions, etc." \
+       -m <openai|argo-gpt4o|...>
+
+If you want to control Noah-MP plot variables, you can update **Submodules/Noah-MP/drivers/erf/NoahmpWriteLandMod.F90** file:
+
+.. code-block:: bash
+
+   code-scribe update NoahmpWriteLandMod.F90 \
+       -r prompts/noahmpwriteland_update.toml \
+       -p "Write a natural language prompt with variable names, dimensions, etc." \
+       -m <openai|argo-gpt4o|...>
