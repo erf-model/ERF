@@ -59,6 +59,22 @@ find_library(NETCDF_LIBRARIES_C NAMES netcdf
           $ENV{NETCDF_DIR}/lib)
 mark_as_advanced(NETCDF_LIBRARIES_C)
 
+if(NETCDF_LIBRARIES_C)
+    # First check if pkg-config told us about dependencies
+    if(NETCDF_LINK_LIBRARIES)
+        # Use pkg-config's complete dependency list
+        set(NETCDF_LIBRARIES_C ${NETCDF_LINK_LIBRARIES})
+        message(STATUS "NetCDF dependencies from pkg-config: ${NETCDF_LINK_LIBRARIES}")
+    else()
+        # Fallback: try to find HDF5 manually
+        find_package(HDF5 QUIET COMPONENTS C HL)
+        if(HDF5_FOUND)
+            list(APPEND NETCDF_LIBRARIES_C ${HDF5_LIBRARIES})
+            message(STATUS "Added HDF5 libraries to NetCDF")
+        endif()
+    endif()
+endif()
+
 set(NetCDF_has_interfaces "YES") # will be set to NO if we're missing any interfaces
 set(NetCDF_libs "${NETCDF_LIBRARIES_C}")
 
