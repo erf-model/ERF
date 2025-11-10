@@ -189,25 +189,42 @@
                 for (int i = 0; i <= AMREX_SPACEDIM; ++i) {
                     dUdt[i].setVal(0.0, 0, ncomp_fast[i], dUdt[i].nGrow());
                     MultiFab::Copy(dUdt[i], F_slow[i], 0, 0, F_slow[i].nComp(), 0);
-                    dUdt[i].FillBoundary(fine_geom.periodicity());
                     dUdt[i].setDomainBndry(1.234e10, 0, ncomp_fast[i], fine_geom);
+                    dUdt[i].FillBoundary(fine_geom.periodicity());
                 }
 
                 BCRec const* bc_ptr_d = domain_bcs_type_d.data();
+                IntVect ngv = S_old[IntVars::cons].nGrowVect();
 
-                // Update F_slow by Redistribution.
+                MultiFab S_pert_cons(ba, dm, S_old[IntVars::cons].nComp(), ngv, MFInfo(), EBFactory(level));
+                MultiFab rt0(ba, dm, 1, ngv, MFInfo(), EBFactory(level));
 
-                redistribute_term ( ncomp_fast[IntVars::cons], fine_geom, F_slow[IntVars::cons], dUdt[IntVars::cons],
-                                    S_old[IntVars::cons], EBFactory(level), bc_ptr_d, slow_dt);
-                redistribute_term ( ncomp_fast[IntVars::xmom], fine_geom, F_slow[IntVars::xmom], dUdt[IntVars::xmom],
-                                    S_old[IntVars::xmom], *(get_eb(level).get_u_const_factory()), bc_ptr_d, slow_dt, IntVars::xmom);
-                redistribute_term ( ncomp_fast[IntVars::ymom], fine_geom, F_slow[IntVars::ymom], dUdt[IntVars::ymom],
-                                    S_old[IntVars::ymom], *(get_eb(level).get_v_const_factory()), bc_ptr_d, slow_dt, IntVars::ymom);
-                redistribute_term ( ncomp_fast[IntVars::zmom], fine_geom, F_slow[IntVars::zmom], dUdt[IntVars::zmom],
-                                    S_old[IntVars::zmom], *(get_eb(level).get_w_const_factory()), bc_ptr_d, slow_dt, IntVars::zmom);
+                // Copy S_old into S_pert
+                MultiFab::Copy(S_pert_cons, S_old[IntVars::cons],0,0,S_pert_cons.nComp(), ngv);
 
-                // Update state using the updated F_slow. (NOTE: redistribute_term returns RHS not state variables.)
+                // Copy theta0 into rt0
+                MultiFab::Copy(rt0,base_state[level],BaseState::th0_comp,0,1,ngv);
 
+                // Multiply theta0 by rho0 in rt0
+                MultiFab::Multiply(rt0,base_state[level],BaseState::r0_comp,0,1,ngv);
+
+                MultiFab::Subtract(S_pert_cons, base_state[level], BaseState::r0_comp,0,1,ngv);
+                MultiFab::Subtract(S_pert_cons, rt0              ,                  0,1,1,ngv);
+
+                // Update F_slow for perturbational fast quantities (rho - rho0) and (rho_theta - rho_theta_0)
+                redistribute_term(ncomp_fast[IntVars::cons], fine_geom, F_slow[IntVars::cons], dUdt[IntVars::cons],
+                                  S_pert_cons, EBFactory(level), bc_ptr_d, slow_dt);
+
+                // Update F_slow for momenta
+                redistribute_term(ncomp_fast[IntVars::xmom], fine_geom, F_slow[IntVars::xmom], dUdt[IntVars::xmom],
+                                  S_old[IntVars::xmom], *(get_eb(level).get_u_const_factory()), bc_ptr_d, slow_dt, IntVars::xmom);
+                redistribute_term(ncomp_fast[IntVars::ymom], fine_geom, F_slow[IntVars::ymom], dUdt[IntVars::ymom],
+                                  S_old[IntVars::ymom], *(get_eb(level).get_v_const_factory()), bc_ptr_d, slow_dt, IntVars::ymom);
+                redistribute_term(ncomp_fast[IntVars::zmom], fine_geom, F_slow[IntVars::zmom], dUdt[IntVars::zmom],
+                                  S_old[IntVars::zmom], *(get_eb(level).get_w_const_factory()), bc_ptr_d, slow_dt, IntVars::zmom);
+
+
+                // Update state using the updated F_slow.
                 for ( MFIter mfi(S_sum[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box bx = mfi.tilebox();
@@ -270,12 +287,11 @@
                         if (vfrac_w(i,j,k) > 0.0) {
                             ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
                                                     + slow_dt * fslow[IntVars::zmom](i,j,k);
+
                         }
                     });
                 } // MFIter
-
             } // EB
-
         } // omp
 
         // Even if we update all the conserved variables we don't need
