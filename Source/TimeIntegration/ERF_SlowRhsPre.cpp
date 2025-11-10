@@ -217,7 +217,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                                &z_phys_nd);
 
             //if (l_vert_implicit_fac > 0 && solverChoice.implicit_divtau_terms) {
-            //    copy_surface_tau_for_implicit(level, Tau_lev, Tau_corr_lev);
+            //    copy_surface_tau_for_implicit(Tau_lev, Tau_corr_lev);
             //}
         }
 #endif

@@ -599,7 +599,6 @@ void erf_make_tau_terms (int level, int nrk,
 
 
 void copy_surface_tau_for_implicit (
-    int level,
     Vector<std::unique_ptr<MultiFab>>& Tau_lev,
     Vector<std::unique_ptr<MultiFab>>& Tau_corr_lev)
 {

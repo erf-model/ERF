@@ -212,7 +212,6 @@ ImplicitDiffForMom_T (const Box& bx,
     // offsets used to average to faces
     constexpr int ioff = (stagdir == 0) ? 1 : 0;
     constexpr int joff = (stagdir == 1) ? 1 : 0;
-    constexpr int koff = (stagdir == 2) ? 1 : 0;
 
     // Box bounds
     const Box bxx = convert(bx, IntVect(ioff, joff, 0));
