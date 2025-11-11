@@ -20,7 +20,7 @@ if (NETCDF_INCLUDES AND NETCDF_LIBRARIES)
   set (NETCDF_FIND_QUIETLY TRUE)
 endif (NETCDF_INCLUDES AND NETCDF_LIBRARIES)
 
-# Build hints from user variables first, then pkg-config
+# Build hints from user variables first
 set(NETCDF_INCLUDE_HINTS)
 set(NETCDF_LIBRARY_HINTS)
 
@@ -37,19 +37,33 @@ if(NETCDF_LIBRARY_DIR)
     list(APPEND NETCDF_LIBRARY_HINTS ${NETCDF_LIBRARY_DIR})
 endif()
 
+# Use pkg-config to get hints
 set(ENV{PKG_CONFIG_PATH} "$ENV{MPICH_DIR}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
 message(STATUS "PKG_CONFIG_PATH = $ENV{PKG_CONFIG_PATH}")
 
-find_package(PkgConfig REQUIRED QUIET)
-pkg_check_modules(NETCDF QUIET IMPORTED_TARGET netcdf)
-if(NOT NETCDF_FOUND)
-    pkg_check_modules(NETCDF REQUIRED IMPORTED_TARGET netcdf-cxx4_parallel)
+find_package(PkgConfig QUIET)
+if(PKG_CONFIG_FOUND)
+    # Try multiple NetCDF variants in order of preference
+    pkg_check_modules(NETCDF QUIET IMPORTED_TARGET netcdf)
+    if(NOT NETCDF_FOUND)
+        pkg_check_modules(NETCDF QUIET IMPORTED_TARGET netcdf-mpi)
+    endif()
+    if(NOT NETCDF_FOUND)
+        pkg_check_modules(NETCDF QUIET IMPORTED_TARGET netcdf_parallel)
+    endif()
+    if(NOT NETCDF_FOUND)
+        pkg_check_modules(NETCDF QUIET IMPORTED_TARGET netcdf-cxx4_parallel)
+    endif()
+
+    if(NETCDF_FOUND)
+        message(STATUS "Found NetCDF via pkg-config: ${NETCDF_MODULE_NAME}")
+        # Add pkg-config results to hints
+        list(APPEND NETCDF_INCLUDE_HINTS ${NETCDF_INCLUDE_DIRS})
+        list(APPEND NETCDF_LIBRARY_HINTS ${NETCDF_LIBRARY_DIRS})
+    endif()
 endif()
 
-# Add pkg-config results to hints
-list(APPEND NETCDF_INCLUDE_HINTS ${NETCDF_INCLUDE_DIRS})
-list(APPEND NETCDF_LIBRARY_HINTS ${NETCDF_LIBRARY_DIRS})
-
+# Try CMake's find_library using hints
 find_path(NETCDF_INCLUDES netcdf.h
     HINTS ${NETCDF_INCLUDE_HINTS}
           $ENV{NETCDF_DIR}/include)
@@ -59,20 +73,34 @@ find_library(NETCDF_LIBRARIES_C NAMES netcdf
           $ENV{NETCDF_DIR}/lib)
 mark_as_advanced(NETCDF_LIBRARIES_C)
 
+# If find_library succeeded, check if we need HDF5
 if(NETCDF_LIBRARIES_C)
-    # First check if pkg-config told us about dependencies
+    # Only add HDF5 if pkg-config told us NetCDF needs it
     if(NETCDF_LINK_LIBRARIES)
-        # Use pkg-config's complete dependency list
-        set(NETCDF_LIBRARIES_C ${NETCDF_LINK_LIBRARIES})
-        message(STATUS "NetCDF dependencies from pkg-config: ${NETCDF_LINK_LIBRARIES}")
-    else()
-        # Fallback: try to find HDF5 manually
-        find_package(HDF5 QUIET COMPONENTS C HL)
-        if(HDF5_FOUND)
-            list(APPEND NETCDF_LIBRARIES_C ${HDF5_LIBRARIES})
-            message(STATUS "Added HDF5 libraries to NetCDF")
+        # Check if pkg-config's library list includes hdf5
+        string(FIND "${NETCDF_LINK_LIBRARIES}" "hdf5" HDF5_IN_NETCDF)
+        if(HDF5_IN_NETCDF GREATER -1)
+            message(STATUS "NetCDF was built with HDF5 support")
+            # Check if HDF5 was already found (e.g., by AMReX)
+            if(TARGET hdf5::hdf5 OR HDF5_FOUND)
+                list(APPEND NETCDF_LIBRARIES_C ${HDF5_LIBRARIES})
+                message(STATUS "  Using HDF5 libraries (already found): ${HDF5_LIBRARIES}")
+            else()
+                # Fallback: use pkg-config's complete library list which includes HDF5
+                set(NETCDF_LIBRARIES_C ${NETCDF_LINK_LIBRARIES})
+                message(STATUS "  HDF5 not already a target, using pkg-config's complete library list:")
+                message(STATUS "  NETCDF_LIBRARIES_C = ${NETCDF_LINK_LIBRARIES}")
+            endif()
+        else()
+            message(STATUS "NetCDF was built without HDF5 support")
         endif()
+    else()
+        message(STATUS "No pkg-config information available; assuming NetCDF doesn't need HDF5")
     endif()
+# FALLBACK: If find_library failed but pkg-config succeeded, use pkg-config's library list
+elseif(NETCDF_FOUND AND NETCDF_LINK_LIBRARIES)
+    set(NETCDF_LIBRARIES_C ${NETCDF_LINK_LIBRARIES})
+    message(STATUS "Using NetCDF libraries from pkg-config: ${NETCDF_LINK_LIBRARIES}")
 endif()
 
 set(NetCDF_has_interfaces "YES") # will be set to NO if we're missing any interfaces

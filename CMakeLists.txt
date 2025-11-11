@@ -207,7 +207,7 @@ endif()
 if(ERF_ENABLE_MPI)
   # Check if we're on Cray with bare MPI wrappers (which will hang)
   set(SKIP_MPI_DETECTION FALSE)
-  
+
   if(DEFINED ENV{CRAYPE_VERSION} OR DEFINED ENV{CRAY_MPICH_DIR})
     # On Cray system - check if using problematic bare MPI wrappers
     if(CMAKE_CXX_COMPILER MATCHES "mpicxx" OR 
@@ -217,11 +217,11 @@ if(ERF_ENABLE_MPI)
       set(SKIP_MPI_DETECTION TRUE)
     endif()
   endif()
-  
+
   if(SKIP_MPI_DETECTION)
     # Workaround: Manual MPI setup (avoids hang)
     message(STATUS "Manually configuring MPI (bypassing find_package)...")
-    
+
     # Get Cray MPICH version for informational purposes
     set(MPICH_VERSION "UNKNOWN")
     if(DEFINED ENV{CRAY_MPICH_VERSION})
@@ -229,26 +229,26 @@ if(ERF_ENABLE_MPI)
     elseif(DEFINED ENV{CRAY_MPICH_VER})
       set(MPICH_VERSION "$ENV{CRAY_MPICH_VER}")
     endif()
-    
+
     # Cray MPICH 8.x supports MPI 3.1 standard
     set(MPI_VERSION "3.1")
-    
+
     # Create MPI targets
     if(NOT TARGET MPI::MPI_CXX)
       add_library(MPI::MPI_CXX INTERFACE IMPORTED)
     endif()
-    
+
     if(NOT TARGET MPI::MPI_C)
       add_library(MPI::MPI_C INTERFACE IMPORTED)
     endif()
-    
+
     # Set MPI variables
     set(MPI_FOUND TRUE)
     set(MPI_CXX_FOUND TRUE)
     set(MPI_C_FOUND TRUE)
     set(MPI_C_VERSION "${MPI_VERSION}")
     set(MPI_CXX_VERSION "${MPI_VERSION}")
-    
+
     message(STATUS "  Cray MPICH implementation: ${MPICH_VERSION}")
     message(STATUS "  MPI API standard: ${MPI_VERSION}")
     message(STATUS "  Created MPI::MPI_CXX and MPI::MPI_C targets")
