@@ -210,7 +210,7 @@ if(ERF_ENABLE_MPI)
 
   if(DEFINED ENV{CRAYPE_VERSION} OR DEFINED ENV{CRAY_MPICH_DIR})
     # On Cray system - check if using problematic bare MPI wrappers
-    if(CMAKE_CXX_COMPILER MATCHES "mpicxx" OR 
+    if(CMAKE_CXX_COMPILER MATCHES "mpicxx" OR
        CMAKE_C_COMPILER MATCHES "mpicc" OR
        CMAKE_Fortran_COMPILER MATCHES "mpifort")
       message(STATUS "Detected bare MPI wrappers on Cray - skipping MPI detection (would hang)")
