@@ -32,7 +32,7 @@ jobs:
           Get-ChildItem msmpi* | Format-List Name,Length
 
           # Install runtime (EXE) silently
-          Start-Process -FilePath .\msmpisetup.exe -ArgumentList '/quiet','/norestart' -Wait
+          Start-Process -FilePath msmpisetup.exe -ArgumentList '/quiet','/norestart' -Wait -NoNewWindow
 
           # Install SDK (MSI) silently
           msiexec /i msmpisdk.msi /qn /norestart
