@@ -54,8 +54,5 @@ jobs:
         with:
           name: ERF-win64-Release-mpi-${{ matrix.mpi }}-particles-${{ matrix.particles }}
           path: |
-            build\**\Release\*.exe
-            build\**\Release\*.dll
-            build\**\Release\*.lib
-            build\**\*.pdb
+            build
           if-no-files-found: warn
