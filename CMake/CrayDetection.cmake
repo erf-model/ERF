@@ -526,6 +526,36 @@ else()
 endif()
 
 # -----------------------------------------------------------------------------
+# HDF5 Module Check (for AMReX HDF5 support)
+# -----------------------------------------------------------------------------
+
+if(AMReX_HDF5)
+    message(STATUS "  Checking for HDF5...")
+
+    set(HDF5_LOADED FALSE)
+
+    if(DEFINED ENV{HDF5_DIR})
+        message(STATUS "    HDF5_DIR = $ENV{HDF5_DIR}")
+        set(HDF5_LOADED TRUE)
+    elseif(DEFINED ENV{HDF5_ROOT})
+        message(STATUS "    HDF5_ROOT = $ENV{HDF5_ROOT}")
+        set(HDF5_LOADED TRUE)
+    endif()
+
+    if(NOT HDF5_LOADED)
+        message(WARNING "")
+        message(WARNING "ERF: HDF5 enabled but HDF5_DIR/HDF5_ROOT not set")
+        message(WARNING "  To fix:")
+        message(WARNING "    module load cray-hdf5-parallel")
+        message(WARNING "")
+
+        erf_cray_verbose("HDF5_DIR/HDF5_ROOT not found in environment")
+    endif()
+else()
+    erf_cray_verbose("HDF5 not enabled, skipping HDF5 checks")
+endif()
+
+# -----------------------------------------------------------------------------
 # Module Environment Summary
 # -----------------------------------------------------------------------------
 
@@ -908,6 +938,72 @@ else()
 endif()
 
 # ==============================================================================
+# Fix 7: HDF5 parallel detection for HIP builds (AMD GPUs)
+# ==============================================================================
+# PROBLEM: When building with HIP, FindHDF5 may find non-parallel HDF5 or
+#          detect different HDF5 versions for different languages (C vs HIP)
+# SOLUTION: Use pkg-config to get HDF5 info and pre-configure HDF5 hints
+
+if(AMReX_GPU_BACKEND MATCHES "HIP" AND AMReX_HDF5)
+    message(STATUS "ERF: [Fix 7] Configuring HDF5 for HIP build")
+
+    erf_cray_verbose("Problem: HIP compiler may find different HDF5 than C compiler")
+    erf_cray_verbose("Condition: AMReX_GPU_BACKEND=HIP and AMReX_HDF5=ON")
+    erf_cray_verbose("Solution: Use pkg-config to set HDF5 hints before AMReX configures")
+
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        # Get pkg-config path from Cray compiler wrapper
+        execute_process(
+            COMMAND CC --cray-print-opts=pkg_config_path
+            OUTPUT_VARIABLE CRAY_PKG_CONFIG_PATH
+            ERROR_QUIET
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            RESULT_VARIABLE CC_RESULT
+        )
+
+        if(CC_RESULT EQUAL 0 AND CRAY_PKG_CONFIG_PATH)
+            set(ENV{PKG_CONFIG_PATH} "${CRAY_PKG_CONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
+            erf_cray_verbose("Added Cray pkg-config path for HDF5 detection")
+            erf_cray_verbose("  PKG_CONFIG_PATH: ${CRAY_PKG_CONFIG_PATH}")
+        endif()
+
+        # Query pkg-config for HDF5
+        pkg_check_modules(PC_HDF5 QUIET hdf5)
+        if(PC_HDF5_FOUND)
+            message(STATUS "  Found HDF5 via pkg-config")
+            erf_cray_verbose("  HDF5 prefix: ${PC_HDF5_PREFIX}")
+            erf_cray_verbose("  HDF5 include dirs: ${PC_HDF5_INCLUDE_DIRS}")
+            erf_cray_verbose("  HDF5 library dirs: ${PC_HDF5_LIBRARY_DIRS}")
+
+            # Set hints for CMake's FindHDF5 (used by AMReX)
+            set(HDF5_ROOT "${PC_HDF5_PREFIX}" CACHE PATH "HDF5 root from pkg-config")
+            set(HDF5_PREFER_PARALLEL ON CACHE BOOL "Prefer parallel HDF5")
+            set(HDF5_IS_PARALLEL TRUE CACHE BOOL "HDF5 is parallel")
+
+            # Help FindHDF5 find the right paths
+            list(APPEND CMAKE_PREFIX_PATH "${PC_HDF5_PREFIX}")
+
+            message(STATUS "  Set HDF5_ROOT = ${PC_HDF5_PREFIX}")
+            message(STATUS "  Set HDF5_PREFER_PARALLEL = ON")
+            message(STATUS "  Set HDF5_IS_PARALLEL = TRUE")
+        else()
+            message(WARNING "ERF: pkg-config could not find HDF5")
+            erf_cray_verbose("pkg-config search for hdf5 failed")
+        endif()
+    else()
+        message(WARNING "ERF: PkgConfig not found, cannot auto-configure HDF5")
+    endif()
+
+else()
+    if(AMReX_HDF5 AND NOT AMReX_GPU_BACKEND MATCHES "HIP")
+        erf_cray_verbose("Fix 7 not needed (HDF5 enabled but not using HIP backend)")
+    else()
+        erf_cray_verbose("Fix 7 not needed (AMReX_HDF5 not enabled)")
+    endif()
+endif()
+
+# ==============================================================================
 # Fix 5-6: NetCDF with cray-netcdf-hdf5parallel (Checklist Items 5-6)
 # ==============================================================================
 # PROBLEM 5: Cray NetCDF may use different C++ library names or structures
@@ -1057,6 +1153,20 @@ if(FIX56_ACTIVE)
     if(DEFINED ENV{HDF5_DIR})
         message(STATUS "      -DCMAKE_PREFIX_PATH=\"\$CMAKE_PREFIX_PATH:\$HDF5_DIR\"")
     endif()
+endif()
+
+# Fix 7: HDF5 for HIP
+set(FIX7_ACTIVE OFF)
+if(AMReX_GPU_BACKEND MATCHES "HIP" AND AMReX_HDF5)
+    set(FIX7_ACTIVE ON)
+endif()
+message(STATUS "")
+message(STATUS "  Fix 7 (HDF5+HIP):      ${FIX7_ACTIVE}")
+if(FIX7_ACTIVE)
+    message(STATUS "    Command line equivalent:")
+    message(STATUS "      -DHDF5_ROOT=\$(pkg-config --variable=prefix hdf5)")
+    message(STATUS "      -DHDF5_PREFER_PARALLEL=ON")
+    message(STATUS "      -DHDF5_IS_PARALLEL=TRUE")
 endif()
 
 message(STATUS "")
