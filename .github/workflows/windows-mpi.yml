@@ -22,56 +22,28 @@ jobs:
         with:
           submodules: true
 
-      # 🧩 Install MS-MPI runtime and SDK (from GitHub MSIs)
-      - name: Install MS-MPI (runtime + SDK)
+      - name: Install MS-MPI SDK only
         shell: pwsh
         run: |
-          curl -L -o msmpisetup.exe https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisetup.exe
           curl -L -o msmpisdk.msi  https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisdk.msi
-
-          Get-ChildItem msmpi* | Format-List Name,Length
-
-          # Install runtime (EXE) silently
-          #Start-Process -FilePath msmpisetup.exe -ArgumentList '/quiet','/norestart' -Wait -NoNewWindow
-
-          # Install SDK (MSI) silently
           msiexec /i msmpisdk.msi /qn /norestart
 
-          $msmpiBin = 'C:\Program Files\Microsoft MPI\Bin'
           $msmpiInc = 'C:\Program Files (x86)\Microsoft SDKs\MPI\Include'
           $msmpiLib = 'C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64'
-
-          "MSMPI_BIN=$msmpiBin" | Out-File -FilePath $env:GITHUB_ENV -Append
           "MSMPI_INC=$msmpiInc" | Out-File -FilePath $env:GITHUB_ENV -Append
           "MSMPI_LIB=$msmpiLib" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "PATH=$msmpiBin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "INCLUDE=$msmpiInc;$env:INCLUDE" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "LIB=$msmpiLib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-          & "$msmpiBin\mpiexec.exe" -n 2 cmd /c hostname
 
       - name: Configure (CMake)
         shell: pwsh
         run: |
-          $cmakeMPIHints = @()
-          if ("${{ matrix.mpi }}" -eq "ON") {
-            $cmakeMPIHints += '-DMPI_CXX_LIB_NAMES=msmpi'
-            $cmakeMPIHints += '-DMPI_C_LIB_NAMES=msmpi'
-            $cmakeMPIHints += "-DMPI_msmpi_LIBRARY=$env:MSMPI_LIB\msmpi.lib"
-            $cmakeMPIHints += "-DMPI_CXX_INCLUDE_DIR=$env:MSMPI_INC"
-          }
-
           cmake -S . -B build `
-            -DCMAKE_INSTALL_PREFIX:PATH=${{ runner.workspace }}/ERF/install `
-            -DCMAKE_BUILD_TYPE:STRING=Debug `
-            -DERF_DIM:STRING=3 `
-            -DERF_ENABLE_MPI:BOOL=${{ matrix.mpi }} `
-            -DERF_ENABLE_PARTICLES:BOOL=${{ matrix.particles }} `
-            -DERF_ENABLE_TESTS:BOOL=ON `
-            -DERF_ENABLE_ALL_WARNINGS:BOOL=OFF `
-            -DERF_ENABLE_FCOMPARE:BOOL=ON `
-            $($cmakeMPIHints -join ' ') `
-            ${{ github.workspace }}
+            -DCMAKE_BUILD_TYPE=Release `
+            -DERF_ENABLE_MPI=ON `
+            -DMPI_CXX_LIB_NAMES=msmpi `
+            -DMPI_C_LIB_NAMES=msmpi `
+            -DMPI_msmpi_LIBRARY="$env:MSMPI_LIB\msmpi.lib" `
+            -DMPI_CXX_INCLUDE_DIR="$env:MSMPI_INC" `
+              ${{ github.workspace }}
 
       - name: Build
         shell: pwsh
