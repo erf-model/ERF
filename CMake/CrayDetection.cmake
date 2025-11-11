@@ -720,7 +720,104 @@ if(ERF_ENABLE_MPI AND "$ENV{MPICH_GPU_SUPPORT_ENABLED}" STREQUAL "1")
     set(APPLY_FIX4 FALSE)
     set(GPU_TYPE "")
     set(GTL_LIB "")
-    set(MPI_BASE_LIB "mpi_cray")
+
+    # Detect which MPI library variant to use
+    set(MPI_BASE_LIB "")  # Will be determined
+
+    # Try 1: Use pkg-config with Cray compiler wrapper path (for Cray systems)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        # On Cray systems, get pkg-config path from compiler wrapper
+        execute_process(
+            COMMAND CC --cray-print-opts=pkg_config_path
+            OUTPUT_VARIABLE CRAY_PKG_CONFIG_PATH
+            ERROR_QUIET
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            RESULT_VARIABLE CC_RESULT
+        )
+
+        if(CC_RESULT EQUAL 0 AND CRAY_PKG_CONFIG_PATH)
+            erf_cray_verbose("Found PKG_CONFIG_PATH from CC wrapper: ${CRAY_PKG_CONFIG_PATH}")
+            # Temporarily prepend to PKG_CONFIG_PATH for pkg-config search
+            set(ENV{PKG_CONFIG_PATH} "${CRAY_PKG_CONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
+        else()
+            erf_cray_verbose("CC wrapper not available or doesn't support --cray-print-opts")
+        endif()
+
+        pkg_check_modules(CRAY_MPI QUIET mpich)
+        if(CRAY_MPI_FOUND)
+            erf_cray_verbose("pkg-config found mpich")
+            erf_cray_verbose("  CRAY_MPI_LIBRARIES: ${CRAY_MPI_LIBRARIES}")
+            erf_cray_verbose("  CRAY_MPI_LINK_LIBRARIES: ${CRAY_MPI_LINK_LIBRARIES}")
+
+            # Extract the base MPI library name from link flags
+            # Try both LIBRARIES and LINK_LIBRARIES
+            foreach(lib IN LISTS CRAY_MPI_LIBRARIES CRAY_MPI_LINK_LIBRARIES)
+                if(lib MATCHES "^mpi_" AND NOT lib MATCHES "mpi_gtl")
+                    set(MPI_BASE_LIB "${lib}")
+                    erf_cray_verbose("Detected MPI base lib from pkg-config: ${MPI_BASE_LIB}")
+                    break()
+                endif()
+            endforeach()
+        else()
+            erf_cray_verbose("pkg-config did not find mpich")
+        endif()
+    endif()
+
+    # Try 2: Search for library files (fallback)
+    if(NOT MPI_BASE_LIB)
+        erf_cray_verbose("Falling back to filesystem search for MPI library")
+        set(MPI_LIB_SEARCH_PATHS "")
+        if(DEFINED ENV{MPICH_DIR})
+            list(APPEND MPI_LIB_SEARCH_PATHS "$ENV{MPICH_DIR}/lib")
+        endif()
+        if(DEFINED ENV{CRAY_MPICH_DIR})
+            list(APPEND MPI_LIB_SEARCH_PATHS "$ENV{CRAY_MPICH_DIR}/lib")
+        endif()
+
+        erf_cray_verbose("Searching for MPI libraries in: ${MPI_LIB_SEARCH_PATHS}")
+
+        # Look for versioned libraries first (more specific)
+        foreach(path IN LISTS MPI_LIB_SEARCH_PATHS)
+            file(GLOB mpi_libs "${path}/libmpi_*.so" "${path}/libmpi_*.a")
+            foreach(lib IN LISTS mpi_libs)
+                get_filename_component(libname "${lib}" NAME_WE)
+                string(REGEX REPLACE "^lib" "" libname "${libname}")
+                # Prefer mpi_gnu_*, mpi_cray over mpi_gtl_*
+                if(libname MATCHES "^mpi_(gnu|cray|intel)" AND NOT MPI_BASE_LIB)
+                    set(MPI_BASE_LIB "${libname}")
+                    erf_cray_verbose("Detected MPI base lib from filesystem: ${MPI_BASE_LIB} at ${lib}")
+                    break()
+                endif()
+            endforeach()
+            if(MPI_BASE_LIB)
+                break()
+            endif()
+        endforeach()
+    endif()
+
+    # Try 3: Compiler-based heuristic (last resort)
+    if(NOT MPI_BASE_LIB)
+        erf_cray_verbose("Falling back to compiler-based heuristic for MPI library")
+        if(DEFINED ENV{CRAY_MPICH_DIR})
+            if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+                set(MPI_BASE_LIB "mpi_gnu_123")
+                message(WARNING "ERF: Could not auto-detect MPI library, using heuristic: ${MPI_BASE_LIB}")
+            elseif(CMAKE_CXX_COMPILER_ID MATCHES "Cray")
+                set(MPI_BASE_LIB "mpi_cray")
+                message(WARNING "ERF: Could not auto-detect MPI library, using heuristic: ${MPI_BASE_LIB}")
+            endif()
+        else()
+            set(MPI_BASE_LIB "mpi")
+            erf_cray_verbose("Non-Cray system, using default: ${MPI_BASE_LIB}")
+        endif()
+    endif()
+
+    if(MPI_BASE_LIB)
+        message(STATUS "  Using MPI base library: ${MPI_BASE_LIB}")
+    else()
+        message(WARNING "ERF: Could not determine MPI base library name!")
+    endif()
     
     # Determine GPU type and GTL library
     if(ERF_ENABLE_CUDA)
