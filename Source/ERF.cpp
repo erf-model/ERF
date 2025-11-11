@@ -994,7 +994,7 @@ ERF::InitData_post ()
         (solverChoice.vert_implicit_fac[0] > 0 ||
          solverChoice.vert_implicit_fac[1] > 0 ||
          solverChoice.vert_implicit_fac[2] > 0  )       &&
-        solverChoice.implicit_divtau_terms)
+        solverChoice.implicit_momentum_diffusion)
     {
         amrex::Warning("Doing implicit solve for u, v, and w with terrain -- this has not been tested");
     }

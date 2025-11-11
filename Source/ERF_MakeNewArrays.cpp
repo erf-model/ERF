@@ -527,7 +527,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             Tau[lev][TauType::tau32] = nullptr;
         }
 
-        if (l_implicit_diff && solverChoice.implicit_divtau_terms)
+        if (l_implicit_diff && solverChoice.implicit_momentum_diffusion)
         {
             Tau_corr[lev][0] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); // Tau31
             Tau_corr[lev][1] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); // Tau32

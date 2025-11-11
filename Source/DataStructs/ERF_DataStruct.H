@@ -378,8 +378,20 @@ struct SolverChoice {
             pp.getarr("vert_implicit_fac", vert_implicit_fac);
         }
 
-        // If true (default), include implicit contributions in tau3*
-        pp.query("implicit_divtau_terms", implicit_divtau_terms);
+        // If true (default), include implicit contributions to vertical
+        // thermal diffusion
+        pp.query("implicit_thermal_diffusion", implicit_thermal_diffusion);
+
+        // If true (default), include implicit contributions in tau13, tau23,
+        // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
+        pp.query("implicit_momentum_diffusion", implicit_momentum_diffusion);
+
+        if (!implicit_thermal_diffusion && !implicit_momentum_diffusion) {
+            amrex::Print() << "Thermal and momentum diffusion are both turned off -- turning off vertical implicit solve" << std::endl;
+            vert_implicit_fac[0] = 0.0;
+            vert_implicit_fac[1] = 0.0;
+            vert_implicit_fac[2] = 0.0;
+        }
 
         // This controls when the vertical implicit solve for the diffusive terms will happen relative to
         //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > 0.)
@@ -718,7 +730,16 @@ struct SolverChoice {
         }
         amrex::Print() << "vert_implicit_fac           : " << vert_implicit_fac[0] << " "
                                                            << vert_implicit_fac[1] << " "
-                                                           << vert_implicit_fac[2] << std::endl;
+                                                           << vert_implicit_fac[2];
+        if (vert_implicit_fac[0] > 0 ||
+            vert_implicit_fac[0] > 1 ||
+            vert_implicit_fac[0] > 2)
+            amrex::Print() << " (theta=" << implicit_thermal_diffusion
+                           << ", momenta=" << implicit_momentum_diffusion;
+#ifdef ERF_IMPLICIT_W
+            amrex::Print() << ", including w";
+#endif
+        amrex::Print() << ")" << std::endl;
         amrex::Print() << "fixed_density               : " << fixed_density << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
@@ -921,8 +942,10 @@ struct SolverChoice {
     // 0: fully explicit
     // 1: fully implicit
     amrex::Vector<amrex::Real> vert_implicit_fac = {0.0, 0.0, 0.0}; // one value per RK stage
-    bool implicit_divtau_terms   = true;
-    bool implicit_before_substep = true;
+    // if any vert_implicit_fac > 0, then the following apply:
+    bool implicit_thermal_diffusion  = true;
+    bool implicit_momentum_diffusion = true;
+    bool implicit_before_substep     = true;
 
     bool        fixed_density       = false;
     int         ncorr               = 1;

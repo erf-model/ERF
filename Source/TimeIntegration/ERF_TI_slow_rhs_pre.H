@@ -182,7 +182,7 @@
                                   S_data[IntVars::zmom].DistributionMap(), 1,
                                   S_data[IntVars::zmom].nGrowVect());
 #endif
-            if (solverChoice.implicit_divtau_terms) {
+            if (solverChoice.implicit_momentum_diffusion) {
                 MultiFab::Copy(scratch_xmom, S_old[IntVars::xmom], 0, 0, 1,  S_data[IntVars::xmom].nGrowVect()); // scratch := S_old
                 MultiFab::Saxpy(scratch_xmom, slow_dt, S_rhs[IntVars::xmom], 0, 0, 1, 0);                        // scratch := S_old + slow_dt*Src
                 scratch_xmom.FillBoundary(geom[level].periodicity());
@@ -203,7 +203,7 @@
             scratch.mult(1.0 / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
             MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt (for rhotheta only)
 
-            if (solverChoice.implicit_divtau_terms) {
+            if (solverChoice.implicit_momentum_diffusion) {
                 MultiFab::Saxpy(scratch_xmom, -1.0, S_old[IntVars::xmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
                 scratch_xmom.mult(1.0 / slow_dt);                                      // scratch  := (S_new - S_old) / slow_dt
                 MultiFab::Copy(S_rhs[IntVars::xmom], scratch_xmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
