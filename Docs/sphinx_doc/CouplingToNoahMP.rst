@@ -126,8 +126,8 @@ model (e.g., OpenAI, Argo, etc.). Tutorials are available at
 .. code-block:: bash
 
    code-scribe update NoahmpIO.H NoahmpIO.cpp NoahmpIO_fi.F90 \
-       -r prompts/noahmpio_update.toml \
-       -p "Write a natural language prompt with variable names, dimensions, etc." \
+       -p prompts/noahmpio_update.toml \
+       -q "Write a natural language prompt with variable names, dimensions, etc." \
        -m <openai|argo-gpt4o|...>
 
 3. Run the following to generate or update bindings in **Source/LandSurfaceModel/Noah-MP** directory:
@@ -135,8 +135,8 @@ model (e.g., OpenAI, Argo, etc.). Tutorials are available at
 .. code-block:: bash
 
    code-scribe update ERF_NOAHMP.cpp \
-       -r prompts/noahmpio_update.toml \
-       -p "Write a natural language prompt with variable names, dimensions, etc." \
+       -p prompts/noahmpio_update.toml \
+       -q "Write a natural language prompt with variable names, dimensions, etc." \
        -m <openai|argo-gpt4o|...>
 
 You may need to manually edit **Submodules/Noah-MP/drivers/erf/NoahmpIOVarType.F90** to replace:
@@ -157,8 +157,8 @@ model’s context length) using:
 .. code-block:: bash
 
    code-scribe update NoahmpIOVarType.F90 \
-       -r prompts/noahmpio_update.toml \
-       -p "Write a natural language prompt with variable names, dimensions, etc." \
+       -p prompts/noahmpio_update.toml \
+       -q "Write a natural language prompt with variable names, dimensions, etc." \
        -m <openai|argo-gpt4o|...>
 
 If you want to control Noah-MP plot variables, you can update **Submodules/Noah-MP/drivers/erf/NoahmpWriteLandMod.F90** file:
@@ -166,6 +166,6 @@ If you want to control Noah-MP plot variables, you can update **Submodules/Noah-
 .. code-block:: bash
 
    code-scribe update NoahmpWriteLandMod.F90 \
-       -r prompts/noahmpwriteland_update.toml \
-       -p "Write a natural language prompt with variable names, dimensions, etc." \
+       -p prompts/noahmpwriteland_update.toml \
+       -q "Write a natural language prompt with variable names, dimensions, etc." \
        -m <openai|argo-gpt4o|...>

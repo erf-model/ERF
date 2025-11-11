@@ -1,6 +1,6 @@
 # Usage: code-scribe update ERF_NOAHMP.cpp \
 #                           -p prompts/noahmpio_update.toml \
-#                           -p "Write a natural language prompt with variable name dimension etc." \
+#                           -q "Write a natural language prompt with variable name dimension etc." \
 #                           -m <openai|argo|..>
 
 [[chat.user]]
