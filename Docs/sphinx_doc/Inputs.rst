@@ -26,10 +26,13 @@ Governing Equations
 |                          | all amr levels) or a list of|               |             |
 |                          | values (one per level)      |               |             |
 +--------------------------+-----------------------------+---------------+-------------+
-| **erf.buoyancy_type**    | Controls how buoyancy is    | 1, 2, 3       | must be set |
-|                          | calculated in momentum      |               |             |
-|                          | equations (1=dry, 2=moist,  |               |             |
-|                          | 3=moist with terrain)       |               |             |
+| **erf.buoyancy_type**    | Controls how buoyancy is    | 1, 2, 3, 4    | 1 (may be   |
+|                          | calculated: 1=density       |               | auto-set to |
+|                          | perturbation, 2/3=temp.     |               | 2 or 3 based|
+|                          | perturbation, 4=potential   |               | on moisture |
+|                          | temp. perturbation.         |               | and solver) |
+|                          | See :ref:`Buoyancy` for     |               |             |
+|                          | details                     |               |             |
 +--------------------------+-----------------------------+---------------+-------------+
 | **erf.use_fft**          | use FFT rather than         | true / false  | false       |
 |                          | multigrid to solve the      |               |             |
