@@ -3,7 +3,7 @@
 # Load the needed modules
 module load gcc-native cmake cray-mpich cray-libsci cray-hdf5-parallel cray-netcdf-hdf5parallel
 
-# Deactive GPU aware MPI for CPU build
+# Deactivate GPU aware MPI for CPU build
 export MPICH_GPU_SUPPORT_ENABLED=0
 export CRAY_ACCEL_TARGET=none
 

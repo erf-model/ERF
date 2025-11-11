@@ -62,7 +62,7 @@ set -e
 # CLEANUP BEHAVIOR (GNU Make Standard):
 # -------------------------------------
 # This script performs a 'distclean' equivalent operation, which per GNU
-# standards means: "Delete all files in the current directory (or created 
+# standards means: "Delete all files in the current directory (or created
 # by this makefile) that are created by configuring or building the program."
 #
 # For CMake, this includes:
@@ -126,7 +126,7 @@ done
 # Generated project config
 [ -f "ERFConfig.cmake" ] && FILES_TO_DELETE="$FILES_TO_DELETE ERFConfig.cmake"
 
-# pkg-config files  
+# pkg-config files
 find . -maxdepth 1 -name "*.pc" -type f 2>/dev/null | while read -r f; do
     FILES_TO_DELETE="$FILES_TO_DELETE $f"
 done
@@ -146,11 +146,11 @@ INSTALL_DIR=""
 if [ -f "CMakeCache.txt" ]; then
     # Extract CMAKE_INSTALL_PREFIX from cache
     INSTALL_PREFIX=$(grep "^CMAKE_INSTALL_PREFIX:" CMakeCache.txt | cut -d'=' -f2)
-    
+
     if [ -n "$INSTALL_PREFIX" ] && [ -d "$INSTALL_PREFIX" ]; then
         # Convert to absolute path for comparison
         INSTALL_DIR=$(cd "$INSTALL_PREFIX" 2>/dev/null && pwd || echo "$INSTALL_PREFIX")
-        
+
         # Check if it's a subdirectory of current directory (local install)
         CURRENT_DIR=$(pwd)
         if [[ "$INSTALL_DIR" == "$CURRENT_DIR"/* ]]; then
@@ -158,7 +158,7 @@ if [ -f "CMakeCache.txt" ]; then
             INSTALL_DIR_RELATIVE=$(realpath --relative-to="$CURRENT_DIR" "$INSTALL_DIR" 2>/dev/null || \
                                    python3 -c "import os.path; print(os.path.relpath('$INSTALL_DIR', '$CURRENT_DIR'))" 2>/dev/null || \
                                    echo "$INSTALL_DIR")
-            
+
             echo ""
             echo "=========================================="
             echo "Install Directory Detected"
@@ -169,7 +169,7 @@ if [ -f "CMakeCache.txt" ]; then
             echo "This directory contains installed artifacts and is separate"
             echo "from the build configuration (distclean does NOT remove it)."
             echo ""
-            
+
             if [ -d "$INSTALL_DIR" ]; then
                 read -p "Also remove install directory? [y/N] " -n 1 -r
                 echo
@@ -210,11 +210,11 @@ else
     echo "Note: Install directories (if any) will NOT be deleted."
     echo "      Use 'cmake --install <build_dir> --prefix ...' to manage installations."
     echo ""
-    
+
     # Prompt user
     read -p "Delete these files/directories? [y/N] " -n 1 -r
     echo
-    
+
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         echo "Aborted by user. Not deleting anything."
         echo ""
@@ -227,7 +227,7 @@ else
         echo "  3. Install:   cmake --install <build> --prefix <install>"
         exit 1
     fi
-    
+
     # Actually delete
     echo ""
     echo "Performing distclean..."
@@ -241,9 +241,9 @@ else
 
     # Clean install directory if requested
     if [ -n "$CLEAN_INSTALL_DIR" ]; then
-	echo ""
-	echo "Removing install directory..."
-	rm -rf "$CLEAN_INSTALL_DIR" && echo "  ✓ Deleted: $CLEAN_INSTALL_DIR"
+    echo ""
+    echo "Removing install directory..."
+    rm -rf "$CLEAN_INSTALL_DIR" && echo "  ✓ Deleted: $CLEAN_INSTALL_DIR"
     fi
 
     echo ""

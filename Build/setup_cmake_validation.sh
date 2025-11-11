@@ -6,33 +6,33 @@ set -o pipefail
 # Function to verify if a directory is the ERF repo root
 verify_erf_dir() {
     local dir=$1
-    
+
     # Check for basic structure
     if [ ! -f "$dir/CMakeLists.txt" ] || [ ! -d "$dir/Source" ]; then
         return 1
     fi
-    
+
     # Check for "Energy Research and Forecasting" in key files
     local found=0
-    
+
     if [ -f "$dir/README.rst" ]; then
         if grep -q "Energy Research and Forecasting" "$dir/README.rst" 2>/dev/null || true; then
             found=1
         fi
     fi
-    
+
     if [ $found -eq 0 ] && [ -f "$dir/LICENSE.md" ]; then
         if grep -q "Energy Research and Forecasting" "$dir/LICENSE.md" 2>/dev/null || true; then
             found=1
         fi
     fi
-    
+
     if [ $found -eq 0 ] && [ -f "$dir/CITATION.cff" ]; then
         if grep -q "Energy Research and Forecasting" "$dir/CITATION.cff" 2>/dev/null || true; then
             found=1
         fi
     fi
-    
+
     return $((1 - found))
 }
 
@@ -47,7 +47,7 @@ find_erf_dir() {
             return 0
         fi
     fi
-    
+
     # Method 2: Use git to find repo root
     if command -v git &> /dev/null; then
         if git rev-parse --is-inside-work-tree &> /dev/null 2>&1; then
@@ -59,7 +59,7 @@ find_erf_dir() {
             fi
         fi
     fi
-    
+
     # Method 3: Try going up from script location
     local script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     # Check if script is in Build/ directory
@@ -71,14 +71,14 @@ find_erf_dir() {
             return 0
         fi
     fi
-    
+
     # Method 4: Check current directory
     if verify_erf_dir "$PWD"; then
         ERF_DIR="$PWD"
         echo "Detected ERF_DIR from current directory: $ERF_DIR"
         return 0
     fi
-    
+
     return 1
 }
 
@@ -177,22 +177,22 @@ for script in "$SRC_DIR"/*.sh; do
     if [ ! -f "$script" ]; then
         continue
     fi
-    
+
     basename_script=$(basename "$script")
-    
+
     # Skip backup files
     if [[ "$basename_script" =~ ~$ ]]; then
         SKIPPED=$((SKIPPED + 1))
         continue
     fi
-    
+
     # Check if it's an ERF cmake script (contains DERF or cmake)
     has_derf=0
     has_cmake=0
-    
+
     grep -q "DERF" "$script" 2>/dev/null && has_derf=1
     grep -q "cmake" "$script" 2>/dev/null && has_cmake=1
-    
+
     if [ $has_derf -eq 1 ] || [ $has_cmake -eq 1 ]; then
         cp "$script" "$BUILD_DIR/"
         chmod +x "$BUILD_DIR/$basename_script"

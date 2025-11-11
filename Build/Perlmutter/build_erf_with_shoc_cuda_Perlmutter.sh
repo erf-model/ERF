@@ -5,33 +5,33 @@ set -o pipefail
 # Function to verify if a directory is the ERF repo root
 verify_erf_dir() {
     local dir=$1
-    
+
     # Check for basic structure
     if [ ! -f "$dir/CMakeLists.txt" ] || [ ! -d "$dir/Source" ]; then
         return 1
     fi
-    
+
     # Check for "Energy Research and Forecasting" in key files
     local found=0
-    
+
     if [ -f "$dir/README.rst" ]; then
         if grep -q "Energy Research and Forecasting" "$dir/README.rst" 2>/dev/null; then
             found=1
         fi
     fi
-    
+
     if [ $found -eq 0 ] && [ -f "$dir/LICENSE.md" ]; then
         if grep -q "Energy Research and Forecasting" "$dir/LICENSE.md" 2>/dev/null; then
             found=1
         fi
     fi
-    
+
     if [ $found -eq 0 ] && [ -f "$dir/CITATION.cff" ]; then
         if grep -q "Energy Research and Forecasting" "$dir/CITATION.cff" 2>/dev/null; then
             found=1
         fi
     fi
-    
+
     return $((1 - found))
 }
 
@@ -48,7 +48,7 @@ find_erf_dir() {
             fi
         fi
     fi
-    
+
     # Method 2: Try going up from script location
     local script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     # Script is in Build/Perlmutter/, so go up 2 levels
@@ -58,14 +58,14 @@ find_erf_dir() {
         echo "Detected ERF_DIR from script location: $ERF_DIR"
         return 0
     fi
-    
+
     # Method 3: Check current directory
     if verify_erf_dir "$PWD"; then
         ERF_DIR="$PWD"
         echo "Detected ERF_DIR from current directory: $ERF_DIR"
         return 0
     fi
-    
+
     echo "Error: Could not auto-detect ERF_DIR"
     echo "Verification requires:"
     echo "  - CMakeLists.txt and Source/ directory"
@@ -75,7 +75,7 @@ find_erf_dir() {
 
 ###################################################################################
 
-# 1. Resolve ERF_DIR 
+# 1. Resolve ERF_DIR
 # Detect ERF_DIR
 if ! find_erf_dir; then
     exit 1
