@@ -1108,7 +1108,9 @@ List of Parameters
 |                                         |                    | Values              |             |
 +=========================================+====================+=====================+=============+
 | **erf.pbl_type**                        | Name of PBL Scheme | "None", "MYNN25",   | "None"      |
-|                                         | to be used         | "YSU"               |             |
+|                                         | to be used         | "MYNNEDMF", "MYJ",  |             |
+|                                         |                    | "YSU", "MRF",       |             |
+|                                         |                    | "SHOC"              |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_A1**                     | MYNN Constant A1   | Real                | 1.18        |
 +-----------------------------------------+--------------------+---------------------+-------------+
@@ -1745,7 +1747,7 @@ List of Parameters
 |                                 |                          |  "Morrison",          |            |
 |                                 |                          |  "Morrison_NoIce",    |            |
 |                                 |                          |  "SAM_NoPrecip_NoIce",|            |
-|                                 |                          |  "SAM_NoIce"          |            |
+|                                 |                          |  "SAM_NoIce", "P3"    |            |
 +---------------------------------+--------------------------+-----------------------+------------+
 | **erf.moisture_tight_coupling** | If true, advance         |  Bool                 | false      |
 |                                 | microphysics after every |                       |            |
