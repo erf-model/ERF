@@ -26,11 +26,16 @@ jobs:
       - name: Install MS-MPI (runtime + SDK)
         shell: pwsh
         run: |
-          curl -L -o msmpisetup.msi https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisetup.msi
+          curl -L -o msmpisetup.exe https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisetup.exe
           curl -L -o msmpisdk.msi  https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisdk.msi
 
-          msiexec /i msmpisetup.msi /qn /norestart
-          msiexec /i msmpisdk.msi  /qn /norestart
+          Get-ChildItem msmpi* | Format-List Name,Length
+
+          # Install runtime (EXE) silently
+          Start-Process -FilePath .\msmpisetup.exe -ArgumentList '/quiet','/norestart' -Wait
+
+          # Install SDK (MSI) silently
+          msiexec /i msmpisdk.msi /qn /norestart
 
           $msmpiBin = 'C:\Program Files\Microsoft MPI\Bin'
           $msmpiInc = 'C:\Program Files (x86)\Microsoft SDKs\MPI\Include'
