@@ -47,6 +47,14 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         amrex::Print() << "Writing deactivated particles to " << fname << "\n";
         amrex::Vector<std::string> eu_vnames(1,"dummy_var");
         WriteSingleLevelPlotfile(fname, m_mf_buf, eu_vnames, geom, a_iter*a_dt, a_iter );
+        {
+            std::ofstream jobInfoFile;
+            std::string FullPathJobInfoFile = fname;
+            FullPathJobInfoFile += "/job_info";
+            jobInfoFile.open(FullPathJobInfoFile.c_str(), std::ios::out);
+            jobInfoFile << "AMReX\n";
+            jobInfoFile.close();
+        }
         tmp.WritePlotFile(fname, name, this->varNames());
     }
 
