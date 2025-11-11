@@ -2,6 +2,9 @@
 
 cmake_minimum_required (VERSION 3.14 FATAL_ERROR)
 
+# Set main ERF context
+list(APPEND CMAKE_MESSAGE_CONTEXT "ERF")
+
 # Include Cray compiler detection BEFORE project() to set compilers
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
 include(CrayCompilerDetection)
@@ -12,16 +15,22 @@ else()
   project(ERF CXX C)
 endif()
 
+message(STATUS "Configuring ERF")
+message(VERBOSE "Source directory: ${CMAKE_SOURCE_DIR}")
+message(VERBOSE "Build directory: ${CMAKE_BINARY_DIR}")
+
 # Find NVHPC package and create aliases if needed
 if(ERF_ENABLE_CUDA AND ERF_ENABLE_NVHPC)
+  message(VERBOSE "Configuring NVHPC CUDA support")
+  
   find_package(NVHPC REQUIRED COMPONENTS MATH CUDA)
   function(create_cuda_alias nvhpc_target cuda_name)
     if(TARGET NVHPC::${nvhpc_target} AND NOT TARGET CUDA::${cuda_name})
       add_library(CUDA::${cuda_name} ALIAS NVHPC::${nvhpc_target})
-      message(STATUS " Created alias: CUDA::${cuda_name} -> NVHPC::${nvhpc_target}")
+      message(STATUS "Created alias: CUDA::${cuda_name} -> NVHPC::${nvhpc_target}")
     elseif(NOT TARGET NVHPC::${nvhpc_target})
-      message(WARNING "X Cannot create alias CUDA::${cuda_name}: NVHPC::${nvhpc_target} not found")
-  endif()
+      message(WARNING "Cannot create alias CUDA::${cuda_name}: NVHPC::${nvhpc_target} not found")
+    endif()
   endfunction()
   create_cuda_alias(CUBLAS cublas)
   create_cuda_alias(CUBLAS_STATIC cublas_static)
@@ -31,7 +40,6 @@ if(ERF_ENABLE_CUDA AND ERF_ENABLE_NVHPC)
   create_cuda_alias(CUSPARSE_STATIC cusparse_static)
 endif()
 
-
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
 include(CMakePackageConfigHelpers)
 
@@ -40,6 +48,8 @@ include(CrayDetection)
 include(UtilityTargets)
 
 ########################## OPTIONS #####################################
+
+message(VERBOSE "Configuring build options")
 
 #General options for all executables in the project
 set(ERF_DIM "3" CACHE STRING "Number of physical dimensions")
@@ -91,6 +101,7 @@ endif()
 # Configure measuring code coverage in tests
 option(CODECOVERAGE "Enable code coverage profiling" OFF)
 if(CODECOVERAGE)
+  message(VERBOSE "Enabling code coverage profiling")
   # Only supports GNU
   if(NOT CMAKE_CXX_COMPILER_ID MATCHES GNU)
     message(WARNING "CODECOVERAGE is only support with GNU Compilers. The current C++ compiler is ${CMAKE_CXX_COMPILER_ID}")
@@ -105,7 +116,10 @@ endif()
 
 ########################### AMReX #####################################
 
+list(APPEND CMAKE_MESSAGE_CONTEXT "AMReX")
+
 if (${ERF_USE_INTERNAL_AMREX})
+    message(STATUS "Using internal AMReX submodule")
     set(AMREX_SUBMOD_LOCATION "${CMAKE_SOURCE_DIR}/Submodules/AMReX")
     include(${CMAKE_SOURCE_DIR}/CMake/SetAmrexOptions.cmake)
     list(APPEND CMAKE_MODULE_PATH "${AMREX_SUBMOD_LOCATION}/Tools/CMake")
@@ -123,7 +137,9 @@ if (${ERF_USE_INTERNAL_AMREX})
       set(FCOMPARE_EXE ${CMAKE_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare
         CACHE STRING "Path to fcompare executable for regression tests")
     endif()
+    message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
 else()
+    message(STATUS "Using external AMReX")
     set(CMAKE_PREFIX_PATH ${AMREX_DIR} ${CMAKE_PREFIX_PATH})
     list(APPEND AMREX_COMPONENTS
       "3D" "PIC" "PARTICLES" "PDOUBLE" "DOUBLE" "LSOLVERS")
@@ -149,6 +165,7 @@ else()
       list(APPEND AMREX_COMPONENTS "TINY_PROFILE")
     endif()
     separate_arguments(AMREX_COMPONENTS)
+    message(VERBOSE "Required AMReX components: ${AMREX_COMPONENTS}")
     find_package(AMReX CONFIG REQUIRED
       COMPONENTS ${AMREX_COMPONENTS})
     message(STATUS "Found AMReX = ${AMReX_DIR}")
@@ -159,7 +176,10 @@ else()
       set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare
         CACHE STRING "Path to fcompare executable for regression tests")
     endif()
+    message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
 endif()
+
+list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 
 ########################## EKAT ##################################
 
@@ -170,6 +190,9 @@ else()
 endif()
 
 if(ERF_ENABLE_EKAT)
+  list(APPEND CMAKE_MESSAGE_CONTEXT "EKAT")
+
+  message(STATUS "Configuring EKAT")
 
   if(NOT ERF_ENABLE_MPI)
     message(FATAL_ERROR "CMake Error: MPI must be enabled if EKAT is enabled.")
@@ -177,19 +200,22 @@ if(ERF_ENABLE_EKAT)
 
   # NOTE: EKAT provides KOKKOS, so set relevant flags for KOKKOS
   if(ERF_ENABLE_CUDA)
+    message(VERBOSE "Enabling Kokkos CUDA support")
     set(Kokkos_ENABLE_CUDA ON CACHE BOOL "kokkos enable cuda")
     set(Kokkos_ENABLE_CUDA_LAMBDA ON CACHE BOOL "kokkos enable cuda lambda")
     set(Kokkos_ENABLE_CUDA_RELOCATABLE_DEVICE_CODE ON CACHE BOOL "kokkos enable cuda RDC")
   endif()
 
   if(ERF_ENABLE_HIP)
+    message(VERBOSE "Enabling Kokkos HIP support")
     set(Kokkos_ENABLE_HIP ON CACHE BOOL "kokkos enable hip")
     set(Kokkos_ENABLE_HIP_LAMBDA ON CACHE BOOL "kokkos enable hip lambda")
     set(Kokkos_ENABLE_HIP_RELOCATABLE_DEVICE_CODE ON CACHE BOOL "kokkos enable hip RDC")
   endif()
 
   if(ERF_ENABLE_SYCL)
-    set(Kokkos_ENABLE_SYCL ON CACHE BOOL "kokkos enable hip")
+    message(VERBOSE "Enabling Kokkos SYCL support")
+    set(Kokkos_ENABLE_SYCL ON CACHE BOOL "kokkos enable sycl")
     set(Kokkos_ENABLE_SYCL_LAMBDA ON CACHE BOOL "kokkos enable sycl lambda")
   endif()
 
@@ -199,12 +225,20 @@ if(ERF_ENABLE_EKAT)
   set(EKAT_ENABLE_KOKKOS ON CACHE BOOL "ekat enable kokkos")
   set(EKAT_ENABLE_LOGGING ON CACHE BOOL "ekat enable spdlog")
   set(EKAT_BIN ${CMAKE_BINARY_DIR}/Submodules/ekat)
+  
+  message(VERBOSE "EKAT binary directory: ${EKAT_BIN}")
   add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/ekat ${EKAT_BIN})
 
+  list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 endif()
+
 ########################### MPI #####################################
 
 if(ERF_ENABLE_MPI)
+  list(APPEND CMAKE_MESSAGE_CONTEXT "MPI")
+
+  message(STATUS "Configuring MPI")
+
   # Check if we're on Cray with bare MPI wrappers (which will hang)
   set(SKIP_MPI_DETECTION FALSE)
 
@@ -213,14 +247,14 @@ if(ERF_ENABLE_MPI)
     if(CMAKE_CXX_COMPILER MATCHES "mpicxx" OR
        CMAKE_C_COMPILER MATCHES "mpicc" OR
        CMAKE_Fortran_COMPILER MATCHES "mpifort")
-      message(STATUS "Detected bare MPI wrappers on Cray - skipping MPI detection (would hang)")
+      message(STATUS "Detected bare MPI wrappers on Cray - skipping detection (would hang)")
       set(SKIP_MPI_DETECTION TRUE)
     endif()
   endif()
 
   if(SKIP_MPI_DETECTION)
     # Workaround: Manual MPI setup (avoids hang)
-    message(STATUS "Manually configuring MPI (bypassing find_package)...")
+    message(VERBOSE "Manually configuring MPI (bypassing find_package)...")
 
     # Get Cray MPICH version for informational purposes
     set(MPICH_VERSION "UNKNOWN")
@@ -236,10 +270,12 @@ if(ERF_ENABLE_MPI)
     # Create MPI targets
     if(NOT TARGET MPI::MPI_CXX)
       add_library(MPI::MPI_CXX INTERFACE IMPORTED)
+      message(DEBUG "Created MPI::MPI_CXX target")
     endif()
 
     if(NOT TARGET MPI::MPI_C)
       add_library(MPI::MPI_C INTERFACE IMPORTED)
+      message(DEBUG "Created MPI::MPI_C target")
     endif()
 
     # Set MPI variables
@@ -249,84 +285,114 @@ if(ERF_ENABLE_MPI)
     set(MPI_C_VERSION "${MPI_VERSION}")
     set(MPI_CXX_VERSION "${MPI_VERSION}")
 
-    message(STATUS "  Cray MPICH implementation: ${MPICH_VERSION}")
-    message(STATUS "  MPI API standard: ${MPI_VERSION}")
-    message(STATUS "  Created MPI::MPI_CXX and MPI::MPI_C targets")
+    message(STATUS "Cray MPICH: ${MPICH_VERSION}")
+    message(STATUS "MPI standard: ${MPI_VERSION}")
+    message(VERBOSE "Created MPI::MPI_CXX and MPI::MPI_C targets")
   else()
     # Normal path: Use find_package
-    message(STATUS "Using find_package(MPI) for detection...")
+    message(VERBOSE "Using find_package(MPI) for detection")
     set(_mpi_comps C CXX)
     if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
       list(APPEND _mpi_comps Fortran)
     endif()
+    message(DEBUG "MPI components: ${_mpi_comps}")
     find_package(MPI REQUIRED ${_mpi_comps})
   endif()
-endif()
 
-message(STATUS "MPI section complete")
+  message(STATUS "MPI configuration complete")
+  list(POP_BACK CMAKE_MESSAGE_CONTEXT)
+endif()
 
 ########################## NETCDF ##################################
-message(STATUS "DEBUG: ERF_ENABLE_NETCDF = ${ERF_ENABLE_NETCDF}")
-message(STATUS "DEBUG: ERF_ENABLE_TOOLS = ${ERF_ENABLE_TOOLS}")
-message(STATUS "DEBUG: About to check NetCDF section...")
 
 if(ERF_ENABLE_NETCDF OR ERF_ENABLE_TOOLS)
+  list(APPEND CMAKE_MESSAGE_CONTEXT "NetCDF")
+
+  message(STATUS "Configuring NetCDF")
+  message(DEBUG "ERF_ENABLE_NETCDF: ${ERF_ENABLE_NETCDF}")
+  message(DEBUG "ERF_ENABLE_TOOLS: ${ERF_ENABLE_TOOLS}")
+
   set(CMAKE_PREFIX_PATH ${NETCDF_DIR} ${CMAKE_PREFIX_PATH})
-##  set(NETCDF_CXX "YES")
   find_package (NetCDF REQUIRED)
   if(NETCDF_FOUND)
-     message(STATUS "Found NetCDF, NETCDF_DIR = ${NETCDF_DIR}")
+     message(STATUS "Found NetCDF: ${NETCDF_DIR}")
+     message(VERBOSE "NetCDF includes: ${NETCDF_INCLUDES}")
+     message(VERBOSE "NetCDF libraries: ${NETCDF_LIBRARIES}")
   endif()
-endif()
 
-message(STATUS "DEBUG: NetCDF section complete")
+  message(STATUS "NetCDF configuration complete")
+  list(POP_BACK CMAKE_MESSAGE_CONTEXT)
+endif()
 
 ########################## NOAH-MP ##################################
 
 if(ERF_ENABLE_NOAHMP)
+  list(APPEND CMAKE_MESSAGE_CONTEXT "Noah-MP")
+
+  message(STATUS "Configuring Noah-MP")
+
   if(ERF_ENABLE_NETCDF)
      set(NOAHMP_HOME ${CMAKE_SOURCE_DIR}/Submodules/Noah-MP/drivers/erf)
      set(NOAHMP_BIN  ${CMAKE_BINARY_DIR}/Submodules/Noah-MP/drivers/erf)
+     message(VERBOSE "Noah-MP source: ${NOAHMP_HOME}")
+     message(VERBOSE "Noah-MP binary: ${NOAHMP_BIN}")
      add_subdirectory(${NOAHMP_HOME} ${NOAHMP_BIN})
   else()
      message(FATAL_ERROR "Noah-MP requires NetCDF be enabled")
   endif()
-message(STATUS "DEBUG: NOAH-MP section complete")
+
+  message(STATUS "Noah-MP configuration complete")
+  list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 endif()
 
 ########################### RRTMGP #################################
 
 if(ERF_ENABLE_RRTMGP)
-    if(NOT ERF_ENABLE_EKAT)
-        message(FATAL_ERROR "CMake Error: EKAT must be enabled if RRTMGP is enabled.")
-    endif()
+  list(APPEND CMAKE_MESSAGE_CONTEXT "RRTMGP")
 
-    if(NOT ERF_ENABLE_NETCDF)
-        message(FATAL_ERROR "CMake Error: NetCDF must be enabled if RRTMGP is enabled.")
-    endif()
+  message(STATUS "Configuring RRTMGP")
 
-    message(STATUS "Building RRTMGP + KOKKOS...")
+  if(NOT ERF_ENABLE_EKAT)
+      message(FATAL_ERROR "EKAT must be enabled if RRTMGP is enabled")
+  endif()
 
-    # Build the static rrtmgp library
-    set(RRTMGP_BIN ${CMAKE_BINARY_DIR}/Submodules/rrtmgp)
-    add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp ${RRTMGP_BIN})
+  if(NOT ERF_ENABLE_NETCDF)
+      message(FATAL_ERROR "NetCDF must be enabled if RRTMGP is enabled")
+  endif()
 
-    # Set up kokkos library and definitions
-    set(RRTMGP_ENABLE_KOKKOS TRUE)
-    target_compile_definitions(rrtmgp PUBLIC RRTMGP_ENABLE_KOKKOS)
-    target_link_libraries(rrtmgp kokkos)
-message(STATUS "DEBUG: RRTMGP section complete")
+  message(VERBOSE "Building RRTMGP with Kokkos support")
+
+  # Build the static rrtmgp library
+  set(RRTMGP_BIN ${CMAKE_BINARY_DIR}/Submodules/rrtmgp)
+  message(VERBOSE "RRTMGP binary directory: ${RRTMGP_BIN}")
+  add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp ${RRTMGP_BIN})
+
+  # Set up kokkos library and definitions
+  set(RRTMGP_ENABLE_KOKKOS TRUE)
+  target_compile_definitions(rrtmgp PUBLIC RRTMGP_ENABLE_KOKKOS)
+  target_link_libraries(rrtmgp kokkos)
+  message(DEBUG "Added Kokkos to RRTMGP target")
+
+  message(STATUS "RRTMGP configuration complete")
+  list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 endif()
 
 ########################### SHOC #################################
 
 if(ERF_ENABLE_SHOC)
-    if(NOT ERF_ENABLE_EKAT)
-        message(FATAL_ERROR "CMake Error: EKAT must be enabled if SHOC is enabled.")
-    endif()
+  list(APPEND CMAKE_MESSAGE_CONTEXT "SHOC")
 
-    # NOTE: We compile shoc src files directly
-message(STATUS "DEBUG: SHOC section complete")
+  message(STATUS "Configuring SHOC")
+
+  if(NOT ERF_ENABLE_EKAT)
+      message(FATAL_ERROR "EKAT must be enabled if SHOC is enabled")
+  endif()
+
+  # NOTE: We compile shoc src files directly
+  message(VERBOSE "SHOC source files will be compiled directly")
+
+  message(STATUS "SHOC configuration complete")
+  list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 endif()
 
 ########################### ERF #####################################
@@ -345,15 +411,21 @@ include(${CMAKE_SOURCE_DIR}/CMake/SetRpath.cmake)
 add_subdirectory(Exec)
 
 if(ERF_ENABLE_TESTS)
+  message(STATUS "Configuring tests")
   include(CTest)
   add_subdirectory(Tests)
 endif()
 
 if(ERF_ENABLE_DOCUMENTATION)
-   add_subdirectory(Docs)
+  message(STATUS "Configuring documentation")
+  add_subdirectory(Docs)
 endif()
 
 # Installation rules
+list(APPEND CMAKE_MESSAGE_CONTEXT "Install")
+
+message(STATUS "Configuring installation")
+
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
@@ -406,3 +478,13 @@ install(FILES
   ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
   )
+
+message(VERBOSE "Install prefix: ${CMAKE_INSTALL_PREFIX}")
+message(VERBOSE "Install libdir: ${CMAKE_INSTALL_LIBDIR}")
+
+list(POP_BACK CMAKE_MESSAGE_CONTEXT)
+
+# Pop main ERF context
+list(POP_BACK CMAKE_MESSAGE_CONTEXT)
+
+message(STATUS "ERF configuration complete")
