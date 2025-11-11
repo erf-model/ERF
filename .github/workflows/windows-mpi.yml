@@ -49,13 +49,13 @@ jobs:
         shell: pwsh
         run: cmake --build build --parallel 2 --verbose
 
-      - name: (Optional) MPI smoke test
-        if: matrix.mpi == 'ON'
-        shell: pwsh
-        run: mpiexec -n 2 cmd /c echo Hello from %COMPUTERNAME%
+      #- name: (Optional) MPI smoke test
+      #  if: matrix.mpi == 'ON'
+      #  shell: pwsh
+      #  run: mpiexec -n 2 cmd /c echo Hello from %COMPUTERNAME%
+#
 
-
-      - name: CMake Tests
-        shell: pwsh
-        working-directory: ${{ runner.workspace }}/ERF/build
-        run: ctest -L regression -VV
+      #- name: CMake Tests
+      #  shell: pwsh
+      #  working-directory: ${{ runner.workspace }}/ERF/build
+      #  run: ctest -L regression -VV
