@@ -1,0 +1,89 @@
+name: Windows
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.head_ref }}-windows
+  cancel-in-progress: true
+
+jobs:
+  WIN32-MSVC10:
+    name: WIN32 MSVC@19.29 - MPI ${{ matrix.mpi }} - Particles ${{ matrix.particles }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        particles: [OFF, ON]
+        mpi: [ON]   # set to [ON, OFF] if you want both variants
+
+    steps:
+    - name: Checkout (with submodules)
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    # Install Microsoft MPI runtime + SDK (headers/libs)
+    - name: Install MS-MPI (runtime + SDK)
+      shell: pwsh
+      run: |
+        choco install -y msmpi msmpisdk
+        # Show where Chocolatey put things
+        choco list --localonly | Select-String msmpi
+        # Paths used by FindMPI on Windows
+        $msmpiBin  = 'C:\Program Files\Microsoft MPI\Bin'
+        $msmpiInc  = 'C:\Program Files (x86)\Microsoft SDKs\MPI\Include'
+        $msmpiLib  = 'C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64'
+        # Expose to this job's environment (no machine-wide setx)
+        echo "MSMPI_BIN=$msmpiBin" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "MSMPI_INC=$msmpiInc" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "MSMPI_LIB=$msmpiLib" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "PATH=$msmpiBin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "INCLUDE=$msmpiInc;$env:INCLUDE" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "LIB=$msmpiLib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Append
+        # Quick sanity checks
+        & "$msmpiBin\mpiexec.exe" -n 2 cmd /c hostname
+
+    - name: Configure Project and Generate Build System
+      shell: pwsh
+      run: |
+        # If MPI=ON, optionally give hints to CMake's FindMPI (not strictly required if INCLUDE/LIB/PATH are set)
+        $cmakeMPIHints = @()
+        if ("${{ matrix.mpi }}" -eq "ON") {
+          $cmakeMPIHints += '-DMPI_CXX_LIB_NAMES=msmpi'
+          $cmakeMPIHints += '-DMPI_C_LIB_NAMES=msmpi'
+          $cmakeMPIHints += "-DMPI_msmpi_LIBRARY=$env:MSMPI_LIB\msmpi.lib"
+          $cmakeMPIHints += "-DMPI_CXX_INCLUDE_DIR=$env:MSMPI_INC"
+        }
+
+        cmake -S . -B build `
+          -DCMAKE_INSTALL_PREFIX:PATH=${{ runner.workspace }}/ERF/install `
+          -DCMAKE_BUILD_TYPE:STRING=Debug `
+          -DERF_DIM:STRING=3 `
+          -DERF_ENABLE_MPI:BOOL=${{ matrix.mpi }} `
+          -DERF_ENABLE_PARTICLES:BOOL=${{ matrix.particles }} `
+          -DERF_ENABLE_TESTS:BOOL=ON `
+          -DERF_ENABLE_ALL_WARNINGS:BOOL=OFF `
+          -DERF_ENABLE_FCOMPARE:BOOL=ON `
+          $($cmakeMPIHints -join ' ') `
+          ${{ github.workspace }}
+
+    - name: Compile and Link
+      shell: pwsh
+      run: |
+        cmake --build build --parallel 2 --verbose
+
+    - name: (Optional) Smoke test MPI launcher
+      if: matrix.mpi == 'ON'
+      shell: pwsh
+      run: |
+        # Adjust the path/name of your built exe as needed
+        # Here we just confirm mpiexec runs on the agent
+        mpiexec -n 2 cmd /c echo Hello from %COMPUTERNAME%
+
+    - name: CMake Tests # see ERF/Tests/CTestList.cmake
+      shell: pwsh
+      working-directory: ${{ runner.workspace }}/ERF/build
+      run: |
+        # If your tests require mpiexec, CTest will use it via FindMPI.
+        # You can also force it: ctest --tests-regex mpi --overwrite MemoryCheckCommand="mpiexec -n 2"
+        ctest -L regression -VV
