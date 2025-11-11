@@ -19,6 +19,7 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=./install_erf \
       -DERF_ENABLE_FCOMPARE:BOOL=ON \
       -DERF_ENABLE_DOCUMENTATION:BOOL=OFF \
       -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
+      --log-context \
       -B build_erf ..
 
 cmake --build build_erf -j10 -v

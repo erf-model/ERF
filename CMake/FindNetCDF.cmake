@@ -119,6 +119,9 @@ find_library(NETCDF_LIBRARIES_C NAMES netcdf
 mark_as_advanced(NETCDF_LIBRARIES_C)
 
 if(NETCDF_LIBRARIES_C)
+    message(VERBOSE "Found libnetcdf: ${NETCDF_LIBRARIES_C}")
+    list(APPEND NETCDF_DETECTION_LOG "find_library: ${NETCDF_LIBRARIES_C}")
+    
     # Only add HDF5 if pkg-config told us NetCDF needs it
     if(NETCDF_LINK_LIBRARIES)
         # Check if pkg-config's library list includes hdf5
@@ -136,14 +139,15 @@ if(NETCDF_LIBRARIES_C)
                 message(STATUS "  NETCDF_LIBRARIES_C = ${NETCDF_LINK_LIBRARIES}")
             endif()
         else()
-            message(STATUS "NetCDF has no link libraries (potentially was built without HDF5 support)")
+            message(STATUS "NetCDF has no HDF5 dependency in pkg-config")
         endif()
-    message(VERBOSE "Found libnetcdf: ${NETCDF_LIBRARIES_C}")
-    list(APPEND NETCDF_DETECTION_LOG "find_library: ${NETCDF_LIBRARIES_C}")
+    endif()  # <-- THIS WAS MISSING!
+    
 # FALLBACK: If find_library failed but pkg-config succeeded, use pkg-config's library list
 elseif(NETCDF_FOUND AND NETCDF_LINK_LIBRARIES)
     set(NETCDF_LIBRARIES_C ${NETCDF_LINK_LIBRARIES})
     message(STATUS "Using NetCDF libraries from pkg-config: ${NETCDF_LINK_LIBRARIES}")
+    list(APPEND NETCDF_DETECTION_LOG "pkg-config fallback: ${NETCDF_LINK_LIBRARIES}")
 else()
     message(DEBUG "libnetcdf not found")
     list(APPEND NETCDF_DETECTION_LOG "find_library: failed")
