@@ -1,4 +1,5 @@
 #include <random>
+#include <AMReX_PlotFileUtil.H>
 #include "ERF_SuperDropletPC.H"
 
 #ifdef ERF_USE_PARTICLES
@@ -26,6 +27,12 @@ void SuperDropletPC::Recycle ( const int             a_lev,
     if (!flag) { return; }
 
     if (m_save_inactive) {
+
+        const auto& geom = Geom(m_lev);
+        const auto plo = geom.ProbLoArray();
+        const auto dxi = geom.InvCellSizeArray();
+        const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+
         using SrcData = SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
         std::string name = "deactivated_particles";
         auto tmp = this->make_alike<amrex::PinnedArenaAllocator>();
@@ -38,6 +45,8 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
         std::string fname = "deac_SD_" + std::string(iter_str);
         amrex::Print() << "Writing deactivated particles to " << fname << "\n";
+        amrex::Vector<std::string> eu_vnames(1,"dummy_var");
+        WriteSingleLevelPlotfile(fname, m_mf_buf, eu_vnames, geom, a_iter*a_dt, a_iter );
         tmp.WritePlotFile(fname, name, this->varNames());
     }
 

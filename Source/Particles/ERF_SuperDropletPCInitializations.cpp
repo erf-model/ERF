@@ -253,6 +253,10 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
         m_rndeng.seed(seed);
     }
 
+    if (m_save_inactive) {
+        m_mf_buf.define(a_ba, a_dmap, 1, 0);
+        m_mf_buf.setVal(0.0);
+    }
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
     m_mass_ln_R_mf.define(a_ba, a_dmap, m_distribution_grid_size, 0);
     m_num_ln_R_mf.define(a_ba, a_dmap, m_distribution_grid_size, 0);
