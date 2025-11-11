@@ -196,10 +196,10 @@ for script in "$SRC_DIR"/*.sh; do
     if [ $has_derf -eq 1 ] || [ $has_cmake -eq 1 ]; then
         cp "$script" "$BUILD_DIR/"
         chmod +x "$BUILD_DIR/$basename_script"
-        echo "  ✓ $basename_script"
+        echo "   DONE: $basename_script"
         COPIED=$((COPIED + 1))
     else
-        echo "  ✗ $basename_script (no DERF or cmake found)"
+        echo "  ERROR: $basename_script (no DERF or cmake found)"
         SKIPPED=$((SKIPPED + 1))
     fi
 done
@@ -258,7 +258,7 @@ if [ $# -ne 1 ]; then
     for i in "${!SCRIPTS[@]}"; do
         script_base="${SCRIPTS[$i]%.sh}"
         printf "%3d: %s\n" $((i+1)) "${SCRIPTS[$i]}"
-        printf "     → subdirectory: %s/script_%s/\n" "$ERF_DIR" "$script_base"
+        printf "     -> subdirectory: %s/script_%s/\n" "$ERF_DIR" "$script_base"
     done
     echo ""
     echo "Each script will run in its own clean subdirectory at ERF root."

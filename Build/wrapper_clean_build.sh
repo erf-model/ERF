@@ -233,9 +233,9 @@ else
     echo "Performing distclean..."
     for f in $FILES_TO_DELETE; do
         if [ -d "$f" ]; then
-            rm -rf "$f" && echo "  ✓ Deleted directory: $f"
+            rm -rf "$f" && echo "   DONE: Deleted directory: $f"
         elif [ -f "$f" ]; then
-            rm -f "$f" && echo "  ✓ Deleted file: $f"
+            rm -f "$f" && echo "   DONE: Deleted file: $f"
         fi
     done
 
@@ -243,7 +243,7 @@ else
     if [ -n "$CLEAN_INSTALL_DIR" ]; then
     echo ""
     echo "Removing install directory..."
-    rm -rf "$CLEAN_INSTALL_DIR" && echo "  ✓ Deleted: $CLEAN_INSTALL_DIR"
+    rm -rf "$CLEAN_INSTALL_DIR" && echo "   DONE: Deleted: $CLEAN_INSTALL_DIR"
     fi
 
     echo ""

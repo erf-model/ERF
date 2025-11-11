@@ -73,7 +73,7 @@ add_custom_target(distclean
     
     # Summary
     COMMAND ${CMAKE_COMMAND} -E echo ""
-    COMMAND ${CMAKE_COMMAND} -E echo "✓ Distclean complete"
+    COMMAND ${CMAKE_COMMAND} -E echo " DONE: Distclean complete"
     COMMAND ${CMAKE_COMMAND} -E echo ""
     COMMAND ${CMAKE_COMMAND} -E echo "Note: Install directories preserved"
     

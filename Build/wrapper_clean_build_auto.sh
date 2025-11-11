@@ -68,23 +68,23 @@ rm -f lib*.a lib*.so 2>/dev/null || true
 # Delete build logs
 rm -f build_*.log git-state.txt 2>/dev/null || true
 
-echo "✓ Cleaned: CMake configuration files"
-echo "✓ Cleaned: Build artifacts (Exec/, Submodules/, Tests/, bin/, etc.)"
-echo "✓ Cleaned: Libraries (lib*.a, lib*.so)"
-echo "✓ Cleaned: Build logs and editor backups"
+echo " DONE: Cleaned: CMake configuration files"
+echo " DONE: Cleaned: Build artifacts (Exec/, Submodules/, Tests/, bin/, etc.)"
+echo " DONE: Cleaned: Libraries (lib*.a, lib*.so)"
+echo " DONE: Cleaned: Build logs and editor backups"
 
 # Clean install directory if requested
 if [ -n "$INSTALL_DIR" ]; then
     echo ""
     echo "Cleaning install directory (CLEAN_INSTALL=yes): $INSTALL_DIR"
-    rm -rf "$INSTALL_DIR" && echo "✓ Deleted: $INSTALL_DIR"
+    rm -rf "$INSTALL_DIR" && echo " DONE: Deleted: $INSTALL_DIR"
 elif [ -f "CMakeCache.txt.deleted" ]; then
     echo ""
     echo "Install directory NOT cleaned (use CLEAN_INSTALL=yes to clean)"
 fi
 
 echo ""
-echo "✓ Directory ready for fresh configuration"
+echo " DONE: Directory ready for fresh configuration"
 echo ""
 
 # Set ERF_DIR
