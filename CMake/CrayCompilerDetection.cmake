@@ -5,6 +5,37 @@
 # The main CrayDetection.cmake runs AFTER project() to apply build fixes
 # ==============================================================================
 
+# -----------------------------------------------------------------------------
+# Helper function: Suggest machine profile
+# -----------------------------------------------------------------------------
+function(erf_suggest_machine_profile)
+    execute_process(
+        COMMAND hostname -s
+        OUTPUT_VARIABLE hostname
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+
+    file(GLOB profiles "${CMAKE_SOURCE_DIR}/Build/machines/*_erf.profile")
+
+    message(STATUS "  Load modules from your machine profile:")
+    message(STATUS "")
+
+    if(profiles)
+        foreach(p ${profiles})
+            get_filename_component(name ${p} NAME_WE)
+            # Check if hostname contains profile name
+            if(hostname MATCHES "${name}")
+                message(STATUS "    source ${p}  <-- matches hostname '${hostname}'")
+            else()
+                message(STATUS "    source ${p}")
+            endif()
+        endforeach()
+    else()
+        message(STATUS "    No profiles found in ${CMAKE_SOURCE_DIR}/Build/machines/")
+    endif()
+endfunction()
+
 # Skip if user already set compilers explicitly
 if(CMAKE_C_COMPILER OR CMAKE_CXX_COMPILER OR CMAKE_Fortran_COMPILER)
     message(STATUS "ERF: Compilers already specified by user, skipping Cray auto-detection")
@@ -81,33 +112,70 @@ message(STATUS "")
 # GPU Host Compilers (for CUDA, HIP, SYCL)
 # -----------------------------------------------------------------------------
 
-# CUDA Host Compiler - detect via environment
+# -----------------------------------------------------------------------------
+# GPU Host Compilers (for CUDA, HIP, SYCL)
+# -----------------------------------------------------------------------------
+
+# CUDA - Check if craype-accel module is loaded on Cray systems
 if(DEFINED ENV{CUDA_HOME} OR DEFINED ENV{CUDATOOLKIT_HOME} OR DEFINED ENV{CRAY_ACCEL_TARGET})
-    message(STATUS "  Detected CUDA environment, configuring CUDA host compiler...")
+    message(STATUS "  Detected CUDA environment")
     
-    # Only set if not already specified by user
-    if(NOT CMAKE_CUDA_HOST_COMPILER AND NOT DEFINED ENV{CUDAHOSTCXX})
-        if(ERF_CRAY_CXX)
-            set(CMAKE_CUDA_HOST_COMPILER "${ERF_CRAY_CXX}" CACHE FILEPATH "CUDA host compiler" FORCE)
-            message(STATUS "    Set CMAKE_CUDA_HOST_COMPILER = ${ERF_CRAY_CXX}")
+    # On Cray systems, need craype-accel-* module loaded
+    if(DEFINED ENV{CRAYPE_VERSION})
+        if(NOT DEFINED ENV{CRAY_ACCEL_TARGET})
+            message(STATUS "")
+            message(STATUS "====================================================================")
+            message(STATUS "CUDA on Cray: Missing craype-accel Module")
+            message(STATUS "====================================================================")
+            message(STATUS "")
+            message(STATUS "The Cray compiler wrappers need a craype-accel-* module loaded")
+            message(STATUS "to configure GPU support (sets CRAY_ACCEL_TARGET).")
+            message(STATUS "")
+            message(STATUS "To fix, load the appropriate module from your machine profile:")
+            message(STATUS "")
+            erf_suggest_machine_profile()
+            message(STATUS "")
+            message(STATUS "  Examples of craype-accel modules:")
+            message(STATUS "    craype-accel-nvidia80   (A100)")
+            message(STATUS "    craype-accel-nvidia90   (H100)")
+            message(STATUS "    craype-accel-amd-gfx90a (MI250X)")
+            message(STATUS "")
+            message(STATUS "====================================================================")
+            message(FATAL_ERROR "CUDA requires craype-accel module on Cray systems")
+        else()
+            message(STATUS "    craype-accel module loaded: CRAY_ACCEL_TARGET=$ENV{CRAY_ACCEL_TARGET}")
+            message(STATUS "    Cray wrappers will handle CUDA compilation")
         endif()
-    else()
-        message(STATUS "    CUDA host compiler already set by user")
     endif()
 endif()
 
-# HIP Host Compiler - detect via ROCM environment
+# HIP - Check if craype-accel module is loaded on Cray systems
 if(DEFINED ENV{ROCM_PATH} OR DEFINED ENV{HIP_PATH})
-    message(STATUS "  Detected ROCm/HIP environment, configuring HIP host compiler...")
+    message(STATUS "  Detected ROCm/HIP environment")
     
-    # Only set if not already specified by user
-    if(NOT CMAKE_HIP_HOST_COMPILER AND NOT DEFINED ENV{HIPHOSTCXX})
-        if(ERF_CRAY_CXX)
-            set(CMAKE_HIP_HOST_COMPILER "${ERF_CRAY_CXX}" CACHE FILEPATH "HIP host compiler" FORCE)
-            message(STATUS "    Set CMAKE_HIP_HOST_COMPILER = ${ERF_CRAY_CXX}")
+    if(DEFINED ENV{CRAYPE_VERSION})
+        if(NOT DEFINED ENV{CRAY_ACCEL_TARGET})
+            message(STATUS "")
+            message(STATUS "====================================================================")
+            message(STATUS "HIP on Cray: Missing craype-accel Module")
+            message(STATUS "====================================================================")
+            message(STATUS "")
+            message(STATUS "The Cray compiler wrappers need a craype-accel-* module loaded")
+            message(STATUS "to configure GPU support (sets CRAY_ACCEL_TARGET).")
+            message(STATUS "")
+            message(STATUS "To fix, load the appropriate module from your machine profile:")
+            message(STATUS "")
+            erf_suggest_machine_profile()
+            message(STATUS "")
+            message(STATUS "  Examples of craype-accel modules:")
+            message(STATUS "    craype-accel-amd-gfx90a  (MI250X)")
+            message(STATUS "    craype-accel-amd-gfx942  (MI300)")
+            message(STATUS "")
+            message(STATUS "====================================================================")
+            message(FATAL_ERROR "HIP requires craype-accel module on Cray systems")
+        else()
+            message(STATUS "    craype-accel module loaded: CRAY_ACCEL_TARGET=$ENV{CRAY_ACCEL_TARGET}")
         endif()
-    else()
-        message(STATUS "    HIP host compiler already set by user")
     endif()
 endif()
 
@@ -177,14 +245,44 @@ endif()
 message(STATUS "ERF: Setting minimal flags for compiler tests...")
 
 if(DEFINED ENV{MPICH_GPU_SUPPORT_ENABLED} AND "$ENV{MPICH_GPU_SUPPORT_ENABLED}" STREQUAL "1")
-    message(STATUS "  GPU-aware MPI detected, adding CUDA runtime for tests")
+    message(STATUS "  GPU-aware MPI detected")
     message(STATUS "  Detected libraries: ${GTL_LIBS}")
 
-    # APPEND to linker flags
-    if(CMAKE_EXE_LINKER_FLAGS)
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lcudart -lcuda" CACHE STRING "" FORCE)
-    else()
-        set(CMAKE_EXE_LINKER_FLAGS "-lcudart -lcuda" CACHE STRING "" FORCE)
+    # Only add CUDA runtime if CUDA is actually available
+    set(NEED_CUDA_RUNTIME FALSE)
+    if(DEFINED ENV{CRAY_ACCEL_TARGET})
+        if("$ENV{CRAY_ACCEL_TARGET}" MATCHES "nvidia")
+            set(NEED_CUDA_RUNTIME TRUE)
+        endif()
+    endif()
+
+    if(NEED_CUDA_RUNTIME)
+        # Check if CUDA toolkit is available
+        if(DEFINED ENV{CUDA_HOME} OR DEFINED ENV{CUDATOOLKIT_HOME})
+            message(STATUS "  Adding CUDA runtime libraries for GPU-aware MPI tests")
+
+            # APPEND to linker flags
+            if(CMAKE_EXE_LINKER_FLAGS)
+                set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lcudart -lcuda" CACHE STRING "" FORCE)
+            else()
+                set(CMAKE_EXE_LINKER_FLAGS "-lcudart -lcuda" CACHE STRING "" FORCE)
+            endif()
+        else()
+            message(STATUS "")
+            message(STATUS "====================================================================")
+            message(STATUS "GPU-Aware MPI: CUDA Runtime Not Found")
+            message(STATUS "====================================================================")
+            message(STATUS "")
+            message(STATUS "GPU-aware MPI is enabled (MPICH_GPU_SUPPORT_ENABLED=1) but")
+            message(STATUS "CUDA toolkit is not loaded.")
+            message(STATUS "")
+            message(STATUS "To fix, load the appropriate modules from your machine profile:")
+            message(STATUS "")
+            erf_suggest_machine_profile()
+            message(STATUS "")
+            message(STATUS "====================================================================")
+            message(FATAL_ERROR "GPU-aware MPI requires CUDA toolkit")
+        endif()
     endif()
 
     # APPEND to standard libraries (use DETECTED GTL_LIBS, not hardcoded!)
@@ -199,4 +297,9 @@ if(DEFINED ENV{MPICH_GPU_SUPPORT_ENABLED} AND "$ENV{MPICH_GPU_SUPPORT_ENABLED}" 
     else()
         set(CMAKE_CUDA_STANDARD_LIBRARIES "${GTL_LIBS}" CACHE STRING "" FORCE)
     endif()
+
+    message(STATUS "  CMAKE_EXE_LINKER_FLAGS: ${CMAKE_EXE_LINKER_FLAGS}")
+    message(STATUS "  CMAKE_CXX_STANDARD_LIBRARIES: ${CMAKE_CXX_STANDARD_LIBRARIES}")
+else()
+    message(STATUS "  GPU-aware MPI not enabled")
 endif()

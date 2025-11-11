@@ -20,24 +20,50 @@ message(VERBOSE "Source directory: ${CMAKE_SOURCE_DIR}")
 message(VERBOSE "Build directory: ${CMAKE_BINARY_DIR}")
 
 # Find NVHPC package and create aliases if needed
+# Find NVHPC package and create aliases if needed
 if(ERF_ENABLE_CUDA AND ERF_ENABLE_NVHPC)
-  message(VERBOSE "Configuring NVHPC CUDA support")
-  
-  find_package(NVHPC REQUIRED COMPONENTS MATH CUDA)
+  list(APPEND CMAKE_MESSAGE_CONTEXT "NVHPC")
+  message(STATUS "Configuring NVHPC CUDA support")
+
+  find_package(NVHPC QUIET COMPONENTS MATH CUDA)
+
+  if(NOT NVHPC_FOUND)
+    message(STATUS "")
+    message(STATUS "====================================================================")
+    message(STATUS "NVHPC Detection Failed")
+    message(STATUS "====================================================================")
+    message(STATUS "")
+    message(STATUS "To resolve:")
+    message(STATUS "  Load NVHPC module or set NVHPC_ROOT")
+    message(STATUS "")
+    message(STATUS "  Example:")
+    message(STATUS "    module load nvhpc")
+    message(STATUS "    cmake -DNVHPC_ROOT=/path/to/nvhpc ..")
+    message(STATUS "")
+    message(STATUS "====================================================================")
+    message(STATUS "")
+    message(FATAL_ERROR "NVHPC required but not found")
+  endif()
+
+  message(STATUS "Found NVHPC")
+
   function(create_cuda_alias nvhpc_target cuda_name)
     if(TARGET NVHPC::${nvhpc_target} AND NOT TARGET CUDA::${cuda_name})
       add_library(CUDA::${cuda_name} ALIAS NVHPC::${nvhpc_target})
-      message(STATUS "Created alias: CUDA::${cuda_name} -> NVHPC::${nvhpc_target}")
+      message(STATUS "  Created alias: CUDA::${cuda_name} -> NVHPC::${nvhpc_target}")
     elseif(NOT TARGET NVHPC::${nvhpc_target})
-      message(WARNING "Cannot create alias CUDA::${cuda_name}: NVHPC::${nvhpc_target} not found")
+      message(WARNING "  Cannot create alias CUDA::${cuda_name}: NVHPC::${nvhpc_target} not found")
     endif()
   endfunction()
+
   create_cuda_alias(CUBLAS cublas)
   create_cuda_alias(CUBLAS_STATIC cublas_static)
   create_cuda_alias(CURAND curand)
   create_cuda_alias(CURAND_STATIC curand_static)
   create_cuda_alias(CUSPARSE cusparse)
   create_cuda_alias(CUSPARSE_STATIC cusparse_static)
+
+  list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
@@ -140,6 +166,7 @@ if (${ERF_USE_INTERNAL_AMREX})
     message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
 else()
     message(STATUS "Using external AMReX")
+
     set(CMAKE_PREFIX_PATH ${AMREX_DIR} ${CMAKE_PREFIX_PATH})
     list(APPEND AMREX_COMPONENTS
       "3D" "PIC" "PARTICLES" "PDOUBLE" "DOUBLE" "LSOLVERS")
@@ -164,11 +191,36 @@ else()
     if (ERF_ENABLE_TINY_PROFILE)
       list(APPEND AMREX_COMPONENTS "TINY_PROFILE")
     endif()
+
     separate_arguments(AMREX_COMPONENTS)
     message(VERBOSE "Required AMReX components: ${AMREX_COMPONENTS}")
-    find_package(AMReX CONFIG REQUIRED
-      COMPONENTS ${AMREX_COMPONENTS})
-    message(STATUS "Found AMReX = ${AMReX_DIR}")
+
+    find_package(AMReX CONFIG QUIET COMPONENTS ${AMREX_COMPONENTS})
+
+    if(NOT AMReX_FOUND)
+      message(STATUS "")
+      message(STATUS "====================================================================")
+      message(STATUS "AMReX Detection Failed")
+      message(STATUS "====================================================================")
+      message(STATUS "")
+      message(STATUS "Required components: ${AMREX_COMPONENTS}")
+      message(STATUS "")
+      message(STATUS "To resolve:")
+      message(STATUS "")
+      message(STATUS "  Option 1: Use internal AMReX (recommended):")
+      message(STATUS "    cmake -DERF_USE_INTERNAL_AMREX=ON ..")
+      message(STATUS "")
+      message(STATUS "  Option 2: Build and install AMReX separately, then:")
+      message(STATUS "    cmake -DAMReX_DIR=/path/to/amrex/lib/cmake/AMReX ..")
+      message(STATUS "")
+      message(STATUS "====================================================================")
+      message(STATUS "")
+      message(FATAL_ERROR "AMReX required but not found")
+    endif()
+
+    message(STATUS "Found AMReX: ${AMReX_DIR}")
+    message(VERBOSE "  AMReX_VERSION: ${AMReX_VERSION}")
+
     if(WIN32)
       set(FCOMPARE_EXE ${AMReX_DIR}/../../../*/amrex_fcompare.exe
         CACHE STRING "Path to fcompare executable for regression tests")
@@ -177,6 +229,7 @@ else()
         CACHE STRING "Path to fcompare executable for regression tests")
     endif()
     message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
+
 endif()
 
 list(POP_BACK CMAKE_MESSAGE_CONTEXT)
@@ -225,7 +278,7 @@ if(ERF_ENABLE_EKAT)
   set(EKAT_ENABLE_KOKKOS ON CACHE BOOL "ekat enable kokkos")
   set(EKAT_ENABLE_LOGGING ON CACHE BOOL "ekat enable spdlog")
   set(EKAT_BIN ${CMAKE_BINARY_DIR}/Submodules/ekat)
-  
+
   message(VERBOSE "EKAT binary directory: ${EKAT_BIN}")
   add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/ekat ${EKAT_BIN})
 
@@ -234,9 +287,10 @@ endif()
 
 ########################### MPI #####################################
 
+########################### MPI #####################################
+
 if(ERF_ENABLE_MPI)
   list(APPEND CMAKE_MESSAGE_CONTEXT "MPI")
-
   message(STATUS "Configuring MPI")
 
   # Check if we're on Cray with bare MPI wrappers (which will hang)
@@ -254,7 +308,7 @@ if(ERF_ENABLE_MPI)
 
   if(SKIP_MPI_DETECTION)
     # Workaround: Manual MPI setup (avoids hang)
-    message(VERBOSE "Manually configuring MPI (bypassing find_package)...")
+    message(VERBOSE "Manually configuring MPI (bypassing find_package)")
 
     # Get Cray MPICH version for informational purposes
     set(MPICH_VERSION "UNKNOWN")
@@ -289,18 +343,46 @@ if(ERF_ENABLE_MPI)
     message(STATUS "MPI standard: ${MPI_VERSION}")
     message(VERBOSE "Created MPI::MPI_CXX and MPI::MPI_C targets")
   else()
-    # Normal path: Use find_package
+    # Normal path: Use find_package with QUIET
     message(VERBOSE "Using find_package(MPI) for detection")
     set(_mpi_comps C CXX)
     if(ERF_ENABLE_MORR_FORT OR ERF_ENABLE_NOAHMP)
       list(APPEND _mpi_comps Fortran)
     endif()
     message(DEBUG "MPI components: ${_mpi_comps}")
-    find_package(MPI REQUIRED ${_mpi_comps})
+
+    find_package(MPI QUIET COMPONENTS ${_mpi_comps})
+
+    if(NOT MPI_FOUND)
+      message(STATUS "")
+      message(STATUS "====================================================================")
+      message(STATUS "MPI Detection Failed")
+      message(STATUS "====================================================================")
+      message(STATUS "")
+      message(STATUS "To resolve, load modules from your machine profile:")
+      message(STATUS "")
+      erf_suggest_machine_profile()
+      message(STATUS "")
+      message(STATUS "  Or on non-Cray systems, install MPI:")
+      message(STATUS "    OpenMPI, MPICH, Intel MPI, etc.")
+      message(STATUS "")
+      message(STATUS "  Then configure with:")
+      message(STATUS "    cmake -DMPI_C_COMPILER=mpicc -DMPI_CXX_COMPILER=mpicxx ..")
+      message(STATUS "")
+      message(STATUS "====================================================================")
+      message(STATUS "")
+      message(FATAL_ERROR "MPI required but not found")
+    endif()
+
+    message(STATUS "Found MPI")
+    message(VERBOSE "  MPI_C_VERSION: ${MPI_C_VERSION}")
+    message(VERBOSE "  MPI_CXX_VERSION: ${MPI_CXX_VERSION}")
   endif()
 
   message(STATUS "MPI configuration complete")
   list(POP_BACK CMAKE_MESSAGE_CONTEXT)
+else()
+  message(DEBUG "MPI not enabled")
 endif()
 
 ########################## NETCDF ##################################
