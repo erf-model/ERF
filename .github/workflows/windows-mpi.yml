@@ -49,13 +49,19 @@ jobs:
         shell: pwsh
         run: cmake --build build --parallel 2 --verbose
 
-      #- name: (Optional) MPI smoke test
-      #  if: matrix.mpi == 'ON'
-      #  shell: pwsh
-      #  run: mpiexec -n 2 cmd /c echo Hello from %COMPUTERNAME%
-#
+      - name: Install (stage files to package dir)
+        shell: pwsh
+        run: |
+          cmake --install build --config Release
+          Get-ChildItem -Recurse "${{ runner.workspace }}\ERF\install" | Select-Object FullName
 
-      #- name: CMake Tests
-      #  shell: pwsh
-      #  working-directory: ${{ runner.workspace }}/ERF/build
-      #  run: ctest -L regression -VV
+      - name: Upload artifact (binary + install tree)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ERF-win64-Release-mpi-${{ matrix.mpi }}-particles-${{ matrix.particles }}
+          path: |
+            ${{ runner.workspace }}\ERF\install\**
+            # (optional) also include PDBs from the build tree:
+            build\**\*.pdb
+          if-no-files-found: error
+          retention-days: 14
