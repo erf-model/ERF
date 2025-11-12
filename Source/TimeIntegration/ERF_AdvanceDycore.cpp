@@ -89,7 +89,6 @@ void ERF::advance_dycore (int level,
     bool l_use_kturb   = tc.use_kturb;
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
                            l_use_kturb );
-    bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
     bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
     const bool use_SurfLayer = (m_SurfaceLayer != nullptr);
@@ -102,8 +101,9 @@ void ERF::advance_dycore (int level,
     int num_prim = state_old[IntVars::cons].nComp() - 1;
 
     MultiFab    S_prim  (ba  , dm, num_prim,          state_old[IntVars::cons].nGrowVect());
-    MultiFab  pi_stage  (ba  , dm,        1,          state_old[IntVars::cons].nGrowVect());
+    MultiFab  pi_stage  (ba  , dm,        1,          1);
     MultiFab fast_coeffs(ba_z, dm,        5,          0);
+
     MultiFab* eddyDiffs = eddyDiffs_lev[level].get();
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
 
@@ -114,6 +114,9 @@ void ERF::advance_dycore (int level,
     BL_PROFILE("erf_advance_strain");
     if (l_use_diff) {
 
+        // Here we use the implicit flag from first RK stage
+        bool l_vert_implicit_fac = (solverChoice.vert_implicit_fac[0] > 0.);
+
         const BCRec* bc_ptr_h = domain_bcs_type.data();
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
@@ -122,6 +125,7 @@ void ERF::advance_dycore (int level,
 #endif
         for ( MFIter mfi(state_new[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
+            Box bx    = mfi.tilebox();
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
             Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
@@ -152,9 +156,12 @@ void ERF::advance_dycore (int level,
             Array4<Real> tau13 = Tau[level][TauType::tau13].get()->array(mfi);
             Array4<Real> tau23 = Tau[level][TauType::tau23].get()->array(mfi);
 
-            Array4<Real> tau21  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau21].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau31  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau32  = l_use_terrain_fitted_coords ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
+            bool need_tau31_tau32 = (solverChoice.mesh_type == MeshType::StretchedDz ||
+                                     l_use_terrain_fitted_coords ||
+                                     l_vert_implicit_fac > 0);
+            Array4<Real> tau21 = l_use_terrain_fitted_coords ? Tau[level][TauType::tau21].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau31 = need_tau31_tau32            ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau32 = need_tau31_tau32            ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
             const Array4<const Real>& z_nd = z_phys_nd[level]->const_array(mfi);
 
             const Array4<const Real> mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
@@ -164,31 +171,41 @@ void ERF::advance_dycore (int level,
             const Array4<const Real> mf_uy = mapfac[level][MapFacType::u_y]->const_array(mfi);
             const Array4<const Real> mf_vy = mapfac[level][MapFacType::v_y]->const_array(mfi);
 
+            Array4<Real> no_SmnSmn_calc_here{};
+
             if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                ComputeStrain_S(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_S(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau21,
                                 tau13, tau31,
                                 tau23, tau32,
                                 stretched_dz_d[level], dxInv,
-                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h);
+                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                no_SmnSmn_calc_here,
+                                l_vert_implicit_fac);
             } else if (l_use_terrain_fitted_coords) {
-                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_T(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau21,
                                 tau13, tau31,
                                 tau23, tau32,
                                 z_nd, detJ_cc[level]->const_array(mfi), dxInv,
-                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h);
+                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                no_SmnSmn_calc_here,
+                                l_vert_implicit_fac);
             } else {
-                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_N(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
-                                tau12, tau13, tau23,
+                                tau12, /*tau21,*/
+                                tau13, tau31,
+                                tau23, tau32,
                                 dxInv,
-                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h);
+                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                no_SmnSmn_calc_here,
+                                l_vert_implicit_fac);
             }
         } // mfi
     } // l_use_diff
@@ -220,6 +237,7 @@ void ERF::advance_dycore (int level,
     if (l_use_kturb)
     {
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
+        bool l_use_moisture = ( solverChoice.moisture_type != MoistureType::None );
         const BCRec* bc_ptr_h = domain_bcs_type.data();
         ComputeTurbulentViscosity(dt_advance, xvel_old, yvel_old,Tau[level],
                                   state_old[IntVars::cons],
@@ -228,7 +246,8 @@ void ERF::advance_dycore (int level,
                                   fine_geom, mapfac[level],
                                   z_phys_nd[level], solverChoice,
                                   m_SurfaceLayer, z_0, l_use_terrain_fitted_coords,
-                                  l_use_moisture, level, bc_ptr_h);
+                                  l_use_moisture, level,
+                                  bc_ptr_h);
     }
 
     // ***********************************************************************************************
@@ -294,7 +313,9 @@ void ERF::advance_dycore (int level,
     // Define a new MultiFab that holds q_total and fill it by summing the moisture components --
     //      to be used in buoyancy calculation and as part of the inertial weighting in the
     // ***********************************************************************************************
-    MultiFab qt(grids[level], dmap[level], 1, 1);
+
+    const bool l_eb_terrain = (solverChoice.terrain_type == TerrainType::EB);
+    MultiFab qt(grids[level], dmap[level], 1, (l_eb_terrain) ? 2 : 1);
     qt.setVal(0.0);
 
 #include "ERF_TI_no_substep_fun.H"
@@ -312,7 +333,7 @@ void ERF::advance_dycore (int level,
     mri_integrator.set_slow_rhs_pre(slow_rhs_fun_pre);
     mri_integrator.set_slow_rhs_post(slow_rhs_fun_post);
 
-    mri_integrator.set_fast_rhs(fast_rhs_fun);
+    mri_integrator.set_acoustic_substepping(acoustic_substepping_fun);
     mri_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
     mri_integrator.set_no_substep(no_substep_fun);
 

@@ -94,7 +94,7 @@ public:
 
     // Finalize the implementation
     void
-    finalize_impl ();
+    finalize_impl (const Real dt);
 
     // Allocate buffer space
     void
@@ -110,11 +110,29 @@ public:
 
     // Fill AMReX MultiFabs from KOKKOS Views
     void
-    kokkos_buffers_to_mf ();
+    kokkos_buffers_to_mf (const Real dt);
 
     // The name of the subcomponent
     std::string
     name () const { return "shoc"; }
+
+    // Fill the vert comps of ERF eddyDiffs
+    void
+    set_eddy_diffs ();
+
+    // Fill the surface stresses
+    void
+    set_diff_stresses ();
+
+    // Add SHOC tendencies to the RHS of the fast vars
+    void
+    add_fast_tend (amrex::Vector<amrex::MultiFab>& S_rhs);
+
+    // Add SHOC tendencies to the RHS of the slow vars
+    void
+    add_slow_tend (const amrex::MFIter& mfi,
+                   const amrex::Box& tbx,
+                   const amrex::Array4<amrex::Real>& cc_rhs_arr);
 
 #ifndef KOKKOS_ENABLE_CUDA
   // Cuda requires methods enclosing __device__ lambda's to be public
@@ -135,7 +153,7 @@ protected:
             const int i = team.league_rank();
 
             const Real zvir    = C::ZVIR;
-            const Real cpair   = C::Cpair;
+            //const Real cpair   = C::Cpair;
             const Real ggr     = C::gravit;
             const Real inv_ggr = 1/ggr;
             const Real mintke  = SC::mintke;
@@ -172,9 +190,10 @@ protected:
                 thv(i,k)  = theta_zt*(1 + zvir*qv(i,k) - qc(i,k));
 
                 // Vertical layer thickness
-                dz(i,k) = PF::calculate_dz(pseudo_density(i,k), p_mid(i,k), T_mid(i,k), qv(i,k));
+                //dz(i,k) = PF::calculate_dz(pseudo_density(i,k), p_mid(i,k), T_mid(i,k), qv(i,k));
 
                 rrho(i,k) = inv_ggr*(pseudo_density(i,k)/dz(i,k));
+
                 wm_zt(i,k) = -1*omega(i,k)/(rrho(i,k)*ggr);
             });
             team.team_barrier();
@@ -209,13 +228,13 @@ protected:
             SHF::linear_interp(team,zt_grid_s,zi_grid_s,rrho_s,rrho_i_s,nlev,nlev+1,0);
             team.team_barrier();
 
-            const auto exner_int = PF::exner_function(p_int(i,nlevi_v)[nlevi_p]);
-            const auto inv_exner_int_surf = 1/exner_int;
+            //const auto exner_int = PF::exner_function(p_int(i,nlevi_v)[nlevi_p]);
+            //const auto inv_exner_int_surf = 1/exner_int;
 
-            wpthlp_sfc(i) = (surf_sens_flux(i)/(cpair*rrho_i(i,nlevi_v)[nlevi_p]))*inv_exner_int_surf;
+            wpthlp_sfc(i) = surf_sens_flux(i)/rrho_i(i,nlevi_v)[nlevi_p]; //(surf_sens_flux(i)/(cpair*rrho_i(i,nlevi_v)[nlevi_p]))*inv_exner_int_surf;
             wprtp_sfc(i)  = surf_evap(i)/rrho_i(i,nlevi_v)[nlevi_p];
-            upwp_sfc(i) = surf_mom_flux(i,0)/rrho_i(i,nlevi_v)[nlevi_p];
-            vpwp_sfc(i) = surf_mom_flux(i,1)/rrho_i(i,nlevi_v)[nlevi_p];
+            upwp_sfc(i)   = surf_mom_flux(i,0)/rrho_i(i,nlevi_v)[nlevi_p];
+            vpwp_sfc(i)   = surf_mom_flux(i,1)/rrho_i(i,nlevi_v)[nlevi_p];
         } // operator
 
         // Local variables
@@ -548,8 +567,8 @@ protected:
 
     // Keep track of field dimensions and other scalar values
     // needed in shoc_main
-    Int m_num_cols;
-    Int m_num_layers;
+    Int m_num_cols = 0;
+    Int m_num_layers = 0;
     Int m_npbl;
     Int m_nadv;
     Int m_num_tracers  = 3;
@@ -590,6 +609,11 @@ protected:
 
     // Pointer to the terrain heights
     amrex::MultiFab* m_z_phys = nullptr;
+
+    // MultiFabs for tendencies
+    amrex::MultiFab c_tend;
+    amrex::MultiFab u_tend;
+    amrex::MultiFab v_tend;
 
     // Flag for first step
     bool m_first_step = true;

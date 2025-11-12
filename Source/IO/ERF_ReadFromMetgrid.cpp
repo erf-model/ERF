@@ -117,7 +117,7 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
     Vector<int> success_i; success_i.resize(NC_iabs.size());
     BuildFABsFromNetCDFFile<IArrayBox,int>(domain, fname, NC_inames, NC_idim_types, NC_iabs, success_i);
     for (int i = 0; i < success_i.size(); i++) {
-        if (NC_inames[i] == "LANDMASK" && success[i] == 1) {flag_lmask = 1;}
+        if (NC_inames[i] == "LANDMASK" && success_i[i] == 1) {flag_lmask = 1;}
     }
 
     // TODO: FIND OUT IF WE NEED TO DIVIDE VELS BY MAPFAC

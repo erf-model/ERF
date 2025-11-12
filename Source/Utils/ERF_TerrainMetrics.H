@@ -18,24 +18,30 @@ init_default_zphys (int lev, const amrex::Geometry& geom,
  */
 
 // Declare functions for ERF.cpp
-void init_zlevels (amrex::Vector<amrex::Vector<amrex::Real>> & zlevels_stag,
-                   amrex::Vector<amrex::Vector<amrex::Real>> & stretched_dz_h,
-                   amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> & stretched_dz_d,
-                   amrex::Vector<amrex::Geometry> const& geom,
-                   amrex::Vector<amrex::IntVect>  const& ref_ratio,
-                   const amrex::Real grid_stretching_ratio,
-                   const amrex::Real zsurf,
-                   const amrex::Real dz0);
+void
+init_zlevels (amrex::Vector<amrex::Vector<amrex::Real>>& zlevels_stag,
+              amrex::Vector<amrex::Vector<amrex::Real>>& stretched_dz_h,
+              amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>>& stretched_dz_d,
+              amrex::Vector<amrex::Geometry> const& geom,
+              amrex::Vector<amrex::IntVect>  const& ref_ratio,
+              const amrex::Real grid_stretching_ratio,
+              const amrex::Real zsurf,
+              const amrex::Real dz0);
 
-void make_terrain_fitted_coords (int lev, const amrex::Geometry& geom,
-                                 amrex::MultiFab& z_phys_nd,
-                                 amrex::Vector<amrex::Real> const& z_levels_h,
-                                 amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type);
+void
+make_terrain_fitted_coords (int lev, const amrex::Geometry& geom,
+                            amrex::MultiFab& z_phys_nd,
+                            amrex::Vector<amrex::Real> const& z_levels_h,
+                            amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type);
 
-void init_which_terrain_grid (int lev, const amrex::Geometry& geom,
-                              amrex::MultiFab& z_phys_nd,
-                              amrex::Vector<amrex::Real> const& z_levels_h);
+void
+init_which_terrain_grid (int lev, const amrex::Geometry& geom,
+                         amrex::MultiFab& z_phys_nd,
+                         amrex::Vector<amrex::Real> const& z_levels_h);
 
+// Compute the min dz at cell center with terrain
+amrex::Real
+get_dzmin_terrain (amrex::MultiFab& z_phys_nd);
 
 //*****************************************************************************************
 // Compute terrain metric terms at cell-center
@@ -97,9 +103,8 @@ Compute_h_zeta_AtIface (const int &i, const int &j, const int &k,
                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dzInv = cellSizeInv[2];
-    amrex::Real met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-                                           - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
+    amrex::Real met_h_zeta = 0.5 * cellSizeInv[2] * ( (z_nd(i,j  ,k+1) - z_nd(i,j  ,k))
+                                                    + (z_nd(i,j+1,k+1) - z_nd(i,j+1,k)) );
     return met_h_zeta;
 }
 
@@ -111,10 +116,9 @@ Compute_h_xi_AtIface (const int &i, const int &j, const int &k,
                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                       const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dxInv = cellSizeInv[0];
-    amrex::Real met_h_xi   = 0.125 * dxInv *
-      ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-       -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k+1) );
+    amrex::Real met_h_xi   = 0.125 * cellSizeInv[0] * (
+      (z_nd(i+1,j  ,k  ) - z_nd(i-1,j  ,k  )) + (z_nd(i+1,j  ,k+1) - z_nd(i-1,j  ,k+1)) +
+      (z_nd(i+1,j+1,k  ) - z_nd(i-1,j+1,k  )) + (z_nd(i+1,j+1,k+1) - z_nd(i-1,j+1,k+1)) );
     return met_h_xi;
 }
 
@@ -126,9 +130,8 @@ Compute_h_eta_AtIface (const int &i, const int &j, const int &k,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dyInv = cellSizeInv[1];
-    amrex::Real met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k  ) + z_nd(i,j+1,k+1)
-                                           - z_nd(i,j  ,k  ) - z_nd(i,j  ,k+1) );
+    amrex::Real met_h_eta  = 0.5 * cellSizeInv[1] * ( (z_nd(i,j+1,k  ) - z_nd(i,j,k  ))
+                                                    + (z_nd(i,j+1,k+1) - z_nd(i,j,k+1)) );
     return met_h_eta;
 }
 
@@ -140,9 +143,8 @@ Compute_h_zeta_AtJface (const int &i, const int &j, const int &k,
                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dzInv = cellSizeInv[2];
-    amrex::Real met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
-                                           - z_nd(i,j,k  ) - z_nd(i+1,j,k  ) );
+    amrex::Real met_h_zeta = 0.5 * cellSizeInv[2] * ( (z_nd(i  ,j,k+1) - z_nd(i  ,j,k  ))
+                                                    + (z_nd(i+1,j,k+1) - z_nd(i+1,j,k  )) );
     return met_h_zeta;
 }
 
@@ -154,9 +156,8 @@ Compute_h_xi_AtJface (const int &i, const int &j, const int &k,
                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                       const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dxInv = cellSizeInv[0];
-    amrex::Real met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1)
-                                            -z_nd(i  ,j,k) - z_nd(i  ,j,k+1) );
+    amrex::Real met_h_xi   = 0.5 * cellSizeInv[0] * ( (z_nd(i+1,j,k  ) - z_nd(i,j,k  ))
+                                                    + (z_nd(i+1,j,k+1) - z_nd(i,j,k+1)) );
     return met_h_xi;
 }
 
@@ -168,10 +169,9 @@ Compute_h_eta_AtJface (const int &i, const int &j, const int &k,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dyInv = cellSizeInv[1];
-    amrex::Real met_h_eta  = 0.125 * dyInv *
-      ( z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k+1) );
+    amrex::Real met_h_eta  = 0.125 * cellSizeInv[1] *
+      ( (z_nd(i  ,j+1,k  ) - z_nd(i  ,j-1,k  )) + (z_nd(i  ,j+1,k+1) - z_nd(i  ,j-1,k+1)) +
+        (z_nd(i+1,j+1,k  ) - z_nd(i+1,j-1,k  )) + (z_nd(i+1,j+1,k+1) - z_nd(i+1,j-1,k+1)) );
     return met_h_eta;
 }
 
@@ -183,10 +183,9 @@ Compute_h_zeta_AtKface (const int &i, const int &j, const int &k,
                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dzInv = cellSizeInv[2];
-    amrex::Real met_h_zeta = 0.125 * dzInv *
-      ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j+1,k-1) );
+    amrex::Real met_h_zeta = 0.125 * cellSizeInv[2] *
+      ( (z_nd(i  ,j  ,k+1) - z_nd(i  ,j  ,k-1)) + (z_nd(i+1,j  ,k+1) - z_nd(i+1,j  ,k-1)) +
+        (z_nd(i  ,j+1,k+1) - z_nd(  i,j+1,k-1)) + (z_nd(i+1,j+1,k+1) - z_nd(i+1,j+1,k-1)) );
     return met_h_zeta;
 }
 
@@ -198,9 +197,8 @@ Compute_h_xi_AtKface (const int &i, const int &j, const int &k,
                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                       const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dxInv = cellSizeInv[0];
-    amrex::Real met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k)
-                                            -z_nd(i  ,j,k) - z_nd(i  ,j+1,k) );
+    amrex::Real met_h_xi   = 0.5 * cellSizeInv[0] * ( (z_nd(i+1,j  ,k) - z_nd(i,j  ,k))
+                                                    + (z_nd(i+1,j+1,k) - z_nd(i,j+1,k)) );
     return met_h_xi;
 }
 
@@ -212,9 +210,8 @@ Compute_h_eta_AtKface (const int &i, const int &j, const int &k,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dyInv = cellSizeInv[1];
-    amrex::Real met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k)
-                                            -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) );
+    amrex::Real met_h_eta  = 0.5 * cellSizeInv[1] * ( (z_nd(i  ,j+1,k) - z_nd(i  ,j,k))
+                                                    + (z_nd(i+1,j+1,k) - z_nd(i+1,j,k)) );
     return met_h_eta;
 }
 
@@ -391,9 +388,9 @@ Compute_Zrel_AtCellCenter (const int &i, const int &j, const int &k,
                            const amrex::Array4<const amrex::Real>& z_nd)
 {
     const amrex::Real z_cc = 0.125*(  z_nd(i  ,j  ,k  ) + z_nd(i  ,j  ,k+1) +
-                                    + z_nd(i+1,j  ,k  ) + z_nd(i  ,j  ,k+1)
+                                    + z_nd(i+1,j  ,k  ) + z_nd(i+1,j  ,k+1)
                                     + z_nd(i  ,j+1,k  ) + z_nd(i  ,j+1,k+1)
-                                    + z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k+1));
+                                    + z_nd(i+1,j+1,k  ) + z_nd(i+1,j+1,k+1));
 
     // Note: we assume the z_nd array spans from the bottom to top of the domain
     // i.e. no domain decomposition across processors in vertical direction

@@ -179,15 +179,14 @@ When :math:`Ri_{eff} \leq 0`, stratification is unstable and the standard Smagor
 
 **Implementation Control**
 
-The enhanced moist Smagorinsky formulation can be controlled via the input parameter:
+The moist Richardson number limiter can be enabled via the input parameter:
 
 .. code-block:: none
 
-    erf.use_smag_stratification = true   # Enhanced moist Smagorinsky (default)
-    erf.use_smag_stratification = false  # Standard Smagorinsky
+    erf.use_moist_Ri_correction = true   # Apply moist Richardson number limiter
+    erf.use_moist_Ri_correction = false  # Standard Smagorinsky
 
-When disabled, the model reverts to the standard Smagorinsky formulation with :math:`\ell_m = \Delta`,
-providing backwards compatibility and enabling direct comparison between approaches.
+When disabled, the model reverts to the standard Smagorinsky formulation with :math:`\ell_m = \Delta`.
 
 Deardorff Model
 ~~~~~~~~~~~~~~~

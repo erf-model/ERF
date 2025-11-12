@@ -56,7 +56,6 @@ public:
         m_fac_cond = lcond / sc.c_p;
         m_fac_fus  = lfus / sc.c_p;
         m_fac_sub  = lsub / sc.c_p;
-        m_gOcp     = CONST_GRAV / sc.c_p;
         m_axis     = sc.ave_plane;
         m_do_cond  = (!sc.use_shoc);
     }
@@ -69,6 +68,13 @@ public:
           const amrex::Real& dt_advance,
           std::unique_ptr<amrex::MultiFab>& z_phys_nd,
           std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
+
+    // Import minimum dz at this level
+    void
+    Set_dzmin (const amrex::Real dz_min) override
+    {
+        m_dzmin = dz_min;
+    }
 
     // Copy state into micro vars
     void
@@ -149,6 +155,9 @@ private:
     // timestep
     amrex::Real dt;
 
+    // Minimum dz at this level
+    amrex::Real m_dzmin;
+
     // number of vertical levels
     int nlev, zlo, zhi;
 
@@ -159,7 +168,6 @@ private:
     amrex::Real m_fac_cond;
     amrex::Real m_fac_fus;
     amrex::Real m_fac_sub;
-    amrex::Real m_gOcp;
     bool m_do_cond;
 
     // Pointer to terrain data

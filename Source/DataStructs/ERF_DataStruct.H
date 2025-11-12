@@ -131,27 +131,6 @@ struct SolverChoice {
             amrex::Abort("The input use_terrain is deprecated.  Set terrain_type instead.");
         }
 
-        pp.query("grid_stretching_ratio", grid_stretching_ratio);
-        if (grid_stretching_ratio != 0) {
-            AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= 1.),
-                                      "The grid stretching ratio must be greater than 1");
-        }
-        if (grid_stretching_ratio >= 1) {
-            if (mesh_type == MeshType::ConstantDz) {
-                mesh_type    = MeshType::StretchedDz;
-            }
-            if (terrain_type != TerrainType::StaticFittedMesh) {
-                amrex::Print() << "Turning terrain on to enable grid stretching" << std::endl;
-                terrain_type = TerrainType::StaticFittedMesh;
-            }
-            pp.query("zsurface", zsurf);
-            if (zsurf != 0.0) {
-                amrex::Print() << "Nominal zsurface height != 0, may result in unexpected behavior"
-                    << std::endl;
-            }
-            pp.get("initial_dz", dz0);
-        }
-
         // Do we set map scale factors to 0.5 instead of 1 for testing?
         pp.query("test_mapfactor", test_mapfactor);
 
@@ -258,24 +237,15 @@ struct SolverChoice {
         std::string init_type_temp_string;
         pp.query("init_type",init_type_temp_string);
         if ( (init_type_temp_string == "Real") || (init_type_temp_string == "real") ) {
-            amrex::Warning("erf.init_type = Real is deprecated; please replace Real by WRFInput");
-            init_type = InitType::WRFInput;
-            use_real_bcs = true;
-            pp.query("upwind_real_bcs",upwind_real_bcs);
+            amrex::Abort("erf.init_type = Real is deprecated; please replace Real by WRFInput");
         } else if ( (init_type_temp_string == "Ideal") || (init_type_temp_string == "ideal") ) {
-            amrex::Warning("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
-            init_type = InitType::WRFInput;
-            use_real_bcs = false;
+            amrex::Abort("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
         } else if (init_type_temp_string == "hindcast") {
             init_type = InitType::HindCast;
-            use_real_bcs = false;
         }
         else {
             pp.query_enum_case_insensitive("init_type",init_type);
             use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
-            if (use_real_bcs) {
-                pp.query("upwind_real_bcs",upwind_real_bcs);
-            }
         }
 
         if ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) ) {
@@ -283,8 +253,6 @@ struct SolverChoice {
                 amrex::Abort("Only terrain_type = StaticFittedMesh are allowed with init_type = WRFInput or Metgrid");
             }
         }
-
-
 
         if (init_type == InitType::WRFInput) {
             if (moisture_type == MoistureType::None) {
@@ -301,9 +269,10 @@ struct SolverChoice {
             if (use_real_bcs && !use_real_bcs_temp) {
                 use_real_bcs = false;
             }
-            if (use_real_bcs) {
-                pp.query("upwind_real_bcs",upwind_real_bcs);
-            }
+        }
+
+        if (use_real_bcs) {
+            pp.query("upwind_real_bcs",upwind_real_bcs);
         }
 
         // Check for rebalancing with wrfinput
@@ -321,6 +290,26 @@ struct SolverChoice {
             mesh_type = MeshType::VariableDz;
         }
 
+        pp.query("grid_stretching_ratio", grid_stretching_ratio);
+        if (grid_stretching_ratio != 0) {
+            AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= 1.),
+                                      "The grid stretching ratio must be greater than 1");
+        }
+        if (grid_stretching_ratio >= 1) {
+            if (terrain_type == TerrainType::None) {
+                terrain_type = TerrainType::StaticFittedMesh;
+            }
+            if (mesh_type == MeshType::ConstantDz) {
+                mesh_type = MeshType::StretchedDz;
+            }
+            pp.query("zsurface", zsurf);
+            if (zsurf != 0.0) {
+                amrex::Print() << "Nominal zsurface height != 0, may result in unexpected behavior"
+                    << std::endl;
+            }
+            pp.get("initial_dz", dz0);
+        }
+
         int n_zlevels = pp.countval("terrain_z_levels");
         if (n_zlevels > 0)
         {
@@ -328,7 +317,7 @@ struct SolverChoice {
                 terrain_type = TerrainType::StaticFittedMesh;
             }
             if (mesh_type == MeshType::ConstantDz) {
-                mesh_type    = MeshType::StretchedDz;
+                mesh_type = MeshType::StretchedDz;
             }
         }
 
@@ -343,6 +332,11 @@ struct SolverChoice {
         rdOcp = R_d / c_p;
 
         read_int_string(max_level, "anelastic", anelastic, 0);
+
+        if (!upwind_real_bcs && anelastic[0]) {
+            amrex::Print() << "Setting upwind_real_bcs to true because we are doing anelastic at level 0" << std::endl;
+            upwind_real_bcs = true;
+        }
 
         // *******************************************************************************
         // Read substepping_type and allow for different values at each level
@@ -369,6 +363,25 @@ struct SolverChoice {
 
         // Note: this will be overwritten with -1 on levels that have substepping_type == Explicit
         pp.query("beta_s", beta_s);
+
+# ifndef ERF_USE_SHOC
+        // This controls the time-centering of the vertical differences in the diffusive term for (rho theta) only
+        int n_impfac = pp.countval("vert_implicit_fac");
+        AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
+
+        if (n_impfac == 1) {
+            amrex::Real fac_in;
+            pp.get("vert_implicit_fac", fac_in);
+            for (int i=0; i<3; ++i) vert_implicit_fac[i] = fac_in;
+        } else if (n_impfac == 3) {
+            pp.getarr("vert_implicit_fac", vert_implicit_fac);
+        }
+
+        // This controls when the vertical implicit solve for the diffusive terms will happen relative to
+        //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > 0.)
+        // The default is false (i.e. that it happens after the acoustic substepping).
+        pp.query("implicit_before_substep", implicit_before_substep);
+#endif
 
         // *******************************************************************************
         // Error check on deprecated input
@@ -428,9 +441,29 @@ struct SolverChoice {
         pp.query("w_damping_cfl", w_damping_cfl);
         pp.query("w_damping_coeff", w_damping_coeff);
 
+        // Include four stream radiation approximation
+        pp.query("four_stream_radiation", four_stream_radiation);
+
         // flags for whether to apply other source terms in substep only
         pp.query("immersed_forcing_substep", immersed_forcing_substep); // apply Rayleigh damping source terms in substep only
         pp.query("forest_substep", forest_substep); // apply Rayleigh damping source terms in substep only
+
+        // immersed forcing parameters
+        pp.query("if_Cd_scalar", if_Cd_scalar);
+        pp.query("if_Cd_momentum", if_Cd_momentum);
+        pp.query("if_z0", if_z0);
+        pp.query("if_surf_temp_flux", if_surf_temp_flux);
+        pp.query("if_init_surf_temp", if_init_surf_temp);
+        pp.query("if_surf_heating_rate", if_surf_heating_rate);
+        pp.query("if_Olen", if_Olen_in);
+        pp.query("if_use_most",if_use_most);
+
+        if ((if_init_surf_temp > 0.0 && if_surf_temp_flux != 1e-8) ||
+            (if_init_surf_temp > 0.0 && if_Olen_in != 1e-8) ||
+            (if_Olen_in != 1e-8 && if_surf_temp_flux != 1e-8))
+        {
+            amrex::Abort("Can only specify one of init_surf_temp, surf_temp_flux, or Olen");
+        }
 
         // Flag to do MOST rotations with terrain
         pp.query("use_rotate_surface_flux",use_rotate_surface_flux);
@@ -570,10 +603,15 @@ struct SolverChoice {
 
         if(hindcast_lateral_forcing) {
             pp.query("hindcast_boundary_data_dir", hindcast_boundary_data_dir);
+
             if(hindcast_boundary_data_dir.empty()) {
                 amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_boundary_data_dir' for boundary data for lateral forcing");
             }
-
+            pp.query("hindcast_data_interval_in_hrs", hindcast_data_interval_in_hrs);
+            if(hindcast_data_interval_in_hrs < 0.0) {
+                amrex::Abort("ERROR: Input parameter 'erf.hindcast_data_interval_in_hrs' which is the time interval between the "
+                             "data files is either missing or set to less than zero");
+            }
             pp.query("hindcast_lateral_sponge_strength", hindcast_lateral_sponge_strength);
             pp.query("hindcast_lateral_sponge_length", hindcast_lateral_sponge_length);
 
@@ -599,17 +637,31 @@ struct SolverChoice {
             }
         }
 
+        pp.query("io_hurricane_eye_tracker", io_hurricane_eye_tracker);
+        if(io_hurricane_eye_tracker) {
+            pp.query("hurricane_eye_latitude", hurricane_eye_latitude);
+            pp.query("hurricane_eye_longitude", hurricane_eye_longitude);
+            if(hurricane_eye_latitude == -1e10 or hurricane_eye_longitude == -1e10) {
+                amrex::Abort("ERROR: You are using 'erf.io_hurricane_eye_tracker' to write out the files that track the eye of the hurricane"
+                              " but have not provided the initial location of the eye of the hurricane to be tracked. There has to be two"
+                              " options in the inputs - erf.hurricane_eye_latitude and erf.hurricane_eye_longitude that gives an approximate"
+                              " location of the eye in the initial condition");
+            }
+        }
+
         check_params(max_level);
     }
 
-    void check_params (int max_level)
+    void check_params (int /*max_level*/)
     {
+#if 0
         // Warn for PBL models and moisture - these may not yet be compatible
         for (int lev = 0; lev <= max_level; lev++) {
             if ((moisture_type != MoistureType::None) && (turbChoice[lev].pbl_type != PBLType::None)) {
                 amrex::Warning("\n*** WARNING: Moisture may not yet be compatible with PBL models, \n    proceed with caution ***");
             }
         }
+#endif
         //
         // Buoyancy type check
         //
@@ -648,7 +700,6 @@ struct SolverChoice {
     void display (int max_level, std::string pp_prefix)
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
-        amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
         for (int lev = 0; lev <= max_level; lev++) {
             if (anelastic[lev]) {
                 amrex::Print() << "Level " << lev << " is anelastic" << std::endl;
@@ -661,6 +712,9 @@ struct SolverChoice {
                 amrex::Print() << "Implicit substepping at level " << lev << std::endl;
             }
         }
+        amrex::Print() << "vert_implicit_fac           : " << vert_implicit_fac[0] << " "
+                                                           << vert_implicit_fac[1] << " "
+                                                           << vert_implicit_fac[2] << std::endl;
         amrex::Print() << "fixed_density               : " << fixed_density << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
@@ -859,6 +913,13 @@ struct SolverChoice {
     // towards the future time step)
     amrex::Real beta_s = 0.1;
 
+    // This controls the time-centering of the *vertical* differences in the diffusive term for (rho theta) only
+    // 0: fully explicit
+    // 1: fully implicit
+    amrex::Vector<amrex::Real> vert_implicit_fac = {0.0, 0.0, 0.0}; // one value per RK stage
+
+    bool implicit_before_substep = false;
+
     bool        fixed_density       = false;
     int         ncorr               = 1;
     amrex::Real poisson_abstol      = 1e-8;
@@ -888,9 +949,22 @@ struct SolverChoice {
     amrex::Real w_damping_cfl          = 1.0;
     amrex::Real w_damping_coeff        = 0.3; // damping coefficient [m/s]
 
+    bool        four_stream_radiation  = false;
+
     // Specify whether to apply other various source terms on substep only
     bool        immersed_forcing_substep  = false;
     bool        forest_substep            = false;
+
+    // immersed forcing parameters
+    amrex::Real if_Cd_scalar          = 10.0;
+    amrex::Real if_Cd_momentum        = 10.0;
+    // immersed forcing MOST parameters.
+    amrex::Real if_z0                 = 0.1;   // [m]
+    amrex::Real if_surf_temp_flux     = 1e-8;  // [K m/s]
+    amrex::Real if_init_surf_temp     = 0.0;   // [K]
+    amrex::Real if_surf_heating_rate  = 0.0;   // [K/hr]
+    amrex::Real if_Olen_in            = 1e-8;  // [m]
+    bool        if_use_most           = false;
 
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt    = true;
@@ -986,9 +1060,13 @@ struct SolverChoice {
     int massflux_khi {0};
 
     std::string hindcast_boundary_data_dir;
+    amrex::Real hindcast_data_interval_in_hrs = -1.0;
     bool hindcast_lateral_forcing = false;
     amrex::Real hindcast_lateral_sponge_strength = -1.0, hindcast_lateral_sponge_length = -1.0;
     amrex::Real hindcast_zhi_sponge_strength = -1.0, hindcast_zhi_sponge_length = -1.0;
     bool hindcast_zhi_sponge_damping = false;
+
+    bool io_hurricane_eye_tracker = false;
+    amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
 };
 #endif

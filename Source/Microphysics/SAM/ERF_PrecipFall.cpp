@@ -27,9 +27,8 @@ SAM::PrecipFall (const SolverChoice& sc)
     Real vsnow = (a_snow*gams3/6.0)*pow((PI*rhos*nzeros),-csnow);
     Real vgrau = (a_grau*gamg3/6.0)*pow((PI*rhog*nzerog),-cgrau);
 
-    auto dz   = m_geom.CellSize(2);
     Real dtn  = dt;
-    Real coef = dtn/dz;
+    Real coef = dtn/m_dzmin;
 
     auto domain = m_geom.Domain();
     int k_lo = domain.smallEnd(2);

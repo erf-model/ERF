@@ -117,54 +117,54 @@ Resolution
 List of Parameters
 ------------------
 
-+-----------------------------------+-----------------+-----------------+-------------+
-| Parameter                         | Definition      | Acceptable      | Default     |
-|                                   |                 | Values          |             |
-+===================================+=================+=================+=============+
-| **amr.n_cell**                    | number of cells | Integer > 0     | must be set |
-|                                   | in each         |                 |             |
-|                                   | direction at    |                 |             |
-|                                   | the coarsest    |                 |             |
-|                                   | level           |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.max_level**                 | number of       | Integer >= 0    | must be set |
-|                                   | levels of       |                 |             |
-|                                   | refinement      |                 |             |
-|                                   | above the       |                 |             |
-|                                   | coarsest level  |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.ref_ratio**                 | ratio of coarse | 2 / 3 / 4       | 2 for all   |
-|                                   | to fine grid    | (one per level) | levels      |
-|                                   | spacing between |                 |             |
-|                                   | subsequent      |                 |             |
-|                                   | levels          |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.ref_ratio_vect**            | ratio of coarse | 3 integers      | 2 for all   |
-|                                   | to fine grid    | (one per dir)   | directions  |
-|                                   | spacing between | 2 / 3 / 4       |             |
-|                                   | subsequent      |                 |             |
-|                                   | levels          |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.regrid_int**                | how often to    | Integer > 0     | -1          |
-|                                   | regrid          | (if negative,   |             |
-|                                   |                 | no regridding)  |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.regrid_on_restart**         | should we       | 0 or 1          | 0           |
-|                                   | regrid          |                 |             |
-|                                   | immediately     |                 |             |
-|                                   | after           |                 |             |
-|                                   | restarting      |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.regrid_level_0_on_restart** | should we       | true or false   | false       |
-|                                   | regrid level    |                 |             |
-|                                   | immediately     |                 |             |
-|                                   | after           |                 |             |
-|                                   | restarting      |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.iterate_grids**             | do we iterate   | true, false     | true        |
-|                                   | on the grids?   |                 |             |
-|                                   |                 |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
++-----------------------------------+--------------------+-----------------+-------------+
+| Parameter                         | Definition         | Acceptable      | Default     |
+|                                   |                    | Values          |             |
++===================================+====================+=================+=============+
+| **amr.n_cell**                    | number of cells    | Integer > 0     | must be set |
+|                                   | in each            |                 |             |
+|                                   | direction at       |                 |             |
+|                                   | the coarsest       |                 |             |
+|                                   | level              |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.max_level**                 | number of          | Integer >= 0    | must be set |
+|                                   | levels of          |                 |             |
+|                                   | refinement         |                 |             |
+|                                   | above the          |                 |             |
+|                                   | coarsest level     |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.ref_ratio**                 | ratio of coarse    | Integer >= 1    | 2 for all   |
+|                                   | to fine grid       | (one per level) | levels      |
+|                                   | spacing between    |                 |             |
+|                                   | subsequent         |                 |             |
+|                                   | levels             |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.ref_ratio_vect**            | ratio of coarse    | 3 integers >= 1 | 2 for all   |
+|                                   | to fine grid       | (one per dir)   | directions  |
+|                                   | spacing between    |                 |             |
+|                                   | subsequent         |                 |             |
+|                                   | levels             |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.regrid_int**                | how often to       | Integer > 0     | -1          |
+|                                   | regrid             | (if negative,   |             |
+|                                   |                    | no regridding)  |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.regrid_on_restart**         | should we          | 0 or 1          | 0           |
+|                                   | regrid             |                 |             |
+|                                   | immediately        |                 |             |
+|                                   | after              |                 |             |
+|                                   | restarting         |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.regrid_level_0_on_restart** | should we          | true or false   | false       |
+|                                   | regrid level       |                 |             |
+|                                   | immediately        |                 |             |
+|                                   | after              |                 |             |
+|                                   | restarting         |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.iterate_grids**             | do we iterate      | true, false     | true        |
+|                                   | on the grids?      |                 |             |
+|                                   |                    |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
 
 Note: if **amr.max_level** = 0 then you do not need to set
 **amr.ref_ratio** or **amr.regrid_int**.
@@ -458,6 +458,18 @@ List of Parameters
 |                            | each RK stage?       | "Explicit",    | compressible,       |
 |                            |                      | "None"         | "None" if anelastic |
 +----------------------------+----------------------+----------------+---------------------+
+| **erf.vert_implicit_fac**  | How much implicit    | Real >= 0      | 0.0, 0.0, 0.0       |
+|                            | vertical diffusion   | (explicit) and | (fully explicit)    |
+|                            | to include in each   | <= 1 (implicit)|                     |
+|                            | RK stage? Currently, |                |                     |
+|                            | only applies to      |                |                     |
+|                            | rho*theta component. |                |                     |
+|                            |                      |                |                     |
+|                            | Specify either one   |                |                     |
+|                            | (the same for all    |                |                     |
+|                            | stages) or three     |                |                     |
+|                            | values, one per stage|                |                     |
++----------------------------+----------------------+----------------+---------------------+
 | **erf.cfl**                | CFL number used to   | Real > 0 and   | 0.8                 |
 |                            | compute level 0 dt   | <= 1           |                     |
 +----------------------------+----------------------+----------------+---------------------+
@@ -494,6 +506,12 @@ List of Parameters
 +----------------------------+----------------------+----------------+---------------------+
 | **erf.dt_max_initial**     | maximum initial      | Real > 0       | 1.0                 |
 |                            | timestep             |                |                     |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.dt_ref_ratio**       | ratio of coarse      | Integer >= 1   | same as             |
+|                            | to fine grid         | (one per level)| maximum over        |
+|                            | time steps between   |                | directions of       |
+|                            | subsequent           |                | ref_ratio           |
+|                            | levels               |                |                     |
 +----------------------------+----------------------+----------------+---------------------+
 
 Notes
@@ -984,6 +1002,10 @@ List of Parameters
 |                                  | model, and if so,  | "Smagorinsky",      |              |
 |                                  | which type?        | "Deardorff"         |              |
 +----------------------------------+--------------------+---------------------+--------------+
+| **erf.rans_type**                | Using a RANS       | "None" or "kEqn"    | "None"       |
+|                                  | model, and if so,  |                     |              |
+|                                  | which type?        |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
 | **erf.molec_diff_type**          | Using molecular    | "None",             | "None"       |
 |                                  | viscosity and      | "Constant", or      |              |
 |                                  | diffusivity?       | "ConstantAlpha"     |              |
@@ -994,10 +1016,9 @@ List of Parameters
 | **erf.Cs**                       | Constant           | Real                | 0.0          |
 |                                  | Smagorinsky coeff. |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.use_smag_stratification**  | Enable             | Boolean             | true         |
-|                                  | stratification     |                     |              |
-|                                  | effects (dry and   |                     |              |
-|                                  | moist) in          |                     |              |
+| **erf.use_moist_Ri_correction**  | Apply moist        | Boolean             | false        |
+|                                  | Richardson number  |                     |              |
+|                                  | limiter to the     |                     |              |
 |                                  | Smagorinsky model  |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.Ck**                       | Constant           | Real                | 0.1          |
@@ -1583,7 +1604,8 @@ methods for defining how the terrain-fitted coordinates given the topography:
 - Sullivan Terrain Following (name TBD):
     The influence of the terrain decreases with the cube of height.
 
-The user can also specify that terrain should be represented with an immersed forcing method, or
+The user can also specify that terrain should be represented with an immersed forcing method
+(with an optional wall model, see :ref:`Forcings` for more detail), or
 with an embedded boundary / cut cell representation.
 
 .. note:: The embedded boundary / cut cell representation is a work in progress and not ready for use!

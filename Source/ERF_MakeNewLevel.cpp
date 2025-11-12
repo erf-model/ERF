@@ -697,6 +697,12 @@ ERF::ClearLevel (int lev)
     if (solverChoice.anelastic[lev] == 1 || solverChoice.project_initial_velocity) {
         pp_inc[lev].clear();
     }
+    if (solverChoice.anelastic[lev] == 0) {
+        lagged_delta_rt[lev].clear();
+    }
+    avg_xmom[lev].clear();
+    avg_ymom[lev].clear();
+    avg_zmom[lev].clear();
 
     // Clears the integrator memory
     mri_integrator_mem[lev].reset();

@@ -70,6 +70,8 @@ public:
               flux_type = FluxCalcType::DONELAN;
           } else if (flux_string == "moeng") {
               flux_type = FluxCalcType::MOENG;
+          } else if (flux_string == "bulk_coeff") {
+              flux_type = FluxCalcType::BULK_COEFF;
           } else if (flux_string == "custom") {
               flux_type = FluxCalcType::CUSTOM;
           } else {
@@ -113,9 +115,9 @@ public:
       if (flux_type == FluxCalcType::CUSTOM) {
           theta_type = ThetaCalcType::HEAT_FLUX;
           moist_type = MoistCalcType::MOISTURE_FLUX;
-          pp.query("most.ustar", custom_ustar);
-          pp.query("most.tstar", custom_tstar);
-          pp.query("most.qstar", custom_qstar);
+          pp.get("most.ustar", custom_ustar);
+          pp.get("most.tstar", custom_tstar);
+          pp.get("most.qstar", custom_qstar);
           pp.query("most.rhosurf", custom_rhosurf);
           if (custom_qstar != 0) {
               AMREX_ASSERT_WITH_MESSAGE(use_moisture,
@@ -124,6 +126,17 @@ public:
           amrex::Print() << "Using specified ustar, tstar, qstar for MOST = "
                          << custom_ustar << " " << custom_tstar << " "
                          << custom_qstar << std::endl;
+
+      // Bulk transfer coefficient (must specify coeffs and surface values)
+      } else if (flux_type == FluxCalcType::BULK_COEFF) {
+          pp.get("most.Cd", m_Cd);
+          pp.get("most.Ch", m_Ch);
+          pp.get("most.Cq", m_Cq);
+          pp.get("most.surf_temp", default_land_surf_temp);
+          pp.get("most.surf_moist", default_land_surf_moist);
+          amrex::Print() << "Using specified Cd, Ch, Cq for MOST = "
+                         << m_Cd << " " << m_Ch << " "
+                         << m_Cq << std::endl;
 
       // Specify surface temperature/moisture or surface flux
       } else {
@@ -146,7 +159,6 @@ public:
               } else {
                   theta_type = ThetaCalcType::ADIABATIC;
               }
-
           }
 
           if (erf_sq) {
@@ -223,6 +235,10 @@ public:
       } else {
           amrex::Abort("Undefined MOST roughness type for sea!");
       }
+
+      // use skin temperature instead of sea-surface temperature
+      // (wrfinput data may have lower resolution SST data)
+      pp.query("most.ignore_sst", m_ignore_sst);
   } // constructor
 
   void make_SurfaceLayer_at_level (const int& lev,
@@ -410,9 +426,24 @@ public:
           // extended lambda capture) Note that land temp will be set from m_tsk_lev
           //      while sea temp will be set from m_sst_lev
           theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
+
+          // Pathways in fill_tsurf_with_sst_and_tsk
+          bool use_tsk = (m_tsk_lev[lev][0]);
+          bool use_sst = (m_sst_lev[lev][0]);
+          amrex::Print() << "Using MOST with specified surface temperature ";
+          if (use_tsk && !use_sst) { m_ignore_sst = true; }
+          if (use_tsk) {
+              amrex::Print() << "(land: TSK, ";
+          } else {
+              amrex::Print() << "(land: T0, ";
+          }
+          if (use_tsk && m_ignore_sst) {
+              amrex::Print() << "sea: TSK)" << std::endl;
+          } else {
+              amrex::Print() << "sea: SST)" << std::endl;
+              AMREX_ALWAYS_ASSERT(m_sst_lev[lev][0]);
+          }
       }
-
-
   }
 
   void
@@ -427,6 +458,12 @@ public:
                        const int& max_iters,
                        const FluxIter& most_flux,
                        bool is_land);
+
+  void init_tke_from_ustar (const int& lev,
+                            amrex::MultiFab& cons,
+                            const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                            const amrex::Real tkefac = 1.0,
+                            const amrex::Real zscale = 700.0);
 
   void impose_SurfaceLayer_bcs (const int& lev,
                                 amrex::Vector<const amrex::MultiFab*> mfs,
@@ -556,10 +593,11 @@ public:
   }
 
   enum struct FluxCalcType {
-    MOENG = 0, ///< Moeng functional form
-    DONELAN,   ///< Donelan functional form
-    CUSTOM,    ///< Custom constant flux functional form
-    ROTATE     ///< Terrain rotation flux functional form
+    MOENG = 0,  ///< Moeng functional form
+    DONELAN,    ///< Donelan functional form
+    CUSTOM,     ///< Custom constant flux functional form
+    BULK_COEFF, ///< Bulk transfer coefficient functional form
+    ROTATE      ///< Terrain rotation flux functional form
   };
 
   enum struct ThetaCalcType {
@@ -622,6 +660,12 @@ private:
   bool use_moisture;
   bool m_has_lsm_tsurf  = false;
   int  m_lsm_tsurf_indx = -1;
+
+  amrex::Real m_Cd = 0.0;
+  amrex::Real m_Ch = 0.0;
+  amrex::Real m_Cq = 0.0;
+
+  bool m_ignore_sst = false;
 
   MOSTAverage m_ma;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;

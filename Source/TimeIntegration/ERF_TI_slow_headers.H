@@ -46,7 +46,9 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       amrex::Vector<amrex::MultiFab>& S_data,
                               const amrex::MultiFab & S_prim,
                               const amrex::MultiFab & qt,
-                      amrex::Vector<amrex::MultiFab>& S_scratch,
+                            amrex::MultiFab& avg_xmom,
+                            amrex::MultiFab& avg_ymom,
+                            amrex::MultiFab& avg_zmom,
                       const amrex::MultiFab& xvel,
                       const amrex::MultiFab& yvel,
                       const amrex::MultiFab& zvel,
@@ -83,6 +85,9 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       amrex::Vector<amrex::MultiFab>& gradp,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                       const eb_& ebfact,
+#ifdef ERF_USE_SHOC
+                      std::unique_ptr<SHOCInterface>& shoc_lev,
+#endif
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine);
 
@@ -98,7 +103,9 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::Vector<amrex::MultiFab>& S_new,
                        amrex::Vector<amrex::MultiFab>& S_data,
                        const amrex::MultiFab& S_prim,
-                       amrex::Vector<amrex::MultiFab >& S_scratch,
+                             amrex::MultiFab& avg_xmom,
+                             amrex::MultiFab& avg_ymom,
+                             amrex::MultiFab& avg_zmom,
                        const amrex::MultiFab& xvel,
                        const amrex::MultiFab& yvel,
                        const amrex::MultiFab& zvel,
@@ -139,6 +146,9 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+#endif
+#ifdef ERF_USE_SHOC
+                      std::unique_ptr<SHOCInterface>& shoc_lev,
 #endif
                        amrex::YAFluxRegister* fr_as_crse,
                        amrex::YAFluxRegister* fr_as_fine);
