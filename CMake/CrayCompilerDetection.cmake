@@ -112,14 +112,10 @@ message(STATUS "")
 # GPU Host Compilers (for CUDA, HIP, SYCL)
 # -----------------------------------------------------------------------------
 
-# -----------------------------------------------------------------------------
-# GPU Host Compilers (for CUDA, HIP, SYCL)
-# -----------------------------------------------------------------------------
-
 # CUDA - Check if craype-accel module is loaded on Cray systems
 if(DEFINED ENV{CUDA_HOME} OR DEFINED ENV{CUDATOOLKIT_HOME} OR DEFINED ENV{CRAY_ACCEL_TARGET})
     message(STATUS "  Detected CUDA environment")
-    
+
     # On Cray systems, need craype-accel-* module loaded
     if(DEFINED ENV{CRAYPE_VERSION})
         if(NOT DEFINED ENV{CRAY_ACCEL_TARGET})
@@ -147,12 +143,39 @@ if(DEFINED ENV{CUDA_HOME} OR DEFINED ENV{CUDATOOLKIT_HOME} OR DEFINED ENV{CRAY_A
             message(STATUS "    Cray wrappers will handle CUDA compilation")
         endif()
     endif()
+    
+    # Set CUDA compiler (default to Cray wrapper, can be overridden)
+    # Respect: CMAKE_CUDA_COMPILER (cache), CUDACXX (env)
+#    if(NOT CMAKE_CUDA_COMPILER AND NOT DEFINED ENV{CUDACXX})
+#        if(ERF_CRAY_CXX)
+#            set(CMAKE_CUDA_COMPILER "${ERF_CRAY_CXX}" CACHE FILEPATH "CUDA compiler (Cray wrapper)")
+#            message(STATUS "    Set CMAKE_CUDA_COMPILER = ${ERF_CRAY_CXX}")
+#            message(STATUS "      -> Inherits MPI paths automatically (no Fix 1 needed)")
+#        endif()
+#    elseif(CMAKE_CUDA_COMPILER)
+#        message(STATUS "    CMAKE_CUDA_COMPILER already set: ${CMAKE_CUDA_COMPILER}")
+#    elseif(DEFINED ENV{CUDACXX})
+#        message(STATUS "    CUDACXX environment variable set: $ENV{CUDACXX}")
+#    endif()
+    
+    # Set CUDA host compiler (used when nvcc or nvcc_wrapper is the CUDA compiler)
+    # Respect: CMAKE_CUDA_HOST_COMPILER (cache), CUDAHOSTCXX (env)
+    if(NOT CMAKE_CUDA_HOST_COMPILER AND NOT DEFINED ENV{CUDAHOSTCXX})
+        if(ERF_CRAY_CXX)
+            set(CMAKE_CUDA_HOST_COMPILER "${ERF_CRAY_CXX}" CACHE FILEPATH "CUDA host compiler")
+            message(STATUS "    Set CMAKE_CUDA_HOST_COMPILER = ${ERF_CRAY_CXX}")
+        endif()
+    elseif(CMAKE_CUDA_HOST_COMPILER)
+        message(STATUS "    CMAKE_CUDA_HOST_COMPILER already set: ${CMAKE_CUDA_HOST_COMPILER}")
+    elseif(DEFINED ENV{CUDAHOSTCXX})
+        message(STATUS "    CUDAHOSTCXX environment variable set: $ENV{CUDAHOSTCXX}")
+    endif()
 endif()
 
 # HIP - Check if craype-accel module is loaded on Cray systems
 if(DEFINED ENV{ROCM_PATH} OR DEFINED ENV{HIP_PATH})
     message(STATUS "  Detected ROCm/HIP environment")
-    
+
     if(DEFINED ENV{CRAYPE_VERSION})
         if(NOT DEFINED ENV{CRAY_ACCEL_TARGET})
             message(STATUS "")
@@ -176,6 +199,32 @@ if(DEFINED ENV{ROCM_PATH} OR DEFINED ENV{HIP_PATH})
         else()
             message(STATUS "    craype-accel module loaded: CRAY_ACCEL_TARGET=$ENV{CRAY_ACCEL_TARGET}")
         endif()
+    endif()
+    
+    # Set HIP compiler (Cray wrapper handles HIP via hipcc)
+    # Respect: CMAKE_HIP_COMPILER (cache), HIPCXX (env)
+#    if(NOT CMAKE_HIP_COMPILER AND NOT DEFINED ENV{HIPCXX})
+#        if(ERF_CRAY_CXX)
+#            set(CMAKE_HIP_COMPILER "${ERF_CRAY_CXX}" CACHE FILEPATH "HIP compiler (Cray wrapper)")
+#            message(STATUS "    Set CMAKE_HIP_COMPILER = ${ERF_CRAY_CXX}")
+#        endif()
+#    elseif(CMAKE_HIP_COMPILER)
+#        message(STATUS "    CMAKE_HIP_COMPILER already set: ${CMAKE_HIP_COMPILER}")
+#    elseif(DEFINED ENV{HIPCXX})
+#        message(STATUS "    HIPCXX environment variable set: $ENV{HIPCXX}")
+#    endif()
+    
+    # Set HIP host compiler
+    # Respect: CMAKE_HIP_HOST_COMPILER (cache), HIPHOSTCXX (env)
+    if(NOT CMAKE_HIP_HOST_COMPILER AND NOT DEFINED ENV{HIPHOSTCXX})
+        if(ERF_CRAY_CXX)
+            set(CMAKE_HIP_HOST_COMPILER "${ERF_CRAY_CXX}" CACHE FILEPATH "HIP host compiler")
+            message(STATUS "    Set CMAKE_HIP_HOST_COMPILER = ${ERF_CRAY_CXX}")
+        endif()
+    elseif(CMAKE_HIP_HOST_COMPILER)
+        message(STATUS "    CMAKE_HIP_HOST_COMPILER already set: ${CMAKE_HIP_HOST_COMPILER}")
+    elseif(DEFINED ENV{HIPHOSTCXX})
+        message(STATUS "    HIPHOSTCXX environment variable set: $ENV{HIPHOSTCXX}")
     endif()
 endif()
 

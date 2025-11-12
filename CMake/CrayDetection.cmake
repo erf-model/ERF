@@ -867,6 +867,142 @@ if(FIX1_ACTIVE OR FIX2_ACTIVE OR FIX3_ACTIVE OR FIX4_ACTIVE OR FIX56_ACTIVE OR F
     message(DEBUG "")
 endif()
 
+# At the end of CrayDetection.cmake, after all fixes:
+
+# ==============================================================================
+# Generate Concise Config File
+# ==============================================================================
+
+set(CRAY_CONFIG_FILE "${CMAKE_BINARY_DIR}/cray_detected_config.cmake")
+
+file(WRITE ${CRAY_CONFIG_FILE}
+"# ==============================================================================
+# Auto-detected Cray Configuration
+# Generated: ${CMAKE_CURRENT_LIST_FILE}
+# Date: 2025-11-12
+# ==============================================================================
+# This file shows the settings auto-detected by CrayDetection.cmake
+# You can use this as a starting point for a manual config file.
+#
+# To use manually:
+#   cmake -C cray_detected_config.cmake ..
+# ==============================================================================
+
+")
+
+# System info
+file(APPEND ${CRAY_CONFIG_FILE} "
+# System Detection
+set(ERF_ON_CRAY TRUE CACHE BOOL \"Detected Cray system\")
+set(CRAYPE_VERSION \"$ENV{CRAYPE_VERSION}\" CACHE STRING \"Cray PE version\")
+")
+
+# Compiler info
+file(APPEND ${CRAY_CONFIG_FILE} "
+# Compiler Configuration
+set(CMAKE_C_COMPILER \"${CMAKE_C_COMPILER}\" CACHE FILEPATH \"\")
+set(CMAKE_CXX_COMPILER \"${CMAKE_CXX_COMPILER}\" CACHE FILEPATH \"\")
+set(CMAKE_CXX_COMPILER_ID \"${CMAKE_CXX_COMPILER_ID}\" CACHE STRING \"\")
+set(CMAKE_CXX_COMPILER_VERSION \"${CMAKE_CXX_COMPILER_VERSION}\" CACHE STRING \"\")
+")
+
+# GPU architectures
+if(ERF_ENABLE_CUDA AND AMReX_CUDA_ARCH)
+    file(APPEND ${CRAY_CONFIG_FILE} "
+# CUDA Configuration
+set(AMReX_CUDA_ARCH \"${AMReX_CUDA_ARCH}\" CACHE STRING \"Auto-detected\")
+")
+endif()
+
+if(AMReX_AMD_ARCH)
+    file(APPEND ${CRAY_CONFIG_FILE} "
+# HIP Configuration  
+set(AMReX_AMD_ARCH \"${AMReX_AMD_ARCH}\" CACHE STRING \"Auto-detected\")
+")
+endif()
+
+if(KOKKOS_ARCH_SET)
+    file(APPEND ${CRAY_CONFIG_FILE} "
+# Kokkos Architecture
+")
+    foreach(arch IN ITEMS VOLTA70 AMPERE80 HOPPER90 VEGA90A VEGA908 MI300A)
+        if(Kokkos_ARCH_${arch})
+            file(APPEND ${CRAY_CONFIG_FILE} "set(Kokkos_ARCH_${arch} ON CACHE BOOL \"Auto-detected\")\n")
+        endif()
+    endforeach()
+endif()
+
+# Applied fixes
+file(APPEND ${CRAY_CONFIG_FILE} "
+# Applied Fixes
+")
+
+if(FIX1_ACTIVE)
+    file(APPEND ${CRAY_CONFIG_FILE} "
+# Fix 1: CUDA+EKAT nvcc_wrapper flags
+set(CMAKE_CUDA_FLAGS \"${CMAKE_CUDA_FLAGS}\" CACHE STRING \"\")
+")
+endif()
+
+if(FIX2_ACTIVE)
+    file(APPEND ${CRAY_CONFIG_FILE} "
+# Fix 2: fcompare linker flags
+set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}\" CACHE STRING \"\")
+")
+endif()
+
+if(FIX3_ACTIVE)
+    file(APPEND ${CRAY_CONFIG_FILE} "
+# Fix 3: CUDA math libraries path
+list(APPEND CMAKE_PREFIX_PATH \"${CUDA_MATH_PATH}\")
+")
+endif()
+
+if(FIX4_ACTIVE)
+    file(APPEND ${CRAY_CONFIG_FILE} "
+# Fix 4: GPU-aware MPI (${GPU_TYPE})
+set(CMAKE_CXX_STANDARD_LIBRARIES \"${CMAKE_CXX_STANDARD_LIBRARIES}\" CACHE STRING \"\")
+")
+    if(ERF_ENABLE_CUDA)
+        file(APPEND ${CRAY_CONFIG_FILE} "set(CMAKE_CUDA_STANDARD_LIBRARIES \"${CMAKE_CUDA_STANDARD_LIBRARIES}\" CACHE STRING \"\")\n")
+    endif()
+endif()
+
+if(FIX56_ACTIVE)
+    file(APPEND ${CRAY_CONFIG_FILE} "
+# Fix 5-6: NetCDF/HDF5 paths
+set(ENV{PKG_CONFIG_PATH} \"$ENV{PKG_CONFIG_PATH}\")
+")
+    if(DEFINED ENV{NETCDF_DIR})
+        file(APPEND ${CRAY_CONFIG_FILE} "list(APPEND CMAKE_PREFIX_PATH \"$ENV{NETCDF_DIR}\")\n")
+    endif()
+endif()
+
+if(FIX7_ACTIVE)
+    file(APPEND ${CRAY_CONFIG_FILE} "
+# Fix 7: HDF5 parallel for HIP
+set(HDF5_ROOT \"${HDF5_ROOT}\" CACHE PATH \"\")
+set(HDF5_PREFER_PARALLEL ON CACHE BOOL \"\")
+set(HDF5_IS_PARALLEL TRUE CACHE BOOL \"\")
+")
+endif()
+
+message(STATUS "Generated config: ${CRAY_CONFIG_FILE}")
+
+# Add a target to display it
+add_custom_target(show-cray-config
+    COMMAND ${CMAKE_COMMAND} -E echo "==================================================================="
+    COMMAND ${CMAKE_COMMAND} -E echo "Auto-detected Cray Configuration:"
+    COMMAND ${CMAKE_COMMAND} -E echo "==================================================================="
+    COMMAND ${CMAKE_COMMAND} -E cat ${CRAY_CONFIG_FILE}
+    COMMAND ${CMAKE_COMMAND} -E echo ""
+    COMMAND ${CMAKE_COMMAND} -E echo "To use this config manually:"
+    COMMAND ${CMAKE_COMMAND} -E echo "  cmake -C ${CRAY_CONFIG_FILE} .."
+    COMMAND ${CMAKE_COMMAND} -E echo "==================================================================="
+    COMMENT "Displaying auto-detected Cray configuration"
+    VERBATIM
+)
+
 message(DEBUG "=====================================================================")
 message(DEBUG "To disable auto-fixes: -DERF_DISABLE_CRAY_AUTO_FIXES=ON")
 message(DEBUG "For verbose output: cmake --log-level=VERBOSE ..")
