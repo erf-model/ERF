@@ -71,7 +71,7 @@ jobs:
           # Download and install MS-MPI Runtime v10.1.1
           Invoke-WebRequest -Uri "https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisetup.exe" -OutFile "msmpisetup.exe"
           .\msmpisetup.exe
-          
+
           # After installation, open a NEW PowerShell window to refresh PATH
           ``````
 
