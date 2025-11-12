@@ -1,4 +1,4 @@
- 
+
  .. role:: cpp(code)
     :language: c++
 
@@ -151,9 +151,9 @@ The vertical turbulent transport coefficients are computed from TKE and a master
    K_{m,v} = \rho L q S_m, \quad K_{\theta,v} = \rho L q S_h, \quad K_{q,v} = \rho L q S_h
 
 where :math:`q = \sqrt{2\cdot\text{TKE}}`, :math:`L` is the master length scale, and
-:math:`S_m`, :math:`S_h` are stability functions that account for buoyancy effects and depend on 
-the gradient Richardson number. The master length scale :math:`L` is diagnosed based on the 
-PBL height, von Kármán's constant, and height above the surface within the PBL, transitioning 
+:math:`S_m`, :math:`S_h` are stability functions that account for buoyancy effects and depend on
+the gradient Richardson number. The master length scale :math:`L` is diagnosed based on the
+PBL height, von Kármán's constant, and height above the surface within the PBL, transitioning
 to a local mixing length in the free atmosphere.
 
 The prognostic TKE equation includes production by shear and buoyancy, and dissipation:
@@ -170,12 +170,12 @@ Closure coefficients are taken from Janjić (2002) NCEP Office Note 437. The imp
 References
 ~~~~~~~~~~
 
-* Janjić, Z. I. (1994): "The Step-Mountain Eta Coordinate Model: Further developments 
-  of the convection, viscous sublayer, and turbulence closure schemes", 
+* Janjić, Z. I. (1994): "The Step-Mountain Eta Coordinate Model: Further developments
+  of the convection, viscous sublayer, and turbulence closure schemes",
   *Monthly Weather Review*, 122(5), 927-945.
-* Janjić, Z. I. (2002): "Nonsingular implementation of the Mellor-Yamada Level 2.5 Scheme 
+* Janjić, Z. I. (2002): "Nonsingular implementation of the Mellor-Yamada Level 2.5 Scheme
   in the NCEP Meso model", NCEP Office Note No. 437.
-* Mellor, G. L., & Yamada, T. (1982): "Development of a turbulence closure model for 
+* Mellor, G. L., & Yamada, T. (1982): "Development of a turbulence closure model for
   geophysical fluid problems", *Reviews of Geophysics*, 20(4), 851-875.
 
 .. _SHOC:
@@ -189,23 +189,23 @@ SHOC PBL Model
 
 The Simplified Higher-Order Closure (SHOC) is a unified parameterization that represents
 both turbulent mixing and shallow convection in a single framework. Originally developed for
-the Community Atmosphere Model (CAM) and now used in E3SM, SHOC uses prognostic TKE with 
-diagnostic second and third-order moments and assumed probability density functions (PDFs) 
+the Community Atmosphere Model (CAM) and now used in E3SM, SHOC uses prognostic TKE with
+diagnostic second and third-order moments and assumed probability density functions (PDFs)
 to represent subgrid-scale variability.
 
-SHOC computes vertical turbulent fluxes for momentum, heat, and moisture, along with 
-subgrid-scale cloud fraction and liquid water content. The assumed PDFs allow the scheme 
-to predict partial cloudiness and transitions between clear and cloudy conditions. The 
-implementation uses higher-order closure equations to diagnose eddy diffusivities and 
+SHOC computes vertical turbulent fluxes for momentum, heat, and moisture, along with
+subgrid-scale cloud fraction and liquid water content. The assumed PDFs allow the scheme
+to predict partial cloudiness and transitions between clear and cloudy conditions. The
+implementation uses higher-order closure equations to diagnose eddy diffusivities and
 turbulent fluxes, with special treatment for cloud-top entrainment.
 
 References
 ~~~~~~~~~~
 
-* Golaz, J.-C., et al. (2002): "A PDF-based model for boundary layer clouds. Part I: 
+* Golaz, J.-C., et al. (2002): "A PDF-based model for boundary layer clouds. Part I:
   Method and model description", *Journal of the Atmospheric Sciences*, 59(24), 3540-3551.
-* Bogenschutz, P. A., & Krueger, S. K. (2013): "A simplified PDF parameterization of 
-  subgrid-scale clouds and turbulence for cloud-resolving models", 
+* Bogenschutz, P. A., & Krueger, S. K. (2013): "A simplified PDF parameterization of
+  subgrid-scale clouds and turbulence for cloud-resolving models",
   *Journal of Advances in Modeling Earth Systems*, 5(2), 195-211.
 * E3SM SHOC Documentation: https://github.com/E3SM-Project/E3SM/tree/master/components/eamxx/src/physics/shoc
 

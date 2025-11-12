@@ -507,6 +507,89 @@ When ``CRAY_AUTO_DETECTION=ON``, the build system performs the following detecti
 - **Compiler version mismatch**: Verify module compatibility with ``module list`` and ensure only one programming environment is loaded
 - **Linker errors**: Explicitly set the linker with ``-DCMAKE_LINKER_EXE=/path/to/ld``
 
+Build Scripts Reference
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+ERF provides several build scripts optimized for different systems and architectures. This table shows which scripts have been tested and verified on each system. Verified builds are marked with the git commit hash where they were last tested.
+
+.. list-table:: ERF Build Scripts by System
+   :header-rows: 1
+   :widths: 35 10 10 10 10 10 10 10
+
+   * - Build Script
+     - Perlmutter
+     - Frontier
+     - Aurora
+     - Polaris
+     - Kestrel
+     - RegtestCPU
+     - RegtestGPU
+   * - ``cmake.sh``
+     - Untested
+     - Untested
+     - Untested
+     - Untested
+     - Untested
+     - Untested
+     - Untested
+   * - ``cmake_with_kokkos_many.sh``
+     - Untested
+     - Untested
+     - Untested
+     - Untested
+     - Untested
+     - Untested
+     - Untested
+   * - ``cmake_with_kokkos_many_cuda.sh``
+     - Untested
+     - —
+     - —
+     - Untested
+     - Untested
+     - —
+     - Untested
+   * - ``cmake_with_kokkos_many_noradiation_hip.sh``
+     - —
+     - Untested
+     - —
+     - —
+     - —
+     - —
+     - —
+   * - ``cmake_with_kokkos_many_sycl.sh``
+     - —
+     - —
+     - Untested
+     - —
+     - —
+     - —
+     - —
+   * - ``Perlmutter/build_erf_with_shoc_cuda_Perlmutter.sh``
+     - Untested
+     - Untested
+     - Untested
+     - Untested
+     - Untested
+     - —
+     - Untested
+
+.. note::
+
+   The ``build_erf_with_shoc_cuda_Perlmutter.sh`` script is being tested for cross-site compatibility with auto-detection enabled. A simplified version may work across CUDA-enabled HPC sites (Perlmutter, Polaris, Kestrel) with ``-DCRAY_AUTO_DETECTION=ON``.
+
+**Script Descriptions**
+
+- ``cmake.sh``: Basic CMake build script, works on all systems
+- ``cmake_with_kokkos_many.sh``: Kokkos-enabled build for CPU architectures
+- ``cmake_with_kokkos_many_cuda.sh``: Kokkos build optimized for NVIDIA GPUs
+- ``cmake_with_kokkos_many_noradiation_hip.sh``: Kokkos build for AMD GPUs (HIP backend)
+- ``cmake_with_kokkos_many_sycl.sh``: Kokkos build for Intel GPUs (SYCL backend)
+- ``Perlmutter/build_erf_with_shoc_cuda_Perlmutter.sh``: SHOC turbulence model with CUDA support
+
+**Testing Build Scripts**
+
+Build scripts can be tested using the configuration file ``Build/ERF-cmake-tests.ini``, which defines test cases for each system and script combination.
+
 Perlmutter (NERSC)
 ~~~~~~~~~~~~~~~~~~
 

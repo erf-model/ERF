@@ -144,7 +144,7 @@ Type 5: Anelastic Formulation (Internal Use Only)
 --------------------------------------------------
 
 .. note::
-   Type 5 is not user-selectable via ``erf.buoyancy_type``. It describes the specialized 
+   Type 5 is not user-selectable via ``erf.buoyancy_type``. It describes the specialized
    buoyancy implementation used internally when the anelastic formulation is enabled.
 
 Utilizing :math:`\theta_d` and neglecting the pressure term in Type 4 leads to:
