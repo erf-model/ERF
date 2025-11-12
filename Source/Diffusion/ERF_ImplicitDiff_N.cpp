@@ -201,24 +201,23 @@ ImplicitDiffForMom_N (const Box& bx,
     constexpr int joff = (stagdir == 1) ? 1 : 0;
 
     // Box bounds
-    const Box bxx = convert(bx, IntVect(ioff, joff, 0));
-    int ilo = bxx.smallEnd(0);
-    int ihi = bxx.bigEnd(0);
-    int jlo = bxx.smallEnd(1);
-    int jhi = bxx.bigEnd(1);
-    int klo = bxx.smallEnd(2);
-    int khi = bxx.bigEnd(2);
+    int ilo = bx.smallEnd(0);
+    int ihi = bx.bigEnd(0);
+    int jlo = bx.smallEnd(1);
+    int jhi = bx.bigEnd(1);
+    int klo = bx.smallEnd(2);
+    int khi = bx.bigEnd(2);
     amrex::ignore_unused(ilo, ihi, jlo, jhi);
 
     // Temporary FABs for tridiagonal solve (allocated on column)
     //   A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
     amrex::FArrayBox RHS_fab, soln_fab, coeffA_fab, coeffB_fab, inv_coeffB_fab, coeffC_fab;
-           RHS_fab.resize(bxx,1, amrex::The_Async_Arena());
-          soln_fab.resize(bxx,1, amrex::The_Async_Arena());
-        coeffA_fab.resize(bxx,1, amrex::The_Async_Arena());
-        coeffB_fab.resize(bxx,1, amrex::The_Async_Arena());
-    inv_coeffB_fab.resize(bxx,1, amrex::The_Async_Arena());
-        coeffC_fab.resize(bxx,1, amrex::The_Async_Arena());
+           RHS_fab.resize(bx,1, amrex::The_Async_Arena());
+          soln_fab.resize(bx,1, amrex::The_Async_Arena());
+        coeffA_fab.resize(bx,1, amrex::The_Async_Arena());
+        coeffB_fab.resize(bx,1, amrex::The_Async_Arena());
+    inv_coeffB_fab.resize(bx,1, amrex::The_Async_Arena());
+        coeffC_fab.resize(bx,1, amrex::The_Async_Arena());
     auto const& RHS_a        =        RHS_fab.array();
     auto const& soln_a       =       soln_fab.array();
     auto const& coeffA_a     =     coeffA_fab.array(); // lower diagonal
@@ -247,7 +246,7 @@ ImplicitDiffForMom_N (const Box& bx,
     }
 
 #ifdef AMREX_USE_GPU
-    ParallelFor(makeSlab(bxx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
+    ParallelFor(makeSlab(bx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
     {
 #else
     for (int j(jlo); j<=jhi; ++j) {

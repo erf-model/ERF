@@ -37,6 +37,9 @@
                 for ( MFIter mfi(S_old[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
                 {
                     Box bx  = mfi.tilebox();
+                    Box tbx = mfi.nodaltilebox(0);
+                    Box tby = mfi.nodaltilebox(1);
+                    Box tbz = mfi.nodaltilebox(2);
 
                     const Array4<      Real>& cell_data  = scratch.array(mfi);
 
@@ -67,19 +70,19 @@
                                                    bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
                         }
                         if (l_do_implicit_mom) {
-                            ImplicitDiffForMom_S<0>(bx, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMom_S<0>(tbx, fine_geom.Domain(), level, slow_dt,
                                                     cell_data, rho_u, tau13_corr,
                                                     stretched_dz_d[level],
                                                     mu_turb, solverChoice,
                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
 
-                            ImplicitDiffForMom_S<1>(bx, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMom_S<1>(tby, fine_geom.Domain(), level, slow_dt,
                                                     cell_data, rho_v, tau23_corr,
                                                     stretched_dz_d[level],
                                                     mu_turb, solverChoice,
                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
 #ifdef ERF_IMPLICIT_W
-                            ImplicitDiffForMom_S<2>(bx, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMom_S<2>(tbz, fine_geom.Domain(), level, slow_dt,
                                                     cell_data, rho_w, tau33_corr,
                                                     stretched_dz_d[level],
                                                     mu_turb, solverChoice,
@@ -96,19 +99,19 @@
                                                    bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
                         }
                         if (l_do_implicit_mom) {
-                            ImplicitDiffForMom_T<0>(bx, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMom_T<0>(tbx, fine_geom.Domain(), level, slow_dt,
                                                     cell_data, rho_u, tau13_corr,
                                                     z_nd_arr, detJ_arr, dxInv,
                                                     mu_turb, solverChoice,
                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
 
-                            ImplicitDiffForMom_T<1>(bx, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMom_T<1>(tby, fine_geom.Domain(), level, slow_dt,
                                                     cell_data, rho_v, tau23_corr,
                                                     z_nd_arr, detJ_arr, dxInv,
                                                     mu_turb, solverChoice,
                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
 #ifdef ERF_IMPLICIT_W
-                            ImplicitDiffForMom_T<2>(bx, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMom_T<2>(tbz, fine_geom.Domain(), level, slow_dt,
                                                     cell_data, rho_w, tau33_corr,
                                                     z_nd_arr, detJ_arr, dxInv,
                                                     mu_turb, solverChoice,
@@ -125,19 +128,19 @@
                                                    bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
                         }
                         if (l_do_implicit_mom) {
-                            ImplicitDiffForMom_N<0>(bx, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMom_N<0>(tbx, fine_geom.Domain(), level, slow_dt,
                                                     cell_data, rho_u, tau13_corr,
                                                     dxInv,
                                                     mu_turb, solverChoice,
                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
 
-                            ImplicitDiffForMom_N<1>(bx, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMom_N<1>(tby, fine_geom.Domain(), level, slow_dt,
                                                     cell_data, rho_v, tau23_corr,
                                                     dxInv,
                                                     mu_turb, solverChoice,
                                                     bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
 #ifdef ERF_IMPLICIT_W
-                            ImplicitDiffForMom_N<2>(bx, fine_geom.Domain(), level, slow_dt,
+                            ImplicitDiffForMom_N<2>(tbz, fine_geom.Domain(), level, slow_dt,
                                                     cell_data, rho_w, tau33_corr,
                                                     dxInv,
                                                     mu_turb, solverChoice,
