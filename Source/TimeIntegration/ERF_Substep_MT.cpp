@@ -437,39 +437,39 @@ void erf_substep_MT (int step, int /*nrk*/,
             Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
             // line 2 last two terms (order dtau)
-            Real R0_tmp  = coeff_P * cur_cons(i,j,k  ,RhoTheta_comp) * dJ_old_kface
-                         + coeff_Q * cur_cons(i,j,k-1,RhoTheta_comp) * dJ_old_kface
-                         - coeff_P * stg_cons(i,j,k  ,RhoTheta_comp) * dJ_stg_kface
-                         - coeff_Q * stg_cons(i,j,k-1,RhoTheta_comp) * dJ_stg_kface
-                       - halfg   * ( cur_cons(i,j,k,Rho_comp) + cur_cons(i,j,k-1,Rho_comp) ) * dJ_old_kface
-                       + halfg   * ( stg_cons(i,j,k,Rho_comp) + stg_cons(i,j,k-1,Rho_comp) ) * dJ_stg_kface;
+            Real R0_tmp  = coeff_P * cur_cons(i,j,k  ,RhoTheta_comp)
+                         + coeff_Q * cur_cons(i,j,k-1,RhoTheta_comp)
+                         - coeff_P * stg_cons(i,j,k  ,RhoTheta_comp)
+                         - coeff_Q * stg_cons(i,j,k-1,RhoTheta_comp)
+                       - halfg   * ( cur_cons(i,j,k,Rho_comp) + cur_cons(i,j,k-1,Rho_comp) )
+                       + halfg   * ( stg_cons(i,j,k,Rho_comp) + stg_cons(i,j,k-1,Rho_comp) );
 
             // line 3 residuals (order dtau^2) 1.0 <-> beta_2
-            Real R1_tmp = - halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +
-                                      slow_rhs_cons(i,j,k-1,Rho_comp) )
-                      +   ( coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) +
-                            coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
+            Real R1_tmp = - halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) + slow_rhs_cons(i,j,k-1,Rho_comp) )
+                          + coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp)
+                          + coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp);
 
             Real Omega_kp1 = omega_arr(i,j,k+1);
             Real Omega_k   = omega_arr(i,j,k  );
             Real Omega_km1 = omega_arr(i,j,k-1);
 
+            Real detJdiff = (detJ_old(i,j,k) - detJ_old(i,j,k-1)) / (detJ_old(i,j,k)*detJ_old(i,j,k-1));
+
             // consolidate lines 4&5 (order dtau^2)
-            R1_tmp += ( halfg ) *
-                      ( beta_1 * dzi * (Omega_kp1 - Omega_km1) + temp_rhs_arr(i,j,k,Rho_comp) + temp_rhs_arr(i,j,k-1,Rho_comp));
+            R1_tmp += halfg * ( beta_1 * dzi * (Omega_kp1/detJ_old(i,j,k) + detJdiff*Omega_k - Omega_km1/detJ_old(i,j,k-1))
+                                + temp_rhs_arr(i,j,k,Rho_comp)/detJ_old(i,j,k) + temp_rhs_arr(i,j,k-1,Rho_comp)/detJ_old(i,j,k-1) );
 
             // consolidate lines 6&7 (order dtau^2)
-            R1_tmp += -(
-                 coeff_P * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) ) +
-                 coeff_Q * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
+            R1_tmp += -( coeff_P/detJ_old(i,j,k  ) * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) )
+                       + coeff_Q/detJ_old(i,j,k-1) * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
             // line 1
-            RHS_a(i,j,k) = dJ_old_kface * prev_zmom(i,j,k) - dJ_stg_kface * stg_zmom(i,j,k)
-                            + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp + zmom_src_arr(i,j,k));
+            RHS_a(i,j,k) = prev_zmom(i,j,k) - stg_zmom(i,j,k)
+                         + dtau * (slow_rhs_rho_w(i,j,k) + zmom_src_arr(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
-            Real UppVpp = dJ_new_kface * OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
-                         -dJ_stg_kface * OmegaFromW(i,j,k,0.,stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
+            Real UppVpp = OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
+                        - OmegaFromW(i,j,k,0.,stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
             RHS_a(i,j,k) += UppVpp;
         });
         } // end profile
