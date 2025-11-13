@@ -734,12 +734,15 @@ struct SolverChoice {
         if (vert_implicit_fac[0] > 0 ||
             vert_implicit_fac[0] > 1 ||
             vert_implicit_fac[0] > 2)
+        {
             amrex::Print() << " (theta=" << implicit_thermal_diffusion
                            << ", momenta=" << implicit_momentum_diffusion;
 #ifdef ERF_IMPLICIT_W
             amrex::Print() << ", including w";
 #endif
-        amrex::Print() << ")" << std::endl;
+            amrex::Print() << ")";
+        }
+        amrex::Print() << std::endl;
         amrex::Print() << "fixed_density               : " << fixed_density << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
