@@ -182,7 +182,7 @@ void erf_substep_MT (int step, int /*nrk*/,
         const Array4<const Real>& z_nd_stg = z_phys_nd_stg->const_array(mfi);
         const Array4<const Real>& detJ_old =   detJ_cc_old->const_array(mfi);
         const Array4<const Real>& detJ_new =   detJ_cc_new->const_array(mfi);
-        const Array4<const Real>& detJ_stg =   detJ_cc_stg->const_array(mfi);
+        //const Array4<const Real>& detJ_stg =   detJ_cc_stg->const_array(mfi);
 
         const Array4<const Real>& z_t_arr  = z_t_rk->const_array(mfi);
         const Array4<const Real>& zp_t_arr = z_t_pert->const_array(mfi);
