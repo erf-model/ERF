@@ -445,9 +445,10 @@ void erf_substep_MT (int step, int /*nrk*/,
                        + halfg   * ( stg_cons(i,j,k,Rho_comp) + stg_cons(i,j,k-1,Rho_comp) );
 
             // line 3 residuals (order dtau^2) 1.0 <-> beta_2
-            Real R1_tmp = - halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) + slow_rhs_cons(i,j,k-1,Rho_comp) )
-                          + coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp)
-                          + coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp);
+            Real R1_tmp = - halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp)     / detJ_old(i,j,k  )
+                                    + slow_rhs_cons(i,j,k-1,Rho_comp)     / detJ_old(i,j,k-1) )
+                          + coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp)/ detJ_old(i,j,k  )
+                          + coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp)/ detJ_old(i,j,k-1);
 
             Real Omega_kp1 = omega_arr(i,j,k+1);
             Real Omega_k   = omega_arr(i,j,k  );
@@ -464,8 +465,10 @@ void erf_substep_MT (int step, int /*nrk*/,
                        + coeff_Q/detJ_old(i,j,k-1) * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
             // line 1
+            Real detJ_half = 0.5 * (detJ_old(i,j,k) + detJ_old(i,j,k-1)); // TODO: THIS MAY NOT BE RIGHT
             RHS_a(i,j,k) = prev_zmom(i,j,k) - stg_zmom(i,j,k)
-                         + dtau * (slow_rhs_rho_w(i,j,k) + zmom_src_arr(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
+                + dtau * (slow_rhs_rho_w(i,j,k) + zmom_src_arr(i,j,k)) / detJ_half
+                + dtau * (R0_tmp + dtau*beta_2*R1_tmp);
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
             Real UppVpp = OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
