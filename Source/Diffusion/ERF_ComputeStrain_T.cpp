@@ -232,6 +232,13 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  tau13(i,j,k) = 0.5 * ( du_dz
                                       + ( (-(8./3.) * w(i-1,j,k) + 3. * w(i,j,k) - (1./3.) * w(i+1,j,k))*dxInv[0]
                                         - (met_h_xi)*GradWz ) * mfx );
+                 // Note:
+                 //   tau13 ~ (du/dζ) / (dz/dζ)
+                 //         + (dw/dξ)           * (dξ/dx)
+                 //         - (dz/dξ) * (dw/dz) * (dξ/dx)
+                 //     ~ du/dz + dw/dx
+                 // where ξ and ζ are in computational space, corresponding to
+                 // x and z in physical space
             } else {
                 tau13(i,j,k) = 0.5 * ( du_dz
                                      + ( (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
@@ -386,6 +393,12 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                 tau23(i,j,k) = 0.5 * ( dv_dz
                                      + ( (-(8./3.) * w(i,j-1,k) + 3. * w(i,j  ,k) - (1./3.) * w(i,j+1,k))*dxInv[1]
                                        - (met_h_eta)*GradWz ) * mfy );
+                // Note:
+                //   tau23 ~ (dv/dζ) / (dz/dζ)
+                //         + (dw/dη)           * (dη/dy)
+                //         - (dz/dη) * (dw/dz) * (dη/dy)
+                 // where η and ζ are in computational space, corresponding to
+                 // y and z in physical space
             } else {
                 tau23(i,j,k) = 0.5 * ( dv_dz
                                      + ( (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
@@ -456,8 +469,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real mfx = mf_ux(i,j,0);
 
-            Real met_h_xi;
-            met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
+            Real met_h_xi = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
 
             // Note: u(i,j,k) and u(i,j,k+1) are located at cell centers
             //       whereas u(i,j,k-1) is the value on the boundary
@@ -656,7 +668,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real du_dz = (u(i, j, k) - u(i  , j, k-1))*dxInv[2]/met_h_zeta;
             tau13(i,j,k) = 0.5 * ( du_dz
                                  + ( (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
-                                   - (met_h_xi/met_h_zeta)*GradWz ) * mfx);
+                                   - (met_h_xi)*GradWz ) * mfx);
             tau31(i,j,k) = tau13(i,j,k);
 
             if (tau13i) tau13i(i,j,k) = 0.5 * du_dz;
@@ -679,7 +691,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real dv_dz = (v(i, j, k) - v(i, j  , k-1))*dxInv[2]/met_h_zeta;
             tau23(i,j,k) = 0.5 * ( dv_dz
                                  + ( (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
-                                   - (met_h_eta/met_h_zeta)*GradWz ) * mfy );
+                                   - (met_h_eta)*GradWz ) * mfy );
             tau32(i,j,k) = tau23(i,j,k);
 
             if (tau23i) tau23i(i,j,k) = 0.5 * dv_dz;
