@@ -525,32 +525,40 @@ ERF provides several build scripts optimized for different systems and architect
      - RegtestCPU
      - RegtestGPU
    * - ``cmake.sh``
+     - f8665c28 (ABL)
+     - f8665c28 (ABL)
+     - f8665c28
+     - f8665c28 (ABL)
      - Untested
-     - Untested
-     - Untested
-     - Untested
-     - Untested
-     - Untested
-     - Untested
+     - f8665c28 (ABL)
+     - f8665c28 (ABL)
    * - ``cmake_with_kokkos_many.sh``
      - Untested
      - Untested
      - Untested
      - Untested
      - Untested
-     - Untested
+     - f8665c28 (ABL)
      - Untested
    * - ``cmake_with_kokkos_many_cuda.sh``
-     - Untested
+     - f8665c28 (ABL)
      - —
      - —
      - Untested
      - Untested
      - —
-     - Untested
+     - f8665c28 (ABL)
    * - ``cmake_with_kokkos_many_noradiation_hip.sh``
      - —
-     - Untested
+     - f8665c28 (ABL bad fcompare result)
+     - —
+     - —
+     - —
+     - —
+     - —
+   * - ``cmake_with_kokkos_many_hip.sh``
+     - —
+     - f8665c28 + rrtmpg_workarounds_kokkos
      - —
      - —
      - —
@@ -559,18 +567,26 @@ ERF provides several build scripts optimized for different systems and architect
    * - ``cmake_with_kokkos_many_sycl.sh``
      - —
      - —
-     - Untested
+     - f8665c28 + rrtmpg_workarounds_kokkos
      - —
      - —
      - —
      - —
    * - ``Perlmutter/build_erf_with_shoc_cuda_Perlmutter.sh``
-     - Untested
-     - Untested
-     - Untested
-     - Untested
-     - Untested
+     - 3c7d1d01 + use_shoc_fix (ABL)
+     - -
+     - -
+     - -
+     - -
      - —
+- Untested
+     * - ``build_erf_with_shoc.sh``
+     - -
+     - -
+     - -
+     - -
+     - -
+     - 3c7d1d01 + use_shoc_fix
      - Untested
 
 .. note::
