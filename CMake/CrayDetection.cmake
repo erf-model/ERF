@@ -74,12 +74,19 @@ option(ERF_CHECK_MODULES "Check for stale configuration from module changes" ON)
 
 if(ERF_CHECK_MODULES)
     list(APPEND CMAKE_MESSAGE_CONTEXT "CrayConfigCheck")
-    
+
     message(DEBUG "Starting configuration verification")
-    
+
     # Detection log for issues
     set(STALE_CONFIG_LOG "")
-    
+
+    # Determine if this is first configure (before we cache anything)
+    set(IS_FIRST_CONFIGURE FALSE)
+    if(NOT DEFINED CACHED_LOADED_MODULES)
+        set(IS_FIRST_CONFIGURE TRUE)
+        message(DEBUG "First configure detected")
+    endif()
+
     # Check 1: Module environment changed
     if(DEFINED ENV{LOADEDMODULES})
         set(CURRENT_MODULES "$ENV{LOADEDMODULES}")
@@ -92,12 +99,10 @@ if(ERF_CHECK_MODULES)
             else()
                 message(DEBUG "Module environment unchanged")
             endif()
-        else()
-            message(DEBUG "First configure - caching module environment")
         endif()
         set(CACHED_LOADED_MODULES "${CURRENT_MODULES}" CACHE INTERNAL "Modules at configure time")
     endif()
-    
+
     # Check 2: PE_ENV changed
     if(DEFINED ENV{PE_ENV})
         set(CURRENT_PE_ENV "$ENV{PE_ENV}")
@@ -107,7 +112,7 @@ if(ERF_CHECK_MODULES)
         endif()
         set(CACHED_PE_ENV "${CURRENT_PE_ENV}" CACHE INTERNAL "")
     endif()
-    
+
     # Check 3: Compiler version changed
     if(DEFINED CMAKE_CXX_COMPILER_VERSION)
         if(DEFINED CACHED_CXX_COMPILER_VERSION AND NOT "${CMAKE_CXX_COMPILER_VERSION}" STREQUAL "${CACHED_CXX_COMPILER_VERSION}")
@@ -116,22 +121,26 @@ if(ERF_CHECK_MODULES)
         endif()
         set(CACHED_CXX_COMPILER_VERSION "${CMAKE_CXX_COMPILER_VERSION}" CACHE INTERNAL "")
     endif()
-    
+
     # Check 4: CMAKE_*_STANDARD_LIBRARIES already contains MPI (from previous run)
-    if(DEFINED CMAKE_CXX_STANDARD_LIBRARIES AND CMAKE_CXX_STANDARD_LIBRARIES)
-        if(CMAKE_CXX_STANDARD_LIBRARIES MATCHES "mpi_")
-            message(VERBOSE "CMAKE_CXX_STANDARD_LIBRARIES already contains MPI libraries")
-            list(APPEND STALE_CONFIG_LOG "CMAKE_CXX_STANDARD_LIBRARIES pre-populated with MPI libs")
-            list(APPEND STALE_CONFIG_LOG "  Found: ${CMAKE_CXX_STANDARD_LIBRARIES}")
+    if(NOT IS_FIRST_CONFIGURE)  # Only check on reconfigure
+        if(DEFINED CMAKE_CXX_STANDARD_LIBRARIES AND CMAKE_CXX_STANDARD_LIBRARIES)
+            if(CMAKE_CXX_STANDARD_LIBRARIES MATCHES "mpi_")
+                message(VERBOSE "CMAKE_CXX_STANDARD_LIBRARIES already contains MPI libraries")
+                list(APPEND STALE_CONFIG_LOG "CMAKE_CXX_STANDARD_LIBRARIES pre-populated with MPI libs")
+                list(APPEND STALE_CONFIG_LOG "  Found: ${CMAKE_CXX_STANDARD_LIBRARIES}")
+            endif()
         endif()
-    endif()
-    
-    if(DEFINED CMAKE_CUDA_STANDARD_LIBRARIES AND CMAKE_CUDA_STANDARD_LIBRARIES)
-        if(CMAKE_CUDA_STANDARD_LIBRARIES MATCHES "mpi_")
-            message(VERBOSE "CMAKE_CUDA_STANDARD_LIBRARIES already contains MPI libraries")
-            list(APPEND STALE_CONFIG_LOG "CMAKE_CUDA_STANDARD_LIBRARIES pre-populated with MPI libs")
-            list(APPEND STALE_CONFIG_LOG "  Found: ${CMAKE_CUDA_STANDARD_LIBRARIES}")
+
+        if(DEFINED CMAKE_CUDA_STANDARD_LIBRARIES AND CMAKE_CUDA_STANDARD_LIBRARIES)
+            if(CMAKE_CUDA_STANDARD_LIBRARIES MATCHES "mpi_")
+                message(VERBOSE "CMAKE_CUDA_STANDARD_LIBRARIES already contains MPI libraries")
+                list(APPEND STALE_CONFIG_LOG "CMAKE_CUDA_STANDARD_LIBRARIES pre-populated with MPI libs")
+                list(APPEND STALE_CONFIG_LOG "  Found: ${CMAKE_CUDA_STANDARD_LIBRARIES}")
+            endif()
         endif()
+    else()
+        message(DEBUG "First configure - skipping pre-populated library check")
     endif()
     
     list(POP_BACK CMAKE_MESSAGE_CONTEXT)
