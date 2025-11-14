@@ -152,10 +152,10 @@ void make_fast_coeffs (int /*level*/,
 
                 // LHS for tri-diagonal system
                 Real D = dtau * dtau * beta_2 * beta_2 * dzi;
-                coeffA_a(i,j,k) = D * ( halfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D * (-halfg + coeff_P * theta_t_hi );
+                coeffA_a(i,j,k) = D * (1./detJ(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
+                coeffC_a(i,j,k) = D * (1./detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
 
-                coeffB_a(i,j,k) = detJ_on_kface + D * (coeff_Q - coeff_P) * theta_t_mid;
+                coeffB_a(i,j,k) = 1.0 + D * (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid;
             });
 
         } else {
