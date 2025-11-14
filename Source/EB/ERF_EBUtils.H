@@ -24,6 +24,7 @@ amrex::Real trD (int i, int j, int k,
          (vel_z(i,j,k+1)-vel_z(i,j,k))/dx[2];
 }
 
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 int
 intersect_plane_edge ( amrex::RealVect const& a_plane_point,
@@ -48,7 +49,6 @@ intersect_plane_edge ( amrex::RealVect const& a_plane_point,
 
   a_intersection_dist = a_plane_normal.dotProduct(a_plane_point)
                       - a_plane_normal.dotProduct(a_edge_point0);
-
   a_intersection_dist /= np_dot_ne;
 
   a_intersection_point = a_edge_point0 + a_intersection_dist*edge_normal;
