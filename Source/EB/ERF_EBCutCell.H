@@ -213,6 +213,11 @@ class eb_cut_cell_ {
     amrex::RealVect m_cell_cent; // Centroid of cell
     amrex::RealVect m_dx;
 
+    // List of intersection vertices
+    static int constexpr m_max_vertices = 6;
+    amrex::Array<amrex::RealVect, m_max_vertices> m_vertices;
+    int m_num_vertices = 0;
+
     // cut face
     polygon_ m_F7;
 
@@ -228,6 +233,30 @@ class eb_cut_cell_ {
     AMREX_GPU_HOST_DEVICE
     void set_covered_regular_cell_vertices ();
 
+    AMREX_GPU_HOST_DEVICE
+    bool append_vertex ( amrex::RealVect const& a_v ) {
+      if (m_num_vertices == m_max_vertices) { return 0; }
+      for ( int i(0); i<m_num_vertices; ++i) {
+        if ( amrex::almostEqual(m_vertices[i][0],a_v[0])
+          && amrex::almostEqual(m_vertices[i][1],a_v[1])
+          && amrex::almostEqual(m_vertices[i][2],a_v[2]) ) {
+          return 0;
+        }
+      }
+      AMREX_ASSERT( m_num_vertices < m_max_vertices );
+      m_vertices[m_num_vertices] = a_v;
+      m_num_vertices++;
+      return 1;
+    }
+
+    // Clear m_vertices except the first component
+    AMREX_GPU_HOST_DEVICE
+    void init_vertices () {
+      for ( int i(1); i<m_num_vertices; ++i) {
+        m_vertices[i] = amrex::RealVect::TheZeroVector();
+      }
+      m_num_vertices = 1;
+    }
 };
 
 AMREX_GPU_HOST_DEVICE
@@ -352,7 +381,10 @@ calc_edge_intersections ( int const a_dry_run )
   RealVect v6(m_rbox.lo(0), m_rbox.hi(1), m_rbox.hi(2));
   RealVect v7(m_rbox.hi(0), m_rbox.hi(1), m_rbox.hi(2));
 
+  bool append;
+
   if (!a_dry_run) {
+    append = append_vertex(v0);
     m_F1.add_vertex(v0);
     m_F4.add_vertex(v0);
     m_F5.add_vertex(v0);
@@ -366,15 +398,18 @@ calc_edge_intersections ( int const a_dry_run )
   // Path 1
   { int cuts(0);
 
+    init_vertices();
+
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v1, vIP, distIP)) {
 
-      ++cuts;
+      append = append_vertex(vIP);
+      if (append) {++cuts;}
+
 #ifndef AMREX_USE_GPU
       if (a_dry_run) { Print() << "P1: v0--v1: add vIP to F1, F5 and F7 :: " << vIP[0] << "\n"; }
       else
 #endif
-      {
-        m_F1.add_vertex(vIP);
+      { m_F1.add_vertex(vIP);
         m_F5.add_vertex(vIP);
         m_F7.add_vertex(vIP);
       }
@@ -384,14 +419,18 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P1: v0--v1: intersection ~ 0 :: add vIP to F4\n"; }
         else
 #endif
-        { m_F4.add_vertex(v0); }
+        { append = append_vertex(v0);
+          m_F4.add_vertex(v0); 
+        }
 
       } else if ( almostEqual(distIP, 1.0) ) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P1: v0--v1: intersection ~ 1 :: add vIP to F2\n"; }
         else
 #endif
-        { m_F2.add_vertex(v1); }
+        { append = append_vertex(v1);
+          m_F2.add_vertex(v1);
+        }
       }
 
     }
@@ -402,7 +441,7 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P1: Add v1 to F1, F2 and F5\n"; }
       else
 #endif
-      {
+      { append = append_vertex(v1);
         m_F1.add_vertex(v1);
         m_F2.add_vertex(v1);
         m_F5.add_vertex(v1);
@@ -411,14 +450,14 @@ calc_edge_intersections ( int const a_dry_run )
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v1, v4, vIP, distIP)) {
 
-      ++cuts;
+      append = append_vertex(vIP);
+      if (append) {++cuts;}
 
 #ifndef AMREX_USE_GPU
       if (a_dry_run) { Print() << "P1: v1--v4: add vIP to F2, F5 and F7 :: " << vIP[2] << "\n"; }
       else
 #endif
-      {
-        m_F2.add_vertex(vIP);
+      { m_F2.add_vertex(vIP);
         m_F5.add_vertex(vIP);
         m_F7.add_vertex(vIP);
       }
@@ -428,14 +467,18 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P1: v1--v4: intersection ~ 0 :: add vIP to F1\n"; }
         else
 #endif
-        {m_F1.add_vertex(v1); }
+        { append = append_vertex(v1);
+          m_F1.add_vertex(v1);
+        }
 
       } else if ( almostEqual(distIP, 1.0) ) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P1: v1--v4: intersection ~ 1 :: add vIP to F3\n"; }
         else
 #endif
-        { m_F3.add_vertex(v4); }
+        { append = append_vertex(v4);
+          m_F3.add_vertex(v4);
+        }
       }
 
     }
@@ -446,7 +489,7 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P1: Add v4 to F2, F3 and F5\n"; }
       else
 #endif
-      {
+      { append = append_vertex(v4);
         m_F2.add_vertex(v4);
         m_F3.add_vertex(v4);
         m_F5.add_vertex(v4);
@@ -455,14 +498,14 @@ calc_edge_intersections ( int const a_dry_run )
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v4, v7, vIP, distIP)) {
 
-      ++cuts;
+      append = append_vertex(vIP);
+      if (append) {++cuts;}
 
 #ifndef AMREX_USE_GPU
       if (a_dry_run) { Print() << "P1: v4--v7: add vIP to F2, F3 and F7 :: " << vIP[1] << "\n"; }
       else
 #endif
-      {
-        m_F2.add_vertex(vIP);
+      { m_F2.add_vertex(vIP);
         m_F3.add_vertex(vIP);
         m_F7.add_vertex(vIP);
       }
@@ -472,14 +515,18 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P1: v4--v7: intersection ~ 0 :: add vIP to F5\n"; }
         else
 #endif
-        { m_F5.add_vertex(v4); }
+        { append = append_vertex(v4);
+          m_F5.add_vertex(v4);
+        }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P1: v4--v7: intersection ~ 1 :: add vIP to F6\n"; }
         else
 #endif
-        { m_F6.add_vertex(v7); }
+        { append = append_vertex(v7);
+          m_F6.add_vertex(v7);
+        }
       }
     }
 
@@ -489,7 +536,7 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P1: Add v7 to F2, F3 and F6\n"; }
       else
 #endif
-      {
+      { append = append_vertex(v7);
         m_F2.add_vertex(v7);
         m_F3.add_vertex(v7);
         m_F6.add_vertex(v7);
@@ -506,8 +553,7 @@ calc_edge_intersections ( int const a_dry_run )
     if (a_dry_run) { Print() << "P4: v1--v5: add vIP to F1, F2 and F7 :: " << vIP[1] << "\n"; }
     else
 #endif
-    {
-      m_F1.add_vertex(vIP);
+    { m_F1.add_vertex(vIP);
       m_F2.add_vertex(vIP);
       m_F7.add_vertex(vIP);
     }
@@ -528,20 +574,21 @@ calc_edge_intersections ( int const a_dry_run )
     }
   }
 
-
   // Path 2
   { int cuts(0);
 
+    init_vertices();
+
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v2, vIP, distIP)) {
 
-      ++cuts;
+      append = append_vertex(vIP);
+      if (append) {++cuts;}
 
 #ifndef AMREX_USE_GPU
       if (a_dry_run) { Print() << "P2: v0--v2: add vIP to F1, F4 and F7 :: " << vIP[1] << "\n"; }
       else
 #endif
-      {
-        m_F1.add_vertex(vIP);
+      { m_F1.add_vertex(vIP);
         m_F4.add_vertex(vIP);
         m_F7.add_vertex(vIP);
       }
@@ -551,14 +598,18 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P2: v0--v2: intersection ~ 0 :: add vIP to F5\n"; }
         else
 #endif
-      { m_F5.add_vertex(v0); }
+      { append = append_vertex(v0);
+        m_F5.add_vertex(v0);
+      }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P2: v0--v2: intersection ~ 1 :: add vIP to F6\n"; }
         else
 #endif
-        { m_F6.add_vertex(v2); }
+        { append = append_vertex(v2);
+          m_F6.add_vertex(v2);
+        }
       }
 
     }
@@ -569,7 +620,7 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P2: Add v2 to F1, F4, F6\n"; }
       else
 #endif
-      {
+      { append = append_vertex(v2);
         m_F1.add_vertex(v2);
         m_F4.add_vertex(v2);
         m_F6.add_vertex(v2);
@@ -578,14 +629,14 @@ calc_edge_intersections ( int const a_dry_run )
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v2, v5, vIP, distIP)) {
 
-      ++cuts;
+      append = append_vertex(vIP);
+      if (append) {++cuts;}
 
 #ifndef AMREX_USE_GPU
       if (a_dry_run) { Print() << "P2: v2--v5: add vIP to F1, F6 and F7 :: " << vIP[0] << "\n"; }
       else
 #endif
-      {
-        m_F1.add_vertex(vIP);
+      { m_F1.add_vertex(vIP);
         m_F6.add_vertex(vIP);
         m_F7.add_vertex(vIP);
       }
@@ -595,14 +646,18 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P2: v2--v5: intersection ~ 0 :: add vIP to F4\n"; }
         else
 #endif
-        { m_F4.add_vertex(v2); }
+        { append = append_vertex(v2);
+          m_F4.add_vertex(v2);
+        }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P2: v2--v5: intersection ~ 1 :: add vIP to F2\n"; }
         else
 #endif
-        { m_F2.add_vertex(v5); }
+        { append = append_vertex(v5);
+          m_F2.add_vertex(v5);
+        }
       }
     }
 
@@ -612,7 +667,7 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P2: Add v5 to F1, F2 and F6\n"; }
       else
 #endif
-      {
+      { append = append_vertex(v5);
         m_F1.add_vertex(v5);
         m_F2.add_vertex(v5);
         m_F6.add_vertex(v5);
@@ -621,14 +676,14 @@ calc_edge_intersections ( int const a_dry_run )
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v5, v7, vIP, distIP)) {
 
-      ++cuts;
+      append = append_vertex(vIP);
+      if (append) {++cuts;}
 
 #ifndef AMREX_USE_GPU
       if (a_dry_run) { Print() << "P2: v5--v7: add vIP to F2, F6 and F7 :: " << vIP[2] << "\n"; }
       else
 #endif
-      {
-        m_F2.add_vertex(vIP);
+      { m_F2.add_vertex(vIP);
         m_F6.add_vertex(vIP);
         m_F7.add_vertex(vIP);
       }
@@ -638,14 +693,18 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P2: v5--v7: intersection ~ 0 :: add vIP to F1\n"; }
         else
 #endif
-        { m_F1.add_vertex(v5); }
+        { append = append_vertex(v5);
+          m_F1.add_vertex(v5);
+        }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P2: v5--v7: intersection ~ 1 :: add vIP to F3\n"; }
         else
 #endif
-        { m_F3.add_vertex(v7); }
+        { append = append_vertex(v7);
+          m_F3.add_vertex(v7);
+        }
       }
     }
 
@@ -655,7 +714,7 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P2: Add v7 to F2, F3 and F6\n"; }
       else
 #endif
-      {
+      { append = append_vertex(v7);
         m_F2.add_vertex(v7);
         m_F3.add_vertex(v7);
         m_F6.add_vertex(v7);
@@ -673,8 +732,7 @@ calc_edge_intersections ( int const a_dry_run )
     if (a_dry_run) { Print() << "P5: v2--v6: add vIP to F4, F6 and F7 :: " << vIP[2] << "\n"; }
     else
 #endif
-    {
-      m_F4.add_vertex(vIP);
+    { m_F4.add_vertex(vIP);
       m_F6.add_vertex(vIP);
       m_F7.add_vertex(vIP);
     }
@@ -693,22 +751,24 @@ calc_edge_intersections ( int const a_dry_run )
 #endif
       { m_F3.add_vertex(v6); }
     }
-  }
+  } // end Path 5
 
 
   // Path 3
   { int cuts(0);
 
+    init_vertices();
+
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v3, vIP, distIP)) {
 
-      ++cuts;
+      append = append_vertex(vIP);
+      if (append) {++cuts;}
 
 #ifndef AMREX_USE_GPU
       if (a_dry_run) { Print() << "P3: v0--v3: add vIP to F4, F5 and F7 :: " << vIP[2] << "\n"; }
       else
 #endif
-      {
-        m_F4.add_vertex(vIP);
+      { m_F4.add_vertex(vIP);
         m_F5.add_vertex(vIP);
         m_F7.add_vertex(vIP);
       }
@@ -718,14 +778,18 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P3: v0--v3: intersection ~ 0 :: add vIP to F1\n"; }
         else
 #endif
-        { m_F1.add_vertex(v0); }
+        { append = append_vertex(v0);
+          m_F1.add_vertex(v0);
+        }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P3: v0--v3: intersection ~ 1 :: add vIP to F3\n"; }
         else
 #endif
-        { m_F3.add_vertex(v3); }
+        { append = append_vertex(v3);
+          m_F3.add_vertex(v3);
+        }
       }
 
     }
@@ -736,7 +800,7 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P3: Add v3 to F3, F4 and F5\n"; }
       else
 #endif
-      {
+      { append = append_vertex(v3);
         m_F3.add_vertex(v3);
         m_F4.add_vertex(v3);
         m_F5.add_vertex(v3);
@@ -745,14 +809,14 @@ calc_edge_intersections ( int const a_dry_run )
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v3, v6, vIP, distIP)) {
 
-      ++cuts;
+      append = append_vertex(vIP);
+      if (append) {++cuts;}
 
 #ifndef AMREX_USE_GPU
       if (a_dry_run) { Print() << "P3: v3--v6: add vIP to F3, F4 and F7 :: " << vIP[1] << "\n"; }
       else
 #endif
-      {
-        m_F3.add_vertex(vIP);
+      { m_F3.add_vertex(vIP);
         m_F4.add_vertex(vIP);
         m_F7.add_vertex(vIP);
       }
@@ -762,14 +826,18 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P3: v3--v6: intersection ~ 0 :: add vIP to F5\n"; }
         else
 #endif
-        { m_F5.add_vertex(v3); }
+        { append = append_vertex(v3);
+          m_F5.add_vertex(v3);
+        }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P3: v3--v6: intersection ~ 1 :: add vIP to F6\n"; }
         else
 #endif
-        { m_F6.add_vertex(v6); }
+        { append = append_vertex(v6);
+          m_F6.add_vertex(v6);
+        }
       }
 
     }
@@ -780,7 +848,7 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P3: Add v6 to F3, F4 and F6\n"; }
       else
 #endif
-      {
+      { append = append_vertex(v6);
         m_F3.add_vertex(v6);
         m_F4.add_vertex(v6);
         m_F6.add_vertex(v6);
@@ -789,14 +857,14 @@ calc_edge_intersections ( int const a_dry_run )
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v6, v7, vIP, distIP)) {
 
-      ++cuts;
+      append = append_vertex(vIP);
+      if (append) {++cuts;}
 
 #ifndef AMREX_USE_GPU
       if (a_dry_run) { Print() << "P3: v6--v7: add vIP to F3, F6 and F7 :: " << vIP[0] << "\n"; }
       else
 #endif
-      {
-        m_F3.add_vertex(vIP);
+      { m_F3.add_vertex(vIP);
         m_F6.add_vertex(vIP);
         m_F7.add_vertex(vIP);
       }
@@ -806,14 +874,18 @@ calc_edge_intersections ( int const a_dry_run )
         if (a_dry_run) { Print() << "P3: v6--v7: intersection ~ 0 :: add vIP to F4\n"; }
         else
 #endif
-        { m_F4.add_vertex(v6); }
+        { append = append_vertex(v6);
+          m_F4.add_vertex(v6);
+        }
 
       } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
         if (a_dry_run) { Print() << "P3: v6--v7: intersection ~ 1 :: add vIP to F2\n"; }
         else
 #endif
-        { m_F2.add_vertex(v7); }
+        { append = append_vertex(v7);
+          m_F2.add_vertex(v7);
+        }
       }
     }
 
@@ -823,7 +895,7 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P1: Add v7 to F2, F3 and F6\n"; }
       else
 #endif
-      {
+      { append = append_vertex(v7);
         m_F2.add_vertex(v7);
         m_F3.add_vertex(v7);
         m_F6.add_vertex(v7);
@@ -833,14 +905,14 @@ calc_edge_intersections ( int const a_dry_run )
 
   } // end Path 3
 
+  // Path 6
   if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v3, v4, vIP, distIP)) {
 
 #ifndef AMREX_USE_GPU
     if (a_dry_run) { Print() << "P6: v3--v4: add vIP to F3, F5 and F7 :: " << vIP[0] << "\n"; }
     else
 #endif
-    {
-      m_F3.add_vertex(vIP);
+    { m_F3.add_vertex(vIP);
       m_F5.add_vertex(vIP);
       m_F7.add_vertex(vIP);
     }
@@ -850,20 +922,16 @@ calc_edge_intersections ( int const a_dry_run )
       if (a_dry_run) { Print() << "P6: v3--v4: intersection ~ 0 :: add vIP to F4\n"; }
       else
 #endif
-      {
-        m_F4.add_vertex(v3);
-      }
+      { m_F4.add_vertex(v3); }
 
     } else if ( almostEqual(distIP, 1.0)) {
 #ifndef AMREX_USE_GPU
       if (a_dry_run) { Print() << "P6: v3--v4: intersection ~ 1 :: add vIP to F2\n"; }
       else
 #endif
-      {
-        m_F2.add_vertex(v4);
-      }
+      { m_F2.add_vertex(v4); }
     }
-  }
+  } // end Path 6
 }
 
 
