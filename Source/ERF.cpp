@@ -1362,7 +1362,9 @@ ERF::InitData_post ()
             Print() << "Note: Molecular diffusion specified but dynamic_viscosity has not been specified" << std::endl;
         } else {
             Real nu = dc.dynamic_viscosity / dc.rho0_trans;
-            Real viscous_limit = 0.5 * delta*delta / nu;
+            Real viscous_limit = 2.0 * delta*delta / nu;
+            Print() << "smallest grid spacing at level " << finest_level << " = " << delta << std::endl;
+            Print() << "dt at level " << finest_level << " = " << dt[finest_level] << std::endl;
             Print() << "Viscous CFL is " << dt[finest_level] / viscous_limit << std::endl;
             if (fixed_dt[finest_level] >= viscous_limit) {
                 Warning("Specified fixed_dt is above the viscous limit");
