@@ -418,12 +418,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
             Real rt_avg = 0.5 * (rt + rt_lo);
             Real qv_avg = 0.5 * (qv + qv_lo);
 
-            // Z height
-            Real z = (z_arr) ? 0.125 * ( (z_arr(i  ,j  ,k+1) + z_arr(i  ,j  ,k))
-                                       + (z_arr(i+1,j  ,k+1) + z_arr(i+1,j  ,k))
-                                       + (z_arr(i  ,j+1,k+1) + z_arr(i  ,j+1,k))
-                                       + (z_arr(i+1,j+1,k+1) + z_arr(i+1,j+1,k)) ) * CONST_GRAV :
-                               ProbLoArr[2] + (k + 0.5) * dz;
+
 
             // Delta z
             Real delz = (z_arr) ? 0.25 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
@@ -472,8 +467,15 @@ SHOCInterface::mf_to_kokkos_buffers ()
             pseudo_dens_d(icol,ilay) = r * CONST_GRAV * delz;
             // Enforce the grid spacing
             dz_d(icol,ilay) = delz;
-            // Geopotential
-            phis_d(icol)    = CONST_GRAV * z;
+            // Surface geopotential
+            if (k==0) {
+                Real z = (z_arr) ? 0.125 * ( (z_arr(i  ,j  ,k+1) + z_arr(i  ,j  ,k))
+                                           + (z_arr(i+1,j  ,k+1) + z_arr(i+1,j  ,k))
+                                           + (z_arr(i  ,j+1,k+1) + z_arr(i  ,j+1,k))
+                                           + (z_arr(i+1,j+1,k+1) + z_arr(i+1,j+1,k)) ) :
+                                   ProbLoArr[2];
+                phis_d(icol) = CONST_GRAV * z;
+            }
 
             if (ilay==(nlay-1)) {
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
