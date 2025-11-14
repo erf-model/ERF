@@ -238,7 +238,46 @@ The ERF build is customized by passing options to cmake command using ``-D<VARIA
      - System-dependent
      - Path string
 
-**2.4 Using Configuration Files**
+**2.4 Understanding Key Feature Flags**
+
+The options above enable different ERF capabilities. The most commonly used flags and their interdependencies are:
+
+**Core I/O and Analysis**
+
+* ``ERF_ENABLE_NETCDF`` - Enables NetCDF I/O for reading WRF input files and writing plotfiles
+* ``ERF_ENABLE_HDF5`` - Enables HDF5 parallel I/O backend (automatically enabled when NetCDF is enabled)
+* ``ERF_ENABLE_FFT`` - Enables Fast Fourier Transform capabilities for spectral analysis
+
+**Physics Packages**
+
+* ``ERF_ENABLE_RRTMGP`` - Enables RRTMGP radiation model
+
+  - **Requires:** ``ERF_ENABLE_NETCDF=ON`` and ``ERF_ENABLE_MPI=ON``
+  - **Automatically enables:** ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
+
+* ``ERF_ENABLE_SHOC`` - Enables SHOC turbulence and cloud macrophysics model
+
+  - **Requires:** ``ERF_ENABLE_MPI=ON``
+  - **Automatically enables:** ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
+  - **Additional step:** Run ``source Build/GNU_Ekat/eamxx_clone.sh`` to initialize E3SM submodules
+
+* ``ERF_ENABLE_P3`` - Enables P3 microphysics model
+
+  - **Requires:** ``ERF_ENABLE_MPI=ON``
+  - **Automatically enables:** ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
+
+**GPU Acceleration**
+
+For GPU builds, enable exactly one backend:
+
+* ``ERF_ENABLE_CUDA`` - NVIDIA GPUs (requires CUDA Toolkit ≥ 11.0)
+* ``ERF_ENABLE_HIP`` - AMD GPUs
+* ``ERF_ENABLE_SYCL`` - Intel GPUs
+
+.. note::
+   The Kokkos-based physics packages (RRTMGP, SHOC, P3) support all three GPU backends through the EKAT library's Kokkos integration.
+
+**2.5 Using Configuration Files**
 
 For managing complex build configurations, CMake provides ``-C <file>`` option. This allows specifying build variables in CMake-syntax file:
 
@@ -253,9 +292,9 @@ Machine-specific profile scripts in ``Build/machines/`` directory are shell scri
 * ``perlmutter_erf.profile``
 * ``polaris_erf.profile``
 
-**2.5 Advanced CMake Features**
+**2.6 Advanced CMake Features**
 
-**2.5.1 Hierarchical Logging**
+**2.6.1 Hierarchical Logging**
 
 For CMake versions 3.25 and newer, ERF's build configuration supports hierarchical logging:
 

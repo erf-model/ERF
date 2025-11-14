@@ -55,6 +55,58 @@ Enabling NetCDF I/O with ``-DERF_ENABLE_NETCDF=ON`` causes build system to set `
 
 For non-Cray or custom builds, point build system to NetCDF installation by setting ``NETCDF_DIR`` environment variable or CMake variable to NetCDF installation directory root.
 
+**2.3 Memory Issues During Compilation**
+
+**Symptom:** CUDA or HIP compilation fails with out-of-memory errors, particularly when building GPU-enabled physics packages (RRTMGP, SHOC, P3).
+
+**Common Error Messages:**
+
+.. code-block:: none
+
+   nvcc fatal: Memory allocation failure
+   c++: fatal error: Killed signal terminated program cc1plus
+   internal compiler error: Killed (program cc1plus)
+
+**Root Cause:** On HPC systems that allow partial node allocations (e.g., Kestrel, some SLURM configurations), the default memory assignment may be insufficient for GPU compilation, which is significantly more memory-intensive than CPU compilation.
+
+**Solution:**
+
+When requesting compute nodes for compilation, explicitly request sufficient memory:
+
+**Option 1: Request exclusive node access** (recommended for HPC systems)
+
+.. code-block:: bash
+
+   # In your SLURM script or interactive session request
+   #SBATCH --exclusive
+
+This allocates the entire node's memory to your job.
+
+**Option 2: Request specific memory amount**
+
+.. code-block:: bash
+
+   # Request total memory for the allocation
+   #SBATCH --mem=240G
+
+   # OR request memory per CPU
+   #SBATCH --mem-per-cpu=4G
+
+**Option 3: Compile on login nodes** (if permitted by site policy)
+
+Some sites allow compilation on login nodes, which typically have more available memory. Check your site's policy before using this approach.
+
+**Prevention:**
+
+For development workflows involving frequent recompilation:
+
+1. Use ``make -j4`` instead of ``make -j`` to limit parallel compilation jobs
+2. Compile incrementally rather than from scratch when possible
+3. Request an interactive session with adequate memory for the build
+
+.. note::
+   This issue is particularly common on systems like Kestrel where partial node allocations are the default. Always include ``--exclusive`` or explicit memory requests in your build job scripts.
+
 =================================
 3.0 General Debugging Strategies
 =================================

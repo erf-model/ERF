@@ -151,10 +151,10 @@ The following examples demonstrate common configuration commands:
 
    # CMake: Enabling NetCDF with custom installation path
    cmake -DERF_ENABLE_NETCDF=ON -DNETCDF_DIR=/opt/netcdf-parallel ..
-   
+
    # CMake: Explicitly disabling NetCDF
    cmake -DERF_ENABLE_NETCDF=OFF ..
-   
+
    # GNU Make: Enabling NetCDF
    make USE_NETCDF=TRUE
 
@@ -169,16 +169,16 @@ Beyond core I/O functions, ERF integrates specialized libraries to extend its sc
 **3.2 Library Integration Details**
 
 * **SHOC (Simplified Higher-Order Closure)**: Turbulence and cloud macrophysics model from E3SM project. Provides schemes for modeling atmospheric boundary layer processes. Depends on Kokkos performance portability library (provided via EKAT submodule) for efficient execution on CPUs and GPUs.
-  
+
   - CMake Option: ``-DERF_ENABLE_SHOC=ON``
   - GNU Make Variable: ``USE_SHOC=TRUE``
 
 * **ZFP (Floating-Point Compression)**: Library for high-performance data compression used as optional filter within HDF5 library. Reduces output data size in large-scale simulations. Provides lossy compression - use must be evaluated against simulation's scientific goals. Requires HDF5 library compiled with ZFP plugin.
-  
+
   - CMake Option: ``-DAMReX_HDF5_ZFP=ON``
 
 * **AMReX (Adaptive Mesh Refinement Framework)**: Required dependency providing core AMR data structures, solvers, and parallelization infrastructure. Default approach uses internal Git submodule for version compatibility. External build option available for environments requiring shared AMReX installation across multiple applications.
-  
+
   - CMake Option: ``-DERF_USE_INTERNAL_AMREX=ON`` (Default)
   - GNU Make Variable: ``AMREX_HOME`` points to submodule directory
 
