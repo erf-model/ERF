@@ -159,6 +159,14 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                                    + (-(8./3.) * v(i-1,j,k) + 3. * v(i,j,k) - (1./3.) * v(i+1,j,k))*dxInv[0]*mfx
                                      - (met_h_eta)*GradUz*mfy
                                      - (met_h_xi )*GradVz*mfx );
+                // Note:
+                //   tau12 ~ (du/dη) * (dη/dy)
+                //         + (dv/dξ) * (dξ/dx)
+                //         - (dz/dη) * (du/dz) * (dη/dy)
+                //         - (dz/dξ) * (dv/dz) * (dξ/dx)
+                //     ~ du/dy + dv/dx
+                 // where ξ and η are in computational space, corresponding to
+                 // x and y in physical space
             } else {
                 tau12(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
                                      + (v(i, j, k) - v(i-1, j  , k))*dxInv[0]*mfx
@@ -397,6 +405,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                 //   tau23 ~ (dv/dζ) / (dz/dζ)
                 //         + (dw/dη)           * (dη/dy)
                 //         - (dz/dη) * (dw/dz) * (dη/dy)
+                //     ~ dv/dz + dw/dy
                  // where η and ζ are in computational space, corresponding to
                  // y and z in physical space
             } else {
@@ -798,7 +807,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         tau12(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]*mfy
                              + (v(i, j, k) - v(i-1, j  , k))*dxInv[0]*mfx
                              - (met_h_eta)*GradUz*mfy
-                             - (met_h_xi)*GradVz*mfx );
+                             - (met_h_xi )*GradVz*mfx );
         tau21(i,j,k) = tau12(i,j,k);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
