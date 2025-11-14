@@ -307,14 +307,14 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
                - a_point.dotProduct(a_normal));
 
     if (s > r) {
-      if (a_normal.dotProduct(v0 - a_point) > 0.)
+      if ((a_normal.dotProduct(v0) - a_normal.dotProduct(a_point)) > 0.)
       { set_covered(); } else { set_regular(); }
     } else { m_flag.setSingleValued(); }
   }
 
   if ( m_flag.isSingleValued() ) {
 
-    m_invert = ((m_eb_normal.dotProduct(v0 - m_eb_point)) > 0.) ? 0.0 : 1.0;
+    m_invert = ((m_eb_normal.dotProduct(v0) - m_eb_normal.dotProduct(m_eb_point)) > 0.) ? 0.0 : 1.0;
 
     calc_edge_intersections();
 

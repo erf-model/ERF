@@ -69,7 +69,7 @@ class polygon_ {
       // If they are outside, this face doesn't belong to the volume.
       if ( m_cell_face ) {
         for ( int i(0); i<m_vertices; ++i) {
-          if ((m_eb_normal.dotProduct(m_vertex[i] - m_eb_point)) >= 0.) {
+          if ((m_eb_normal.dotProduct(m_vertex[i]) - m_eb_normal.dotProduct(m_eb_point)) >= 0.) {
           } else {
           }
         }
