@@ -39,16 +39,16 @@
                     Box bx  = mfi.tilebox();
                     Box tbx = mfi.nodaltilebox(0);
                     Box tby = mfi.nodaltilebox(1);
-                    Box tbz = mfi.nodaltilebox(2);
 
                     const Array4<      Real>& cell_data  = scratch.array(mfi);
 
                     const Array4<      Real>& rho_u      = (l_do_implicit_mom) ? scratch_xmom.array(mfi) : Array4<Real>{};
-                    const Array4<const Real>& tau13_corr = (l_do_implicit_mom) ? Tau13corr->array(mfi) : Array4<Real>{};
-
                     const Array4<      Real>& rho_v      = (l_do_implicit_mom) ? scratch_ymom.array(mfi) : Array4<Real>{};
+                    const Array4<const Real>& tau13_corr = (l_do_implicit_mom) ? Tau13corr->array(mfi) : Array4<Real>{};
                     const Array4<const Real>& tau23_corr = (l_do_implicit_mom) ? Tau23corr->array(mfi) : Array4<Real>{};
+
 #ifdef ERF_IMPLICIT_W
+                    Box tbz = mfi.nodaltilebox(2);
                     const Array4<      Real>& rho_w      = (l_do_implicit_mom) ? scratch_zmom.array(mfi) : Array4<Real>{};
                     const Array4<const Real>& tau33_corr = (l_do_implicit_mom) ? Tau33corr->array(mfi) : Array4<Real>{};
 #endif

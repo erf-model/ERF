@@ -94,7 +94,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau11(i,j,k) -= OneThird*er_arr(i,j,k);
         tau22(i,j,k) -= OneThird*er_arr(i,j,k);
-        tau33(i,j,k) = tau33(i,j,k) - OneThird*er_arr(i,j,k);
+        tau33(i,j,k) -= OneThird*er_arr(i,j,k);
     });
 
     // Second block: compute 2mu*JT*(S-D)
@@ -426,7 +426,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau11(i,j,k) -= OneThird*er_arr(i,j,k);
         tau22(i,j,k) -= OneThird*er_arr(i,j,k);
-        tau33(i,j,k) = tau33(i,j,k) - OneThird*er_arr(i,j,k);
+        tau33(i,j,k) -= OneThird*er_arr(i,j,k);
     });
 
     // Second block: compute 2mu*JT*(S-D)

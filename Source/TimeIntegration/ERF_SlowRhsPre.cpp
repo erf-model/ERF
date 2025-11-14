@@ -141,7 +141,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_use_turb       = tc.use_kturb;
     const bool l_need_SmnSmn    = tc.use_keqn;
 
-    const Real l_vert_implicit_fac = (solverChoice.vert_implicit_fac[nrk] &&
+    const Real l_vert_implicit_fac = (solverChoice.vert_implicit_fac[nrk] > 0 &&
                                       solverChoice.implicit_thermal_diffusion);
 
     const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
