@@ -419,8 +419,8 @@ ifeq ($(USE_NETCDF), TRUE)
   else
     has_netcdf_mpi := $(shell pkg-config --cflags netcdf-mpi > /dev/null 2>&1; echo $$?)
     ifeq ($(has_netcdf_mpi),0)
-      includes  += $(shell pkg-config --cflags netcdf)
-      LIBRARIES += $(shell pkg-config --libs netcdf)
+      includes  += $(shell pkg-config --cflags netcdf-mpi)
+      LIBRARIES += $(shell pkg-config --libs netcdf-mpi)
     else
       has_netcdf_cxx4_parallel := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-cxx4_parallel 2>/dev/null; echo $$?)
       ifeq ($(has_netcdf_cxx4_parallel),0)
