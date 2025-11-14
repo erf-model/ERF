@@ -621,15 +621,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             cell_rhs(i,j,k,RhoTheta_comp) += source_arr(i,j,k,RhoTheta_comp);
         });
 
-        // Multiply the slow RHS for rho and rhotheta by detJ here so we don't have to later
-        if (l_moving_terrain) {
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                cell_rhs(i,j,k,Rho_comp)      *= detJ_arr(i,j,k);
-                cell_rhs(i,j,k,RhoTheta_comp) *= detJ_arr(i,j,k);
-            });
-        }
-
         // If anelastic and in second RK stage, take average of old-time and new-time source
         if ( l_anelastic && (nrk == 1) )
         {
