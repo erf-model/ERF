@@ -240,8 +240,8 @@ void erf_make_tau_terms (int level, int nrk,
                 ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     Real mfsq = mf_mx(i,j,0)*mf_my(i,j,0);
-                    er_arr(i,j,k) = (u(i+1, j  , k  )/mf_uy(i+1,j,0) - u(i, j, k)/mf_uy(i,j,0))*dxInv[0] * mfsq +
-                                    (v(i  , j+1, k  )/mf_vx(i,j+1,0) - v(i, j, k)/mf_vx(i,j,0))*dxInv[1] * mfsq +
+                    er_arr(i,j,k) = (u(i+1, j  , k  )/mf_uy(i+1,j,0) - u(i, j, k)/mf_uy(i,j,0))*dxInv[0] * mfsq +  // == du / (dη/dy) * (1/dξ) * (dξ/dx)*(dη/dy) = du/dx
+                                    (v(i  , j+1, k  )/mf_vx(i,j+1,0) - v(i, j, k)/mf_vx(i,j,0))*dxInv[1] * mfsq +  // == dv / (dξ/dx) * (1/dη) * (dξ/dx)*(dη/dy) = dv/dy
                                     (w(i  , j  , k+1)                - w(i, j, k)             )/dz_ptr[k];
                 });
                 } // end profile
@@ -390,6 +390,13 @@ void erf_make_tau_terms (int level, int nrk,
                                          (Omega_hi - Omega_lo)*dxInv[2];
 
                     er_arr(i,j,k) = expansionRate / detJ_arr(i,j,k);
+
+                    // Note:
+                    //   expansionRate ~ du / (dη/dy) * (dz/dζ) * (1/dξ) * (dξ/dx)*(dη/dy)
+                    //                 + dv / (dξ/dx) * (dz/dζ) * (1/dη) * (dξ/dx)*(dη/dy)
+                    //                 + dΩ/dζ
+                    //     ~ (du/dx)*(dz/dζ) + (dv/dy)*(dz/dζ) + dΩ/dζ
+                    // Dividing by detJ==dz/dζ gives du/dx + dv/dy + dΩ/dz
                 });
                 } // end profile
 
