@@ -98,7 +98,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer, low_data_zlo,
                                S_new, *mf_PSFC[lev],
-                               solverChoice.rdOcp, use_moist);
+                               solverChoice.rdOcp, lmask_lev[lev][itime], use_moist);
             }
         } // itime
     } // have nc_low_file && lev == 0

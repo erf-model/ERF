@@ -1097,7 +1097,7 @@ ERF::InitData_post ()
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer, low_data_zlo,
                                vars_new[lev][Vars::cons], *mf_PSFC[lev],
-                               solverChoice.rdOcp, use_moist);
+                               solverChoice.rdOcp, lmask_lev[lev][itime], use_moist);
             } // itime
         }
 #endif

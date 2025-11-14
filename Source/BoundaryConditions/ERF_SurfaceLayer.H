@@ -431,13 +431,16 @@ public:
           bool use_tsk = (m_tsk_lev[lev][0]);
           bool use_sst = (m_sst_lev[lev][0]);
           amrex::Print() << "Using MOST with specified surface temperature ";
-          if (use_tsk && !use_sst) { m_ignore_sst = true; }
+          // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
+          //       So if we have TSK, it contains everything and has been
+          //       sanity checked for valid SST values.
+          if (use_tsk) { m_ignore_sst = true; }
           if (use_tsk) {
               amrex::Print() << "(land: TSK, ";
           } else {
               amrex::Print() << "(land: T0, ";
           }
-          if (use_tsk && m_ignore_sst) {
+          if (use_tsk && !use_sst) {
               amrex::Print() << "sea: TSK)" << std::endl;
           } else {
               amrex::Print() << "sea: SST)" << std::endl;
