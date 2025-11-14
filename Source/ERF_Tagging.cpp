@@ -38,15 +38,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             } else if (solverChoice.init_type == InitType::Metgrid) {
                 amrex::Print() << "met_em file to read: " << nc_init_file[levc+1][0] << std::endl;
                 const Box& domain = geom[levc].Domain();
-                amrex::Print() << " DJW \t geom[" << levc << "].Domain()=" << geom[levc].Domain() << std::endl;
-                amrex::Print() << " DJW \t geom[" << levc << "].ProbLoArray()=[" << geom[levc].ProbLoArray()[0] << ", " << geom[levc].ProbLoArray()[1] << ", " << geom[levc].ProbLoArray()[2] << "]" << std::endl;
-                amrex::Print() << " DJW \t geom[" << levc << "].ProbHiArray()=[" << geom[levc].ProbHiArray()[0] << ", " << geom[levc].ProbHiArray()[1] << ", " << geom[levc].ProbHiArray()[2] << "]" << std::endl;
-                amrex::Print() << " DJW \t geom[" << levc+1 << "].Domain()=" << geom[levc+1].Domain() << std::endl;
-                amrex::Print() << " DJW \t geom[" << levc+1 << "].ProbLoArray()=[" << geom[levc+1].ProbLoArray()[0] << ", " << geom[levc+1].ProbLoArray()[1] << ", " << geom[levc+1].ProbLoArray()[2] << "]" << std::endl;
-                amrex::Print() << " DJW \t geom[" << levc+1 << "].ProbHiArray()=[" << geom[levc+1].ProbHiArray()[0] << ", " << geom[levc+1].ProbHiArray()[1] << ", " << geom[levc+1].ProbHiArray()[2] << "]" << std::endl;
                 int klo = domain.smallEnd(2);
                 int khi = domain.bigEnd(2);
-                amrex::Print() << " DJW \t klo=" << klo << " \t khi=" << khi << std::endl;
                 subdomain = read_subdomain_from_metgrid(levc, nc_init_file[levc+1][0], ratio, klo, khi);
                 amrex::Print() << " met_em subdomain at level " << levc+1 << " is " << subdomain << std::endl;
             }
@@ -64,10 +57,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             }
             subdomain.coarsen(IntVect(ratio,ratio,1));
         } else if (solverChoice.init_type == InitType::Metgrid) {
-            amrex::Print() << " DJW \t ref_ratio[" << levc << "]=" << ref_ratio[levc] << std::endl;
-            amrex::Print() << " DJW \t subdomain=" << subdomain << std::endl;
             subdomain.coarsen(ref_ratio[levc]);
-            amrex::Print() << " DJW \t subdomain=" << subdomain << std::endl;
         }
 
         // We assume there is only one subdomain at levc; otherwise we don't know
@@ -85,9 +75,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         if (solverChoice.init_type == InitType::WRFInput) {
             new_fine.refine(IntVect(ratio,ratio,1));
         } else if (solverChoice.init_type == InitType::Metgrid) {
-            amrex::Print() << "DJW \t new_fine=" << new_fine << std::endl;
             new_fine.refine(ref_ratio[levc]);
-            amrex::Print() << "DJW \t new_fine=" << new_fine << std::endl;
         }
         num_boxes_at_level[levc+1] = 1;
         boxes_at_level[levc+1].push_back(new_fine);

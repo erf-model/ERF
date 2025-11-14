@@ -1006,7 +1006,6 @@ ERF::InitData_post ()
             int n_time_old = static_cast<int>(t_new[0] /  dT);
 
             int lev = 0;
-            bool use_moist = (solverChoice.moisture_type != MoistureType::None);
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
 

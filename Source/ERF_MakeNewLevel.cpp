@@ -70,9 +70,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         // 1) all boxes in a given subdomain are "connected"
         // 2) no boxes in a subdomain touch any boxes in any other subdomain
         //
-        amrex::Print() << "DJW \t make_subdomains before call" << std::endl;
         make_subdomains(ba.simplified_list(), subdomains[lev]);
-        amrex::Print() << "DJW \t make_subdomains after call" << std::endl;
     }
 
     if (lev == 0) init_bcs();
@@ -160,7 +158,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
             init_only(lev, time);
             init_zphys(lev, time);
-            Print() << "update_terrain_arrays(" << lev << ")" << std::endl;
             update_terrain_arrays(lev);
             make_physbcs(lev);
         } else {

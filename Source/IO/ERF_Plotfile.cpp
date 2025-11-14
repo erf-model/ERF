@@ -1590,15 +1590,12 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
             int lev0 = 0;
             int desired_ratio = std::max(std::max(ref_ratio[lev0][0],ref_ratio[lev0][1]),ref_ratio[lev0][2]);
-            Print() << "DJW \t desired_ratio = " << desired_ratio << std::endl;
             bool any_ratio_one = ( ( (ref_ratio[lev0][0] == 1) || (ref_ratio[lev0][1] == 1) ) ||
                                      (ref_ratio[lev0][2] == 1) );
-            Print() << "DJW \t any_ratio_one = " << any_ratio_one << std::endl;
             for (int lev = 1; lev < finest_level; lev++) {
                 any_ratio_one = any_ratio_one ||
                                      ( ( (ref_ratio[lev][0] == 1) || (ref_ratio[lev][1] == 1) ) ||
                                          (ref_ratio[lev][2] == 1) );
-                Print() << "DJW \t any_ratio_one = " << any_ratio_one << "\t lev=" << lev << std::endl;
             }
 
             if (any_ratio_one && m_expand_plotvars_to_unif_rr)
@@ -1678,9 +1675,6 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
             } else {
                if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-                    Print() << "DJW \t WriteMultiLevelPlotfileWithTerrain" << std::endl;
-                    Print() << "DJW \t ref_ratio[0] = [" << ref_ratio[0][0] << ", " << ref_ratio[0][1] << ", " << ref_ratio[0][2] << "]" << std::endl;
-                    Print() << "DJW \t ref_ratio[1] = [" << ref_ratio[1][0] << ", " << ref_ratio[1][1] << ", " << ref_ratio[1][2] << "]" << std::endl;
                     WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                        GetVecOfConstPtrs(mf),
                                                        GetVecOfConstPtrs(mf_nd),

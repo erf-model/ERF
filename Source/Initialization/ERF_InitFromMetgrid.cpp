@@ -245,7 +245,7 @@ ERF::init_from_metgrid (int lev)
                 // Verify that met_em files have even spacing in time.
                 Real NC_dt = NC_epochTime[itime]-NC_epochTime[itime-1];
 #ifndef AMREX_USE_GPU
-                    Print() << " " << nc_init_file[lev][itime-1] << " / " << nc_init_file[lev][itime] << " are " << NC_dt << " seconds apart" << std::endl;
+                Print() << " " << nc_init_file[lev][itime-1] << " / " << nc_init_file[lev][itime] << " are " << NC_dt << " seconds apart" << std::endl;
 #endif
                 if (NC_dt != bdy_time_interval) Error("Time interval between consecutive met_em files must be consistent.");
             } // itime==0
@@ -269,9 +269,6 @@ ERF::init_from_metgrid (int lev)
             } // mf
 
             // This defines all the z(i,j,k) values given z(i,j,0) from above.
-            for (int k(0); k < zlevels_stag[lev].size(); k++) {
-                Print() << "zlevels_stag[" << lev << "][" << k << "] = " << zlevels_stag[lev][k] << std::endl;
-            }
             make_terrain_fitted_coords(lev, geom[lev], *z_phys, zlevels_stag[lev], phys_bc_type);
 
             // This makes the Jacobian.
@@ -279,7 +276,6 @@ ERF::init_from_metgrid (int lev)
             make_areas(geom[lev], *z_phys, *ax[lev], *ay[lev], *az[lev]);
 
             // This defines z at w-cell faces.
-            Print() << "make_zcc lev=" << lev << std::endl;
             make_zcc(geom[lev],*z_phys,*z_phys_cc[lev]);
 
         } // itime==0
@@ -386,25 +382,30 @@ ERF::init_from_metgrid (int lev)
         } // itime==0
 
 
-        // Set up FABs for mixing ratio and potential temperature on the origin model vertical grid.
-        // This is necessary for input data that has relative humidity and temperature, but does not
-        // include mixing ratio and potential temperature.
-        // TODO: add alternate pathways for other origin models where different combinations of variables may be present.
-        Box NC_box_unstag = NC_rhum_fab.box();
-        FArrayBox mxrat_fab, theta_fab;
-        mxrat_fab.resize(NC_box_unstag, 1, Arena_Used);
-        theta_fab.resize(NC_box_unstag, 1, Arena_Used);
-
-        // Set up FABs to hold interpolated origin variables that are only needed during initialization.
-        // Pressure will be iteratively calculated from z, qv, and theta, but the origin model pressure
-        // is necessary if metgrid_interp_theta=True and we interpolate temperature instead of theta.
-        FArrayBox p_interp_fab, t_interp_fab;
-        if (!metgrid_interp_theta) {
-            Box ldomain = geom[lev].Domain();
-            p_interp_fab.resize(ldomain, 1, Arena_Used);
-            p_interp_fab.template setVal<RunOn::Device>(0.0);
-            t_interp_fab.resize(ldomain, 1, Arena_Used);
-            t_interp_fab.template setVal<RunOn::Device>(0.0);
+        // Set up a temporary MultiFab with  mixing ratio and potential
+        // temperature on the origin model vertical grid. This is
+        // necessary for input data that has relative humidity and
+        // temperature, but does not include mixing ratio and potential
+        // temperature. Also set up a temporary MultiFab with pressure
+        // and temperature on the ERF vertical grid. This is necessary
+        // for calculating potential temperature from interpolated
+        // pressure and temperature.
+        MultiFab tmp_src; // variables on origin model vertical levels
+        MultiFab tmp_dst; // variables on ERF vertical levels
+        {   // Start with the level's boxArray then modify dim-2 to span
+            // from 0 to the number of levels in the origin model data.
+            // boxArray->boxList->boxArray gets around a shallow copy problem.
+            BoxArray ba_dst = lev_new[Vars::cons].boxArray();
+            Box box_nc = NC_pres_fab.box();
+            int kmax = ubound(box_nc).z;
+            BoxList bl_src = ba_dst.boxList();
+            for (auto& b : bl_src) {
+                b.setSmall(2, 0);
+                b.setBig(2, kmax);
+            }
+            BoxArray ba_src(std::move(bl_src));
+            tmp_src.define(ba_src, dm, MetGridTmpSrcVars::NumTypes, 0);
+            tmp_dst.define(ba_dst, dm, MetGridTmpDstVars::NumTypes, 0);
         }
 
         const Real l_rdOcp = solverChoice.rdOcp;
@@ -414,17 +415,21 @@ ERF::init_from_metgrid (int lev)
     #ifdef _OPENMP
     #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
     #endif
-        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        for ( MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi ) {
             Box tbxc = mfi.tilebox();
             Box tbxu = mfi.tilebox(IntVect(1,0,0));
             Box tbxv = mfi.tilebox(IntVect(0,1,0));
 
-            // Define FABs for hlding some of the initial data
+            // Define FABs for holding some of the initial data
             FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
             FArrayBox &xvel_fab = lev_new[Vars::xvel][mfi];
             FArrayBox &yvel_fab = lev_new[Vars::yvel][mfi];
             FArrayBox &zvel_fab = lev_new[Vars::zvel][mfi];
             FArrayBox &z_phys_cc_fab = (*z_phys_cc[lev])[mfi];
+
+            // FABs holding temporary vars on origin and ERF grids, respectively.
+            FArrayBox &tmp_src_fab = tmp_src[mfi];
+            FArrayBox &tmp_dst_fab = tmp_dst[mfi];
 
             const Array4<const int>& mask_c_arr = mask_c->const_array(mfi);
             const Array4<const int>& mask_u_arr = mask_u->const_array(mfi);
@@ -434,7 +439,8 @@ ERF::init_from_metgrid (int lev)
             //     x_vel   interpolated from origin levels
             //     y_vel   interpolated from origin levels
             //     z_vel   set to 0.0
-            //     theta   calculate on origin levels then interpolate
+            //     theta   (metgrid_interp_theta) calculate on origin levels then interpolate
+            //             (!metgrid_interp_theta) interpolate P and T then calculate on ERF levels
             //     mxrat   convert RH -> Q on origin levels then interpolate
             init_state_from_metgrid(lev, itime, use_moisture, metgrid_interp_theta,
                                     metgrid_debug_quiescent, metgrid_debug_isothermal,
@@ -447,8 +453,8 @@ ERF::init_from_metgrid (int lev)
                                     z_phys_cc_fab,
                                     NC_ght_fab, NC_xvel_fab,
                                     NC_yvel_fab, NC_temp_fab, NC_rhum_fab,
-                                    NC_pres_fab, p_interp_fab, t_interp_fab,
-                                    theta_fab, mxrat_fab,
+                                    NC_pres_fab,
+                                    tmp_src_fab, tmp_dst_fab,
                                     bdy_data_xlo, bdy_data_xhi,
                                     bdy_data_ylo, bdy_data_yhi,
                                     mask_c_arr, mask_u_arr, mask_v_arr);
@@ -644,10 +650,8 @@ init_state_from_metgrid (const int  lev,
                          const FArrayBox& NC_temp_fab,
                          const FArrayBox& NC_rhum_fab,
                          const FArrayBox& NC_pres_fab,
-                         FArrayBox& p_interp_fab,
-                         FArrayBox& t_interp_fab,
-                         FArrayBox& theta_fab,
-                         FArrayBox& mxrat_fab,
+                         FArrayBox& tmp_src_fab,
+                         FArrayBox& tmp_dst_fab,
                          Vector<Vector<FArrayBox>>& fabs_for_bcs_xlo,
                          Vector<Vector<FArrayBox>>& fabs_for_bcs_xhi,
                          Vector<Vector<FArrayBox>>& fabs_for_bcs_ylo,
@@ -674,23 +678,25 @@ init_state_from_metgrid (const int  lev,
     auto const new_z     = z_phys_nd_fab.const_array();
 
     int kmax = ubound(tbxu).z;
+    int src_indx = 0;
+    int dst_indx = 0;
 
     ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
         if (metgrid_debug_quiescent) { // Debugging option to run quiescent.
             for (int k(0); k<=kmax; k++) {
-                if (itime == 0) new_data(i,j,k,0) = 0.0;
+                if (itime == 0) new_data(i,j,k,dst_indx) = 0.0;
             }
         } else if (metgrid_basic_linear) { // Linear interpolation with no quality control.
             for (int k(0); k<=kmax; k++) {
-                Real Interp_Val = interpolate_column_metgrid_linear(i,j,k,'X',0,orig_z,orig_data,new_z);
-                if (itime == 0) new_data(i,j,k,0) = Interp_Val;
+                Real Interp_Val = interpolate_column_metgrid_linear(i,j,k,'X',src_indx,orig_z,orig_data,new_z);
+                if (itime == 0) new_data(i,j,k,dst_indx) = Interp_Val;
             }
         } else { // Vertical interpolation and quality control similar to that from WRF.
             interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, metgrid_exp_interp,
                                        metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                       metgrid_force_sfc_k, i, j, 0, itime, 'U', 'X',
-                                       orig_z, orig_data, new_z, new_data);
+                                       metgrid_force_sfc_k, i, j, src_indx, dst_indx,
+                                       itime, 'U', 'X', orig_z, orig_data, new_z, new_data);
         }
     });
     }
@@ -711,23 +717,25 @@ init_state_from_metgrid (const int  lev,
     auto const new_z     = z_phys_nd_fab.const_array();
 
     int kmax = ubound(tbxv).z;
+    int src_indx = 0;
+    int dst_indx = 0;
 
     ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
         if (metgrid_debug_quiescent) { // Debugging option to run quiescent.
             for (int k(0); k<=kmax; k++) {
-                if (itime == 0) new_data(i,j,k,0) = 0.0;
+                if (itime == 0) new_data(i,j,k,dst_indx) = 0.0;
             }
         } else if (metgrid_basic_linear) { // Linear interpolation with no quality control.
             for (int k(0); k<=kmax; k++) {
-                Real Interp_Val = interpolate_column_metgrid_linear(i,j,k,'Y',0,orig_z,orig_data,new_z);
-                if (itime == 0) new_data(i,j,k,0) = Interp_Val;
+                Real Interp_Val = interpolate_column_metgrid_linear(i,j,k,'Y',src_indx,orig_z,orig_data,new_z);
+                if (itime == 0) new_data(i,j,k,dst_indx) = Interp_Val;
             }
         } else {
             interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, metgrid_exp_interp,
                                        metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                       metgrid_force_sfc_k, i, j, 0, itime, 'V', 'Y',
-                                       orig_z, orig_data, new_z, new_data);
+                                       metgrid_force_sfc_k, i, j, src_indx, dst_indx,
+                                       itime, 'V', 'Y', orig_z, orig_data, new_z, new_data);
         }
     });
     }
@@ -760,11 +768,12 @@ init_state_from_metgrid (const int  lev,
             Box bx = NC_rhum_fab.box() & tbxc;
             auto const temp  = NC_temp_fab.const_array();
             auto const pres  = NC_pres_fab.const_array();
-            auto       theta = theta_fab.array();
+            auto       tmp_src_arr = tmp_src_fab.array();
+            int src_indx = MetGridTmpSrcVars::Theta;
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                theta(i,j,k) = getThgivenTandP(temp(i,j,k),pres(i,j,k),l_rdOcp);
+                tmp_src_arr(i,j,k,src_indx) = getThgivenTandP(temp(i,j,k),pres(i,j,k),l_rdOcp);
             });
         }
 
@@ -774,29 +783,31 @@ init_state_from_metgrid (const int  lev,
 #endif
         Box bx2d = NC_temp_fab.box() & tbxc;
         bx2d.setRange(2,0);
-        auto const orig_data = theta_fab.const_array();
+        auto const orig_data = tmp_src_fab.const_array();
         auto const orig_z    = NC_ght_fab.const_array();
         auto       new_data  = state_fab.array();
         auto const new_z     = z_phys_nd_fab.const_array();
 
         int kmax = amrex::ubound(tbxc).z;
+        int src_indx = MetGridTmpSrcVars::Theta;
+        int dst_indx = RhoTheta_comp;
 
         ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             if (metgrid_debug_isothermal) { // Debugging option to run isothermal.
                 for (int k(0); k<=kmax; k++) {
-                    if (itime == 0) new_data(i,j,k,RhoTheta_comp) = 300.0;
+                    if (itime == 0) new_data(i,j,k,dst_indx) = 300.0;
                 }
             } else if (metgrid_basic_linear) { // Linear interpolation with no quality control.
                 for (int k(0); k<=kmax; k++) {
-                    Real Interp_Val = interpolate_column_metgrid_linear(i,j,k,'M',0,orig_z,orig_data,new_z);
-                    if (itime == 0) new_data(i,j,k,RhoTheta_comp) = Interp_Val;
+                    Real Interp_Val = interpolate_column_metgrid_linear(i,j,k,'M',src_indx,orig_z,orig_data,new_z);
+                    if (itime == 0) new_data(i,j,k,dst_indx) = Interp_Val;
                 }
             } else { // Vertical interpolation and quality control similar to that from WRF.
                 interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, metgrid_exp_interp,
                                            metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                           metgrid_force_sfc_k, i, j, RhoTheta_comp, itime, 'T', 'M',
-                                           orig_z, orig_data, new_z, new_data);
+                                           metgrid_force_sfc_k, i, j, src_indx, dst_indx,
+                                           itime, 'T', 'M', orig_z, orig_data, new_z, new_data);
             }
         });
         }
@@ -807,31 +818,31 @@ init_state_from_metgrid (const int  lev,
 #ifndef AMREX_USE_GPU
         Print() << "[init_state_from_metgrid] vertical interpolation of pressure, lev = " << lev << ", itime = " << itime << std::endl;
 #endif
-        Box bx2d = p_interp_fab.box() & tbxc;
+        Box bx2d = tmp_dst_fab.box() & tbxc;
         bx2d.setRange(2,0);
         auto const orig_data = NC_pres_fab.const_array();
         auto const orig_z    = NC_ght_fab.const_array();
-        auto       new_data  = p_interp_fab.array();
+        auto       new_data  = tmp_dst_fab.array();
         auto const new_z     = z_phys_nd_fab.const_array();
 
-        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-
         int kmax = ubound(tbxc).z;
+        int src_indx = 0;
+        int dst_indx = MetGridTmpDstVars::P;
 
         ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             if (metgrid_basic_linear) { // Linear interpolation with no quality control.
                 for (int k(0); k<=kmax; k++) {
-                    Real Interp_Val = interpolate_column_metgrid_linear(i,j,k,'M',0,orig_z,orig_data,new_z);
-                    new_data(i,j,k) = Interp_Val;
+                    Real Interp_Val = interpolate_column_metgrid_linear(i,j,k,'M',src_indx,orig_z,orig_data,new_z);
+                    new_data(i,j,k,dst_indx) = Interp_Val;
                 }
             } else { // Vertical interpolation and quality control similar to that from WRF.
                 // Interpolate pressure not w.r.t. z but rather p_0*exp(-CONST_GRAV*z/(t_0*R_d)).
                 // This is akin to interpolating in pressure-space assuming a baroclinic atmosphere.
                 interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, true,
                                            metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                           metgrid_force_sfc_k, i, j, 0, 0, 'T', 'M',
-                                           orig_z, orig_data, new_z, new_data);
+                                           metgrid_force_sfc_k, i, j, src_indx, dst_indx,
+                                           0, 'T', 'M', orig_z, orig_data, new_z, new_data);
             }
         });
         }
@@ -840,23 +851,23 @@ init_state_from_metgrid (const int  lev,
 #ifndef AMREX_USE_GPU
         Print() << "[init_state_from_metgrid] vertical interpolation of temperature, lev = " << lev << ", itime = " << itime << std::endl;
 #endif
-        Box bx2d = p_interp_fab.box() & tbxc;
+        Box bx2d = tmp_dst_fab.box() & tbxc;
         bx2d.setRange(2,0);
         auto const orig_data = NC_temp_fab.const_array();
         auto const orig_z    = NC_ght_fab.const_array();
-        auto       new_data  = t_interp_fab.array();
+        auto       new_data  = tmp_dst_fab.array();
         auto const new_z     = z_phys_nd_fab.const_array();
 
-        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-
         int kmax = ubound(tbxc).z;
+        int src_indx = 0;
+        int dst_indx = MetGridTmpDstVars::T;
 
         ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             if (metgrid_basic_linear) { // Linear interpolation with no quality control.
                 for (int k(0); k<=kmax; k++) {
-                    Real Interp_Val = interpolate_column_metgrid_linear(i,j,k,'M',0,orig_z,orig_data,new_z);
-                    new_data(i,j,k) = Interp_Val;
+                    Real Interp_Val = interpolate_column_metgrid_linear(i,j,k,'M',src_indx,orig_z,orig_data,new_z);
+                    new_data(i,j,k,dst_indx) = Interp_Val;
                 }
             } else { // Vertical interpolation and quality control similar to that from WRF.
                 // According to WRF's code comments, "It is better to
@@ -864,22 +875,24 @@ init_state_from_metgrid (const int  lev,
                 // in LOG(p), regardless of requested default."
                 interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, false,
                                            metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                           metgrid_force_sfc_k, i, j, 0, 0, 'T', 'M',
-                                           orig_z, orig_data, new_z, new_data);
+                                           metgrid_force_sfc_k, i, j, src_indx, dst_indx,
+                                           0, 'T', 'M', orig_z, orig_data, new_z, new_data);
             }
         });
         }
 
         { // calculate potential temperature on the ERF vertical levels.
-        auto const temp  = t_interp_fab.const_array();
-        auto const pres  = p_interp_fab.const_array();
+        auto const tmp_dst_arr = tmp_dst_fab.array();
         auto       new_data = state_fab.array();
+        int T_indx = MetGridTmpDstVars::T;
+        int P_indx = MetGridTmpDstVars::P;
+        int dst_indx = RhoTheta_comp;
 
         ParallelFor(tbxc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real Calc_Val = getThgivenTandP(temp(i,j,k),pres(i,j,k),l_rdOcp);
+            Real Calc_Val = getThgivenTandP(tmp_dst_arr(i,j,k,T_indx),tmp_dst_arr(i,j,k,P_indx),l_rdOcp);
             if (metgrid_debug_isothermal) Calc_Val = 300.0; // Debugging option to run isothermal.
-            if (itime == 0) new_data(i,j,k,RhoTheta_comp) = Calc_Val;
+            if (itime == 0) new_data(i,j,k,dst_indx) = Calc_Val;
         });
         }
 
@@ -899,11 +912,12 @@ init_state_from_metgrid (const int  lev,
             auto const rhum  = NC_rhum_fab.const_array();
             auto const temp  = NC_temp_fab.const_array();
             auto const pres  = NC_pres_fab.const_array();
-            auto       mxrat = mxrat_fab.array();
+            auto    tmp_src_arr = tmp_src_fab.array();
+            int src_indx = MetGridTmpSrcVars::QV;
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                rh_to_mxrat(i,j,k,rhum,temp,pres,mxrat);
+                rh_to_mxrat(i, j, k, rhum, temp, pres, src_indx, tmp_src_arr);
             });
         }
 
@@ -913,30 +927,31 @@ init_state_from_metgrid (const int  lev,
 #endif
             Box bx2d = NC_temp_fab.box() & tbxc;
             bx2d.setRange(2,0);
-            auto const orig_data = mxrat_fab.const_array();
+            auto const orig_data = tmp_src_fab.const_array();
             auto const orig_z    = NC_ght_fab.const_array();
             auto       new_data  = state_fab.array();
             auto const new_z     = z_phys_nd_fab.const_array();
 
             int kmax = ubound(tbxc).z;
 
-            int state_indx = RhoQ1_comp;
+            int src_indx = MetGridTmpSrcVars::QV;
+            int dst_indx = RhoQ1_comp;
             ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
             {
                 if (metgrid_debug_dry) { // Debugging option to run dry.
                     for (int k(0); k<=kmax; k++) {
-                        if (itime == 0) new_data(i,j,k,state_indx)   = 0.0;
+                        if (itime == 0) new_data(i,j,k,dst_indx)   = 0.0;
                     }
                 } else if (metgrid_basic_linear) { // Linear interpolation with no quality control.
                     for (int k(0); k<=kmax; k++) {
-                        Real Interp_Val  = interpolate_column_metgrid_linear(i,j,k,'M',0,orig_z,orig_data,new_z);
-                        if (itime == 0) new_data(i,j,k,state_indx)   = Interp_Val;
+                        Real Interp_Val  = interpolate_column_metgrid_linear(i,j,k,'M',src_indx,orig_z,orig_data,new_z);
+                        if (itime == 0) new_data(i,j,k,dst_indx)   = Interp_Val;
                     }
                 } else { // Vertical interpolation and quality control similar to that from WRF.
                     interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, metgrid_exp_interp,
                                                metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                               metgrid_force_sfc_k, i, j, state_indx, itime, 'Q', 'M',
-                                               orig_z, orig_data, new_z, new_data);
+                                               metgrid_force_sfc_k, i, j, src_indx, dst_indx,
+                                               itime, 'Q', 'M', orig_z, orig_data, new_z, new_data);
                 }
             });
         }

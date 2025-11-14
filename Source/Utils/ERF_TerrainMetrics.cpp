@@ -636,12 +636,6 @@ make_zcc (const Geometry& geom,
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
            z_cc(i, j, k) = .125 * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
                                    +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
-#ifndef AMREX_USE_GPU
-           if ((i==0) && (j==0)) {
-               Print() << " z_phys(" << i << ",\t " << j << ",\t " << k << ")\t=" << z_nd(i,j,k) << std::endl;;
-               Print() << " z_cc(" << i << ",\t " << j << ",\t " << k << ")\t=" << z_cc(i,j,k) << std::endl;
-               }
-#endif
        });
     }
     z_phys_cc.FillBoundary(geom.periodicity());
