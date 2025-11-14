@@ -67,6 +67,77 @@ if(NOT ERF_ON_CRAY)
 endif()
 
 # ==============================================================================
+# Optional: Check for Stale Configuration
+# ==============================================================================
+
+option(ERF_CHECK_MODULES "Check for stale configuration from module changes" ON)
+
+if(ERF_CHECK_MODULES)
+    list(APPEND CMAKE_MESSAGE_CONTEXT "CrayConfigCheck")
+    
+    message(DEBUG "Starting configuration verification")
+    
+    # Detection log for issues
+    set(STALE_CONFIG_LOG "")
+    
+    # Check 1: Module environment changed
+    if(DEFINED ENV{LOADEDMODULES})
+        set(CURRENT_MODULES "$ENV{LOADEDMODULES}")
+        if(DEFINED CACHED_LOADED_MODULES)
+            if(NOT "${CURRENT_MODULES}" STREQUAL "${CACHED_LOADED_MODULES}")
+                message(VERBOSE "Module environment changed since last configure")
+                list(APPEND STALE_CONFIG_LOG "LOADEDMODULES changed")
+                list(APPEND STALE_CONFIG_LOG "  Previous: ${CACHED_LOADED_MODULES}")
+                list(APPEND STALE_CONFIG_LOG "  Current:  ${CURRENT_MODULES}")
+            else()
+                message(DEBUG "Module environment unchanged")
+            endif()
+        else()
+            message(DEBUG "First configure - caching module environment")
+        endif()
+        set(CACHED_LOADED_MODULES "${CURRENT_MODULES}" CACHE INTERNAL "Modules at configure time")
+    endif()
+    
+    # Check 2: PE_ENV changed
+    if(DEFINED ENV{PE_ENV})
+        set(CURRENT_PE_ENV "$ENV{PE_ENV}")
+        if(DEFINED CACHED_PE_ENV AND NOT "${CURRENT_PE_ENV}" STREQUAL "${CACHED_PE_ENV}")
+            message(VERBOSE "PE_ENV changed: ${CACHED_PE_ENV} -> ${CURRENT_PE_ENV}")
+            list(APPEND STALE_CONFIG_LOG "PE_ENV changed from ${CACHED_PE_ENV} to ${CURRENT_PE_ENV}")
+        endif()
+        set(CACHED_PE_ENV "${CURRENT_PE_ENV}" CACHE INTERNAL "")
+    endif()
+    
+    # Check 3: Compiler version changed
+    if(DEFINED CMAKE_CXX_COMPILER_VERSION)
+        if(DEFINED CACHED_CXX_COMPILER_VERSION AND NOT "${CMAKE_CXX_COMPILER_VERSION}" STREQUAL "${CACHED_CXX_COMPILER_VERSION}")
+            message(VERBOSE "Compiler version changed")
+            list(APPEND STALE_CONFIG_LOG "Compiler version changed from ${CACHED_CXX_COMPILER_VERSION} to ${CMAKE_CXX_COMPILER_VERSION}")
+        endif()
+        set(CACHED_CXX_COMPILER_VERSION "${CMAKE_CXX_COMPILER_VERSION}" CACHE INTERNAL "")
+    endif()
+    
+    # Check 4: CMAKE_*_STANDARD_LIBRARIES already contains MPI (from previous run)
+    if(DEFINED CMAKE_CXX_STANDARD_LIBRARIES AND CMAKE_CXX_STANDARD_LIBRARIES)
+        if(CMAKE_CXX_STANDARD_LIBRARIES MATCHES "mpi_")
+            message(VERBOSE "CMAKE_CXX_STANDARD_LIBRARIES already contains MPI libraries")
+            list(APPEND STALE_CONFIG_LOG "CMAKE_CXX_STANDARD_LIBRARIES pre-populated with MPI libs")
+            list(APPEND STALE_CONFIG_LOG "  Found: ${CMAKE_CXX_STANDARD_LIBRARIES}")
+        endif()
+    endif()
+    
+    if(DEFINED CMAKE_CUDA_STANDARD_LIBRARIES AND CMAKE_CUDA_STANDARD_LIBRARIES)
+        if(CMAKE_CUDA_STANDARD_LIBRARIES MATCHES "mpi_")
+            message(VERBOSE "CMAKE_CUDA_STANDARD_LIBRARIES already contains MPI libraries")
+            list(APPEND STALE_CONFIG_LOG "CMAKE_CUDA_STANDARD_LIBRARIES pre-populated with MPI libs")
+            list(APPEND STALE_CONFIG_LOG "  Found: ${CMAKE_CUDA_STANDARD_LIBRARIES}")
+        endif()
+    endif()
+    
+    list(POP_BACK CMAKE_MESSAGE_CONTEXT)
+endif()
+
+# ==============================================================================
 # Compiler Version Checks
 # ==============================================================================
 
@@ -598,6 +669,34 @@ if(ERF_ENABLE_MPI AND "$ENV{MPICH_GPU_SUPPORT_ENABLED}" STREQUAL "1")
         endif()
     endif()
 
+    # Verify MPI library exists (if checking enabled)
+    if(ERF_CHECK_MODULES AND MPI_BASE_LIB)
+        message(DEBUG "Verifying MPI library: ${MPI_BASE_LIB}")
+        
+        find_library(MPI_BASE_VERIFY
+            NAMES ${MPI_BASE_LIB}
+            PATHS 
+                $ENV{MPICH_DIR}/lib
+                $ENV{CRAY_MPICH_DIR}/lib
+            NO_DEFAULT_PATH
+        )
+        
+        if(MPI_BASE_VERIFY)
+            message(DEBUG "Verified MPI library exists: ${MPI_BASE_VERIFY}")
+        else()
+            message(VERBOSE "MPI library ${MPI_BASE_LIB} not found")
+            list(APPEND STALE_CONFIG_LOG "MPI library lib${MPI_BASE_LIB}.so not found")
+            list(APPEND STALE_CONFIG_LOG "  Searched in: \$MPICH_DIR/lib, \$CRAY_MPICH_DIR/lib")
+            
+            # Try to suggest correct version
+            if(CMAKE_CXX_COMPILER_VERSION MATCHES "^([0-9]+)\\.([0-9]+)")
+                set(EXPECTED_VER "${CMAKE_MATCH_1}${CMAKE_MATCH_2}")
+                list(APPEND STALE_CONFIG_LOG "  Expected based on GCC ${CMAKE_CXX_COMPILER_VERSION}: mpi_gnu_${EXPECTED_VER}")
+            endif()
+        endif()
+        unset(MPI_BASE_VERIFY CACHE)
+    endif()
+
     # Determine GPU type and GTL library
     if(ERF_ENABLE_CUDA)
         set(APPLY_FIX4 TRUE)
@@ -609,24 +708,42 @@ if(ERF_ENABLE_MPI AND "$ENV{MPICH_GPU_SUPPORT_ENABLED}" STREQUAL "1")
         set(GTL_LIB "mpi_gtl_hsa")
     endif()
     
-    if(APPLY_FIX4)
+if(APPLY_FIX4)
         message(STATUS "Applying Fix 4: GPU-aware MPI (${GPU_TYPE})")
         message(VERBOSE "MPI base library: ${MPI_BASE_LIB}")
         message(VERBOSE "GTL library: ${GTL_LIB}")
         
         set(CRAY_MPI_LIBS "-l${MPI_BASE_LIB} -l${GTL_LIB}")
-        message(DEBUG "Adding: ${CRAY_MPI_LIBS}")
         
+        # Only append if not already present
         if(ERF_ENABLE_CUDA)
-            set(CMAKE_CUDA_STANDARD_LIBRARIES "${CMAKE_CUDA_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
-                CACHE STRING "" FORCE)
+            string(FIND "${CMAKE_CUDA_STANDARD_LIBRARIES}" "${CRAY_MPI_LIBS}" already_present)
+            if(already_present EQUAL -1)
+                message(DEBUG "Adding to CMAKE_CUDA_STANDARD_LIBRARIES: ${CRAY_MPI_LIBS}")
+                set(CMAKE_CUDA_STANDARD_LIBRARIES "${CMAKE_CUDA_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
+                    CACHE STRING "" FORCE)
+            else()
+                message(DEBUG "CUDA libraries already contain MPI libs, skipping")
+            endif()
         else()
-            set(CMAKE_HIP_STANDARD_LIBRARIES "${CMAKE_HIP_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
-                CACHE STRING "" FORCE)
+            string(FIND "${CMAKE_HIP_STANDARD_LIBRARIES}" "${CRAY_MPI_LIBS}" already_present)
+            if(already_present EQUAL -1)
+                message(DEBUG "Adding to CMAKE_HIP_STANDARD_LIBRARIES: ${CRAY_MPI_LIBS}")
+                set(CMAKE_HIP_STANDARD_LIBRARIES "${CMAKE_HIP_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
+                    CACHE STRING "" FORCE)
+            else()
+                message(DEBUG "HIP libraries already contain MPI libs, skipping")
+            endif()
         endif()
         
-        set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
-            CACHE STRING "" FORCE)
+        string(FIND "${CMAKE_CXX_STANDARD_LIBRARIES}" "${CRAY_MPI_LIBS}" already_present)
+        if(already_present EQUAL -1)
+            message(DEBUG "Adding to CMAKE_CXX_STANDARD_LIBRARIES: ${CRAY_MPI_LIBS}")
+            set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
+                CACHE STRING "" FORCE)
+        else()
+            message(DEBUG "CXX libraries already contain MPI libs, skipping")
+        endif()
     endif()
 else()
     message(DEBUG "Fix 4 not needed (GPU+MPI not enabled or GPU support not enabled)")
@@ -867,8 +984,6 @@ if(FIX1_ACTIVE OR FIX2_ACTIVE OR FIX3_ACTIVE OR FIX4_ACTIVE OR FIX56_ACTIVE OR F
     message(DEBUG "")
 endif()
 
-# At the end of CrayDetection.cmake, after all fixes:
-
 # ==============================================================================
 # Generate Concise Config File
 # ==============================================================================
@@ -879,13 +994,19 @@ file(WRITE ${CRAY_CONFIG_FILE}
 "# ==============================================================================
 # Auto-detected Cray Configuration
 # Generated: ${CMAKE_CURRENT_LIST_FILE}
-# Date: 2025-11-12
+# Date: ${CMAKE_TIMESTAMP}
 # ==============================================================================
 # This file shows the settings auto-detected by CrayDetection.cmake
 # You can use this as a starting point for a manual config file.
 #
-# To use manually:
-#   cmake -C cray_detected_config.cmake ..
+# To use this config manually:
+#
+#   From build directory:
+#     cmake -C ${CRAY_CONFIG_FILE} ${CMAKE_SOURCE_DIR}
+#
+#   From source directory:
+#     cmake -C ${CRAY_CONFIG_FILE} -B ${CMAKE_BINARY_DIR}
+#
 # ==============================================================================
 
 ")
@@ -991,17 +1112,59 @@ message(STATUS "Generated config: ${CRAY_CONFIG_FILE}")
 
 # Add a target to display it
 add_custom_target(show-cray-config
+    COMMAND ${CMAKE_COMMAND} -E echo "Displaying auto-detected Cray configuration"
     COMMAND ${CMAKE_COMMAND} -E echo "==================================================================="
     COMMAND ${CMAKE_COMMAND} -E echo "Auto-detected Cray Configuration:"
     COMMAND ${CMAKE_COMMAND} -E echo "==================================================================="
     COMMAND ${CMAKE_COMMAND} -E cat ${CRAY_CONFIG_FILE}
     COMMAND ${CMAKE_COMMAND} -E echo ""
     COMMAND ${CMAKE_COMMAND} -E echo "To use this config manually:"
-    COMMAND ${CMAKE_COMMAND} -E echo "  cmake -C ${CRAY_CONFIG_FILE} .."
+    COMMAND ${CMAKE_COMMAND} -E echo "  cmake -C ${CRAY_CONFIG_FILE} ${CMAKE_SOURCE_DIR}"
     COMMAND ${CMAKE_COMMAND} -E echo "==================================================================="
-    COMMENT "Displaying auto-detected Cray configuration"
-    VERBATIM
+    DEPENDS ${CRAY_CONFIG_FILE}
+    COMMENT "Showing Cray configuration from ${CRAY_CONFIG_FILE}"
 )
+
+# ==============================================================================
+# Display Configuration Verification Results
+# ==============================================================================
+
+if(ERF_CHECK_MODULES AND STALE_CONFIG_LOG)
+    message(STATUS "")
+    message(STATUS "====================================================================")
+    message(STATUS "STALE CONFIGURATION DETECTED")
+    message(STATUS "====================================================================")
+    message(STATUS "")
+    message(STATUS "Configuration issues found:")
+    foreach(issue ${STALE_CONFIG_LOG})
+        message(STATUS "  ${issue}")
+    endforeach()
+    message(STATUS "")
+    message(STATUS "This usually happens when:")
+    message(STATUS "  - You changed which modules are loaded")
+    message(STATUS "  - You switched compiler versions")
+    message(STATUS "  - CMake cache contains old settings")
+    message(STATUS "")
+    message(STATUS "To resolve, clean your build:")
+    message(STATUS "")
+    message(STATUS "  Recommended:")
+    message(STATUS "    cmake --build . --target distclean")
+    message(STATUS "")
+    message(STATUS "  Or manually:")
+    message(STATUS "    rm -rf CMakeCache.txt CMakeFiles/ cray_detected_config.cmake")
+    message(STATUS "")
+    message(STATUS "  Then reconfigure:")
+    message(STATUS "    cmake ..")
+    message(STATUS "")
+    message(STATUS "To disable this check:")
+    message(STATUS "    cmake -DERF_CHECK_MODULES=OFF ..")
+    message(STATUS "")
+    message(STATUS "====================================================================")
+    message(STATUS "")
+    
+    # Make it a hard error instead of warning
+    message(FATAL_ERROR "Stale configuration detected - clean build required")
+endif()
 
 message(DEBUG "=====================================================================")
 message(DEBUG "To disable auto-fixes: -DERF_DISABLE_CRAY_AUTO_FIXES=ON")
