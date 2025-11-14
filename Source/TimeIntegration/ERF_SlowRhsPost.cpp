@@ -481,7 +481,9 @@ void erf_slow_rhs_post (int level, int finest_level,
 #endif
 
 #ifdef ERF_USE_SHOC
-        shoc_lev->add_slow_tend(mfi,tbx,cell_rhs);
+        if (solverChoice.use_shoc) {
+            shoc_lev->add_slow_tend(mfi,tbx,cell_rhs);
+        }
 #endif
 
         // This updates just the "slow" conserved variables
