@@ -52,10 +52,10 @@ git-state.txt
 lib*.a
 lib*.so
 bin/
-Exec/
-Submodules/
-Tests/
-cmake_packages/
+*uild*/Exec/
+*uild*/Submodules/
+*uild*/Tests/
+*uild*/cmake_packages/
 externals/
 
 # Build and install directories
