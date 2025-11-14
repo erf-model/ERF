@@ -60,6 +60,7 @@
                 {
                     const Array4<const Real>& dJ_old =     detJ_cc[level]->const_array(mfi);
                     const Array4<const Real>& dJ_new = detJ_cc_new[level]->const_array(mfi);
+                    const Array4<const Real>& dJ_stg = detJ_cc_src[level]->const_array(mfi);
 
                     const Array4<const Real>& z_nd_old =     z_phys_nd[level]->const_array(mfi);
                     const Array4<const Real>& z_nd_new = z_phys_nd_new[level]->const_array(mfi);
@@ -74,7 +75,7 @@
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVars::cons] + nn;
                         ssum[IntVars::cons](i,j,k,n) = dJ_old(i,j,k) *  sold[IntVars::cons](i,j,k,n)
-                                                          + slow_dt * fslow[IntVars::cons](i,j,k,n);
+                                           + slow_dt * dJ_stg(i,j,k) * fslow[IntVars::cons](i,j,k,n);
                         ssum[IntVars::cons](i,j,k,n) /= dJ_new(i,j,k);
                     });
 
