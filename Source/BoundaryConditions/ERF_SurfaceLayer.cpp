@@ -465,7 +465,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 Real stressx;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
                 if (lsm_tau13_arr && is_land) {
-                    stressx = lsm_tau13_arr(i,j,k);
+                    // Average zface to bottom x edge
+                    stressx = 0.5 * (lsm_tau13_arr(i,j,k) + lsm_tau13_arr(i-1,j,k));
+                    if ((i==55 || i==56) && j==0) {
+                        AllPrint() << "NOAH VALUES: " << IntVect(i,j,0) << ' '
+                                   << stressx << ' '
+                                   << lsm_tau13_arr(i,j,k) << ' '
+                                   << lsm_tau13_arr(i-1,j,k) << "\n";
+                    }
                 } else {
                     stressx = flux_comp.compute_u_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
@@ -485,7 +492,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 Real stressy;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
                 if (lsm_tau23_arr && is_land) {
-                    stressy = lsm_tau23_arr(i,j,k);
+                    // Average zface to bottom y edge
+                    stressy = 0.5 * (lsm_tau23_arr(i,j,k) + lsm_tau23_arr(i,j-1,k));
                 } else {
                     stressy = flux_comp.compute_v_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
