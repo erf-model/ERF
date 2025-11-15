@@ -13,38 +13,39 @@
 #include <ERF_ProbCommon.H>
 
 /**
- * Function for computing the fast RHS with no terrain
+ * Function for computing the fast RHS with no terrain but constant or stretched vertical resolution
  *
  */
-void erf_substep_N (int step, int nrk, int level, int finest_level,
-                    amrex::Vector<amrex::MultiFab >& S_slow_rhs,
-                    const amrex::Vector<amrex::MultiFab >& S_prev,
-                    amrex::Vector<amrex::MultiFab >& S_stage_data,
-                    const amrex::MultiFab& S_stage_prim,
-                    const amrex::MultiFab& qt,
-                    const amrex::MultiFab& pi_stage,
-                    const amrex::MultiFab& fast_coeffs,
-                    amrex::Vector<amrex::MultiFab >& S_data,
-                          amrex::MultiFab& lagged_delta_rt,
-                          amrex::MultiFab& avg_xmom,
-                          amrex::MultiFab& avg_ymom,
-                          amrex::MultiFab& avg_zmom,
-                    const amrex::MultiFab& cc_src,
-                    const amrex::MultiFab& xmom_src,
-                    const amrex::MultiFab& ymom_src,
-                    const amrex::MultiFab& zmom_src,
-                    const amrex::Geometry geom,
-                    const amrex::Real gravity,
-                    const amrex::Real dtau, const amrex::Real beta_s,
-                    const amrex::Real facinv,
-                    amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
-                    amrex::YAFluxRegister* fr_as_crse,
-                    amrex::YAFluxRegister* fr_as_fine,
-                    bool l_use_moisture, bool l_reflux,
-                    bool l_implicit_substepping);
+void erf_substep_NS (int step, int nrk, int level, int finest_level,
+                     amrex::Vector<amrex::MultiFab >& S_slow_rhs,
+                     const amrex::Vector<amrex::MultiFab >& S_prev,
+                     amrex::Vector<amrex::MultiFab >& S_stage_data,
+                     const amrex::MultiFab& S_stage_prim,
+                     const amrex::MultiFab& qt,
+                     const amrex::MultiFab& pi_stage,
+                     const amrex::MultiFab& fast_coeffs,
+                     amrex::Vector<amrex::MultiFab >& S_data,
+                           amrex::MultiFab& lagged_delta_rt,
+                           amrex::MultiFab& avg_xmom,
+                           amrex::MultiFab& avg_ymom,
+                        amrex::MultiFab& avg_zmom,
+                     const amrex::MultiFab& cc_src,
+                     const amrex::MultiFab& xmom_src,
+                     const amrex::MultiFab& ymom_src,
+                     const amrex::MultiFab& zmom_src,
+                     const amrex::Geometry geom,
+                     const amrex::Real gravity,
+                     amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
+                     const amrex::Real dtau, const amrex::Real beta_s,
+                     const amrex::Real facinv,
+                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
+                     amrex::YAFluxRegister* fr_as_crse,
+                     amrex::YAFluxRegister* fr_as_fine,
+                     bool l_use_moisture, bool l_reflux,
+                     bool l_implicit_substepping);
 
 /**
- * Function for computing the fast RHS with fixed terrain
+ * Function for computing the fast RHS with fixed-in-time terrain
  *
  */
 void erf_substep_T (int step, int nrk, int level, int finest_level,
