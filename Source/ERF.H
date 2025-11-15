@@ -412,7 +412,7 @@ public:
     void Write2DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
 
     // Write subvolume of data into a different "plotfile"
-    void WriteSubvolume  ();
+    void WriteSubvolume (amrex::Vector<std::string> subvol_var_names);
 
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
@@ -697,14 +697,16 @@ private:
     // get plotfile name
     [[nodiscard]] std::string PlotFileName (int lev) const;
 
-    // set plotfile variables names
-    static amrex::Vector<std::string> PlotFileVarNames (amrex::Vector<std::string> plot_var_names) ;
+    // set plotfile variable names
+    static amrex::Vector<std::string> PlotFileVarNames (amrex::Vector<std::string> plot_var_names);
 
     // set which variables and derived quantities go into plotfiles
     void setPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
     void setPlotVariables2D (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
     // append variables to plot
     void appendPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
+
+    void setSubVolVariables (const std::string& pp_subvol_var_names, amrex::Vector<std::string>& subvol_var_names);
 
 #ifdef ERF_USE_NETCDF
     //! Create 1D vertical column output for coupling
@@ -1081,6 +1083,8 @@ private:
     int m_check_int = -1;
     amrex::Real m_check_per = -1.0;
 
+    amrex::Vector<std::string> subvol3d_var_names;
+
     amrex::Vector<std::string> plot3d_var_names_1;
     amrex::Vector<std::string> plot3d_var_names_2;
     amrex::Vector<std::string> plot2d_var_names_1;
@@ -1139,6 +1143,11 @@ private:
         "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
         "surf_pres"
     };
+
+    // **************************************************************************************
+    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_WriteSubVolume.cpp
+    // **************************************************************************************
+    const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar"};
 
     // algorithm choices
     static SolverChoice solverChoice;

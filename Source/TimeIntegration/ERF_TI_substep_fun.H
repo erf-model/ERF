@@ -32,6 +32,8 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
             beta_s = -1.0;
         }
 
+        const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
+
         // Canopy data for mom sources
         MultiFab* forest_drag = (solverChoice.do_forest_drag) ?
             m_forest_drag[level]->get_drag_field() : nullptr;

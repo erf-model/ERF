@@ -591,7 +591,7 @@ ERF::Evolve ()
 
         if (writeNow(cur_time, step+1, m_subvol_int, m_subvol_per, dt[0], last_subvol_time)) {
             last_subvol_step = step+1;
-            WriteSubvolume();
+            WriteSubvolume(subvol3d_var_names);
             if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
         }
 
@@ -630,7 +630,7 @@ ERF::Evolve ()
         if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
     }
     if ( (m_subvol_int > 0 || m_subvol_per > 0.) && istep[0] > last_subvol_step) {
-        WriteSubvolume();
+        WriteSubvolume(subvol3d_var_names);
         if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
     }
 
@@ -1239,30 +1239,7 @@ ERF::InitData_post ()
         }
     }
 
-    //
-    // If we are starting from scratch, we have the option to project the initial velocity field
-    //    regardless of how we initialized.
-    // pp_inc is used as scratch space here; we zero it out after the projection
-    //
-    if (restart_chkfile == "")
-    {
-        if (solverChoice.project_initial_velocity) {
-            Real dummy_dt = 1.0;
-            if (verbose > 0) {
-                amrex::Print() << "Projecting initial velocity field" << std::endl;
-            }
-            for (int lev = 0; lev <= finest_level; ++lev)
-            {
-                project_velocity(lev, dummy_dt);
-                pp_inc[lev].setVal(0.);
-                gradp[lev][GpVars::gpx].setVal(0.);
-                gradp[lev][GpVars::gpy].setVal(0.);
-                gradp[lev][GpVars::gpz].setVal(0.);
-            }
-        }
-    }
-
-    // Copy from new into old just in case
+    // Fill boundary conditions in vars_new
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         auto& lev_new = vars_new[lev];
@@ -1303,11 +1280,40 @@ ERF::InitData_post ()
                              ngvect_vels,t_new[lev],BCVars::yvel_bc,do_fb);
         (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
                              ngvect_vels,t_new[lev],BCVars::zvel_bc,do_fb);
+    }
 
-        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,ncomp_cons,lev_new[Vars::cons].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,         1,lev_new[Vars::xvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,         1,lev_new[Vars::yvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,         1,lev_new[Vars::zvel].nGrowVect());
+    //
+    // If we are starting from scratch, we have the option to project the initial velocity field
+    //    regardless of how we initialized.  Note that project_velocity operates on vars_new.
+    // pp_inc is used as scratch space here; we zero it out after the projection
+    //
+    if (restart_chkfile == "")
+    {
+        if (solverChoice.project_initial_velocity) {
+            Real dummy_dt = 1.0;
+            if (verbose > 0) {
+                amrex::Print() << "Projecting initial velocity field" << std::endl;
+            }
+            for (int lev = 0; lev <= finest_level; ++lev)
+            {
+                project_velocity(lev, dummy_dt);
+                pp_inc[lev].setVal(0.);
+                gradp[lev][GpVars::gpx].setVal(0.);
+                gradp[lev][GpVars::gpy].setVal(0.);
+                gradp[lev][GpVars::gpz].setVal(0.);
+            }
+        }
+    }
+
+    // Copy from new into old just in case (after filling boundary conditions and possibly projecting)
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        int nc = vars_new[lev][Vars::cons].nComp();
+
+        MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,nc,vars_new[lev][Vars::cons].nGrowVect());
+        MultiFab::Copy(vars_old[lev][Vars::xvel],vars_new[lev][Vars::xvel],0,0, 1,vars_new[lev][Vars::xvel].nGrowVect());
+        MultiFab::Copy(vars_old[lev][Vars::yvel],vars_new[lev][Vars::yvel],0,0, 1,vars_new[lev][Vars::yvel].nGrowVect());
+        MultiFab::Copy(vars_old[lev][Vars::zvel],vars_new[lev][Vars::zvel],0,0, 1,vars_new[lev][Vars::zvel].nGrowVect());
     }
 
     // Compute the minimum dz in the domain at each level (to be used for setting the timestep)
@@ -1629,7 +1635,7 @@ ERF::InitData_post ()
             last_plot2d_file_step_2 = istep[0];
         }
         if (m_subvol_int > 0 || m_subvol_per > 0.) {
-            WriteSubvolume();
+            WriteSubvolume(subvol3d_var_names);
             last_subvol_step = istep[0];
             if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
         }
@@ -2271,6 +2277,7 @@ ERF::ReadParameters ()
         pp.query("subvol_file",   subvol_file);
         pp.query("subvol_int" , m_subvol_int);
         pp.query("subvol_per" , m_subvol_per);
+        setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
