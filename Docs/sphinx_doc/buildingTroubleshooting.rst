@@ -16,19 +16,17 @@ Quick Diagnostic
 
    **Common causes:**
 
-   * Missing ``craype-accel-*`` module on Cray GPU builds
-   * NetCDF/HDF5 not found
-   * Wrong compiler detected
+   * Missing ``craype-accel-*`` module on Cray GPU builds → See :ref:`troubleshoot-cray-accel`
+   * NetCDF/HDF5 not found → See :ref:`sec:build:library`
+   * Wrong compiler detected → Check ``module list``
 
    **Quick checks:**
 
    .. code-block:: bash
 
       module list
-      echo $CRAY_ACCEL_TARGET  # Should be set for GPU builds
-      echo $NETCDF_DIR         # Should point to NetCDF
-
-   → See solutions below for :ref:`troubleshoot-cray-accel` and :ref:`troubleshoot-netcdf`
+      echo $CRAY_ACCEL_TARGET
+      echo $NETCDF_DIR
 
 .. dropdown:: Compilation fails
    :icon: alert
@@ -36,9 +34,9 @@ Quick Diagnostic
 
    **Common causes:**
 
-   * Out of memory during CUDA/HIP compilation
-   * Missing source files
-   * Incompatible compiler flags
+   * Out of memory during CUDA/HIP compilation → See :ref:`troubleshoot-memory`
+   * Missing source files → Check ``git submodule update --init --recursive``
+   * Stale CMake cache → See :ref:`troubleshoot-cache`
 
    **Quick fixes:**
 
@@ -53,29 +51,15 @@ Quick Diagnostic
       # Reduce parallel jobs
       make -j4
 
-   → See :ref:`troubleshoot-memory` for memory issues
-
 .. dropdown:: Linking fails
    :icon: alert
    :color: warning
 
    **Common causes:**
 
-   * Parallel/serial library mismatch (MPI errors)
-   * Missing libraries
+   * Parallel/serial library mismatch → See :ref:`sec:build:library` for MPI linker errors
+   * Missing libraries → Check ``ldd ./ERF3d.*.ex``
    * GPU-aware MPI issues (now auto-fixed on Cray)
-
-   **Quick checks:**
-
-   .. code-block:: bash
-
-      # Check for parallel libraries
-      module list | grep parallel
-
-      # Check library dependencies
-      ldd ./ERF3d.*.ex
-
-   → See :ref:`troubleshoot-mpi-linker` for MPI linker errors
 
 .. dropdown:: Executable fails to run
    :icon: alert
@@ -99,8 +83,8 @@ Quick Diagnostic
 
    → See :ref:`verification` for full verification steps
 
-Common Issues and Solutions
-----------------------------
+Build Process Issues
+--------------------
 
 .. _troubleshoot-cray-accel:
 
@@ -138,92 +122,6 @@ Load the module for your hardware:
 
    source Build/machines/perlmutter_erf.profile
    cmake -DERF_ENABLE_CUDA=ON ..
-
-.. _troubleshoot-netcdf:
-
-NetCDF or HDF5 Not Found
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Symptom:** CMake cannot locate NetCDF or HDF5.
-
-**Error:**
-
-.. code-block:: text
-
-   Could not find NetCDF
-   Could not find HDF5
-
-**Cause:** Libraries not in standard paths or parallel versions not loaded.
-
-**Solution:**
-
-.. tab-set::
-
-   .. tab-item:: Cray Systems
-
-      .. code-block:: bash
-
-         module load cray-netcdf-hdf5parallel
-         cmake -DERF_ENABLE_NETCDF=ON ..
-
-   .. tab-item:: Custom Path
-
-      .. code-block:: bash
-
-         cmake -DERF_ENABLE_NETCDF=ON \
-               -DNETCDF_DIR=/opt/netcdf-parallel \
-               ..
-
-   .. tab-item:: Workstation
-
-      .. code-block:: bash
-
-         # Ubuntu/Debian
-         sudo apt install libnetcdf-mpi-dev libhdf5-mpi-dev
-
-         cmake -DERF_ENABLE_NETCDF=ON ..
-
-For NetCDF detection details, see :ref:`sec:build:library`.
-
-.. _troubleshoot-mpi-linker:
-
-MPI Linker Errors
-~~~~~~~~~~~~~~~~~
-
-**Symptom:** Undefined MPI symbols during linking.
-
-**Error:**
-
-.. code-block:: text
-
-   undefined reference to `MPI_Init'
-   undefined reference to `MPI_Comm_rank'
-
-**Cause:** Parallel ERF linking against serial NetCDF/HDF5.
-
-**Diagnosis:**
-
-.. code-block:: bash
-
-   module list | grep netcdf
-
-   # Bad:  netcdf/4.9.0
-   # Good: cray-netcdf-hdf5parallel/4.9.0.3
-
-**Solution:**
-
-.. code-block:: bash
-
-   # Load parallel libraries
-   module unload netcdf hdf5
-   module load cray-netcdf-hdf5parallel
-
-   # Clean rebuild
-   make distclean
-   cmake ..
-   make
-
-See :ref:`sec:build:library` for parallel I/O requirements.
 
 .. _troubleshoot-memory:
 
@@ -271,6 +169,8 @@ Out of Memory During Compilation
 
 .. note::
    Common on Kestrel where partial node allocations are default. Always use ``--exclusive`` or explicit memory requests.
+
+.. _troubleshoot-cache:
 
 Stale CMake Cache
 ~~~~~~~~~~~~~~~~~

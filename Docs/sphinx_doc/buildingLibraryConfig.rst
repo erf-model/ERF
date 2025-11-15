@@ -443,8 +443,8 @@ For shared AMReX installations:
    export AMREX_HOME=/path/to/external/amrex
    make
 
-Troubleshooting
----------------
+Common Library Issues
+---------------------
 
 **Library Not Found**
 
@@ -494,25 +494,6 @@ Troubleshooting
       cmake ..
       make
 
-**Stale CMake Cache**
-
-**Symptom:** Unexpected failures after changing modules/compilers.
-
-**Cause:** CMake cached old library locations.
-
-**Solutions:**
-
-.. code-block:: bash
-
-   # Full clean
-   make distclean
-
-   # Or manually
-   rm -rf CMakeCache.txt CMakeFiles/
-
-   # Reconfigure
-   cmake ..
-
 **Advanced Diagnosis**
 
 Use verbose logging to see CMake's search process:
@@ -530,7 +511,7 @@ Example output:
    [ERF.AMReX] Using internal AMReX submodule
    [ERF.NetCDF] Found NetCDF: /opt/cray/pe/netcdf/4.9.0.9
 
-**Verification**
+**Verifying Library Linkage**
 
 Confirm library linkage after successful build:
 
