@@ -3,16 +3,20 @@
 Build Systems and Options
 ==========================
 
-The Energy Research and Forecasting (ERF) code, built upon the AMReX framework, possesses a complex dependency graph that includes multiple advanced physics packages (RTE-RRTMGP, SHOC, P3). To ensure performance portability across diverse computing architectures, ERF relies on the Kokkos library. This document provides a detailed, code-level explanation of ERF's two supported build systems, GNU Make and CMake, outlining how each system manages these dependencies to produce a functional executable.
+This document explains ERF's two build systems, GNU Make and CMake, and how each manages dependencies to produce a functional executable.
 
-The two build systems serve distinct purposes. GNU Make provides fine-grained control over the compilation process and is an application-centric system for compiling a single executable for a specific scientific run. It provides debugging capabilities via utility targets like ``print-xxx``. CMake is designed for cross-platform compatibility and robust dependency management. It is a framework-centric approach with policy-based automation, such as its Cray Detection System. It creates versioned libraries, manages dependencies through automated detection, and supports testing through CTest.
+The two build systems serve distinct purposes:
 
-This guide focuses on how the build systems are implemented and function, with direct references to the source code. It serves as a technical reference for developers and advanced users. For initial environment setup and quick start instructions, see :ref:`sec:build:overview` and the :ref:`GettingStarted` guide. For HPC-specific build instructions, see :ref:`sec:build:hpc`.
+* **GNU Make** - Application-centric system for compiling a single executable for a specific scientific run. Provides fine-grained control over compilation and debugging via utility targets like ``print-xxx``.
+
+* **CMake** - Framework-centric system designed for cross-platform compatibility and dependency management. Creates versioned libraries, provides automated detection (including Cray systems), and supports testing through CTest. Recommended for HPC environments.
+
+This guide serves as a technical reference for developers and advanced users. For initial setup and quick start instructions, see :ref:`sec:build:quickstart` and :ref:`GettingStarted`. For HPC-specific instructions, see :ref:`sec:build:hpc`.
 
 Directory Structure and Workflow
 ---------------------------------
 
-ERF uses a paradigm where different executables are built in different subdirectories within the ``Exec`` directory. When using GNU Make, the user should build in the directory of the selected problem. When using CMake, separate executables are built for all problem directories listed in ``Exec/CMakeLists.txt``.
+ERF builds executables in subdirectories within ``Exec``. With GNU Make, build in the specific problem directory. With CMake, configure once to build all executables listed in ``Exec/CMakeLists.txt``.
 
 The problem directories within ``Exec`` are organized by purpose:
 
@@ -37,86 +41,90 @@ Each problem directory contains a README describing its purpose and functionalit
 Building with GNU Make
 ----------------------
 
-System Overview and Use Case
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+System Overview
+~~~~~~~~~~~~~~~
 
 The GNU Make system provides a direct path to producing a single, case-specific executable. It uses an application-centric approach, where developers and scientists compile code for a particular problem setup (e.g., atmospheric boundary layer simulation) directly within the ``Exec/`` directory structure.
 
-The primary use case for the GNU Make system is scientific production runs and development scenarios where in-place compilation is preferred, avoiding overhead of creating and installing versioned libraries. The build is orchestrated by a ``GNUmakefile`` located within a specific case directory (such as ``Exec/ABL/``), which leverages build logic provided by the underlying AMReX framework.
+Primary use cases:
+
+* Scientific production runs with in-place compilation
+* Development scenarios requiring direct control over compiler flags
+* Debugging build configuration
+* Single executables without library versioning overhead
+
+The build is orchestrated by a ``GNUmakefile`` in each case directory (such as ``Exec/ABL/``), which uses build logic from the AMReX framework.
 
 How it Works: The Orchestration Process
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The ERF GNU Make process uses a hierarchy of includes that separates user configuration from application and framework build logic. The user's ``GNUmakefile`` serves as the top layer, defining high-level build options. This file includes the application-level ``Make.ERF`` to gather all necessary ERF source files, which includes the core framework-level ``Make.defs`` and ``Make.rules`` from AMReX to execute compilation and linking.
+The GNUMake process uses a hierarchy of includes separating user configuration from application and framework build logic:
 
-The process follows these steps:
+1. **GNUmakefile Location**: User invokes ``make`` in an application directory, such as ``Exec/ABL/``, which contains the ``GNUmakefile`` control file.
 
-1. **GNUmakefile Location**: Process begins with user invoking ``make`` in application-specific directory, such as ``Exec/ABL/``. This directory contains the primary control file, ``GNUmakefile``.
+2. **Set AMREX_HOME**: The ``GNUmakefile`` defines ``AMREX_HOME``, pointing to the AMReX submodule containing core build logic. Default path is ``$(ERF_HOME)/Submodules/AMReX``.
 
-2. **Set AMREX_HOME**: First step within ``GNUmakefile`` is defining ``AMREX_HOME`` variable. This points to location of AMReX submodule containing core build logic. Default path is ``$(ERF_HOME)/Submodules/AMReX``.
+3. **Define Build Variables**: User defines boolean flags and variables in ``GNUmakefile`` to control which features are compiled (e.g., ``USE_MPI``, ``USE_CUDA``, ``USE_RRTMGP``).
 
-3. **Define Build Variables**: User defines boolean flags and other variables in ``GNUmakefile`` to control which features are compiled. These include options like ``USE_MPI``, ``USE_CUDA``, ``USE_RRTMGP``.
+4. **Include ERF Sources**: ``GNUmakefile`` includes ``Exec/Make.ERF``, which adds ERF source and header directories to build paths, populating ``VPATH_LOCATIONS`` and ``INCLUDE_LOCATIONS`` variables.
 
-4. **Include ERF Sources**: ``GNUmakefile`` includes file ``Exec/Make.ERF``. This file systematically adds all necessary ERF source and header directories to build paths, populating ``VPATH_LOCATIONS`` and ``INCLUDE_LOCATIONS`` variables.
-
-5. **Include AMReX Core Logic**: Finally, ``Make.ERF`` includes core AMReX makefiles, ``Make.defs`` and ``Make.rules``. These files contain generic logic for discovering dependencies, compiling source files, and linking object files into final executable.
+5. **Include AMReX Core Logic**: ``Make.ERF`` includes core AMReX makefiles (``Make.defs`` and ``Make.rules``), which contain logic for discovering dependencies, compiling source files, and linking object files into the final executable.
 
 Technical Implementation
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 The GNU Make build system provides fine-grained control over the compilation process. It uses a series of ``Make.package`` files and configuration variables (e.g., ``USE_RRTMGP``, ``USE_NETCDF``) within the main ``Exec/Make.ERF`` file. These variables conditionally add source files to the build and pass preprocessor definitions (e.g., ``-DERF_USE_RRTMGP``) to the compiler.
 
-The GNU Make system is particularly useful for:
+This provides:
 
-* Scientific production runs where in-place compilation is preferred
-* Development scenarios requiring direct control over compiler flags
-* Debugging with ``make print-<variable>`` to inspect build configuration
-* Building single executables without overhead of library versioning
+* Direct control over which source files are compiled
+* Fine-grained compiler flag customization
+* Debugging via ``make print-<variable>`` to inspect configuration
+* Multiple build configurations coexisting in the same directory
 
 Environment Variables
 ~~~~~~~~~~~~~~~~~~~~~
 
-The GNU Make build system leverages setting environment variables for dependency directories. All dependencies except SHOC and P3 are provided as git submodules and can be populated using:
+The GNU Make build system will use environment variables for dependency directories if they are set. All dependencies except SHOC and P3 are provided as git submodules and can be populated using:
 
 .. code-block:: bash
 
+   # Populate submodules in existing clone
    git submodule update --init --recursive
 
-Or before cloning:
-
-.. code-block:: bash
-
+   # Or clone with submodules
    git clone --recursive https://github.com/erf-model/ERF.git
 
-Although submodules are provided, dependencies can be placed externally as long as the ``<REPO_HOME>`` environment variables are set correctly. Example configuration in ``.bashrc``:
+Example configuration in ``.bashrc``:
 
 .. code-block:: bash
 
    export ERF_HOME=${HOME}/ERF
    export AMREX_HOME=${ERF_HOME}/Submodules/AMReX
 
-The GNU Make system is set up to use the path to AMReX submodule by default, so it is not necessary to set the AMReX path explicitly. It is also possible to use an external version of AMReX, downloaded by running:
+The GNU Make system uses the AMReX submodule path by default, so setting ``AMREX_HOME`` is optional unless using an external AMReX installation.
+
+**Using External AMReX**
+
+To use an external AMReX installation:
 
 .. code-block:: bash
 
+   # Download AMReX
    git clone https://github.com/amrex-codes/amrex.git
 
-in which case the ``AMREX_HOME`` environment variable must point to the location where AMReX has been downloaded, which will take precedence over the default path to the submodule. If using bash shell:
-
-.. code-block:: bash
-
+   # Set environment variable (bash)
    export AMREX_HOME=/path/to/external/amrex
 
-or if using tcsh:
-
-.. code-block:: bash
-
+   # Or for tcsh
    setenv AMREX_HOME /path/to/external/amrex
+
+The external path takes precedence over the default submodule path.
 
 Building with SHOC or P3
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-To build with SHOC or P3 using GNU Make:
+SHOC and P3 require additional setup:
 
 .. code-block:: bash
 
@@ -124,12 +132,12 @@ To build with SHOC or P3 using GNU Make:
    source /path/to/ERF/Build/GNU_Ekat/eamxx_clone.sh
    source /path/to/ERF/Build/GNU_Ekat/ekat_build_commands.sh
 
-Then follow the instructions below, ensuring that you have ``USE_SHOC=TRUE`` (when running with SHOC) and ``USE_P3=TRUE`` (when running with P3) in your GNUmakefile.
+Then set ``USE_SHOC=TRUE`` or ``USE_P3=TRUE`` in your GNUmakefile.
 
 Build Steps
 ~~~~~~~~~~~
 
-1. Navigate to the desired build directory:
+1. Navigate to the problem directory:
 
    .. code-block:: bash
 
@@ -239,9 +247,9 @@ Build Steps
         - TRUE/FALSE
 
    .. note::
-      **At most one of USE_OMP, USE_CUDA, USE_HIP, USE_SYCL should be set to TRUE.**
+      **At most one of USE_OMP, USE_CUDA, USE_HIP, USE_SYCL should be TRUE.**
 
-   Information on using other compilers can be found in the AMReX documentation at https://amrex-codes.github.io/amrex/docs_html/BuildingAMReX.html
+   For additional compiler options, see the `AMReX documentation <https://amrex-codes.github.io/amrex/docs_html/BuildingAMReX.html>`_.
 
 3. Build the executable:
 
@@ -249,12 +257,12 @@ Build Steps
 
       make
 
-   The name of the resulting executable (generated by the GNUmake system) encodes several of the build characteristics, including dimensionality of the problem, compiler name, and whether MPI and/or OpenMP were linked with the executable. Thus, several different build configurations may coexist simultaneously in a problem folder. For example, the default build in ``ERF/Exec/DryRegTests/IsentropicVortex`` will look like ``ERF3d.gnu.MPI.ex``, indicating that this is a 3-d version of the code, made with ``COMP=gnu``, and ``USE_MPI=TRUE``.
+   The executable name encodes build characteristics (dimensionality, compiler, parallelization). For example, in ``Exec/DryRegTests/IsentropicVortex`` with ``COMP=gnu`` and ``USE_MPI=TRUE``, the executable is ``ERF3d.gnu.MPI.ex``. Multiple build configurations can coexist in the same directory.
 
 Example GNUmakefile
 ~~~~~~~~~~~~~~~~~~~
 
-Typical ``GNUmakefile`` examples for ERF applications:
+Typical ``GNUmakefile`` examples:
 
 .. dropdown:: Exec/ABL/GNUmakefile
    :icon: code
@@ -271,30 +279,28 @@ Typical ``GNUmakefile`` examples for ERF applications:
 Common Commands
 ~~~~~~~~~~~~~~~
 
-The AMReX make system provides standard utility targets for managing build environment and artifacts. For complete list of commands and advanced features, refer to `AMReX documentation <https://amrex-codes.github.io/amrex/docs_html/BuildingAMReX.html>`_. Common commands include:
+Standard utility targets:
 
-* ``make`` - Compiles source code and creates executable in current directory
-* ``make clean`` - Removes all build artifacts for all configurations
-* ``make cleanconfig`` - Removes artifacts for current configuration only
-* ``make print-<variable>`` - Debugging tool that prints value of specified make variable (e.g., ``make print-CXXFLAGS``)
+* ``make`` - Compile and create executable
+* ``make clean`` - Remove all build artifacts
+* ``make cleanconfig`` - Remove current configuration artifacts
+* ``make print-<variable>`` - Print value of make variable (e.g., ``make print-CXXFLAGS``)
+
+For complete documentation, see the `AMReX build guide <https://amrex-codes.github.io/amrex/docs_html/BuildingAMReX.html>`_.
 
 Build Information
 ~~~~~~~~~~~~~~~~~
 
-The build information can be accessed by typing:
+View build configuration for a compiled executable:
 
 .. code-block:: bash
 
    ./ERF*ex --describe
 
-in the directory where the executable has been built.
-
 Customization with Make.local
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For user- or site-specific customizations that should not be committed to main repository, the AMReX GNU Make system provides ``Make.local`` file. This file, located at ``amrex/Tools/GNUMake/Make.local``, is the primary mechanism for overriding default build variables.
-
-Settings defined in ``Make.local`` apply globally to all projects using that specific instance of AMReX submodule. Common use case is specifying non-default compiler version:
+For user- or site-specific customizations, create ``amrex/Tools/GNUMake/Make.local``. Settings apply globally to all projects using that AMReX instance. Example for specifying compiler version:
 
 .. code-block:: bash
 
@@ -302,71 +308,82 @@ Settings defined in ``Make.local`` apply globally to all projects using that spe
    CC  = gcc-8
    FC  = gfortran-8
 
-Building Documentation with GNU Make
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Building Documentation
+~~~~~~~~~~~~~~~~~~~~~~
 
-Building the ERF documentation with GNU Make can be completed by navigating to the ``/ERF/Docs/`` directory and executing the following command:
+Build ERF documentation with GNU Make:
 
 .. code-block:: bash
 
+   cd ERF/Docs/
    source BuildDocs.sh
 
-Note that both the Sphinx and Doxygen documentation will be built.
+This builds both Sphinx and Doxygen documentation.
 
 Building with CMake
 -------------------
 
-System Overview and Rationale
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+System Overview
+~~~~~~~~~~~~~~~
 
-CMake is the recommended build system for ERF, particularly on HPC systems. It is a cross-platform tool with framework-centric philosophy. Instead of producing single executable for one use case, CMake produces versioned, exportable libraries. This design enables generation and installation of ``find_package``-compatible configuration file (``ERFConfig.cmake``), allowing other CMake-based projects to consume ERF as dependency with simple ``find_package(ERF)`` command.
+CMake is a cross-platform build tool using a framework-centric approach. Instead of producing a single executable for one use case, CMake produces versioned, exportable libraries as well as multiple executables across the problem directory setups. This enables generation of ``find_package``-compatible configuration files (``ERFConfig.cmake``), allowing other CMake projects to consume ERF as a dependency.
 
-Key advantages of using CMake for ERF:
+CMake provides:
 
-* Promotes clean, out-of-source builds keeping compiled artifacts separate from source code
-* Provides robust dependency detection through ``find_package`` mechanism
-* Automatically detects and configures for Cray HPC systems, applying necessary workarounds
-* Supports CTest for testing and verification of ERF
+* Out-of-source builds keeping artifacts separate from source code
+* Robust dependency detection through ``find_package``
+* Automated detection and configuration for Cray HPC systems
+* Testing and verification through CTest
+
+CMake is recommended for HPC environments where automated dependency detection and robust cross-platform builds are important.
 
 Technical Implementation
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-The CMake build system uses a series of ``option()`` commands in its ``CMakeLists.txt`` file (e.g., ``option(ERF_ENABLE_MPI "Enable MPI" OFF)``) to generate user-configurable cache variables. These variables control which features are included in the build and how dependencies are linked.
+CMake uses ``option()`` commands in ``CMakeLists.txt`` (e.g., ``option(ERF_ENABLE_MPI "Enable MPI" OFF)``) to generate user-configurable cache variables. These variables control which features are included and how dependencies are linked.
 
-CMake is particularly useful for:
+This provides:
 
-* HPC environments with complex module systems (automatic Cray detection)
-* Cross-platform builds requiring robust dependency detection
-* Projects that need ``find_package`` integration with ERF libraries
-* Testing and verification through CTest integration
+* Automated dependency detection through ``find_package``
+* Policy-based configuration (e.g., Cray Detection System)
+* Clean separation between source and build artifacts
+* CTest integration for testing
+* Exportable libraries for downstream projects
 
 Prerequisites
 ~~~~~~~~~~~~~
 
-Compiling with CMake involves an additional configure step before using the ``make`` command and it is expected that the user has cloned the ERF repo with the ``--recursive`` option or performed ``git submodule init; git submodule update`` in the ERF repo to populate its submodules.
+Clone the ERF repository with submodules:
+
+.. code-block:: bash
+
+   # Clone with submodules
+   git clone --recursive https://github.com/erf-model/ERF.git
+
+   # Or populate submodules in existing clone
+   git submodule update --init --recursive
 
 Building with SHOC or P3
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-To build with SHOC or P3 using CMake, you will need to make sure you have run ``git submodule update --init --recursive``, then:
+SHOC and P3 require additional setup:
 
 .. code-block:: bash
 
    export ERF_DIR=/path/to/ERF
    source /path/to/ERF/Build/GNU_Ekat/eamxx_clone.sh
 
-Then follow the guidance below, making sure to set ``ERF_ENABLE_SHOC`` and/or ``ERF_ENABLE_P3`` to TRUE.
+Then configure with ``-DERF_ENABLE_SHOC=TRUE`` and/or ``-DERF_ENABLE_P3=TRUE``.
 
 Standard Workflow
 ~~~~~~~~~~~~~~~~~
 
-ERF offers several methods for invoking CMake build:
+CMake build methods:
 
-* **Simple Script**: Run ``Build/cmake.sh`` for basic, tested configuration
-* **Advanced Script**: Use specialized scripts like ``Build/cmake_with_kokkos_many_cuda.sh`` for specific use cases
-* **Manual Invocation**: Create build directory and invoke CMake: ``cmake -B build -S .``
+* **Provided Scripts** - Run tested scripts from ``Build/`` (e.g., ``cmake.sh``, ``cmake_with_kokkos_many_cuda.sh``)
+* **Manual Configuration** - Create build directory and configure manually
 
-Standard manual procedure from project root:
+**Manual workflow from project root:**
 
 .. code-block:: bash
 
@@ -376,7 +393,7 @@ Standard manual procedure from project root:
    make                # Compile
    make install        # Install (optional)
 
-An example CMake configuration script:
+**Example configuration script:**
 
 .. dropdown:: Build/cmake_cuda.sh
    :icon: code
@@ -384,20 +401,20 @@ An example CMake configuration script:
    .. literalinclude:: ../../Build/cmake_cuda.sh
       :language: bash
 
-For manual configuration, a typical command to build ERF with MPI:
+**Manual configuration example with MPI:**
 
 .. code-block:: bash
 
-   cmake -DCMAKE_BUILD_TYPE:STRING=Release \
-         -DERF_ENABLE_MPI:BOOL=ON \
-         -DCMAKE_CXX_COMPILER:STRING=mpicxx \
-         -DCMAKE_C_COMPILER:STRING=mpicc \
-         -DCMAKE_Fortran_COMPILER:STRING=mpifort \
+   cmake -DCMAKE_BUILD_TYPE=Release \
+         -DERF_ENABLE_MPI=ON \
+         -DCMAKE_CXX_COMPILER=mpicxx \
+         -DCMAKE_C_COMPILER=mpicc \
+         -DCMAKE_Fortran_COMPILER=mpifort \
          .. && make
 
-Typically, a user will create a ``build`` directory in the project directory and execute the configuration from said directory (``cmake <options> ..``) before building. Note that CMake is able to generate makefiles for the Ninja build system as well which will allow for faster building of the executable(s).
+CMake can also generate makefiles for the Ninja build system for faster compilation.
 
-Alternative workflows for using build scripts:
+**Alternative workflows using build scripts:**
 
 .. tab-set::
 
@@ -413,14 +430,16 @@ Alternative workflows for using build scripts:
 
       .. code-block:: bash
 
-         ./Build/cmake_with_kokkos_many.sh
+         mkdir build && cd build
+         ../Build/cmake_with_kokkos_many.sh
+         make install
 
-      This creates ``build_erf/`` and ``install_erf/`` directories.
+      Creates ``build_erf/`` and ``install_erf/`` directories.
 
-ERF CMake Options
-~~~~~~~~~~~~~~~~~
+CMake Options
+~~~~~~~~~~~~~
 
-The ERF build is customized by passing options to cmake command using ``-D<VARIABLE>=<VALUE>`` syntax.
+Customize the build using ``-D<VARIABLE>=<VALUE>`` syntax:
 
 .. list-table:: ERF CMake Options
    :header-rows: 1
@@ -500,78 +519,66 @@ The ERF build is customized by passing options to cmake command using ``-D<VARIA
      - Path string
 
 .. note::
-   **At most one of ERF_ENABLE_OPENMP, ERF_ENABLE_CUDA, ERF_ENABLE_HIP and ERF_ENABLE_SYCL should be set to TRUE.**
+   **At most one of ERF_ENABLE_OPENMP, ERF_ENABLE_CUDA, ERF_ENABLE_HIP, ERF_ENABLE_SYCL should be ON.**
 
-Understanding Key Feature Flags
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Feature Dependencies
+~~~~~~~~~~~~~~~~~~~~
 
-The options above enable different ERF capabilities. The most commonly used flags and their interdependencies are:
-
-**Core I/O and Analysis**
+**I/O and Analysis**
 
 * ``ERF_ENABLE_NETCDF`` - Enables NetCDF I/O for reading WRF input files and writing plotfiles
-* ``ERF_ENABLE_HDF5`` - Enables HDF5 parallel I/O backend (automatically enabled when NetCDF is enabled)
-* ``ERF_ENABLE_FFT`` - Enables Fast Fourier Transform capabilities for spectral analysis
+* ``ERF_ENABLE_HDF5`` - Automatically enabled when NetCDF is enabled (provides parallel I/O backend)
+* ``ERF_ENABLE_FFT`` - Enables Fast Fourier Transform for spectral analysis
 
 **Physics Packages**
 
-* ``ERF_ENABLE_RRTMGP`` - Enables RRTMGP radiation model
+* ``ERF_ENABLE_RRTMGP`` - RRTMGP radiation model
 
-  - **Requires:** ``ERF_ENABLE_NETCDF=ON`` and ``ERF_ENABLE_MPI=ON``
-  - **Automatically enables:** ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
+  - Requires ``ERF_ENABLE_NETCDF=ON`` and ``ERF_ENABLE_MPI=ON``
+  - Automatically enables ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
 
-* ``ERF_ENABLE_SHOC`` - Enables SHOC turbulence and cloud macrophysics model
+* ``ERF_ENABLE_SHOC`` - SHOC turbulence and cloud macrophysics
 
-  - **Requires:** ``ERF_ENABLE_MPI=ON``
-  - **Automatically enables:** ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
-  - **Additional step:** Run ``source Build/GNU_Ekat/eamxx_clone.sh`` to initialize E3SM submodules
+  - Requires ``ERF_ENABLE_MPI=ON``
+  - Automatically enables ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
+  - Additional step: Run ``source Build/GNU_Ekat/eamxx_clone.sh`` to initialize E3SM submodules
 
-* ``ERF_ENABLE_P3`` - Enables P3 microphysics model
+* ``ERF_ENABLE_P3`` - P3 microphysics
 
-  - **Requires:** ``ERF_ENABLE_MPI=ON``
-  - **Automatically enables:** ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
+  - Requires ``ERF_ENABLE_MPI=ON``
+  - Automatically enables ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
 
 **GPU Acceleration**
 
-For GPU builds, enable exactly one backend:
+Enable exactly one GPU backend:
 
 * ``ERF_ENABLE_CUDA`` - NVIDIA GPUs (requires CUDA Toolkit ≥ 11.0)
 * ``ERF_ENABLE_HIP`` - AMD GPUs
 * ``ERF_ENABLE_SYCL`` - Intel GPUs
 
 .. note::
-   The Kokkos-based physics packages (RRTMGP, SHOC, P3) support all three GPU backends through the EKAT library's Kokkos integration.
+   Kokkos-based physics packages (RRTMGP, SHOC, P3) support all three GPU backends through EKAT's Kokkos integration.
 
-CMake Logging Options
-~~~~~~~~~~~~~~~~~~~~~
+Logging Options
+~~~~~~~~~~~~~~~
 
-ERF's CMake configuration supports hierarchical logging to help diagnose build issues and understand configuration decisions. These options are available with CMake 3.25+:
-
-**Logging Levels**
-
-The ``--log-level`` flag controls the verbosity of CMake output:
+For CMake 3.25+, use hierarchical logging to diagnose build issues:
 
 .. code-block:: bash
 
-   # Quiet output (STATUS messages only)
+   # Default output
    cmake ..
 
-   # Show detection details
+   # Show dependency detection
    cmake --log-level=VERBOSE ..
 
    # Show all diagnostics
    cmake --log-level=DEBUG ..
 
-**Logging Context**
-
-The ``--log-context`` flag shows the hierarchy of messages, making it easier to understand which component is reporting:
-
-.. code-block:: bash
-
-   # Show message hierarchy with component names
+   # Show message hierarchy
    cmake --log-context ..
 
-   # Combine with verbose output for detailed diagnostics
+   # Combine for detailed output
    cmake --log-context --log-level=VERBOSE ..
 
 Example output with ``--log-context``:
@@ -584,20 +591,18 @@ Example output with ``--log-context``:
    [ERF.AMReX] Using internal AMReX submodule
    [ERF.NetCDF] Found NetCDF: /opt/cray/pe/netcdf/4.9.0.9
 
-CMake Utility Targets
-~~~~~~~~~~~~~~~~~~~~~
-
-ERF provides several utility targets to help manage builds:
+Utility Targets
+~~~~~~~~~~~~~~~
 
 **Clean Build Artifacts**
 
-To perform a complete clean (equivalent to ``make distclean`` in GNU Make):
+Remove all CMake configuration and build artifacts:
 
 .. code-block:: bash
 
    make distclean
 
-This removes all CMake configuration and build artifacts, including:
+Removes:
 
 - CMake cache and generated files (``CMakeCache.txt``, ``CMakeFiles/``, etc.)
 - Build outputs (executables, libraries)
@@ -608,55 +613,56 @@ The install directory is preserved.
 
 **Uninstall**
 
-To uninstall files that were installed via ``make install`` or ``cmake --install``:
+Remove files installed via ``make install``:
 
 .. code-block:: bash
 
    make uninstall
 
-**Show Detected Configuration**
+**Show Cray Configuration**
 
-On Cray systems, you can view the auto-detected configuration:
+On Cray systems, view auto-detected configuration:
 
 .. code-block:: bash
 
    make show-cray-config
 
-This displays the configuration that was automatically detected and can be saved to use as a starting point for manual configuration.
+This displays detected configuration and can be saved for manual configuration.
 
-Using Configuration Files
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Configuration Files
+~~~~~~~~~~~~~~~~~~~
 
-On Cray systems, ERF automatically detects the system configuration and applies necessary workarounds. If you need to use a manual configuration, you can create a configuration file and use it with CMake's ``-C`` option:
+On Cray systems, ERF automatically detects configuration. For manual configuration, use the ``-C`` option:
 
 .. code-block:: bash
 
    cmake -C path/to/config.cmake ..
 
-ERF provides machine-specific profile examples in ``Build/machines/``:
+Machine-specific profiles in ``Build/machines/``:
 
 - ``perlmutter_erf.profile`` - NERSC Perlmutter (NVIDIA A100)
 - ``frontier_erf.profile`` - OLCF Frontier (AMD MI250X)
 - ``polaris_erf.profile`` - ALCF Polaris (NVIDIA A100)
 - ``aurora_erf.profile`` - ALCF Aurora (Intel GPUs)
 
-These profiles show the recommended modules to load for each system. They are shell scripts that should be sourced into your terminal session before running CMake. For detailed information about using these profiles, see :ref:`sec:build:hpc`.
+These profiles are shell scripts that load required modules and set environment variables. Source them before running CMake. For detailed information, see :ref:`sec:build:hpc`.
 
-Building Documentation with CMake
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Building Documentation
+~~~~~~~~~~~~~~~~~~~~~~
 
-Building the ERF documentation with CMake can be completed by configuring with the flag ``-DERF_ENABLE_DOCUMENTATION:BOOL=ON`` and then compiling the following target:
+Build ERF documentation with CMake:
 
 .. code-block:: bash
 
+   cmake -DERF_ENABLE_DOCUMENTATION=ON ..
    make docs
 
-Note that both the Sphinx and Doxygen documentation will be built.
+This builds both Sphinx and Doxygen documentation.
 
-Developer Testing Tool
-~~~~~~~~~~~~~~~~~~~~~~
+Developer Testing
+~~~~~~~~~~~~~~~~~
 
-For systematic testing of multiple build configurations, ERF provides a validation script:
+For systematic testing of multiple build configurations:
 
 .. dropdown:: setup_cmake_validation.sh
    :icon: code
@@ -672,6 +678,6 @@ For systematic testing of multiple build configurations, ERF provides a validati
       ./setup_cmake_validation.sh default    # or perlmutter, gnu_ekat
       cd ../build_default
       ./run.sh     # List available scripts
-      ./run.sh 1   # Run first script in isolated directory
+      ./run.sh 1   # Run first script
 
-   This creates isolated build directories for each configuration script, preventing interference between builds. Each script runs in its own subdirectory (``script_<name>/``) at the ERF root.
+   Creates isolated build directories for each configuration script. Each script runs in its own subdirectory (``script_<name>/``) at the ERF root.
