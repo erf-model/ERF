@@ -2271,6 +2271,7 @@ ERF::ReadParameters ()
         pp.query("subvol_file",   subvol_file);
         pp.query("subvol_int" , m_subvol_int);
         pp.query("subvol_per" , m_subvol_per);
+        setSubVolVariables("subvol_sampling_vars",subvol_var_names);
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
