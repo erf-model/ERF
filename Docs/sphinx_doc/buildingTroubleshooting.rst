@@ -3,110 +3,123 @@
 Build Troubleshooting
 ======================
 
-This guide helps diagnose and resolve common ERF build issues. For library-specific configuration issues, see :ref:`sec:build:library`. For HPC-specific problems, see :ref:`sec:build:hpc`.
+This guide helps diagnose and resolve ERF build issues. For library configuration problems, see :ref:`sec:build:library`. For HPC-specific issues, see :ref:`sec:build:hpc`.
 
-Quick Diagnostic Guide
-----------------------
+Quick Diagnostic
+----------------
 
 **Where's the problem?**
 
-.. dropdown:: Build won't start - CMake configuration fails
+.. dropdown:: CMake configuration fails
    :icon: alert
+   :color: warning
 
    **Common causes:**
 
-   * Missing ``craype-accel-*`` module on Cray GPU builds → See :ref:`troubleshoot-cray-accel`
-   * NetCDF/HDF5 not found → See :ref:`troubleshoot-netcdf`
-   * Wrong compiler detected → Check ``module list`` and reload environment
+   * Missing ``craype-accel-*`` module on Cray GPU builds
+   * NetCDF/HDF5 not found
+   * Wrong compiler detected
 
    **Quick checks:**
 
    .. code-block:: bash
 
-      # Verify modules loaded
       module list
-
-      # Check environment variables
       echo $CRAY_ACCEL_TARGET  # Should be set for GPU builds
-      echo $NETCDF_DIR         # Should point to NetCDF install
+      echo $NETCDF_DIR         # Should point to NetCDF
 
-.. dropdown:: Build starts but compilation fails
+   → See solutions below for :ref:`troubleshoot-cray-accel` and :ref:`troubleshoot-netcdf`
+
+.. dropdown:: Compilation fails
    :icon: alert
+   :color: warning
 
    **Common causes:**
 
-   * Out of memory during CUDA/HIP compilation → See :ref:`troubleshoot-memory`
-   * Incompatible compiler flags → Check ``make print-CXXFLAGS``
-   * Missing source files → Verify submodules: ``git submodule update --init --recursive``
+   * Out of memory during CUDA/HIP compilation
+   * Missing source files
+   * Incompatible compiler flags
 
-   **Quick checks:**
+   **Quick fixes:**
 
    .. code-block:: bash
 
-      # Check available memory
+      # Check memory
       free -h
 
+      # Update submodules
+      git submodule update --init --recursive
+
       # Reduce parallel jobs
-      make -j4  # instead of make -j
+      make -j4
+
+   → See :ref:`troubleshoot-memory` for memory issues
 
 .. dropdown:: Linking fails
    :icon: alert
+   :color: warning
 
    **Common causes:**
 
-   * MPI linker errors → Parallel/serial library mismatch, see :ref:`troubleshoot-mpi-linker`
-   * GPU-aware MPI on Cray → Now auto-fixed, see :ref:`resolved-gpu-mpi`
-   * Missing libraries → Check ``ldd`` on executable
+   * Parallel/serial library mismatch (MPI errors)
+   * Missing libraries
+   * GPU-aware MPI issues (now auto-fixed on Cray)
 
    **Quick checks:**
 
    .. code-block:: bash
 
-      # Check if parallel libraries loaded
-      module -t list | grep -i parallel
+      # Check for parallel libraries
+      module list | grep parallel
 
-.. dropdown:: Build succeeds but executable fails
+      # Check library dependencies
+      ldd ./ERF3d.*.ex
+
+   → See :ref:`troubleshoot-mpi-linker` for MPI linker errors
+
+.. dropdown:: Executable fails to run
    :icon: alert
+   :color: warning
 
    **Common causes:**
 
-   * Wrong GPU architecture compiled → Check ``$CRAY_ACCEL_TARGET``
-   * Missing runtime libraries → Use ``ldd`` to check dependencies
-   * MPI misconfiguration → Try simple MPI hello world
+   * Wrong GPU architecture
+   * Missing runtime libraries
+   * MPI misconfiguration
 
    **Verification:**
 
    .. code-block:: bash
 
-      # Check library dependencies
+      # Check dependencies
       ldd ./ERF3d.*.ex
 
-      # Try short test run
+      # Try short run
       mpiexec -n 4 ./ERF3d.*.ex inputs max_step=10
 
-.. _troubleshooting-common:
+   → See :ref:`verification` for full verification steps
 
-Common Issues
--------------
+Common Issues and Solutions
+----------------------------
 
 .. _troubleshoot-cray-accel:
 
-Missing craype-accel Module (Cray GPU Builds)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Missing craype-accel Module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Symptom:** CMake fatal error during GPU build on Cray systems.
+**Symptom:** CMake error during GPU build on Cray systems.
 
-**Error Message:**
+**Error:**
 
 .. code-block:: text
 
    CMake Error: CRAY_ACCEL_TARGET not set for GPU build
 
-**Cause:** Cray compiler wrappers require ``craype-accel-*`` module for GPU builds. This sets ``$CRAY_ACCEL_TARGET`` environment variable.
+**Cause:** GPU builds on Cray require ``craype-accel-*`` module to set ``$CRAY_ACCEL_TARGET``.
 
 **Solution:**
 
-Load the appropriate module for your hardware:
+Load the module for your hardware:
 
 .. code-block:: bash
 
@@ -119,7 +132,7 @@ Load the appropriate module for your hardware:
    # Intel GPUs (Aurora)
    module load craype-accel-intel-gpu
 
-**Best Practice:** Source the machine profile before building:
+**Best practice:** Use machine profiles:
 
 .. code-block:: bash
 
@@ -131,16 +144,16 @@ Load the appropriate module for your hardware:
 NetCDF or HDF5 Not Found
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Symptom:** CMake cannot locate NetCDF or HDF5 libraries.
+**Symptom:** CMake cannot locate NetCDF or HDF5.
 
-**Error Message:**
+**Error:**
 
 .. code-block:: text
 
    Could not find NetCDF
    Could not find HDF5
 
-**Cause:** Libraries not in standard search paths or parallel versions not loaded.
+**Cause:** Libraries not in standard paths or parallel versions not loaded.
 
 **Solution:**
 
@@ -148,229 +161,140 @@ NetCDF or HDF5 Not Found
 
    .. tab-item:: Cray Systems
 
-      Load the parallel NetCDF module:
-
       .. code-block:: bash
 
          module load cray-netcdf-hdf5parallel
          cmake -DERF_ENABLE_NETCDF=ON ..
 
-      The Cray detection system automatically finds the libraries.
-
-   .. tab-item:: Custom Installation
-
-      Specify the NetCDF installation path:
+   .. tab-item:: Custom Path
 
       .. code-block:: bash
 
-         # Via CMake option
          cmake -DERF_ENABLE_NETCDF=ON \
                -DNETCDF_DIR=/opt/netcdf-parallel \
                ..
 
-         # Or via environment variable
-         export NETCDF_DIR=/opt/netcdf-parallel
-         cmake -DERF_ENABLE_NETCDF=ON ..
-
    .. tab-item:: Workstation
-
-      Install parallel versions:
 
       .. code-block:: bash
 
          # Ubuntu/Debian
          sudo apt install libnetcdf-mpi-dev libhdf5-mpi-dev
 
-         # Then build
          cmake -DERF_ENABLE_NETCDF=ON ..
 
-For detailed NetCDF detection logic, see :ref:`sec:build:library`.
+For NetCDF detection details, see :ref:`sec:build:library`.
 
 .. _troubleshoot-mpi-linker:
 
 MPI Linker Errors
 ~~~~~~~~~~~~~~~~~
 
-**Symptom:** Linker errors with undefined MPI symbols.
+**Symptom:** Undefined MPI symbols during linking.
 
-**Error Message:**
+**Error:**
 
 .. code-block:: text
 
    undefined reference to `MPI_Init'
    undefined reference to `MPI_Comm_rank'
-   undefined reference to `MPI_Finalize'
 
-**Cause:** Parallel ERF build linking against serial NetCDF/HDF5 libraries.
+**Cause:** Parallel ERF linking against serial NetCDF/HDF5.
 
 **Diagnosis:**
 
 .. code-block:: bash
 
-   # Check which NetCDF is loaded
-   module list | grep -i netcdf
+   module list | grep netcdf
 
-   # Should show "parallel" in the name
    # Bad:  netcdf/4.9.0
    # Good: cray-netcdf-hdf5parallel/4.9.0.3
 
 **Solution:**
 
-1. Unload serial libraries and load parallel versions:
+.. code-block:: bash
 
-   .. code-block:: bash
+   # Load parallel libraries
+   module unload netcdf hdf5
+   module load cray-netcdf-hdf5parallel
 
-      module unload netcdf hdf5
-      module load cray-netcdf-hdf5parallel
+   # Clean rebuild
+   make distclean
+   cmake ..
+   make
 
-2. Clean and rebuild:
-
-   .. code-block:: bash
-
-      make distclean
-      cmake ..
-      make
-
-For more details, see :ref:`sec:build:library` Section "Parallel I/O Consistency".
+See :ref:`sec:build:library` for parallel I/O requirements.
 
 .. _troubleshoot-memory:
 
-Memory Issues During Compilation
+Out of Memory During Compilation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Symptom:** Compilation fails with out-of-memory errors, especially during CUDA/HIP builds.
+**Symptom:** Compilation killed with memory errors.
 
-**Error Messages:**
+**Error:**
 
 .. code-block:: text
 
    nvcc fatal: Memory allocation failure
-   c++: fatal error: Killed signal terminated program cc1plus
-   internal compiler error: Killed (program cc1plus)
+   c++: fatal error: Killed signal terminated program
 
-**Cause:** GPU compilation is memory-intensive. On systems allowing partial node allocations, default memory may be insufficient.
+**Cause:** GPU compilation requires more memory than default allocation on partial-node systems.
 
 **Solution:**
 
 .. tab-set::
 
-   .. tab-item:: Request Exclusive Node
-
-      Recommended for HPC systems:
+   .. tab-item:: Exclusive Node
 
       .. code-block:: bash
 
-         # In SLURM script
+         # SLURM script
          #SBATCH --exclusive
 
-         # Or interactive session
+         # Interactive
          salloc --exclusive -N 1
 
-   .. tab-item:: Request Specific Memory
+   .. tab-item:: Specific Memory
 
       .. code-block:: bash
 
-         # Total memory
          #SBATCH --mem=240G
-
-         # Or per CPU
+         # or
          #SBATCH --mem-per-cpu=4G
 
    .. tab-item:: Limit Parallel Jobs
 
       .. code-block:: bash
 
-         # Instead of make -j (unlimited)
-         make -j4  # Limit to 4 parallel jobs
+         make -j4  # Instead of make -j
 
 .. note::
-   This is particularly common on Kestrel where partial node allocations are default. Always include ``--exclusive`` or explicit memory requests in build scripts.
+   Common on Kestrel where partial node allocations are default. Always use ``--exclusive`` or explicit memory requests.
 
-**Stale CMake Cache**
-~~~~~~~~~~~~~~~~~~~~~
+Stale CMake Cache
+~~~~~~~~~~~~~~~~~
 
 **Symptom:** Unexpected failures after changing modules or compilers.
 
-**Cause:** CMake caches library locations. When the environment changes, the cache becomes stale.
+**Cause:** CMake caches library locations that become invalid when environment changes.
 
 **Solution:**
 
 .. code-block:: bash
 
-   # Full clean
    make distclean
+   cmake ..
+   make
 
-   # Or manually remove cache
+Or manually:
+
+.. code-block:: bash
+
    rm -rf CMakeCache.txt CMakeFiles/
-
-   # Reconfigure
    cmake ..
 
-.. _resolved-issues:
-
-Resolved Issues (Automated)
-----------------------------
-
-These issues are now handled automatically by the build system. This section documents them for advanced users debugging automation failures.
-
-.. _resolved-gpu-mpi:
-
-Cray GPU-Aware MPI Linking
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Historical Problem:** On Cray systems with GPU-aware MPI (``MPICH_GPU_SUPPORT_ENABLED=1``), builds failed during linking. The Cray linker's ``--as-needed`` flag incorrectly removed MPI GPU Transport Layer (GTL) libraries.
-
-**Automated Solution:** The build system now:
-
-1. **Phase 1 (Pre-Project):** Detects GPU-aware MPI in ``CrayCompilerDetection.cmake``
-2. Identifies correct MPI base library (e.g., ``mpi_gnu_123``)
-3. Identifies required GTL library:
-   
-   - ``mpi_gtl_cuda`` for NVIDIA GPUs
-   - ``mpi_gtl_hsa`` for AMD GPUs
-
-4. **Phase 2 (Post-Project):** Confirms and applies fix in ``CrayDetection.cmake``
-5. Adds libraries to ``CMAKE_CXX_STANDARD_LIBRARIES`` and ``CMAKE_CUDA_STANDARD_LIBRARIES``
-
-**If automation fails:** Check that ``MPICH_GPU_SUPPORT_ENABLED=1`` is set and appropriate ``craype-accel-*`` module is loaded.
-
-**NetCDF/HDF5 Detection on Cray**
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Historical Problem:** Standard ``find_package`` calls failed because parallel NetCDF/HDF5 are in module-managed paths, not system paths.
-
-**Automated Solution:** The build system queries the Cray compiler wrapper:
-
-.. code-block:: bash
-
-   CC --cray-print-opts=PKG_CONFIG_PATH
-
-This discovers the correct search path from loaded modules and prepends it to ``PKG_CONFIG_PATH``, guiding ``pkg-config`` to find parallel libraries.
-
-**If automation fails:** Manually load ``cray-netcdf-hdf5parallel`` and verify with:
-
-.. code-block:: bash
-
-   pkg-config --list-all | grep netcdf
-
-**GPU Architecture Auto-Detection**
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Historical Problem:** Users manually specified GPU architecture for all dependencies, leading to errors and incompatibilities.
-
-**Automated Solution:** The build system:
-
-1. Inspects ``$CRAY_ACCEL_TARGET`` (e.g., ``nvidia80`` for A100, ``amd_gfx90a`` for MI250X)
-2. Maps to correct architecture flags for all dependencies:
-   
-   - AMReX: ``AMReX_CUDA_ARCH``, ``AMReX_AMD_ARCH``
-   - Kokkos: ``Kokkos_ARCH_AMPERE80``, ``Kokkos_ARCH_VEGA90A``
-
-**If automation fails:** Check that ``craype-accel-*`` module is loaded and ``$CRAY_ACCEL_TARGET`` is set:
-
-.. code-block:: bash
-
-   echo $CRAY_ACCEL_TARGET
+.. _debugging-tools:
 
 Debugging Tools
 ---------------
@@ -378,184 +302,179 @@ Debugging Tools
 CMake Debugging
 ~~~~~~~~~~~~~~~
 
-Use CMake's logging features to trace the build process:
-
 .. code-block:: bash
 
-   # Verbose logging
+   # Verbose output
    cmake --log-level=VERBOSE ..
 
-   # With context (shows component hierarchy)
+   # With context (shows hierarchy)
    cmake --log-context --log-level=VERBOSE ..
-
-   # Debug level (even more detail)
-   cmake --log-level=DEBUG ..
 
 **Example output:**
 
 .. code-block:: text
 
-   [ERF.Cray] Detected Cray Programming Environment (CRAYPE_VERSION=2.7.30)
+   [ERF.Cray] Detected Cray Programming Environment
    [ERF.Cray] Setting Cray compiler wrappers...
-   [ERF.AMReX] Using internal AMReX submodule
    [ERF.NetCDF] Found NetCDF: /opt/cray/pe/netcdf/4.9.0.9
 
 **Inspect cache:**
 
 .. code-block:: bash
 
-   # View all cached variables
    cmake -LAH | less
-
-   # Or examine CMakeCache.txt directly
    grep NETCDF CMakeCache.txt
 
 GNU Make Debugging
 ~~~~~~~~~~~~~~~~~~
 
-Use AMReX's built-in utilities:
-
 .. code-block:: bash
 
-   # Print specific variable value
+   # Print variable values
    make print-CXXFLAGS
    make print-LIBRARIES
-   make print-INCLUDE_LOCATIONS
 
-   # Verbose build (show more)
+   # Verbose build
    make VERBOSE=1
 
-   # help build (show full variables)
-   make help
-
-Compiler and Linker Debugging
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Verbose compilation:**
+Library Dependencies
+~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-   # CMake
-   make VERBOSE=1
-
-   # GNU Make (already verbose by default)
-   make
-
-**Check library dependencies:**
-
-.. code-block:: bash
-
-   # After build succeeds
-   ldd ./ERF3d.*.ex
-
-   # Check for specific library
+   # Check linked libraries
    ldd ./ERF3d.*.ex | grep netcdf
 
-**Check symbols in executable:**
-
-.. code-block:: bash
-
-   # Check for NetCDF symbols
+   # Check for symbols
    nm ERF3d.*.ex | grep nc_
-
-   # Check for MPI symbols
    nm ERF3d.*.ex | grep MPI_
 
-Verifying a Successful Build
------------------------------
+.. _verification:
 
-A successful compilation doesn't guarantee a functional executable. Final verification ensures correct initialization and execution.
+Verifying Successful Builds
+----------------------------
 
-**Quick Verification**
-~~~~~~~~~~~~~~~~~~~~~~
-
-Run a short test to confirm the executable works:
+Quick Test
+~~~~~~~~~~
 
 .. code-block:: bash
-
-   # Navigate to executable location
-   cd build/install/bin  # For cmake --install
-   # or
-   cd Exec/ABL  # For in-place builds
 
    # Run short simulation
+   cd build/install/bin  # or Exec/ABL for in-place builds
    mpiexec -n 4 ./ERF3d.*.ex inputs max_step=10
 
-**Comprehensive Verification**
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Run the regression test suite:
+Regression Tests
+~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-   # Configure with tests enabled
+   # Configure with tests
    cmake -DERF_ENABLE_TESTS=ON ..
    make
 
-   # Run regression tests
-   cd build
+   # Run tests
    ctest -L regression -VV
 
-**Check Build Configuration**
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-View the build configuration:
+Check Build Info
+~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
    ./ERF3d.*.ex --describe
 
-This shows:
+Shows compiler versions, enabled features, and GPU architecture.
 
-* AMReX version
-* Compiler versions
-* Enabled features (MPI, GPU, NetCDF, etc.)
-* GPU architecture (if applicable)
+.. dropdown:: Resolved Issues (Automated)
+   :icon: check-circle
+   :color: success
+
+   These issues are now handled automatically by the build system.
+
+   **Cray GPU-Aware MPI Linking**
+
+   **Historical problem:** Linking failed with GPU-aware MPI due to Cray's ``--as-needed`` flag removing GTL libraries.
+
+   **Automated solution:**
+
+   1. Detects GPU-aware MPI (``MPICH_GPU_SUPPORT_ENABLED=1``)
+   2. Identifies MPI base library (e.g., ``mpi_gnu_123``)
+   3. Identifies required GTL library:
+      - ``mpi_gtl_cuda`` for NVIDIA
+      - ``mpi_gtl_hsa`` for AMD
+   4. Adds to ``CMAKE_CXX_STANDARD_LIBRARIES`` and ``CMAKE_CUDA_STANDARD_LIBRARIES``
+
+   **If automation fails:** Check ``MPICH_GPU_SUPPORT_ENABLED=1`` is set and ``craype-accel-*`` module loaded.
+
+   **NetCDF/HDF5 Detection on Cray**
+
+   **Historical problem:** ``find_package`` failed because parallel libraries in module-managed paths.
+
+   **Automated solution:**
+
+   Queries Cray compiler wrapper:
+
+   .. code-block:: bash
+
+      CC --cray-print-opts=PKG_CONFIG_PATH
+
+   Prepends path to ``PKG_CONFIG_PATH``, enabling ``pkg-config`` to find parallel libraries.
+
+   **If automation fails:** Load ``cray-netcdf-hdf5parallel`` manually.
+
+   **GPU Architecture Auto-Detection**
+
+   **Historical problem:** Users manually specified architecture for all dependencies.
+
+   **Automated solution:**
+
+   1. Reads ``$CRAY_ACCEL_TARGET`` (e.g., ``nvidia80``, ``amd_gfx90a``)
+   2. Maps to architecture flags:
+      - AMReX: ``AMReX_CUDA_ARCH=8.0``
+      - Kokkos: ``Kokkos_ARCH_AMPERE80=ON``
+
+   **If automation fails:** Check ``craype-accel-*`` module loaded:
+
+   .. code-block:: bash
+
+      echo $CRAY_ACCEL_TARGET
 
 Getting Help
 ------------
 
-**Before Submitting an Issue**
+**Before submitting an issue:**
 
-1. Search `existing GitHub Issues <https://github.com/erf-model/ERF/issues>`_
-2. Check this troubleshooting guide and :ref:`sec:build:library`
-3. Try the diagnostic commands in this guide
+1. Search `existing issues <https://github.com/erf-model/ERF/issues>`_
+2. Check this guide and :ref:`sec:build:library`
+3. Run diagnostic commands above
 
-**Creating a Good Bug Report**
+**Creating a bug report:**
 
-If the issue hasn't been reported, create a new issue with:
-
-**Required Information:**
+Include this information in your `GitHub issue <https://github.com/erf-model/ERF/issues/new>`_:
 
 .. code-block:: text
 
-   **System Information:**
-   - OS: [e.g., Ubuntu 22.04, Perlmutter/CrayOS]
-   - Compiler: [output of `gcc --version` or `CC --version`]
-   - MPI: [output of `mpirun --version`]
-   - Modules: [output of `module list`]
+   **System:**
+   - OS: [e.g., Perlmutter/CrayOS, Ubuntu 22.04]
+   - Compiler: [gcc --version or CC --version]
+   - MPI: [mpirun --version]
+   - Modules: [module list]
 
-   **Build Command:**
-   [Paste your complete cmake command or build script]
+   **Build command:**
+   [Complete cmake command or script]
 
-   **Error Message:**
+   **Error:**
    [Complete, unedited terminal output]
 
-**Attach Files:**
+**Attach files:**
 
-* ``CMakeCache.txt`` from build directory
-* Full build log (redirect output: ``make 2>&1 | tee build.log``)
+* ``CMakeCache.txt``
+* Build log: ``make 2>&1 | tee build.log``
 
-**Diagnostic Information:**
-
-Run and include output from:
+**Diagnostic output:**
 
 .. code-block:: bash
 
-   # CMake diagnostic
    cmake --log-level=VERBOSE --log-context .. 2>&1 | tee cmake_verbose.log
-
-   # Environment check
    echo $CRAY_ACCEL_TARGET
    echo $NETCDF_DIR
    module list
@@ -563,23 +482,23 @@ Run and include output from:
 Contributing Fixes
 ------------------
 
-If you discover a solution to a build problem, contribute it back to the community!
+If you solve a build problem, contribute your solution!
 
-**What to Contribute:**
+**Contributions welcome:**
 
-* New machine profiles (``Build/machines/*.profile``)
+* Machine profiles (``Build/machines/*.profile``)
 * Build system improvements
 * Documentation enhancements
 * Troubleshooting examples
 
-**How to Contribute:**
+**How to contribute:**
 
-1. Fork the `ERF repository <https://github.com/erf-model/ERF>`_
-2. Create a feature branch
-3. Make your changes
-4. Submit a Pull Request
+1. Fork `ERF repository <https://github.com/erf-model/ERF>`_
+2. Create feature branch
+3. Make changes
+4. Submit Pull Request
 
-See the project's contribution guidelines for details.
+See contribution guidelines in the repository.
 
 .. note::
-   Community contributions are essential for ERF's sustainability. Your solutions help other users and improve the project for everyone.
+   Community contributions are essential. Your solutions help other users and improve ERF for everyone.
