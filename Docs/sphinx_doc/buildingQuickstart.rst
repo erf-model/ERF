@@ -4,9 +4,18 @@
 Quickstart clone-build-run-clean instructions
 =============================================
 
+Build with GNUMake
+------------------
+
+* Clone the repository with submodules and navigate to the ABL execution directory
+* Compile using GNU compiler with MPI support (optionally with CUDA for GPU builds)
+* Run the executable with 4 MPI processes using the provided input file
+
 .. tab-set::
 
-   .. tab-item:: Quickstart GNUMake CPU
+   .. tab-item:: CPU Build
+
+      Clone, build with GNU/MPI, and run on CPU.
 
       .. code:: shell
 
@@ -15,7 +24,9 @@ Quickstart clone-build-run-clean instructions
           make COMP=gnu USE_MPI=TRUE
           mpiexec -n 4 ./ERF3d.gnu.TPROF.MPI.ex inputs_most
 
-   .. tab-item:: Quickstart GNUMake GPU
+   .. tab-item:: GPU Build
+
+      Clone, build with GNU/MPI/CUDA, and run on GPU.
 
       .. code:: shell
 
@@ -24,9 +35,18 @@ Quickstart clone-build-run-clean instructions
           make COMP=gnu USE_MPI=TRUE USE_CUDA=TRUE
           mpiexec -n 4 ./ERF3d.gnu.TPROF.MPI.CUDA.ex inputs_most
 
+Build with CMake
+----------------
+
+* Clone the repository and use the provided CMake configuration scripts in the Build directory
+* Build the project and optionally install to a dedicated directory for cleaner organization
+* Execute the compiled binary from either the build or install location with MPI
+
 .. tab-set::
 
-   .. tab-item:: Quickstart CMake CPU
+   .. tab-item:: CPU Build
+
+      Clone, configure with CMake script, build, and run on CPU.
 
       .. code:: shell
 
@@ -41,7 +61,9 @@ Quickstart clone-build-run-clean instructions
           # cd install/bin
           # mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
 
-   .. tab-item:: Quickstart CMake GPU
+   .. tab-item:: GPU Build
+
+      Clone, configure with CUDA CMake script, install, and run on GPU.
 
       .. code:: shell
 
@@ -52,7 +74,9 @@ Quickstart clone-build-run-clean instructions
           cd install/bin
           mpiexec -n 4 ./erf_abl inputs_most
 
-   .. tab-item:: Quickstart CMake CPU Many
+   .. tab-item:: CPU with Kokkos
+
+      Clone, configure with Kokkos-enabled CMake script, install, and run on CPU.
 
       .. code:: shell
 
@@ -63,9 +87,18 @@ Quickstart clone-build-run-clean instructions
           cd install_erf/bin
           mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
 
+Cleanup Commands
+----------------
+
+* GNUMake clean commands remove build artifacts from the current directory
+* CMake clean commands operate from the Build directory and can uninstall or clean build artifacts
+* Use distclean for complete removal of all CMake-generated files and build products
+
 .. tab-set::
 
-   .. tab-item:: GNUMake same dir
+   .. tab-item:: GNUMake Clean
+
+      Remove build artifacts using GNUMake clean targets in the current directory.
 
       .. code:: shell
 
@@ -73,7 +106,9 @@ Quickstart clone-build-run-clean instructions
           make USE_MPI=TRUE cleanconfig # Just the GNUMakefile and command line flags cleanup
           make realclean # Same as clean
 
-   .. tab-item:: ERF/Build dir
+   .. tab-item:: CMake Clean from Build
+
+      Uninstall or clean CMake build from the ERF/Build directory.
 
       .. code:: shell
 
@@ -82,7 +117,9 @@ Quickstart clone-build-run-clean instructions
           make uninstall # Uninstall based on install-manifest.txt
           make distclean # Clean up anything cmake configured or used for building
 
-   .. tab-item:: ERF/Build/build_erf dir
+   .. tab-item:: CMake Clean from build_erf
+
+      Uninstall or clean CMake build using the build_erf subdirectory.
 
       .. code:: shell
 
@@ -91,7 +128,9 @@ Quickstart clone-build-run-clean instructions
           cmake --build build_erf --target uninstall # Uninstall based on install-manifest.txt
           cmake --build build_erf --target distclean # Clean up anything cmake configured or used for building
 
-   .. tab-item:: ERF/build dir
+   .. tab-item:: CMake Clean from build
+
+      Uninstall or clean CMake build using the build subdirectory.
 
       .. code:: shell
 
