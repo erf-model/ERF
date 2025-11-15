@@ -10,9 +10,8 @@ The two build systems serve distinct purposes. GNU Make represents a traditional
 
 This guide focuses exclusively on how the build systems are implemented and function, with direct references to the source code. It serves as a technical reference for developers and advanced users. Initial environment setup, dependency installation, and specific build examples are covered in other documentation sections.
 
-=================================
 1.0 Building with GNU Make
-=================================
+--------------------------
 
 **1.1 System Overview and Use Case**
 
@@ -138,9 +137,8 @@ Settings defined in ``Make.local`` apply globally to all projects using that spe
    CC  = gcc-8
    FC  = gfortran-8
 
-=================================
 2.0 Building with CMake
-=================================
+-----------------------
 
 **2.1 System Overview and Rationale**
 
@@ -311,9 +309,8 @@ Example structured output:
    [ERF.AMReX] Using internal AMReX submodule
    [ERF.NetCDF] Found NetCDF: /opt/cray/pe/netcdf/4.9.0.9
 
-=================================
 3.0 Building the Documentation
-=================================
+------------------------------
 
 **3.1 Overview and Procedure**
 

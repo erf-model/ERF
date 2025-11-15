@@ -4,9 +4,8 @@
 ERF on HPC Systems: A Guide to the Cray Detection Framework
 =================================
 
-=================================
 1.0 Introduction and Environment Setup
-=================================
+--------------------------------------
 
 Building ERF on High-Performance Computing (HPC) systems requires managing diverse architectures, proprietary compiler toolchains, and specialized environment modules. The ERF build system automates this complexity, providing a reproducible path from source code to executable.
 
@@ -16,9 +15,8 @@ To standardize this setup process, ERF provides a set of machine profile files. 
 
 This document explains the architecture of ERF's HPC build strategy, with a particular focus on the automated Cray detection system integrated within its CMake build framework. It provides a high-level understanding of the automation logic and design philosophy rather than serving as a step-by-step tutorial for building the code.
 
-=================================
 2.0 Machine Profile Files
-=================================
+-------------------------
 
 Machine profile files form the foundational layer of the ERF build process on HPC systems. They abstract the details of diverse supercomputer ecosystems by managing environment modules and variables in a standardized, reproducible manner. A correctly configured environment is the prerequisite for any successful HPC build, and these profiles are the primary tool for achieving that configuration.
 
@@ -60,9 +58,8 @@ To build ERF on an unsupported HPC system, create a custom profile. The recommen
 
 While manual profile files are essential for environment preparation, they address only the state of the shell. They cannot manage the in-build configuration complexities that arise once CMake begins its process. Sourcing a profile sets environment variables, but CMake operates in its own configuration space and requires explicit information about compiler flags, library paths, and dependency relationships that module load commands do not directly provide. To bridge this gap, the integrated Cray detection system provides the next layer of automation.
 
-=================================
 3.0 The Cray Detection System (CMake)
-=================================
+-------------------------------------
 
 The Cray Detection System is a two-phase automation mechanism within ERF's CMake build system. It programmatically identifies Cray Programming Environments on HPC platforms like Perlmutter, Frontier, and Polaris, and then applies necessary configurations and workarounds. The primary goal is to shield users from platform-specific complexity, delivering a consistent, reliable, and reproducible build experience with minimal manual intervention.
 
@@ -117,9 +114,8 @@ For advanced users requiring complete control, the auto-detection system provide
 2. Use ``make show-cray-config`` to print contents to console without locating file manually
 3. Copy and modify this file as template for custom manual configuration, then apply using ``cmake -C path/to/my_config.cmake ..``
 
-=================================
 4.0 Build Scripts and System Comparisons
-=================================
+----------------------------------------
 
 ERF provides tested build scripts that encapsulate common configurations for various systems and architectures. The choice between the modern, automated CMake system and the traditional GNU Make system depends on specific goals, familiarity with tools, and level of control required.
 
@@ -322,9 +318,8 @@ The following dropdowns show complete build scripts demonstrating different feat
 
 See Section 2.4 in :ref:`buildingSystems` for detailed explanations of CMake flags and their interdependencies.
 
-=================================
 5.0 Workstation Builds
-=================================
+----------------------
 
 Building ERF on a local workstation is essential for development, debugging, and running smaller test cases. The process is simpler than on HPC systems, as it does not require managing environment modules or navigating vendor-specific toolchains.
 
@@ -338,9 +333,8 @@ Building on macOS is supported, though it comes with specific considerations. Th
 * A ``Make.local`` file can be used to specify a consistent compiler suite (e.g., GCC installed via Homebrew) for both C++ and Fortran
 * This approach helps avoid potential conflicts between the default Clang/Xcode C++ compiler and a separately installed Fortran compiler
 
-=================================
 6.0 Running ERF on HPC Systems
-=================================
+------------------------------
 
 After building ERF, job submission requires system-specific batch scripts. This section provides tested examples and references to production workflows.
 

@@ -1,3 +1,22 @@
+.. _download:
+
+Downloading the Code
+--------------------
+
+First, make sure that git is installed on your machine.
+
+Then download the ERF repository by typing:
+
+   .. code:: shell
+
+      git clone https://github.com/erf-model/ERF.git
+
+Or, to automatically include the necessary submodules when downloading ERF, type:
+
+   .. code:: shell
+
+      git clone --recursive https://github.com/erf-model/ERF.git
+
 .. _Submodule:
 
 Git Submodules

@@ -4,9 +4,8 @@
 ERF Build Troubleshooting Guide
 =================================
 
-=================================
 1.0 Resolved Issues (Historical)
-=================================
+--------------------------------
 
 Documenting resolved issues demonstrates the build system's increasing robustness by chronicling historical complexities now handled automatically. This serves as a diagnostic tool for advanced users. By understanding automated fixes for known issues on platforms like Cray, users can more effectively diagnose new problems if automation is not functioning as expected.
 
@@ -33,9 +32,8 @@ Previously, users manually specified target GPU architecture for all dependencie
 
 Now fully automated. Build system inspects ``$CRAY_ACCEL_TARGET`` environment variable (e.g., ``nvidia80`` for NVIDIA A100 or ``amd_gfx90a`` for AMD MI250X), set when loading appropriate ``craype-accel-*`` module. Variable is used to programmatically set correct GPU architecture flags for all dependencies.
 
-=================================
 2.0 Troubleshooting Common Issues
-=================================
+---------------------------------
 
 While build system automates many platform-specific complexities, successful compilation depends on correctly configured user environment. This section addresses frequent user-side configuration errors and provides actionable solutions.
 
@@ -107,9 +105,8 @@ For development workflows involving frequent recompilation:
 .. note::
    This issue is particularly common on systems like Kestrel where partial node allocations are the default. Always include ``--exclusive`` or explicit memory requests in your build job scripts.
 
-=================================
 3.0 General Debugging Strategies
-=================================
+--------------------------------
 
 This section provides guidance for diagnosing novel or complex issues not covered by specific troubleshooting cases above.
 
@@ -134,9 +131,8 @@ When build fails during compilation or linking:
 * **Verbose Build**: Pass verbose flag to build command (e.g., ``make VERBOSE=1``). Prints full compiler and linker commands.
 * **Shared Library Dependencies**: On Linux systems, ``ldd`` command on compiled executable checks for missing shared library dependencies.
 
-=================================
 4.0 Verifying a Successful Build
-=================================
+--------------------------------
 
 Successful compilation signals syntactically correct code but does not guarantee functional executable. Final verification is essential to confirm application initializes correctly, runs without crashing, and produces valid results. This validates all libraries were linked correctly and are compatible with runtime environment.
 
@@ -156,9 +152,8 @@ Successful compilation signals syntactically correct code but does not guarantee
 
    ctest -L regression -VV
 
-=================================
 5.0 Getting Help
-=================================
+----------------
 
 Community support depends on high-quality, reproducible bug reports. Well-formed issue enables developers to efficiently diagnose and resolve problems.
 
@@ -175,9 +170,8 @@ If issue has not been reported, create new issue on ERF GitHub repository. Inclu
 * Full, unedited error message (save complete terminal output to text file and attach to issue)
 * ``CMakeCache.txt`` file from build directory (provides complete snapshot of build environment)
 
-=================================
 6.0 Contributing Fixes
-=================================
+----------------------
 
 Contributions from user community are vital part of open-source ecosystem. Users who discover solutions are encouraged to share their work by submitting Pull Request.
 

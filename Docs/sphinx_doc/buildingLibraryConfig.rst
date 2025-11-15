@@ -4,9 +4,8 @@
 A Developer's Guide to Configuring ERF Library Dependencies
 =================================
 
-=================================
 1.0 Overview of ERF's External Library Ecosystem
-=================================
+------------------------------------------------
 
 **1.1 Introduction: The Importance of Library Configuration**
 
@@ -18,7 +17,7 @@ The ERF framework integrates several external libraries to provide its core func
 
 .. list-table:: ERF Library Dependencies
    :header-rows: 1
-   :widths: 15 40 10 20 15
+   :widths: 20 40 10 15 15
 
    * - Library
      - Description
@@ -49,9 +48,8 @@ The ERF framework integrates several external libraries to provide its core func
 
 For any ERF simulation leveraging Message Passing Interface (MPI) for parallel execution, there is a requirement for consistent parallel I/O stack. When parallel I/O is enabled (e.g., via ``-DERF_ENABLE_NETCDF=ON``), both NetCDF library and its underlying HDF5 dependency must be parallel-enabled versions. These specialized builds contain necessary communication hooks to coordinate I/O operations across multiple compute nodes. Attempting to link parallel ERF build against serial versions of these libraries results in linker errors or runtime failures during file operations.
 
-=================================
 2.0 Configuring Core I/O Libraries: NetCDF and HDF5
-=================================
+---------------------------------------------------
 
 **2.1 Introduction: The Foundation of ERF's Data Strategy**
 
@@ -158,9 +156,8 @@ The following examples demonstrate common configuration commands:
    # GNU Make: Enabling NetCDF
    make USE_NETCDF=TRUE
 
-=================================
 3.0 Integrating Advanced Physics and Utility Libraries
-=================================
+------------------------------------------------------
 
 **3.1 Introduction: Extending ERF's Scientific Capabilities**
 
@@ -182,9 +179,8 @@ Beyond core I/O functions, ERF integrates specialized libraries to extend its sc
   - CMake Option: ``-DERF_USE_INTERNAL_AMREX=ON`` (Default)
   - GNU Make Variable: ``AMREX_HOME`` points to submodule directory
 
-=================================
 4.0 Troubleshooting Common Library Configuration Issues
-=================================
+-------------------------------------------------------
 
 **4.1 Introduction: A Systematic Approach to Diagnosis**
 

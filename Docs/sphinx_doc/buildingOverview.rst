@@ -1,8 +1,10 @@
 .. _sec:build:overview:
 
-=================================
+Build System Overview
+=====================
+
 1.0 Introduction to the ERF Build Ecosystem
-=================================
+-------------------------------------------
 
 **1.1 ERF Capabilities**
 
@@ -24,17 +26,15 @@ The ERF build system requires a C++ compiler that is compliant with the C++17 st
 
 ERF is fully supported and regularly tested on Linux-based operating systems, with a particular focus on Department of Energy (DOE) High-Performance Computing (HPC) systems such as Perlmutter (NVIDIA A100), Frontier (AMD MI250X), Polaris (NVIDIA A100), and Aurora (Intel GPUs). Support for these systems is streamlined through machine-specific configuration profiles located in the ``Build/machines/`` directory, which are detailed later in this document. While many users successfully build on macOS, it is not officially supported. Windows is not an officially supported platform. While continuous integration tests are performed, the development team does not provide user support for this platform.
 
-=================================
 2.0 Quick Start
-=================================
+---------------
 
 **2.1 Prerequisites**
 
 To clone the repository and build the software, a standard development environment is required. This includes Git for source control, Python (version 2.7 or newer), and a standard C++ toolchain including a compiler (e.g., GCC) and make.
 
-=================================
 3.0 Build System Choices
-=================================
+------------------------
 
 **3.1 GNU Make Description**
 
@@ -48,9 +48,8 @@ The CMake build system is designed for cross-platform compatibility and robust d
 
 For HPC environments, ERF provides machine-specific profiles located in the ``Build/machines/`` directory that configure the shell environment by managing modules and environment variables. Using these profiles is the canonical practice for ensuring reproducible builds. Examples for major DOE systems include ``perlmutter_erf.profile`` (NERSC Perlmutter), ``frontier_erf.profile`` (OLCF Frontier), ``polaris_erf.profile`` (ALCF Polaris), and ``aurora_erf.profile`` (ALCF Aurora).
 
-=================================
 4.0 System Requirements
-=================================
+-----------------------
 
 .. list-table:: Component Requirements
    :header-rows: 1
@@ -81,9 +80,8 @@ For HPC environments, ERF provides machine-specific profiles located in the ``Bu
      - OFF
      - ON/OFF
 
-=================================
 5.0 Support Statement
-=================================
+---------------------
 
 **5.1 Fully Supported**
 
@@ -97,9 +95,8 @@ macOS is considered partially supported. While many users and developers success
 
 Windows is not an officially supported platform. While continuous integration tests are performed, the development team does not provide user support for this platform. Windows executables using MPI are provided by the github workflow at ``.github/workflows/windows-mpi.yml`` and can be found in the actions tab for that workflow: https://github.com/erf-model/ERF/actions/workflows/windows-mpi.yml
 
-=================================
 6.0 Notes and Additional Resources
-=================================
+----------------------------------
 
 **6.1 WarpX/AMReX Documentation Acknowledgment**
 
@@ -108,14 +105,6 @@ ERF's documentation, particularly for machine profiles and HPC configurations, i
 **6.2 Documentation Index**
 
 The complete build documentation consists of the following sections:
-
-.. toctree::
-   :maxdepth: 2
-
-   buildingSystems
-   buildingHPC
-   buildingLibraryConfig
-   buildingTroubleshooting
 
 * :ref:`sec:build:systems` - A detailed technical reference comparing the GNU Make and CMake build systems, including key variables, workflows, and the rationale for choosing one over the other.
 * :ref:`sec:build:hpc` - An architectural overview of ERF's strategy for building on HPC platforms, with a deep dive into the automated CMake detection system for Cray environments.
