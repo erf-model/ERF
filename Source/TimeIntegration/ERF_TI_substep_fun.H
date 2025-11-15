@@ -132,7 +132,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                            dtau, beta_s, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
 
-        } else if (solverChoice.mesh_type != MeshType::ConstantDz) {
+        } else if (solverChoice.mesh_type == MeshType::VariableDz) {
 
             erf_substep_T(fast_step, nrk, level, finest_level,
                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
@@ -145,22 +145,20 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
 
         } else {
 
-            erf_substep_N(fast_step, nrk, level, finest_level,
-                          S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
-                          S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
-                          cc_src, xmom_src, ymom_src, zmom_src,
-                          fine_geom, solverChoice.gravity,
-                          dtau, beta_s, inv_fac, mapfac[level],
-                          fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
+            erf_substep_NS(fast_step, nrk, level, finest_level,
+                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
+                           S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
+                           cc_src, xmom_src, ymom_src, zmom_src,
+                           fine_geom, solverChoice.gravity, stretched_dz_d[level],
+                           dtau, beta_s, inv_fac, mapfac[level],
+                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
         }
 
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
 
-        const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
-
-        if ((solverChoice.vert_implicit_fac[nrk] > 0.) && !solverChoice.implicit_before_substep &&
-            fast_step == n_sub-1)
+        if ( (solverChoice.vert_implicit_fac[nrk] > 0.) && !solverChoice.implicit_before_substep &&
+             (fast_step == n_sub-1) )
         {
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);
 #include "ERF_Implicit.H"

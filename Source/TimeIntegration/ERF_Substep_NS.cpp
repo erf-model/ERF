@@ -4,7 +4,8 @@
 using namespace amrex;
 
 /**
- * Function for computing the fast RHS with no terrain
+ * Function for computing the fast RHS with no terrain and variable vertical spacing
+
  *
  * @param[in   ]  step  which fast time step within each Runge-Kutta step
  * @param[in   ]  nrk   which Runge-Kutta step
@@ -27,6 +28,7 @@ using namespace amrex;
  * @param[in   ]  zmom_src source terms for z-momentum
  * @param[in   ]  geom container for geometric information
  * @param[in   ]  gravity magnitude of gravity
+ * @param[in   ]  stretched_dz_d
  * @param[in   ]  dtau fast time step
  * @param[in   ]  beta_s  Coefficient which determines how implicit vs explicit the solve is
  * @param[in   ]  facinv inverse factor for time-averaging the momenta
@@ -38,40 +40,41 @@ using namespace amrex;
  * @param[in   ]  l_implicit_substepping
  */
 
-void erf_substep_N (int step, int nrk,
-                    int level, int finest_level,
-                    Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
-                    const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
-                    Vector<MultiFab>& S_stage_data,                 // S_stage = S^n, S^* or S^**
-                    const  MultiFab & S_stage_prim,                 // Primitive version of S_stage_data[IntVars::cons]
-                    const  MultiFab & qt,                           // Total moisture
-                    const  MultiFab & pi_stage,                     // Exner function evaluated at last stage
-                    const  MultiFab &fast_coeffs,                   // Coeffs for tridiagonal solve
-                    Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
-                    MultiFab& lagged_delta_rt,
-                    MultiFab& avg_xmom,
-                    MultiFab& avg_ymom,
-                    MultiFab& avg_zmom,
-                    const MultiFab& cc_src,
-                    const MultiFab& xmom_src,
-                    const MultiFab& ymom_src,
-                    const MultiFab& zmom_src,
-                    const Geometry geom,
-                    const Real gravity,
-                    const Real dtau, const Real beta_s,
-                    const Real facinv,
-                    Vector<std::unique_ptr<MultiFab>>& mapfac,
-                    YAFluxRegister* fr_as_crse,
-                    YAFluxRegister* fr_as_fine,
-                    bool l_use_moisture,
-                    bool l_reflux,
-                    bool l_implicit_substepping)
+void erf_substep_NS (int step, int nrk,
+                     int level, int finest_level,
+                     Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
+                     const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
+                     Vector<MultiFab>& S_stage_data,                 // S_stage = S^n, S^* or S^**
+                     const  MultiFab & S_stage_prim,                 // Primitive version of S_stage_data[IntVars::cons]
+                     const  MultiFab & qt,                           // Total moisture
+                     const  MultiFab & pi_stage,                     // Exner function evaluated at last stage
+                     const  MultiFab &fast_coeffs,                   // Coeffs for tridiagonal solve
+                     Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
+                     MultiFab& lagged_delta_rt,
+                     MultiFab& avg_xmom,
+                     MultiFab& avg_ymom,
+                     MultiFab& avg_zmom,
+                     const MultiFab& cc_src,
+                     const MultiFab& xmom_src,
+                     const MultiFab& ymom_src,
+                     const MultiFab& zmom_src,
+                     const Geometry geom,
+                     const Real gravity,
+                     amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
+                     const Real dtau, const Real beta_s,
+                     const Real facinv,
+                     Vector<std::unique_ptr<MultiFab>>& mapfac,
+                     YAFluxRegister* fr_as_crse,
+                     YAFluxRegister* fr_as_fine,
+                     bool l_use_moisture,
+                     bool l_reflux,
+                     bool l_implicit_substepping)
 {
     //
     // NOTE: for step > 0, S_data and S_prev point to the same MultiFab data!!
     //
 
-    BL_PROFILE_REGION("erf_substep_N()");
+    BL_PROFILE_REGION("erf_substep_S()");
 
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
@@ -418,9 +421,10 @@ void erf_substep_N (int step, int nrk,
                     coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
 
             // lines 6&7 consolidated (reuse Omega & metrics) (order dtau^2)
-            R1_tmp +=  beta_1 * dzi * ( (Omega_kp1 - Omega_km1)                         * halfg
-                                       -(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P
-                                       -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q );
+            Real dz_inv = 1.0 / stretched_dz_d[k];
+            R1_tmp +=  beta_1 * dz_inv * ( (Omega_kp1 - Omega_km1)                         * halfg
+                                          -(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P
+                                          -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q );
 
             // line 1
             RHS_a(i,j,k) = Omega_k + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau * beta_2 * R1_tmp + zmom_src_arr(i,j,k));
@@ -549,9 +553,10 @@ void erf_substep_N (int step, int nrk,
                 }
             }
 
-            temp_rhs_arr(i,j,k,Rho_comp     ) += dzi * ( zflux_hi - zflux_lo );
-            temp_rhs_arr(i,j,k,RhoTheta_comp) += 0.5 * dzi * ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1))
-                                                             - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) );
+            Real dz_inv = 1.0 / stretched_dz_d[k];
+            temp_rhs_arr(i,j,k,Rho_comp     ) += dz_inv * ( zflux_hi - zflux_lo );
+            temp_rhs_arr(i,j,k,RhoTheta_comp) += 0.5 * dz_inv * ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1))
+                                                                - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) );
         });
 
         // We only add to the flux registers in the final RK step

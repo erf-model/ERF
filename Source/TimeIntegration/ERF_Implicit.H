@@ -4,6 +4,8 @@
         {
             const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
 
+            const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
+
             GpuArray<Real, AMREX_SPACEDIM*2> l_bc_neumann_vals_d;
             const int bc_comp = RhoTheta_comp;
             for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
