@@ -1,24 +1,11 @@
 .. _sec:build:hpc:
 
-=================================
-ERF on HPC Systems: A Guide to the Cray Detection Framework
-=================================
+Building on HPC Systems
+========================
 
-1.0 Introduction and Environment Setup
---------------------------------------
+Building ERF on High-Performance Computing (HPC) systems requires managing diverse architectures, proprietary compiler toolchains, and specialized environment modules. The ERF build system automates this complexity through machine profile files and the Cray Detection System.
 
-Building ERF on High-Performance Computing (HPC) systems requires managing diverse architectures, proprietary compiler toolchains, and specialized environment modules. The ERF build system automates this complexity, providing a reproducible path from source code to executable.
-
-A mandatory first step before any compilation attempt on an HPC platform is the correct preparation of the shell environment. Loading the appropriate modules and setting environment variables ensures that the build system can locate the correct compiler wrappers, essential parallel libraries like MPI, hardware-specific toolchains such as the CUDA or ROCm toolkits, and I/O libraries like NetCDF and HDF5. Without a properly configured environment, builds will fail with errors related to missing dependencies.
-
-To standardize this setup process, ERF provides a set of machine profile files. These are pre-configured scripts that encapsulate the system-specific knowledge required to establish a correct build environment on a given supercomputer. By using these profiles, developers and users can reliably configure their shell sessions, ensuring a consistent and reproducible foundation for compilation.
-
-This document explains the architecture of ERF's HPC build strategy, with a particular focus on the automated Cray detection system integrated within its CMake build framework. It provides a high-level understanding of the automation logic and design philosophy rather than serving as a step-by-step tutorial for building the code.
-
-2.0 Machine Profile Files
--------------------------
-
-Machine profile files form the foundational layer of the ERF build process on HPC systems. They abstract the details of diverse supercomputer ecosystems by managing environment modules and variables in a standardized, reproducible manner. A correctly configured environment is the prerequisite for any successful HPC build, and these profiles are the primary tool for achieving that configuration.
+This document explains ERF's HPC build strategy. For basic build instructions, see :ref:`sec:build:systems`. For initial setup, see :ref:`sec:build:quickstart`.
 
 .. note::
    **HPC system environments change regularly.** Module names, versions, and
@@ -27,103 +14,128 @@ Machine profile files form the foundational layer of the ERF build process on HP
    ``Build/machines/`` are maintained for major systems but may require
    adjustment after system upgrades.
 
-**2.1 Purpose and Usage**
+Machine Profile Files
+----------------------
 
-Machine profile files are shell scripts located in the ``Build/machines/`` directory. Their purpose is to prepare the shell environment for compilation by loading required software modules, exporting necessary environment variables, and defining paths to dependencies.
+Machine profile files prepare the shell environment for compilation by loading required software modules and setting environment variables. They are located in ``Build/machines/`` and provide a standardized, reproducible way to configure the build environment.
 
-The primary functions of these profiles include:
+**Purpose**
 
-* Executing module load commands. The core of the environment on Cray systems is the ``PrgEnv-*`` module (e.g., ``PrgEnv-gnu`` or ``PrgEnv-cray``), which dictates the underlying compiler suite that the Cray wrappers (``cc``, ``CC``) will use. This is supplemented by modules for hardware acceleration (e.g., ``craype-accel-nvidia80``), parallel libraries (e.g., ``cray-netcdf-hdf5parallel``), and development tools (e.g., ``cmake``).
-* Running export commands to set environment variables that guide the build system, such as hints for locating libraries or specifying target hardware.
+Profile files execute module load commands and export environment variables. On Cray systems, the core is the ``PrgEnv-*`` module (e.g., ``PrgEnv-gnu`` or ``PrgEnv-cray``), which dictates the compiler suite that Cray wrappers (``cc``, ``CC``) will use. This is supplemented by modules for hardware acceleration (e.g., ``craype-accel-nvidia80``), parallel libraries (e.g., ``cray-netcdf-hdf5parallel``), and development tools (e.g., ``cmake``).
 
-To use a profile, source the appropriate script from your shell. This executes the commands within the current shell session, modifying its environment. Once the profile has been sourced, the shell is ready for the subsequent cmake configuration and build commands. For example:
+**Usage**
 
-.. code:: shell
+Source the appropriate profile from your shell:
 
-   source machines/perlmutter_erf.profile
+.. code-block:: bash
 
-**2.2 Available Profiles**
+   source Build/machines/perlmutter_erf.profile
 
-ERF provides pre-configured machine profiles for several major DOE HPC systems:
+This modifies the current shell session. The shell is then ready for subsequent build commands.
 
-* ``perlmutter_erf.profile`` (NERSC Perlmutter)
-* ``frontier_erf.profile`` (OLCF Frontier)
-* ``aurora_erf.profile`` (ALCF Aurora)
-* ``polaris_erf.profile`` (ALCF Polaris)
-* ``kestrel_erf.profile`` (NERSC Kestrel)
+**Available Profiles**
 
-**2.3 Customizing for a New System**
+ERF provides pre-configured profiles for major DOE HPC systems:
 
-To build ERF on an unsupported HPC system, create a custom profile. The recommended approach is to copy an existing profile for a machine with a similar architecture (e.g., another system using NVIDIA GPUs or one based on AMD hardware) and modify the module load and export commands to match the target system's specific software environment and requirements.
+* ``perlmutter_erf.profile`` - NERSC Perlmutter (NVIDIA A100)
+* ``frontier_erf.profile`` - OLCF Frontier (AMD MI250X)
+* ``aurora_erf.profile`` - ALCF Aurora (Intel GPUs)
+* ``polaris_erf.profile`` - ALCF Polaris (NVIDIA A100)
+* ``kestrel_erf.profile`` - NREL Kestrel (NVIDIA H100)
 
-While manual profile files are essential for environment preparation, they address only the state of the shell. They cannot manage the in-build configuration complexities that arise once CMake begins its process. Sourcing a profile sets environment variables, but CMake operates in its own configuration space and requires explicit information about compiler flags, library paths, and dependency relationships that module load commands do not directly provide. To bridge this gap, the integrated Cray detection system provides the next layer of automation.
+**Customizing for New Systems**
 
-3.0 The Cray Detection System (CMake)
--------------------------------------
+To build on an unsupported HPC system, copy an existing profile for a similar architecture and modify the module load and export commands to match the target system's software environment.
 
-The Cray Detection System is a two-phase automation mechanism within ERF's CMake build system. It programmatically identifies Cray Programming Environments on HPC platforms like Perlmutter, Frontier, and Polaris, and then applies necessary configurations and workarounds. The primary goal is to shield users from platform-specific complexity, delivering a consistent, reliable, and reproducible build experience with minimal manual intervention.
+.. dropdown:: Example Profile: Perlmutter
+   :icon: code
 
-The system automates several configuration steps:
+   .. literalinclude:: ../../Build/machines/perlmutter_erf.profile
+      :language: bash
 
-* Sets the Cray compiler wrappers (``cc``, ``CC``, ``ftn``) as the default compilers for C, C++, and Fortran
-* Inspects the ``$CRAY_ACCEL_TARGET`` environment variable to determine the specific GPU architecture (e.g., NVIDIA A100, AMD MI250X)
-* Automatically sets the correct GPU architecture flags for key dependencies, including AMReX (``AMReX_CUDA_ARCH``, ``AMReX_AMD_ARCH``) and Kokkos-based physics packages (``Kokkos_ARCH_*``)
-* Configures support for GPU-aware MPI and finds the correct parallel versions of libraries like NetCDF and HDF5
+The Cray Detection System (CMake)
+----------------------------------
 
-**3.1 Overview of the Two-Phase Process**
+The Cray Detection System is a two-phase automation mechanism within ERF's CMake build system. It identifies Cray Programming Environments on HPC platforms and applies necessary configurations and workarounds, shielding users from platform-specific complexity.
 
-This two-phase design works around a fundamental constraint in CMake's architecture: the toolchain must be validated before the ``project()`` command is invoked, but complex, project-specific logic can only run after ``project()``. The system splits detection accordingly:
+**What It Automates**
 
-* **Phase 1: Pre-Project Detection** - Handled by ``CrayCompilerDetection.cmake`` and executes before the ``project()`` call in the main ``CMakeLists.txt`` file. It performs a lightweight check of environment variables like ``$CRAYPE_VERSION`` and ``$CRAY_MPICH_DIR`` to determine if running in a Cray environment. If detected, it immediately sets the ``CMAKE_C_COMPILER`` and ``CMAKE_CXX_COMPILER`` cache variables to ``cc`` and ``CC``, ensuring CMake's compiler identification succeeds.
+* Sets Cray compiler wrappers (``cc``, ``CC``, ``ftn``) as default compilers
+* Inspects ``$CRAY_ACCEL_TARGET`` to determine GPU architecture (e.g., NVIDIA A100, AMD MI250X)
+* Automatically sets correct GPU architecture flags for AMReX (``AMReX_CUDA_ARCH``, ``AMReX_AMD_ARCH``) and Kokkos (``Kokkos_ARCH_*``)
+* Configures support for GPU-aware MPI
+* Finds parallel versions of NetCDF and HDF5
 
-* **Phase 2: Post-Project Configuration** - After the ``project()`` command has run and compilers are known, ``CrayDetection.cmake`` performs deeper inspection. It detects the specific GPU architecture from ``$CRAY_ACCEL_TARGET``, configures dependencies for the Cray ecosystem, and applies automated workarounds for known build issues.
+**Controlling Auto-Detection**
 
-**3.2 Controlling Auto-Detection**
+Cray auto-detection is enabled by default when a Cray environment is identified. To disable for manual configuration:
 
-The Cray auto-detection system is enabled by default when a Cray environment is identified. For advanced users, debugging, or situations requiring manual configuration, this automation can be disabled by setting: ``-DERF_DISABLE_CRAY_AUTO_FIXES=ON``
+.. code-block:: bash
 
-**3.3 Key Detection Steps and Automated Fixes**
+   cmake -DERF_DISABLE_CRAY_AUTO_FIXES=ON ..
 
-The Cray detection system automatically resolves several common configuration challenges on Cray supercomputers. These automated workarounds apply during Post-Project Configuration (Phase 2), after compilers have been identified and validated during Phase 1.
+.. dropdown:: Technical Details: Two-Phase Process
+   :icon: info
 
-.. list-table:: Automated Cray Workarounds
-   :header-rows: 1
-   :widths: 25 25 50
+   The system works around a CMake constraint: the toolchain must be validated before ``project()`` is invoked, but complex logic can only run after ``project()``.
 
-   * - Problem
-     - Detection Clue
-     - Automated Solution
-   * - GPU Architecture: Manually specifying correct GPU architecture flags for multiple libraries is error-prone
-     - ``$CRAY_ACCEL_TARGET`` environment variable is set (e.g., to ``nvidia80`` or ``amd_gfx90a``)
-     - System maps ``$CRAY_ACCEL_TARGET`` to correct architecture flags. For example, ``nvidia80`` sets ``AMReX_CUDA_ARCH`` to 8.0 and enables ``Kokkos_ARCH_AMPERE80``
-   * - CUDA+EKAT Builds: CUDA compiler (nvcc) not aware of MPI include paths in Cray environment
-     - ``ERF_ENABLE_CUDA=ON`` and ``ERF_ENABLE_RRTMGP``, ``ERF_ENABLE_SHOC``, or ``ERF_ENABLE_P3`` enabled
-     - System executes ``CC --cray-print-opts=cflags`` to retrieve missing compiler flags and prepends them to ``CMAKE_CUDA_FLAGS``
-   * - GPU-Aware MPI: Correctly linking MPI GPU Transport Layer (GTL) libraries is complex and system-dependent
-     - ``$MPICH_GPU_SUPPORT_ENABLED=1`` environment variable is set
-     - System identifies base MPI library and automatically links appropriate GTL library (``-lmpi_gtl_cuda`` for NVIDIA, ``-lmpi_gtl_hsa`` for AMD)
-   * - Parallel NetCDF/HDF5: Standard CMake ``find_package`` calls fail to locate parallel versions on Cray systems
-     - ``ERF_ENABLE_NETCDF=ON``
-     - System retrieves Cray-specific search path via ``CC --cray-print-opts=PKG_CONFIG_PATH`` and prepends to ``$PKG_CONFIG_PATH`` environment variable
+   **Phase 1: Pre-Project Detection**
 
-**3.4 Manual Configuration via -C Files**
+   Handled by ``CrayCompilerDetection.cmake``. Executes before ``project()`` in the main ``CMakeLists.txt``:
 
-For advanced users requiring complete control, the auto-detection system provides transparency through configuration files:
+   * Checks environment variables (``$CRAYPE_VERSION``, ``$CRAY_MPICH_DIR``)
+   * If detected, sets ``CMAKE_C_COMPILER`` and ``CMAKE_CXX_COMPILER`` to ``cc`` and ``CC``
+   * Ensures CMake's compiler identification succeeds
 
-1. After successful configuration, auto-detection logic saves detected settings to ``cray_detected_config.cmake`` in the build directory
-2. Use ``make show-cray-config`` to print contents to console without locating file manually
-3. Copy and modify this file as template for custom manual configuration, then apply using ``cmake -C path/to/my_config.cmake ..``
+   **Phase 2: Post-Project Configuration**
 
-4.0 Build Scripts and System Comparisons
-----------------------------------------
+   Handled by ``CrayDetection.cmake``. After ``project()`` has run:
 
-ERF provides tested build scripts that encapsulate common configurations for various systems and architectures. The choice between the modern, automated CMake system and the traditional GNU Make system depends on specific goals, familiarity with tools, and level of control required.
+   * Detects specific GPU architecture from ``$CRAY_ACCEL_TARGET``
+   * Configures dependencies for the Cray ecosystem
+   * Applies automated workarounds for known build issues
 
-**4.1 Script Reference Table**
+.. dropdown:: Automated Workarounds
+   :icon: tools
 
-The following table summarizes build scripts provided with ERF and indicates which combinations have been tested and verified on each major platform. Verified builds are marked with the git commit hash at which they were last successfully tested.
+   The Cray detection system automatically resolves common configuration challenges:
 
-.. list-table:: ERF Build Scripts by System
+   .. list-table::
+      :header-rows: 1
+      :widths: 25 25 50
+
+      * - Problem
+        - Detection Clue
+        - Automated Solution
+      * - GPU Architecture flags
+        - ``$CRAY_ACCEL_TARGET`` set (e.g., ``nvidia80``)
+        - Maps to correct flags (e.g., ``AMReX_CUDA_ARCH=8.0``, ``Kokkos_ARCH_AMPERE80=ON``)
+      * - CUDA+EKAT MPI paths
+        - ``ERF_ENABLE_CUDA=ON`` + EKAT physics enabled
+        - Executes ``CC --cray-print-opts=cflags`` and prepends to ``CMAKE_CUDA_FLAGS``
+      * - GPU-Aware MPI linking
+        - ``$MPICH_GPU_SUPPORT_ENABLED=1``
+        - Links appropriate GTL library (``-lmpi_gtl_cuda`` or ``-lmpi_gtl_hsa``)
+      * - Parallel NetCDF/HDF5
+        - ``ERF_ENABLE_NETCDF=ON``
+        - Retrieves Cray search path via ``CC --cray-print-opts=PKG_CONFIG_PATH``
+
+.. dropdown:: Manual Configuration
+   :icon: file
+
+   For complete control, the auto-detection system provides transparency:
+
+   1. After configuration, detected settings are saved to ``cray_detected_config.cmake`` in the build directory
+   2. View contents with ``make show-cray-config``
+   3. Copy and modify as a template for custom configuration
+   4. Apply with ``cmake -C path/to/my_config.cmake ..``
+
+Build Scripts Reference
+-----------------------
+
+ERF provides tested build scripts for common configurations. The following table shows which scripts have been verified on each system.
+
+.. list-table:: Verified Build Scripts by System
    :header-rows: 1
    :widths: 35 10 10 10 10 10 10 10
 
@@ -201,164 +213,172 @@ The following table summarizes build scripts provided with ERF and indicates whi
      - Untested
 
 .. note::
-   **Reading the verification table:**
+   **Reading the table:**
 
-   * **Commit hashes** (e.g., ``f8665c28``) indicate the last git commit where the script was successfully tested
-   * **(ABL)** indicates the build was tested by running the Atmospheric Boundary Layer test case and validated with AMReX's ``fcompare`` utility to verify correctness
-   * **(compiled)** indicates the build succeeded but runtime results were either not collected or showed unexpected behavior requiring further investigation
-   * **Tested** means the script built and ran successfully but lacks a specific commit hash record
-   * **Untested** means the script has not been verified on that system but may work with appropriate modifications
-   * **—** (em dash) indicates the configuration is not applicable to that system
+   * **Commit hashes** (e.g., ``f8665c28``) indicate last successful test
+   * **(ABL)** indicates tested with Atmospheric Boundary Layer case and validated with ``fcompare``
+   * **(compiled)** indicates build succeeded but runtime results need investigation
+   * **Tested** means successful build/run without specific commit hash
+   * **Untested** means not verified but may work with modifications
+   * **—** indicates configuration not applicable to that system
 
-   Users who successfully test unlisted configurations are encouraged to report their results to help expand this table.
+**Script Descriptions**
 
-**4.2 Script Descriptions**
+* ``cmake.sh`` - Basic CPU-only build
+* ``cmake_with_kokkos_many.sh`` - Kokkos-enabled CPU build
+* ``cmake_with_kokkos_many_cuda.sh`` - NVIDIA GPUs with CUDA
+* ``cmake_with_kokkos_many_noradiation_hip.sh`` - AMD GPUs (HIP) without radiation
+* ``cmake_with_kokkos_many_hip.sh`` - AMD GPUs (HIP) full build
+* ``cmake_with_kokkos_many_sycl.sh`` - Intel GPUs with SYCL
+* ``build_erf_with_shoc.sh`` - Automated SHOC workflow
+* ``Perlmutter/build_erf_with_shoc_cuda_Perlmutter.sh`` - SHOC with CUDA on Perlmutter
 
-* ``cmake.sh``: Basic CMake build script for CPU-only configurations that works on most systems
-* ``cmake_with_kokkos_many.sh``: Kokkos-enabled build intended for CPU architectures
-* ``cmake_with_kokkos_many_cuda.sh``: Kokkos-enabled build optimized for NVIDIA GPUs using the CUDA backend
-* ``cmake_with_kokkos_many_noradiation_hip.sh``: Kokkos-enabled build for AMD GPUs (HIP backend) with radiation model disabled
-* ``cmake_with_kokkos_many_hip.sh``: Full Kokkos-enabled build for AMD GPUs using the HIP backend
-* ``cmake_with_kokkos_many_sycl.sh``: Kokkos-enabled build for Intel GPUs using the SYCL backend
-* ``Perlmutter/build_erf_with_shoc_cuda_Perlmutter.sh``: Specialized script for building SHOC turbulence model with CUDA support on Perlmutter
-
-**4.3 GNU Make vs. CMake on HPC**
-
-Both GNU Make and CMake are fully supported build systems. The choice between them is based on the desired level of abstraction and control.
-
-.. list-table:: Build System Comparison
-   :header-rows: 1
-   :widths: 20 80
-
-   * - Build System
-     - Strengths & Best Use Cases
-   * - CMake
-     - **Strengths:** Superbuilds and handling complex dependency graphs (e.g., ERF → EKAT → Kokkos) are easier. Automates configurations via Cray Detection System. Generates and installs ``find_package``-compatible configuration (``ERFConfig.cmake``), allowing other CMake projects to consume ERF as dependency. **Best For:** Most users on supported HPC systems (Perlmutter, Frontier, Polaris, Aurora). Developers building external applications that depend on ERF.
-   * - GNU Make
-     - **Strengths:** Leverages existing AMReX infrastructure and has utility targets (e.g., ``print-xxx``) for debugging. Offers transparent and direct control over every build variable by manually setting them in ``GNUmakefile``. **Best For:** Advanced users, performance tuning experts, and those building on HPC systems not yet fully supported by CMake auto-detection logic.
-
-**4.4 GNU Make Configuration Example**
-
-Configuration with GNU Make is handled by setting variables directly in a ``GNUmakefile`` or on the command line:
-
-.. code:: shell
-
-   make COMP=cray USE_MPI=TRUE USE_CUDA=TRUE
-
-This approach provides direct control over every aspect of the build, leveraging the AMReX make system.
-
-**4.5 Build Script Examples**
-
-The following dropdowns show complete build scripts demonstrating different feature combinations:
-
-.. dropdown:: cmake.sh - Basic build
-   :color: light
+.. dropdown:: Build Script Examples
    :icon: code
-   :animate: fade-in-slide-down
 
-   Basic configuration.
+   **Basic CPU Build:**
 
-   .. literalinclude:: ../../../Build/cmake.sh
+   .. literalinclude:: ../../Build/cmake.sh
       :language: bash
 
-.. dropdown:: cmake_with_kokkos_many_cuda.sh - CUDA + Kokkos superbuild
-   :color: light
-   :icon: code
-   :animate: fade-in-slide-down
+   **CUDA + Kokkos:**
 
-   Full GPU build for NVIDIA hardware with FFT, NETCDF, HDF5, and RRTMGP packages.
-
-   .. literalinclude:: ../../../Build/cmake_with_kokkos_many_cuda.sh
+   .. literalinclude:: ../../Build/cmake_with_kokkos_many_cuda.sh
       :language: bash
 
-.. dropdown:: cmake_with_kokkos_many_hip.sh - HIP + Kokkos
-   :color: light
-   :icon: code
-   :animate: fade-in-slide-down
+   **HIP + Kokkos:**
 
-   Full GPU build for AMD hardware with FFT, NETCDF, HDF5, and RRTMGP packages.
-
-   .. literalinclude:: ../../../Build/cmake_with_kokkos_many_hip.sh
+   .. literalinclude:: ../../Build/cmake_with_kokkos_many_hip.sh
       :language: bash
 
-.. dropdown:: cmake_with_kokkos_many_sycl.sh - SYCL + Kokkos
-   :color: light
-   :icon: code
-   :animate: fade-in-slide-down
+   **SYCL + Kokkos:**
 
-   Full GPU build for Intel hardware with FFT, NETCDF, HDF5, and RRTMGP packages.
-
-   .. literalinclude:: ../../../Build/cmake_with_kokkos_many_sycl.sh
+   .. literalinclude:: ../../Build/cmake_with_kokkos_many_sycl.sh
       :language: bash
 
-.. dropdown:: cmake_with_shoc.sh - CPU build with SHOC
-   :color: light
-   :icon: code
-   :animate: fade-in-slide-down
+   **SHOC (CPU):**
 
-   CPU-only build with SHOC turbulence model.
-
-   .. note::
-      Requires E3SM submodules: ``source Build/GNU_Ekat/eamxx_clone.sh``
-
-   .. literalinclude:: ../../../Build/cmake_with_shoc.sh
+   .. literalinclude:: ../../Build/cmake_with_shoc.sh
       :language: bash
 
-.. dropdown:: build_erf_with_shoc.sh - Automated SHOC workflow
-   :color: light
-   :icon: code
-   :animate: fade-in-slide-down
+   Requires E3SM submodules: ``source Build/GNU_Ekat/eamxx_clone.sh``
 
-   Automated script that clones E3SM dependencies and invokes CMake configuration.
+   **Automated SHOC Workflow:**
+
+   .. literalinclude:: ../../Build/build_erf_with_shoc.sh
+      :language: bash
 
    Usage: ``source Build/build_erf_with_shoc.sh``
 
-   .. literalinclude:: ../../../Build/build_erf_with_shoc.sh
-      :language: bash
+For detailed CMake options and dependencies, see :ref:`sec:build:systems`.
 
-See Section 2.4 in :ref:`buildingSystems` for detailed explanations of CMake flags and their interdependencies.
+.. dropdown:: GNU Make vs CMake on HPC
+   :icon: info
 
-5.0 Workstation Builds
+   Both build systems are fully supported. The choice depends on desired abstraction level and control.
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 20 80
+
+      * - Build System
+        - Strengths & Best Use Cases
+      * - CMake
+        - **Strengths:** Automates complex dependency graphs (ERF → EKAT → Kokkos). Cray Detection System handles configurations. Generates ``find_package``-compatible configuration (``ERFConfig.cmake``). **Best For:** Most users on supported HPC systems (Perlmutter, Frontier, Polaris, Aurora). Developers building applications that depend on ERF.
+      * - GNU Make
+        - **Strengths:** Uses existing AMReX infrastructure. Utility targets (e.g., ``print-xxx``) for debugging. Direct control over every build variable. **Best For:** Advanced users, performance tuning experts, systems not yet supported by CMake auto-detection.
+
+Workstation Builds
+------------------
+
+Building on a local workstation is simpler than on HPC systems, as it doesn't require managing environment modules or vendor-specific toolchains. This is essential for development, debugging, and running smaller test cases.
+
+The RegtestCPU and RegtestGPU columns in the build scripts table indicate configurations tested on workstation environments based on the nightly regression test setups.
+
+**macOS Builds**
+
+Building on macOS is supported with specific considerations:
+
+* GNU Make is often recommended for simplicity and direct control
+* Use ``Make.local`` (``amrex/Tools/GNUMake/Make.local``) to specify consistent compiler suite (e.g., GCC from Homebrew) for both C++ and Fortran
+* This avoids conflicts between default Clang/Xcode C++ compiler and separately installed Fortran compiler
+
+Example ``Make.local`` for macOS:
+
+.. code-block:: bash
+
+   CXX = g++-13
+   CC  = gcc-13
+   FC  = gfortran-13
+
+Running on HPC Systems
 ----------------------
 
-Building ERF on a local workstation is essential for development, debugging, and running smaller test cases. The process is simpler than on HPC systems, as it does not require managing environment modules or navigating vendor-specific toolchains.
+After building ERF, job submission requires system-specific batch scripts.
 
-The RegtestCPU and RegtestGPU columns in the script reference table indicate configurations that are regularly tested and verified to work in common workstation environments.
+**General HPC Resources**
 
-**5.1 macOS-Specific Considerations**
+For comprehensive job submission examples across DOE systems, see the `WarpX HPC Documentation <https://warpx.readthedocs.io/en/latest/install/hpc.html>`__. ERF follows similar patterns to WarpX as both are built on AMReX.
 
-Building on macOS is supported, though it comes with specific considerations. The following practices are recommended:
-
-* GNU Make is often recommended for its simplicity and direct control
-* A ``Make.local`` file can be used to specify a consistent compiler suite (e.g., GCC installed via Homebrew) for both C++ and Fortran
-* This approach helps avoid potential conflicts between the default Clang/Xcode C++ compiler and a separately installed Fortran compiler
-
-6.0 Running ERF on HPC Systems
-------------------------------
-
-After building ERF, job submission requires system-specific batch scripts. This section provides tested examples and references to production workflows.
-
-**6.1 General HPC Resources**
-
-For comprehensive job submission examples across multiple DOE systems, see the `WarpX HPC Documentation <https://warpx.readthedocs.io/en/latest/install/hpc.html>`__, which provides detailed scripts for Perlmutter, Frontier, Polaris, and other systems. ERF follows similar patterns to WarpX as both are built on AMReX.
-
-**6.2 Perlmutter (NERSC) - GPU Nodes**
+Perlmutter (NERSC)
+~~~~~~~~~~~~~~~~~~
 
 .. tab-set::
 
-   .. tab-item:: Basic GPU Job
+   .. tab-item:: Building with GNU Make
 
-      This example runs ERF on 4 nodes with GPU-aware MPI enabled. **Before submitting**, ensure you have sourced the machine profile or loaded required modules:
+      Simple build using GNU compiler and CUDA:
+
+      .. code-block:: bash
+
+         # Load environment
+         module load PrgEnv-gnu cudatoolkit cray-mpich cray-netcdf-hdf5parallel
+
+         # Navigate to problem directory
+         cd ${ERF_HOME}/Exec/ABL
+
+         # Build
+         make -j4 COMP=gnu USE_MPI=TRUE USE_CUDA=TRUE
+
+      This produces an executable like ``ERF3d.gnu.MPI.CUDA.ex``.
+
+   .. tab-item:: Building with CMake
+
+      Using the provided build script:
 
       .. code-block:: bash
 
          # Load environment
          source $ERF_HOME/Build/machines/perlmutter_erf.profile
 
-         # Or manually load modules:
-         # module load PrgEnv-gnu cudatoolkit cray-mpich cray-netcdf-hdf5parallel
+         # Configure and build
+         mkdir build && cd build
+         ../Build/cmake_with_kokkos_many_cuda.sh
+         make -j4
 
-      Job submission script:
+      Or manual configuration:
+
+      .. code-block:: bash
+
+         cmake -DCMAKE_BUILD_TYPE=Release \
+               -DERF_ENABLE_MPI=ON \
+               -DERF_ENABLE_CUDA=ON \
+               -DERF_ENABLE_NETCDF=ON \
+               -DERF_ENABLE_RRTMGP=ON \
+               ..
+         make -j4
+
+   .. tab-item:: Basic GPU Job
+
+      This example runs ERF on 4 nodes with GPU-aware MPI enabled.
+
+      **Before submitting**, load the environment:
+
+      .. code-block:: bash
+
+         source $ERF_HOME/Build/machines/perlmutter_erf.profile
+
+      **Job submission script:**
 
       .. code-block:: bash
 
@@ -385,74 +405,98 @@ For comprehensive job submission examples across multiple DOE systems, see the `
 
       Submit with: ``sbatch job_script.sh``
 
-   .. tab-item:: Advanced: AMReX Scaling Tests
-
-      Production script demonstrating NIC pinning optimization from the `AMReX FFT scaling repository <https://github.com/WeiqunZhang/amrex-scaling/tree/main/fft/perlmutter>`__:
-
-      .. dropdown:: run-4.sh (fetched from amrex-scaling repo)
-         :color: light
-         :icon: code
-         :animate: fade-in-slide-down
-
-         .. remote-include:: https://raw.githubusercontent.com/WeiqunZhang/amrex-scaling/refs/heads/main/fft/perlmutter/2025-02-06/run-4.sh
-            :language: bash
-
-      Key features:
-
-      * Uses ``--gpus-per-task=1`` for fine-grained GPU binding
-      * Compares default NIC policy vs ``MPICH_OFI_NIC_POLICY=GPU``
-      * Demonstrates multiple runs with different configurations
-
-   .. tab-item:: WarpX Production Script
-
-      Reference implementation from the `WarpX project <https://github.com/BLAST-WarpX/warpx>`__:
-
-      .. dropdown:: perlmutter_gpu.sbatch (fetched from WarpX repo)
-         :color: light
-         :icon: code
-         :animate: fade-in-slide-down
-
-         .. remote-include:: https://raw.githubusercontent.com/BLAST-WarpX/warpx/refs/heads/development/Tools/machines/perlmutter-nersc/perlmutter_gpu.sbatch
-            :language: bash
-
    .. tab-item:: 80GB GPU Nodes
 
-      For the 256 nodes with 80GB HBM per GPU, replace ``--constraint=gpu&hbm40g`` with ``--constraint=gpu&hbm80g`` in the scripts above.
+      For the 256 nodes with 80GB HBM per GPU, replace:
 
-**6.3 Kestrel (NREL)**
+      .. code-block:: bash
 
-The `Kestrel <https://nrel.github.io/HPC/Documentation/Systems/Kestrel/>`__ cluster is an HPE Cray system with Intel Xeon Sapphire Rapids CPU nodes (104 cores) and a GPU partition with NVIDIA H100 GPUs (4 per node).
+         #SBATCH --constraint=gpu&hbm40g
+
+      with:
+
+      .. code-block:: bash
+
+         #SBATCH --constraint=gpu&hbm80g
+
+.. dropdown:: Advanced: AMReX Scaling Tests
+   :icon: beaker
+
+   Production script demonstrating NIC pinning optimization from the `AMReX FFT scaling repository <https://github.com/WeiqunZhang/amrex-scaling/tree/main/fft/perlmutter>`__:
+
+   .. remote-include:: https://raw.githubusercontent.com/WeiqunZhang/amrex-scaling/refs/heads/main/fft/perlmutter/2025-02-06/run-4.sh
+      :language: bash
+
+   Key features:
+
+   * Uses ``--gpus-per-task=1`` for fine-grained GPU binding
+   * Compares default NIC policy vs ``MPICH_OFI_NIC_POLICY=GPU``
+   * Demonstrates multiple runs with different configurations
+
+.. dropdown:: WarpX Production Script
+   :icon: code
+
+   Reference implementation from the `WarpX project <https://github.com/BLAST-WarpX/warpx>`__:
+
+   .. remote-include:: https://raw.githubusercontent.com/BLAST-WarpX/warpx/refs/heads/development/Tools/machines/perlmutter-nersc/perlmutter_gpu.sbatch
+      :language: bash
+
+Kestrel (NREL)
+~~~~~~~~~~~~~~
+
+The `Kestrel <https://nrel.github.io/HPC/Documentation/Systems/Kestrel/>`__ cluster is an HPE Cray system with Intel Xeon Sapphire Rapids CPU nodes (104 cores) and NVIDIA H100 GPUs (4 per node).
 
 .. note::
    Kestrel has **separate login nodes for GPU work**. Access GPU login nodes via ``kestrel-gpu.hpc.nrel.gov``. GPU jobs should only be submitted from GPU login nodes.
 
-**CPU Builds**
+**Building**
 
-For CPU-only builds, default modules are typically sufficient:
+.. tab-set::
 
-.. code-block:: bash
+   .. tab-item:: GNU Make (CPU)
 
-   # Reset to default environment if needed
-   module restore
+      .. code-block:: bash
 
-   # Build with Cray compilers
-   make realclean
-   make -j COMP=cray
+         # Reset to default environment
+         module restore
 
-**GPU Builds**
+         # Build with Cray compilers
+         cd ${ERF_HOME}/Exec/ABL
+         make realclean
+         make -j COMP=cray
 
-For GPU builds, load the following modules:
+   .. tab-item:: GNU Make (GPU)
 
-.. code-block:: bash
+      .. code-block:: bash
 
-   module purge
-   module load PrgEnv-gnu/8.5.0
-   module load cuda/12.3
-   module load craype-x86-milan
+         # Load GPU modules
+         module purge
+         module load PrgEnv-gnu/8.5.0
+         module load cuda/12.3
+         module load craype-x86-milan
 
-   # Build
-   make realclean
-   make -j COMP=gnu USE_CUDA=TRUE
+         # Build
+         cd ${ERF_HOME}/Exec/ABL
+         make realclean
+         make -j COMP=gnu USE_CUDA=TRUE
+
+   .. tab-item:: CMake (GPU)
+
+      .. code-block:: bash
+
+         # Load GPU modules
+         module purge
+         module load PrgEnv-gnu/8.5.0
+         module load cuda/12.3
+         module load craype-x86-milan
+
+         # Configure and build
+         mkdir build && cd build
+         cmake -DCMAKE_BUILD_TYPE=Release \
+               -DERF_ENABLE_MPI=ON \
+               -DERF_ENABLE_CUDA=ON \
+               ..
+         make -j
 
 .. warning::
    **System updates on Kestrel periodically change required modules.** Verify current module names with ``module avail`` before building.
@@ -475,17 +519,15 @@ Without these flags, CUDA compilation may fail due to insufficient memory.
 
 **Performance and Cost Considerations**
 
-GPU node hours on Kestrel are charged at **10× the rate** of CPU node hours. Understanding the performance trade-offs is essential for efficient use of your allocation.
+GPU node hours on Kestrel are charged at **10× the rate** of CPU node hours. Understanding performance trade-offs is essential for efficient use of allocations.
 
-**Typical Performance Characteristics**
-
-For ERF simulations on Kestrel:
+**Typical Performance Characteristics:**
 
 * GPU nodes (4× H100): **10-20× faster** than CPU nodes (96-104 cores)
-* Best efficiency achieved with **>1M cells per GPU**
+* Best efficiency with **>1M cells per GPU**
 * Smaller problems may not fully utilize GPU capability
 
-**When to Use GPU vs CPU Nodes**
+**When to Use GPU vs CPU:**
 
 .. list-table::
    :header-rows: 1
@@ -507,7 +549,7 @@ For ERF simulations on Kestrel:
      - **Excellent utilization**
      - May exceed wall-time limits
 
-**Recommendations**
+**Recommendations:**
 
 1. **Profile your specific case** - Performance varies with physics packages and I/O frequency
 2. **Development on CPU** - Use CPU nodes for code development and small test cases
