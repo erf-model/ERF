@@ -102,14 +102,9 @@ Windows is not an officially supported platform. While continuous integration te
 
 ERF's documentation, particularly for machine profiles and HPC configurations, is inspired by best practices from the WarpX and AMReX projects.
 
-**6.2 Documentation Index**
+**6.2 Documentation Navigation**
 
-The complete build documentation consists of the following sections:
-
-* :ref:`sec:build:systems` - A detailed technical reference comparing the GNU Make and CMake build systems, including key variables, workflows, and the rationale for choosing one over the other.
-* :ref:`sec:build:hpc` - An architectural overview of ERF's strategy for building on HPC platforms, with a deep dive into the automated CMake detection system for Cray environments.
-* :ref:`sec:build:library` - A guide to configuring external libraries such as NetCDF, HDF5, and the E3SM physics packages (SHOC, P3, RRTMGP), with a focus on parallel I/O requirements.
-* :ref:`sec:build:troubleshooting` - A collection of solutions for common build failures, explanations of historical issues resolved by build system automation, and strategies for debugging complex configuration problems.
+This overview is part of the :ref:`building:configuration` documentation. For a quick start, see the :ref:`GettingStarted` guide.
 
 **6.3 AMReX Framework Documentation**
 
