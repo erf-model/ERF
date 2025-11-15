@@ -5,7 +5,8 @@
 using namespace amrex;
 
 void
-ERF::setSubVolVariables (const std::string& pp_subvol_var_names, Vector<std::string>& subvol_var_names)
+ERF::setSubVolVariables (const std::string& pp_subvol_var_names,
+                         Vector<std::string>&  subvol_var_names)
 {
     ParmParse pp(pp_prefix);
 
@@ -140,7 +141,7 @@ ERF::setSubVolVariables (const std::string& pp_subvol_var_names, Vector<std::str
 
 // Write plotfile to disk
 void
-ERF::WriteSubvolume ()
+ERF::WriteSubvolume (Vector<std::string> subvol_var_names)
 {
     ParmParse pp("erf.subvol");
 
@@ -247,7 +248,7 @@ ERF::WriteSubvolume ()
 
     if (containerHasElement(subvol_var_names, "x_velocity") ||
         containerHasElement(subvol_var_names, "y_velocity") ||
-        containerHasElement(subvol_var_names, "z_velocity")) 
+        containerHasElement(subvol_var_names, "z_velocity"))
     {
         MultiFab mf_cc_vel(grids[lev_for_sub], dmap[lev_for_sub], AMREX_SPACEDIM, 0);
         average_face_to_cellcenter(mf_cc_vel,0,

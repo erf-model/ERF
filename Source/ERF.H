@@ -412,7 +412,7 @@ public:
     void Write2DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
 
     // Write subvolume of data into a different "plotfile"
-    void WriteSubvolume  ();
+    void WriteSubvolume (amrex::Vector<std::string> subvol_var_names);
 
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
@@ -1083,7 +1083,7 @@ private:
     int m_check_int = -1;
     amrex::Real m_check_per = -1.0;
 
-    amrex::Vector<std::string> subvol_var_names;
+    amrex::Vector<std::string> subvol3d_var_names;
 
     amrex::Vector<std::string> plot3d_var_names_1;
     amrex::Vector<std::string> plot3d_var_names_2;
