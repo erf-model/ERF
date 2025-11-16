@@ -90,6 +90,8 @@ void erf_substep_NS (int step, int nrk,
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
 
+    auto dz_ptr = stretched_dz_d.data();
+
     const auto& ba = S_stage_data[IntVars::cons].boxArray();
     const auto& dm = S_stage_data[IntVars::cons].DistributionMap();
 
@@ -420,7 +422,7 @@ void erf_substep_NS (int step, int nrk,
                     coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
 
             // lines 6&7 consolidated (reuse Omega & metrics) (order dtau^2)
-            Real dz_inv = 1.0 / stretched_dz_d[k];
+            Real dz_inv = 1.0 / dz_ptr[k];
             R1_tmp +=  beta_1 * dz_inv * ( (Omega_kp1 - Omega_km1)                         * halfg
                                           -(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P
                                           -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q );
@@ -552,7 +554,7 @@ void erf_substep_NS (int step, int nrk,
                 }
             }
 
-            Real dz_inv = 1.0 / stretched_dz_d[k];
+            Real dz_inv = 1.0 / dz_ptr[k];
             temp_rhs_arr(i,j,k,Rho_comp     ) += dz_inv * ( zflux_hi - zflux_lo );
             temp_rhs_arr(i,j,k,RhoTheta_comp) += 0.5 * dz_inv * ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1))
                                                                 - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) );
