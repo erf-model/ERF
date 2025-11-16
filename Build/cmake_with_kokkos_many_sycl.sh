@@ -1,15 +1,18 @@
 #!/bin/bash
 # Defaults (customize here or set ERF_BUILD_DIR/ERF_SOURCE_DIR/ERF_INSTALL_DIR in environment)
-: ${ERF_BUILD_DIR:="."}
-: ${ERF_SOURCE_DIR:=".."}
-: ${ERF_INSTALL_DIR:="install"}
-# If ERF_HOME is set, uncomment to use absolute paths:
-# : ${ERF_BUILD_DIR:="$ERF_HOME/build"}
-# : ${ERF_SOURCE_DIR:="$ERF_HOME"}
-# : ${ERF_INSTALL_DIR:="$ERF_HOME/install"}
+# If ERF_HOME is set, use it as base for absolute paths
+if [ -n "$ERF_HOME" ]; then
+  : ${ERF_BUILD_DIR:="$ERF_HOME/build"}
+  : ${ERF_SOURCE_DIR:="$ERF_HOME"}
+  : ${ERF_INSTALL_DIR:="$ERF_HOME/install"}
+else
+  : ${ERF_BUILD_DIR:="."}
+  : ${ERF_SOURCE_DIR:=".."}
+  : ${ERF_INSTALL_DIR:="install"}
+fi
 
 echo "Source: $ERF_SOURCE_DIR | Build: $ERF_BUILD_DIR | Install: $ERF_INSTALL_DIR | PWD: $(pwd)"
-echo "Customize: export ERF_BUILD_DIR=... ERF_SOURCE_DIR=... ERF_INSTALL_DIR=... or edit lines 3-9"
+echo "Customize: export ERF_BUILD_DIR=... ERF_SOURCE_DIR=... ERF_INSTALL_DIR=... or ERF_HOME=..."
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH=$ERF_INSTALL_DIR \
       -DMPIEXEC_PREFLAGS:STRING=--oversubscribe \

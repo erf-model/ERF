@@ -311,8 +311,8 @@ View build configuration:
       cd install/bin
       mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
 
-      # If using cmake_with_kokkos_many.sh:
-      cd install/bin  # or build/Exec/ABL
+      # If using cmake_with_kokkos_many.sh with defaults:
+      cd install/bin  # or cd $ERF_INSTALL_DIR/bin if customized or cd $ERF_BUILD_DIR/Exec/ABL
       mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
 
    For details on input files and job submission, see :ref:`sec:running`.
@@ -428,22 +428,39 @@ ERF supports multiple CMake workflows. The main difference is directory structur
          rm -rf build/ install/  # complete cleanup
          mkdir build && cd build
 
-   .. tab-item:: Script with -B/-S (Auto Directories)
+.. tab-item:: Script with Customizable Directories
 
-      Uses CMake's ``-B`` (build) and ``-S`` (source) flags. Creates ``build/`` and ``install/`` automatically. Runs install step by default.
+      Uses environment variables for directory control. Defaults: build in current dir (`.`), source from parent (`..`), install to ``install/``.
+
+      **Customize directories (optional):**
+
+      Set ``ERF_BUILD_DIR``, ``ERF_SOURCE_DIR``, ``ERF_INSTALL_DIR``, or ``ERF_HOME`` environment variables.
 
       .. code-block:: bash
 
-         # From ERF repository root
+         # From ERF repository root (sets absolute paths)
+         ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many.sh
+
+         # Or customize individual directories
+         ERF_BUILD_DIR=build ERF_INSTALL_DIR=install ./Build/cmake_with_kokkos_many.sh
+
+         # Or use defaults from any directory
+         cd ERF
          ./Build/cmake_with_kokkos_many.sh
 
-      **Executable locations:** ``build/Exec/ABL/erf_abl``, etc., and ``install/bin/erf_abl``
+      **Executable locations:** ``$ERF_BUILD_DIR/Exec/ABL/erf_abl`` and ``$ERF_INSTALL_DIR/bin/erf_abl`` (defaults: ``./Exec/ABL/erf_abl`` and ``install/bin/erf_abl``)
 
       **Cleanup for rebuild:**
 
       .. code-block:: bash
 
-         rm -rf build/ install/
+         # If using defaults
+         rm -rf . install/  # from build directory
+
+         # If using ERF_HOME
+         rm -rf $ERF_HOME/build $ERF_HOME/install
+
+         # Then rebuild
          ./Build/cmake_with_kokkos_many.sh
 
 .. dropdown:: Workflow Comparison
@@ -487,28 +504,6 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
    .. literalinclude:: ../../Build/cmake_cuda.sh
       :language: bash
 
-
-.. dropdown:: Alternative workflows using build scripts
-
-   .. tab-set::
-
-      .. tab-item:: From Build/ directory
-
-         .. code-block:: bash
-
-            mkdir build && cd build
-            ../Build/cmake.sh
-            make install
-
-      .. tab-item:: From ERF root
-
-         .. code-block:: bash
-
-            mkdir build && cd build
-            ../Build/cmake_with_kokkos_many.sh
-            make install
-
-         Creates ``build/`` and ``install/`` directories.
 
 **CMake Options:**
 

@@ -73,18 +73,27 @@ Clone, build, and run with CMake. Choose workflow based on preference (see :ref:
          cd ../../install/bin
          mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
 
-   .. tab-item:: Automated Script
+.. tab-item:: Automated Script
 
-      Auto-creates build/ and install/ directories:
+      Auto-creates build and install directories. Customize with environment variables or edit script defaults.
+
+      **Customize directories (optional):**
+
+      Set ``ERF_BUILD_DIR``, ``ERF_SOURCE_DIR``, ``ERF_INSTALL_DIR`` environment variables.
 
       .. code-block:: bash
 
          git clone --recursive git@github.com:erf-model/ERF.git
          cd ERF
-         ./Build/cmake_with_kokkos_many.sh
+
+         # Set directory with env var
+         ERF_HOME=$(pwd) ./Build/cmake_with_kokkos_many.sh
+
+         # Use defaults (build in current dir, source from .., install to install/)
+         # mkdir build; cd build; ../Build/cmake_with_kokkos_many.sh; cd ../
 
          # Run from install directory
-         cd install/bin
+         cd install/bin  # or $ERF_INSTALL_DIR/bin if customized
          mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
 
 Cleanup
