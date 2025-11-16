@@ -75,7 +75,7 @@ Clone, build, and run with CMake. Choose workflow based on preference (see :ref:
 
    .. tab-item:: Automated Script
 
-      Auto-creates build_erf/ and install_erf/ directories:
+      Auto-creates build/ and install/ directories:
 
       .. code-block:: bash
 
@@ -84,7 +84,7 @@ Clone, build, and run with CMake. Choose workflow based on preference (see :ref:
          ./Build/cmake_with_kokkos_many.sh
 
          # Run from install directory
-         cd install_erf/bin
+         cd install/bin
          mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
 
 Cleanup
@@ -133,13 +133,13 @@ Remove build artifacts:
       .. code-block:: bash
 
          # Using cmake --build (from ERF root)
-         cmake --build build_erf --target distclean  # Clean all CMake artifacts
-         cmake --build build_erf --target uninstall  # Uninstall based on install-manifest.txt
+         cmake --build build --target distclean  # Clean all CMake artifacts
+         cmake --build build --target uninstall  # Uninstall based on install-manifest.txt
 
-         # From inside build_erf/ directory, Makefile targets also work:
-         # cd build_erf && make distclean
+         # From inside build/ directory, Makefile targets also work:
+         # cd build && make distclean
 
          # Or remove directories entirely
-         rm -rf build_erf/ install_erf/
+         rm -rf build/ install/
 
 For detailed build options and troubleshooting, see :ref:`sec:build:systems`.

@@ -312,7 +312,7 @@ View build configuration:
       mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
 
       # If using cmake_with_kokkos_many.sh:
-      cd install_erf/bin  # or build_erf/Exec/ABL
+      cd install/bin  # or build/Exec/ABL
       mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
 
    For details on input files and job submission, see :ref:`sec:running`.
@@ -430,20 +430,20 @@ ERF supports multiple CMake workflows. The main difference is directory structur
 
    .. tab-item:: Script with -B/-S (Auto Directories)
 
-      Uses CMake's ``-B`` (build) and ``-S`` (source) flags. Creates ``build_erf/`` and ``install_erf/`` automatically. Runs install step by default.
+      Uses CMake's ``-B`` (build) and ``-S`` (source) flags. Creates ``build/`` and ``install/`` automatically. Runs install step by default.
 
       .. code-block:: bash
 
          # From ERF repository root
          ./Build/cmake_with_kokkos_many.sh
 
-      **Executable locations:** ``build_erf/Exec/ABL/erf_abl``, etc., and ``install_erf/bin/erf_abl``
+      **Executable locations:** ``build/Exec/ABL/erf_abl``, etc., and ``install/bin/erf_abl``
 
       **Cleanup for rebuild:**
 
       .. code-block:: bash
 
-         rm -rf build_erf/ install_erf/
+         rm -rf build/ install/
          ./Build/cmake_with_kokkos_many.sh
 
 .. dropdown:: Workflow Comparison
@@ -508,7 +508,7 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
             ../Build/cmake_with_kokkos_many.sh
             make install
 
-         Creates ``build_erf/`` and ``install_erf/`` directories.
+         Creates ``build/`` and ``install/`` directories.
 
 **CMake Options:**
 
