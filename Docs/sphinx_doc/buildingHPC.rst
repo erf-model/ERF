@@ -17,7 +17,7 @@ This document explains ERF's HPC build strategy. For basic build instructions, s
 Machine Profile Files
 ----------------------
 
-Machine profile files prepare the shell environment for compilation by loading required software modules and setting environment variables. They are located in ``Build/machines/`` and provide a standardized, reproducible way to configure the build environment.
+Machine profile files prepare the shell environment for compilation by loading required software modules and setting environment variables. They are located in ``Build/machines/`` and provide a standardized, reproducible way to configure the build environment. See https://warpx.readthedocs.io/en/latest/install/hpc.html for detailed examples that include their module load and use environment hints for setting compilers.
 
 **Purpose**
 

@@ -29,22 +29,47 @@ AMReX, EKAT, NOAH-MP, and RTE-RRTMGP are available as submodules in the ERF repo
 
 Physics packages have specific dependency requirements:
 
-.. mermaid::
+.. graphviz::
+   :align: center
+   :caption: Physics Package Dependencies
 
-   graph TD
-       RRTMGP[RRTMGP Radiation] --> NetCDF
-       RRTMGP --> MPI1[MPI]
-       RRTMGP --> EKAT1[EKAT]
-       EKAT1 --> Kokkos1[Kokkos]
-       EKAT1 --> MPI2[MPI]
+   digraph physics_deps {
+       rankdir=TB;
+       node [shape=box, style="rounded,filled"];
+       edge [fontsize=10];
        
-       SHOC[SHOC Turbulence] --> MPI3[MPI]
-       SHOC --> EKAT2[EKAT]
-       EKAT2 --> Kokkos2[Kokkos]
+       // Physics packages
+       RRTMGP [label="RRTMGP\n(Radiation)", fillcolor=lightcoral];
+       SHOC [label="SHOC\n(Turbulence)", fillcolor=lightcoral];
+       P3 [label="P3\n(Microphysics)", fillcolor=lightcoral];
        
-       P3[P3 Microphysics] --> MPI5[MPI]
-       P3 --> EKAT3[EKAT]
-       EKAT3 --> Kokkos3[Kokkos]
+       // Dependencies
+       NetCDF [fillcolor=lightblue];
+       HDF5 [label="HDF5", fillcolor=lightblue];
+       Kokkos [label="Kokkos\n(from EKAT)", fillcolor=wheat];
+       MPI [label="MPI\n(required)", fillcolor=lightyellow];
+       
+       // Dependency arrows
+       RRTMGP -> NetCDF [label="enforced"];
+       RRTMGP -> Kokkos [label="auto-enabled"];
+       RRTMGP -> MPI [label="required*"];
+       
+       SHOC -> Kokkos [label="auto-enabled"];
+       SHOC -> MPI [label="required*"];
+       
+       P3 -> Kokkos [label="auto-enabled"];
+       P3 -> MPI [label="required*"];
+       
+       NetCDF -> HDF5 [style=dashed, label="parallel I/O"];
+       
+       // Layout
+       {rank=same; RRTMGP SHOC P3}
+       {rank=same; NetCDF Kokkos MPI}
+       {rank=min; HDF5}
+   }
+
+.. note::
+   MPI is required by EKAT (which provides Kokkos). CMake enforces this; GNU Make assumes it's set.
 
 Enabling RRTMGP, SHOC, or P3 automatically enables EKAT, which provides the Kokkos performance portability framework. The build system enforces these prerequisites:
 
@@ -67,7 +92,7 @@ Compiler and Tool Requirements
    * - **C Compiler**
      - Must support C99 standard
      - Any modern version
-   * - **Fortran Compiler**
+   * - **Fortran Compiler (Optional)**
      - Must support Fortran 2003 standard
      - Any modern version
    * - **CMake**
@@ -76,9 +101,6 @@ Compiler and Tool Requirements
    * - **Python**
      - Build script dependency
      - >= 2.7 (including 3.x)
-   * - **Standard Unix Tools**
-     - Perl, sed
-     - Any version
    * - **MPI (Optional)**
      - Distributed memory parallelism
      - MPICH, OpenMPI, Cray MPICH
@@ -129,6 +151,7 @@ ERF is fully supported and actively tested on Linux systems, including major DOE
 **Partial Support**
 
 Build setups are available for the following which use automatic configuration:
+
 * **Frontier (OLCF)** - AMD MI250X GPUs  
 * **Polaris (ALCF)** - NVIDIA A100 GPUs
 * **Aurora (ALCF)** - Intel GPUs
@@ -153,4 +176,4 @@ Additional Resources
 --------------------
 
 * **AMReX Documentation** - https://amrex-codes.github.io/amrex/docs_html/
-* **WarpX HPC Documentation** - Provided guidance for ERF's HPC build practices
+* **WarpX HPC Documentation** - Inspired machine profile and some documentation structure https://warpx.readthedocs.io/en/latest/install/hpc.html

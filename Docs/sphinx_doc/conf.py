@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.abspath('../sphinx_ext'))
 extensions = [
     'sphinx.ext.mathjax',
     "sphinx.ext.viewcode",
+    "sphinx.ext.graphviz",
     "sphinx_copybutton",
     "sphinx_design",
     'remote_include',
