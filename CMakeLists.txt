@@ -443,6 +443,8 @@ if(ERF_ENABLE_RRTMGP)
   endif()
 
   message(VERBOSE "Building RRTMGP with Kokkos support")
+  add_compile_options(-Wno-c++11-narrowing)
+  message(DEBUG "Adding -Wno-c++11-narrowing for mo_gas_optics_rrtmgp issue on sycl/hip RRTMGP target")
 
   # Build the static rrtmgp library
   set(RRTMGP_BIN ${CMAKE_BINARY_DIR}/Submodules/rrtmgp)

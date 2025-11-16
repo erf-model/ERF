@@ -59,6 +59,5 @@ if(ERF_ENABLE_HIP)
 endif()
 
 if(ERF_ENABLE_SYCL)
-  add_compile_options(-Wno-c++11-narrowing)
   set(AMReX_GPU_BACKEND SYCL CACHE STRING "AMReX GPU type" FORCE)
 endif()
