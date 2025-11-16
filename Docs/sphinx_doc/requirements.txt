@@ -4,3 +4,4 @@ sphinx-math-dollar
 sphinx-copybutton
 sphinx-prompt
 sphinx-design
+sphinx-copybutton
