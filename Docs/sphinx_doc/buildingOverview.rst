@@ -37,31 +37,31 @@ Physics packages have specific dependency requirements:
        rankdir=TB;
        node [shape=box, style="rounded,filled"];
        edge [fontsize=10];
-       
+
        // Physics packages
        RRTMGP [label="RRTMGP\n(Radiation)", fillcolor=lightcoral];
        SHOC [label="SHOC\n(Turbulence)", fillcolor=lightcoral];
        P3 [label="P3\n(Microphysics)", fillcolor=lightcoral];
-       
+
        // Dependencies
        NetCDF [fillcolor=lightblue];
        HDF5 [label="HDF5", fillcolor=lightblue];
        Kokkos [label="Kokkos\n(from EKAT)", fillcolor=wheat];
        MPI [label="MPI\n(required)", fillcolor=lightyellow];
-       
+
        // Dependency arrows
        RRTMGP -> NetCDF [label="enforced"];
        RRTMGP -> Kokkos [label="auto-enabled"];
        RRTMGP -> MPI [label="required*"];
-       
+
        SHOC -> Kokkos [label="auto-enabled"];
        SHOC -> MPI [label="required*"];
-       
+
        P3 -> Kokkos [label="auto-enabled"];
        P3 -> MPI [label="required*"];
-       
+
        NetCDF -> HDF5 [style=dashed, label="parallel I/O"];
-       
+
        // Layout
        {rank=same; RRTMGP SHOC P3}
        {rank=same; NetCDF Kokkos MPI}
@@ -79,7 +79,7 @@ Enabling RRTMGP, SHOC, or P3 automatically enables EKAT, which provides the Kokk
 Compiler and Tool Requirements
 -------------------------------
 
-.. list-table:: 
+.. list-table::
    :header-rows: 1
    :widths: 20 60 20
 
@@ -130,7 +130,7 @@ Compiler-Specific Notes
 
 .. warning::
    ERF compiles successfully with recent Intel compiler suites (e.g., icx version 2024.1.0). However, older versions may require reduced compiler optimization to avoid internal compiler errors.
-   
+
    For example, with icpc version 19.1.2.254, most files compile with ``-O2`` (``CMAKE_BUILD_TYPE = RelWithDebInfo``), but ``TimeIntegration/ERF_advance_dycore.cpp`` may need manual compilation with ``-O1``.
 
 **SYCL Support**
@@ -152,7 +152,7 @@ ERF is fully supported and actively tested on Linux systems, including major DOE
 
 Build setups are available for the following which use automatic configuration:
 
-* **Frontier (OLCF)** - AMD MI250X GPUs  
+* **Frontier (OLCF)** - AMD MI250X GPUs
 * **Polaris (ALCF)** - NVIDIA A100 GPUs
 * **Aurora (ALCF)** - Intel GPUs
 

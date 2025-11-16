@@ -292,6 +292,31 @@ View build configuration:
       CC  = gcc-8
       FC  = gfortran-8
 
+.. dropdown:: Running the Executable
+   :icon: play
+
+   Navigate to the executable location based on your chosen workflow:
+
+   .. code-block:: bash
+
+      # If built in Build/ directory:
+      cd Build/Exec/ABL
+      mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
+
+      # If out-of-source build (without install):
+      cd build/Exec/ABL
+      mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
+
+      # If installed to install/:
+      cd install/bin
+      mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
+
+      # If using cmake_with_kokkos_many.sh:
+      cd install_erf/bin  # or build_erf/Exec/ABL
+      mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
+
+   For details on input files and job submission, see :ref:`sec:running`.
+
 Building Documentation
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -360,36 +385,84 @@ If building with SHOC or P3:
 
 Then configure with ``-DERF_ENABLE_SHOC=TRUE`` and/or ``-DERF_ENABLE_P3=TRUE`` (step 4).
 
-**3. Choose Workflow**
+**3. Choose Build Workflow**
 
-CMake provides multiple build methods:
+ERF supports multiple CMake workflows. The main difference is directory structure and whether you use the install step.
 
 .. tab-set::
 
-   .. tab-item:: Provided Script (from Build/)
+   .. tab-item:: In Build/ Directory
+
+      Build artifacts and executables in the Build/ directory tree. Executables appear in ``Exec/<problem>/`` subdirectories, similar to GNU Make workflow.
+
+      .. code-block:: bash
+
+         cd Build
+         ./cmake.sh
+
+      **Executable locations:** ``Build/Exec/ABL/erf_abl``, ``Build/Exec/RegTests/Bubble/erf_bubble``, etc.
+
+      **Cleanup for rebuild:**
+
+      .. code-block:: bash
+
+         make distclean
+         ./cmake.sh
+
+   .. tab-item:: Out-of-Source Build
+
+      Build directory separate from source. Executables in ``build/Exec/<problem>/`` subdirectories. Optionally use install step to copy all executables to a single ``install/bin/`` directory.
 
       .. code-block:: bash
 
          mkdir build && cd build
          ../Build/cmake.sh
-         make install
+         make install  # optional - copies to install/bin/ (may be needed for builds that require kokkos)
 
-   .. tab-item:: Provided Script (from root)
+      **Executable locations:** ``build/Exec/ABL/erf_abl``, etc., and optionally ``install/bin/erf_abl`` (if installed)
+
+      **Cleanup for rebuild:**
 
       .. code-block:: bash
 
+         rm -rf build/ install/  # complete cleanup
+         mkdir build && cd build
+
+   .. tab-item:: Script with -B/-S (Auto Directories)
+
+      Uses CMake's ``-B`` (build) and ``-S`` (source) flags. Creates ``build_erf/`` and ``install_erf/`` automatically. Runs install step by default.
+
+      .. code-block:: bash
+
+         # From ERF repository root
          ./Build/cmake_with_kokkos_many.sh
 
-      Creates ``build_erf/`` and ``install_erf/`` directories.
+      **Executable locations:** ``build_erf/Exec/ABL/erf_abl``, etc., and ``install_erf/bin/erf_abl``
 
-   .. tab-item:: Manual Configuration
+      **Cleanup for rebuild:**
 
       .. code-block:: bash
 
-         mkdir build && cd build
-         cmake [options] ..
-         make
-         make install  # Optional
+         rm -rf build_erf/ install_erf/
+         ./Build/cmake_with_kokkos_many.sh
+
+.. dropdown:: Workflow Comparison
+   :icon: info
+
+   **Executable Locations:**
+
+   * **After make:** Executables always in ``<build_dir>/Exec/<problem>/erf_<problem>`` (mirrors source tree)
+   * **After make install:** Executables copied to ``<install_prefix>/bin/erf_<problem>`` (all in one location)
+
+   **Install step is optional** - it copies executables from Exec subdirectories to a single bin/ directory for convenience.
+
+   **Choose based on:**
+
+   * Familiarity with GNU Make workflow → in Build/ directory
+   * Want separate build/source trees → out-of-source build
+   * Prefer all executables in one place → use install step
+   * Running multiple configurations → separate build directories
+   * Minimal typing from repository root → use script with -B/-S
 
 **4. Configure with Options**
 

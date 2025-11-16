@@ -61,12 +61,12 @@ NetCDF and HDF5 provide ERF's I/O capabilities for large-scale simulations.
 **What They Do**
 
 * **NetCDF** - High-level API for structured data:
-  
+
   - Reads initial conditions from WRF/Metgrid files
   - Writes AMReX plotfiles in NetCDF format
 
 * **HDF5** - Low-level parallel storage:
-  
+
   - Coordinates writes from multiple MPI ranks
   - Manages parallel filesystem operations
 

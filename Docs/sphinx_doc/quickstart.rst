@@ -1,140 +1,145 @@
 .. _sec:build:quickstart:
 
+Quickstart: Clone-Build-Run
+============================
 
-Quickstart clone-build-run-clean instructions
-=============================================
+Copy-paste commands for common build scenarios.
 
-Build with GNUMake
-------------------
+Build with GNU Make
+-------------------
 
-* Clone the repository with submodules and navigate to the ABL execution directory
-* Compile using GNU compiler with MPI support (optionally with CUDA for GPU builds)
-* Run the executable with 4 MPI processes using the provided input file
+Clone, build, and run with GNU Make:
 
 .. tab-set::
 
    .. tab-item:: CPU Build
 
-      Clone, build with GNU/MPI, and run on CPU.
+      .. code-block:: bash
 
-      .. code:: shell
-
-          git clone --recursive git@github.com/erf-model/ERF # note some submodules require / expect ssh keys
-          cd ERF/Exec/ABL
-          make COMP=gnu USE_MPI=TRUE
-          mpiexec -n 4 ./ERF3d.gnu.TPROF.MPI.ex inputs_most
+         git clone --recursive git@github.com:erf-model/ERF.git
+         cd ERF/Exec/ABL
+         make COMP=gnu USE_MPI=TRUE
+         mpiexec -n 4 ./ERF3d.gnu.TPROF.MPI.ex inputs_most
 
    .. tab-item:: GPU Build
 
-      Clone, build with GNU/MPI/CUDA, and run on GPU.
+      .. code-block:: bash
 
-      .. code:: shell
-
-          git clone --recursive git@github.com/erf-model/ERF # note some submodules require / expect ssh keys
-          cd ERF/Exec/ABL
-          make COMP=gnu USE_MPI=TRUE USE_CUDA=TRUE
-          mpiexec -n 4 ./ERF3d.gnu.TPROF.MPI.CUDA.ex inputs_most
+         git clone --recursive git@github.com:erf-model/ERF.git
+         cd ERF/Exec/ABL
+         make COMP=gnu USE_MPI=TRUE USE_CUDA=TRUE
+         mpiexec -n 4 ./ERF3d.gnu.TPROF.MPI.CUDA.ex inputs_most
 
 Build with CMake
 ----------------
 
-* Clone the repository and use the provided CMake configuration scripts in the Build directory
-* Build the project and optionally install to a dedicated directory for cleaner organization
-* Execute the compiled binary from either the build or install location with MPI
+Clone, build, and run with CMake. Choose workflow based on preference (see :ref:`sec:build:systems` for details):
 
 .. tab-set::
 
-   .. tab-item:: CPU Build
+   .. tab-item:: In Build/ Directory
 
-      Clone, configure with CMake script, build, and run on CPU.
+      Build in Build/ directory (similar to GNU Make structure):
 
-      .. code:: shell
+      .. code-block:: bash
 
-          git clone --recursive git@github.com/erf-model/ERF # note some submodules require / expect ssh keys
-          cd Build
-          ./cmake.sh
+         git clone --recursive git@github.com:erf-model/ERF.git
+         cd ERF/Build
+         ./cmake.sh
+         make -j
 
-          cd Exec/ABL
-          mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
-          # Extra step for install directory:
-          # make install
-          # cd install/bin
-          # mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
+         # Run from Exec subdirectory
+         cd Exec/ABL
+         mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
 
-   .. tab-item:: GPU Build
+   .. tab-item:: Out-of-Source Build
 
-      Clone, configure with CUDA CMake script, install, and run on GPU.
+      Separate build directory with optional install:
 
-      .. code:: shell
+      .. code-block:: bash
 
-          git clone --recursive git@github.com/erf-model/ERF # note some submodules require / expect ssh keys
-          cd Build
-          ./cmake_cuda.sh
-          make install
-          cd install/bin
-          mpiexec -n 4 ./erf_abl inputs_most
+         git clone --recursive git@github.com:erf-model/ERF.git
+         cd ERF
+         mkdir build && cd build
+         ../Build/cmake.sh
+         make -j
+         make install  # optional
 
-   .. tab-item:: CPU with Kokkos
+         # Run from build tree (without install)
+         cd Exec/ABL
+         mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
 
-      Clone, configure with Kokkos-enabled CMake script, install, and run on CPU.
+         # Or run from install directory
+         cd ../../install/bin
+         mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
 
-      .. code:: shell
+   .. tab-item:: Automated Script
 
-          git clone --recursive git@github.com/erf-model/ERF # note some submodules require / expect ssh keys
-          cd Build
-          ./cmake_with_kokkos_many.sh
+      Auto-creates build_erf/ and install_erf/ directories:
 
-          cd install_erf/bin
-          mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
+      .. code-block:: bash
 
-Cleanup Commands
-----------------
+         git clone --recursive git@github.com:erf-model/ERF.git
+         cd ERF
+         ./Build/cmake_with_kokkos_many.sh
 
-* GNUMake clean commands remove build artifacts from the current directory
-* CMake clean commands operate from the Build directory and can uninstall or clean build artifacts
-* Use distclean for complete removal of all CMake-generated files and build products
+         # Run from install directory
+         cd install_erf/bin
+         mpiexec -n 4 ./erf_abl ../../Exec/ABL/inputs_most
+
+Cleanup
+-------
+
+Remove build artifacts:
 
 .. tab-set::
 
-   .. tab-item:: GNUMake Clean
+   .. tab-item:: GNU Make
 
-      Remove build artifacts using GNUMake clean targets in the current directory.
+      .. code-block:: bash
 
-      .. code:: shell
+         # From problem directory (e.g., Exec/ABL)
+         make clean           # Remove build artifacts
+         make realclean       # Same as clean
+         make cleanconfig     # Remove configuration only
 
-          make clean # Standard
-          make USE_MPI=TRUE cleanconfig # Just the GNUMakefile and command line flags cleanup
-          make realclean # Same as clean
+   .. tab-item:: In Build/ Directory
 
-   .. tab-item:: CMake Clean from Build
+      .. code-block:: bash
 
-      Uninstall or clean CMake build from the ERF/Build directory.
+         # From ERF/Build (CMake generates Makefiles, so make targets work directly)
+         make distclean       # Clean all CMake artifacts
+         make uninstall       # Uninstall based on install-manifest.txt
 
-      .. code:: shell
+         # If configuration failed, manually remove
+         rm -rf CMakeFiles/ CMakeCache.txt
 
-          cd ../../
-          cd ERF/Build
-          make uninstall # Uninstall based on install-manifest.txt
-          make distclean # Clean up anything cmake configured or used for building
+   .. tab-item:: Out-of-Source Build
 
-   .. tab-item:: CMake Clean from build_erf
+      .. code-block:: bash
 
-      Uninstall or clean CMake build using the build_erf subdirectory.
+         # Using cmake --build (from ERF root)
+         cmake --build build --target distclean  # Clean all CMake artifacts
+         cmake --build build --target uninstall  # Uninstall based on install-manifest.txt
 
-      .. code:: shell
+         # From inside build/ directory, Makefile targets also work:
+         # cd build && make distclean
 
-          cd ../../
-          cd ERF/Build
-          cmake --build build_erf --target uninstall # Uninstall based on install-manifest.txt
-          cmake --build build_erf --target distclean # Clean up anything cmake configured or used for building
+         # Or remove directories entirely
+         rm -rf build/ install/
 
-   .. tab-item:: CMake Clean from build
+   .. tab-item:: Automated Script
 
-      Uninstall or clean CMake build using the build subdirectory.
+      .. code-block:: bash
 
-      .. code:: shell
+         # Using cmake --build (from ERF root)
+         cmake --build build_erf --target distclean  # Clean all CMake artifacts
+         cmake --build build_erf --target uninstall  # Uninstall based on install-manifest.txt
 
-          cd ../../
-          cd ERF/Build
-          cmake --build build --target uninstall # Uninstall based on install-manifest.txt
-          cmake --build build --target distclean # Clean up anything cmake configured or used for building
+         # From inside build_erf/ directory, Makefile targets also work:
+         # cd build_erf && make distclean
+
+         # Or remove directories entirely
+         rm -rf build_erf/ install_erf/
+
+For detailed build options and troubleshooting, see :ref:`sec:build:systems`.

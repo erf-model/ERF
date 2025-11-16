@@ -14,6 +14,9 @@ This document explains ERF's HPC build strategy. For basic build instructions, s
    ``Build/machines/`` are maintained for major systems but may require
    adjustment after system upgrades.
 
+.. note::
+   **CMake workflow:** The examples below use out-of-source builds (``mkdir build && cd build``), which keeps build artifacts separate from source code. This is recommended for HPC systems where you may need multiple build configurations or want to preserve a clean source tree. For other workflow options, see :ref:`sec:build:systems`.
+
 Machine Profile Files
 ----------------------
 
@@ -351,10 +354,11 @@ Perlmutter (NERSC)
          # Load environment
          source $ERF_HOME/Build/machines/perlmutter_erf.profile
 
-         # Configure and build
+         # Configure and build (out-of-source)
          mkdir build && cd build
          ../Build/cmake_with_kokkos_many_cuda.sh
-         make -j4
+
+      **Executable location:** ``build/Exec/ABL/erf_abl`` (or ``install/bin/erf_abl`` if installed)
 
       Or manual configuration:
 
@@ -377,6 +381,12 @@ Perlmutter (NERSC)
       .. code-block:: bash
 
          source $ERF_HOME/Build/machines/perlmutter_erf.profile
+
+         # Run from scratch filesystem with executable and inputs in same directory
+         cd $PSCRATCH/ERF/rundir
+
+         # Verify paths before launching
+         ls -lh ./ERF3d.*.ex inputs
 
       **Job submission script:**
 
