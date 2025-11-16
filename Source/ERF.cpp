@@ -1243,7 +1243,6 @@ ERF::InitData_post ()
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         auto& lev_new = vars_new[lev];
-        auto& lev_old = vars_old[lev];
 
         // ***************************************************************************
         // Physical bc's at domain boundary

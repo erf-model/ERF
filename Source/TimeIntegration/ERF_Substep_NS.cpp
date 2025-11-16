@@ -89,7 +89,6 @@ void erf_substep_NS (int step, int nrk,
 
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
-    Real dzi = dxInv[2];
 
     const auto& ba = S_stage_data[IntVars::cons].boxArray();
     const auto& dm = S_stage_data[IntVars::cons].DistributionMap();
