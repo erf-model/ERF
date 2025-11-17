@@ -19,7 +19,40 @@ message(STATUS "Configuring ERF")
 message(VERBOSE "Source directory: ${CMAKE_SOURCE_DIR}")
 message(VERBOSE "Build directory: ${CMAKE_BINARY_DIR}")
 
-# Find NVHPC package and create aliases if needed
+# Diagnostic function to print target properties
+function(print_target_properties target_name)
+  if(TARGET ${target_name})
+    message(STATUS "=== Target: ${target_name} ===")
+    
+    get_target_property(inc_dirs ${target_name} INTERFACE_INCLUDE_DIRECTORIES)
+    if(inc_dirs AND NOT inc_dirs STREQUAL "inc_dirs-NOTFOUND")
+      message(STATUS "  INTERFACE_INCLUDE_DIRECTORIES:")
+      foreach(dir ${inc_dirs})
+        message(STATUS "    ${dir}")
+      endforeach()
+    endif()
+    
+    get_target_property(link_opts ${target_name} INTERFACE_LINK_OPTIONS)
+    if(link_opts AND NOT link_opts STREQUAL "link_opts-NOTFOUND")
+      message(STATUS "  INTERFACE_LINK_OPTIONS:")
+      foreach(opt ${link_opts})
+        message(STATUS "    ${opt}")
+      endforeach()
+    endif()
+    
+    get_target_property(link_libs ${target_name} INTERFACE_LINK_LIBRARIES)
+    if(link_libs AND NOT link_libs STREQUAL "link_libs-NOTFOUND")
+      message(STATUS "  INTERFACE_LINK_LIBRARIES:")
+      foreach(lib ${link_libs})
+        message(STATUS "    ${lib}")
+      endforeach()
+    endif()
+    message(STATUS "")
+  else()
+    message(STATUS "=== Target ${target_name} does not exist ===")
+  endif()
+endfunction()
+
 # Find NVHPC package and create aliases if needed
 if(ERF_ENABLE_CUDA AND ERF_ENABLE_NVHPC)
   list(APPEND CMAKE_MESSAGE_CONTEXT "NVHPC")
@@ -149,13 +182,12 @@ if (${ERF_USE_INTERNAL_AMREX})
     set(AMREX_SUBMOD_LOCATION "${CMAKE_SOURCE_DIR}/Submodules/AMReX")
     include(${CMAKE_SOURCE_DIR}/CMake/SetAmrexOptions.cmake)
     list(APPEND CMAKE_MODULE_PATH "${AMREX_SUBMOD_LOCATION}/Tools/CMake")
-#    if (ERF_ENABLE_CUDA AND (CMAKE_VERSION VERSION_LESS 3.20))
-#      include(AMReX_SetupCUDA)
-#    endif()
-
-########################### AMReX #####################################
 
     add_subdirectory(${AMREX_SUBMOD_LOCATION})
+    
+    # Print AMReX properties
+    print_target_properties(amrex)
+    
     if(WIN32)
       set(FCOMPARE_EXE ${CMAKE_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fcompare.exe
         CACHE STRING "Path to fcompare executable for regression tests")
@@ -220,6 +252,9 @@ else()
 
     message(STATUS "Found AMReX: ${AMReX_DIR}")
     message(VERBOSE "  AMReX_VERSION: ${AMReX_VERSION}")
+    
+    # Print AMReX properties
+    print_target_properties(amrex)
 
     if(WIN32)
       set(FCOMPARE_EXE ${AMReX_DIR}/../../../*/amrex_fcompare.exe
@@ -282,32 +317,53 @@ if(ERF_ENABLE_EKAT)
   message(VERBOSE "EKAT binary directory: ${EKAT_BIN}")
   add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/ekat ${EKAT_BIN})
 
+  # Print Kokkos properties
+  if(TARGET Kokkos::kokkos)
+    print_target_properties(Kokkos::kokkos)
+  elseif(TARGET kokkoscore)
+    print_target_properties(kokkoscore)
+  endif()
+
 # Strip GPU flags from Kokkos (AMReX provides them)
 if(ERF_ENABLE_HIP AND ERF_ENABLE_EKAT)
-  # Try both possible target names
-  set(kokkos_target "")
-  if(TARGET Kokkos::kokkos)
-    set(kokkos_target Kokkos::kokkos)
-  elseif(TARGET kokkoscore)
-    set(kokkos_target kokkoscore)
-  endif()
-  
-  if(kokkos_target)
-    get_target_property(kokkos_link_opts ${kokkos_target} INTERFACE_LINK_OPTIONS)
-    if(kokkos_link_opts AND NOT kokkos_link_opts STREQUAL "kokkos_link_opts-NOTFOUND")
-      list(FILTER kokkos_link_opts EXCLUDE REGEX "^--hip-link$")
-      list(FILTER kokkos_link_opts EXCLUDE REGEX "^--offload-arch=")
-      list(FILTER kokkos_link_opts EXCLUDE REGEX "^-fgpu-rdc$")
-      set_target_properties(${kokkos_target} PROPERTIES INTERFACE_LINK_OPTIONS "${kokkos_link_opts}")
-      message(STATUS "Stripped GPU flags from ${kokkos_target} (AMReX provides them)")
+  # Clear ALL link options from Kokkos targets - AMReX provides everything we need
+  foreach(kokkos_target IN ITEMS kokkoscore kokkoscontainers kokkosalgorithms Kokkos::kokkos)
+    if(TARGET ${kokkos_target})
+      get_target_property(kokkos_link_opts ${kokkos_target} INTERFACE_LINK_OPTIONS)
+      if(kokkos_link_opts AND NOT kokkos_link_opts STREQUAL "kokkos_link_opts-NOTFOUND")
+        # Clear ALL link options - AMReX provides GPU flags
+        set_target_properties(${kokkos_target} PROPERTIES INTERFACE_LINK_OPTIONS "")
+        message(STATUS "Cleared link options from ${kokkos_target} (AMReX provides GPU flags)")
+      endif()
     endif()
-  endif()
+  endforeach()
+  
+  # Print kokkoscore after clearing
+  print_target_properties(kokkoscore)
 endif()
+# Strip GPU flags from Kokkos (AMReX provides them)
+#if(ERF_ENABLE_HIP AND ERF_ENABLE_EKAT)
+#  # Strip from ALL Kokkos targets
+#  foreach(kokkos_target IN ITEMS kokkoscore kokkoscontainers kokkosalgorithms Kokkos::kokkos)
+#    if(TARGET ${kokkos_target})
+#      get_target_property(kokkos_link_opts ${kokkos_target} INTERFACE_LINK_OPTIONS)
+#      if(kokkos_link_opts AND NOT kokkos_link_opts STREQUAL "kokkos_link_opts-NOTFOUND")
+#        # Filter out GPU-related generator expressions
+#        list(FILTER kokkos_link_opts EXCLUDE REGEX ".*--hip-link.*")
+#        list(FILTER kokkos_link_opts EXCLUDE REGEX ".*--offload-arch=.*")
+#        list(FILTER kokkos_link_opts EXCLUDE REGEX ".*-fgpu-rdc.*")
+#        set_target_properties(${kokkos_target} PROPERTIES INTERFACE_LINK_OPTIONS "${kokkos_link_opts}")
+#        message(STATUS "Stripped GPU flags from ${kokkos_target}")
+#      endif()
+#    endif()
+#  endforeach()
+  
+#  # Print kokkoscore after stripping
+#  print_target_properties(kokkoscore)
+#endif()
 
 list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 endif()
-
-########################### MPI #####################################
 
 ########################### MPI #####################################
 
@@ -478,6 +534,9 @@ if(ERF_ENABLE_RRTMGP)
   target_compile_definitions(rrtmgp PUBLIC RRTMGP_ENABLE_KOKKOS)
   target_link_libraries(rrtmgp kokkos)
   message(DEBUG "Added Kokkos to RRTMGP target")
+
+  # Print RRTMGP properties
+  print_target_properties(rrtmgp)
 
   message(STATUS "RRTMGP configuration complete")
   list(POP_BACK CMAKE_MESSAGE_CONTEXT)
