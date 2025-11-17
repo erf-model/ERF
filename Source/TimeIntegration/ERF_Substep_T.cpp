@@ -4,7 +4,7 @@
 using namespace amrex;
 
 /**
- * Function for computing the fast RHS with fixed terrain
+ * Function for computing the fast RHS with fixed-in-time terrain
  *
  * @param[in   ] step  which fast time step within each Runge-Kutta step
  * @param[in   ] nrk   which Runge-Kutta step
@@ -32,7 +32,7 @@ using namespace amrex;
  * @param[in   ] dtau fast time step
  * @param[in   ] beta_s  Coefficient which determines how implicit vs explicit the solve is
  * @param[in   ] facinv inverse factor for time-averaging the momenta
- * @param[in   ] mapfac map factors
+ * @param[in   ] mapfac vector of map factors
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in   ] l_use_moisture

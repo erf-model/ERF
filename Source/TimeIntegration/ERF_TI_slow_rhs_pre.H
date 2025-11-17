@@ -220,7 +220,9 @@
         }
 
 #ifdef ERF_USE_SHOC
-        shoc_interface[level]->add_fast_tend(S_rhs);
+        if (solverChoice.use_shoc) {
+            shoc_interface[level]->add_fast_tend(S_rhs);
+        }
 #endif
 
         // *****************************************************************************

@@ -189,8 +189,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     if (l_use_diff) {
 #ifdef ERF_USE_SHOC
-        // Populate vertical component of eddyDiffs
-        shoc_lev->set_eddy_diffs();
+        if (solverChoice.use_shoc) {
+            // Populate vertical component of eddyDiffs
+            shoc_lev->set_eddy_diffs();
+        }
 #endif
 
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
@@ -204,8 +206,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
 #ifdef ERF_USE_SHOC
-        // Zero out the surface stresses of tau13/tau23
-        shoc_lev->set_diff_stresses();
+        if (solverChoice.use_shoc) {
+            // Zero out the surface stresses of tau13/tau23
+            shoc_lev->set_diff_stresses();
+        }
 #else
         // This is computed pre step in Advance if we use SHOC
         if (l_use_SurfLayer) {

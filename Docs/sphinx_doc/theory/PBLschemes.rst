@@ -20,9 +20,9 @@ for any quantity :math:`\phi`). PBL schemes may be used in
 conjunction with an LES model that specifies horizontal turbulent transport, in
 which case the vertical component of the LES model is ignored.
 
-Right now, the only PBL scheme supported in ERF is the Mellor-Yamada-Nakanishi-Niino
-Level 2.5 model, largely matching the original forumulation proposed by Nakanishi and
-Niino in a series of papers from 2001 to 2009.
+Right now, ERF supports several PBL schemes: MYNN Level 2.5, MYJ, SHOC, MRF, and YSU.
+
+The MYNN Level 2.5 model is the Mellor-Yamada-Nakanishi-Niino Level 2.5 model, largely matching the original forumulation proposed by Nakanishi and Niino in a series of papers from 2001 to 2009.
 
 .. _MYNN25:
 
@@ -121,7 +121,93 @@ the implementation of MYNN PBL models in ERF.
 MYNN-EDMF Level 2.5 PBL Model
 -----------------------------
 
+.. warning::
+
+   Implementation is in progress with basic support.
+
 More recent advancements that add significant complexity to the MYNN scheme have been incorporated into WRF, as described in Olson et al. 2019. These advancements are not included in ERF, but may be in the future.
+
+.. _MYJ:
+
+MYJ PBL Model
+-------------
+
+.. warning::
+
+   Implementation is in progress with basic support.
+
+The Mellor-Yamada-Janjic (MYJ) scheme is a 1.5-order turbulence closure that solves
+a prognostic equation for turbulent kinetic energy (TKE). It uses a local closure approach
+with no counter-gradient terms, making it particularly effective for stable and neutral boundary layers.
+
+The turbulent fluxes are computed using gradient diffusion:
+
+.. math::
+   \overline{w'\phi'} = -K_\phi \frac{\partial \phi}{\partial z}
+
+The vertical turbulent transport coefficients are computed from TKE and a master length scale:
+
+.. math::
+   K_{m,v} = \rho L q S_m, \quad K_{\theta,v} = \rho L q S_h, \quad K_{q,v} = \rho L q S_h
+
+where :math:`q = \sqrt{2\cdot\text{TKE}}`, :math:`L` is the master length scale, and
+:math:`S_m`, :math:`S_h` are stability functions that account for buoyancy effects and depend on
+the gradient Richardson number. The master length scale :math:`L` is diagnosed based on the
+PBL height, von Kármán's constant, and height above the surface within the PBL, transitioning
+to a local mixing length in the free atmosphere.
+
+The prognostic TKE equation includes production by shear and buoyancy, and dissipation:
+
+.. math::
+   \frac{\partial \text{TKE}}{\partial t} + \nabla \cdot (\mathbf{u} \text{TKE})
+   = P_s + P_b - \epsilon + \nabla \cdot (K_q \nabla \text{TKE})
+
+where :math:`P_s` is shear production, :math:`P_b` is buoyancy production, and
+:math:`\epsilon` is dissipation.
+
+Closure coefficients are taken from Janjić (2002) NCEP Office Note 437. The implementation in ERF follows Janjić (1994, 2002) and uses the Mellor-Yamada (1982) length scale formulation.
+
+References
+~~~~~~~~~~
+
+* Janjić, Z. I. (1994): "The Step-Mountain Eta Coordinate Model: Further developments
+  of the convection, viscous sublayer, and turbulence closure schemes",
+  *Monthly Weather Review*, 122(5), 927-945.
+* Janjić, Z. I. (2002): "Nonsingular implementation of the Mellor-Yamada Level 2.5 Scheme
+  in the NCEP Meso model", NCEP Office Note No. 437.
+* Mellor, G. L., & Yamada, T. (1982): "Development of a turbulence closure model for
+  geophysical fluid problems", *Reviews of Geophysics*, 20(4), 851-875.
+
+.. _SHOC:
+
+SHOC PBL Model
+--------------
+
+.. warning::
+
+   Implementation is in progress with basic support.
+
+The Simplified Higher-Order Closure (SHOC) is a unified parameterization that represents
+both turbulent mixing and shallow convection in a single framework. Originally developed for
+the Community Atmosphere Model (CAM) and now used in E3SM, SHOC uses prognostic TKE with
+diagnostic second and third-order moments and assumed probability density functions (PDFs)
+to represent subgrid-scale variability.
+
+SHOC computes vertical turbulent fluxes for momentum, heat, and moisture, along with
+subgrid-scale cloud fraction and liquid water content. The assumed PDFs allow the scheme
+to predict partial cloudiness and transitions between clear and cloudy conditions. The
+implementation uses higher-order closure equations to diagnose eddy diffusivities and
+turbulent fluxes, with special treatment for cloud-top entrainment.
+
+References
+~~~~~~~~~~
+
+* Golaz, J.-C., et al. (2002): "A PDF-based model for boundary layer clouds. Part I:
+  Method and model description", *Journal of the Atmospheric Sciences*, 59(24), 3540-3551.
+* Bogenschutz, P. A., & Krueger, S. K. (2013): "A simplified PDF parameterization of
+  subgrid-scale clouds and turbulence for cloud-resolving models",
+  *Journal of Advances in Modeling Earth Systems*, 5(2), 195-211.
+* E3SM SHOC Documentation: https://github.com/E3SM-Project/E3SM/tree/master/components/eamxx/src/physics/shoc
 
 .. _MRFPBL:
 
