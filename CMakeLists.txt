@@ -19,38 +19,36 @@ message(STATUS "Configuring ERF")
 message(VERBOSE "Source directory: ${CMAKE_SOURCE_DIR}")
 message(VERBOSE "Build directory: ${CMAKE_BINARY_DIR}")
 
-# Diagnostic function to print target properties
 function(print_target_properties target_name)
-  if(TARGET ${target_name})
-    message(STATUS "=== Target: ${target_name} ===")
-    
-    get_target_property(inc_dirs ${target_name} INTERFACE_INCLUDE_DIRECTORIES)
-    if(inc_dirs AND NOT inc_dirs STREQUAL "inc_dirs-NOTFOUND")
-      message(STATUS "  INTERFACE_INCLUDE_DIRECTORIES:")
-      foreach(dir ${inc_dirs})
-        message(STATUS "    ${dir}")
-      endforeach()
-    endif()
-    
-    get_target_property(link_opts ${target_name} INTERFACE_LINK_OPTIONS)
-    if(link_opts AND NOT link_opts STREQUAL "link_opts-NOTFOUND")
-      message(STATUS "  INTERFACE_LINK_OPTIONS:")
-      foreach(opt ${link_opts})
-        message(STATUS "    ${opt}")
-      endforeach()
-    endif()
-    
-    get_target_property(link_libs ${target_name} INTERFACE_LINK_LIBRARIES)
-    if(link_libs AND NOT link_libs STREQUAL "link_libs-NOTFOUND")
-      message(STATUS "  INTERFACE_LINK_LIBRARIES:")
-      foreach(lib ${link_libs})
-        message(STATUS "    ${lib}")
-      endforeach()
-    endif()
-    message(STATUS "")
-  else()
+  if(NOT TARGET ${target_name})
     message(STATUS "=== Target ${target_name} does not exist ===")
+    return()
   endif()
+
+  message(STATUS "=== Target: ${target_name} ===")
+
+  # Define properties to check with their display names
+  set(properties
+    "INTERFACE_INCLUDE_DIRECTORIES;Include Directories"
+    "INTERFACE_LINK_OPTIONS;Link Options"
+    "INTERFACE_LINK_LIBRARIES;Link Libraries"
+  )
+
+  foreach(prop_pair IN LISTS properties)
+    string(REPLACE ";" "|" prop_list "${prop_pair}")
+    list(GET prop_list 0 prop_name)
+    list(GET prop_list 1 display_name)
+    
+    get_target_property(values ${target_name} ${prop_name})
+    if(values)
+      message(VERBOSE "  ${display_name}:")
+      foreach(value IN LISTS values)
+        message(VERBOSE "    ${value}")
+      endforeach()
+    endif()
+  endforeach()
+  
+  message(STATUS "")
 endfunction()
 
 # Find NVHPC package and create aliases if needed
