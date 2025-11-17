@@ -19,20 +19,8 @@ function(set_erf_compile_flags target)
   # Add our extra flags according to language
   separate_arguments(ERF_CXX_FLAGS)
   target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${ERF_CXX_FLAGS}>)
-
   separate_arguments(ERF_Fortran_FLAGS)
   target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:${ERF_Fortran_FLAGS}>)
-
-  # Check if using both AMReX and Kokkos
-  set(USING_KOKKOS FALSE)
-  if(ERF_ENABLE_EKAT OR TARGET Kokkos::kokkoscore OR DEFINED Kokkos_DIR)
-    set(USING_KOKKOS TRUE)
-  endif()
-
-  if(USING_KOKKOS AND TARGET amrex)
-    check_gpu_architectures(${target})
-  endif()
-
   # CUDA configuration
   if(ERF_ENABLE_CUDA)
     list(APPEND ERF_CUDA_FLAGS "--expt-relaxed-constexpr")
@@ -52,61 +40,54 @@ function(set_erf_compile_flags target)
       CUDA_RESOLVE_DEVICE_SYMBOLS ON
     )
   endif()
-
-  # HIP configuration - handle duplicate flags
+  # HIP configuration - deduplicate flags at the target level
   if(ERF_ENABLE_HIP)
-    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.21 AND DEFINED AMReX_AMD_ARCH)
-      set_target_properties(${target} PROPERTIES HIP_ARCHITECTURES "${AMReX_AMD_ARCH}")
-    elseif(USING_KOKKOS AND TARGET amrex)
-      # Workaround for duplicate HIP flags from both libraries
-      target_link_options(${target} PRIVATE "-Wl,--allow-multiple-definition")
-    endif()
-  endif()
-endfunction()
-
-# Check GPU architecture consistency between AMReX and Kokkos
-function(check_gpu_architectures target)
-  set(amrex_arch "")
-  set(kokkos_arch "")
-
-  # Get architectures based on backend
-  if(ERF_ENABLE_CUDA)
-    if(DEFINED AMReX_CUDA_ARCH)
-      set(amrex_arch "${AMReX_CUDA_ARCH}")
-    endif()
-    # Check common Kokkos CUDA arch flags
-    foreach(var Kokkos_ARCH_VOLTA70 Kokkos_ARCH_AMPERE80 Kokkos_ARCH_HOPPER90)
-      if(${var})
-        string(REGEX MATCH "([0-9]+)$" _ "${var}")
-        set(kokkos_arch "sm_${CMAKE_MATCH_1}")
-        break()
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
+      # Extract architecture from AMReX or environment
+      set(hip_arch "")
+      if(DEFINED AMReX_AMD_ARCH)
+        set(hip_arch "${AMReX_AMD_ARCH}")
+      elseif(DEFINED ENV{ROCM_GPU})
+        set(hip_arch "$ENV{ROCM_GPU}")
+      else()
+        set(hip_arch "gfx90a")  # Default for Frontier
       endif()
-    endforeach()
-
-  elseif(ERF_ENABLE_HIP)
-    if(DEFINED AMReX_AMD_ARCH)
-      set(amrex_arch "${AMReX_AMD_ARCH}")
-    endif()
-    # Check Kokkos AMD arch or extract from link flags
-    if(Kokkos_ARCH_AMD_GFX90A)
-      set(kokkos_arch "gfx90a")
-    elseif(TARGET Kokkos::kokkoscore)
-      get_target_property(opts Kokkos::kokkoscore INTERFACE_LINK_OPTIONS)
-      if(opts)
-        string(REGEX MATCH "--offload-arch=([a-z0-9]+)" _ "${opts}")
-        if(CMAKE_MATCH_1)
-          set(kokkos_arch "${CMAKE_MATCH_1}")
+      set_target_properties(${target} PROPERTIES HIP_ARCHITECTURES "${hip_arch}")
+      message(VERBOSE "Set HIP_ARCHITECTURES=${hip_arch} for ${target}")
+      # If both AMReX and Kokkos are present, remove duplicate link options
+      if(TARGET amrex AND (ERF_ENABLE_EKAT OR TARGET Kokkos::kokkoscore))
+        # Get current target's link options
+        get_target_property(target_link_opts ${target} LINK_OPTIONS)
+        if(target_link_opts)
+          # Remove duplicate HIP flags
+          list(REMOVE_DUPLICATES target_link_opts)
+          # Also remove any extra --hip-link and --offload-arch flags
+          set(filtered_opts "")
+          set(found_hip_link FALSE)
+          set(found_offload_arch FALSE)
+          foreach(opt ${target_link_opts})
+            if(opt MATCHES "^--hip-link$")
+              if(NOT found_hip_link)
+                list(APPEND filtered_opts ${opt})
+                set(found_hip_link TRUE)
+              endif()
+            elseif(opt MATCHES "^--offload-arch=")
+              if(NOT found_offload_arch)
+                list(APPEND filtered_opts ${opt})
+                set(found_offload_arch TRUE)
+              endif()
+            else()
+              list(APPEND filtered_opts ${opt})
+            endif()
+          endforeach()
+          set_target_properties(${target} PROPERTIES LINK_OPTIONS "${filtered_opts}")
         endif()
       endif()
+    else()
+      # For older CMake, just add workaround flag
+      if(ERF_ENABLE_EKAT OR TARGET Kokkos::kokkoscore)
+        target_link_options(${target} PRIVATE "-Wl,--allow-multiple-definition")
+      endif()
     endif()
-
-  elseif(ERF_ENABLE_SYCL)
-    # SYCL doesn't typically have explicit arch conflicts
-    return()
-  endif()
-
-  # Warn if architectures don't match
-  if(amrex_arch AND kokkos_arch AND NOT "${amrex_arch}" STREQUAL "${kokkos_arch}")
-    message(WARNING "GPU architecture mismatch for ${target}: AMReX=${amrex_arch}, Kokkos=${kokkos_arch}")
   endif()
 endfunction()

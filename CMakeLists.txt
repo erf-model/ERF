@@ -282,7 +282,29 @@ if(ERF_ENABLE_EKAT)
   message(VERBOSE "EKAT binary directory: ${EKAT_BIN}")
   add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/ekat ${EKAT_BIN})
 
-  list(POP_BACK CMAKE_MESSAGE_CONTEXT)
+# Strip GPU flags from Kokkos (AMReX provides them)
+if(ERF_ENABLE_HIP AND ERF_ENABLE_EKAT)
+  # Try both possible target names
+  set(kokkos_target "")
+  if(TARGET Kokkos::kokkos)
+    set(kokkos_target Kokkos::kokkos)
+  elseif(TARGET kokkoscore)
+    set(kokkos_target kokkoscore)
+  endif()
+  
+  if(kokkos_target)
+    get_target_property(kokkos_link_opts ${kokkos_target} INTERFACE_LINK_OPTIONS)
+    if(kokkos_link_opts AND NOT kokkos_link_opts STREQUAL "kokkos_link_opts-NOTFOUND")
+      list(FILTER kokkos_link_opts EXCLUDE REGEX "^--hip-link$")
+      list(FILTER kokkos_link_opts EXCLUDE REGEX "^--offload-arch=")
+      list(FILTER kokkos_link_opts EXCLUDE REGEX "^-fgpu-rdc$")
+      set_target_properties(${kokkos_target} PROPERTIES INTERFACE_LINK_OPTIONS "${kokkos_link_opts}")
+      message(STATUS "Stripped GPU flags from ${kokkos_target} (AMReX provides them)")
+    endif()
+  endif()
+endif()
+
+list(POP_BACK CMAKE_MESSAGE_CONTEXT)
 endif()
 
 ########################### MPI #####################################
