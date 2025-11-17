@@ -920,7 +920,7 @@ ERF::init_from_wrfinput (int lev,
                            sst_lev[lev], tsk_lev[lev],
                            m_SurfaceLayer, low_data_zlo,
                            lev_new[Vars::cons], *mf_PSFC[lev],
-                           l_rdOcp, lmask_lev[lev][itime], use_moist);
+                           l_rdOcp, lmask_lev[lev][0], use_moist);
         }
     } // lev == 0 && nc_low_file exists
 }
