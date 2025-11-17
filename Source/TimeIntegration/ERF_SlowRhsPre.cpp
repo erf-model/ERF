@@ -206,6 +206,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
         if (solverChoice.use_shoc) {
             // Zero out the surface stresses of tau13/tau23
             shoc_lev->set_diff_stresses();
+        } else if (l_use_SurfLayer) {
+            // Set surface shear stresses, update heat and moisture fluxes
+            // (fluxes will be later applied in the diffusion source update)
+            Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
+            SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
+                                               Hfx1, Hfx2, Hfx3,
+                                               Q1fx1, Q1fx2, Q1fx3,
+                                               &z_phys_nd);
         }
 #else
         // This is computed pre step in Advance if we use SHOC
