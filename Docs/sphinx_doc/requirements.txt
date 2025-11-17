@@ -1,7 +1,9 @@
+sphinx==5.0.0
 sphinx-rtd-theme>=1.0.0
+docutils==0.16  # Downgrade for proper bullet point rendering with Sphinx
 requests>=2.25.0
 sphinx-math-dollar
 sphinx-copybutton
 sphinx-prompt
 sphinx-design
-sphinx-copybutton
+# breathe  # not using breathe at the moment
