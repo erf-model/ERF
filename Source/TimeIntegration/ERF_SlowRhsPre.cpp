@@ -185,8 +185,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     if (l_use_diff) {
 #ifdef ERF_USE_SHOC
-        // Populate vertical component of eddyDiffs
-        shoc_lev->set_eddy_diffs();
+        if (solverChoice.use_shoc) {
+            // Populate vertical component of eddyDiffs
+            shoc_lev->set_eddy_diffs();
+        }
 #endif
 
         // With solverChoice.vert_implicit_fac > 0, tau31 and tau32 will always
@@ -201,8 +203,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
 #ifdef ERF_USE_SHOC
-        // Zero out the surface stresses of tau13/tau23
-        shoc_lev->set_diff_stresses();
+        if (solverChoice.use_shoc) {
+            // Zero out the surface stresses of tau13/tau23
+            shoc_lev->set_diff_stresses();
+        } else if (l_use_SurfLayer) {
+            // Set surface shear stresses, update heat and moisture fluxes
+            // (fluxes will be later applied in the diffusion source update)
+            Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
+            SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
+                                               Hfx1, Hfx2, Hfx3,
+                                               Q1fx1, Q1fx2, Q1fx3,
+                                               &z_phys_nd);
+        }
 #else
         // This is computed pre step in Advance if we use SHOC
         if (l_use_SurfLayer) {
