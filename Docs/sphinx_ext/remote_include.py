@@ -9,11 +9,11 @@ class RemoteInclude(Directive):
     option_spec = {
         'language': directives.unchanged,
     }
-    
+
     def run(self):
         url = self.arguments[0]
         language = self.options.get('language', 'text')
-        
+
         try:
             response = requests.get(url, timeout=10)
             response.raise_for_status()
@@ -21,7 +21,7 @@ class RemoteInclude(Directive):
         except Exception as e:
             error_msg = f"Failed to fetch {url}: {str(e)}"
             return [nodes.error(None, nodes.paragraph(text=error_msg))]
-        
+
         literal = nodes.literal_block(content, content)
         literal['language'] = language
         return [literal]
