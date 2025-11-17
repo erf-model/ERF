@@ -38,7 +38,7 @@ function(print_target_properties target_name)
     string(REPLACE ";" "|" prop_list "${prop_pair}")
     list(GET prop_list 0 prop_name)
     list(GET prop_list 1 display_name)
-    
+
     get_target_property(values ${target_name} ${prop_name})
     if(values)
       message(VERBOSE "  ${display_name}:")
@@ -47,7 +47,7 @@ function(print_target_properties target_name)
       endforeach()
     endif()
   endforeach()
-  
+
   message(STATUS "")
 endfunction()
 
@@ -182,10 +182,10 @@ if (${ERF_USE_INTERNAL_AMREX})
     list(APPEND CMAKE_MODULE_PATH "${AMREX_SUBMOD_LOCATION}/Tools/CMake")
 
     add_subdirectory(${AMREX_SUBMOD_LOCATION})
-    
+
     # Print AMReX properties
     print_target_properties(amrex)
-    
+
     if(WIN32)
       set(FCOMPARE_EXE ${CMAKE_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fcompare.exe
         CACHE STRING "Path to fcompare executable for regression tests")
@@ -250,7 +250,7 @@ else()
 
     message(STATUS "Found AMReX: ${AMReX_DIR}")
     message(VERBOSE "  AMReX_VERSION: ${AMReX_VERSION}")
-    
+
     # Print AMReX properties
     print_target_properties(amrex)
 
@@ -335,7 +335,7 @@ if(ERF_ENABLE_HIP AND ERF_ENABLE_EKAT)
       endif()
     endif()
   endforeach()
-  
+
   # Print kokkoscore after clearing
   print_target_properties(kokkoscore)
 endif()
@@ -355,7 +355,7 @@ endif()
 #      endif()
 #    endif()
 #  endforeach()
-  
+
 #  # Print kokkoscore after stripping
 #  print_target_properties(kokkoscore)
 #endif()
