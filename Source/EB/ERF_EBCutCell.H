@@ -228,7 +228,7 @@ class eb_cut_cell_ {
     amrex::Array<int const,3> m_hi_faces_id {1,5,2};
 
     AMREX_GPU_HOST_DEVICE
-    void calc_edge_intersections ( int const a_dry_run = 0 );
+    void calc_edge_intersections ();
 
     AMREX_GPU_HOST_DEVICE
     void set_covered_regular_cell_vertices ();
@@ -343,7 +343,7 @@ AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 void
 eb_cut_cell_::
-calc_edge_intersections ( int const a_dry_run )
+calc_edge_intersections ()
 {
   using namespace amrex;
 
@@ -365,12 +365,10 @@ calc_edge_intersections ( int const a_dry_run )
   RealVect vIP;
   Real distIP;
 
-  constexpr bool debug = false;
-
   amrex::Array<bool, 8> vertex_intersected{}; // true if vertex has been intersected within a path.
-  
+
   // Path 1
-  { 
+  {
     int cuts(0);
     for (int i = 0; i < 8; ++i) vertex_intersected[i] = false;
 
@@ -470,7 +468,7 @@ calc_edge_intersections ( int const a_dry_run )
           vertex_intersected[7] = true;
           ++cuts;
         }
-      } else { 
+      } else {
         m_F2.add_vertex(vIP);
         m_F3.add_vertex(vIP);
         m_F7.add_vertex(vIP);
@@ -748,7 +746,7 @@ calc_edge_intersections ( int const a_dry_run )
           vertex_intersected[7] = true;
           ++cuts;
         }
-      } else { 
+      } else {
         m_F3.add_vertex(vIP);
         m_F6.add_vertex(vIP);
         m_F7.add_vertex(vIP);
@@ -776,11 +774,11 @@ calc_edge_intersections ( int const a_dry_run )
       m_F5.add_vertex(v3);
       m_F7.add_vertex(v3);
     } else if ( almostEqual(distIP, length)) {
-      m_F2.add_vertex(v4); 
+      m_F2.add_vertex(v4);
       m_F3.add_vertex(v4);
       m_F5.add_vertex(v4);
       m_F7.add_vertex(v4);
-    } else { 
+    } else {
       m_F3.add_vertex(vIP);
       m_F5.add_vertex(vIP);
       m_F7.add_vertex(vIP);

@@ -119,7 +119,7 @@ class polygon_ {
       }
       m_zdir = v_normal;
 
-      // 
+      //
 
       m_theta[0] = 0.0;
       for ( int i(1); i<m_num_vertices; ++i) {
@@ -143,7 +143,7 @@ class polygon_ {
       m_sorted = 1;
 
       // Compute areas of triangles
-      
+
       for (int i(0); i<m_num_vertices; ++i) {
         int const j( (i+1 == m_num_vertices) ? 0 : i+1 );
         amrex::RealVect vi_cross_vj = vertex_cent[i].crossProduct(vertex_cent[j]);
