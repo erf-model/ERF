@@ -228,14 +228,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                               : 1 - 8 * grad_Ri / (1 + 1.286 * std::sqrt(-grad_Ri)); // Hong et al. 2006, MWR, Eqn. A20a
                 const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
 
-                Pr = std::max(0.25, std::min(Pr, 4.0));  // from MRF (Hong & Pan 1996, MWR)
+                Pr = std::max(0.25, std::min(Pr, 4.0));  // Hong et al. 2006, MWR, Appendix A
 
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
             }
 
-            // limit both diffusion coefficients - from WRF, not documented in
-            // papers
+            // limit both diffusion coefficients (Hong et al. 2006, MWR, Appendix A)
             constexpr Real ckz  = 0.001;
             constexpr Real Kmax = 1000.0;
             const Real rhoKmin  = ckz * dz_terrain * rho;
