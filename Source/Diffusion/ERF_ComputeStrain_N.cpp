@@ -19,17 +19,16 @@ using namespace amrex;
  * @param[out] tau12 12 strain
  * @param[out] tau13 13 strain
  * @param[out] tau23 23 strain
- * @param[out] tau31 31 strain
- * @param[out] tau32 32 strain
  * @param[in] bc_ptr container with boundary condition types
  * @param[in] dxInv inverse cell size array
  * @param[in] mf_m map factor at cell center
  * @param[in] mf_u map factor at x-face
  * @param[in] mf_v map factor at y-face
- * @param[in] implicit_fac -- factor of implicitness for vertical differences only
+ * @param[in] tau13i contribution to strain from du/dz
+ * @param[in] tau23i contribution to strain from dv/dz
  */
 void
-ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
+ComputeStrain_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& u,
                  const Array4<const Real>& v,
                  const Array4<const Real>& w,
@@ -37,8 +36,8 @@ ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  Array4<Real>& tau22,
                  Array4<Real>& tau33,
                  Array4<Real>& tau12,
-                 Array4<Real>& tau13, Array4<Real>& /*tau31*/,
-                 Array4<Real>& tau23, Array4<Real>& /*tau32*/,
+                 Array4<Real>& tau13,
+                 Array4<Real>& tau23,
                  const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                  const Array4<const Real>& mf_mx,
                  const Array4<const Real>& mf_ux,
@@ -47,8 +46,7 @@ ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& mf_uy,
                  const Array4<const Real>& mf_vy,
                  const BCRec* bc_ptr,
-                 Array4<Real>& SmnSmn_a,
-                 const Real /*implicit_fac*/)
+                 Array4<Real>& tau13i, Array4<Real>& tau23i)
 {
     // Convert domain to each index type to test if we are on Dirichlet boundary
     Box domain_xy = convert(domain, tbxxy.ixType());
@@ -163,13 +161,17 @@ ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfx = mf_ux(i,j,0);
+
+            Real du_dz = (u(i, j, k) - u(i, j, k-1))*dxInv[2];
             if (!need_to_test || u(dom_lo.x,j,k) >= 0.) {
-                tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2]
+                tau13(i,j,k) = 0.5 * ( du_dz
                                      + (-(8./3.) * w(i-1,j,k) + 3. * w(i,j,k) - (1./3.) * w(i+1,j,k))*dxInv[0]*mfx );
             } else {
-                tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2]
+                tau13(i,j,k) = 0.5 * ( du_dz
                                      + (w(i, j, k) - w(i-1, j, k))*dxInv[0]*mfx );
             }
+
+            if (tau13i) tau13i(i,j,k) = 0.5 * du_dz;
         });
     }
     if (xh_w_dir) {
@@ -180,13 +182,16 @@ ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfx = mf_ux(i,j,0);
+            Real du_dz = (u(i, j, k) - u(i, j, k-1))*dxInv[2];
             if (!need_to_test || u(dom_hi.x+1,j,k) <= 0.) {
-                tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2]
+                tau13(i,j,k) = 0.5 * ( du_dz
                                      - (-(8./3.) * w(i,j,k) + 3. * w(i-1,j,k) - (1./3.) * w(i-2,j,k))*dxInv[0]*mfx );
             } else {
-                tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2]
+                tau13(i,j,k) = 0.5 * ( du_dz
                                      + (w(i, j, k) - w(i-1, j, k))*dxInv[0]*mfx );
             }
+
+            if (tau13i) tau13i(i,j,k) = 0.5 * du_dz;
         });
     }
 
@@ -236,13 +241,17 @@ ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = mf_vy(i,j,0);
+
+            Real dv_dz = (v(i, j, k) - v(i, j, k-1))*dxInv[2];
             if (!need_to_test || v(i,dom_lo.y,k) >= 0.) {
-                tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dxInv[2]
+                tau23(i,j,k) = 0.5 * ( dv_dz
                                      + (-(8./3.) * w(i,j-1,k) + 3. * w(i,j  ,k) - (1./3.) * w(i,j+1,k))*dxInv[1]*mfy );
             } else {
-                tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dxInv[2]
+                tau23(i,j,k) = 0.5 * ( dv_dz
                                      + (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mfy );
             }
+
+            if (tau23i) tau23i(i,j,k) = 0.5 * dv_dz;
         });
     }
     if (yh_w_dir) {
@@ -253,13 +262,17 @@ ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = mf_vy(i,j,0);
+
+            Real dv_dz = (v(i, j, k) - v(i, j, k-1))*dxInv[2];
             if (!need_to_test || v(i,dom_hi.y+1,k) <= 0.) {
-                tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dxInv[2]
+                tau23(i,j,k) = 0.5 * ( dv_dz
                                      - (-(8./3.) * w(i,j  ,k) + 3. * w(i,j-1,k) - (1./3.) * w(i,j-2,k))*dxInv[1]*mfy );
             } else {
-                tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dxInv[2]
+                tau23(i,j,k) = 0.5 * ( dv_dz
                                      + (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mfy );
             }
+
+            if (tau23i) tau23i(i,j,k) = 0.5 * dv_dz;
         });
     }
 
@@ -272,8 +285,12 @@ ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfx = mf_ux(i,j,0);
-            tau13(i,j,k) = 0.5 * ( (-(8./3.) * u(i,j,k-1) + 3. * u(i,j,k) - (1./3.) * u(i,j,k+1))*dxInv[2]
+
+            Real du_dz = (-(8./3.) * u(i,j,k-1) + 3. * u(i,j,k) - (1./3.) * u(i,j,k+1))*dxInv[2];
+            tau13(i,j,k) = 0.5 * ( du_dz
                                  + (w(i, j, k) - w(i-1, j, k))*dxInv[0]*mfx );
+
+            if (tau13i) tau13i(i,j,k) = 0.5 * du_dz;
         });
     }
     if (zh_u_dir) {
@@ -283,8 +300,12 @@ ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfx = mf_ux(i,j,0);
-            tau13(i,j,k) = 0.5 * ( -(-(8./3.) * u(i,j,k) + 3. * u(i,j,k-1) - (1./3.) * u(i,j,k-2))*dxInv[2]
+
+            Real du_dz = -(-(8./3.) * u(i,j,k) + 3. * u(i,j,k-1) - (1./3.) * u(i,j,k-2))*dxInv[2];
+            tau13(i,j,k) = 0.5 * ( du_dz
                                  +  (w(i, j, k) - w(i-1, j, k))*dxInv[0]*mfx );
+
+            if (tau13i) tau13i(i,j,k) = 0.5 * du_dz;
         });
     }
 
@@ -294,8 +315,12 @@ ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = mf_vy(i,j,0);
-            tau23(i,j,k) = 0.5 * ( (-(8./3.) * v(i,j,k-1) + 3. * v(i,j,k  ) - (1./3.) * v(i,j,k+1))*dxInv[2]
+
+            Real dv_dz = (-(8./3.) * v(i,j,k-1) + 3. * v(i,j,k  ) - (1./3.) * v(i,j,k+1))*dxInv[2];
+            tau23(i,j,k) = 0.5 * ( dv_dz
                                  + (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mfy );
+
+            if (tau23i) tau23i(i,j,k) = 0.5 * dv_dz;
         });
     }
     if (zh_v_dir) {
@@ -305,8 +330,12 @@ ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mfy = mf_vy(i,j,0);
-            tau23(i,j,k) = 0.5 * ( -(-(8./3.) * v(i,j,k  ) + 3. * v(i,j,k-1) - (1./3.) * v(i,j,k-2))*dxInv[2]
+
+            Real dv_dz = -(-(8./3.) * v(i,j,k  ) + 3. * v(i,j,k-1) - (1./3.) * v(i,j,k-2))*dxInv[2];
+            tau23(i,j,k) = 0.5 * ( dv_dz
                                  +  (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mfy );
+
+            if (tau23i) tau23i(i,j,k) = 0.5 * dv_dz;
         });
     }
 
@@ -331,21 +360,20 @@ ComputeStrain_N (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real mfx = mf_ux(i,j,0);
-        tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2]
+
+        Real du_dz = (u(i, j, k) - u(i, j, k-1))*dxInv[2];
+        tau13(i,j,k) = 0.5 * ( du_dz
                              + (w(i, j, k) - w(i-1, j, k))*dxInv[0]*mfx );
+
+        if (tau13i) tau13i(i,j,k) = 0.5 * du_dz;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real mfy = mf_vy(i,j,0);
-        tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dxInv[2]
-                             + (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mfy );
-    });
 
-    if (SmnSmn_a) {
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
-                                            tau11,tau22,tau33,
-                                            tau12,tau13,tau23);
-        });
-    }
+        Real dv_dz = (v(i, j, k) - v(i, j, k-1))*dxInv[2];
+        tau23(i,j,k) = 0.5 * ( dv_dz
+                             + (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mfy );
+
+        if (tau23i) tau23i(i,j,k) = 0.5 * dv_dz;
+    });
 }

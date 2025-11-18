@@ -342,6 +342,7 @@ ERF::ERF_shared ()
 
     // Stresses
     Tau.resize(nlevs_max);
+    Tau_corr.resize(nlevs_max);
     SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
     SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
@@ -591,7 +592,7 @@ ERF::Evolve ()
 
         if (writeNow(cur_time, step+1, m_subvol_int, m_subvol_per, dt[0], last_subvol_time)) {
             last_subvol_step = step+1;
-            WriteSubvolume();
+            WriteSubvolume(subvol3d_var_names);
             if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
         }
 
@@ -630,7 +631,7 @@ ERF::Evolve ()
         if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
     }
     if ( (m_subvol_int > 0 || m_subvol_per > 0.) && istep[0] > last_subvol_step) {
-        WriteSubvolume();
+        WriteSubvolume(subvol3d_var_names);
         if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
     }
 
@@ -943,6 +944,20 @@ ERF::InitData_pre ()
                 Warning("Should not use Deardorff LES for mesoscale resolution");
             }
         }
+
+        // Turn off implicit solve if we have no diffusion
+        bool l_use_kturb   = solverChoice.turbChoice[lev].use_kturb;
+        bool l_use_diff    = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
+                               l_use_kturb );
+        bool l_implicit_diff = (solverChoice.vert_implicit_fac[0] > 0 ||
+                                solverChoice.vert_implicit_fac[1] > 0 ||
+                                solverChoice.vert_implicit_fac[2] > 0);
+        if (l_implicit_diff && !l_use_diff) {
+            Print() << "No molecular or turbulent diffusion, turning off implicit solve" << std::endl;
+            solverChoice.vert_implicit_fac[0] = 0;
+            solverChoice.vert_implicit_fac[1] = 0;
+            solverChoice.vert_implicit_fac[2] = 0;
+        }
     }
 }
 
@@ -973,6 +988,17 @@ ERF::InitData_post ()
             z_phys_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
         }
     }
+
+#ifdef ERF_IMPLICIT_W
+    if (SolverChoice::mesh_type == MeshType::VariableDz &&
+        (solverChoice.vert_implicit_fac[0] > 0 ||
+         solverChoice.vert_implicit_fac[1] > 0 ||
+         solverChoice.vert_implicit_fac[2] > 0  )       &&
+        solverChoice.implicit_momentum_diffusion)
+    {
+        amrex::Warning("Doing implicit solve for u, v, and w with terrain -- this has not been tested");
+    }
+#endif
 
     //
     // Copy vars_new into vars_old, then use vars_old to fill covered cells in vars_new during AverageDown
@@ -1097,7 +1123,7 @@ ERF::InitData_post ()
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer, low_data_zlo,
                                vars_new[lev][Vars::cons], *mf_PSFC[lev],
-                               solverChoice.rdOcp, use_moist);
+                               solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
             } // itime
         }
 #endif
@@ -1196,8 +1222,8 @@ ERF::InitData_post ()
         }
     }
 
-    if (solverChoice.rayleigh_damp_U ||solverChoice.rayleigh_damp_V ||
-        solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T)
+    if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
         initRayleigh();
         if (solverChoice.init_type == InitType::Input_Sounding)
@@ -1239,34 +1265,10 @@ ERF::InitData_post ()
         }
     }
 
-    //
-    // If we are starting from scratch, we have the option to project the initial velocity field
-    //    regardless of how we initialized.
-    // pp_inc is used as scratch space here; we zero it out after the projection
-    //
-    if (restart_chkfile == "")
-    {
-        if (solverChoice.project_initial_velocity) {
-            Real dummy_dt = 1.0;
-            if (verbose > 0) {
-                amrex::Print() << "Projecting initial velocity field" << std::endl;
-            }
-            for (int lev = 0; lev <= finest_level; ++lev)
-            {
-                project_velocity(lev, dummy_dt);
-                pp_inc[lev].setVal(0.);
-                gradp[lev][GpVars::gpx].setVal(0.);
-                gradp[lev][GpVars::gpy].setVal(0.);
-                gradp[lev][GpVars::gpz].setVal(0.);
-            }
-        }
-    }
-
-    // Copy from new into old just in case
+    // Fill boundary conditions in vars_new
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         auto& lev_new = vars_new[lev];
-        auto& lev_old = vars_old[lev];
 
         // ***************************************************************************
         // Physical bc's at domain boundary
@@ -1303,11 +1305,40 @@ ERF::InitData_post ()
                              ngvect_vels,t_new[lev],BCVars::yvel_bc,do_fb);
         (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
                              ngvect_vels,t_new[lev],BCVars::zvel_bc,do_fb);
+    }
 
-        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,ncomp_cons,lev_new[Vars::cons].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,         1,lev_new[Vars::xvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,         1,lev_new[Vars::yvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,         1,lev_new[Vars::zvel].nGrowVect());
+    //
+    // If we are starting from scratch, we have the option to project the initial velocity field
+    //    regardless of how we initialized.  Note that project_velocity operates on vars_new.
+    // pp_inc is used as scratch space here; we zero it out after the projection
+    //
+    if (restart_chkfile == "")
+    {
+        if (solverChoice.project_initial_velocity) {
+            Real dummy_dt = 1.0;
+            if (verbose > 0) {
+                amrex::Print() << "Projecting initial velocity field" << std::endl;
+            }
+            for (int lev = 0; lev <= finest_level; ++lev)
+            {
+                project_velocity(lev, dummy_dt);
+                pp_inc[lev].setVal(0.);
+                gradp[lev][GpVars::gpx].setVal(0.);
+                gradp[lev][GpVars::gpy].setVal(0.);
+                gradp[lev][GpVars::gpz].setVal(0.);
+            }
+        }
+    }
+
+    // Copy from new into old just in case (after filling boundary conditions and possibly projecting)
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        int nc = vars_new[lev][Vars::cons].nComp();
+
+        MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,nc,vars_new[lev][Vars::cons].nGrowVect());
+        MultiFab::Copy(vars_old[lev][Vars::xvel],vars_new[lev][Vars::xvel],0,0, 1,vars_new[lev][Vars::xvel].nGrowVect());
+        MultiFab::Copy(vars_old[lev][Vars::yvel],vars_new[lev][Vars::yvel],0,0, 1,vars_new[lev][Vars::yvel].nGrowVect());
+        MultiFab::Copy(vars_old[lev][Vars::zvel],vars_new[lev][Vars::zvel],0,0, 1,vars_new[lev][Vars::zvel].nGrowVect());
     }
 
     // Compute the minimum dz in the domain at each level (to be used for setting the timestep)
@@ -1336,7 +1367,9 @@ ERF::InitData_post ()
             Print() << "Note: Molecular diffusion specified but dynamic_viscosity has not been specified" << std::endl;
         } else {
             Real nu = dc.dynamic_viscosity / dc.rho0_trans;
-            Real viscous_limit = 0.5 * delta*delta / nu;
+            Real viscous_limit = 2.0 * delta*delta / nu;
+            Print() << "smallest grid spacing at level " << finest_level << " = " << delta << std::endl;
+            Print() << "dt at level " << finest_level << " = " << dt[finest_level] << std::endl;
             Print() << "Viscous CFL is " << dt[finest_level] / viscous_limit << std::endl;
             if (fixed_dt[finest_level] >= viscous_limit) {
                 Warning("Specified fixed_dt is above the viscous limit");
@@ -1629,7 +1662,7 @@ ERF::InitData_post ()
             last_plot2d_file_step_2 = istep[0];
         }
         if (m_subvol_int > 0 || m_subvol_per > 0.) {
-            WriteSubvolume();
+            WriteSubvolume(subvol3d_var_names);
             last_subvol_step = istep[0];
             if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
         }
@@ -2271,6 +2304,7 @@ ERF::ReadParameters ()
         pp.query("subvol_file",   subvol_file);
         pp.query("subvol_int" , m_subvol_int);
         pp.query("subvol_per" , m_subvol_per);
+        setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 

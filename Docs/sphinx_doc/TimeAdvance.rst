@@ -14,8 +14,7 @@ To advance the fully compressible solution in time, ERF uses a 3rd order Runge-K
 By default, acoustic substepping which solves the perturbational equations
 implicitly in the vertical direction is used in each Runge-Kutta stage,
 following the approach of `Klemp, Skamarock and Dudhia (2007)`_
-However, there is a run-time option to turn off the substepping completely,
-or to use an explicit rather than implicit solve in the substepping.
+However, there is a run-time option to turn off the substepping completely.
 
 .. _`Klemp, Skamarock and Dudhia (2007)`: https://journals.ametsoc.org/view/journals/mwre/135/8/mwr3440.1.xml
 
@@ -141,9 +140,6 @@ where :math:`\beta_1 = 0.5 (1 - \beta_s)` and :math:`\beta_2 = 0.5 (1 + \beta_s)
 the typical WRF value of 0.1. This off-centering is intended to provide damping of both horizontally
 and vertically propagating sound waves by biasing the time average toward the future time step.
 This may be controlled with the ``erf.beta_s`` parameter.
-
-When we do fully explicit substepping, we set :math:`\beta_s = -1.0`, which sets
-:math:`\beta_1 = 1` and :math:`\beta_2 = 0`.
 
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.

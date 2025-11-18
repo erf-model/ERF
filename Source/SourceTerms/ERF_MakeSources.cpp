@@ -27,6 +27,7 @@ using namespace amrex;
  * @param[in] dptr_rhoqt_src  custom moisture source term
  * @param[in] dptr_wbar_sub  subsidence source term
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value of theta} used to define Rayleigh damping
+ * @param[in] d_sinesq_at_lev  sin( (pi/2) (z-z_t)/(damping depth)) at cell centers
  */
 
 void make_sources (int level,
@@ -49,6 +50,7 @@ void make_sources (int level,
                    const Real* dptr_rhoqt_src,
                    const Real* dptr_wbar_sub,
                    const Vector<Real*> d_rayleigh_ptrs_at_lev,
+                   const Real* d_sinesq_at_lev,
                    InputSoundingData& input_sounding_data,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step)
@@ -80,7 +82,8 @@ void make_sources (int level,
     Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
 
     // flags to apply certain source terms in substep call only
-    bool use_Rayleigh_fast = solverChoice.rayleigh_damp_substep;
+    bool use_Rayleigh_fast = ( (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit) ||
+                               (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit) );
     bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
 
     // flag for a moisture model
@@ -240,24 +243,19 @@ void make_sources (int level,
         // *************************************************************************************
         // 3. Add Rayleigh damping for (rho theta)
         // *************************************************************************************
-        Real ztop     = solverChoice.rayleigh_ztop;
-        Real zdamp    = solverChoice.rayleigh_zdamp;
-        Real dampcoef = solverChoice.rayleigh_dampcoef;
+        Real dampcoef = solverChoice.dampingChoice.rayleigh_dampcoef;
 
-        if ((is_slow_step && !use_Rayleigh_fast) || (!is_slow_step && use_Rayleigh_fast)) {
-            if (solverChoice.rayleigh_damp_T) {
+        if (solverChoice.dampingChoice.rayleigh_damp_T) {
+            if ((is_slow_step && !use_Rayleigh_fast) || (!is_slow_step && use_Rayleigh_fast)) {
                 int n  = RhoTheta_comp;
                 int nr = Rho_comp;
                 int np = PrimTheta_comp;
+
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real zcc = z_cc_arr(i,j,k);
-                    Real zfrac = 1 - (ztop - zcc) / zdamp;
-                    if (zfrac > 0) {
-                        Real theta = cell_prim(i,j,k,np);
-                        Real sinefac = std::sin(PIoTwo*zfrac);
-                        cell_src(i, j, k, n) -= dampcoef*sinefac*sinefac * (theta - thetabar[k]) * cell_data(i,j,k,nr);
-                    }
+                    Real theta = cell_prim(i,j,k,np);
+                    Real sinesq = d_sinesq_at_lev[k];
+                    cell_src(i, j, k, n) -= dampcoef*sinesq * (theta - thetabar[k]) * cell_data(i,j,k,nr);
                 });
             }
         }

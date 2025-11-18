@@ -44,7 +44,6 @@ using namespace amrex;
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in   ]  l_use_moisture
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
- * @param[in   ]  l_implicit_substepping
  */
 
 void erf_substep_MT (int step, int /*nrk*/,
@@ -82,8 +81,7 @@ void erf_substep_MT (int step, int /*nrk*/,
                      YAFluxRegister* fr_as_crse,
                      YAFluxRegister* fr_as_fine,
                      bool l_use_moisture,
-                     bool l_reflux,
-                     bool /*l_implicit_substepping*/)
+                     bool l_reflux)
 {
     BL_PROFILE_REGION("erf_substep_MT()");
 
@@ -639,7 +637,8 @@ void erf_substep_MT (int step, int /*nrk*/,
         // We only add to the flux registers in the final RK step
         if (l_reflux) {
             int strt_comp_reflux = 0;
-            int  num_comp_reflux = 2;
+            // For now we don't reflux (rho theta) because it seems to create issues at c/f boundaries
+            int  num_comp_reflux = 1;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},

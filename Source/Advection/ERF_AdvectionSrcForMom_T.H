@@ -51,24 +51,26 @@ AdvectionSrcForXMom (int i, int j, int k,
     // ****************************************************************************************
     // X-fluxes (at cell centers)
     // ****************************************************************************************
+    // average in the i direction, inverse mapfac 1/m_y = Δy/Δη
+    rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) * mf_uy_inv(i+1, j, 0) + rho_u(i, j, k) * mf_uy_inv(i, j, 0));
+    rho_u_avg_lo = 0.5 * (rho_u(i-1, j, k) * mf_uy_inv(i-1, j, 0) + rho_u(i, j, k) * mf_uy_inv(i, j, 0));
 
-    rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) * mf_uy_inv(i+1,j  ,0) + rho_u(i, j, k) * mf_uy_inv(i  ,j  ,0));
     interp_u_h.InterpolateInX(i+1,j,k,0,interp_hi,rho_u_avg_hi);
+    interp_u_h.InterpolateInX(i  ,j,k,0,interp_lo,rho_u_avg_lo);
 
-    rho_u_avg_lo = 0.5 * (rho_u(i-1, j, k) * mf_uy_inv(i-1,j  ,0) + rho_u(i, j, k) * mf_uy_inv(i  ,j  ,0));
-    interp_u_h.InterpolateInX(i,j,k,0,interp_lo,rho_u_avg_lo);
-
+    // note: ax = (face height averaged over y) * dzInv = Δz/Δζ
     amrex::Real centFluxXXNext = rho_u_avg_hi * interp_hi * 0.5 * (ax(i,j,k) + ax(i+1,j,k));
     amrex::Real centFluxXXPrev = rho_u_avg_lo * interp_lo * 0.5 * (ax(i,j,k) + ax(i-1,j,k));
 
     // ****************************************************************************************
     // Y-fluxes (at edges in k-direction)
     // ****************************************************************************************
-    rho_v_avg_hi = 0.5 * (rho_v(i, j+1, k) * mf_vx_inv(i  ,j+1,0) + rho_v(i-1, j+1, k) * mf_vx_inv(i-1,j+1,0));
-    interp_u_h.InterpolateInY(i,j+1,k,0,interp_hi,rho_v_avg_hi);
+    // average in the i direction, inverse mapfac 1/m_x = Δx/Δξ
+    rho_v_avg_hi = 0.5 * (rho_v(i, j+1, k) * mf_vx_inv(i, j+1, 0) + rho_v(i-1, j+1, k) * mf_vx_inv(i-1, j+1, 0));
+    rho_v_avg_lo = 0.5 * (rho_v(i, j  , k) * mf_vx_inv(i, j  , 0) + rho_v(i-1, j  , k) * mf_vx_inv(i-1, j  , 0));
 
-    rho_v_avg_lo = 0.5 * (rho_v(i, j  , k) * mf_vx_inv(i  ,j  ,0) + rho_v(i-1, j  , k) * mf_vx_inv(i-1,j  ,0));
-    interp_u_h.InterpolateInY(i,j,k,0,interp_lo,rho_v_avg_lo);
+    interp_u_h.InterpolateInY(i,j+1,k,0,interp_hi,rho_v_avg_hi);
+    interp_u_h.InterpolateInY(i,j  ,k,0,interp_lo,rho_v_avg_lo);
 
     amrex::Real edgeFluxXYNext = rho_v_avg_hi * interp_hi * Compute_h_zeta_AtEdgeCenterK(i,j+1,k,cellSizeInv,z_nd);
     amrex::Real edgeFluxXYPrev = rho_v_avg_lo * interp_lo * Compute_h_zeta_AtEdgeCenterK(i,j  ,k,cellSizeInv,z_nd);
@@ -76,23 +78,24 @@ AdvectionSrcForXMom (int i, int j, int k,
     // ****************************************************************************************
     // Z-fluxes (at edges in j-direction)
     // ****************************************************************************************
-    Omega_avg_hi = 0.5 * (Omega(i, j, k+1) + Omega(i-1, j, k+1)) * 0.5 * (az(i,j,k+1) + az(i-1,j,k+1));
-    Omega_avg_lo = 0.5 * (Omega(i, j, k  ) + Omega(i-1, j, k  )) * 0.5 * (az(i,j,k  ) + az(i-1,j,k  ));
+    // average in the i direction
+    Omega_avg_hi = 0.5 * (Omega(i, j, k+1) + Omega(i-1, j, k+1));
+    Omega_avg_lo = 0.5 * (Omega(i, j, k  ) + Omega(i-1, j, k  ));
 
     interp_u_v.InterpolateInZ(i,j,k+1,0,interp_hi,Omega_avg_hi);
     interp_u_v.InterpolateInZ(i,j,k  ,0,interp_lo,Omega_avg_lo);
 
-    amrex::Real edgeFluxXZNext = Omega_avg_hi * interp_hi;
-    amrex::Real edgeFluxXZPrev = Omega_avg_lo * interp_lo;
+    amrex::Real edgeFluxXZNext = Omega_avg_hi * interp_hi * 0.5 * (az(i, j, k+1) + az(i-1, j, k+1));
+    amrex::Real edgeFluxXZPrev = Omega_avg_lo * interp_lo * 0.5 * (az(i, j, k  ) + az(i-1, j, k  ));
 
     // ****************************************************************************************
 
-    amrex::Real mfsq = 1. / (mf_ux_inv(i,j,0) * mf_uy_inv(i,j,0));
+    amrex::Real mfsq = 1. / (mf_ux_inv(i,j,0) * mf_uy_inv(i,j,0));   // == m_x * m_y = (Δξ/Δx) * (Δη/Δy)
 
-    advectionSrc = (centFluxXXNext - centFluxXXPrev) * dxInv * mfsq
-                 + (edgeFluxXYNext - edgeFluxXYPrev) * dyInv * mfsq
-                 + (edgeFluxXZNext - edgeFluxXZPrev) * dzInv;
-    advectionSrc /= 0.5*(detJ(i,j,k) + detJ(i-1,j,k));
+    advectionSrc = (centFluxXXNext - centFluxXXPrev) * dxInv * mfsq  // ~ ρuu(Δy/Δη)(Δz/Δζ) * (1/Δξ) * (Δξ/Δx)*(Δη/Δy) = ρuu(Δz/Δζ) * (1/Δx)
+                 + (edgeFluxXYNext - edgeFluxXYPrev) * dyInv * mfsq  // ~ ρvu(Δx/Δξ)(Δz/Δζ) * (1/Δη) * (Δξ/Δx)*(Δη/Δy) = ρvu(Δz/Δζ) * (1/Δy)
+                 + (edgeFluxXZNext - edgeFluxXZPrev) * dzInv;        // ~  Ωu               * (1/Δζ)
+    advectionSrc /= 0.5*(detJ(i,j,k) + detJ(i-1,j,k));               // ... then divide by (Δz/Δζ) to get back 1/Δx, 1/Δy, and 1/Δz for differencing
 
     return advectionSrc;
 }
@@ -144,10 +147,11 @@ AdvectionSrcForYMom (int i, int j, int k,
     amrex::Real interp_hi(0.), interp_lo(0.);
 
     // ****************************************************************************************
-    // x-fluxes (at edges in k-direction)
+    // X-fluxes (at edges in k-direction)
     // ****************************************************************************************
-    rho_u_avg_hi = 0.5 * (rho_u(i+1,j,k) * mf_uy_inv(i+1,j,0) + rho_u(i+1,j-1,k) * mf_uy_inv(i+1,j-1,0));
-    rho_u_avg_lo = 0.5 * (rho_u(i  ,j,k) * mf_uy_inv(i  ,j,0) + rho_u(i  ,j-1,k) * mf_uy_inv(i  ,j-1,0));
+    // average in the j direction, inverse mapfac 1/m_y = Δy/Δη
+    rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) * mf_uy_inv(i+1, j, 0) + rho_u(i+1, j-1, k) * mf_uy_inv(i+1, j-1, 0));
+    rho_u_avg_lo = 0.5 * (rho_u(i  , j, k) * mf_uy_inv(i  , j, 0) + rho_u(i  , j-1, k) * mf_uy_inv(i  , j-1, 0));
 
     interp_v_h.InterpolateInX(i+1,j,k,0,interp_hi,rho_u_avg_hi);
     interp_v_h.InterpolateInX(i  ,j,k,0,interp_lo,rho_u_avg_lo);
@@ -156,37 +160,40 @@ AdvectionSrcForYMom (int i, int j, int k,
     amrex::Real edgeFluxYXPrev = rho_u_avg_lo * interp_lo * Compute_h_zeta_AtEdgeCenterK(i  ,j,k,cellSizeInv,z_nd);
 
     // ****************************************************************************************
-    // y-fluxes (at cell centers)
+    // Y-fluxes (at cell centers)
     // ****************************************************************************************
-    rho_v_avg_hi = 0.5 * (rho_v(i,j,k) * mf_vx_inv(i,j,0) + rho_v(i,j+1,k) * mf_vx_inv(i,j+1,0));
-    rho_v_avg_lo = 0.5 * (rho_v(i,j,k) * mf_vx_inv(i,j,0) + rho_v(i,j-1,k) * mf_vx_inv(i,j-1,0));
+    // average in the j direction, inverse mapfac 1/m_x = Δx/Δξ
+    rho_v_avg_hi = 0.5 * (rho_v(i, j+1, k) * mf_vx_inv(i, j+1, 0) + rho_v(i, j, k) * mf_vx_inv(i, j, 0));
+    rho_v_avg_lo = 0.5 * (rho_v(i, j-1, k) * mf_vx_inv(i, j-1, 0) + rho_v(i, j, k) * mf_vx_inv(i, j, 0));
 
     interp_v_h.InterpolateInY(i,j+1,k,0,interp_hi,rho_v_avg_hi);
     interp_v_h.InterpolateInY(i,j  ,k,0,interp_lo,rho_v_avg_lo);
 
-    amrex::Real centFluxYYNext = rho_v_avg_hi * 0.5 * (ay(i,j,k) + ay(i,j+1,k)) * interp_hi;
-    amrex::Real centFluxYYPrev = rho_v_avg_lo * 0.5 * (ay(i,j,k) + ay(i,j-1,k)) * interp_lo;
+    // note: ay = (face height averaged over x) * dzInv = Δz/Δζ
+    amrex::Real centFluxYYNext = rho_v_avg_hi * interp_hi * 0.5 * (ay(i,j,k) + ay(i,j+1,k));
+    amrex::Real centFluxYYPrev = rho_v_avg_lo * interp_lo * 0.5 * (ay(i,j,k) + ay(i,j-1,k));
 
     // ****************************************************************************************
-    // Z-fluxes (at edges in j-direction)
+    // Z-fluxes (at edges in i-direction)
     // ****************************************************************************************
-    Omega_avg_hi = 0.5 * (Omega(i, j, k+1) + Omega(i, j-1, k+1)) * 0.5 * (az(i,j,k+1) + az(i,j-1,k+1));
-    Omega_avg_lo = 0.5 * (Omega(i, j, k  ) + Omega(i, j-1, k  )) * 0.5 * (az(i,j,k  ) + az(i,j-1,k  ));
+    // average in the j direction
+    Omega_avg_hi = 0.5 * (Omega(i, j, k+1) + Omega(i, j-1, k+1));
+    Omega_avg_lo = 0.5 * (Omega(i, j, k  ) + Omega(i, j-1, k  ));
 
     interp_v_v.InterpolateInZ(i,j,k+1,0,interp_hi,Omega_avg_hi);
     interp_v_v.InterpolateInZ(i,j,k  ,0,interp_lo,Omega_avg_lo);
 
-    amrex::Real edgeFluxYZNext = Omega_avg_hi * interp_hi;
-    amrex::Real edgeFluxYZPrev = Omega_avg_lo * interp_lo;
+    amrex::Real edgeFluxYZNext = Omega_avg_hi * interp_hi * 0.5 * (az(i, j, k+1) + az(i, j-1, k+1));
+    amrex::Real edgeFluxYZPrev = Omega_avg_lo * interp_lo * 0.5 * (az(i, j, k  ) + az(i, j-1, k  ));
 
     // ****************************************************************************************
 
-    amrex::Real mfsq = 1 / (mf_vx_inv(i,j,0) * mf_vy_inv(i,j,0));
+    amrex::Real mfsq = 1. / (mf_vx_inv(i,j,0) * mf_vy_inv(i,j,0));   // == m_x * m_y = (Δξ/Δx) * (Δη/Δy)
 
-    advectionSrc = (edgeFluxYXNext - edgeFluxYXPrev) * dxInv * mfsq
-                 + (centFluxYYNext - centFluxYYPrev) * dyInv * mfsq
-                 + (edgeFluxYZNext - edgeFluxYZPrev) * dzInv;
-    advectionSrc /= 0.5*(detJ(i,j,k) + detJ(i,j-1,k));
+    advectionSrc = (edgeFluxYXNext - edgeFluxYXPrev) * dxInv * mfsq  // ~ ρuv(Δy/Δη)(Δz/Δζ) * (1/Δξ) * (Δξ/Δx)*(Δη/Δy) = ρuu(Δz/Δζ) * (1/Δx)
+                 + (centFluxYYNext - centFluxYYPrev) * dyInv * mfsq  // ~ ρvv(Δx/Δξ)(Δz/Δζ) * (1/Δη) * (Δξ/Δx)*(Δη/Δy) = ρvu(Δz/Δζ) * (1/Δy)
+                 + (edgeFluxYZNext - edgeFluxYZPrev) * dzInv;        // ~  Ωv               * (1/Δζ)
+    advectionSrc /= 0.5*(detJ(i,j,k) + detJ(i,j-1,k));               // ... then divide by (Δz/Δζ) to get back 1/Δx, 1/Δy, and 1/Δz for differencing
 
     return advectionSrc;
 }
@@ -250,11 +257,12 @@ AdvectionSrcForZMom (int i, int j, int k,
     // ****************************************************************************************
     // x-fluxes (at edges in j-direction)
     // ****************************************************************************************
+    // average in the k direction, inverse mapfac 1/m_y = Δy/Δη
     rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) + rho_u(i+1, j, k-1)) * mf_uy_inv(i+1,j  ,0);
     rho_u_avg_lo = 0.5 * (rho_u(i  , j, k) + rho_u(i  , j, k-1)) * mf_uy_inv(i  ,j  ,0);
 
     interp_omega_h.InterpolateInX(i+1,j,k,0,interp_hi,rho_u_avg_hi);
-    interp_omega_h.InterpolateInX(i,j,k,0,interp_lo,rho_u_avg_lo);
+    interp_omega_h.InterpolateInX(i  ,j,k,0,interp_lo,rho_u_avg_lo);
 
     amrex::Real edgeFluxZXNext = rho_u_avg_hi * interp_hi * Compute_h_zeta_AtEdgeCenterJ(i+1,j,k,cellSizeInv,z_nd);
     amrex::Real edgeFluxZXPrev = rho_u_avg_lo * interp_lo * Compute_h_zeta_AtEdgeCenterJ(i  ,j,k,cellSizeInv,z_nd);
@@ -262,11 +270,12 @@ AdvectionSrcForZMom (int i, int j, int k,
     // ****************************************************************************************
     // y-fluxes (at edges in i-direction)
     // ****************************************************************************************
+    // average in the k direction, inverse mapfac 1/m_x = Δx/Δξ
     rho_v_avg_hi = 0.5 * (rho_v(i, j+1, k) + rho_v(i, j+1, k-1)) * mf_vx_inv(i  ,j+1,0);
-    interp_omega_h.InterpolateInY(i,j+1,k,0,interp_hi,rho_v_avg_hi);
-
     rho_v_avg_lo = 0.5 * (rho_v(i, j  , k) + rho_v(i, j  , k-1)) * mf_vx_inv(i  ,j  ,0);
-    interp_omega_h.InterpolateInY(i,j,k,0,interp_lo,rho_v_avg_lo);
+
+    interp_omega_h.InterpolateInY(i,j+1,k,0,interp_hi,rho_v_avg_hi);
+    interp_omega_h.InterpolateInY(i,j  ,k,0,interp_lo,rho_v_avg_lo);
 
     amrex::Real edgeFluxZYNext = rho_v_avg_hi * interp_hi * Compute_h_zeta_AtEdgeCenterI(i,j+1,k,cellSizeInv,z_nd);
     amrex::Real edgeFluxZYPrev = rho_v_avg_lo * interp_lo * Compute_h_zeta_AtEdgeCenterI(i,j  ,k,cellSizeInv,z_nd);
