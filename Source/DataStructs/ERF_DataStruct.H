@@ -366,9 +366,20 @@ struct SolverChoice {
 
 #ifndef ERF_USE_SHOC
         // This controls the time-centering of the vertical differences in the diffusive term
+        bool do_vert_implicit = false;
+        if (pp.query("vert_implicit", do_vert_implicit) && do_vert_implicit) {
+            // set to default here
+            vert_implicit_fac[0] = 1.0;
+            vert_implicit_fac[1] = 1.0;
+            vert_implicit_fac[2] = 0.0;
+        }
+
         // This may be one value for all RK stages or a different value in each stage
         int n_impfac = pp.countval("vert_implicit_fac");
         AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
+        if (n_impfac > 0 && do_vert_implicit) {
+            amrex::Print() << "Overriding defaults with specified implicit factor(s)" << std::endl;
+        }
 
         if (n_impfac == 1) {
             amrex::Real fac_in;
@@ -941,7 +952,8 @@ struct SolverChoice {
     // towards the future time step)
     amrex::Real beta_s = 0.1;
 
-    // This controls the time-centering of the *vertical* differences in the diffusive term for (rho theta) only
+    // This controls the time-centering of the *vertical* differences in the diffusive term for
+    // theta, u, v (and w if ERF_IMPLICIT_W is set)
     // 0: fully explicit
     // 1: fully implicit
     amrex::Vector<amrex::Real> vert_implicit_fac = {0.0, 0.0, 0.0}; // one value per RK stage

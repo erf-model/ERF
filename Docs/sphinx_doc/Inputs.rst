@@ -466,6 +466,13 @@ List of Parameters
 |                            | each RK stage?       | "Explicit",    | compressible,       |
 |                            |                      | "None"         | "None" if anelastic |
 +----------------------------+----------------------+----------------+---------------------+
+| **erf.vert_implicit**      | Do vertical implicit | Boolean        | false               |
+|                            | solve for diffusion  |                |                     |
+|                            | of u, v, and theta   |                |                     |
+|                            | with default         |                |                     |
+|                            | time-centering in    |                |                     |
+|                            | each stage           |                |                     |
++----------------------------+----------------------+----------------+---------------------+
 | **erf.vert_implicit_fac**  | How much implicit    | Real >= 0      | 0.0, 0.0, 0.0       |
 |                            | vertical diffusion   | (explicit) and | (fully explicit)    |
 |                            | to include in each   | <= 1 (implicit)|                     |
