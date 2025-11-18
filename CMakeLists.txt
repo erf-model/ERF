@@ -27,17 +27,25 @@ function(print_target_properties target_name)
 
   message(STATUS "=== Target: ${target_name} ===")
 
-  # Define properties to check with their display names
-  set(properties
-    "INTERFACE_INCLUDE_DIRECTORIES;Include Directories"
-    "INTERFACE_LINK_OPTIONS;Link Options"
-    "INTERFACE_LINK_LIBRARIES;Link Libraries"
+  # Define properties to check
+  set(prop_names
+    INTERFACE_INCLUDE_DIRECTORIES
+    INTERFACE_LINK_OPTIONS
+    INTERFACE_LINK_LIBRARIES
   )
 
-  foreach(prop_pair IN LISTS properties)
-    string(REPLACE ";" "|" prop_list "${prop_pair}")
-    list(GET prop_list 0 prop_name)
-    list(GET prop_list 1 display_name)
+  set(display_names
+    "Include Directories"
+    "Link Options"
+    "Link Libraries"
+  )
+
+  list(LENGTH prop_names num_props)
+  math(EXPR last_index "${num_props} - 1")
+
+  foreach(idx RANGE ${last_index})
+    list(GET prop_names ${idx} prop_name)
+    list(GET display_names ${idx} display_name)
 
     get_target_property(values ${target_name} ${prop_name})
     if(values)
@@ -312,6 +320,10 @@ if(ERF_ENABLE_EKAT)
   set(EKAT_ENABLE_LOGGING ON CACHE BOOL "ekat enable spdlog")
   set(EKAT_BIN ${CMAKE_BINARY_DIR}/Submodules/ekat)
 
+  # Force use of internal spdlog from EKAT
+  message(STATUS "Forcing Ekat to build their own spdlog")
+  set(CMAKE_DISABLE_FIND_PACKAGE_spdlog TRUE)
+
   message(VERBOSE "EKAT binary directory: ${EKAT_BIN}")
   add_subdirectory(${CMAKE_SOURCE_DIR}/Submodules/ekat ${EKAT_BIN})
 
@@ -553,6 +565,32 @@ if(ERF_ENABLE_SHOC)
 
   # NOTE: We compile shoc src files directly
   message(VERBOSE "SHOC source files will be compiled directly")
+
+  # E3SM Cloned Check
+  if(ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
+    message(VERBOSE "Checking EAMxx files from E3SM")
+
+    set(E3SM_EXPECTED_PATH "${CMAKE_SOURCE_DIR}/external/E3SM")
+
+    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/external/E3SM/CMakeLists.txt")
+        message(FATAL_ERROR 
+            "E3SM submodule required for SHOC/P3 but not found.\n"
+            "\n"
+            "This requires specific EAMxx physics source files from E3SM at commit 2eb52d9.\n"
+            "\n"
+            "Option 1 - Use provided script (recommended):\n"
+            "  ${CMAKE_SOURCE_DIR}/Build/eamxx_clone.sh\n"
+            "\n"
+            "Option 2 - Symlink existing E3SM (not tested, must be at commit 2eb52d9b3d):\n"
+            "  ln -s /path/to/your/E3SM ${CMAKE_SOURCE_DIR}/external/E3SM\n"
+            "\n"
+            "Or disable features:\n"
+            "  cmake -DERF_ENABLE_SHOC=OFF -DERF_ENABLE_P3=OFF ..\n")
+    endif()
+  else()
+    message(DEBUG "EKAT physics not enabled, skipping E3SM check")
+  endif()
+
 
   message(STATUS "SHOC configuration complete")
   list(POP_BACK CMAKE_MESSAGE_CONTEXT)
