@@ -372,7 +372,7 @@ calc_edge_intersections ( int const a_dry_run )
   // Path 1
   { 
     int cuts(0);
-    vertex_intersected.fill(false);
+    for (int i = 0; i < 8; ++i) vertex_intersected[i] = false;
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v1, vIP, distIP)) {
 
@@ -511,7 +511,7 @@ calc_edge_intersections ( int const a_dry_run )
 
   // Path 2
   { int cuts(0);
-    vertex_intersected.fill(false);
+    for (int i = 0; i < 8; ++i) vertex_intersected[i] = false;
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v2, vIP, distIP)) {
 
@@ -650,7 +650,7 @@ calc_edge_intersections ( int const a_dry_run )
 
   // Path 3
   { int cuts(0);
-    vertex_intersected.fill(false);
+    for (int i = 0; i < 8; ++i) vertex_intersected[i] = false;
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v3, vIP, distIP)) {
 
