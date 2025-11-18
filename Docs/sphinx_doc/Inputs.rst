@@ -26,6 +26,14 @@ Governing Equations
 |                          | all amr levels) or a list of|               |             |
 |                          | values (one per level)      |               |             |
 +--------------------------+-----------------------------+---------------+-------------+
+| **erf.buoyancy_type**    | Controls how buoyancy is    | 1, 2, 3, 4    | 1 (may be   |
+|                          | calculated: 1=density       |               | auto-set to |
+|                          | perturbation, 2/3=temp.     |               | 2 or 3 based|
+|                          | perturbation, 4=potential   |               | on moisture |
+|                          | temp. perturbation.         |               | and solver) |
+|                          | See :ref:`Buoyancy` for     |               |             |
+|                          | details                     |               |             |
++--------------------------+-----------------------------+---------------+-------------+
 | **erf.use_fft**          | use FFT rather than         | true / false  | false       |
 |                          | multigrid to solve the      |               |             |
 |                          | the Poisson equations       |               |             |
@@ -454,9 +462,16 @@ List of Parameters
 | Parameter                  | Definition           | Acceptable     | Default             |
 |                            |                      | Values         |                     |
 +============================+======================+================+=====================+
-| **erf.substepping_type**   | Should we substep in | "Implicit",    | "Implicit" if       |
-|                            | each RK stage?       | "Explicit",    | compressible,       |
-|                            |                      | "None"         | "None" if anelastic |
+| **erf.substepping_type**   | Should we substep in | "Implicit" or  | "Implicit" if       |
+|                            | each RK stage?       | "None"         | compressible,       |
+|                            |                      |                | "None" if anelastic |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.vert_implicit**      | Do vertical implicit | Boolean        | false               |
+|                            | solve for diffusion  |                |                     |
+|                            | of u, v, and theta   |                |                     |
+|                            | with default         |                |                     |
+|                            | time-centering in    |                |                     |
+|                            | each stage           |                |                     |
 +----------------------------+----------------------+----------------+---------------------+
 | **erf.vert_implicit_fac**  | How much implicit    | Real >= 0      | 0.0, 0.0, 0.0       |
 |                            | vertical diffusion   | (explicit) and | (fully explicit)    |
@@ -837,7 +852,7 @@ List of Parameters
 +===================================+==================+================+================+
 | **erf.line_sampling_interval**,   | Output           | Integer        | -1             |
 | **erf.plane_sampling_interval**   | frequency (steps)|                |                |
-+===================================+==================+================+================+
++-----------------------------------+------------------+----------------+----------------+
 | **erf.line_sampling_per**,        | Output           | Real           | -1             |
 | **erf.plane_sampling_per**        | frequency (time) |                |                |
 +-----------------------------------+------------------+----------------+----------------+
@@ -1100,7 +1115,9 @@ List of Parameters
 |                                         |                    | Values              |             |
 +=========================================+====================+=====================+=============+
 | **erf.pbl_type**                        | Name of PBL Scheme | "None", "MYNN25",   | "None"      |
-|                                         | to be used         | "YSU"               |             |
+|                                         | to be used         | "MYNNEDMF", "MYJ",  |             |
+|                                         |                    | "YSU", "MRF",       |             |
+|                                         |                    | "SHOC"              |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_A1**                     | MYNN Constant A1   | Real                | 1.18        |
 +-----------------------------------------+--------------------+---------------------+-------------+
@@ -1232,6 +1249,11 @@ List of Parameters
 |                                     |  delimited             |                   |                     |
 |                                     |  columns)              |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.windfarm_type**               | Wind farm              | "None",           | "None"              |
+|                                     | parameterization       | "Fitch", "EWP",   |                     |
+|                                     |                        | "SimpleActuator", |                     |
+|                                     |                        | "GeneralActuator" |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.const_massflux_u**            | Include a momentum     | Real              | 0.                  |
 | **erf.const_massflux_v**            | source at each time,   |                   |                     |
 |                                     | (e.g., representing a  |                   |                     |
@@ -1276,6 +1298,11 @@ List of Parameters
 | **erf.coriolis_3d**                 | Include z component in | true / false      | true                |
 |                                     | the Coriolis forcing   |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.rayleigh_damping_type**       | Rayleigh damping       | "None",           | "SlowExplicit"      |
+|                                     | type                   | "SlowExplicit",   |                     |
+|                                     |                        | "FastExplicit"    |                     |
+|                                     |                        | "FastImplicit"    |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.rayleigh_damp_U**             | Include explicit       | true / false      | false               |
 |                                     | Rayleigh damping in    |                   |                     |
 |                                     | the x-momentum equation|                   |                     |
@@ -1284,7 +1311,7 @@ List of Parameters
 |                                     | Rayleigh damping in    |                   |                     |
 |                                     | the y-momentum equation|                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_damp_W**             | Include explicit       | true / false      | false               |
+| **erf.rayleigh_damp_W**             | Include                | true / false      | false               |
 |                                     | Rayleigh damping in    |                   |                     |
 |                                     | the z-momentum equation|                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
@@ -1298,7 +1325,8 @@ List of Parameters
 |                                     | timescale              |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.rayleigh_zdamp**              | Rayleigh damping       | Real              | 500.0               |
-|                                     | layer depth            |                   |                     |
+|                                     | layer depth measured   |                   |                     |
+|                                     | from the top of domain |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.nudging_from_input_sounding** | Add momentum source    | true / false      | false               |
 |                                     | terms to nudge the     |                   |                     |
@@ -1371,6 +1399,8 @@ function(s).
 
 Note that ``erf.add_custom_geostrophic_profile`` cannot be used in combination
 with an ``erf.abl_geo_wind_table``.
+
+- Wind farm parameterization requires ``USE_WINDFARM=TRUE`` at build time. See :ref:`WindFarmModels` for theory and examples.
 
 
 Numerical Stability
@@ -1661,6 +1691,53 @@ Examples of Usage
     with the (x,y) values we have just read in.  Note that the z-values are in the
     order z(x1,y1), z(x1,y2), z(x1,y3), ... which is contrary to standard Fortran ordering
 
+Land Surface Model
+==================
+
+The land surface model provides energy and moisture fluxes at the lower boundary.
+
+List of Parameters
+------------------
+
++--------------------------------+----------------------------+--------------------+-------------+
+| Parameter                      | Definition                 | Acceptable         | Default     |
+|                                |                            | Values             |             |
++================================+============================+====================+=============+
+| **erf.land_surface_model**     | Enables land surface       | "None",            | "None"      |
+|                                | energy and moisture        | "Noah-MP",         |             |
+|                                | fluxes                     | "MM5", "SLM"       |             |
++--------------------------------+----------------------------+--------------------+-------------+
+
+.. note::
+
+   Noah-MP requires ``USE_NOAHMP=TRUE`` at build time. See :ref:`CouplingToNoahMP` for details.
+
+Coupling Type (Data Exchange)
+==============================
+
+For coupled simulations with AMR-Wind or WaveWatch3, this controls the directionality of data exchange.
+
+
+List of Parameters
+------------------
+
++--------------------------------+----------------------------+--------------------+-------------+
+| Parameter                      | Definition                 | Acceptable         | Default     |
+|                                |                            | Values             |             |
++================================+============================+====================+=============+
+| **erf.coupling_type**          | Coupling mode for          | "OneWay",          | "None"      |
+|                                | coupled simulations with   | "TwoWay"           |             |
+|                                | AMR-Wind or WaveWatch3     |                    |             |
++--------------------------------+----------------------------+--------------------+-------------+
+
+Notes
+-----
+
+- **TwoWay**: Bidirectional coupling - ERF both receives and sends data
+- **OneWay**: ERF receives forcing but doesn't send data back
+
+See :ref:`CouplingToAMRWind` and :ref:`CouplingToWW3` for more information.
+
 Moisture
 ========
 
@@ -1683,7 +1760,7 @@ List of Parameters
 |                                 |                          |  "Morrison",          |            |
 |                                 |                          |  "Morrison_NoIce",    |            |
 |                                 |                          |  "SAM_NoPrecip_NoIce",|            |
-|                                 |                          |  "SAM_NoIce"          |            |
+|                                 |                          |  "SAM_NoIce", "P3"    |            |
 +---------------------------------+--------------------------+-----------------------+------------+
 | **erf.moisture_tight_coupling** | If true, advance         |  Bool                 | false      |
 |                                 | microphysics after every |                       |            |
@@ -1718,6 +1795,9 @@ List of Parameters
 | Parameter                      | Definition               | Acceptable         | Default                           |
 |                                |                          | Values             |                                   |
 +================================+==========================+====================+===================================+
+| **erf.radiation_model**        | Enables radiation        | "None",            | "None"                            |
+|                                | transfer calculations    | "RRTMGP"           |                                   |
++--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.rad_freq_in_steps**      | Number of steps between  |  int               |    1                              |
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 | **erf.rad_write_fluxes**       | Flag to write fluxes     |  Bool              |    false                          |
@@ -1752,6 +1832,10 @@ List of Parameters
 +--------------------------------+--------------------------+--------------------+-----------------------------------+
 
 The lookup data may be downloaded as a package from `here <https://doi.org/10.22002/ppv8a-4q131>`_.
+
+.. note::
+
+   Using RRTMGP requires ``USE_RRTMGP=TRUE`` at build time. See :ref:`building` for build instructions.
 
 Runtime Error Checking
 ======================

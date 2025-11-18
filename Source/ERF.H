@@ -412,7 +412,7 @@ public:
     void Write2DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
 
     // Write subvolume of data into a different "plotfile"
-    void WriteSubvolume  ();
+    void WriteSubvolume (amrex::Vector<std::string> subvol_var_names);
 
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
@@ -697,14 +697,16 @@ private:
     // get plotfile name
     [[nodiscard]] std::string PlotFileName (int lev) const;
 
-    // set plotfile variables names
-    static amrex::Vector<std::string> PlotFileVarNames (amrex::Vector<std::string> plot_var_names) ;
+    // set plotfile variable names
+    static amrex::Vector<std::string> PlotFileVarNames (amrex::Vector<std::string> plot_var_names);
 
     // set which variables and derived quantities go into plotfiles
     void setPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
     void setPlotVariables2D (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
     // append variables to plot
     void appendPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
+
+    void setSubVolVariables (const std::string& pp_subvol_var_names, amrex::Vector<std::string>& subvol_var_names);
 
 #ifdef ERF_USE_NETCDF
     //! Create 1D vertical column output for coupling
@@ -895,6 +897,7 @@ private:
 
     // Diffusive stresses and Smag
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau_corr; // correction to tau for implicit
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 
@@ -1081,6 +1084,8 @@ private:
     int m_check_int = -1;
     amrex::Real m_check_per = -1.0;
 
+    amrex::Vector<std::string> subvol3d_var_names;
+
     amrex::Vector<std::string> plot3d_var_names_1;
     amrex::Vector<std::string> plot3d_var_names_2;
     amrex::Vector<std::string> plot2d_var_names_1;
@@ -1139,6 +1144,11 @@ private:
         "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
         "surf_pres"
     };
+
+    // **************************************************************************************
+    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_WriteSubVolume.cpp
+    // **************************************************************************************
+    const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar"};
 
     // algorithm choices
     static SolverChoice solverChoice;
@@ -1277,16 +1287,20 @@ private:
                                 const amrex::Vector<amrex::Real>& zlev_stag);
 
     // This is a vector over levels of vectors across quantities of Vectors
-    amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
+    amrex::Vector<amrex::Vector<amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
+    amrex::Vector<amrex::Vector<amrex::Vector<amrex::Real> > > h_sponge_ptrs;
 
-    // This is a vector over levels of vectors across quantities of Vectors
-    amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_sponge_ptrs;
+    // These are vectors over levels of Vectors
+    amrex::Vector<amrex::Vector<amrex::Real> > h_sinesq_ptrs;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_sinesq_stag_ptrs;
 
     // This is a vector over levels of vectors across quantities of DeviceVectors
     amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_rayleigh_ptrs;
-
-    // This is a vector over levels of vectors across quantities of DeviceVectors
     amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_sponge_ptrs;
+
+    // These are vectors over levels of DeviceVectors
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_sinesq_ptrs;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_sinesq_stag_ptrs;
 
     amrex::Vector<amrex::Real> h_havg_density;
     amrex::Vector<amrex::Real> h_havg_temperature;

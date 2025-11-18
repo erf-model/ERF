@@ -493,6 +493,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     BoxArray ba23 = convert(ba, IntVect(0,1,1));
 
     Tau[lev].resize(9);
+    Tau_corr[lev].resize(3);
 
     if (l_use_diff) {
         //
@@ -525,6 +526,25 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             Tau[lev][TauType::tau31] = nullptr;
             Tau[lev][TauType::tau32] = nullptr;
         }
+
+        if (l_implicit_diff && solverChoice.implicit_momentum_diffusion)
+        {
+            Tau_corr[lev][0] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); // Tau31
+            Tau_corr[lev][1] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); // Tau32
+            Tau_corr[lev][0]->setVal(0.);
+            Tau_corr[lev][1]->setVal(0.);
+#ifdef ERF_IMPLICIT_W
+            Tau_corr[lev][2] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); // Tau33
+            Tau_corr[lev][2]->setVal(0.);
+#else
+            Tau_corr[lev][2] = nullptr;
+#endif
+        } else {
+            Tau_corr[lev][0] = nullptr;
+            Tau_corr[lev][1] = nullptr;
+            Tau_corr[lev][2] = nullptr;
+        }
+
         SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
         SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
         SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
