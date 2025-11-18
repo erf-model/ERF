@@ -206,7 +206,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                               dudz, dvdz, moisture_indices);
                 const Real wind_shear = dudz * dudz + dvdz * dvdz + 1.0e-9;
                 const Real theta   = cell_data(i, j, k, RhoTheta_comp) / cell_data(i, j, k, Rho_comp);
-                const Real grad_Ri = std::max(CONST_GRAV / theta * dthetadz / wind_shear, -100.0); // clear sky -- TODO: reduce stability in cloudy air
+                Real grad_Ri = CONST_GRAV / theta * dthetadz / wind_shear; // clear sky -- TODO: reduce stability in cloudy air
+                grad_Ri = std::max(grad_Ri, -100.0);  // Hong et al. 2006, MWR, Appendix A
                 /*
                   const Real Pr = 1.5 + 3.08 * grad_Ri;
                   const Real fm =
