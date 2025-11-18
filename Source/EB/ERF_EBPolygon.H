@@ -52,6 +52,11 @@ class polygon_ {
       m_num_vertices++;
     }
 
+    AMREX_GPU_HOST_DEVICE
+    int get_num_vertices ( ) {
+      return m_num_vertices;
+    }
+
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     void set_area ( amrex::Real const& a_area ) { m_area = a_area; }
 
@@ -80,16 +85,34 @@ class polygon_ {
 
       // Shift the vertices relative to the centroid
       amrex::Array<amrex::RealVect,m_max_vertices> vertex_cent;
-      for ( int i(0); i<m_num_vertices; ++i) { vertex_cent[i] = m_vertices[i] - centroid; }
-
-      // Find a vertex that isn't inline with v[0] and the centroid so we can
-      // compute a vector normal to the face.
-      for ( int i(1); i<m_num_vertices; ++i ) {
-        m_zdir = vertex_cent[0].crossProduct(vertex_cent[i]);
-        if ( !amrex::almostEqual(m_zdir.vectorLength(),0.) ) { break; }
+      for ( int i(0); i<m_num_vertices; ++i) {
+        vertex_cent[i] = m_vertices[i] - centroid;
       }
-      AMREX_ALWAYS_ASSERT(!amrex::almostEqual(m_zdir.vectorLength(), 0.));
-      m_zdir /= m_zdir.vectorLength();
+
+      // Compute the normal vector m_zdir by cross product of two vectors in vertex_cent.
+      // Choose the vectors with the largest cross-product magnitude.
+      amrex::RealVect v_normal;
+      amrex::Real max_norm2 = -1.0;
+      const amrex::RealVect& vertex_cent_0 = vertex_cent[0];
+
+      for (int i = 1; i < m_num_vertices; ++i)
+      {
+        amrex::RealVect vi = vertex_cent[i];
+        amrex::RealVect v_cross = vertex_cent_0.crossProduct(vi);
+        amrex::Real n2 = v_cross.radSquared();
+        if (n2 > max_norm2)
+        {
+          max_norm2 = n2;
+          v_normal = v_cross;
+        }
+      }
+      if (!amrex::almostEqual(max_norm2, 0.0))
+      {
+          v_normal /= std::sqrt(max_norm2);
+      }
+      m_zdir = v_normal;
+
+      // 
 
       m_theta[0] = 0.0;
       for ( int i(1); i<m_num_vertices; ++i) {
@@ -120,7 +143,7 @@ class polygon_ {
         m_area += 0.5*vi_cross_vj.vectorLength();
       }
       AMREX_ALWAYS_ASSERT( m_area > 0. ); // <------------------------------- TODO remove ALWAYS
-    }
+    } // void define
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     int ok ( ) const noexcept
