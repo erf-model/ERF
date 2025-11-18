@@ -72,10 +72,16 @@ void ERF::advance_dycore (int level,
 
     Vector<Real*> d_rayleigh_ptrs_at_lev;
     d_rayleigh_ptrs_at_lev.resize(Rayleigh::nvars);
-    d_rayleigh_ptrs_at_lev[Rayleigh::ubar]     = solverChoice.rayleigh_damp_U   ? d_rayleigh_ptrs[level][Rayleigh::ubar].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::vbar]     = solverChoice.rayleigh_damp_V   ? d_rayleigh_ptrs[level][Rayleigh::vbar].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::wbar]     = solverChoice.rayleigh_damp_W   ? d_rayleigh_ptrs[level][Rayleigh::wbar].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::thetabar] = solverChoice.rayleigh_damp_T   ? d_rayleigh_ptrs[level][Rayleigh::thetabar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::ubar]     = solverChoice.dampingChoice.rayleigh_damp_U   ? d_rayleigh_ptrs[level][Rayleigh::ubar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::vbar]     = solverChoice.dampingChoice.rayleigh_damp_V   ? d_rayleigh_ptrs[level][Rayleigh::vbar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::wbar]     = solverChoice.dampingChoice.rayleigh_damp_W   ? d_rayleigh_ptrs[level][Rayleigh::wbar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::thetabar] = solverChoice.dampingChoice.rayleigh_damp_T   ? d_rayleigh_ptrs[level][Rayleigh::thetabar].data() : nullptr;
+
+    bool use_rayleigh =
+       (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T);
+    Real* d_sinesq_at_lev      = (use_rayleigh)  ? d_sinesq_ptrs[level].data() : nullptr;
+    Real* d_sinesq_stag_at_lev = (use_rayleigh)  ? d_sinesq_stag_ptrs[level].data() : nullptr;
 
     Vector<Real*> d_sponge_ptrs_at_lev;
     if(sc.sponge_type=="input_sponge")
@@ -89,7 +95,6 @@ void ERF::advance_dycore (int level,
     bool l_use_kturb   = tc.use_kturb;
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
                            l_use_kturb );
-    bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
     const bool use_SurfLayer = (m_SurfaceLayer != nullptr);
     const MultiFab* z_0     = (use_SurfLayer) ? m_SurfaceLayer->get_z0(level) : nullptr;

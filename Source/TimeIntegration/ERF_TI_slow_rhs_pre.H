@@ -101,7 +101,7 @@
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
-                     dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                     dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
                      input_sounding_data, turbPert, true);
 
         // *****************************************************************************
@@ -130,7 +130,8 @@
                          mapfac[level],
                          (solverChoice.have_geo_wind_profile) ? d_u_geos[level].data(): nullptr,
                          (solverChoice.have_geo_wind_profile) ? d_v_geos[level].data(): nullptr,
-                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev, d_sinesq_stag_at_lev,
+                         d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
                          input_sounding_data, true);
 

@@ -1286,16 +1286,20 @@ private:
                                 const amrex::Vector<amrex::Real>& zlev_stag);
 
     // This is a vector over levels of vectors across quantities of Vectors
-    amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
+    amrex::Vector<amrex::Vector<amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
+    amrex::Vector<amrex::Vector<amrex::Vector<amrex::Real> > > h_sponge_ptrs;
 
-    // This is a vector over levels of vectors across quantities of Vectors
-    amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_sponge_ptrs;
+    // These are vectors over levels of Vectors
+    amrex::Vector<amrex::Vector<amrex::Real> > h_sinesq_ptrs;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_sinesq_stag_ptrs;
 
     // This is a vector over levels of vectors across quantities of DeviceVectors
     amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_rayleigh_ptrs;
-
-    // This is a vector over levels of vectors across quantities of DeviceVectors
     amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_sponge_ptrs;
+
+    // These are vectors over levels of DeviceVectors
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_sinesq_ptrs;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_sinesq_stag_ptrs;
 
     amrex::Vector<amrex::Real> h_havg_density;
     amrex::Vector<amrex::Real> h_havg_temperature;

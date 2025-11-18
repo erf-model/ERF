@@ -74,12 +74,12 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                                         &vars_new[level][Vars::yvel],
                                                         &vars_new[level][Vars::zvel]});
 
-    bool l_implicit_substepping = (solverChoice.substepping_type[level] == SubsteppingType::Implicit);
+    bool l_substepping = (solverChoice.substepping_type[level] == SubsteppingType::Implicit);
     int l_anelastic      = solverChoice.anelastic[level];
 
     Real estdt_comp_inv;
 
-    if (l_implicit_substepping && (nxc==1) && (nyc==1)) {
+    if (l_substepping && (nxc==1) && (nyc==1)) {
         // SCM -- should not depend on dx or dy; force minimum number of substeps
         estdt_comp_inv = std::numeric_limits<Real>::min();
     }
@@ -110,7 +110,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
                    // If we are doing implicit acoustic substepping, then the z-direction does not contribute
                    //    to the computation of the time step
-                   if (l_implicit_substepping) {
+                   if (l_substepping) {
                        if ((nxc > 1) && (nyc==1)) {
                            // 2-D in x-z
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]), new_comp_dt);
@@ -167,7 +167,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
                    // If we are doing implicit acoustic substepping, then the z-direction does not contribute
                    //    to the computation of the time step
-                   if (l_implicit_substepping) {
+                   if (l_substepping) {
                        if ((nxc > 1) && (nyc==1)) {
                            // 2-D in x-z
                            new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]), new_comp_dt);
@@ -279,7 +279,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          if (verbose) {
              Print() << "smallest even ratio is: " << dt_fast_ratio << std::endl;
          }
-     } // if substepping, either explicit or implicit
+     } // if substepping
 
      if (fixed_dt[level] > 0.0) {
          return fixed_dt[level];

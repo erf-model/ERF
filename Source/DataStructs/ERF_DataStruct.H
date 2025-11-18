@@ -12,6 +12,7 @@
 #include <ERF_Constants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_AdvStruct.H>
+#include <ERF_DampingStruct.H>
 #include <ERF_DiffStruct.H>
 #include <ERF_SpongeStruct.H>
 #include <ERF_TurbStruct.H>
@@ -47,7 +48,7 @@ AMREX_ENUM(CouplingType,
 );
 
 AMREX_ENUM(SubsteppingType,
-    None, Explicit, Implicit
+    None, Implicit
 );
 
 AMREX_ENUM(MeshType,
@@ -361,7 +362,6 @@ struct SolverChoice {
             }
         }
 
-        // Note: this will be overwritten with -1 on levels that have substepping_type == Explicit
         pp.query("beta_s", beta_s);
 
 # ifndef ERF_USE_SHOC
@@ -427,26 +427,12 @@ struct SolverChoice {
         pp.query("has_lat_lon", has_lat_lon);
         pp.query("variable_coriolis", variable_coriolis);
 
-        // Include Rayleigh damping (separate flags for each variable)
-        pp.query("rayleigh_damp_U", rayleigh_damp_U);
-        pp.query("rayleigh_damp_V", rayleigh_damp_V);
-        pp.query("rayleigh_damp_W", rayleigh_damp_W);
-        pp.query("rayleigh_damp_T", rayleigh_damp_T);
-        pp.query("rayleigh_dampcoef", rayleigh_dampcoef);
-        pp.query("rayleigh_zdamp", rayleigh_zdamp);
-        pp.query("rayleigh_damp_substep", rayleigh_damp_substep); // apply Rayleigh damping source terms in substep only
-
-        // Include vertical-velocity damping to improve robustness
-        pp.query("w_damping", w_damping);
-        pp.query("w_damping_cfl", w_damping_cfl);
-        pp.query("w_damping_coeff", w_damping_coeff);
-
         // Include four stream radiation approximation
         pp.query("four_stream_radiation", four_stream_radiation);
 
         // flags for whether to apply other source terms in substep only
-        pp.query("immersed_forcing_substep", immersed_forcing_substep); // apply Rayleigh damping source terms in substep only
-        pp.query("forest_substep", forest_substep); // apply Rayleigh damping source terms in substep only
+        pp.query("immersed_forcing_substep", immersed_forcing_substep); // apply immersed forcing source terms in substep only
+        pp.query("forest_substep", forest_substep);                     // apply canopy-related source terms in substep only
 
         // immersed forcing parameters
         pp.query("if_Cd_scalar", if_Cd_scalar);
@@ -530,9 +516,10 @@ struct SolverChoice {
             num_diff_coeff *= std::pow(2.0,-6);
         }
 
-           advChoice.init_params(pp_prefix);
-          diffChoice.init_params(pp_prefix);
-        spongeChoice.init_params(pp_prefix);
+            advChoice.init_params(pp_prefix);
+           diffChoice.init_params(pp_prefix);
+        dampingChoice.init_params(pp_prefix);
+         spongeChoice.init_params(pp_prefix);
 
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
@@ -601,7 +588,7 @@ struct SolverChoice {
 
         pp.query("hindcast_lateral_forcing", hindcast_lateral_forcing);
 
-        if(hindcast_lateral_forcing) {
+        if (hindcast_lateral_forcing) {
             pp.query("hindcast_boundary_data_dir", hindcast_boundary_data_dir);
 
             if(hindcast_boundary_data_dir.empty()) {
@@ -706,8 +693,6 @@ struct SolverChoice {
             }
             if (substepping_type[lev] == SubsteppingType::None) {
                 amrex::Print() << "No substepping at level " << lev << std::endl;
-            } else if (substepping_type[lev] == SubsteppingType::Explicit) {
-                amrex::Print() << "Explicit substepping at level " << lev << std::endl;
             } else if (substepping_type[lev] == SubsteppingType::Implicit) {
                 amrex::Print() << "Implicit substepping at level " << lev << std::endl;
             }
@@ -718,20 +703,6 @@ struct SolverChoice {
         amrex::Print() << "fixed_density               : " << fixed_density << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
-
-        amrex::Print() << "Rayleigh damping            :";
-        if (rayleigh_damp_U || rayleigh_damp_V || rayleigh_damp_W || rayleigh_damp_T) {
-            if (rayleigh_damp_U) amrex::Print() << " U";
-            if (rayleigh_damp_V) amrex::Print() << " V";
-            if (rayleigh_damp_W) amrex::Print() << " W";
-            if (rayleigh_damp_T) amrex::Print() << " T";
-            amrex::Print() << " (coef=" << rayleigh_dampcoef << " 1/s,"
-                           << " depth=" << rayleigh_zdamp << " m)"
-                           << std::endl;
-        } else {
-            amrex::Print() << " None" << std::endl;
-        }
-        amrex::Print() << "w damping                   : " << w_damping << std::endl;
 
         if (moisture_type == MoistureType::SAM) {
             amrex::Print() << "Moisture Model: SAM" << std::endl;
@@ -807,9 +778,10 @@ struct SolverChoice {
 
         amrex::Print() << "Buoyancy_type               : " << buoyancy_type << std::endl;
 
-           advChoice.display(pp_prefix);
-          diffChoice.display();
-        spongeChoice.display();
+            advChoice.display(pp_prefix);
+           diffChoice.display();
+         spongeChoice.display();
+        dampingChoice.display();
 
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].display(lev);
@@ -899,9 +871,10 @@ struct SolverChoice {
         mesh_type = new_mesh_type;
     }
 
-    AdvChoice    advChoice;
-    DiffChoice   diffChoice;
-    SpongeChoice spongeChoice;
+    AdvChoice     advChoice;
+    DiffChoice    diffChoice;
+    DampingChoice dampingChoice;
+    SpongeChoice  spongeChoice;
     amrex::Vector<TurbChoice>  turbChoice;
 
     int         force_stage1_single_substep = 1;
@@ -935,19 +908,6 @@ struct SolverChoice {
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
     bool        coriolis_3d            = true;
-
-    bool        rayleigh_damp_U        = false;
-    bool        rayleigh_damp_V        = false;
-    bool        rayleigh_damp_W        = false;
-    bool        rayleigh_damp_T        = false;
-    amrex::Real rayleigh_dampcoef      = 0.2; // inverse time scale [1/s]
-    amrex::Real rayleigh_zdamp         = 500.0; // damping layer depth [m]
-    amrex::Real rayleigh_ztop;
-    bool        rayleigh_damp_substep  = false; // use Rayleigh on substep only?
-
-    bool        w_damping              = false;
-    amrex::Real w_damping_cfl          = 1.0;
-    amrex::Real w_damping_coeff        = 0.3; // damping coefficient [m/s]
 
     bool        four_stream_radiation  = false;
 

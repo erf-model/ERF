@@ -462,9 +462,9 @@ List of Parameters
 | Parameter                  | Definition           | Acceptable     | Default             |
 |                            |                      | Values         |                     |
 +============================+======================+================+=====================+
-| **erf.substepping_type**   | Should we substep in | "Implicit",    | "Implicit" if       |
-|                            | each RK stage?       | "Explicit",    | compressible,       |
-|                            |                      | "None"         | "None" if anelastic |
+| **erf.substepping_type**   | Should we substep in | "Implicit" or  | "Implicit" if       |
+|                            | each RK stage?       | "None"         | compressible,       |
+|                            |                      |                | "None" if anelastic |
 +----------------------------+----------------------+----------------+---------------------+
 | **erf.vert_implicit_fac**  | How much implicit    | Real >= 0      | 0.0, 0.0, 0.0       |
 |                            | vertical diffusion   | (explicit) and | (fully explicit)    |
@@ -1291,6 +1291,11 @@ List of Parameters
 | **erf.coriolis_3d**                 | Include z component in | true / false      | true                |
 |                                     | the Coriolis forcing   |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.rayleigh_damping_type**       | Rayleigh damping       | "None",           | "SlowExplicit"      |
+|                                     | type                   | "SlowExplicit",   |                     |
+|                                     |                        | "FastExplicit"    |                     |
+|                                     |                        | "FastImplicit"    |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.rayleigh_damp_U**             | Include explicit       | true / false      | false               |
 |                                     | Rayleigh damping in    |                   |                     |
 |                                     | the x-momentum equation|                   |                     |
@@ -1299,7 +1304,7 @@ List of Parameters
 |                                     | Rayleigh damping in    |                   |                     |
 |                                     | the y-momentum equation|                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_damp_W**             | Include explicit       | true / false      | false               |
+| **erf.rayleigh_damp_W**             | Include                | true / false      | false               |
 |                                     | Rayleigh damping in    |                   |                     |
 |                                     | the z-momentum equation|                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
@@ -1313,7 +1318,8 @@ List of Parameters
 |                                     | timescale              |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.rayleigh_zdamp**              | Rayleigh damping       | Real              | 500.0               |
-|                                     | layer depth            |                   |                     |
+|                                     | layer depth measured   |                   |                     |
+|                                     | from the top of domain |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.nudging_from_input_sounding** | Add momentum source    | true / false      | false               |
 |                                     | terms to nudge the     |                   |                     |

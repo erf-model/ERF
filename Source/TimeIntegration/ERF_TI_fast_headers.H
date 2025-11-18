@@ -42,7 +42,8 @@ void erf_substep_NS (int step, int nrk, int level, int finest_level,
                      amrex::YAFluxRegister* fr_as_crse,
                      amrex::YAFluxRegister* fr_as_fine,
                      bool l_use_moisture, bool l_reflux,
-                     bool l_implicit_substepping);
+                     const amrex::Real* sinesq_at_lev_d,
+                     const amrex::Real l_damp_coef);
 
 /**
  * Function for computing the fast RHS with fixed-in-time terrain
@@ -75,7 +76,8 @@ void erf_substep_T (int step, int nrk, int level, int finest_level,
                     amrex::YAFluxRegister* fr_as_crse,
                     amrex::YAFluxRegister* fr_as_fine,
                     bool l_use_moisture, bool l_reflux,
-                    bool l_implicit_substepping);
+                    const amrex::Real* sinesq_at_lev_d,
+                    const amrex::Real l_damp_coef);
 
 /**
  * Function for computing the fast RHS with moving terrain
@@ -114,8 +116,7 @@ void erf_substep_MT (int step, int nrk, int level, int finest_level,
                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                      amrex::YAFluxRegister* fr_as_crse,
                      amrex::YAFluxRegister* fr_as_fine,
-                     bool l_use_moisture, bool l_reflux,
-                     bool l_implicit_substepping);
+                     bool l_use_moisture, bool l_reflux);
 
 /**
  * Function for computing the coefficients for the tridiagonal solver used in the fast
