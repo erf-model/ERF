@@ -47,7 +47,6 @@ ERF::initRayleigh ()
 
         Real ztop     = solverChoice.dampingChoice.rayleigh_ztop;
         Real zdamp    = solverChoice.dampingChoice.rayleigh_zdamp;
-        Real dampcoef = solverChoice.dampingChoice.rayleigh_dampcoef;
 
         for (int k = 0; k < zlen_rayleigh; k++) {
             Real z = 0.5 * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
