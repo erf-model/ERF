@@ -206,7 +206,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                               dudz, dvdz, moisture_indices);
                 const Real wind_shear = dudz * dudz + dvdz * dvdz + 1.0e-9;
                 const Real theta   = cell_data(i, j, k, RhoTheta_comp) / cell_data(i, j, k, Rho_comp);
-                const Real grad_Ri = std::max(CONST_GRAV / theta * dthetadz / wind_shear, -100.0);
+                const Real grad_Ri = std::max(CONST_GRAV / theta * dthetadz / wind_shear, -100.0); // clear sky -- TODO: reduce stability in cloudy air
                 /*
                   const Real Pr = 1.5 + 3.08 * grad_Ri;
                   const Real fm =
@@ -219,14 +219,17 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                   : std::pow((1 - 16 * grad_Ri), -1.0 / 2.0);
                 */
                 // Using YSU model instead of MRF model
-                const Real Pr = 1.0 + 2.1 * grad_Ri;
+                Real Pr = 1.0 + 2.1 * grad_Ri;  // Hong et al. 2006, MWR, Eqn. A19
                 const Real fm = (grad_Ri > 0)
                               ? 1.0 / ((1.0 + 5.0 * grad_Ri) * (1.0 + 5.0 * grad_Ri))
-                              : 1 - 8 * grad_Ri / (1 + 1.746 * std::sqrt(-grad_Ri));
+                              : 1 - 8 * grad_Ri / (1 + 1.746 * std::sqrt(-grad_Ri)); // Hong et al. 2006, MWR, Eqn. A20b
                 const Real ft = (grad_Ri > 0)
                               ? 1.0 / ((1.0 + 5.0 * grad_Ri) * (1.0 + 5.0 * grad_Ri))
-                              : 1 - 8 * grad_Ri / (1 + 1.286 * std::sqrt(-grad_Ri));
+                              : 1 - 8 * grad_Ri / (1 + 1.286 * std::sqrt(-grad_Ri)); // Hong et al. 2006, MWR, Eqn. A20a
                 const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
+
+                Pr = std::max(0.25, std::min(Pr, 4.0));  // from MRF (Hong & Pan 1996, MWR)
+
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
             }
