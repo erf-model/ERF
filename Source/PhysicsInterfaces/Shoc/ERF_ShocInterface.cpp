@@ -152,12 +152,13 @@ SHOCInterface::set_grids (int& level,
     m_col_offsets.clear();
     m_col_offsets.resize(int(ba.size()));
     for (MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
-        const auto& vbx = mfi.validbox();
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
-                                         (khi == vbx.bigEnd(2)),
+        // NOTE: Get lateral ghost cells for CC <--> FC
+        const auto& gbx = mfi.tilebox(IntVect(0,0,0),IntVect(1,1,0));
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == gbx.smallEnd(2)) &&
+                                         (khi == gbx.bigEnd(2)),
                                          "Vertical decomposition with shoc is not allowed.");
-        int nx = vbx.length(0);
-        int ny = vbx.length(1);
+        int nx = gbx.length(0);
+        int ny = gbx.length(1);
         m_col_offsets[mfi.index()] = num_cols;
         num_cols += nx * ny;
     }
@@ -379,12 +380,14 @@ SHOCInterface::mf_to_kokkos_buffers ()
     bool moist = (m_cons->nComp() > RhoQ1_comp);
     auto ProbLoArr = m_geom.ProbLoArray();
     for (MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
-        const auto& vbx  = mfi.validbox();
-        const int nx     = vbx.length(0);
-        const int imin   = vbx.smallEnd(0);
-        const int jmin   = vbx.smallEnd(1);
-        const int kmax   = vbx.bigEnd(2);
+        // NOTE: Grown box to get ghost cells in views
+        const auto& gbx  = mfi.tilebox(IntVect(0,0,0),IntVect(1,1,0));
+        const int nx     = gbx.length(0);
+        const int imin   = gbx.smallEnd(0);
+        const int jmin   = gbx.smallEnd(1);
+        const int kmax   = gbx.bigEnd(2);
         const int offset = m_col_offsets[mfi.index()];
+
         const Array4<const Real>& cons_arr = m_cons->const_array(mfi);
 
         const Array4<const Real>& u_arr    = m_xvel->const_array(mfi);
@@ -398,7 +401,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
 
         const Array4<const Real>& z_arr    = (m_z_phys) ? m_z_phys->const_array(mfi) :
                                                           Array4<const Real>{};
-        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // NOTE: k gets permuted with ilay
             // map [i,j,k] 0-based to [icol, ilay] 0-based
@@ -418,8 +421,6 @@ SHOCInterface::mf_to_kokkos_buffers ()
             Real rt_avg = 0.5 * (rt + rt_lo);
             Real qv_avg = 0.5 * (qv + qv_lo);
 
-
-
             // Delta z
             Real delz = (z_arr) ? 0.25 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
                                          + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
@@ -430,7 +431,6 @@ SHOCInterface::mf_to_kokkos_buffers ()
             Real w_cc = 0.5 * (w_arr(i,j,k) + w_arr(i,j,k+1));
             w_cc += (w_sub) ? w_sub[k] : 0.0;
             Real w_limited = std::copysign(std::max(std::fabs(w_cc),1.0e-6),w_cc);
-
 
             // Input/Output data structures
             //=======================================================
@@ -514,20 +514,18 @@ SHOCInterface::kokkos_buffers_to_mf (const Real dt)
 
     bool moist = (m_cons->nComp() > RhoQ1_comp);
     for (MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
+        // NOTE: No ghost cells when going back to MFs
         const auto& vbx_cc = mfi.validbox();
         const auto& vbx_x  = convert(vbx_cc,IntVect(1,0,0));
         const auto& vbx_y  = convert(vbx_cc,IntVect(0,1,0));
 
-        const int nx        = vbx_cc.length(0);
-        const int imin      = vbx_cc.smallEnd(0);
-        const int jmin      = vbx_cc.smallEnd(1);
-        const int kmax      = vbx_cc.bigEnd(2);
-        const int offset    = m_col_offsets[mfi.index()];
-
-        int ilo = vbx_x.smallEnd(0);
-        int ihi = vbx_x.bigEnd(0);
-        int jlo = vbx_y.smallEnd(1);
-        int jhi = vbx_y.bigEnd(1);
+        // NOTE: Grown box only for mapping
+        const auto& gbx  = mfi.tilebox(IntVect(0,0,0),IntVect(1,1,0));
+        const int nx     = gbx.length(0);
+        const int imin   = gbx.smallEnd(0);
+        const int jmin   = gbx.smallEnd(1);
+        const int kmax   = gbx.bigEnd(2);
+        const int offset = m_col_offsets[mfi.index()];
 
         const Array4<const Real>& cons_arr = m_cons->const_array(mfi);
         const Array4<const Real>& u_arr    = m_xvel->const_array(mfi);
@@ -549,7 +547,8 @@ SHOCInterface::kokkos_buffers_to_mf (const Real dt)
             Real r  = cons_arr(i,j,k,Rho_comp);
 
             // Theta at CC (eamxx_common_physics_functions_impl.hpp L123)
-            Real Th = thlm_d(icol,ilay)[0] / (1.0 - (1.0 / T_mid_d(icol,ilay)[0]) * (C::LatVap/C::Cpair) * qc_d(icol,ilay)[0] );
+            Real Th = thlm_d(icol,ilay)[0] / ( 1.0 - (1.0 / T_mid_d(icol,ilay)[0])
+                                             * (C::LatVap/C::Cpair) * qc_d(icol,ilay)[0] );
 
             // Populate the tendencies
             c_tend_arr(i,j,k,RhoTheta_comp)  = ( Th                  - cons_arr(i,j,k,RhoTheta_comp)/r ) / dt;
@@ -561,46 +560,24 @@ SHOCInterface::kokkos_buffers_to_mf (const Real dt)
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // Limit i to CC box where views are valid
-            int ii = std::max(std::min(i,ihi-1),ilo);
-
             // NOTE: k gets permuted with ilay
             // map [i,j,k] 0-based to [icol, ilay] 0-based
-            const int icol   = (j-jmin)*nx + (ii-imin) + offset;
+            const int icol   = (j-jmin)*nx + (i-imin) + offset;
             const int ilay   = kmax - k;
 
-            Real uvel;
-            int icolim = (j-jmin)*nx + (ii-1-imin) + offset;
-            if (i==ilo) {
-                int icolip = (j-jmin)*nx + (ii+1-imin) + offset;
-                uvel = 1.5 * horiz_wind_d(icol,0,ilay)[0] - 0.5 * horiz_wind_d(icolip,0,ilay)[0];
-            } else if (i==ihi) {
-                uvel = 1.5 * horiz_wind_d(icol,0,ilay)[0] - 0.5 * horiz_wind_d(icolim,0,ilay)[0];
-            } else {
-                uvel = 0.5 * (horiz_wind_d(icol,0,ilay)[0] + horiz_wind_d(icolim,0,ilay)[0]);
-            }
+            int icolim = (j-jmin)*nx + (i-1-imin) + offset;
+            Real uvel  = 0.5 * (horiz_wind_d(icol,0,ilay)[0] + horiz_wind_d(icolim,0,ilay)[0]);
             u_tend_arr(i,j,k) = ( uvel - u_arr(i,j,k) ) / dt;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // Limit j to CC box where views are valid
-            int jj = std::max(std::min(j,jhi-1),jlo);
-
             // NOTE: k gets permuted with ilay
             // map [i,j,k] 0-based to [icol, ilay] 0-based
-            const int icol   = (jj-jmin)*nx + (i-imin) + offset;
+            const int icol   = (j-jmin)*nx + (i-imin) + offset;
             const int ilay   = kmax - k;
 
-            Real vvel;
-            int icoljm = (jj-1-jmin)*nx + (i-imin) + offset;
-            if (j==jlo) {
-                int icoljp = (jj+1-jmin)*nx + (i-imin) + offset;
-                vvel = 1.5 * horiz_wind_d(icol,1,ilay)[0] - 0.5 * horiz_wind_d(icoljp,1,ilay)[0];
-            } else if (j==jhi) {
-                vvel = 1.5 * horiz_wind_d(icol,1,ilay)[0] - 0.5 * horiz_wind_d(icoljm,1,ilay)[0];
-            } else {
-                vvel = 0.5 * (horiz_wind_d(icol,1,ilay)[0] + horiz_wind_d(icoljm,1,ilay)[0]);
-            }
+            int icoljm = (j-1-jmin)*nx + (i-imin) + offset;
+            Real vvel  = 0.5 * (horiz_wind_d(icol,1,ilay)[0] + horiz_wind_d(icoljm,1,ilay)[0]);
             v_tend_arr(i,j,k) = ( vvel - v_arr(i,j,k) ) / dt;
         });
     }
@@ -624,23 +601,30 @@ SHOCInterface::set_eddy_diffs ()
         const auto& gbx_cc = mfi.growntilebox();
         const auto& vbx_cc = mfi.validbox();
 
-        const int nx     = vbx_cc.length(0);
-        const int imin   = vbx_cc.smallEnd(0);
-        const int imax   = vbx_cc.bigEnd(0);
-        const int jmin   = vbx_cc.smallEnd(1);
-        const int jmax   = vbx_cc.bigEnd(1);
-        const int kmin   = vbx_cc.smallEnd(2);
-        const int kmax   = vbx_cc.bigEnd(2);
+        // NOTE: Grown box only for mapping
+        const auto& gbx  = mfi.tilebox(IntVect(0,0,0),IntVect(1,1,0));
+        const int nx     = gbx.length(0);
+        const int imin   = gbx.smallEnd(0);
+        const int jmin   = gbx.smallEnd(1);
+        const int kmax   = gbx.bigEnd(2);
         const int offset = m_col_offsets[mfi.index()];
+
+        // Limiting to validbox
+        const int iminv  = vbx_cc.smallEnd(0);
+        const int imaxv  = vbx_cc.bigEnd(0);
+        const int jminv  = vbx_cc.smallEnd(1);
+        const int jmaxv  = vbx_cc.bigEnd(1);
+        const int kminv  = vbx_cc.smallEnd(2);
+        const int kmaxv  = vbx_cc.bigEnd(2);
 
         const Array4<Real>& mu_arr = m_mu->array(mfi);
 
         ParallelFor(gbx_cc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Limiting
-            int ii = std::min(std::max(i,imin),imax);
-            int jj = std::min(std::max(j,jmin),jmax);
-            int kk = std::min(std::max(k,kmin),kmax);
+            int ii = std::min(std::max(i,iminv),imaxv);
+            int jj = std::min(std::max(j,jminv),jmaxv);
+            int kk = std::min(std::max(k,kminv),kmaxv);
 
             // NOTE: k gets permuted with ilay
             // map [i,j,k] 0-based to [icol, ilay] 0-based
