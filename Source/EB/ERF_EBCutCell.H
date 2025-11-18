@@ -213,11 +213,6 @@ class eb_cut_cell_ {
     amrex::RealVect m_cell_cent; // Centroid of cell
     amrex::RealVect m_dx;
 
-    // List of intersection vertices
-    static int constexpr m_max_vertices = 6;
-    amrex::Array<amrex::RealVect, m_max_vertices> m_vertices;
-    int m_num_vertices = 0;
-
     // cut face
     polygon_ m_F7;
 
