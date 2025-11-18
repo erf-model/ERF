@@ -340,6 +340,12 @@ SHOCInterface::dealloc_buffers ()
 void
 SHOCInterface::mf_to_kokkos_buffers ()
 {
+    // FillBoundary for internal ghost cells for u/v averaging
+    m_tau13->FillBoundary(m_geom.periodicity());
+    m_tau23->FillBoundary(m_geom.periodicity());
+    m_hfx3->FillBoundary(m_geom.periodicity());
+    m_qfx3->FillBoundary(m_geom.periodicity());
+
     //
     // Expose for device capture
     //
@@ -379,6 +385,13 @@ SHOCInterface::mf_to_kokkos_buffers ()
     Real dz    = m_geom.CellSize(2);
     bool moist = (m_cons->nComp() > RhoQ1_comp);
     auto ProbLoArr = m_geom.ProbLoArray();
+
+    auto domain    = m_geom.Domain();
+    int ilo        = domain.smallEnd(0);
+    int ihi        = domain.bigEnd(0);
+    int jlo        = domain.smallEnd(1);
+    int jhi        = domain.bigEnd(1);
+
     for (MFIter mfi(*m_cons); mfi.isValid(); ++mfi) {
         // NOTE: Grown box to get ghost cells in views
         const auto& gbx  = mfi.tilebox(IntVect(0,0,0),IntVect(1,1,0));
@@ -445,11 +458,14 @@ SHOCInterface::mf_to_kokkos_buffers ()
             // eamxx_common_physics_functions_impl.hpp: calculate_vertical_velocity
             omega_d(icol,ilay)           = -w_limited * r * CONST_GRAV;
             if (k==0) {
-                surf_mom_flux_d(icol,0)  = 0.5 * (t13_arr(i,j,k) + t13_arr(i+1,j  ,k));
-                surf_mom_flux_d(icol,1)  = 0.5 * (t23_arr(i,j,k) + t23_arr(i  ,j+1,k));
+                int ii  = std::min(std::max(i,ilo),ihi);
+                int jj  = std::min(std::max(j,jlo),jhi);
+
+                surf_mom_flux_d(icol,0)  = 0.5 * (t13_arr(ii,jj,k) + t13_arr(ii+1,jj  ,k));
+                surf_mom_flux_d(icol,1)  = 0.5 * (t23_arr(ii,jj,k) + t23_arr(ii  ,jj+1,k));
                 // No unit conversion to W/m^2 (ERF_ShocInterface.H L224)
-                surf_sens_flux_d(icol)   = hfx3_arr(i,j,k);
-                surf_evap_d(icol)        = (moist) ? qfx3_arr(i,j,k) : 0.0;
+                surf_sens_flux_d(icol)   = hfx3_arr(ii,jj,k);
+                surf_evap_d(icol)        = (moist) ? qfx3_arr(ii,jj,k) : 0.0;
                 // Back out the drag coeff
                 Real wsp = sqrt( horiz_wind_d(icol,0,ilay)[0]*horiz_wind_d(icol,0,ilay)[0]
                                + horiz_wind_d(icol,1,ilay)[0]*horiz_wind_d(icol,1,ilay)[0] );
