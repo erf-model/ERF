@@ -65,6 +65,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                      mapfac[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                     d_sinesq_at_lev,
                      input_sounding_data, turbPert, false);
 
         // *************************************************************************
@@ -99,7 +100,8 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                          mapfac[level],
                          (solverChoice.have_geo_wind_profile) ? d_u_geos[level].data() : nullptr,
                          (solverChoice.have_geo_wind_profile) ? d_v_geos[level].data() : nullptr,
-                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev,
+                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                         d_sinesq_at_lev, d_sinesq_stag_at_lev, d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
                          input_sounding_data, false);
 
@@ -120,6 +122,9 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                              detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
         }
 
+        bool l_rayleigh_implicit = (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit);
+        Real l_damp_coef         = solverChoice.dampingChoice.rayleigh_dampcoef;
+
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             erf_substep_MT(fast_step, nrk, level, finest_level,
@@ -132,7 +137,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                            z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                              detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                            dtau, beta_s, inv_fac, mapfac[level],
-                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
+                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
 
         } else if (solverChoice.mesh_type == MeshType::VariableDz) {
 
@@ -143,7 +148,8 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                           fine_geom, solverChoice.gravity,
                           z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                           mapfac[level],
-                          fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
+                          fr_as_crse, fr_as_fine, l_use_moisture, l_reflux,
+                          (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
 
         } else {
 
@@ -153,7 +159,8 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom, solverChoice.gravity, stretched_dz_d[level],
                            dtau, beta_s, inv_fac, mapfac[level],
-                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, l_implicit_substepping);
+                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux,
+                           (l_rayleigh_implicit) ? d_sinesq_ptrs[level].data() : nullptr, l_damp_coef);
         }
 
         // Even if we update all the conserved variables we don't need
