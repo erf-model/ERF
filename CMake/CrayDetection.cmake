@@ -463,9 +463,9 @@ if(ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
 
     set(E3SM_EXPECTED_PATH "${CMAKE_SOURCE_DIR}/external/E3SM")
 
-    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/external/E3SM/CMakeLists.txt")
-        message(FATAL_ERROR 
-            "E3SM submodule required for SHOC/P3 but not found.\n"
+    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics")
+        message(FATAL_ERROR
+            "E3SM provides eamxx required for SHOC/P3 but not found.\n"
             "\n"
             "This requires specific EAMxx physics source files from E3SM at commit 2eb52d9.\n"
             "\n"
