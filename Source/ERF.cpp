@@ -60,7 +60,9 @@ int  ERF::mg_verbose    = 0;
 bool ERF::use_fft       = false;
 
 // Should we check the solution for NaNs every time step?
-bool ERF::check_for_nans = false;
+// 1: check state/vels after dycore, state after microphysics, and state/vels at end of full time step
+// 2: add checks of state before dycore and of slow rhs
+int ERF::check_for_nans = 0;
 
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
@@ -559,10 +561,12 @@ ERF::Evolve ()
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                 << " DT = " << dt[0]  << std::endl;
 
-        if (check_for_nans) {
+        if (check_for_nans > 0) {
             amrex::Print() << "Testing new state and vels for NaNs at end of timestep" << std::endl;
-            check_new_state_for_nans();
-            check_new_vels_for_nans();
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                check_state_for_nans(vars_new[lev][IntVars::cons]);
+                check_vels_for_nans(vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],vars_new[lev][Vars::zvel]);
+            }
         }
 
         if (verbose > 0)
@@ -2760,52 +2764,51 @@ ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Re
 }
 
 void
-ERF::check_new_state_for_nans()
+ERF::check_state_for_nans(MultiFab const& S)
 {
-    if (check_for_nans) {
-        int ncomp = vars_new[0][Vars::cons].nComp();
-        for (int lev = 0; lev <= finest_level; lev++)
-        {
-            //
-            // Test at the end of every full timestep whether the solution data contains NaNs
-            //
-            auto& lev_new = vars_new[lev];
-            for (int i = 0; i < ncomp; i++) {
-                if (lev_new[Vars::cons].contains_nan(i,1,0))
-                {
-                    amrex::Print() << "ith conserved variable at new time contains NaNs" << i << '\n';
-                    exit(0);
-                }
+    int ncomp = S.nComp();
+    for (int lev = 0; lev <= finest_level; lev++)
+    {
+        //
+        // Test at the end of every full timestep whether the solution data contains NaNs
+        //
+        bool any_have_nans = false;
+        for (int i = 0; i < ncomp; i++) {
+            if (S.contains_nan(i,1,0))
+            {
+                amrex::Print() << "Component " << i << "of conserved variables contains NaNs" << '\n';
+                any_have_nans = true;
             }
+        }
+        if (any_have_nans) {
+            exit(0);
         }
     }
 }
 
 void
-ERF::check_new_vels_for_nans()
+ERF::check_vels_for_nans(MultiFab const& xvel, MultiFab const& yvel, MultiFab const& zvel)
 {
-    if (check_for_nans) {
-        for (int lev = 0; lev <= finest_level; lev++)
-        {
-            //
-            // Test at the end of every full timestep whether the solution data contains NaNs
-            //
-            auto& lev_new = vars_new[lev];
-            if (lev_new[Vars::xvel].contains_nan(0,1,0))
-            {
-                amrex::Print() << "x-velocity at new time contains NaNs" << '\n';
-                exit(0);
-            }
-            if (lev_new[Vars::yvel].contains_nan(0,1,0))
-            {
-                amrex::Print() << "y-velocity at new time contains NaNs" << '\n';
-                exit(0);
-            }
-            if (lev_new[Vars::zvel].contains_nan(0,1,0))
-            {
-                amrex::Print() << "z-velocity at new time contains NaNs" << '\n';
-                exit(0);
-            }
-        }
+    //
+    // Test at the end of every full timestep whether the solution data contains NaNs
+    //
+    bool any_have_nans = false;
+    if (xvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "x-velocity contains NaNs " << '\n';
+        any_have_nans = true;
+    }
+    if (yvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "y-velocity contains NaNs" << '\n';
+        any_have_nans = true;
+    }
+    if (zvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "z-velocity contains NaNs" << '\n';
+        any_have_nans = true;
+    }
+    if (any_have_nans) {
+        exit(0);
     }
 }
