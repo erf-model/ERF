@@ -568,8 +568,8 @@ define( [[maybe_unused]] int const& a_level,
 
             // 1. Volume Fraction
 
-            Real lo_vol {lo_eb_cc.volume()};
-            Real hi_vol {hi_eb_cc.volume()};
+            Real lo_vol {lo_eb_cc.volume()}; AMREX_ASSERT(lo_vol >= 0.0 && lo_vol <= 1.0);
+            Real hi_vol {hi_eb_cc.volume()}; AMREX_ASSERT(hi_vol >= 0.0 && hi_vol <= 1.0);
 
             aux_vfrac(i,j,k) = lo_vol + hi_vol;
 

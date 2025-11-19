@@ -16,8 +16,8 @@ using namespace amrex;
  * @param[in] dt_lev time step for this time advance
  */
 
-void
-check_for_negative_theta(amrex::MultiFab& S_old);
+void check_for_negative_theta (amrex::MultiFab& S);
+void check_for_low_temp       (amrex::MultiFab& S);
 
 void
 ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
@@ -219,10 +219,40 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                    Geom(lev), dt_lev, time);
 
     // **************************************************************************************
+    // Tests on the reasonableness of the solution
+    // **************************************************************************************
+    // Test for NaNs after dycore
+    if (check_for_nans) {
+        amrex::Print() << "Testing new state and vels for NaNs after dycore" << std::endl;
+        check_new_state_for_nans();
+        check_new_vels_for_nans();
+    }
+
+    // We only test on low temp if we have a moisture model because we are protecting against
+    //    the test on low temp inside the moisture models
+    if (solverChoice.anelastic[lev] != 1) {
+        if (solverChoice.moisture_type != MoistureType::None) {
+            check_for_low_temp(S_new);
+        }
+        else
+        {
+            // Otherwise we will test on negative (rhotheta) coming out of the dycore
+            check_for_negative_theta(S_new);
+        }
+    }
+
+    // **************************************************************************************
     // Update the microphysics (moisture)
     // **************************************************************************************
-    if (!solverChoice.moisture_tight_coupling) {
+    if (!solverChoice.moisture_tight_coupling)
+    {
         advance_microphysics(lev, S_new, dt_lev, iteration, time);
+
+        // Test for NaNs after microphysics
+        if (check_for_nans) {
+            amrex::Print() << "Testing new state for NaNs after advance_microphysics" << std::endl;
+            check_new_state_for_nans();
+        }
     }
 
     // **************************************************************************************
@@ -325,27 +355,61 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 }
 
 void
-check_for_negative_theta(amrex::MultiFab& S_old)
+check_for_low_temp(amrex::MultiFab& S)
+{
+    // *****************************************************************************
+    // Test for low temp (low is defined as beyond the microphysics range of validity)
+    // *****************************************************************************
+    //
+    // This value is defined in erf_dtesati in Source/Utils/ERF_MicrophysicsUtils.H
+    Real t_low = 273.16 - 85.;
+    //
+    for (MFIter mfi(S); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.tilebox();
+        const Array4<Real> &s_arr  = S.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real rho      = s_arr(i, j, k, Rho_comp);
+            const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
+            const Real qv       = s_arr(i, j, k, RhoQ1_comp);
+
+            Real temp = getTgivenRandRTh(rho, rhotheta, qv);
+
+            if (temp < t_low) {
+#ifdef AMREX_USE_GPU
+                AMREX_DEVICE_PRINTF("Temperature too low going into microphysics in cell: %d %d %d %e \n", i,j,k,temp);
+#else
+                printf("Temperature too low going into microphyics in cell: %d %d %d \n", i,j,k);
+                printf("Based on temp / rhotheta / rho %e %e %e \n", temp,rhotheta,rho);
+                amrex::Abort();
+#endif
+            }
+        });
+    }
+}
+
+void
+check_for_negative_theta(amrex::MultiFab& S)
 {
     // *****************************************************************************
     // Test for negative (rho theta)
     // *****************************************************************************
-    for (MFIter mfi(S_old); mfi.isValid(); ++mfi)
+    for (MFIter mfi(S); mfi.isValid(); ++mfi)
     {
         Box bx = mfi.tilebox();
-        const Array4<Real> &cell_data  = S_old.array(mfi);
+        const Array4<Real> &s_arr  = S.array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
+            if (rhotheta <= 0.) {
 #ifdef AMREX_USE_GPU
-            if (cell_data(i,j,k,RhoTheta_comp) <= 0.) AMREX_DEVICE_PRINTF("BAD THETA AT %d %d %d %e %e \n",
-                i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
+                AMREX_DEVICE_PRINTF("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
 #else
-            if (cell_data(i,j,k,RhoTheta_comp) <= 0.) {
-                printf("BAD THETA AT %d %d %d %e %e \n",
-                i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
+                printf("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
                 amrex::Abort("Bad theta in check_for_negative_theta");
-            }
 #endif
+            }
             });
     } // mfi
 }

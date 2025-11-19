@@ -228,6 +228,10 @@ public:
     // Restart
     void restart ();
 
+    // Check for NaNs
+    void check_new_state_for_nans();
+    void check_new_vels_for_nans();
+
     // Is it time to write a plotfile or checkpoint?
     bool writeNow (const amrex::Real cur_time, const int nstep, const int plot_int,
                    const amrex::Real plot_per, const amrex::Real dt_0, amrex::Real& last_file_time);
@@ -1189,6 +1193,8 @@ private:
     static int verbose;
     static int mg_verbose;
     static bool use_fft;
+
+    static bool check_for_nans;
 
     // Diagnostic output interval
     static int sum_interval;
