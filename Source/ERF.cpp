@@ -59,6 +59,9 @@ int  ERF::verbose       = 0;
 int  ERF::mg_verbose    = 0;
 bool ERF::use_fft       = false;
 
+// Should we check the solution for NaNs every time step?
+bool ERF::check_for_nans = false;
+
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
 Real ERF::sum_per       = -1.0;
@@ -555,6 +558,12 @@ ERF::Evolve ()
 
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                 << " DT = " << dt[0]  << std::endl;
+
+        if (check_for_nans) {
+            amrex::Print() << "Testing new state and vels for NaNs at end of timestep" << std::endl;
+            check_new_state_for_nans();
+            check_new_vels_for_nans();
+        }
 
         if (verbose > 0)
         {
@@ -2106,6 +2115,9 @@ ERF::ReadParameters ()
         }
 #endif
 
+        // Check for NaNs?
+        pp.query("check_for_nans", check_for_nans);
+
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
         pp.query("sum_period"  , sum_per);
@@ -2745,4 +2757,55 @@ ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Re
     }
 
     return write_now;
+}
+
+void
+ERF::check_new_state_for_nans()
+{
+    if (check_for_nans) {
+        int ncomp = vars_new[0][Vars::cons].nComp();
+        for (int lev = 0; lev <= finest_level; lev++)
+        {
+            //
+            // Test at the end of every full timestep whether the solution data contains NaNs
+            //
+            auto& lev_new = vars_new[lev];
+            for (int i = 0; i < ncomp; i++) {
+                if (lev_new[Vars::cons].contains_nan(i,1,0))
+                {
+                    amrex::Print() << "ith conserved variable at new time contains NaNs" << i << '\n';
+                    exit(0);
+                }
+            }
+        }
+    }
+}
+
+void
+ERF::check_new_vels_for_nans()
+{
+    if (check_for_nans) {
+        for (int lev = 0; lev <= finest_level; lev++)
+        {
+            //
+            // Test at the end of every full timestep whether the solution data contains NaNs
+            //
+            auto& lev_new = vars_new[lev];
+            if (lev_new[Vars::xvel].contains_nan(0,1,0))
+            {
+                amrex::Print() << "x-velocity at new time contains NaNs" << '\n';
+                exit(0);
+            }
+            if (lev_new[Vars::yvel].contains_nan(0,1,0))
+            {
+                amrex::Print() << "y-velocity at new time contains NaNs" << '\n';
+                exit(0);
+            }
+            if (lev_new[Vars::zvel].contains_nan(0,1,0))
+            {
+                amrex::Print() << "z-velocity at new time contains NaNs" << '\n';
+                exit(0);
+            }
+        }
+    }
 }
