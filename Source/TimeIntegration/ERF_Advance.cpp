@@ -218,11 +218,25 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                    cc_source, xmom_source, ymom_source, zmom_source, buoyancy,
                    Geom(lev), dt_lev, time);
 
+    // Test for NaNs after dycore
+    if (check_for_nans) {
+        amrex::Print() << "Testing new state and vels for NaNs after dycore" << std::endl;
+        check_new_state_for_nans();
+        check_new_vels_for_nans();
+    }
+
     // **************************************************************************************
     // Update the microphysics (moisture)
     // **************************************************************************************
-    if (!solverChoice.moisture_tight_coupling) {
+    if (!solverChoice.moisture_tight_coupling)
+    {
         advance_microphysics(lev, S_new, dt_lev, iteration, time);
+
+        // Test for NaNs after microphysics
+        if (check_for_nans) {
+            amrex::Print() << "Testing new state for NaNs after advance_microphysics" << std::endl;
+            check_new_state_for_nans();
+        }
     }
 
     // **************************************************************************************
