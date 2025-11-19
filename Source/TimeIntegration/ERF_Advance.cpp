@@ -210,6 +210,16 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     state_new.push_back(MultiFab(rW_new[lev], amrex::make_alias, 0,     1)); // zmom
 
     // **************************************************************************************
+    // Tests on the reasonableness of the solution
+    // **************************************************************************************
+    // Test for NaNs after dycore
+    if (check_for_nans > 1) {
+        amrex::Print() << "Testing old state and vels for NaNs before dycore" << std::endl;
+        check_state_for_nans(S_old);
+        check_vels_for_nans(rU_old[lev],rV_old[lev],rW_old[lev]);
+    }
+
+    // **************************************************************************************
     // Update the dycore
     // **************************************************************************************
     advance_dycore(lev, state_old, state_new,
@@ -222,10 +232,10 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // Tests on the reasonableness of the solution
     // **************************************************************************************
     // Test for NaNs after dycore
-    if (check_for_nans) {
+    if (check_for_nans > 0) {
         amrex::Print() << "Testing new state and vels for NaNs after dycore" << std::endl;
-        check_new_state_for_nans();
-        check_new_vels_for_nans();
+        check_state_for_nans(S_new);
+        check_vels_for_nans(rU_new[lev],rV_new[lev],rW_new[lev]);
     }
 
     // We only test on low temp if we have a moisture model because we are protecting against
@@ -249,9 +259,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
         advance_microphysics(lev, S_new, dt_lev, iteration, time);
 
         // Test for NaNs after microphysics
-        if (check_for_nans) {
+        if (check_for_nans > 0) {
             amrex::Print() << "Testing new state for NaNs after advance_microphysics" << std::endl;
-            check_new_state_for_nans();
+            check_state_for_nans(S_new);
         }
     }
 
