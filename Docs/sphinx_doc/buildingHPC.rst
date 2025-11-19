@@ -75,7 +75,7 @@ Cray auto-detection is enabled by default when a Cray environment is identified.
 
 .. code-block:: bash
 
-   cmake -DERF_DISABLE_CRAY_AUTO_FIXES=ON ..
+   cmake -DERF_ENABLE_CRAY_AUTO_FIXES=OFF ..
 
 .. dropdown:: Technical Details: Two-Phase Process
    :icon: info
