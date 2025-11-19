@@ -29,10 +29,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Base state holds r_0, pres_0, pi_0, th_0 (in that order)
     //
-    // Here is where we set 3 ghost cells for the base state!
-    //
+    // Here is where we set the number of ghost cells for the base state!
     // ********************************************************************************************
-    tmp_base_state.define(ba,dm,BaseState::num_comps,3);
+    int ngb = (solverChoice.terrain_type == TerrainType::EB) ? 4 : 3;
+    tmp_base_state.define(ba,dm,BaseState::num_comps,ngb);
     tmp_base_state.setVal(0.);
 
     if (solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
@@ -407,8 +407,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     if (solverChoice.rad_type != RadiationType::None || solverChoice.lsm_type != LandSurfaceType::None || solverChoice.do_radiation)
     {
-        qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, ngrow_state);
+        qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
+        rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, 0);
         qheating_rates[lev]->setVal(0.);
+        rad_fluxes[lev]->setVal(0.);
     }
 
     if (plot_micro_src) {
@@ -444,8 +446,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         }
         BoxArray m_ba(std::move(m_bl));
 
-        sw_lw_fluxes[lev] = std::make_unique<MultiFab>(m_ba, dm, 6, ngrow_state); // DIR/DIF VIS/NIR (4), NET SW (1), LW (1)
-        solar_zenith[lev] = std::make_unique<MultiFab>(m_ba, dm, 1, ngrow_state);
+        sw_lw_fluxes[lev] = std::make_unique<MultiFab>(m_ba, dm, 6, 0); // DIR/DIF VIS/NIR (4), NET SW (1), LW (1)
+        solar_zenith[lev] = std::make_unique<MultiFab>(m_ba, dm, 1, 0);
 
         sw_lw_fluxes[lev]->setVal(0.);
         solar_zenith[lev]->setVal(0.);
@@ -528,6 +530,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     BoxArray ba23 = convert(ba, IntVect(0,1,1));
 
     Tau[lev].resize(9);
+    Tau_corr[lev].resize(3);
 
     if (l_use_diff) {
         //
@@ -560,6 +563,25 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             Tau[lev][TauType::tau31] = nullptr;
             Tau[lev][TauType::tau32] = nullptr;
         }
+
+        if (l_implicit_diff && solverChoice.implicit_momentum_diffusion)
+        {
+            Tau_corr[lev][0] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); // Tau31
+            Tau_corr[lev][1] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); // Tau32
+            Tau_corr[lev][0]->setVal(0.);
+            Tau_corr[lev][1]->setVal(0.);
+#ifdef ERF_IMPLICIT_W
+            Tau_corr[lev][2] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); // Tau33
+            Tau_corr[lev][2]->setVal(0.);
+#else
+            Tau_corr[lev][2] = nullptr;
+#endif
+        } else {
+            Tau_corr[lev][0] = nullptr;
+            Tau_corr[lev][1] = nullptr;
+            Tau_corr[lev][2] = nullptr;
+        }
+
         SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
         SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
         SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
@@ -737,11 +759,6 @@ ERF::update_terrain_arrays (int lev)
             const auto& ebfact = *eb[lev]->get_const_factory();
             const MultiFab& volfrac = ebfact.getVolFrac();
             detJ_cc[lev] = std::make_unique<MultiFab>(volfrac, amrex::make_alias, 0, volfrac.nComp());
-
-            // Array<const MultiCutFab*, AMREX_SPACEDIM> areafrac = ebfact.getAreaFrac();
-            // ax[lev] = std::make_unique<MultiFab>(*(areafrac[0]), amrex::make_alias, 0, areafrac[0]->nComp());
-            // ay[lev] = std::make_unique<MultiFab>(*(areafrac[1]), amrex::make_alias, 0, areafrac[1]->nComp());
-            // az[lev] = std::make_unique<MultiFab>(*(areafrac[2]), amrex::make_alias, 0, areafrac[2]->nComp());
         }
     }
 }

@@ -59,6 +59,11 @@ int  ERF::verbose       = 0;
 int  ERF::mg_verbose    = 0;
 bool ERF::use_fft       = false;
 
+// Should we check the solution for NaNs every time step?
+// 1: check state/vels after dycore, state after microphysics, and state/vels at end of full time step
+// 2: add checks of state before dycore and of slow rhs
+int ERF::check_for_nans = 0;
+
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
 Real ERF::sum_per       = -1.0;
@@ -166,6 +171,7 @@ ERF::ERF_shared ()
 #endif
 
     qheating_rates.resize(nlevs_max);
+    rad_fluxes.resize(nlevs_max);
     sw_lw_fluxes.resize(nlevs_max);
     solar_zenith.resize(nlevs_max);
 
@@ -293,12 +299,6 @@ ERF::ERF_shared ()
     // No valid BoxArray and DistributionMapping have been defined.
     // But the arrays for them have been resized.
 
-    istep.resize(nlevs_max, 0);
-    nsubsteps.resize(nlevs_max, 1);
-    for (int lev = 1; lev <= max_level; ++lev) {
-        nsubsteps[lev] = MaxRefRatio(lev-1);
-    }
-
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);
     dt.resize(nlevs_max, std::min(1.e100,dt_max_initial));
@@ -355,6 +355,7 @@ ERF::ERF_shared ()
 
     // Stresses
     Tau.resize(nlevs_max);
+    Tau_corr.resize(nlevs_max);
     SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
     SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
@@ -568,6 +569,14 @@ ERF::Evolve ()
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                 << " DT = " << dt[0]  << std::endl;
 
+        if (check_for_nans > 0) {
+            amrex::Print() << "Testing new state and vels for NaNs at end of timestep" << std::endl;
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                check_state_for_nans(vars_new[lev][IntVars::cons]);
+                check_vels_for_nans(vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],vars_new[lev][Vars::zvel]);
+            }
+        }
+
         if (verbose > 0)
         {
             auto dEvolveTime = amrex::second() - dEvolveTime0;
@@ -622,7 +631,7 @@ ERF::Evolve ()
 
         if (writeNow(cur_time, step+1, m_subvol_int, m_subvol_per, dt[0], last_subvol_time)) {
             last_subvol_step = step+1;
-            WriteSubvolume();
+            WriteSubvolume(subvol3d_var_names);
             if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
         }
 
@@ -661,7 +670,7 @@ ERF::Evolve ()
         if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
     }
     if ( (m_subvol_int > 0 || m_subvol_per > 0.) && istep[0] > last_subvol_step) {
-        WriteSubvolume();
+        WriteSubvolume(subvol3d_var_names);
         if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
     }
 
@@ -1005,6 +1014,20 @@ ERF::InitData_pre ()
                 Warning("Should not use Deardorff LES for mesoscale resolution");
             }
         }
+
+        // Turn off implicit solve if we have no diffusion
+        bool l_use_kturb   = solverChoice.turbChoice[lev].use_kturb;
+        bool l_use_diff    = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
+                               l_use_kturb );
+        bool l_implicit_diff = (solverChoice.vert_implicit_fac[0] > 0 ||
+                                solverChoice.vert_implicit_fac[1] > 0 ||
+                                solverChoice.vert_implicit_fac[2] > 0);
+        if (l_implicit_diff && !l_use_diff) {
+            Print() << "No molecular or turbulent diffusion, turning off implicit solve" << std::endl;
+            solverChoice.vert_implicit_fac[0] = 0;
+            solverChoice.vert_implicit_fac[1] = 0;
+            solverChoice.vert_implicit_fac[2] = 0;
+        }
     }
 }
 
@@ -1035,6 +1058,17 @@ ERF::InitData_post ()
             z_phys_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
         }
     }
+
+#ifdef ERF_IMPLICIT_W
+    if (SolverChoice::mesh_type == MeshType::VariableDz &&
+        (solverChoice.vert_implicit_fac[0] > 0 ||
+         solverChoice.vert_implicit_fac[1] > 0 ||
+         solverChoice.vert_implicit_fac[2] > 0  )       &&
+        solverChoice.implicit_momentum_diffusion)
+    {
+        amrex::Warning("Doing implicit solve for u, v, and w with terrain -- this has not been tested");
+    }
+#endif
 
     //
     // Copy vars_new into vars_old, then use vars_old to fill covered cells in vars_new during AverageDown
@@ -1159,7 +1193,7 @@ ERF::InitData_post ()
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer, low_data_zlo,
                                vars_new[lev][Vars::cons], *mf_PSFC[lev],
-                               solverChoice.rdOcp, use_moist);
+                               solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
             } // itime
         }
 #endif
@@ -1265,8 +1299,8 @@ ERF::InitData_post ()
         //lsf.start_time = start_time;
     }
 
-    if (solverChoice.rayleigh_damp_U ||solverChoice.rayleigh_damp_V ||
-        solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T)
+    if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
         initRayleigh();
         if (solverChoice.init_type == InitType::Input_Sounding)
@@ -1308,34 +1342,10 @@ ERF::InitData_post ()
         }
     }
 
-    //
-    // If we are starting from scratch, we have the option to project the initial velocity field
-    //    regardless of how we initialized.
-    // pp_inc is used as scratch space here; we zero it out after the projection
-    //
-    if (restart_chkfile == "")
-    {
-        if (solverChoice.project_initial_velocity) {
-            Real dummy_dt = 1.0;
-            if (verbose > 0) {
-                amrex::Print() << "Projecting initial velocity field" << std::endl;
-            }
-            for (int lev = 0; lev <= finest_level; ++lev)
-            {
-                project_velocity(lev, dummy_dt);
-                pp_inc[lev].setVal(0.);
-                gradp[lev][GpVars::gpx].setVal(0.);
-                gradp[lev][GpVars::gpy].setVal(0.);
-                gradp[lev][GpVars::gpz].setVal(0.);
-            }
-        }
-    }
-
-    // Copy from new into old just in case
+    // Fill boundary conditions in vars_new
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         auto& lev_new = vars_new[lev];
-        auto& lev_old = vars_old[lev];
 
         // ***************************************************************************
         // Physical bc's at domain boundary
@@ -1372,11 +1382,40 @@ ERF::InitData_post ()
                              ngvect_vels,t_new[lev],BCVars::yvel_bc,do_fb);
         (   *physbcs_w[lev])(lev_new[Vars::zvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
                              ngvect_vels,t_new[lev],BCVars::zvel_bc,do_fb);
+    }
 
-        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,ncomp_cons,lev_new[Vars::cons].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,         1,lev_new[Vars::xvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,         1,lev_new[Vars::yvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,         1,lev_new[Vars::zvel].nGrowVect());
+    //
+    // If we are starting from scratch, we have the option to project the initial velocity field
+    //    regardless of how we initialized.  Note that project_velocity operates on vars_new.
+    // pp_inc is used as scratch space here; we zero it out after the projection
+    //
+    if (restart_chkfile == "")
+    {
+        if (solverChoice.project_initial_velocity) {
+            Real dummy_dt = 1.0;
+            if (verbose > 0) {
+                amrex::Print() << "Projecting initial velocity field" << std::endl;
+            }
+            for (int lev = 0; lev <= finest_level; ++lev)
+            {
+                project_velocity(lev, dummy_dt);
+                pp_inc[lev].setVal(0.);
+                gradp[lev][GpVars::gpx].setVal(0.);
+                gradp[lev][GpVars::gpy].setVal(0.);
+                gradp[lev][GpVars::gpz].setVal(0.);
+            }
+        }
+    }
+
+    // Copy from new into old just in case (after filling boundary conditions and possibly projecting)
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        int nc = vars_new[lev][Vars::cons].nComp();
+
+        MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,nc,vars_new[lev][Vars::cons].nGrowVect());
+        MultiFab::Copy(vars_old[lev][Vars::xvel],vars_new[lev][Vars::xvel],0,0, 1,vars_new[lev][Vars::xvel].nGrowVect());
+        MultiFab::Copy(vars_old[lev][Vars::yvel],vars_new[lev][Vars::yvel],0,0, 1,vars_new[lev][Vars::yvel].nGrowVect());
+        MultiFab::Copy(vars_old[lev][Vars::zvel],vars_new[lev][Vars::zvel],0,0, 1,vars_new[lev][Vars::zvel].nGrowVect());
     }
 
     // Compute the minimum dz in the domain at each level (to be used for setting the timestep)
@@ -1405,7 +1444,9 @@ ERF::InitData_post ()
             Print() << "Note: Molecular diffusion specified but dynamic_viscosity has not been specified" << std::endl;
         } else {
             Real nu = dc.dynamic_viscosity / dc.rho0_trans;
-            Real viscous_limit = 0.5 * delta*delta / nu;
+            Real viscous_limit = 2.0 * delta*delta / nu;
+            Print() << "smallest grid spacing at level " << finest_level << " = " << delta << std::endl;
+            Print() << "dt at level " << finest_level << " = " << dt[finest_level] << std::endl;
             Print() << "Viscous CFL is " << dt[finest_level] / viscous_limit << std::endl;
             if (fixed_dt[finest_level] >= viscous_limit) {
                 Warning("Specified fixed_dt is above the viscous limit");
@@ -1751,7 +1792,7 @@ ERF::InitData_post ()
             last_plot2d_file_step_2 = istep[0];
         }
         if (m_subvol_int > 0 || m_subvol_per > 0.) {
-            WriteSubvolume();
+            WriteSubvolume(subvol3d_var_names);
             last_subvol_step = istep[0];
             if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
         }
@@ -2196,6 +2237,9 @@ ERF::ReadParameters ()
         }
 #endif
 
+        // Check for NaNs?
+        pp.query("check_for_nans", check_for_nans);
+
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
         pp.query("sum_period"  , sum_per);
@@ -2216,10 +2260,39 @@ ERF::ReadParameters ()
         pp.query("fixed_dt", fixed_dt[0]);
         pp.query("fixed_fast_dt", fixed_fast_dt[0]);
 
+        int nlevs_max = max_level + 1;
+        istep.resize(nlevs_max, 0);
+        nsubsteps.resize(nlevs_max, 1);
+        // This is the default
+        for (int lev = 1; lev <= max_level; ++lev) {
+            nsubsteps[lev] = MaxRefRatio(lev-1);
+        }
+
+        if (max_level > 0) {
+            ParmParse pp_erf("erf");
+            int count = pp_erf.countval("dt_ref_ratio");
+            if (count > 0) {
+                Vector<int> nsub;
+                nsub.resize(nlevs_max, 0);
+                if (count == 1) {
+                    pp_erf.queryarr("dt_ref_ratio", nsub, 0, 1);
+                    for (int lev = 1; lev <= max_level; ++lev) {
+                        nsubsteps[lev] = nsub[0];
+                    }
+                } else {
+                    pp_erf.queryarr("dt_ref_ratio", nsub, 0, max_level);
+                    for (int lev = 1; lev <= max_level; ++lev) {
+                        nsubsteps[lev] = nsub[lev-1];
+                    }
+                }
+            }
+        }
+
+        // Make sure we do this after we have defined nsubsteps above
         for (int lev = 1; lev <= max_level; lev++)
         {
-            fixed_dt[lev]      = fixed_dt[lev-1]      / static_cast<Real>(MaxRefRatio(lev-1));
-            fixed_fast_dt[lev] = fixed_fast_dt[lev-1] / static_cast<Real>(MaxRefRatio(lev-1));
+            fixed_dt[lev]      = fixed_dt[lev-1]      / static_cast<Real>(nsubsteps[lev]);
+            fixed_fast_dt[lev] = fixed_fast_dt[lev-1] / static_cast<Real>(nsubsteps[lev]);
         }
 
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
@@ -2365,6 +2438,7 @@ ERF::ReadParameters ()
         pp.query("subvol_file",   subvol_file);
         pp.query("subvol_int" , m_subvol_int);
         pp.query("subvol_per" , m_subvol_per);
+        setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
@@ -2810,4 +2884,54 @@ ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Re
     }
 
     return write_now;
+}
+
+void
+ERF::check_state_for_nans(MultiFab const& S)
+{
+    int ncomp = S.nComp();
+    for (int lev = 0; lev <= finest_level; lev++)
+    {
+        //
+        // Test at the end of every full timestep whether the solution data contains NaNs
+        //
+        bool any_have_nans = false;
+        for (int i = 0; i < ncomp; i++) {
+            if (S.contains_nan(i,1,0))
+            {
+                amrex::Print() << "Component " << i << "of conserved variables contains NaNs" << '\n';
+                any_have_nans = true;
+            }
+        }
+        if (any_have_nans) {
+            exit(0);
+        }
+    }
+}
+
+void
+ERF::check_vels_for_nans(MultiFab const& xvel, MultiFab const& yvel, MultiFab const& zvel)
+{
+    //
+    // Test at the end of every full timestep whether the solution data contains NaNs
+    //
+    bool any_have_nans = false;
+    if (xvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "x-velocity contains NaNs " << '\n';
+        any_have_nans = true;
+    }
+    if (yvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "y-velocity contains NaNs" << '\n';
+        any_have_nans = true;
+    }
+    if (zvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "z-velocity contains NaNs" << '\n';
+        any_have_nans = true;
+    }
+    if (any_have_nans) {
+        exit(0);
+    }
 }

@@ -61,10 +61,10 @@ We use the following options preceded by ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``z
 +---------------+--------------+----------------+----------------+--------------------------+---------------+
 | outflow       | foextrap     | foextrap       | foextrap       | foextrap                 | foextrap      |
 +---------------+--------------+----------------+----------------+--------------------------+---------------+
-| inflowoutflow | ext_dir if   | ext_dir if     | ext_dir if     | ext_dir if               | ext_dir if   |
-|               | inflowing;   | inflowing;     | inflowing;     | inflowing;               | inflowing;   |
-|               | otherwise    | otherwise      | otherwise      | otherwise                | otherwise    |
-|               | foextrap     | foextrap       | foextrap       | foextrap                 | foextrap     |
+| inflowoutflow | ext_dir if   | ext_dir if     | ext_dir if     | ext_dir if               | ext_dir if    |
+|               | inflowing;   | inflowing;     | inflowing;     | inflowing;               | inflowing;    |
+|               | otherwise    | otherwise      | otherwise      | otherwise                | otherwise     |
+|               | foextrap     | foextrap       | foextrap       | foextrap                 | foextrap      |
 +---------------+--------------+----------------+----------------+--------------------------+---------------+
 | slipwall      | ext_dir      | foextrap       | foextrap       | ext_dir/foextrap/neumann | foextrap      |
 +---------------+--------------+----------------+----------------+--------------------------+---------------+

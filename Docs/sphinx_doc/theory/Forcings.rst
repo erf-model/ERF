@@ -69,7 +69,6 @@ Rayleigh Damping
 
 Rayleigh damping can be imposed on any or all of :math:`u, v, w, T` and is controlled by
 setting
-
 ::
 
       rayleigh_damp_U = true
@@ -77,13 +76,14 @@ setting
       rayleigh_damp_W = true
       rayleigh_damp_T = true
 
-in the inputs file.  When one or more of those is true,
-explicit Rayleigh damping is included in the energy and/or momentum equations
-as described in Section 4.4.3 of the WRF Model Version 4 documentation (p40), i.e. :
+in the inputs file.  When one or more of those is true and
+the Rayleigh damping type is set to SlowExplicit or FastExplict,
+then explicit Rayleigh damping is included in the energy and/or momentum equations
+in the form described in Section 4.4.3 of the WRF Model Version 4 documentation (p40), i.e. :
 
 .. math::
 
-  \mathbf{F} = - \tau(z) \rho \; (u - \overline{u}, v - \overline{v}, 0)
+  \mathbf{F} = - \tau(z) \rho \; (u - \overline{u}, v - \overline{v}, w - 0)
 
 and
 
@@ -96,12 +96,28 @@ defined as the initial horizontally homogeneous fields in idealized simulations,
 and :math:`\overline{\theta}` is the reference state potential temperature.
 As in the WRF model, the reference state vertical velocity is assumed to be zero.
 
+If the Rayleigh damping type is set to SlowExplicit then all the damping terms are computed once per
+RK stage; if the type is FastExplicit then the damping terms are computed once per acoustic substep.
+Either way, they are added explicitly.
+
+If the Rayleigh damping type is set to FastImplicit then the damping term for w only is included implicitly
+within the acoustic substepping algorithm; any additional Rayleigh damping (e.g. for u, v, or T) occurs
+as if the type is FastExplicit.
+
+The algorithm for FastExplicit is as described in (3.44) of the `MPAS report`_
+which is equivalent to that written in (9) of
+`Klemp, Dudhia & Hassiotis, An Upper Gravity-Wave Absorbing Layer for NWP Applications (2008)`_.
+
+.. _`MPAS report`: https://www2.mmm.ucar.edu/projects/mpas/mpas_website_linked_files/MPAS-A_tech_note.pdf
+
+.. _`Klemp, Dudhia & Hassiotis, An Upper Gravity-Wave Absorbing Layer for NWP Applications, 2008`: https://journals.ametsoc.org/view/journals/mwre/136/10/2008mwr2596.1.xml
+
 Sponge regions
 ----------------------
 
 ERF provides the capability to apply sponge source terms near domain boundaries to prevent spurious reflections that otherwise occur
 at the domain boundaries if standard extrapolation boundary condition is used. The sponge zone is implemented as a source term
-in the governing equations, which are active in a volumteric region at the boundaries that is specified by the user in the inputs file.
+in the governing equations, which are active in a volumetric region at the boundaries that is specified by the user in the inputs file.
 Currently the target condition to which the sponge zones should be forced towards is to be specified by the user in the inputs file.
 
 .. math::
@@ -165,7 +181,7 @@ If the user does specify MOST, then the following formulation is applied to part
 
 where :math:`u_{i,target}` is a value determined through MOST and :math:`|U_s|` is a unit velocity scale.
 This formulation essentially forces the velocity at the wall to a value determined by using MOST, but the strength forcing is inversely related to how immersed the cell is.
-For cells that are more immersed, there is weaker forcing to the target velocit while for cells that are less immsered, there is stronger forcing to the MOST value.
+For cells that are more immersed, there is weaker forcing to the target velocity while for cells that are less immersed, there is stronger forcing to the MOST value.
 
 Temperature forcing is also available to represent the temperature of the 'surface'.
 The user can specify either a surface temperature and heating rate, a surface flux, or an Obukhov length.

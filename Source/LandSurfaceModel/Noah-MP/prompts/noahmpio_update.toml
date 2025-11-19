@@ -1,0 +1,91 @@
+# Usage: code-scribe update ERF_NOAHMP.cpp \
+#                           -p prompts/noahmpio_update.toml \
+#                           -q "Write a natural language prompt with variable name dimension etc." \
+#                           -m <openai|argo|..>
+
+[[chat.user]]
+content = '''
+You are a code-update assistant for extending the ERF-NoahMP C++ driver interface.
+
+Only edit the appended files. Focus on the coupling logic inside
+`NOAHMP::Advance_With_State()` and related initialization functions.
+Preserve existing loop structure, array mapping, and CPU-GPU data flow.
+
+Maintain the same variable naming conventions, memory ordering, and data transfer
+patterns used for existing variables such as `U_PHY`, `V_PHY`, `T_PHY`, `QV_CURR`,
+`SWDOWN`, `GLW`, and `TSK`.
+
+1. Context
+
+-  The ERF-NoahMP coupling exchanges field data via `noahmpio_vect`, a per-tile
+   vector of `NoahmpIO_type` objects. Each object corresponds to a domain tile
+   in `cons_in`.
+
+-  Each time step, `Advance_With_State()` performs the following sequence:
+   (1) Extract 3D Array4<Real> views from ERF state variables.
+   (2) Allocate temporary host-accessible FArrayBox buffers (The_Pinned_Arena()).
+   (3) Launch ParallelFor GPU kernels to copy ERF data into pinned buffers.
+   (4) Synchronize GPU streams, then perform CPU loops (LoopOnCpu) to copy
+         those buffers into corresponding NoahMP fields (noahmpio->VAR(i,k,j)).
+   (5) Call the NoahMP driver (DriverMain()).
+   (6) Copy computed fluxes and surface variables back from NoahMP to ERF arrays.
+
+-  Newly added variables follow the same pattern:
+   - GPU->Host copy -> LoopOnCpu -> assign to noahmpio->NEWVAR
+   - DriverMain() executes the Fortran driver
+   - Host->GPU copy -> ParallelFor -> assign to ERF Array4<Real> fields
+
+2. Task Details
+
+Update Advance_With_State() to include and correctly link new NoahmpIO
+variables and any other surface fields needed for the ERF side.
+
+Changes Required
+
+-  Host buffers
+Add new temporary FArrayBox allocations for each new variable:
+   FArrayBox tmp_variable(bx, 1, The_Pinned_Arena());
+
+and retrieve their array handles:
+   auto const& tmp_variable_arr = tmp_rainlsm.array();
+
+-  Device->Host copy (ParallelFor)
+If the new field originates on the ERF side (e.g., forcing input), copy it from
+ERF arrays into the pinned buffer in the existing ParallelFor block.
+
+If it is computed by NoahMP, skip this step and handle it in the post-DriverMain()
+copy-back section.
+
+-  Host->NoahMP copy (LoopOnCpu)
+After GPU synchronization (Gpu::streamSynchronize()), extend the LoopOnCpu
+block that writes to noahmpio fields:
+   noahmpio->variable(i,j) = tmp_variable_arr(i,j,0);
+
+-  Post-DriverMain copy (LoopOnCpu)
+Add the reverse direction: copying noahmpio->variable values back into the
+temporary FArrayBox before GPU upload:
+   h_variable_arr(i,j,0) = noahmpio->variable(i,j);
+
+-  Host->Device copy-back (ParallelFor)
+Finally, assign results into the correct ERF field:
+   variable(i,j,0) = tmp_variable_arr(i,j,0);
+
+Follow the same block and comment style used for variables like TSK, EMISS,
+and HFX, and maintain case sensitivity as it is implemented for other variables.
+
+3. Validation
+
+-  Verify that array ranks match (2D for surface variables, 3D for atmospheric variables).
+-  Ensure the order of CPU/GPU synchronization and host copies is preserved.
+-  Confirm that noahmpio_vect indexing (idb) and bounds (bx.smallEnd, domain.smallEnd)
+   remain untouched.
+-  Maintain one-to-one consistency between ERF arrays and NoahMP I/O variables.
+
+4. Actual Task
+
+Modify and link the requested variables
+
+Ensure the field is fully integrated into the ERF-NoahMP coupling sequence
+inside Advance_With_State() following the memory flow used for TSK.
+
+'''

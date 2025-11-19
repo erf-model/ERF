@@ -27,9 +27,8 @@ debug ( int const a_face ) {
           << "n:      " << m_eb_normal << '\n'
           << "invert? " << m_invert << "\n\n";
 
-  int const dry_run(1);
   amrex::Print() << "Edge intersections:\n";
-  calc_edge_intersections(dry_run);
+  calc_edge_intersections();
   amrex::Print() << '\n';
 
   if ( a_face == -1 || a_face == 1 ) { m_F1.report(1, v0); }

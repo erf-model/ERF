@@ -920,7 +920,7 @@ ERF::init_from_wrfinput (int lev,
                            sst_lev[lev], tsk_lev[lev],
                            m_SurfaceLayer, low_data_zlo,
                            lev_new[Vars::cons], *mf_PSFC[lev],
-                           l_rdOcp, use_moist);
+                           l_rdOcp, lmask_lev[lev][0], use_moist);
         }
     } // lev == 0 && nc_low_file exists
 }
@@ -997,7 +997,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
             //       We want domain GCs and FB picks up interior GCs
             if (tbx.contains(i,j,k)) {
                 if ( (DelP > 1.0) || (DelP/Ptot > 1e-6) ) {
-                    printf("p (%i, %i, %i): %e; p_eos: %e; (qv = %e, rho = %e, rT = %e) \n",
+                    AMREX_DEVICE_PRINTF("p (%i, %i, %i): %e; p_eos: %e; (qv = %e, rho = %e, rT = %e) \n",
                            i, j, k, Ptot, P_eos, Qv, cons_arr(ii,jj,kk,Rho_comp), RT);
                     amrex::Abort("Initial state is inconsistent with EOS!?");
                 }
