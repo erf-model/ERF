@@ -434,24 +434,28 @@ Radiation::dealloc_buffers ()
 void
 Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
 {
-    // Expose for device
-    auto r_lay_d  = r_lay;
-    auto p_lay_d  = p_lay;
-    auto t_lay_d  = t_lay;
-    auto z_del_d  = z_del;
-    auto qv_lay_d = qv_lay;
-    auto qc_lay_d = qc_lay;
-    auto qi_lay_d = qi_lay;
-    auto cldfrac_tot_d = cldfrac_tot;
-    auto lwp_d = lwp;
-    auto iwp_d = iwp;
-    auto eff_radius_qc_d = eff_radius_qc;
-    auto eff_radius_qi_d = eff_radius_qi;
-    auto p_lev_d = p_lev;
-    auto t_lev_d = t_lev;
-    auto lat_d = lat;
-    auto lon_d = lon;
-    auto t_sfc_d = t_sfc;
+    // Create Array4 wrappers using Kokkos View extents - explicit version
+    // 2D views (ncol, nlay)
+    Array4<Real> r_lay_arr4(r_lay.data(), {0, 0, 0}, {r_lay.extent(0)-1, r_lay.extent(1)-1, 0}, 1);
+    Array4<Real> p_lay_arr4(p_lay.data(), {0, 0, 0}, {p_lay.extent(0)-1, p_lay.extent(1)-1, 0}, 1);
+    Array4<Real> t_lay_arr4(t_lay.data(), {0, 0, 0}, {t_lay.extent(0)-1, t_lay.extent(1)-1, 0}, 1);
+    Array4<Real> z_del_arr4(z_del.data(), {0, 0, 0}, {z_del.extent(0)-1, z_del.extent(1)-1, 0}, 1);
+    Array4<Real> qv_lay_arr4(qv_lay.data(), {0, 0, 0}, {qv_lay.extent(0)-1, qv_lay.extent(1)-1, 0}, 1);
+    Array4<Real> qc_lay_arr4(qc_lay.data(), {0, 0, 0}, {qc_lay.extent(0)-1, qc_lay.extent(1)-1, 0}, 1);
+    Array4<Real> qi_lay_arr4(qi_lay.data(), {0, 0, 0}, {qi_lay.extent(0)-1, qi_lay.extent(1)-1, 0}, 1);
+    Array4<Real> cldfrac_tot_arr4(cldfrac_tot.data(), {0, 0, 0}, {cldfrac_tot.extent(0)-1, cldfrac_tot.extent(1)-1, 0}, 1);
+    Array4<Real> lwp_arr4(lwp.data(), {0, 0, 0}, {lwp.extent(0)-1, lwp.extent(1)-1, 0}, 1);
+    Array4<Real> iwp_arr4(iwp.data(), {0, 0, 0}, {iwp.extent(0)-1, iwp.extent(1)-1, 0}, 1);
+    Array4<Real> eff_radius_qc_arr4(eff_radius_qc.data(), {0, 0, 0}, {eff_radius_qc.extent(0)-1, eff_radius_qc.extent(1)-1, 0}, 1);
+    Array4<Real> eff_radius_qi_arr4(eff_radius_qi.data(), {0, 0, 0}, {eff_radius_qi.extent(0)-1, eff_radius_qi.extent(1)-1, 0}, 1);
+
+    // 2D views (ncol, nlay+1)
+    Array4<Real> p_lev_arr4(p_lev.data(), {0, 0, 0}, {p_lev.extent(0)-1, p_lev.extent(1)-1, 0}, 1);
+    Array4<Real> t_lev_arr4(t_lev.data(), {0, 0, 0}, {t_lev.extent(0)-1, t_lev.extent(1)-1, 0}, 1);
+
+    // 1D views (ncol)
+    Array4<Real> lat_arr4(lat.data(), {0, 0, 0}, {lat.extent(0)-1, 0, 0}, 1);
+    Array4<Real> lon_arr4(lon.data(), {0, 0, 0}, {lon.extent(0)-1, 0, 0}, 1);
 
     bool moist = m_moist;
     bool ice   = m_ice;
@@ -499,29 +503,29 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
             Real qv_avg = 0.5 * (qv + qv_lo);
 
             // Views at CC
-            r_lay_d(icol,ilay) = r;
-            p_lay_d(icol,ilay) = getPgivenRTh(rt, qv);
-            t_lay_d(icol,ilay) = getTgivenRandRTh(r, rt, qv);
-            z_del_d(icol,ilay) = (z_arr) ? 0.25 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
+            r_lay_arr4(icol,ilay,0) = r;
+            p_lay_arr4(icol,ilay,0) = getPgivenRTh(rt, qv);
+            t_lay_arr4(icol,ilay,0) = getTgivenRandRTh(r, rt, qv);
+            z_del_arr4(icol,ilay,0) = (z_arr) ? 0.25 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
                                                   + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
                                                   + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
                                                   + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz;
-            qv_lay_d(icol,ilay) = qv;
-            qc_lay_d(icol,ilay) = qc;
-            qi_lay_d(icol,ilay) = qi;
-            cldfrac_tot_d(icol,ilay) = ((qc+qi)>0.0) ? 1. : 0.;
+            qv_lay_arr4(icol,ilay,0) = qv;
+            qc_lay_arr4(icol,ilay,0) = qc;
+            qi_lay_arr4(icol,ilay,0) = qi;
+            cldfrac_tot_arr4(icol,ilay,0) = ((qc+qi)>0.0) ? 1. : 0.;
 
             // NOTE: These are populated in 'mixing_ratio_to_cloud_mass'
-            lwp_d(icol,ilay) = 0.0;
-            iwp_d(icol,ilay) = 0.0;
+            lwp_arr4(icol,ilay,0) = 0.0;
+            iwp_arr4(icol,ilay,0) = 0.0;
 
             // NOTE: These would be populated from P3 (we use the constants in p3_main_impl.hpp)
-            eff_radius_qc_d(icol,ilay) = (qc>0.0) ? 10.0e-6 : 0.0;
-            eff_radius_qi_d(icol,ilay) = (qi>0.0) ? 25.0e-6 : 0.0;
+            eff_radius_qc_arr4(icol,ilay,0) = (qc>0.0) ? 10.0e-6 : 0.0;
+            eff_radius_qi_arr4(icol,ilay,0) = (qi>0.0) ? 25.0e-6 : 0.0;
 
             // Buffers on z-faces (nlay+1)
-            p_lev_d(icol,ilay) = getPgivenRTh(rt_avg, qv_avg);
-            t_lev_d(icol,ilay) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
+            p_lev_arr4(icol,ilay,0) = getPgivenRTh(rt_avg, qv_avg);
+            t_lev_arr4(icol,ilay,0) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
             if (ilay==(nlay-1)) {
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
                 Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
@@ -529,14 +533,14 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
                 r_avg  = 0.5 * (r  + r_hi);
                 rt_avg = 0.5 * (rt + rt_hi);
                 qv_avg = 0.5 * (qv + qv_hi);
-                p_lev_d(icol,ilay+1) = getPgivenRTh(rt_avg, qv_avg);
-                t_lev_d(icol,ilay+1) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
+                p_lev_arr4(icol,ilay+1,0) = getPgivenRTh(rt_avg, qv_avg);
+                t_lev_arr4(icol,ilay+1,0) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
             }
 
             // 1D data structures
             if (k==0) {
-                lat_d(icol) = (has_lat) ? lat_arr(i,j,0) : cons_lat;
-                lon_d(icol) = (has_lon) ? lon_arr(i,j,0) : cons_lon;
+                lat_arr4(icol,0,0) = (has_lat) ? lat_arr(i,j,0) : cons_lat;
+                lon_arr4(icol,0,0) = (has_lon) ? lon_arr(i,j,0) : cons_lon;
             }
 
         });
@@ -571,6 +575,9 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
             if (!lsm_input_ptrs[ivar]) {
                 Kokkos::deep_copy(rrtmgp_to_fill, rrtmgp_default_vals[ivar]);
             } else {
+                // Create Array4 wrapper for 1D view
+                Array4<Real> rrtmgp_to_fill_arr4(rrtmgp_to_fill.data(), {0, 0, 0}, {rrtmgp_to_fill.extent(0)-1, 0, 0}, 1);
+
                 for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
                     const auto& vbx  = mfi.validbox();
                     const auto& sbx  = makeSlab(vbx,2,vbx.smallEnd(2));
@@ -585,7 +592,7 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
                         const int icol   = (j-jmin)*nx + (i-imin) + offset;
 
                         // 2D mf and 1D view
-                        rrtmgp_to_fill(icol) = lsm_in_arr(i,j,k);
+                        rrtmgp_to_fill_arr4(icol,0,0) = lsm_in_arr(i,j,k);
                     });
                 } //mfi
             } // valid lsm ptr
@@ -594,10 +601,13 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
     } // have lsm
 
     // Enforce consistency between t_sfc and t_lev at bottom surface
+    Array4<Real> t_sfc_arr4(t_sfc.data(), {0, 0, 0}, {t_sfc.extent(0)-1, 0, 0}, 1);
+    Array4<Real> t_lev_sync_arr4(t_lev.data(), {0, 0, 0}, {t_lev.extent(0)-1, t_lev.extent(1)-1, 0}, 1);
+
     Kokkos::parallel_for(Kokkos::RangePolicy(0, ncol),
                          KOKKOS_LAMBDA (int icol)
     {
-        t_lev_d(icol,0) = t_sfc_d(icol);
+        t_lev_sync_arr4(icol,0,0) = t_sfc_arr4(icol,0,0);
     });
 }
 
@@ -608,19 +618,24 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
     // Heating rate, fluxes, zenith, lsm ptrs
     Vector<real2d_k> rrtmgp_out_vars = {sw_flux_dn, lw_flux_dn};
 
-    // Expose for device
-    auto sw_heating_d = sw_heating;
-    auto lw_heating_d = lw_heating;
-    auto p_lay_d = p_lay;
-    auto sfc_flux_dir_vis_d = sfc_flux_dir_vis;
-    auto sfc_flux_dir_nir_d = sfc_flux_dir_nir;
-    auto sfc_flux_dif_vis_d = sfc_flux_dif_vis;
-    auto sfc_flux_dif_nir_d = sfc_flux_dif_nir;
-    auto sw_flux_up_d = sw_flux_up;
-    auto sw_flux_dn_d = sw_flux_dn;
-    auto lw_flux_up_d = lw_flux_up;
-    auto lw_flux_dn_d = lw_flux_dn;
-    auto mu0_d = mu0;
+    // Create Array4 wrappers for all Kokkos Views used in lambdas
+    // 2D views (ncol, nlay)
+    Array4<Real> sw_heating_arr4(sw_heating.data(), {0, 0, 0}, {sw_heating.extent(0)-1, sw_heating.extent(1)-1, 0}, 1);
+    Array4<Real> lw_heating_arr4(lw_heating.data(), {0, 0, 0}, {lw_heating.extent(0)-1, lw_heating.extent(1)-1, 0}, 1);
+    Array4<Real> p_lay_arr4(p_lay.data(), {0, 0, 0}, {p_lay.extent(0)-1, p_lay.extent(1)-1, 0}, 1);
+
+    // 2D views (ncol, nlay+1)
+    Array4<Real> sw_flux_up_arr4(sw_flux_up.data(), {0, 0, 0}, {sw_flux_up.extent(0)-1, sw_flux_up.extent(1)-1, 0}, 1);
+    Array4<Real> sw_flux_dn_arr4(sw_flux_dn.data(), {0, 0, 0}, {sw_flux_dn.extent(0)-1, sw_flux_dn.extent(1)-1, 0}, 1);
+    Array4<Real> lw_flux_up_arr4(lw_flux_up.data(), {0, 0, 0}, {lw_flux_up.extent(0)-1, lw_flux_up.extent(1)-1, 0}, 1);
+    Array4<Real> lw_flux_dn_arr4(lw_flux_dn.data(), {0, 0, 0}, {lw_flux_dn.extent(0)-1, lw_flux_dn.extent(1)-1, 0}, 1);
+
+    // 1D views (ncol)
+    Array4<Real> sfc_flux_dir_vis_arr4(sfc_flux_dir_vis.data(), {0, 0, 0}, {sfc_flux_dir_vis.extent(0)-1, 0, 0}, 1);
+    Array4<Real> sfc_flux_dir_nir_arr4(sfc_flux_dir_nir.data(), {0, 0, 0}, {sfc_flux_dir_nir.extent(0)-1, 0, 0}, 1);
+    Array4<Real> sfc_flux_dif_vis_arr4(sfc_flux_dif_vis.data(), {0, 0, 0}, {sfc_flux_dif_vis.extent(0)-1, 0, 0}, 1);
+    Array4<Real> sfc_flux_dif_nir_arr4(sfc_flux_dif_nir.data(), {0, 0, 0}, {sfc_flux_dif_nir.extent(0)-1, 0, 0}, 1);
+    Array4<Real> mu0_arr4(mu0.data(), {0, 0, 0}, {mu0.extent(0)-1, 0, 0}, 1);
 
     for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
         const auto& vbx      = mfi.validbox();
@@ -638,19 +653,19 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
             const int ilay = k;
 
             // Temperature heating rate for SW and LW
-            q_arr(i,j,k,0) = sw_heating_d(icol,ilay);
-            q_arr(i,j,k,1) = lw_heating_d(icol,ilay);
+            q_arr(i,j,k,0) = sw_heating_arr4(icol,ilay,0);
+            q_arr(i,j,k,1) = lw_heating_arr4(icol,ilay,0);
 
             // Convert the dT/dz to dTheta/dz
-            Real iexner = 1./getExnergivenP(Real(p_lay_d(icol,ilay)), R_d/Cp_d);
+            Real iexner = 1./getExnergivenP(Real(p_lay_arr4(icol,ilay,0)), R_d/Cp_d);
             q_arr(i,j,k,0) *= iexner;
             q_arr(i,j,k,1) *= iexner;
 
             // Populate the fluxes
-            f_arr(i,j,k,0) = sw_flux_up_d(icol,ilay);
-            f_arr(i,j,k,1) = sw_flux_dn_d(icol,ilay);
-            f_arr(i,j,k,2) = lw_flux_up_d(icol,ilay);
-            f_arr(i,j,k,3) = lw_flux_dn_d(icol,ilay);
+            f_arr(i,j,k,0) = sw_flux_up_arr4(icol,ilay,0);
+            f_arr(i,j,k,1) = sw_flux_dn_arr4(icol,ilay,0);
+            f_arr(i,j,k,2) = lw_flux_up_arr4(icol,ilay,0);
+            f_arr(i,j,k,3) = lw_flux_dn_arr4(icol,ilay,0);
         });
         if (m_lsm_fluxes) {
             const Array4<Real>& lsm_arr =  m_lsm_fluxes->array(mfi);
@@ -660,17 +675,17 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
                 const int icol = (j-jmin)*nx + (i-imin) + offset;
 
                 // SW fluxes for LSM
-                lsm_arr(i,j,k,0) = sfc_flux_dir_vis_d(icol);
-                lsm_arr(i,j,k,1) = sfc_flux_dir_nir_d(icol);
-                lsm_arr(i,j,k,2) = sfc_flux_dif_vis_d(icol);
-                lsm_arr(i,j,k,3) = sfc_flux_dif_nir_d(icol);
+                lsm_arr(i,j,k,0) = sfc_flux_dir_vis_arr4(icol,0,0);
+                lsm_arr(i,j,k,1) = sfc_flux_dir_nir_arr4(icol,0,0);
+                lsm_arr(i,j,k,2) = sfc_flux_dif_vis_arr4(icol,0,0);
+                lsm_arr(i,j,k,3) = sfc_flux_dif_nir_arr4(icol,0,0);
 
                 // Net SW flux for LSM
-                lsm_arr(i,j,k,4) = sfc_flux_dir_vis_d(icol) + sfc_flux_dir_nir_d(icol)
-                                 + sfc_flux_dif_vis_d(icol) + sfc_flux_dif_nir_d(icol);
+                lsm_arr(i,j,k,4) = sfc_flux_dir_vis_arr4(icol,0,0) + sfc_flux_dir_nir_arr4(icol,0,0)
+                                 + sfc_flux_dif_vis_arr4(icol,0,0) + sfc_flux_dif_nir_arr4(icol,0,0);
 
                 // LW flux for LSM (at bottom surface)
-                lsm_arr(i,j,k,5) = lw_flux_dn_d(icol,0);
+                lsm_arr(i,j,k,5) = lw_flux_dn_arr4(icol,0,0);
             });
         }
         if (m_lsm_zenith) {
@@ -681,7 +696,7 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
                 const int icol = (j-jmin)*nx + (i-imin) + offset;
 
                 // export cosine zenith angle for LSM
-                lsm_zenith_arr(i,j,k) = mu0_d(icol);
+                lsm_zenith_arr(i,j,k) = mu0_arr4(icol,0,0);
             });
         }
         for (int ivar(0); ivar<lsm_output_ptrs.size(); ivar++) {
@@ -694,17 +709,20 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
                         const int icol   = (j-jmin)*nx + (i-imin) + offset;
 
                         // export the desired variable at surface
-                        lsm_out_arr(i,j,k) = mu0_d(icol);
+                        lsm_out_arr(i,j,k) = mu0_arr4(icol,0,0);
                     });
                 } else {
                     auto rrtmgp_for_fill = rrtmgp_out_vars[ivar-1];
+                    // Create Array4 wrapper for this specific view
+                    Array4<Real> rrtmgp_for_fill_arr4(rrtmgp_for_fill.data(), {0, 0, 0}, {rrtmgp_for_fill.extent(0)-1, rrtmgp_for_fill.extent(1)-1, 0}, 1);
+
                     ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         // map [i,j,k] 0-based to [icol, ilay] 0-based
                         const int icol   = (j-jmin)*nx + (i-imin) + offset;
 
                         // export the desired variable at surface
-                        lsm_out_arr(i,j,k) = rrtmgp_for_fill(icol,0);
+                        lsm_out_arr(i,j,k) = rrtmgp_for_fill_arr4(icol,0,0);
                     });
                 } // ivar
             } // valid ptr
@@ -715,12 +733,12 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
 void
 Radiation::write_rrtmgp_fluxes ()
 {
-    // Expose for device
-    auto sw_flux_up_d = sw_flux_up;
-    auto sw_flux_dn_d = sw_flux_dn;
-    auto sw_flux_dn_dir_d = sw_flux_dn_dir;
-    auto lw_flux_up_d = lw_flux_up;
-    auto lw_flux_dn_d = lw_flux_dn;
+    // Create Array4 wrappers for all Kokkos Views used in lambda
+    Array4<Real> sw_flux_up_arr4(sw_flux_up.data(), {0, 0, 0}, {sw_flux_up.extent(0)-1, sw_flux_up.extent(1)-1, 0}, 1);
+    Array4<Real> sw_flux_dn_arr4(sw_flux_dn.data(), {0, 0, 0}, {sw_flux_dn.extent(0)-1, sw_flux_dn.extent(1)-1, 0}, 1);
+    Array4<Real> sw_flux_dn_dir_arr4(sw_flux_dn_dir.data(), {0, 0, 0}, {sw_flux_dn_dir.extent(0)-1, sw_flux_dn_dir.extent(1)-1, 0}, 1);
+    Array4<Real> lw_flux_up_arr4(lw_flux_up.data(), {0, 0, 0}, {lw_flux_up.extent(0)-1, lw_flux_up.extent(1)-1, 0}, 1);
+    Array4<Real> lw_flux_dn_arr4(lw_flux_dn.data(), {0, 0, 0}, {lw_flux_dn.extent(0)-1, lw_flux_dn.extent(1)-1, 0}, 1);
 
     int n_fluxes = 5;
     MultiFab mf_flux(m_cons_in->boxArray(), m_cons_in->DistributionMap(), n_fluxes, 0);
@@ -739,11 +757,11 @@ Radiation::write_rrtmgp_fluxes ()
             const int ilay = k;
 
             // SW and LW fluxes
-            dst_arr(i,j,k,0) = sw_flux_up_d(icol,ilay);
-            dst_arr(i,j,k,1) = sw_flux_dn_d(icol,ilay);
-            dst_arr(i,j,k,2) = sw_flux_dn_dir_d(icol,ilay);
-            dst_arr(i,j,k,3) = lw_flux_up_d(icol,ilay);
-            dst_arr(i,j,k,4) = lw_flux_dn_d(icol,ilay);
+            dst_arr(i,j,k,0) = sw_flux_up_arr4(icol,ilay,0);
+            dst_arr(i,j,k,1) = sw_flux_dn_arr4(icol,ilay,0);
+            dst_arr(i,j,k,2) = sw_flux_dn_dir_arr4(icol,ilay,0);
+            dst_arr(i,j,k,3) = lw_flux_up_arr4(icol,ilay,0);
+            dst_arr(i,j,k,4) = lw_flux_dn_arr4(icol,ilay,0);
         });
    }
 
@@ -756,31 +774,35 @@ Radiation::write_rrtmgp_fluxes ()
 
 void Radiation::populateDatalogMF ()
 {
-    // Expose for device
-    auto sw_flux_up_d = sw_flux_up;
-    auto sw_flux_dn_d = sw_flux_dn;
-    auto sw_flux_dn_dir_d = sw_flux_dn_dir;
-    auto lw_flux_up_d = lw_flux_up;
-    auto lw_flux_dn_d = lw_flux_dn;
-    auto mu0_d = mu0;
-    auto sw_clrsky_heating_d = sw_clrsky_heating;
-    auto lw_clrsky_heating_d = lw_clrsky_heating;
+    // Create Array4 wrappers for all Kokkos Views used in lambdas
+    // 2D views (ncol, nlay+1)
+    Array4<Real> sw_flux_up_arr4(sw_flux_up.data(), {0, 0, 0}, {sw_flux_up.extent(0)-1, sw_flux_up.extent(1)-1, 0}, 1);
+    Array4<Real> sw_flux_dn_arr4(sw_flux_dn.data(), {0, 0, 0}, {sw_flux_dn.extent(0)-1, sw_flux_dn.extent(1)-1, 0}, 1);
+    Array4<Real> sw_flux_dn_dir_arr4(sw_flux_dn_dir.data(), {0, 0, 0},{sw_flux_dn_dir.extent(0)-1, sw_flux_dn_dir.extent(1)-1, 0}, 1);
+    Array4<Real> lw_flux_up_arr4(lw_flux_up.data(), {0, 0, 0}, {lw_flux_up.extent(0)-1, lw_flux_up.extent(1)-1, 0}, 1);
+    Array4<Real> lw_flux_dn_arr4(lw_flux_dn.data(), {0, 0, 0}, {lw_flux_dn.extent(0)-1, lw_flux_dn.extent(1)-1, 0}, 1);
+    Array4<Real> sw_clrsky_flux_up_arr4(sw_clrsky_flux_up.data(), {0, 0, 0}, {sw_clrsky_flux_up.extent(0)-1, sw_clrsky_flux_up.extent(1)-1, 0}, 1);
+    Array4<Real> sw_clrsky_flux_dn_arr4(sw_clrsky_flux_dn.data(), {0, 0, 0}, {sw_clrsky_flux_dn.extent(0)-1, sw_clrsky_flux_dn.extent(1)-1, 0}, 1);
+    Array4<Real> sw_clrsky_flux_dn_dir_arr4(sw_clrsky_flux_dn_dir.data(), {0, 0, 0}, {sw_clrsky_flux_dn_dir.extent(0)-1, sw_clrsky_flux_dn_dir.extent(1)-1, 0}, 1);
+    Array4<Real> lw_clrsky_flux_up_arr4(lw_clrsky_flux_up.data(), {0, 0, 0}, {lw_clrsky_flux_up.extent(0)-1, lw_clrsky_flux_up.extent(1)-1, 0}, 1);
+    Array4<Real> lw_clrsky_flux_dn_arr4(lw_clrsky_flux_dn.data(), {0, 0, 0}, {lw_clrsky_flux_dn.extent(0)-1, lw_clrsky_flux_dn.extent(1)-1, 0}, 1);
+    Array4<Real> sw_clnsky_flux_up_arr4(sw_clnsky_flux_up.data(), {0, 0, 0}, {sw_clnsky_flux_up.extent(0)-1, sw_clnsky_flux_up.extent(1)-1, 0}, 1);
+    Array4<Real> sw_clnsky_flux_dn_arr4(sw_clnsky_flux_dn.data(), {0, 0, 0}, {sw_clnsky_flux_dn.extent(0)-1, sw_clnsky_flux_dn.extent(1)-1, 0}, 1);
+    Array4<Real> sw_clnsky_flux_dn_dir_arr4(sw_clnsky_flux_dn_dir.data(), {0, 0, 0}, {sw_clnsky_flux_dn_dir.extent(0)-1, sw_clnsky_flux_dn_dir.extent(1)-1, 0}, 1);
+    Array4<Real> lw_clnsky_flux_up_arr4(lw_clnsky_flux_up.data(), {0, 0, 0}, {lw_clnsky_flux_up.extent(0)-1, lw_clnsky_flux_up.extent(1)-1, 0}, 1);
+    Array4<Real> lw_clnsky_flux_dn_arr4(lw_clnsky_flux_dn.data(), {0, 0, 0}, {lw_clnsky_flux_dn.extent(0)-1, lw_clnsky_flux_dn.extent(1)-1, 0}, 1);
+    Array4<Real> sw_clnclrsky_flux_up_arr4(sw_clnclrsky_flux_up.data(), {0, 0, 0}, {sw_clnclrsky_flux_up.extent(0)-1, sw_clnclrsky_flux_up.extent(1)-1, 0}, 1);
+    Array4<Real> sw_clnclrsky_flux_dn_arr4(sw_clnclrsky_flux_dn.data(), {0, 0, 0}, {sw_clnclrsky_flux_dn.extent(0)-1, sw_clnclrsky_flux_dn.extent(1)-1, 0}, 1);
+    Array4<Real> sw_clnclrsky_flux_dn_dir_arr4(sw_clnclrsky_flux_dn_dir.data(), {0, 0, 0}, {sw_clnclrsky_flux_dn_dir.extent(0)-1, sw_clnclrsky_flux_dn_dir.extent(1)-1, 0}, 1);
+    Array4<Real> lw_clnclrsky_flux_up_arr4(lw_clnclrsky_flux_up.data(), {0, 0, 0}, {lw_clnclrsky_flux_up.extent(0)-1, lw_clnclrsky_flux_up.extent(1)-1, 0}, 1);
+    Array4<Real> lw_clnclrsky_flux_dn_arr4(lw_clnclrsky_flux_dn.data(), {0, 0, 0}, {lw_clnclrsky_flux_dn.extent(0)-1, lw_clnclrsky_flux_dn.extent(1)-1, 0}, 1);
 
-    auto sw_clrsky_flux_up_d = sw_clrsky_flux_up;
-    auto sw_clrsky_flux_dn_d = sw_clrsky_flux_dn;
-    auto sw_clrsky_flux_dn_dir_d = sw_clrsky_flux_dn_dir;
-    auto lw_clrsky_flux_up_d = lw_clrsky_flux_up;
-    auto lw_clrsky_flux_dn_d = lw_clrsky_flux_dn;
-    auto sw_clnsky_flux_up_d = sw_clnsky_flux_up;
-    auto sw_clnsky_flux_dn_d = sw_clnsky_flux_dn;
-    auto sw_clnsky_flux_dn_dir_d = sw_clnsky_flux_dn_dir;
-    auto lw_clnsky_flux_up_d = lw_clnsky_flux_up;
-    auto lw_clnsky_flux_dn_d = lw_clnsky_flux_dn;
-    auto sw_clnclrsky_flux_up_d = sw_clnclrsky_flux_up;
-    auto sw_clnclrsky_flux_dn_d = sw_clnclrsky_flux_dn;
-    auto sw_clnclrsky_flux_dn_dir_d = sw_clnclrsky_flux_dn_dir;
-    auto lw_clnclrsky_flux_up_d = lw_clnclrsky_flux_up;
-    auto lw_clnclrsky_flux_dn_d = lw_clnclrsky_flux_dn;
+    // 2D views (ncol, nlay)
+    Array4<Real> sw_clrsky_heating_arr4(sw_clrsky_heating.data(), {0, 0, 0}, {sw_clrsky_heating.extent(0)-1, sw_clrsky_heating.extent(1)-1, 0}, 1);
+    Array4<Real> lw_clrsky_heating_arr4(lw_clrsky_heating.data(), {0, 0, 0}, {lw_clrsky_heating.extent(0)-1, lw_clrsky_heating.extent(1)-1, 0}, 1);
+
+    // 1D views (ncol)
+    Array4<Real> mu0_arr4(mu0.data(), {0, 0, 0}, {mu0.extent(0)-1, 0, 0}, 1);
 
     auto extra_clnsky_diag = m_extra_clnsky_diag;
     auto extra_clnclrsky_diag = m_extra_clnclrsky_diag;
@@ -793,6 +815,7 @@ void Radiation::populateDatalogMF ()
         const int offset     = m_col_offsets[mfi.index()];
         const Array4<Real>& dst_arr = datalog_mf.array(mfi);
         const Array4<Real>&   q_arr = m_qheating_rates->array(mfi);
+
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // map [i,j,k] 0-based to [icol, ilay] 0-based
@@ -803,41 +826,41 @@ void Radiation::populateDatalogMF ()
             dst_arr(i,j,k,1) = q_arr(i, j, k, 1);
 
             // SW and LW fluxes
-            dst_arr(i,j,k,2) = sw_flux_up_d(icol,ilay);
-            dst_arr(i,j,k,3) = sw_flux_dn_d(icol,ilay);
-            dst_arr(i,j,k,4) = sw_flux_dn_dir_d(icol,ilay);
-            dst_arr(i,j,k,5) = lw_flux_up_d(icol,ilay);
-            dst_arr(i,j,k,6) = lw_flux_dn_d(icol,ilay);
+            dst_arr(i,j,k,2) = sw_flux_up_arr4(icol,ilay,0);
+            dst_arr(i,j,k,3) = sw_flux_dn_arr4(icol,ilay,0);
+            dst_arr(i,j,k,4) = sw_flux_dn_dir_arr4(icol,ilay,0);
+            dst_arr(i,j,k,5) = lw_flux_up_arr4(icol,ilay,0);
+            dst_arr(i,j,k,6) = lw_flux_dn_arr4(icol,ilay,0);
 
             // Cosine zenith angle
-            dst_arr(i,j,k,7) = mu0_d(icol);
+            dst_arr(i,j,k,7) = mu0_arr4(icol,0,0);
 
             // Clear sky heating rates and fluxes:
-            dst_arr(i,j,k,8) = sw_clrsky_heating_d(icol, ilay);
-            dst_arr(i,j,k,9) = lw_clrsky_heating_d(icol, ilay);
+            dst_arr(i,j,k,8) = sw_clrsky_heating_arr4(icol, ilay, 0);
+            dst_arr(i,j,k,9) = lw_clrsky_heating_arr4(icol, ilay, 0);
 
-            dst_arr(i,j,k,10) = sw_clrsky_flux_up_d(icol,ilay);
-            dst_arr(i,j,k,11) = sw_clrsky_flux_dn_d(icol,ilay);
-            dst_arr(i,j,k,12) = sw_clrsky_flux_dn_dir_d(icol,ilay);
-            dst_arr(i,j,k,13) = lw_clrsky_flux_up_d(icol,ilay);
-            dst_arr(i,j,k,14) = lw_clrsky_flux_dn_d(icol,ilay);
+            dst_arr(i,j,k,10) = sw_clrsky_flux_up_arr4(icol,ilay,0);
+            dst_arr(i,j,k,11) = sw_clrsky_flux_dn_arr4(icol,ilay,0);
+            dst_arr(i,j,k,12) = sw_clrsky_flux_dn_dir_arr4(icol,ilay,0);
+            dst_arr(i,j,k,13) = lw_clrsky_flux_up_arr4(icol,ilay,0);
+            dst_arr(i,j,k,14) = lw_clrsky_flux_dn_arr4(icol,ilay,0);
 
             // Clean sky fluxes:
             if (extra_clnsky_diag) {
-                dst_arr(i,j,k,15) = sw_clnsky_flux_up_d(icol,ilay);
-                dst_arr(i,j,k,16) = sw_clnsky_flux_dn_d(icol,ilay);
-                dst_arr(i,j,k,17) = sw_clnsky_flux_dn_dir_d(icol,ilay);
-                dst_arr(i,j,k,18) = lw_clnsky_flux_up_d(icol,ilay);
-                dst_arr(i,j,k,19) = lw_clnsky_flux_dn_d(icol,ilay);
+                dst_arr(i,j,k,15) = sw_clnsky_flux_up_arr4(icol,ilay,0);
+                dst_arr(i,j,k,16) = sw_clnsky_flux_dn_arr4(icol,ilay,0);
+                dst_arr(i,j,k,17) = sw_clnsky_flux_dn_dir_arr4(icol,ilay,0);
+                dst_arr(i,j,k,18) = lw_clnsky_flux_up_arr4(icol,ilay,0);
+                dst_arr(i,j,k,19) = lw_clnsky_flux_dn_arr4(icol,ilay,0);
             }
 
             // Clean-clear sky fluxes:
             if (extra_clnclrsky_diag) {
-                dst_arr(i,j,k,20) = sw_clnclrsky_flux_up_d(icol,ilay);
-                dst_arr(i,j,k,21) = sw_clnclrsky_flux_dn_d(icol,ilay);
-                dst_arr(i,j,k,22) = sw_clnclrsky_flux_dn_dir_d(icol,ilay);
-                dst_arr(i,j,k,23) = lw_clnclrsky_flux_up_d(icol,ilay);
-                dst_arr(i,j,k,24) = lw_clnclrsky_flux_dn_d(icol,ilay);
+                dst_arr(i,j,k,20) = sw_clnclrsky_flux_up_arr4(icol,ilay,0);
+                dst_arr(i,j,k,21) = sw_clnclrsky_flux_dn_arr4(icol,ilay,0);
+                dst_arr(i,j,k,22) = sw_clnclrsky_flux_dn_dir_arr4(icol,ilay,0);
+                dst_arr(i,j,k,23) = lw_clnclrsky_flux_up_arr4(icol,ilay,0);
+                dst_arr(i,j,k,24) = lw_clnclrsky_flux_dn_arr4(icol,ilay,0);
             }
         });
    }

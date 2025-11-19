@@ -59,6 +59,11 @@ int  ERF::verbose       = 0;
 int  ERF::mg_verbose    = 0;
 bool ERF::use_fft       = false;
 
+// Should we check the solution for NaNs every time step?
+// 1: check state/vels after dycore, state after microphysics, and state/vels at end of full time step
+// 2: add checks of state before dycore and of slow rhs
+int ERF::check_for_nans = 0;
+
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
 Real ERF::sum_per       = -1.0;
@@ -342,6 +347,7 @@ ERF::ERF_shared ()
 
     // Stresses
     Tau.resize(nlevs_max);
+    Tau_corr.resize(nlevs_max);
     SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
     SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
@@ -554,6 +560,14 @@ ERF::Evolve ()
 
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                 << " DT = " << dt[0]  << std::endl;
+
+        if (check_for_nans > 0) {
+            amrex::Print() << "Testing new state and vels for NaNs at end of timestep" << std::endl;
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                check_state_for_nans(vars_new[lev][IntVars::cons]);
+                check_vels_for_nans(vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],vars_new[lev][Vars::zvel]);
+            }
+        }
 
         if (verbose > 0)
         {
@@ -943,6 +957,20 @@ ERF::InitData_pre ()
                 Warning("Should not use Deardorff LES for mesoscale resolution");
             }
         }
+
+        // Turn off implicit solve if we have no diffusion
+        bool l_use_kturb   = solverChoice.turbChoice[lev].use_kturb;
+        bool l_use_diff    = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
+                               l_use_kturb );
+        bool l_implicit_diff = (solverChoice.vert_implicit_fac[0] > 0 ||
+                                solverChoice.vert_implicit_fac[1] > 0 ||
+                                solverChoice.vert_implicit_fac[2] > 0);
+        if (l_implicit_diff && !l_use_diff) {
+            Print() << "No molecular or turbulent diffusion, turning off implicit solve" << std::endl;
+            solverChoice.vert_implicit_fac[0] = 0;
+            solverChoice.vert_implicit_fac[1] = 0;
+            solverChoice.vert_implicit_fac[2] = 0;
+        }
     }
 }
 
@@ -973,6 +1001,17 @@ ERF::InitData_post ()
             z_phys_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
         }
     }
+
+#ifdef ERF_IMPLICIT_W
+    if (SolverChoice::mesh_type == MeshType::VariableDz &&
+        (solverChoice.vert_implicit_fac[0] > 0 ||
+         solverChoice.vert_implicit_fac[1] > 0 ||
+         solverChoice.vert_implicit_fac[2] > 0  )       &&
+        solverChoice.implicit_momentum_diffusion)
+    {
+        amrex::Warning("Doing implicit solve for u, v, and w with terrain -- this has not been tested");
+    }
+#endif
 
     //
     // Copy vars_new into vars_old, then use vars_old to fill covered cells in vars_new during AverageDown
@@ -1196,8 +1235,8 @@ ERF::InitData_post ()
         }
     }
 
-    if (solverChoice.rayleigh_damp_U ||solverChoice.rayleigh_damp_V ||
-        solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T)
+    if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
         initRayleigh();
         if (solverChoice.init_type == InitType::Input_Sounding)
@@ -1341,7 +1380,9 @@ ERF::InitData_post ()
             Print() << "Note: Molecular diffusion specified but dynamic_viscosity has not been specified" << std::endl;
         } else {
             Real nu = dc.dynamic_viscosity / dc.rho0_trans;
-            Real viscous_limit = 0.5 * delta*delta / nu;
+            Real viscous_limit = 2.0 * delta*delta / nu;
+            Print() << "smallest grid spacing at level " << finest_level << " = " << delta << std::endl;
+            Print() << "dt at level " << finest_level << " = " << dt[finest_level] << std::endl;
             Print() << "Viscous CFL is " << dt[finest_level] / viscous_limit << std::endl;
             if (fixed_dt[finest_level] >= viscous_limit) {
                 Warning("Specified fixed_dt is above the viscous limit");
@@ -2083,6 +2124,9 @@ ERF::ReadParameters ()
         }
 #endif
 
+        // Check for NaNs?
+        pp.query("check_for_nans", check_for_nans);
+
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
         pp.query("sum_period"  , sum_per);
@@ -2722,4 +2766,54 @@ ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Re
     }
 
     return write_now;
+}
+
+void
+ERF::check_state_for_nans(MultiFab const& S)
+{
+    int ncomp = S.nComp();
+    for (int lev = 0; lev <= finest_level; lev++)
+    {
+        //
+        // Test at the end of every full timestep whether the solution data contains NaNs
+        //
+        bool any_have_nans = false;
+        for (int i = 0; i < ncomp; i++) {
+            if (S.contains_nan(i,1,0))
+            {
+                amrex::Print() << "Component " << i << "of conserved variables contains NaNs" << '\n';
+                any_have_nans = true;
+            }
+        }
+        if (any_have_nans) {
+            exit(0);
+        }
+    }
+}
+
+void
+ERF::check_vels_for_nans(MultiFab const& xvel, MultiFab const& yvel, MultiFab const& zvel)
+{
+    //
+    // Test at the end of every full timestep whether the solution data contains NaNs
+    //
+    bool any_have_nans = false;
+    if (xvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "x-velocity contains NaNs " << '\n';
+        any_have_nans = true;
+    }
+    if (yvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "y-velocity contains NaNs" << '\n';
+        any_have_nans = true;
+    }
+    if (zvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "z-velocity contains NaNs" << '\n';
+        any_have_nans = true;
+    }
+    if (any_have_nans) {
+        exit(0);
+    }
 }

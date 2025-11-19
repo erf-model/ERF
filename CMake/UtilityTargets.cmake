@@ -57,18 +57,23 @@ add_custom_target(distclean
     COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/cmake_packages
     COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/externals
 
-    # Use shell commands with explicit directory (if needed for glob patterns)
-    COMMAND ${CMAKE_COMMAND} -E echo "Removing generated files..."
-    COMMAND sh -c "cd ${CMAKE_BINARY_DIR} && rm -f *.pc lib*.a lib*.so build_*.log 2>/dev/null || true"
+    # Removing generated files
+    COMMAND ${CMAKE_COMMAND} -E echo "Removing generated files from ${CMAKE_BINARY_DIR}..."
+    COMMAND ${CMAKE_COMMAND} -E remove ${CMAKE_BINARY_DIR}/*.pc ${CMAKE_BINARY_DIR}/lib*.a ${CMAKE_BINARY_DIR}/lib*.so ${CMAKE_BINARY_DIR}/build_*.log
 
     # Summary
     COMMAND ${CMAKE_COMMAND} -E echo ""
     COMMAND ${CMAKE_COMMAND} -E echo " DONE: Distclean complete"
     COMMAND ${CMAKE_COMMAND} -E echo ""
     COMMAND ${CMAKE_COMMAND} -E echo "Next steps to reconfigure:"
-    COMMAND ${CMAKE_COMMAND} -E echo "  From build directory: cmake ${CMAKE_SOURCE_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E echo "  Or more simply:       cmake .."
-    COMMAND ${CMAKE_COMMAND} -E echo "  From source directory: cmake -B ${CMAKE_BINARY_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E echo ""
+    COMMAND ${CMAKE_COMMAND} -E echo "  If you used a build script:"
+    COMMAND ${CMAKE_COMMAND} -E echo "    cd ${CMAKE_BINARY_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E echo "    ERF_HOME=${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/Build/cmake.sh"
+    COMMAND ${CMAKE_COMMAND} -E echo "    or whichever script you used"
+    COMMAND ${CMAKE_COMMAND} -E echo ""
+    COMMAND ${CMAKE_COMMAND} -E echo "  For manual cmake configuration:"
+    COMMAND ${CMAKE_COMMAND} -E echo "    From build directory: cmake ${CMAKE_SOURCE_DIR}"
     COMMAND ${CMAKE_COMMAND} -E echo ""
     COMMAND ${CMAKE_COMMAND} -E echo "Note: Install directories preserved"
 

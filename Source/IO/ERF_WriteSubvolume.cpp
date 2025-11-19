@@ -152,124 +152,145 @@ ERF::WriteSubvolume (Vector<std::string> subvol_var_names)
     // **************************************************************
     // Read in the origin, number of cells in each dir, and resolution
     // **************************************************************
-    pp.getarr("origin",origin,0,AMREX_SPACEDIM);
-    pp.getarr("nxnynz", ncell,0,AMREX_SPACEDIM);
-    pp.getarr("dxdydz", delta,0,AMREX_SPACEDIM);
 
-    int lev_for_sub = 0;
+    int n1 = pp.countval("origin");
+    int n2 = pp.countval("nxnynz");
+    int n3 = pp.countval("dxdydz");
 
-    bool found = false;
-    for (int i = 0; i <= finest_level; i++) {
-        if (!found) {
-            if (almostEqual(delta[0],geom[i].CellSize(0)) &&
-                almostEqual(delta[1],geom[i].CellSize(1)) &&
-                almostEqual(delta[2],geom[i].CellSize(2)) ) {
+    if (n1 != n2 || n1 != n3 || n2 != n3) {
+        amrex::Abort("WriteSubvolume: must have same number of entries in origin, nxnynz, and dxdydz.");
+    }
+    if ( n1%AMREX_SPACEDIM != 0) {
+        amrex::Abort("WriteSubvolume: origin, nxnynz, and dxdydz must have multiples of AMReX_SPACEDIM");
+    }
+    int nsub = n1/AMREX_SPACEDIM;
 
-                amrex::Print() << "WriteSubvolume:Resolution specified matches that of level " << i << std::endl;
-                found = true;
-                lev_for_sub = i;
+    if (nsub == 1) {
+        amrex::Print() << "WriteSubvolume:There is " << nsub << " subvolume specified" << std::endl;
+    } else {
+        amrex::Print() << "WriteSubvolume:There are " << nsub << " subvolumes specified" << std::endl;
+    }
+    for (int isub = 0; isub < nsub; isub++) {
+
+        int lev_for_sub = 0;
+        int offset = isub * AMREX_SPACEDIM;
+
+        pp.getarr("origin",origin,offset,AMREX_SPACEDIM);
+        pp.getarr("nxnynz", ncell,offset,AMREX_SPACEDIM);
+        pp.getarr("dxdydz", delta,offset,AMREX_SPACEDIM);
+
+        bool found = false;
+        for (int i = 0; i <= finest_level; i++) {
+            if (!found) {
+                if (almostEqual(delta[offset+0],geom[i].CellSize(0)) &&
+                    almostEqual(delta[offset+1],geom[i].CellSize(1)) &&
+                    almostEqual(delta[offset+2],geom[i].CellSize(2)) ) {
+
+                    amrex::Print() << "WriteSubvolume:Resolution specified matches that of level " << i << std::endl;
+                    found = true;
+                    lev_for_sub = i;
+                }
             }
         }
-    }
 
-    if (!found) {
-        amrex::Abort("Resolution specified for subvol does not match the resolution of any of the levels.");
-    }
-
-    // **************************************************************
-    // Now that we know which level we're at, we can figure out which (i,j,k) the origin corresponds to
-    // Note we use 1.0001 as a fudge factor since the division of two reals --> integer will do a floor
-    // **************************************************************
-    int i0 = static_cast<int>((origin[0] - geom[lev_for_sub].ProbLo(0)) * 1.0001 / delta[0]);
-    int j0 = static_cast<int>((origin[1] - geom[lev_for_sub].ProbLo(1)) * 1.0001 / delta[1]);
-    int k0 = static_cast<int>((origin[2] - geom[lev_for_sub].ProbLo(2)) * 1.0001 / delta[2]);
-
-    found = false;
-    if (almostEqual(geom[lev_for_sub].ProbLo(0)+i0*delta[0],origin[0]) &&
-        almostEqual(geom[lev_for_sub].ProbLo(1)+j0*delta[1],origin[1]) &&
-        almostEqual(geom[lev_for_sub].ProbLo(2)+k0*delta[2],origin[2]) )
-    {
-        amrex::Print() << "WriteSubvolume:Specified origin is the lower left corner of cell " << IntVect(i0,j0,k0) << std::endl;
-        found = true;
-    }
-
-    if (!found) {
-        amrex::Abort("Origin specified does not correspond to a node at this level.");
-    }
-
-    Box domain(geom[lev_for_sub].Domain());
-
-    Box bx(IntVect(i0,j0,k0),IntVect(i0+ncell[0]-1,j0+ncell[1]-1,k0+ncell[2]-1));
-    amrex::Print() << "WriteSubvolume:Box requested is " << bx << std::endl;
-
-    if (!domain.contains(bx))
-    {
-        amrex::Abort("WriteSubvolume:Box requested is larger than the existing domain");
-    }
-
-    Vector<int> cs(AMREX_SPACEDIM);
-    int count = pp.countval("chunk_size");
-    if (count > 0) {
-        pp.queryarr("chunk_size",cs,0,AMREX_SPACEDIM);
-    } else {
-        cs[0] = max_grid_size[0][0];
-        cs[1] = max_grid_size[0][1];
-        cs[2] = max_grid_size[0][2];
-    }
-    IntVect chunk_size(cs[0],cs[1],cs[2]);
-
-    BoxArray ba(bx);
-    ba.maxSize(chunk_size);
-
-    amrex::Print() << "WriteSubvolume:BoxArray is " << ba << std::endl;
-
-    Vector<std::string> varnames;
-    varnames.insert(varnames.end(), subvol_var_names.begin(), subvol_var_names.end());
-
-    int ncomp_mf = subvol_var_names.size();
-
-    DistributionMapping dm(ba);
-
-    MultiFab mf(ba, dm, ncomp_mf, 0);
-
-    int mf_comp = 0;
-
-    // *****************************************************************************************
-
-    // First, copy any of the conserved state variables into the output plotfile
-    for (int i = 0; i < cons_names.size(); ++i) {
-        if (containerHasElement(subvol_var_names, cons_names[i])) {
-            mf.ParallelCopy(vars_new[lev_for_sub][Vars::cons],i,mf_comp,1,1,0);
-            mf_comp++;
+        if (!found) {
+            amrex::Abort("Resolution specified for subvol does not match the resolution of any of the levels.");
         }
-    }
 
-    // *****************************************************************************************
+        // **************************************************************
+        // Now that we know which level we're at, we can figure out which (i,j,k) the origin corresponds to
+        // Note we use 1.0001 as a fudge factor since the division of two reals --> integer will do a floor
+        // **************************************************************
+        int i0 = static_cast<int>((origin[offset+0] - geom[lev_for_sub].ProbLo(0)) * 1.0001 / delta[offset+0]);
+        int j0 = static_cast<int>((origin[offset+1] - geom[lev_for_sub].ProbLo(1)) * 1.0001 / delta[offset+1]);
+        int k0 = static_cast<int>((origin[offset+2] - geom[lev_for_sub].ProbLo(2)) * 1.0001 / delta[offset+2]);
 
-    if (containerHasElement(subvol_var_names, "x_velocity") ||
-        containerHasElement(subvol_var_names, "y_velocity") ||
-        containerHasElement(subvol_var_names, "z_velocity"))
-    {
-        MultiFab mf_cc_vel(grids[lev_for_sub], dmap[lev_for_sub], AMREX_SPACEDIM, 0);
-        average_face_to_cellcenter(mf_cc_vel,0,
-                                   Array<const MultiFab*,3>{&vars_new[lev_for_sub][Vars::xvel],
-                                                            &vars_new[lev_for_sub][Vars::yvel],
-                                                            &vars_new[lev_for_sub][Vars::zvel]});
-        if (containerHasElement(subvol_var_names, "x_velocity")) {
-            mf.ParallelCopy(mf_cc_vel,0,mf_comp,1,0,0);
-            mf_comp++;
+        found = false;
+        if (almostEqual(geom[lev_for_sub].ProbLo(0)+i0*delta[offset+0],origin[offset+0]) &&
+            almostEqual(geom[lev_for_sub].ProbLo(1)+j0*delta[offset+1],origin[offset+1]) &&
+            almostEqual(geom[lev_for_sub].ProbLo(2)+k0*delta[offset+2],origin[offset+2]) )
+        {
+            amrex::Print() << "WriteSubvolume:Specified origin is the lower left corner of cell " << IntVect(i0,j0,k0) << std::endl;
+            found = true;
         }
-        if (containerHasElement(subvol_var_names, "y_velocity")) {
-            mf.ParallelCopy(mf_cc_vel,1,mf_comp,1,0,0);
-            mf_comp++;
-        }
-        if (containerHasElement(subvol_var_names, "z_velocity")) {
-            mf.ParallelCopy(mf_cc_vel,2,mf_comp,1,0,0);
-            mf_comp++;
-        }
-    }
 
-    // *****************************************************************************************
+        if (!found) {
+            amrex::Abort("Origin specified does not correspond to a node at this level.");
+        }
+
+        Box domain(geom[lev_for_sub].Domain());
+
+        Box bx(IntVect(i0,j0,k0),IntVect(i0+ncell[offset+0]-1,j0+ncell[offset+1]-1,k0+ncell[offset+2]-1));
+        amrex::Print() << "WriteSubvolume:Box requested is " << bx << std::endl;
+
+        if (!domain.contains(bx))
+        {
+            amrex::Abort("WriteSubvolume:Box requested is larger than the existing domain");
+        }
+
+        Vector<int> cs(AMREX_SPACEDIM);
+        int count = pp.countval("chunk_size");
+        if (count > 0) {
+            pp.queryarr("chunk_size",cs,0,AMREX_SPACEDIM);
+        } else {
+            cs[0] = max_grid_size[0][0];
+            cs[1] = max_grid_size[0][1];
+            cs[2] = max_grid_size[0][2];
+        }
+        IntVect chunk_size(cs[0],cs[1],cs[2]);
+
+        BoxArray ba(bx);
+        ba.maxSize(chunk_size);
+
+        amrex::Print() << "WriteSubvolume:BoxArray is " << ba << std::endl;
+
+        Vector<std::string> varnames;
+        varnames.insert(varnames.end(), subvol_var_names.begin(), subvol_var_names.end());
+
+        int ncomp_mf = subvol_var_names.size();
+
+        DistributionMapping dm(ba);
+
+        MultiFab mf(ba, dm, ncomp_mf, 0);
+
+        int mf_comp = 0;
+
+        // *****************************************************************************************
+
+        // First, copy any of the conserved state variables into the output plotfile
+        for (int i = 0; i < cons_names.size(); ++i) {
+            if (containerHasElement(subvol_var_names, cons_names[i])) {
+                mf.ParallelCopy(vars_new[lev_for_sub][Vars::cons],i,mf_comp,1,1,0);
+                mf_comp++;
+            }
+        }
+
+        // *****************************************************************************************
+
+        if (containerHasElement(subvol_var_names, "x_velocity") ||
+            containerHasElement(subvol_var_names, "y_velocity") ||
+            containerHasElement(subvol_var_names, "z_velocity"))
+        {
+            MultiFab mf_cc_vel(grids[lev_for_sub], dmap[lev_for_sub], AMREX_SPACEDIM, 0);
+            average_face_to_cellcenter(mf_cc_vel,0,
+                                       Array<const MultiFab*,3>{&vars_new[lev_for_sub][Vars::xvel],
+                                                                &vars_new[lev_for_sub][Vars::yvel],
+                                                                &vars_new[lev_for_sub][Vars::zvel]});
+            if (containerHasElement(subvol_var_names, "x_velocity")) {
+                mf.ParallelCopy(mf_cc_vel,0,mf_comp,1,0,0);
+                mf_comp++;
+            }
+            if (containerHasElement(subvol_var_names, "y_velocity")) {
+                mf.ParallelCopy(mf_cc_vel,1,mf_comp,1,0,0);
+                mf_comp++;
+            }
+            if (containerHasElement(subvol_var_names, "z_velocity")) {
+                mf.ParallelCopy(mf_cc_vel,2,mf_comp,1,0,0);
+                mf_comp++;
+            }
+        }
+
+        // *****************************************************************************************
 
         // Finally, check for any derived quantities and compute them, inserting
         // them into our output multifab
@@ -284,10 +305,10 @@ ERF::WriteSubvolume (Vector<std::string> subvol_var_names)
 #endif
                 for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
-                    const Box& bx = mfi.tilebox();
+                    const Box& tbx = mfi.tilebox();
                     auto& dfab = dmf[mfi];
                     auto& sfab = src_mf[mfi];
-                    der_function(bx, dfab, 0, 1, sfab, Geom(lev_for_sub), t_new[0], nullptr, lev_for_sub);
+                    der_function(tbx, dfab, 0, 1, sfab, Geom(lev_for_sub), t_new[0], nullptr, lev_for_sub);
                 }
                 mf.ParallelCopy(dmf,0,mf_comp,1,0,0);
                 mf_comp++;
@@ -309,12 +330,15 @@ ERF::WriteSubvolume (Vector<std::string> subvol_var_names)
         calculate_derived("KE",          vars_new[lev_for_sub][Vars::cons], derived::erf_derKE);
         calculate_derived("scalar",      vars_new[lev_for_sub][Vars::cons], derived::erf_derscalar);
 
-    // *****************************************************************************************
+        // *****************************************************************************************
 
-    std::string subvol_filename = Concatenate(subvol_file, istep[0], 5);
+        std::string subvol_filename = Concatenate(subvol_file + "_" + std::to_string(isub) + "_", istep[0], 5);
 
-    Real time = t_new[lev_for_sub];
+        Real time = t_new[lev_for_sub];
 
-    amrex::Print() <<"Writing subvolume into " << subvol_filename << std::endl;
-    WriteSingleLevelPlotfile(subvol_filename,mf,varnames,geom[lev_for_sub],time,istep[0]);
+        amrex::Print() <<"Writing subvolume into " << subvol_filename << std::endl;
+        WriteSingleLevelPlotfile(subvol_filename,mf,varnames,geom[lev_for_sub],time,istep[0]);
+
+
+    } // isub
 }

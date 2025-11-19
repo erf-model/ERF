@@ -457,23 +457,26 @@ else()
     message(DEBUG "FFTW not enabled")
 endif()
 
-# E3SM Submodule Check
-if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
-    message(VERBOSE "Checking E3SM submodule")
-    
+# E3SM Cloned Check
+if(ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
+    message(VERBOSE "Checking EAMxx files from E3SM")
+
     set(E3SM_EXPECTED_PATH "${CMAKE_SOURCE_DIR}/external/E3SM")
-    
-    if(EXISTS "${E3SM_EXPECTED_PATH}")
-        file(GLOB E3SM_CONTENTS "${E3SM_EXPECTED_PATH}/*")
-        if(E3SM_CONTENTS)
-            message(VERBOSE "  E3SM submodule found")
-        else()
-            message(WARNING "E3SM directory exists but is empty")
-            message(STATUS "  Fix: git submodule update --init --recursive external/E3SM")
-        endif()
-    else()
-        message(WARNING "E3SM submodule not found")
-        message(STATUS "  Fix: git submodule update --init --recursive external/E3SM")
+
+    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics")
+        message(FATAL_ERROR
+            "E3SM provides eamxx required for SHOC/P3 but not found.\n"
+            "\n"
+            "This requires specific EAMxx physics source files from E3SM at commit 2eb52d9.\n"
+            "\n"
+            "Option 1 - Use provided script (recommended):\n"
+            "  ${CMAKE_SOURCE_DIR}/Build/eamxx_clone.sh\n"
+            "\n"
+            "Option 2 - Symlink existing E3SM (not tested, must be at commit 2eb52d9b3d):\n"
+            "  ln -s /path/to/your/E3SM ${CMAKE_SOURCE_DIR}/external/E3SM\n"
+            "\n"
+            "Or disable features:\n"
+            "  cmake -DERF_ENABLE_SHOC=OFF -DERF_ENABLE_P3=OFF ..\n")
     endif()
 else()
     message(DEBUG "EKAT physics not enabled, skipping E3SM check")
@@ -495,10 +498,10 @@ message(DEBUG "  MPICH_GPU_SUPPORT_ENABLED: $ENV{MPICH_GPU_SUPPORT_ENABLED}")
 
 if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3))
     message(STATUS "Applying Fix 1: CUDA+EKAT nvcc_wrapper")
-    
+
     message(DEBUG "Problem: nvcc_wrapper doesn't inherit Cray include paths")
     message(DEBUG "Solution: Add flags from CC --cray-print-opts=cflags")
-    
+
     execute_process(
         COMMAND ${CMAKE_CXX_COMPILER} --cray-print-opts=cflags
         OUTPUT_VARIABLE CRAY_CUDA_FLAGS
@@ -506,11 +509,11 @@ if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3))
         ERROR_QUIET
         RESULT_VARIABLE CRAY_CUDA_FLAGS_RESULT
     )
-    
+
     if(CRAY_CUDA_FLAGS_RESULT EQUAL 0 AND CRAY_CUDA_FLAGS)
         message(VERBOSE "Adding Cray flags to CMAKE_CUDA_FLAGS")
         message(DEBUG "Flags: ${CRAY_CUDA_FLAGS}")
-        
+
         if(CMAKE_CUDA_FLAGS)
             set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CRAY_CUDA_FLAGS}" CACHE STRING "" FORCE)
         else()
@@ -525,52 +528,75 @@ else()
 endif()
 
 # ==============================================================================
-# Fix 2: FCOMPARE + Cray -> mpi_gnu_123 not found
+# Fix 2: FCOMPARE + Cray + EKAT/Kokkos -> mpi_gnu_123 not found
 # ==============================================================================
 
-if(ERF_ENABLE_FCOMPARE)
-    message(STATUS "Applying Fix 2: fcompare linker")
-    
-    message(DEBUG "Problem: --as-needed drops required MPI libs")
+if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3))
+    message(STATUS "Applying Fix 2: fcompare linker with EKAT")
+
+    message(DEBUG "Problem: --as-needed drops required MPI libs when EKAT is enabled")
     message(DEBUG "Solution: Clean Cray libs and add --no-as-needed")
-    
-    set(CRAY_LIBS_CLEAN "")
-    
-    foreach(COMPILER IN ITEMS ${CMAKE_CXX_COMPILER} ${CMAKE_C_COMPILER} ${CMAKE_Fortran_COMPILER})
-        if(EXISTS ${COMPILER})
-            execute_process(
-                COMMAND ${COMPILER} --cray-print-opts=libs
-                OUTPUT_VARIABLE COMPILER_LIBS
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-                ERROR_QUIET
-                RESULT_VARIABLE COMPILER_LIBS_RESULT
-            )
-            
-            if(COMPILER_LIBS_RESULT EQUAL 0)
-                message(TRACE "Libs from ${COMPILER}: ${COMPILER_LIBS}")
-                
-                # Remove problematic flags
-                string(REGEX REPLACE "-Wl,--as-needed," "" COMPILER_LIBS "${COMPILER_LIBS}")
-                string(REGEX REPLACE ",--no-as-needed" "" COMPILER_LIBS "${COMPILER_LIBS}")
-                string(REGEX REPLACE ",-l" " -l" COMPILER_LIBS "${COMPILER_LIBS}")
-                
-                set(CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN} ${COMPILER_LIBS}")
+
+    # Query CXX compiler for libs
+    execute_process(
+        COMMAND ${CMAKE_CXX_COMPILER} --cray-print-opts=libs
+        OUTPUT_VARIABLE CRAY_LIBS_RAW
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE CRAY_LIBS_RESULT
+    )
+
+    if(CRAY_LIBS_RESULT EQUAL 0 AND CRAY_LIBS_RAW)
+        message(TRACE "Raw libs from ${CMAKE_CXX_COMPILER}: ${CRAY_LIBS_RAW}")
+
+        # Verify C and Fortran compilers return same libs
+        set(OTHER_COMPILERS "${CMAKE_C_COMPILER};${CMAKE_Fortran_COMPILER}")
+        set(COMPILER_NAMES "C;Fortran")
+        foreach(COMPILER COMPILER_NAME IN ZIP_LISTS OTHER_COMPILERS COMPILER_NAMES)
+            if(EXISTS ${COMPILER})
+                execute_process(
+                    COMMAND ${COMPILER} --cray-print-opts=libs
+                    OUTPUT_VARIABLE OTHER_LIBS
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_QUIET
+                    RESULT_VARIABLE OTHER_RESULT
+                )
+
+                if(OTHER_RESULT EQUAL 0 AND NOT "${OTHER_LIBS}" STREQUAL "${CRAY_LIBS_RAW}")
+                    message(STATUS "${COMPILER_NAME} compiler libs differ from CXX (using CXX libs only)")
+            	    message(VERBOSE "${COMPILER_NAME} compiler returns different libs than CXX:\n  CXX: ${CRAY_LIBS_RAW}\n  ${COMPILER_NAME}: ${OTHER_LIBS}\n  Using only CXX libs - build may fail if language-specific libs needed")
+                endif()
             endif()
-        endif()
-    endforeach()
-    
-    if(CRAY_LIBS_CLEAN)
-        message(VERBOSE "Adding: -Wl,--no-as-needed + cleaned libs")
+        endforeach()
+
+        # Remove problematic flags
+        string(REGEX REPLACE "-Wl,--as-needed," "" CRAY_LIBS_CLEAN "${CRAY_LIBS_RAW}")
+        string(REGEX REPLACE ",--no-as-needed" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+        string(REGEX REPLACE ",-l" " -l" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+
+	# Strip GPU-related flags that Kokkos/AMReX already handle
+	string(REGEX REPLACE "--offload-arch=[^ ]* *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+	string(REGEX REPLACE "--hip-link *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+	string(REGEX REPLACE "-fgpu-rdc *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+	string(REGEX REPLACE "-xhip *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+
+	message(VERBOSE "Adding: -Wl,--no-as-needed + cleaned libs")
         message(DEBUG "Cleaned libs: ${CRAY_LIBS_CLEAN}")
-        
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--no-as-needed ${CRAY_LIBS_CLEAN}" 
-            CACHE STRING "" FORCE)
+
+        # Check if Fix 2 already applied
+        string(FIND "${CMAKE_EXE_LINKER_FLAGS}" "-Wl,--no-as-needed" already_present)
+        if(already_present EQUAL -1)
+            set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--no-as-needed ${CRAY_LIBS_CLEAN}"
+                CACHE STRING "" FORCE)
+        else()
+            message(DEBUG "Cray libs already in linker flags, skipping")
+        endif()
     else()
         message(WARNING "Could not retrieve Cray library paths")
         message(STATUS "  Fcompare may fail to link")
     endif()
 else()
-    message(DEBUG "Fix 2 not needed (fcompare disabled)")
+    message(DEBUG "Fix 2 not needed (fcompare disabled or EKAT not enabled)")
 endif()
 
 # ==============================================================================
@@ -579,15 +605,21 @@ endif()
 
 if(ERF_ENABLE_CUDA AND DEFINED ENV{CUDA_HOME})
     set(CUDA_MATH_PATH "$ENV{CUDA_HOME}/../../math_libs/lib64")
-    
+
     message(DEBUG "Checking CUDA math libs: ${CUDA_MATH_PATH}")
-    
+
     if(EXISTS ${CUDA_MATH_PATH})
         message(STATUS "Applying Fix 3: CUDA math libraries")
         message(VERBOSE "Adding: ${CUDA_MATH_PATH}")
-        
-        list(APPEND CMAKE_PREFIX_PATH ${CUDA_MATH_PATH})
-        set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} CACHE STRING "" FORCE)
+
+        # Only append if not already present
+        list(FIND CMAKE_PREFIX_PATH "${CUDA_MATH_PATH}" already_present)
+        if(already_present EQUAL -1)
+            list(APPEND CMAKE_PREFIX_PATH ${CUDA_MATH_PATH})
+            set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} CACHE STRING "" FORCE)
+        else()
+            message(DEBUG "CUDA math path already in CMAKE_PREFIX_PATH, skipping")
+        endif()
     else()
         message(WARNING "CUDA math libs not found at ${CUDA_MATH_PATH}")
         message(STATUS "  Fix: module load cuda")
@@ -607,7 +639,7 @@ if(ERF_ENABLE_MPI AND "$ENV{MPICH_GPU_SUPPORT_ENABLED}" STREQUAL "1")
     set(MPI_BASE_LIB "")
 
     message(VERBOSE "Detecting MPI library for GPU-aware support")
-    
+
     # Try pkg-config first
     find_package(PkgConfig QUIET)
     if(PkgConfig_FOUND)
@@ -681,22 +713,22 @@ if(ERF_ENABLE_MPI AND "$ENV{MPICH_GPU_SUPPORT_ENABLED}" STREQUAL "1")
     # Verify MPI library exists (if checking enabled)
     if(ERF_CHECK_MODULES AND MPI_BASE_LIB)
         message(DEBUG "Verifying MPI library: ${MPI_BASE_LIB}")
-        
+
         find_library(MPI_BASE_VERIFY
             NAMES ${MPI_BASE_LIB}
-            PATHS 
+            PATHS
                 $ENV{MPICH_DIR}/lib
                 $ENV{CRAY_MPICH_DIR}/lib
             NO_DEFAULT_PATH
         )
-        
+
         if(MPI_BASE_VERIFY)
             message(DEBUG "Verified MPI library exists: ${MPI_BASE_VERIFY}")
         else()
             message(VERBOSE "MPI library ${MPI_BASE_LIB} not found")
             list(APPEND STALE_CONFIG_LOG "MPI library lib${MPI_BASE_LIB}.so not found")
             list(APPEND STALE_CONFIG_LOG "  Searched in: \$MPICH_DIR/lib, \$CRAY_MPICH_DIR/lib")
-            
+
             # Try to suggest correct version
             if(CMAKE_CXX_COMPILER_VERSION MATCHES "^([0-9]+)\\.([0-9]+)")
                 set(EXPECTED_VER "${CMAKE_MATCH_1}${CMAKE_MATCH_2}")
@@ -716,40 +748,40 @@ if(ERF_ENABLE_MPI AND "$ENV{MPICH_GPU_SUPPORT_ENABLED}" STREQUAL "1")
         set(GPU_TYPE "HIP")
         set(GTL_LIB "mpi_gtl_hsa")
     endif()
-    
-if(APPLY_FIX4)
+
+    if(APPLY_FIX4)
         message(STATUS "Applying Fix 4: GPU-aware MPI (${GPU_TYPE})")
         message(VERBOSE "MPI base library: ${MPI_BASE_LIB}")
         message(VERBOSE "GTL library: ${GTL_LIB}")
-        
+
         set(CRAY_MPI_LIBS "-l${MPI_BASE_LIB} -l${GTL_LIB}")
-        
-        # Only append if not already present
+
+        # Only append if not already present (check for MPI_BASE_LIB as marker)
         if(ERF_ENABLE_CUDA)
-            string(FIND "${CMAKE_CUDA_STANDARD_LIBRARIES}" "${CRAY_MPI_LIBS}" already_present)
+            string(FIND "${CMAKE_CUDA_STANDARD_LIBRARIES}" "-l${MPI_BASE_LIB}" already_present)
             if(already_present EQUAL -1)
                 message(DEBUG "Adding to CMAKE_CUDA_STANDARD_LIBRARIES: ${CRAY_MPI_LIBS}")
-                set(CMAKE_CUDA_STANDARD_LIBRARIES "${CMAKE_CUDA_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
+                set(CMAKE_CUDA_STANDARD_LIBRARIES "${CMAKE_CUDA_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}"
                     CACHE STRING "" FORCE)
             else()
                 message(DEBUG "CUDA libraries already contain MPI libs, skipping")
             endif()
-        else()
-            string(FIND "${CMAKE_HIP_STANDARD_LIBRARIES}" "${CRAY_MPI_LIBS}" already_present)
+        elseif(ERF_ENABLE_HIP)
+            string(FIND "${CMAKE_HIP_STANDARD_LIBRARIES}" "-l${MPI_BASE_LIB}" already_present)
             if(already_present EQUAL -1)
                 message(DEBUG "Adding to CMAKE_HIP_STANDARD_LIBRARIES: ${CRAY_MPI_LIBS}")
-                set(CMAKE_HIP_STANDARD_LIBRARIES "${CMAKE_HIP_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
+                set(CMAKE_HIP_STANDARD_LIBRARIES "${CMAKE_HIP_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}"
                     CACHE STRING "" FORCE)
             else()
                 message(DEBUG "HIP libraries already contain MPI libs, skipping")
             endif()
         endif()
-        
-        string(FIND "${CMAKE_CXX_STANDARD_LIBRARIES}" "${CRAY_MPI_LIBS}" already_present)
+
+        string(FIND "${CMAKE_CXX_STANDARD_LIBRARIES}" "-l${MPI_BASE_LIB}" already_present)
         if(already_present EQUAL -1)
             message(DEBUG "Adding to CMAKE_CXX_STANDARD_LIBRARIES: ${CRAY_MPI_LIBS}")
-            set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}" 
-                CACHE STRING "" FORCE)
+            set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} ${CRAY_MPI_LIBS}"
+                 CACHE STRING "" FORCE)
         else()
             message(DEBUG "CXX libraries already contain MPI libs, skipping")
         endif()
@@ -764,9 +796,9 @@ endif()
 
 if(ERF_ENABLE_NETCDF)
     message(STATUS "Applying Fix 5-6: NetCDF configuration")
-    
+
     message(DEBUG "Setting up pkg-config path for NetCDF/MPI")
-    
+
     execute_process(
         COMMAND ${CMAKE_CXX_COMPILER} --cray-print-opts=PKG_CONFIG_PATH
         OUTPUT_VARIABLE CRAY_PKG_CONFIG_PATH
@@ -774,24 +806,24 @@ if(ERF_ENABLE_NETCDF)
         ERROR_QUIET
         RESULT_VARIABLE PKG_RESULT
     )
-    
+
     if(PKG_RESULT EQUAL 0 AND CRAY_PKG_CONFIG_PATH)
         message(VERBOSE "PKG_CONFIG_PATH from Cray wrapper")
         message(DEBUG "  ${CRAY_PKG_CONFIG_PATH}")
-        
+
         if(DEFINED ENV{PKG_CONFIG_PATH})
             set(ENV{PKG_CONFIG_PATH} "${CRAY_PKG_CONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
         else()
             set(ENV{PKG_CONFIG_PATH} "${CRAY_PKG_CONFIG_PATH}")
         endif()
     endif()
-    
+
     # Add NetCDF/HDF5 to search paths
     if(DEFINED ENV{NETCDF_DIR})
         list(APPEND CMAKE_PREFIX_PATH $ENV{NETCDF_DIR})
         message(VERBOSE "Added NETCDF_DIR to search: $ENV{NETCDF_DIR}")
     endif()
-    
+
     if(DEFINED ENV{HDF5_DIR})
         list(APPEND CMAKE_PREFIX_PATH $ENV{HDF5_DIR})
         message(VERBOSE "Added HDF5_DIR to search: $ENV{HDF5_DIR}")
@@ -806,9 +838,9 @@ endif()
 
 if(AMReX_GPU_BACKEND MATCHES "HIP" AND AMReX_HDF5)
     message(STATUS "Applying Fix 7: HDF5 for HIP")
-    
+
     message(DEBUG "Configuring HDF5 hints for HIP build")
-    
+
     find_package(PkgConfig QUIET)
     if(PkgConfig_FOUND)
         execute_process(
@@ -826,13 +858,13 @@ if(AMReX_GPU_BACKEND MATCHES "HIP" AND AMReX_HDF5)
         pkg_check_modules(PC_HDF5 QUIET hdf5)
         if(PC_HDF5_FOUND)
             message(VERBOSE "Found HDF5 via pkg-config: ${PC_HDF5_PREFIX}")
-            
+
             set(HDF5_ROOT "${PC_HDF5_PREFIX}" CACHE PATH "HDF5 root from pkg-config")
             set(HDF5_PREFER_PARALLEL ON CACHE BOOL "Prefer parallel HDF5")
             set(HDF5_IS_PARALLEL TRUE CACHE BOOL "HDF5 is parallel")
-            
+
             list(APPEND CMAKE_PREFIX_PATH "${PC_HDF5_PREFIX}")
-            
+
             message(DEBUG "Set HDF5_ROOT: ${PC_HDF5_PREFIX}")
             message(DEBUG "Set HDF5_PREFER_PARALLEL: ON")
         else()
@@ -864,8 +896,8 @@ if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3) A
     set(FIX1_ACTIVE ON)
 endif()
 
-# Fix 2: fcompare
-if(ERF_ENABLE_FCOMPARE AND CRAY_LIBS_CLEAN)
+# Fix 2: fcompare + EKAT
+if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3) AND CRAY_LIBS_CLEAN)
     set(FIX2_ACTIVE ON)
 endif()
 
@@ -898,7 +930,7 @@ if(FIX1_ACTIVE)
     message(VERBOSE "  Fix 1 (CUDA+EKAT): ACTIVE")
 endif()
 if(FIX2_ACTIVE)
-    message(VERBOSE "  Fix 2 (fcompare): ACTIVE")
+    message(VERBOSE "  Fix 2 (fcompare+EKAT): ACTIVE")
 endif()
 if(FIX3_ACTIVE)
     message(VERBOSE "  Fix 3 (CUDA math): ACTIVE")
@@ -924,10 +956,8 @@ if(FIX1_ACTIVE)
 endif()
 
 if(FIX2_ACTIVE)
-    message(DEBUG "Fix 2 (fcompare):")
+    message(DEBUG "Fix 2 (fcompare+EKAT):")
     message(DEBUG "  CRAY_LIBS=\"\$(CC --cray-print-opts=libs | sed 's/-Wl,--as-needed,//g; s/,--no-as-needed//g; s/,-l/ -l/g')\"")
-    message(DEBUG "  CRAY_LIBS=\"\$CRAY_LIBS \$(cc --cray-print-opts=libs | sed ...)\"")
-    message(DEBUG "  CRAY_LIBS=\"\$CRAY_LIBS \$(ftn --cray-print-opts=libs | sed ...)\"")
     message(DEBUG "  -DCMAKE_EXE_LINKER_FLAGS=\"-Wl,--no-as-needed \$CRAY_LIBS\"")
     message(DEBUG "")
 endif()
@@ -1046,7 +1076,7 @@ endif()
 
 if(AMReX_AMD_ARCH)
     file(APPEND ${CRAY_CONFIG_FILE} "
-# HIP Configuration  
+# HIP Configuration
 set(AMReX_AMD_ARCH \"${AMReX_AMD_ARCH}\" CACHE STRING \"Auto-detected\")
 ")
 endif()
@@ -1076,7 +1106,7 @@ endif()
 
 if(FIX2_ACTIVE)
     file(APPEND ${CRAY_CONFIG_FILE} "
-# Fix 2: fcompare linker flags
+# Fix 2: fcompare+EKAT linker flags
 set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}\" CACHE STRING \"\")
 ")
 endif()
@@ -1170,7 +1200,7 @@ if(ERF_CHECK_MODULES AND STALE_CONFIG_LOG)
     message(STATUS "")
     message(STATUS "====================================================================")
     message(STATUS "")
-    
+
     # Make it a hard error instead of warning
     message(FATAL_ERROR "Stale configuration detected - clean build required")
 endif()

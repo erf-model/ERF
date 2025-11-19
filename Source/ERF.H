@@ -228,6 +228,10 @@ public:
     // Restart
     void restart ();
 
+    // Check for NaNs
+    void check_state_for_nans(amrex::MultiFab const& S);
+    void check_vels_for_nans(amrex::MultiFab const& xvel, amrex::MultiFab const& yvel, amrex::MultiFab const& zvel);
+
     // Is it time to write a plotfile or checkpoint?
     bool writeNow (const amrex::Real cur_time, const int nstep, const int plot_int,
                    const amrex::Real plot_per, const amrex::Real dt_0, amrex::Real& last_file_time);
@@ -897,6 +901,7 @@ private:
 
     // Diffusive stresses and Smag
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau_corr; // correction to tau for implicit
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 
@@ -1189,6 +1194,8 @@ private:
     static int mg_verbose;
     static bool use_fft;
 
+    static int check_for_nans;
+
     // Diagnostic output interval
     static int sum_interval;
     static int pert_interval;
@@ -1286,16 +1293,20 @@ private:
                                 const amrex::Vector<amrex::Real>& zlev_stag);
 
     // This is a vector over levels of vectors across quantities of Vectors
-    amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
+    amrex::Vector<amrex::Vector<amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
+    amrex::Vector<amrex::Vector<amrex::Vector<amrex::Real> > > h_sponge_ptrs;
 
-    // This is a vector over levels of vectors across quantities of Vectors
-    amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_sponge_ptrs;
+    // These are vectors over levels of Vectors
+    amrex::Vector<amrex::Vector<amrex::Real> > h_sinesq_ptrs;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_sinesq_stag_ptrs;
 
     // This is a vector over levels of vectors across quantities of DeviceVectors
     amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_rayleigh_ptrs;
-
-    // This is a vector over levels of vectors across quantities of DeviceVectors
     amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_sponge_ptrs;
+
+    // These are vectors over levels of DeviceVectors
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_sinesq_ptrs;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_sinesq_stag_ptrs;
 
     amrex::Vector<amrex::Real> h_havg_density;
     amrex::Vector<amrex::Real> h_havg_temperature;
