@@ -138,6 +138,8 @@ Build Scripts Reference
 
 ERF provides tested build scripts for common configurations. The following table shows which scripts have been verified on each system.
 
+The test procedure is documented in :download:`notes_test.sh <figures/notes_test.sh>`.
+
 .. list-table:: Verified Build Scripts by System
    :header-rows: 1
    :widths: 35 10 10 10 10 10 10 10
@@ -151,32 +153,32 @@ ERF provides tested build scripts for common configurations. The following table
      - RegtestCPU
      - RegtestGPU
    * - ``cmake.sh``
-     - f8665c28 (ABL)
-     - f8665c28 (ABL)
-     - f8665c28
-     - f8665c28 (ABL)
+     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_ (ABL)
+     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_ (ABL)
+     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
+     - `f8665c28 <https://github.com/jmsexton03/ERF/commit/f8665c28>`_ (ABL)
      - Untested
-     - f8665c28 (ABL)
-     - f8665c28 (ABL)
+     - `f8665c28 <https://github.com/jmsexton03/ERF/commit/f8665c28>`_ (ABL)
+     - `f8665c28 <https://github.com/jmsexton03/ERF/commit/f8665c28>`_ (ABL)
    * - ``cmake_with_kokkos_many.sh``
      - Untested
      - Untested
      - Untested
      - Untested
      - Untested
-     - f8665c28 (ABL)
+     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_ (ABL)
      - Untested
    * - ``cmake_with_kokkos_many_cuda.sh``
-     - f8665c28 (ABL)
+     - `f8665c28 <https://github.com/jmsexton03/ERF/commit/f8665c28>`_ (ABL)
      - —
      - —
      - Untested
      - Untested
      - —
-     - f8665c28 (ABL)
+     - `f8665c28 <https://github.com/jmsexton03/ERF/commit/f8665c28>`_ (ABL)
    * - ``cmake_with_kokkos_many_noradiation_hip.sh``
      - —
-     - f8665c28 (compiled)
+     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_ (compiled)
      - —
      - —
      - —
@@ -184,7 +186,7 @@ ERF provides tested build scripts for common configurations. The following table
      - —
    * - ``cmake_with_kokkos_many_hip.sh``
      - —
-     - f8665c28
+     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
      - —
      - —
      - —
@@ -193,19 +195,43 @@ ERF provides tested build scripts for common configurations. The following table
    * - ``cmake_with_kokkos_many_sycl.sh``
      - —
      - —
-     - f8665c28
+     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
      - —
      - —
      - —
      - —
    * - ``build_erf_with_shoc.sh``
+     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
+     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
+     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
+     - Untested
+     - Untested
      - Tested
-     - Untested
-     - Untested
-     - Untested
-     - Untested
      - Tested
-     - Tested
+   * - ``build_erf_with_shoc_cuda.sh``
+     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
+     - —
+     - —
+     - Untested
+     - Untested
+     - —
+     - Untested
+   * - ``build_erf_with_shoc_hip.sh``
+     - —
+     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
+     - —
+     - Untested
+     - Untested
+     - —
+     - Untested
+   * - ``build_erf_with_shoc_sycl.sh``
+     - —
+     - —
+     - `22e12035 <https://github.com/erf-model/ERF/commit/22e12035>`_
+     - Untested
+     - Untested
+     - —
+     - Untested
    * - ``Perlmutter/build_erf_with_shoc_cuda_Perlmutter.sh``
      - Untested
      - Untested
@@ -218,7 +244,7 @@ ERF provides tested build scripts for common configurations. The following table
 .. note::
    **Reading the table:**
 
-   * **Commit hashes** (e.g., ``f8665c28``) indicate last successful test
+   * **Commit hashes** link to GitHub and indicate last successful test
    * **(ABL)** indicates tested with Atmospheric Boundary Layer case and validated with ``fcompare``
    * **(compiled)** indicates build succeeded but runtime results need investigation
    * **Tested** means successful build/run without specific commit hash
@@ -233,8 +259,18 @@ ERF provides tested build scripts for common configurations. The following table
 * ``cmake_with_kokkos_many_noradiation_hip.sh`` - AMD GPUs (HIP) without radiation
 * ``cmake_with_kokkos_many_hip.sh`` - AMD GPUs (HIP) full build
 * ``cmake_with_kokkos_many_sycl.sh`` - Intel GPUs with SYCL
-* ``build_erf_with_shoc.sh`` - Automated SHOC workflow
+* ``build_erf_with_shoc.sh`` - Automated SHOC workflow (CPU)
+* ``build_erf_with_shoc_{cuda,hip,sycl}.sh`` - Automated SHOC workflow with GPU backend
 * ``Perlmutter/build_erf_with_shoc_cuda_Perlmutter.sh`` - SHOC with CUDA on Perlmutter
+
+.. note::
+   The GPU SHOC scripts can be auto-generated. Set ``BACKEND=CUDA`` (or ``HIP``/``SYCL``), then:
+
+   .. code-block:: bash
+
+      sed "/ERF_ENABLE_MPI/a\      -DERF_ENABLE_${BACKEND}:BOOL=ON \\\\" Build/cmake_with_shoc.sh > Build/cmake_with_shoc_${BACKEND,,}.sh
+      sed "s/cmake_with_shoc.sh/cmake_with_shoc_${BACKEND,,}.sh/" Build/build_erf_with_shoc.sh > Build/build_erf_with_shoc_${BACKEND,,}.sh
+      chmod +x Build/cmake_with_shoc_${BACKEND,,}.sh Build/build_erf_with_shoc_${BACKEND,,}.sh
 
 .. dropdown:: Build Script Examples
    :icon: code
