@@ -284,7 +284,7 @@ public:
           }
       }
 
-      if ((lev == 0) || (lev > nlevs - 1)) {
+      if (m_eddyDiffs_lev.size() < lev+1) {
           m_Hwave_lev.resize(nlevs);
           m_Lwave_lev.resize(nlevs);
           m_eddyDiffs_lev.resize(nlevs);
@@ -421,6 +421,7 @@ public:
       q_surf[lev]->setVal(default_land_surf_moist);
 
       // TODO: Do we want an enum struct for indexing?
+
       if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_has_lsm_tsurf) {
           // Valid SST, TSK or LSM data; t_surf set before computing fluxes (avoids
           // extended lambda capture) Note that land temp will be set from m_tsk_lev

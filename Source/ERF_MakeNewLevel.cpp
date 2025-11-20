@@ -427,13 +427,41 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     }
 
     // ********************************************************************************************
+    // Build the data structures for holding sea surface temps and skin temps
+    // ********************************************************************************************
+    sst_lev[lev].resize(1);     sst_lev[lev][0] = nullptr;
+    tsk_lev[lev].resize(1);     tsk_lev[lev][0] = nullptr;
+
+    //********************************************************************************************
+    // Land Surface Model
+    // *******************************************************************************************
+    int lsm_data_size  = lsm.Get_Data_Size();
+    int lsm_flux_size  = lsm.Get_Flux_Size();
+    lsm_data[lev].resize(lsm_data_size);
+    lsm_data_name.resize(lsm_data_size);
+    lsm_flux[lev].resize(lsm_flux_size);
+    lsm_flux_name.resize(lsm_flux_size);
+    lsm.Define(lev, solverChoice);
+    if (solverChoice.lsm_type != LandSurfaceType::None)
+    {
+        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), 0.0); // dummy dt value
+    }
+    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
+    }
+    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+    }
+
+    // ********************************************************************************************
     // Create the SurfaceLayer arrays at this (new) level
     // ********************************************************************************************
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
-        int nlevs = finest_level+1;
         Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                                      &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-        m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
+        m_SurfaceLayer->make_SurfaceLayer_at_level(lev,lev+1,
                                                    mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                    Qr_prim[lev], z_phys_nd[lev],
                                                    Hwave[lev].get(), Lwave[lev].get(), eddyDiffs_lev[lev].get(),
