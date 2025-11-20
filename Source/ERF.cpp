@@ -1529,6 +1529,11 @@ ERF::InitData_post ()
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
     {
+        bool has_diff = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
+                          (solverChoice.turbChoice[0].les_type != LESType::None)           ||
+                          (solverChoice.turbChoice[0].pbl_type != PBLType::None) );
+        AMREX_ALWAYS_ASSERT(has_diff);
+
         bool rotate = solverChoice.use_rotate_surface_flux;
         if (rotate) {
             Print() << "Using surface layer model with stress rotations" << std::endl;
@@ -1549,12 +1554,11 @@ ERF::InitData_post ()
         // This call will allocate the arrays at each level. If we regrid later, either changing
         // the number of levels or just the grids at each existing level, we will call an update routine
         // to redefine the internal arrays in m_SurfaceLayer.
-        int nlevs = geom.size();
-        for (int lev = 0; lev < nlevs; lev++)
+        for (int lev = 0; lev <= finest_level; lev++)
         {
             Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                                          &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-            m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
+            m_SurfaceLayer->make_SurfaceLayer_at_level(lev,finest_level+1,
                                                        mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                        Qr_prim[lev], z_phys_nd[lev],
                                                        Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
