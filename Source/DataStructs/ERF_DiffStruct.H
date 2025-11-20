@@ -18,7 +18,7 @@ enum struct MolecDiffType {
 
 struct DiffChoice {
   public:
-    void init_params(std::string pp_prefix)
+    void init_params (std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -64,7 +64,7 @@ struct DiffChoice {
 
     }
 
-    void display()
+    void display ()
     {
         amrex::Print() << "Diffusion choices: " << std::endl;
         amrex::Print() << "    rho0_trans              : " << rho0_trans << std::endl;

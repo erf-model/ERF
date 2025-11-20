@@ -364,51 +364,7 @@ struct SolverChoice {
 
         pp.query("beta_s", beta_s);
 
-#ifndef ERF_USE_SHOC
-        // This controls the time-centering of the vertical differences in the diffusive term
-        bool do_vert_implicit = false;
-        if (pp.query("vert_implicit", do_vert_implicit) && do_vert_implicit) {
-            // set to default here
-            vert_implicit_fac[0] = 1.0;
-            vert_implicit_fac[1] = 1.0;
-            vert_implicit_fac[2] = 0.0;
-        }
 
-        // This may be one value for all RK stages or a different value in each stage
-        int n_impfac = pp.countval("vert_implicit_fac");
-        AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
-        if (n_impfac > 0 && do_vert_implicit) {
-            amrex::Print() << "Overriding defaults with specified implicit factor(s)" << std::endl;
-        }
-
-        if (n_impfac == 1) {
-            amrex::Real fac_in;
-            pp.get("vert_implicit_fac", fac_in);
-            for (int i=0; i<3; ++i) vert_implicit_fac[i] = fac_in;
-        } else if (n_impfac == 3) {
-            pp.getarr("vert_implicit_fac", vert_implicit_fac);
-        }
-
-        // If true (default), include implicit contributions to vertical
-        // thermal diffusion
-        pp.query("implicit_thermal_diffusion", implicit_thermal_diffusion);
-
-        // If true (default), include implicit contributions in tau13, tau23,
-        // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
-        pp.query("implicit_momentum_diffusion", implicit_momentum_diffusion);
-
-        if (!implicit_thermal_diffusion && !implicit_momentum_diffusion) {
-            amrex::Print() << "Thermal and momentum diffusion are both turned off -- turning off vertical implicit solve" << std::endl;
-            vert_implicit_fac[0] = 0.0;
-            vert_implicit_fac[1] = 0.0;
-            vert_implicit_fac[2] = 0.0;
-        }
-
-        // This controls when the vertical implicit solve for the diffusive terms will happen relative to
-        //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > 0.)
-        // The default is true (i.e. that it happens before the acoustic substepping).
-        pp.query("implicit_before_substep", implicit_before_substep);
-#endif
 
         // *******************************************************************************
         // Error check on deprecated input
@@ -548,6 +504,8 @@ struct SolverChoice {
         dampingChoice.init_params(pp_prefix);
          spongeChoice.init_params(pp_prefix);
 
+
+
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
@@ -582,6 +540,53 @@ struct SolverChoice {
 
         // Are we using SHOC? (test on compilation done in turb struct)
         if (turbChoice[0].pbl_type == PBLType::SHOC) { use_shoc = true; }
+
+        // Implicit vertical diffusion (not available with Shoc)
+        if (!use_shoc) {
+            // This controls the time-centering of the vertical differences in the diffusive term
+             bool do_vert_implicit = false;
+             if (pp.query("vert_implicit", do_vert_implicit) && do_vert_implicit) {
+                 // set to default here
+                 vert_implicit_fac[0] = 1.0;
+                 vert_implicit_fac[1] = 1.0;
+                 vert_implicit_fac[2] = 0.0;
+             }
+
+             // This may be one value for all RK stages or a different value in each stage
+             int n_impfac = pp.countval("vert_implicit_fac");
+             AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
+             if (n_impfac > 0 && do_vert_implicit) {
+                 amrex::Print() << "Overriding defaults with specified implicit factor(s)" << std::endl;
+             }
+
+             if (n_impfac == 1) {
+                 amrex::Real fac_in;
+                 pp.get("vert_implicit_fac", fac_in);
+                 for (int i=0; i<3; ++i) { vert_implicit_fac[i] = fac_in; }
+             } else if (n_impfac == 3) {
+                 pp.getarr("vert_implicit_fac", vert_implicit_fac);
+             }
+
+             // If true (default), include implicit contributions to vertical
+             // thermal diffusion
+             pp.query("implicit_thermal_diffusion", implicit_thermal_diffusion);
+
+             // If true (default), include implicit contributions in tau13, tau23,
+             // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
+             pp.query("implicit_momentum_diffusion", implicit_momentum_diffusion);
+
+             if (!implicit_thermal_diffusion && !implicit_momentum_diffusion) {
+                 amrex::Print() << "Thermal and momentum diffusion are both turned off -- turning off vertical implicit solve" << std::endl;
+                 vert_implicit_fac[0] = 0.0;
+                 vert_implicit_fac[1] = 0.0;
+                 vert_implicit_fac[2] = 0.0;
+             }
+
+             // This controls when the vertical implicit solve for the diffusive terms will happen relative to
+             //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > 0.)
+             // The default is true (i.e. that it happens before the acoustic substepping).
+             pp.query("implicit_before_substep", implicit_before_substep);
+         }
 
         // Which type of multilevel coupling
         coupling_type = CouplingType::TwoWay; // Default
