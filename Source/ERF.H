@@ -228,9 +228,11 @@ public:
     // Restart
     void restart ();
 
-    // Check for NaNs
+    // Check for NaNs and other bad stuff
     void check_state_for_nans(amrex::MultiFab const& S);
     void check_vels_for_nans(amrex::MultiFab const& xvel, amrex::MultiFab const& yvel, amrex::MultiFab const& zvel);
+    void check_for_negative_theta (amrex::MultiFab& S);
+    void check_for_low_temp       (amrex::MultiFab& S);
 
     // Is it time to write a plotfile or checkpoint?
     bool writeNow (const amrex::Real cur_time, const int nstep, const int plot_int,

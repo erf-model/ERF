@@ -11,15 +11,15 @@
 #   cmake --log-context ..        # Show message hierarchy
 #
 # Options:
-#   -DERF_DISABLE_CRAY_AUTO_FIXES=ON : Disable automatic Cray system fixes
+#   -DERF_ENABLE_CRAY_AUTO_FIXES=OFF : Disable automatic Cray system fixes
 # ==============================================================================
 
-option(ERF_DISABLE_CRAY_AUTO_FIXES "Disable automatic Cray system fixes" OFF)
+option(ERF_ENABLE_CRAY_AUTO_FIXES "Enable automatic Cray system fixes" ON)
 
 # Set Cray context for hierarchical logging
 list(APPEND CMAKE_MESSAGE_CONTEXT "Cray")
 
-if(ERF_DISABLE_CRAY_AUTO_FIXES)
+if(NOT ERF_EANBLE_CRAY_AUTO_FIXES)
     message(STATUS "Auto-fixes disabled by user")
     list(POP_BACK CMAKE_MESSAGE_CONTEXT)
     return()
@@ -1206,7 +1206,7 @@ if(ERF_CHECK_MODULES AND STALE_CONFIG_LOG)
 endif()
 
 message(DEBUG "=====================================================================")
-message(DEBUG "To disable auto-fixes: -DERF_DISABLE_CRAY_AUTO_FIXES=ON")
+message(DEBUG "To disable auto-fixes: -DERF_ENABLE_CRAY_AUTO_FIXES=OFF")
 message(DEBUG "For verbose output: cmake --log-level=VERBOSE ..")
 message(DEBUG "For debug output: cmake --log-level=DEBUG ..")
 
