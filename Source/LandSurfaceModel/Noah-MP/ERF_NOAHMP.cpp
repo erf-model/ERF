@@ -300,13 +300,6 @@ NOAHMP::Advance_With_State (const int& lev,
         // Copy forcing data from ERF to Noahmp.
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
         {
-            if ((i==55 || i==56) && j==0) {
-                AllPrint() << "U to Noah: " << IntVect(i,j,0) << ' '
-                           << bx << ' '
-                           << 0.5*(U_PHY(i,j,0)+U_PHY(i+1,j  ,0)) << ' '
-                           << U_PHY(i,j,0) << ' '
-                           << U_PHY(i+1,j  ,0) << "\n";
-            }
             tmp_u_phy_arr(i,j,0)   = 0.5*(U_PHY(i,j,0)+U_PHY(i+1,j  ,0));
             tmp_v_phy_arr(i,j,0)   = 0.5*(V_PHY(i,j,0)+V_PHY(i  ,j+1,0));
             tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(CONS(i,j,0,Rho_comp),CONS(i,j,0,RhoTheta_comp));
@@ -362,16 +355,6 @@ NOAHMP::Advance_With_State (const int& lev,
 
         LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
         {
-            if ((i==55 || i==56) && j==0) {
-                AllPrint() << "tau13 temp: " << IntVect(i,j,0) << ' '
-                           << bx << ' '
-                           << noahmpio->TAU_EW(i,j) << "\n";
-            }
-            if (noahmpio->TAU_EW(i,j) == 0.) {
-                AllPrint() << "Zero stress: " << IntVect(i,j,0) << ' '
-                           << bx << "\n";
-            }
-
             h_hfx_arr(i,j,0)           = noahmpio->HFX(i,j);
             h_lh_arr(i,j,0)            = noahmpio->LH(i,j);
             h_tau_ew_arr(i,j,0)        = noahmpio->TAU_EW(i,j);
@@ -403,18 +386,12 @@ NOAHMP::Advance_With_State (const int& lev,
             // SurfaceLayer fluxes at CC
             t_flux_arr(i,j,0)    = tmp_hfx_arr(i,j,0)/(CONS(i,j,0,Rho_comp)*Cp_d);
             q_flux_arr(i,j,0)    = tmp_lh_arr(i,j,0)/(CONS(i,j,0,Rho_comp)*L_v);
+
             // NOTE: The following fluxes are nodal in xz/yz.
             //       The 2D MFs have 1 ghost cell so we can average these
             //       when using them in the surface layer class.
             tau13_arr(i,j,0)  = tmp_tau_ew_arr(i,j,0)/CONS(i,j,0,Rho_comp);
             tau23_arr(i,j,0)  = tmp_tau_ns_arr(i,j,0)/CONS(i,j,0,Rho_comp);
-
-            if ((i==55 || i==56) && j==0) {
-                AllPrint() << "tau13: " << IntVect(i,j,0) << ' '
-                           << bx << ' '
-                           << tau13_arr(i,j,0) << ' '
-                           << tmp_tau_ew_arr(i,j,0) << "\n";
-            }
 
             // RRTMGP variables
             TSK(i,j,0)           = tmp_tsk_arr(i,j,0);
