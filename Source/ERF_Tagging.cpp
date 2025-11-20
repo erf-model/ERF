@@ -157,21 +157,29 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         {
             MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,1);
         } else if (ref_tags[j].Field() == "velmag") {
-            mf->setVal(0.0);
             ParmParse pp(pp_prefix);
             Vector<std::string> refinement_indicators;
             pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
             Real velmag_threshold = 1e10;
+            bool is_hurricane_tracker = false;
             for (int i=0; i<refinement_indicators.size(); ++i)
             {
                 if(refinement_indicators[i]=="hurricane_tracker"){
+                    is_hurricane_tracker = true;
                     std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
                     ParmParse ppr(ref_prefix);
-                    ppr.get("value_greater",velmag_threshold);
+                    if (!ppr.query("value_greater", velmag_threshold)) {
+                        Abort("ERROR: hurricane_tracker requires 'erf.hurricane_tracker.value_greater' option.");
+                    }
                     break;
                 }
             }
-            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, false, &tags);
+            if(is_hurricane_tracker) {
+                HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, false, &tags);
+            } else {
+                Abort("ERROR: velmag refinement is implemented only for hurricane tracker");
+            }
+
 #ifdef ERF_USE_PARTICLES
         } else {
             //
