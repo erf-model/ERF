@@ -2069,18 +2069,34 @@ ERF::ReadParameters ()
             max_step = std::numeric_limits<int>::max();
         }
 
+        // TODO: more robust general datetime parsing
         std::string start_datetime, stop_datetime;
         if (pp.query("start_datetime", start_datetime)) {
             if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 start_datetime += ":00"; // add seconds
             }
+            if (start_datetime.length() != 19) {
+                Print() << "Got start_datetime = \"" << start_datetime
+                    << "\", format should be " << datetime_format << std::endl;
+                exit(0);
+            }
             start_time = getEpochTime(start_datetime, datetime_format);
+            Print() << "Start datetime : " << start_datetime << std::endl;
 
             if (pp.query("stop_datetime", stop_datetime)) {
                 if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                     stop_datetime += ":00"; // add seconds
                 }
+                if (stop_datetime.length() != 19) {
+                    Print() << "Got stop_datetime = \"" << stop_datetime
+                        << "\", format should be " << datetime_format << std::endl;
+                    exit(0);
+                }
                 stop_time = getEpochTime(stop_datetime, datetime_format);
+                Print() << "Stop  datetime : " << start_datetime << std::endl;
+            } else if (pp.query("stop_time", stop_time)) {
+                Print() << "Sim length     : " << stop_time << " s" << std::endl;
+                stop_time += start_time;
             }
 
             use_datetime = true;
