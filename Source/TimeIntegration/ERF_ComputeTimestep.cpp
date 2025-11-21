@@ -75,9 +75,12 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                                         &vars_new[level][Vars::zvel]});
 
     bool l_substepping = (solverChoice.substepping_type[level] == SubsteppingType::Implicit);
-    int l_anelastic      = solverChoice.anelastic[level];
+    int  l_anelastic   = solverChoice.anelastic[level];
+
+    bool l_substepping_diag = (verbose && l_substepping && !l_anelastic && solverChoice.substepping_diag);
 
     Real estdt_comp_inv;
+    Real estdt_vert_comp_inv;
 
     if (l_substepping && (nxc==1) && (nyc==1)) {
         // SCM -- should not depend on dx or dy; force minimum number of substeps
@@ -202,6 +205,33 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
            });
            return new_comp_dt;
        });
+
+       if (l_substepping_diag) {
+           estdt_vert_comp_inv = ReduceMax(S_new, ccvel, 0,
+           [=] AMREX_GPU_HOST_DEVICE (Box const& b,
+                                      Array4<Real const> const& s,
+                                      Array4<Real const> const& u) -> Real
+           {
+               Real new_comp_dt = -1.e100;
+               amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
+               {
+                   {
+                       const Real rho      = s(i, j, k, Rho_comp);
+                       const Real rhotheta = s(i, j, k, RhoTheta_comp);
+
+                       // NOTE: even when moisture is present,
+                       //       we only use the partial pressure of the dry air
+                       //       to compute the soundspeed
+                       Real pressure = getPgivenRTh(rhotheta);
+                       Real c = std::sqrt(Gamma * pressure / rho);
+
+                       // Look at z-direction only
+                       new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                   }
+               });
+               return new_comp_dt;
+           });
+       }
     } // not EB
 
     ParallelDescriptor::ReduceRealMax(estdt_comp_inv);
@@ -281,6 +311,16 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          }
      } // if substepping
 
+     // Print out some extra diagnostics -- dt calcs are repeated so as to not
+     // disrupt the overall code flow...
+     if (l_substepping_diag) {
+         Real dt = (fixed_dt[level] > 0.0) ? fixed_dt[level] : estdt_comp;
+         int  ns = (fixed_mri_dt_ratio > 0.0) ? fixed_mri_dt_ratio : dt_fast_ratio;
+         Print() << "effective horiz,vert acoustic CFL with " << ns << " substeps : "
+            << (dt / ns) * estdt_comp_inv << " "
+            << (dt / ns) * estdt_vert_comp_inv << std::endl;
+     }
+
      if (fixed_dt[level] > 0.0) {
          return fixed_dt[level];
      } else {
@@ -291,11 +331,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
             estdt_lowM = amrex::min(estdt_lowM, dt_max);
 
             // On the first timestep enforce dt_max_initial
-            if(istep[level] == 0){
+            if (istep[level] == 0) {
                 return amrex::min(dt_max_initial, estdt_lowM);
-             }
-            else{
-             return estdt_lowM;
+            } else {
+                return estdt_lowM;
             }
 
 
