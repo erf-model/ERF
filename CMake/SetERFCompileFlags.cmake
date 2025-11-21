@@ -43,12 +43,18 @@ function(set_erf_compile_flags target)
   # HIP configuration - deduplicate flags at the target level
   if(ERF_ENABLE_HIP)
     if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
-      # Extract architecture from AMReX or environment
+      # Extract architecture from AMReX, CMake, or environment
       set(hip_arch "")
       if(DEFINED AMReX_AMD_ARCH)
         set(hip_arch "${AMReX_AMD_ARCH}")
+      elseif(DEFINED CMAKE_HIP_ARCHITECTURES)
+        set(hip_arch "${CMAKE_HIP_ARCHITECTURES}")
       elseif(DEFINED ENV{ROCM_GPU})
         set(hip_arch "$ENV{ROCM_GPU}")
+      elseif(DEFINED ENV{HIPARCHS})
+        set(hip_arch "$ENV{HIPARCHS}")
+      elseif(DEFINED ENV{HIP_ARCH})
+        set(hip_arch "$ENV{HIP_ARCH}")
       else()
         set(hip_arch "gfx90a")  # Default for Frontier
       endif()
