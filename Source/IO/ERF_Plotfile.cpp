@@ -320,7 +320,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     //     because we don't need to set interior fine points.
     // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
 
-    // Level 0 FilLPatch
+    // Level 0 FillPatch
     FillPatchCrseLevel(0, t_new[0], {&vars_new[0][Vars::cons], &vars_new[0][Vars::xvel],
                        &vars_new[0][Vars::yvel], &vars_new[0][Vars::zvel]});
 
@@ -423,6 +423,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {
+        // Make sure getPgivenRTh and getTgivenRandRTh don't fail
+        if (check_for_nans) {
+            check_for_negative_theta(vars_new[lev][Vars::cons]);
+        }
+
         int mf_comp = 0;
 
         BoxArray ba(vars_new[lev][Vars::cons].boxArray());
@@ -1930,6 +1935,11 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     // **********************************************************************************************
     for (int lev = 0; lev <= finest_level; ++lev)
     {
+        // Make sure getPgivenRTh and getTgivenRandRTh don't fail
+        if (check_for_nans) {
+            check_for_negative_theta(vars_new[lev][Vars::cons]);
+        }
+
         int mf_comp = 0;
 
         // Set all components to zero in case they aren't defined below

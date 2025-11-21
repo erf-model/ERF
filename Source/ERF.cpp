@@ -1529,6 +1529,11 @@ ERF::InitData_post ()
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
     {
+        bool has_diff = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
+                          (solverChoice.turbChoice[0].les_type != LESType::None)           ||
+                          (solverChoice.turbChoice[0].pbl_type != PBLType::None) );
+        AMREX_ALWAYS_ASSERT(has_diff);
+
         bool rotate = solverChoice.use_rotate_surface_flux;
         if (rotate) {
             Print() << "Using surface layer model with stress rotations" << std::endl;
@@ -1549,12 +1554,11 @@ ERF::InitData_post ()
         // This call will allocate the arrays at each level. If we regrid later, either changing
         // the number of levels or just the grids at each existing level, we will call an update routine
         // to redefine the internal arrays in m_SurfaceLayer.
-        int nlevs = geom.size();
-        for (int lev = 0; lev < nlevs; lev++)
+        for (int lev = 0; lev <= finest_level; lev++)
         {
             Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                                          &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-            m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
+            m_SurfaceLayer->make_SurfaceLayer_at_level(lev,finest_level+1,
                                                        mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                        Qr_prim[lev], z_phys_nd[lev],
                                                        Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
@@ -2069,18 +2073,34 @@ ERF::ReadParameters ()
             max_step = std::numeric_limits<int>::max();
         }
 
+        // TODO: more robust general datetime parsing
         std::string start_datetime, stop_datetime;
         if (pp.query("start_datetime", start_datetime)) {
             if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 start_datetime += ":00"; // add seconds
             }
+            if (start_datetime.length() != 19) {
+                Print() << "Got start_datetime = \"" << start_datetime
+                    << "\", format should be " << datetime_format << std::endl;
+                exit(0);
+            }
             start_time = getEpochTime(start_datetime, datetime_format);
+            Print() << "Start datetime : " << start_datetime << std::endl;
 
             if (pp.query("stop_datetime", stop_datetime)) {
                 if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                     stop_datetime += ":00"; // add seconds
                 }
+                if (stop_datetime.length() != 19) {
+                    Print() << "Got stop_datetime = \"" << stop_datetime
+                        << "\", format should be " << datetime_format << std::endl;
+                    exit(0);
+                }
                 stop_time = getEpochTime(stop_datetime, datetime_format);
+                Print() << "Stop  datetime : " << start_datetime << std::endl;
+            } else if (pp.query("stop_time", stop_time)) {
+                Print() << "Sim length     : " << stop_time << " s" << std::endl;
+                stop_time += start_time;
             }
 
             use_datetime = true;
@@ -2811,4 +2831,64 @@ ERF::check_vels_for_nans(MultiFab const& xvel, MultiFab const& yvel, MultiFab co
     if (any_have_nans) {
         exit(0);
     }
+}
+
+void
+ERF::check_for_low_temp(amrex::MultiFab& S)
+{
+    // *****************************************************************************
+    // Test for low temp (low is defined as beyond the microphysics range of validity)
+    // *****************************************************************************
+    //
+    // This value is defined in erf_dtesati in Source/Utils/ERF_MicrophysicsUtils.H
+    Real t_low = 273.16 - 85.;
+    //
+    for (MFIter mfi(S); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.tilebox();
+        const Array4<Real> &s_arr  = S.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real rho      = s_arr(i, j, k, Rho_comp);
+            const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
+            const Real qv       = s_arr(i, j, k, RhoQ1_comp);
+
+            Real temp = getTgivenRandRTh(rho, rhotheta, qv);
+
+            if (temp < t_low) {
+#ifdef AMREX_USE_GPU
+                AMREX_DEVICE_PRINTF("Temperature too low going into microphysics in cell: %d %d %d %e \n", i,j,k,temp);
+#else
+                printf("Temperature too low going into microphyics in cell: %d %d %d \n", i,j,k);
+                printf("Based on temp / rhotheta / rho %e %e %e \n", temp,rhotheta,rho);
+                amrex::Abort();
+#endif
+            }
+        });
+    }
+}
+
+void
+ERF::check_for_negative_theta(amrex::MultiFab& S)
+{
+    // *****************************************************************************
+    // Test for negative (rho theta)
+    // *****************************************************************************
+    for (MFIter mfi(S); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.tilebox();
+        const Array4<Real> &s_arr  = S.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
+            if (rhotheta <= 0.) {
+#ifdef AMREX_USE_GPU
+                AMREX_DEVICE_PRINTF("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
+#else
+                printf("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
+                amrex::Abort("Bad theta in check_for_negative_theta");
+#endif
+            }
+            });
+    } // mfi
 }

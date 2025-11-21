@@ -71,6 +71,9 @@ file **ERF_Prob.cpp** must still be present for the build.
     specified using ``erf.nc_bdy_file``
     and time-varying sea surface temperatures can be read from a NetCDF file
     specified using ``erf.nc_low_file``.
+    We also note that wrfinput files that have later start times than the base level
+    can be read and the new level will be initialized once the start time of the finer
+    level has been reached.
 
 * **erf.init_type = Metgrid**
 

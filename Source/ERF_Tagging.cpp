@@ -12,8 +12,8 @@ using namespace amrex;
 */
 
 #ifdef ERF_USE_NETCDF
-Box
-read_subdomain_from_wrfinput (int lev, const std::string& fname, int& ratio);
+Box read_subdomain_from_wrfinput (int lev, const std::string& fname, int& ratio);
+Real read_start_time_from_wrfinput (int lev, const std::string& fname);
 #endif
 
 void
@@ -22,55 +22,69 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     const int clearval = TagBox::CLEAR;
     const int   tagval = TagBox::SET;
 
-
 #ifdef ERF_USE_NETCDF
     if (solverChoice.init_type == InitType::WRFInput) {
         int ratio;
         Box subdomain;
-        if (!nc_init_file[levc+1].empty()) {
-            amrex::Print() << "WRFIinput file to read: " << nc_init_file[levc+1][0] << std::endl;
-            subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][0], ratio);
-            amrex::Print() << " WRFInput subdomain at level " << levc+1 << " is " << subdomain << std::endl;
-        }
 
-        if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
-            amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
-            amrex::Print() << "The inputs file has refinement ratio = " << ref_ratio[levc] << std::endl;
-            amrex::Abort("These must be the same -- please edit your inputs file and try again.");
-        }
+        if (!nc_init_file[levc+1].empty())
+        {
+            Real levc_start_time = read_start_time_from_wrfinput(levc  , nc_init_file[levc  ][0]);
+            Real levf_start_time = read_start_time_from_wrfinput(levc+1, nc_init_file[levc+1][0]);
+            amrex::Print() << " WRFInput       time at level " << levc << " is " << levc_start_time << std::endl;
+            amrex::Print() << " WRFInput start_time at level " << levc+1 << " is " << levf_start_time << std::endl;
 
-        if ( (ref_ratio[levc][2]) != 1) {
-            amrex::Abort("The ref_ratio specified in the inputs file must have 1 in the z direction; please use ref_ratio_vect rather than ref_ratio");
-        }
+            if ( levf_start_time <= (levc_start_time + t_new[levc]) ) {
+                amrex::Print() << " WRFInput file to read: " << nc_init_file[levc+1][0] << std::endl;
+                subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][0], ratio);
+                amrex::Print() << " WRFInput subdomain at level " << levc+1 << " is " << subdomain << std::endl;
 
-        subdomain.coarsen(IntVect(ratio,ratio,1));
+                if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
+                    amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
+                    amrex::Print() << "The inputs file has refinement ratio = " << ref_ratio[levc] << std::endl;
+                    amrex::Abort("These must be the same -- please edit your inputs file and try again.");
+                }
 
-        // We assume there is only one subdomain at levc; otherwise we don't know
-        //     which one is the parent of the fine region we are trying to create
-        AMREX_ALWAYS_ASSERT(subdomains[levc].size() == 1);
+                if ( (ref_ratio[levc][2]) != 1) {
+                    amrex::Abort("The ref_ratio specified in the inputs file must have 1 in the z direction; please use ref_ratio_vect rather than ref_ratio");
+                }
 
-        Box coarser_level(subdomains[levc][0].minimalBox());
-        subdomain.shift(coarser_level.smallEnd());
+                subdomain.coarsen(IntVect(ratio,ratio,1));
 
-        if (verbose > 0) {
-            amrex::Print() << " Crse subdomain to be tagged is" << subdomain << std::endl;
-        }
+                // We assume there is only one subdomain at levc; otherwise we don't know
+                //     which one is the parent of the fine region we are trying to create
+                AMREX_ALWAYS_ASSERT(subdomains[levc].size() == 1);
 
-        Box new_fine(subdomain); new_fine.refine(IntVect(ratio,ratio,1));
-        num_boxes_at_level[levc+1] = 1;
-        boxes_at_level[levc+1].push_back(new_fine);
+                Box coarser_level(subdomains[levc][0].minimalBox());
+                subdomain.shift(coarser_level.smallEnd());
 
-        for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
-            auto tag_arr = tags.array(mfi);  // Get device-accessible array
+                if (verbose > 0) {
+                    amrex::Print() << " Crse subdomain to be tagged is" << subdomain << std::endl;
+                }
 
-            Box bx = mfi.validbox(); bx &= subdomain;
+                Box new_fine(subdomain); new_fine.refine(IntVect(ratio,ratio,1));
+                num_boxes_at_level[levc+1] = 1;
+                boxes_at_level[levc+1].push_back(new_fine);
 
-            if (!bx.isEmpty()) {
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                    tag_arr(i,j,k) = TagBox::SET;
-                });
+                for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
+                    auto tag_arr = tags.array(mfi);  // Get device-accessible array
+
+                    Box bx = mfi.validbox(); bx &= subdomain;
+
+                    if (!bx.isEmpty()) {
+                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                            tag_arr(i,j,k) = TagBox::SET;
+                        });
+                    }
+                }
+
+            } else { // start_Time
+
+                amrex::Print() << " Not creating level " << levc+1 << " at this time \n " << std::endl;
+                return;
             }
-        }
+        } // file not empty
+
         return;
     }
 #endif
@@ -157,21 +171,29 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         {
             MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,1);
         } else if (ref_tags[j].Field() == "velmag") {
-            mf->setVal(0.0);
             ParmParse pp(pp_prefix);
             Vector<std::string> refinement_indicators;
             pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
             Real velmag_threshold = 1e10;
+            bool is_hurricane_tracker = false;
             for (int i=0; i<refinement_indicators.size(); ++i)
             {
                 if(refinement_indicators[i]=="hurricane_tracker"){
+                    is_hurricane_tracker = true;
                     std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
                     ParmParse ppr(ref_prefix);
-                    ppr.get("value_greater",velmag_threshold);
+                    if (!ppr.query("value_greater", velmag_threshold)) {
+                        Abort("ERROR: hurricane_tracker requires 'erf.hurricane_tracker.value_greater' option.");
+                    }
                     break;
                 }
             }
-            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, false, &tags);
+            if(is_hurricane_tracker) {
+                HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, false, &tags);
+            } else {
+                Abort("ERROR: velmag refinement is implemented only for hurricane tracker");
+            }
+
 #ifdef ERF_USE_PARTICLES
         } else {
             //
