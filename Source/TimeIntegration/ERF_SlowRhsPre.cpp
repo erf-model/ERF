@@ -384,9 +384,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_w_arr{};
         if (solverChoice.terrain_type == TerrainType::EB) {
             for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-                flux_u[dir].resize(tbx_grown[dir],1);
-                flux_v[dir].resize(tby_grown[dir],1);
-                flux_w[dir].resize(tbz_grown[dir],1);
+                flux_u[dir].resize(tbx_grown[dir],1,The_Async_Arena());
+                flux_v[dir].resize(tby_grown[dir],1,The_Async_Arena());
+                flux_w[dir].resize(tbz_grown[dir],1,The_Async_Arena());
                 flux_u[dir].setVal<RunOn::Device>(0.);
                 flux_v[dir].setVal<RunOn::Device>(0.);
                 flux_w[dir].setVal<RunOn::Device>(0.);
