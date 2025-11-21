@@ -1,11 +1,11 @@
 #include <cmath>
 #include "ERF_SDInitialization.H"
 
-void SDInitialization::setDefaults ( const amrex::Geometry& a_geom,
+void SDInitProperties::setDefaults ( const amrex::Geometry& a_geom,
                                      const MatVec& a_species_mat,
                                      const MatVec& a_aerosol_mat )
 {
-    BL_PROFILE("SDInitialization::setDefaults");
+    BL_PROFILE("SDInitProperties::setDefaults");
 
     // Default
     m_init_particle_p1.resize(AMREX_SPACEDIM);
@@ -62,25 +62,24 @@ void SDInitialization::setDefaults ( const amrex::Geometry& a_geom,
     m_mult_type = SDMultiplicityType::sampled;
 }
 
-void SDInitialization::readInputs ( const std::string& a_prefix,
+void SDInitProperties::readInputs ( const std::string& a_prefix,
+                                    const std::string& a_key,
                                     const amrex::Geometry& a_geom,
                                     const MatVec& a_species_mat,
                                     const MatVec& a_aerosol_mat )
 {
-    BL_PROFILE("SDInitialization::readInputs");
+    BL_PROFILE("SDInitProperties::readInputs");
     amrex::ignore_unused(a_geom);
     using namespace amrex;
 
     amrex::ParmParse pp(a_prefix);
-    pp.query("initial_distribution_type", m_type);
-    pp.query("initial_particles_per_cell", m_ppc_init);
-    pp.query("initial_number_density", m_numdens_init);
-    pp.query("initial_super_droplet_density", m_numdens_sd_init);
+    pp.query(std::string(a_key+"distribution_type").c_str(), m_type);
     pp.query("maximum_multiplicity", m_max_multiplicity);
-
     pp.query("multiplicity_type", m_mult_type);
 
-    if (m_type == SupDropInit::init_uniform) {
+    pp.query(std::string(a_key+"particles_per_cell").c_str(), m_ppc);
+
+    if (m_type == SDInitShape::uniform) {
 
         pp.queryAdd("particle_box_lo", m_init_particle_p1, AMREX_SPACEDIM);
         AMREX_ASSERT(m_init_particle_p1.size() == AMREX_SPACEDIM);
@@ -88,9 +87,9 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
         pp.queryAdd("particle_box_hi", m_init_particle_p2, AMREX_SPACEDIM);
         AMREX_ASSERT(m_init_particle_p2.size() == AMREX_SPACEDIM);
 
-        m_init_particle_box.setLo(m_init_particle_p1);
-        m_init_particle_box.setHi(m_init_particle_p2);
-    } else if (m_type == SupDropInit::init_bubble){
+        m_particle_domain.setLo(m_init_particle_p1);
+        m_particle_domain.setHi(m_init_particle_p2);
+    } else if (m_type == SDInitShape::bubble){
 
         pp.queryAdd("particle_bubble_center", m_init_particle_p1, AMREX_SPACEDIM);
         AMREX_ASSERT(m_init_particle_p1.size() == AMREX_SPACEDIM);
@@ -98,51 +97,51 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
         pp.queryAdd("particle_bubble_radius", m_init_particle_p2, AMREX_SPACEDIM);
         AMREX_ASSERT(m_init_particle_p2.size() == AMREX_SPACEDIM);
 
-        m_init_particle_box.setLo(m_init_particle_p1);
-        m_init_particle_box.setHi(m_init_particle_p2);
+        m_particle_domain.setLo(m_init_particle_p1);
+        m_particle_domain.setHi(m_init_particle_p2);
     }
 
     // Backward compatibility
     for (int i = 0; i < m_num_species; i++) {
-        pp.query("initial_condensate_distribution_type", m_species_init_type[i]);
-        pp.query("initial_condensate_mass_min", m_mass_species_min[i]);
-        pp.query("initial_condensate_mass_mean", m_mass_species_mean[i]);
-        pp.query("initial_condensate_min_radius", m_radius_species_min[i]);
-        pp.query("initial_condensate_max_radius", m_radius_species_max[i]);
+        pp.query(std::string(a_key+"condensate_distribution_type").c_str(), m_species_init_type[i]);
+        pp.query(std::string(a_key+"condensate_mass_min").c_str(), m_mass_species_min[i]);
+        pp.query(std::string(a_key+"condensate_mass_mean").c_str(), m_mass_species_mean[i]);
+        pp.query(std::string(a_key+"condensate_min_radius").c_str(), m_radius_species_min[i]);
+        pp.query(std::string(a_key+"condensate_max_radius").c_str(), m_radius_species_max[i]);
     }
     for (int i = 0; i < m_num_species; i++) {
         {
-            std::string key = "initial_species_distribution_type_"+getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_distribution_type_"+getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_species_init_type[i]);
         }
         {
-            std::string key = "initial_species_min_mass_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_min_mass_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_species_min[i]);
         }
         {
-            std::string key = "initial_species_mean_mass_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_mean_mass_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_species_mean[i]);
         }
         {
             m_mass_species_max[i] = 5 * m_mass_species_mean[i]; // default
-            std::string key = "initial_species_max_mass_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_max_mass_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_species_max[i]);
         }
         {
-            std::string key = "initial_species_min_radius_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_min_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_species_min[i]);
         }
         {
-            std::string key = "initial_species_max_radius_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_max_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_species_max[i]);
         }
         {
-            std::string key = "initial_species_mean_radius_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key = a_key+"species_mean_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_species_mean[i]);
         }
         {
-            std::string key_std = "initial_species_std_radius_" + getEnumNameString(a_species_mat[i]->m_name);
-            std::string key_gstd = "initial_species_geomstd_radius_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key_std = a_key+"species_std_radius_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key_gstd = a_key+"species_geomstd_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             if (pp.contains(key_std.c_str()) && pp.contains(key_gstd.c_str())) {
                 amrex::Abort("Cannot specify BOTH initial_species_std_radius and initial_species_geomstd_radius");
             }
@@ -157,37 +156,37 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
 
     for (int i = 0; i < m_num_aerosols; i++) {
         {
-            std::string key = "initial_aerosol_distribution_type_"+getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_distribution_type_"+getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_aerosol_init_type[i]);
         }
         {
-            std::string key = "initial_aerosol_min_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_min_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_aerosol_min[i]);
         }
         {
-            std::string key = "initial_aerosol_mean_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_mean_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_aerosol_mean[i]);
         }
         {
             m_mass_aerosol_max[i] = 5 * m_mass_aerosol_mean[i]; // default
-            std::string key = "initial_aerosol_max_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_max_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_mass_aerosol_max[i]);
         }
         {
-            std::string key = "initial_aerosol_min_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_min_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_aerosol_min[i]);
         }
         {
-            std::string key = "initial_aerosol_max_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_max_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_aerosol_max[i]);
         }
         {
-            std::string key = "initial_aerosol_mean_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key = a_key+"aerosol_mean_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             pp.query(key.c_str(), m_radius_aerosol_mean[i]);
         }
         {
-            std::string key_std = "initial_aerosol_std_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
-            std::string key_gstd = "initial_aerosol_geomstd_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key_std = a_key+"aerosol_std_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key_gstd = a_key+"aerosol_geomstd_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             if (pp.contains(key_std.c_str()) && pp.contains(key_gstd.c_str())) {
                 amrex::Abort("Cannot specify BOTH initial_species_std_radius and initial_species_geomstd_radius");
             }
@@ -202,20 +201,64 @@ void SDInitialization::readInputs ( const std::string& a_prefix,
 
 }
 
-void SDInitialization::printParameters ( const MatVec& a_species_mat,
+void SDInitialization::readInputs ( const std::string& a_prefix,
+                                    const amrex::Geometry& a_geom,
+                                    const MatVec& a_species_mat,
+                                    const MatVec& a_aerosol_mat )
+{
+    BL_PROFILE("SDInitialization::readInputs");
+
+    SDInitProperties::readInputs( a_prefix, "initial_", a_geom, a_species_mat, a_aerosol_mat);
+
+    amrex::ignore_unused(a_geom);
+    using namespace amrex;
+
+    amrex::ParmParse pp(a_prefix);
+    pp.query("initial_number_density", this->m_numdens);
+    pp.query("initial_super_droplet_density", m_numdens_sd_init);
+}
+
+void SDInjection::readInputs ( const std::string& a_prefix,
+                               const amrex::Geometry& a_geom,
+                               const MatVec& a_species_mat,
+                               const MatVec& a_aerosol_mat,
+                               const amrex::Real a_dt )
+{
+    BL_PROFILE("SDInjection::readInputs");
+
+    SDInitProperties::readInputs( a_prefix, "", a_geom, a_species_mat, a_aerosol_mat);
+
+    amrex::ignore_unused(a_geom);
+    using namespace amrex;
+
+    amrex::ParmParse pp(a_prefix);
+    pp.query("rate", m_inj_rate);
+    pp.query("sd_rate", m_sd_inj_rate);
+    pp.query("t_start", m_tstart);
+    pp.query("t_stop", m_tstop);
+    pp.queryarr("domain_velocity", m_domain_vel);
+
+    this->m_numdens = m_inj_rate * a_dt;
+    m_numdens_sd = (m_sd_inj_rate > 0 ? std::max(m_sd_inj_rate*a_dt, 1.0) : -1);
+}
+
+void SDInitProperties::printParameters ( const MatVec& a_species_mat,
                                          const MatVec& a_aerosol_mat ) const
 {
     using namespace amrex;
-    Print() << "    Initial particle box: " << m_init_particle_box << "\n"
-            << "    Initial number density: " << m_numdens_init << "\n"
-            << "    Inital super-droplets number density: " << m_numdens_sd_init << "\n"
-            << "    Initial multiplicity type: " << amrex::getEnumNameString(m_mult_type) << "\n";
+    if (m_type == SDInitShape::uniform) {
+        Print() << "    Particle box: " << m_particle_domain << "\n";
+    } else if (m_type == SDInitShape::bubble) {
+        Print() << "    Particle bubble (radius, center): " << m_particle_domain << "\n";
+    }
+    Print() << "    Multiplicity type: " << amrex::getEnumNameString(m_mult_type) << "\n";
+    Print() << "    Particles per cell: " << m_ppc << "\n";
 
     Print() << "    Vapour/Condensate Species material:\n";
     for (unsigned long i=0; i < a_species_mat.size(); i++) {
         Print() << "        "
                 << getEnumNameString(a_species_mat[i]->m_name)
-                << " (Initial distribution: " << m_species_init_type[i];
+                << " (distribution: " << m_species_init_type[i];
         if (m_species_init_type[i] == SupDropInit::attrib_init_const) {
             Print() << ", value=" << m_mass_species_mean[i];
             AMREX_ALWAYS_ASSERT(m_mass_species_mean[i] > 0.0);
@@ -249,7 +292,7 @@ void SDInitialization::printParameters ( const MatVec& a_species_mat,
         for (unsigned long i=0; i < a_aerosol_mat.size(); i++) {
             Print() << "        "
                     << getEnumNameString(a_aerosol_mat[i]->m_name)
-                    << " (Initial distribution: " << m_aerosol_init_type[i];
+                    << " (distribution: " << m_aerosol_init_type[i];
             if (m_aerosol_init_type[i] == SupDropInit::attrib_init_const) {
                 Print() << ", value=" << m_mass_aerosol_mean[i];
                 AMREX_ALWAYS_ASSERT(m_mass_aerosol_mean[i] > 0.0);
@@ -280,7 +323,30 @@ void SDInitialization::printParameters ( const MatVec& a_species_mat,
     }
 }
 
-void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
+void SDInitialization::printParameters ( const MatVec& a_species_mat,
+                                         const MatVec& a_aerosol_mat ) const
+{
+    using namespace amrex;
+    Print() << "    Initial number density: " << this->m_numdens << "\n"
+            << "    Inital super-droplets number density: " << m_numdens_sd_init << "\n";
+    SDInitProperties::printParameters(a_species_mat, a_aerosol_mat);
+}
+
+void SDInjection::printParameters ( const MatVec& a_species_mat,
+                                    const MatVec& a_aerosol_mat ) const
+{
+    using namespace amrex;
+    Print() << "    Injection rate (# m^{-3} s^{-1}): " << m_inj_rate << "\n"
+            << "    Injection domain velocity [m/s]: "
+            << m_domain_vel[0] << ","
+            << m_domain_vel[1] << ","
+            << m_domain_vel[2] << "\n"
+            << "    Time (start, stop) [s]: " << m_tstart << ", " << m_tstop << "\n"
+            << "    SD injection rate: " << m_sd_inj_rate << "\n";
+    SDInitProperties::printParameters(a_species_mat, a_aerosol_mat);
+}
+
+void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
                                          const int a_np,
                                          const amrex::Real a_density,
                                          const std::string& a_init_type,
@@ -334,7 +400,7 @@ static amrex::Real SD_erfinv(const amrex::Real x) {
     return std::sqrt(std::sqrt(p1 * p1 - p2) - p1);
 }
 
-void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
+void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
                                          amrex::Vector<amrex::Real>& a_mult,
                                          const amrex::Real a_dV,
                                          const int a_np,
@@ -365,7 +431,7 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         for (int n = 0; n < a_np; n++) {
             auto tmp = lnmin + urd(a_rng) * lnrng;
             a_mass[n] = std::exp(tmp);
-            a_mult[n] += (m_numdens_init * a_dV) * std::exp(-a_mass[n] / delta);
+            a_mult[n] += (m_numdens * a_dV) * std::exp(-a_mass[n] / delta);
         }
     } else if (a_init_type == SupDropInit::attrib_init_lnr) {
         std::uniform_real_distribution<> urd(0.0, 1.0);
@@ -373,14 +439,12 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         auto mu = a_radius_mean;
         auto lnrng = std::log(a_radius_max) - std::log(a_radius_min);
         auto lnmin = std::log(a_radius_min);
-        //amrex::Print() << "radius_log_normal initialization! Using cell vol "<< a_dV
-        //<<" m^3 for "<< m_numdens_init*a_dV<< " real particles\n";
         for (int n = 0; n < a_np; n++) {
             auto tmp = lnmin + urd(a_rng) * lnrng;
             auto dry_r = std::exp(tmp);
             a_mass[n] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
             auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(2.0*sigma*sigma));
-            a_mult[n] += ( m_numdens_init * a_dV ) / (sigma*std::sqrt(2*PI)) * term;
+            a_mult[n] += ( m_numdens * a_dV ) / (sigma*std::sqrt(2*PI)) * term;
         }
     } else if (a_init_type == SupDropInit::attrib_init_lnr_auto) {
         std::uniform_real_distribution<> urd(0.0, 1.0);
@@ -392,7 +456,7 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         auto dlnr = (std::log(rmax) - std::log(rmin)) / a_np;
         auto P_min = 0.0;
         auto P_max = 1.0;
-        auto tol = 1.0 / (m_numdens_init * a_dV);
+        auto tol = 1.0 / (m_numdens * a_dV);
         int a_np_tail = static_cast<int>(std::ceil(0.01*a_np)); // this is an approximation for now; saves 1% of SDs for the tail
         amrex::Vector<amrex::Real> tmp_mass(a_np);
         amrex::Vector<amrex::Real> tmp_mult(a_np);
@@ -418,9 +482,7 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             auto dry_r = std::exp(tmp);
             tmp_mass[n] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
             auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(2.0*sigma*sigma));
-            tmp_mult[n] =  (m_numdens_init * a_dV)/ (sigma*std::sqrt(2*PI)) * term;
-            //amrex::Print() << " mainSD #"<< n <<" dry radius (m) =" << dry_r <<
-            //", mult = " << tmp_mult[n] << "\n";
+            tmp_mult[n] =  (m_numdens * a_dV)/ (sigma*std::sqrt(2*PI)) * term;
         }
 
         // initialize the tail using approximate erfinv
@@ -433,9 +495,7 @@ void SDInitialization::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             auto dry_r = mu * std::exp(sigma * std::sqrt(2) * tmp2);
             tmp_mass[sd_id] = (4.0/3.0) * PI * dry_r * dry_r * dry_r * a_density;
             // set the multiplicity to the same as for the 99th percentile aerosol
-            tmp_mult[sd_id] = (m_numdens_init * a_dV) * tail_mult;
-            //amrex::Print() << " tailSD #"<< sd_id<<" dry radius (m) =" << dry_r <<
-            //", mult = " << tmp_mult[sd_id] << "\n";
+            tmp_mult[sd_id] = (m_numdens * a_dV) * tail_mult;
         }
         // Update SD multiplicity and mass with the initialized main + tail distribution
         for (int n = 0; n < a_np; n++) {

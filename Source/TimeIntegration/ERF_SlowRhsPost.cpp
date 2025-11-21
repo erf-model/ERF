@@ -62,13 +62,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const MultiFab& source,
                         const MultiFab* SmnSmn,
                         const MultiFab* eddyDiffs,
-                        MultiFab* Hfx1,
-                        MultiFab* Hfx2,
-                        MultiFab* Hfx3,
-                        MultiFab* Q1fx1,
-                        MultiFab* Q1fx2,
-                        MultiFab* Q1fx3,
-                        MultiFab* Q2fx3,
+                        MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3,
+                        MultiFab* Q1fx1, MultiFab* Q1fx2,
+                        MultiFab* Q1fx3, MultiFab* Q2fx3,
                         MultiFab* Diss,
                         const Geometry geom,
                         const SolverChoice& solverChoice,
@@ -96,6 +92,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Vector<Vector<FArrayBox>>& bdy_data_xhi,
                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
                         Vector<Vector<FArrayBox>>& bdy_data_yhi,
+#endif
+#ifdef ERF_USE_SHOC
+                        std::unique_ptr<SHOCInterface>& shoc_lev,
 #endif
                         YAFluxRegister* fr_as_crse,
                         YAFluxRegister* fr_as_fine)
@@ -435,8 +434,13 @@ void erf_slow_rhs_post (int level, int finest_level,
                     }
                 }
 
-                if (l_use_diff) {
+                if (l_use_diff)
+                {
+                    // Here we hardwire this to 0 because we only use vert_implicit_fac for (rho_theta)
+                    const Real l_vert_implicit_fac = 0.0;;
+
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
+
                     if (solverChoice.mesh_type == MeshType::StretchedDz && solverChoice.terrain_type != TerrainType::EB) {
                         DiffusionSrcForState_S(tbx, domain, start_comp, num_comp, u, v,
                                                new_cons, cur_prim, cell_rhs,
@@ -446,7 +450,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer, SurfLayer);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer, SurfLayer, l_vert_implicit_fac);
                     } else if (l_use_terrain) {
                         DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, l_rotate, u, v,
                                                new_cons, cur_prim, cell_rhs,
@@ -457,7 +461,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer, SurfLayer);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer, SurfLayer, l_vert_implicit_fac);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                                new_cons, cur_prim, cell_rhs,
@@ -466,7 +470,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer, SurfLayer);
+                                               tm_arr, grav_gpu, bc_ptr_d, use_SurfLayer, SurfLayer, l_vert_implicit_fac);
                     }
                 } // use_diff
             } // valid slow var
@@ -481,6 +485,10 @@ void erf_slow_rhs_post (int level, int finest_level,
                           new_stage_time, dt, stop_time_elapsed, width, set_width, domain,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
         }
+#endif
+
+#ifdef ERF_USE_SHOC
+        shoc_lev->add_slow_tend(mfi,tbx,cell_rhs);
 #endif
 
         // This updates just the "slow" conserved variables

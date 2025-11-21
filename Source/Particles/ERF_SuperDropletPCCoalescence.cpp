@@ -136,10 +136,12 @@ void SuperDropletPC::Coalescence( int   a_lev,
         v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
 
         /* Runtime-added SoA attributes */
-        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
-        auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
+        int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
+        auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
+        int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
+        auto* radius_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::radius).data();
+        auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        auto* vterm_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::term_vel).data();
 
         /* species masses */
         SDSpeciesMassArr sp_mass_ptrs;
@@ -318,6 +320,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 auto pj = inds[bin_stop-1-p];
 
                 if (pi == pj) { continue; }
+                if (active_ptr[pi] == 0) { continue; }
+                if (active_ptr[pj] == 0) { continue; }
                 if (mult_ptr[pi] == 0) { continue; }
                 if (mult_ptr[pj] == 0) { continue; }
 

@@ -209,7 +209,8 @@ public:
                            amrex::MultiFab& rhs, amrex::MultiFab& p,
                            amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
                            amrex::MultiFab& ax_sub, amrex::MultiFab& ay_sub,
-                           amrex::MultiFab& znd_sub);
+                           amrex::MultiFab& az_sub,
+                           amrex::MultiFab& /*dJ_sub*/, amrex::MultiFab& znd_sub);
 
     void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
@@ -453,6 +454,8 @@ public:
 #endif //ERF_USE_NETCDF
 
     void init_from_input_sounding (int lev);
+
+    void init_immersed_forcing (int lev);
 
     void input_sponge (int lev);
 
@@ -699,6 +702,7 @@ private:
 
     // set which variables and derived quantities go into plotfiles
     void setPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
+    void setPlotVariables2D (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
     // append variables to plot
     void appendPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
 
@@ -865,7 +869,7 @@ private:
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW)
-
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn)
 #ifdef ERF_USE_SHOC
     amrex::Vector<std::unique_ptr<SHOCInterface>> shoc_interface; // SHOC model at each level
 #endif
@@ -898,6 +902,11 @@ private:
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  sst_lev;
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  tsk_lev;
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> lmask_lev;
+
+    // Land grid types and urban fraction
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> land_type_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> soil_type_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  urb_frac_lev;
 
     // Other SFS terms
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
@@ -1127,6 +1136,16 @@ private:
                                                     "Tau11", "Tau12", "Tau13", "Tau21", "Tau22", "Tau23", "Tau31", "Tau32", "Tau33",
                                                     "hfx1", "hfx2", "hfx3", "q1fx1", "q1fx2", "q1fx3", "q2fx3"
                                                    };
+
+    // **************************************************************************************
+    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
+    // **************************************************************************************
+    const amrex::Vector<std::string> derived_names_2d {
+        "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
+        "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
+        "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
+        "surf_pres"
+    };
 
     // algorithm choices
     static SolverChoice solverChoice;

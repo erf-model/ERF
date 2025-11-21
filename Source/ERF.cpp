@@ -166,6 +166,7 @@ ERF::ERF_shared ()
 #endif
 
     qheating_rates.resize(nlevs_max);
+    rad_fluxes.resize(nlevs_max);
     sw_lw_fluxes.resize(nlevs_max);
     solar_zenith.resize(nlevs_max);
 
@@ -212,8 +213,8 @@ ERF::ERF_shared ()
 
     const std::string& pv3d_1 = "plot_vars_1"  ; setPlotVariables(pv3d_1,plot3d_var_names_1);
     const std::string& pv3d_2 = "plot_vars_2"  ; setPlotVariables(pv3d_2,plot3d_var_names_2);
-    const std::string& pv2d_1 = "plot2d_vars_1"; setPlotVariables(pv2d_1,plot2d_var_names_1);
-    const std::string& pv2d_2 = "plot2d_vars_2"; setPlotVariables(pv2d_2,plot2d_var_names_2);
+    const std::string& pv2d_1 = "plot2d_vars_1"; setPlotVariables2D(pv2d_1,plot2d_var_names_1);
+    const std::string& pv2d_2 = "plot2d_vars_2"; setPlotVariables2D(pv2d_2,plot2d_var_names_2);
 
     // This is only used when we have mesh_type == MeshType::StretchedDz
     stretched_dz_h.resize(nlevs_max);
@@ -361,6 +362,11 @@ ERF::ERF_shared ()
     sst_lev.resize(nlevs_max);
     tsk_lev.resize(nlevs_max);
     lmask_lev.resize(nlevs_max);
+
+    // Land and soil grid type and urban fractions
+    land_type_lev.resize(nlevs_max);
+    soil_type_lev.resize(nlevs_max);
+    urb_frac_lev.resize(nlevs_max);
 
     // Metric terms
     z_phys_nd.resize(nlevs_max);
@@ -550,9 +556,8 @@ ERF::Evolve ()
 
         auto dEvolveTime0 = amrex::second();
 
-        int lev = 0;
         int iteration = 1;
-        timeStep(lev, cur_time, iteration);
+        timeStep(0, cur_time, iteration);
 
         cur_time  += dt[0];
 
@@ -571,11 +576,13 @@ ERF::Evolve ()
         if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
             last_plot3d_file_step_1 = step+1;
             Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+            for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
             if (m_plot3d_per_1 > 0.) {last_plot3d_file_time_1 += m_plot3d_per_1;}
         }
         if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
             last_plot3d_file_step_2 = step+1;
             Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+            for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
             if (m_plot3d_per_2 > 0.) {last_plot3d_file_time_2 += m_plot3d_per_2;}
         }
 
@@ -1029,6 +1036,10 @@ ERF::InitData_post ()
         //
         bool use_moist = (solverChoice.moisture_type != MoistureType::None);
         if (solverChoice.use_real_bcs) {
+
+            if ( geom[0].isPeriodic(0) || geom[0].isPeriodic(1) ) {
+                 amrex::Error("Cannot set periodic lateral boundary conditions when reading in real boundary values");
+            }
 
             bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                        bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
@@ -1509,7 +1520,7 @@ ERF::InitData_post ()
             }
 
             //
-            // This constructor will make the ABLMost object but not allocate the arrays at each level.
+            // This constructor will make the SurfaceLayer object but not allocate the arrays at each level.
             //
             m_SurfaceLayer[ori] = std::make_unique<SurfaceLayer>(ori, geom, rotate, pp_prefix, Qv_prim,
                                                             z_phys_nd,
@@ -1521,7 +1532,7 @@ ERF::InitData_post ()
     #endif
                                                             );
             // This call will allocate the arrays at each level. If we regrid later, either changing
-            // the number of level sor just the grids at each existing level, we will call an update routine
+            // the number of levels or just the grids at each existing level, we will call an update routine
             // to redefine the internal arrays in m_SurfaceLayer.
             int nlevs = geom.size();
             for (int lev = 0; lev < nlevs; lev++)
@@ -1578,6 +1589,21 @@ ERF::InitData_post ()
                     m_SurfaceLayer[ori]->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
                                                      solverChoice.moisture_indices);
                     m_SurfaceLayer[ori]->update_fluxes(lev, time, vars_new[lev][Vars::cons], z_phys_nd[lev]);
+    
+                    if (ori.coordDir() == 2 && ori.faceDir() == Orientation::Side::low) {
+                        // Initialize tke(x,y,z) as a function of u*(x,y)
+                        if (solverChoice.turbChoice[lev].init_tke_from_ustar) {
+                            Real qkefac = 1.0;
+                            if (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25 ||
+                                solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF)
+                            {
+                                // https://github.com/NCAR/MYNN-EDMF/blob/90f36c25259ec1960b24325f5b29ac7c5adeac73/module_bl_mynnedmf.F90#L1325-L1333
+                                const Real B1 = solverChoice.turbChoice[lev].pbl_mynn.B1;
+                                qkefac = 1.5 * std::pow(B1, 2.0/3.0);
+                            }
+                            m_SurfaceLayer[ori]->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_nd[lev], qkefac);
+                        }
+                    }
                 }
             }
             updated_prim = true;
@@ -2021,6 +2047,11 @@ ERF::init_only (int lev, Real time)
         solverChoice.pert_type == PerturbationType::CPM) {
         turbPert_update(lev, 0.);
         turbPert_amplitude(lev);
+    }
+
+    // Set initial velocity field for immersed cells to be close to 0
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        init_immersed_forcing(lev);
     }
 }
 

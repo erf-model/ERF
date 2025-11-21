@@ -136,6 +136,12 @@ public:
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
 #endif
+          std::string zlo_bc = "none";
+          amrex::ParmParse pp_bc("zlo");
+          pp_bc.get("type",zlo_bc);
+          if (amrex::toLower(zlo_bc) != "surface_layer") {
+               amrex::Abort("You must use the surface_layer BC at zlo with SHOC.");
+          }
       }
     }
 
@@ -189,7 +195,8 @@ public:
     query_one_or_per_level(pp, "theta_ref", theta_ref, lev, max_level);
 
     query_one_or_per_level(pp, "mix_isotropic", mix_isotropic, lev, max_level);
-    query_one_or_per_level(pp, "use_smag_stratification", use_smag_stratification, lev, max_level);
+    query_one_or_per_level(pp, "use_Ri_correction", use_Ri_correction, lev, max_level);
+    query_one_or_per_level(pp, "Ri_crit", Ri_crit, lev, max_level);
 
     // Set common flags
     use_kturb =
@@ -201,6 +208,10 @@ public:
       ((les_type == LESType::Deardorff) || (rans_type == RANSType::kEqn) ||
        (pbl_type == PBLType::MYJ)       || (pbl_type == PBLType::MYNN25) ||
        (pbl_type == PBLType::MYNNEDMF)  || (pbl_type == PBLType::SHOC));
+
+    if (use_tke) {
+        query_one_or_per_level(pp, "init_tke_from_ustar", init_tke_from_ustar, lev, max_level);
+    }
 
     // Validate inputs
     if (les_type == LESType::Smagorinsky) {
@@ -228,8 +239,9 @@ public:
       } else {
         amrex::Print() << "    Using Smagorinsky LES model at level " << lev << std::endl;
       }
-      if (use_smag_stratification) {
-        amrex::Print() << "    Smagorinsky accounts for moist stratification" << std::endl;
+      if (use_Ri_correction) {
+        amrex::Print() << "    Smagorinsky uses Richardson number correction with Ri_crit = "
+                       << Ri_crit << std::endl;
       }
     } else if (les_type == LESType::Deardorff) {
       amrex::Print() << "    Using Deardorff LES model at level " << lev << std::endl;
@@ -280,8 +292,7 @@ public:
       }
     }
 
-    if ((les_type  == LESType::Deardorff)                              ||
-        (les_type  == LESType::Smagorinsky && use_smag_stratification) ||
+    if ((les_type  == LESType::Deardorff) ||
         (rans_type == RANSType::kEqn)) {
       if (theta_ref > 0) {
         amrex::Print() << "    reference theta         : " << theta_ref << std::endl;
@@ -369,8 +380,8 @@ public:
   // Anistropic length scales
   bool mix_isotropic = true;
 
-  // Use the stratification adjustment for the Smagorinsky Scheme
-  bool use_smag_stratification = true;
+  bool use_Ri_correction = true;
+  amrex::Real Ri_crit = 0.25;
 
   // RANS type
   RANSType rans_type;
@@ -379,7 +390,7 @@ public:
   PBLType pbl_type;
 
   MYNNLevel25 pbl_mynn;
-  MYNNLevel2 pbl_mynn_level2; // for filtering
+  MYNNLevel2 pbl_mynn_level2; // limiting in the decaying turbulence regime
 
   // Common Flags
   bool use_kturb = false; // Any turbulence modeling?
@@ -387,8 +398,13 @@ public:
     false; // Any microscale turbulence modeling (LES, RANS) with TKE closure?
            // Then need to populate SmnSmn_lev for production term.
   bool use_pbl_tke =
-    false; // Any mesoscale  turbulence modeling (PBL) with TKE closure?
+    false; // Any mesoscale turbulence modeling (PBL) with TKE closure?
   bool use_tke = false; // Any TKE closure (meso or microscale)?
+
+  // Initialize TKE/QKE with linear profiles whose surface values are a
+  // function of the friction velocity calculated by the surface layer scheme
+  // (e.g., as done in MYNN-EDMF)
+  bool init_tke_from_ustar = false;
 
   // Model coefficients - YSU
   // TODO: Add parmparse for all of these above

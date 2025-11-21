@@ -40,6 +40,9 @@ eb_::make_all_factories ([[maybe_unused]] int level,
     m_factory = std::make_unique<EBFArrayBoxFactory>(a_eb_level, a_geom, ba, dm,
         Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
 
+    // Correct cell connectivity
+    eb_::set_connection_flags();
+
 #if 1
     eb_::WriteEBSurface(ba, dm, a_geom, m_factory.get(), level);
 #endif
@@ -86,6 +89,47 @@ eb_::make_cc_factory ([[maybe_unused]] int level,
 #endif
 
     Print() << "\nDone making EB factory at level " << level << ".\n\n";
+}
+
+/*
+Reset cell flags to disconnect cells with zero volume fraction,
+via non-const reference from EBFArrayBoxFactory.
+*/
+void
+eb_::set_connection_flags ()
+{
+    // Get non-const reference to EBCellFlagFab FabArray
+    FabArray<EBCellFlagFab>& cellflag = getNonConstEBCellFlags(*m_factory);
+
+    const MultiFab& volfrac = m_factory->getVolFrac();
+
+    for (MFIter mfi(cellflag, false); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const Box gbx = amrex::grow(bx, cellflag.nGrow()-1); // Leave one cell layer
+
+        Array4<EBCellFlag> const& flag = cellflag.array(mfi);
+        Array4<Real const> const& vfrac = volfrac.const_array(mfi);
+
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            for(int kk(-1); kk<=1; kk++) {
+            for(int jj(-1); jj<=1; jj++) {
+            for(int ii(-1); ii<=1; ii++)
+            {
+                if (vfrac(i+ii,j+jj,k+kk) == 0.0) {
+                    flag(i,j,k).setDisconnected(ii,jj,kk);
+                }
+            }}}
+        });
+
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (vfrac(i,j,k)==0.0) {
+                flag(i,j,k).setCovered();
+            }
+        });
+
+    }
 }
 
 void

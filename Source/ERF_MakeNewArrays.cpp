@@ -273,21 +273,21 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     BoxArray ba2d_mf(std::move(bl2d_mf));
 
     mapfac[lev].resize(MapFacType::num);
-    mapfac[lev][MapFacType::m_x] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
-    mapfac[lev][MapFacType::u_x] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
-    mapfac[lev][MapFacType::v_x] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
+    mapfac[lev][MapFacType::m_x] = std::make_unique<MultiFab>(                        ba2d_mf,dm,1,IntVect(3,3,0));
+    mapfac[lev][MapFacType::u_x] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,IntVect(3,3,0));
+    mapfac[lev][MapFacType::v_x] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,IntVect(3,3,0));
 
 #if 0
     // For now we comment this out to avoid CI failures but we will need to re-enable
     //     this if using non-conformal mappings
     if (MapFacType::m_y != MapFacType::m_x) {
-        mapfac[lev][MapFacType::m_y] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
+        mapfac[lev][MapFacType::m_y] = std::make_unique<MultiFab>(ba2d_mf,dm,1,IntVect(3,3,0));
     }
     if (MapFacType::u_y != MapFacType::u_x) {
-        mapfac[lev][MapFacType::u_y] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
+        mapfac[lev][MapFacType::u_y] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,IntVect(3,3,0));
     }
     if (MapFacType::v_y != MapFacType::v_x) {
-        mapfac[lev][MapFacType::v_y] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
+        mapfac[lev][MapFacType::v_y] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,IntVect(3,3,0));
     }
 #endif
 
@@ -388,10 +388,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
-    if (solverChoice.rad_type != RadiationType::None || solverChoice.lsm_type != LandSurfaceType::None)
+    if (solverChoice.rad_type != RadiationType::None)
     {
-        qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, ngrow_state);
+        qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
+        rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, 0);
         qheating_rates[lev]->setVal(0.);
+        rad_fluxes[lev]->setVal(0.);
     }
 
     //*********************************************************
@@ -413,8 +415,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         }
         BoxArray m_ba(std::move(m_bl));
 
-        sw_lw_fluxes[lev] = std::make_unique<MultiFab>(m_ba, dm, 6, ngrow_state); // DIR/DIF VIS/NIR (4), NET SW (1), LW (1)
-        solar_zenith[lev] = std::make_unique<MultiFab>(m_ba, dm, 1, ngrow_state);
+        sw_lw_fluxes[lev] = std::make_unique<MultiFab>(m_ba, dm, 6, 0); // DIR/DIF VIS/NIR (4), NET SW (1), LW (1)
+        solar_zenith[lev] = std::make_unique<MultiFab>(m_ba, dm, 1, 0);
 
         sw_lw_fluxes[lev]->setVal(0.);
         solar_zenith[lev]->setVal(0.);
@@ -448,6 +450,21 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lmask_lev[lev][0] = std::make_unique<iMultiFab>(ba2d_mask,dm,1,ngv);
     lmask_lev[lev][0]->setVal(1);
     lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+
+    land_type_lev[lev].resize(1);
+    land_type_lev[lev][0] = std::make_unique<iMultiFab>(ba2d_mask,dm,1,ngv);
+    land_type_lev[lev][0]->setVal(0);
+    land_type_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+
+    soil_type_lev[lev].resize(1);
+    soil_type_lev[lev][0] = std::make_unique<iMultiFab>(ba2d_mask,dm,1,ngv);
+    soil_type_lev[lev][0]->setVal(0);
+    soil_type_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+
+    urb_frac_lev[lev].resize(1);
+    urb_frac_lev[lev][0] = std::make_unique<MultiFab>(ba2d_mask,dm,1,ngv);
+    urb_frac_lev[lev][0]->setVal(1.0);
+    urb_frac_lev[lev][0]->FillBoundary(geom[lev].periodicity());
     }
 
     // Read in tables needed for windfarm simulations
@@ -477,6 +494,10 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     bool l_Surf_X      = phys_bc_type[0] == ERF_BC::surface_layer || phys_bc_type[3] == ERF_BC::surface_layer;
     bool l_Surf_Y      = phys_bc_type[1] == ERF_BC::surface_layer || phys_bc_type[4] == ERF_BC::surface_layer;
 
+
+    bool l_implicit_diff = (solverChoice.vert_implicit_fac[0] > 0 ||
+                            solverChoice.vert_implicit_fac[1] > 0 ||
+                            solverChoice.vert_implicit_fac[2] > 0);
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
     BoxArray ba13 = convert(ba, IntVect(1,0,1));
@@ -509,6 +530,11 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         if (l_use_terrain || l_Surf_Y) {
             Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
             Tau[lev][TauType::tau21]->setVal(0.);
+            Tau[lev][TauType::tau31]->setVal(0.);
+            Tau[lev][TauType::tau32]->setVal(0.);
+        } else if (l_implicit_diff) {
+            Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) );
+            Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) );
             Tau[lev][TauType::tau31]->setVal(0.);
             Tau[lev][TauType::tau32]->setVal(0.);
         } else {
@@ -649,6 +675,10 @@ ERF::init_zphys (int lev, Real time)
         } // lev == 0
 
     } // init_type
+
+    // Compute the min dz and pass to the micro model
+    Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
+    micro->Set_dzmin(lev, dzmin);
 }
 
 void
@@ -684,7 +714,12 @@ ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys
         terrain_blanking[lev]->setVal(1.0);
         MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, z_phys_nd[lev]->nGrowVect());
     }
+
+    // Compute the min dz and pass to the micro model
+    Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
+    micro->Set_dzmin(lev, dzmin);
 }
+
 void
 ERF::update_terrain_arrays (int lev)
 {
@@ -698,11 +733,6 @@ ERF::update_terrain_arrays (int lev)
             const auto& ebfact = *eb[lev]->get_const_factory();
             const MultiFab& volfrac = ebfact.getVolFrac();
             detJ_cc[lev] = std::make_unique<MultiFab>(volfrac, amrex::make_alias, 0, volfrac.nComp());
-
-            // Array<const MultiCutFab*, AMREX_SPACEDIM> areafrac = ebfact.getAreaFrac();
-            // ax[lev] = std::make_unique<MultiFab>(*(areafrac[0]), amrex::make_alias, 0, areafrac[0]->nComp());
-            // ay[lev] = std::make_unique<MultiFab>(*(areafrac[1]), amrex::make_alias, 0, areafrac[1]->nComp());
-            // az[lev] = std::make_unique<MultiFab>(*(areafrac[2]), amrex::make_alias, 0, areafrac[2]->nComp());
         }
     }
 }

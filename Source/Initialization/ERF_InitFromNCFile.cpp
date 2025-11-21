@@ -239,7 +239,6 @@ ERF::init_from_ncfile (int lev)
         // Same code as Initialization/ERF_InitFromWRFInput.cpp
         Print() << "Calculating HSE state!\n";
 
-        int ncomp = lev_new[Vars::cons].nComp();
         int k_dom_lo = geom[lev].Domain().smallEnd(2);
         int k_dom_hi = geom[lev].Domain().bigEnd(2);
         Real tol = 1.0e-10;
@@ -262,7 +261,6 @@ ERF::init_from_ncfile (int lev)
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
                 // integrate from surface to domain top
-                Real Factor;
                 Real dz, F, C;
                 Real rho_tot_hi, rho_tot_lo;
                 Real z_lo, z_hi;

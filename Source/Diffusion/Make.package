@@ -12,8 +12,13 @@ CEXE_sources += ERF_ComputeStrain_N.cpp
 CEXE_sources += ERF_ComputeStrain_S.cpp
 CEXE_sources += ERF_ComputeStrain_T.cpp
 
+CEXE_sources += ERF_ImplicitDiff_N.cpp
+CEXE_sources += ERF_ImplicitDiff_S.cpp
+CEXE_sources += ERF_ImplicitDiff_T.cpp
+
 CEXE_sources += ERF_ComputeTurbulentViscosity.cpp
 
-CEXE_headers += ERF_DiffSetup.H
+CEXE_headers += ERF_SetupDiff.H
+CEXE_headers += ERF_SetupImplicitDiff.H
 CEXE_headers += ERF_Diffusion.H
 CEXE_headers += ERF_EddyViscosity.H
