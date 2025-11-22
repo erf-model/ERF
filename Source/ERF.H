@@ -418,7 +418,7 @@ public:
     void Write2DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
 
     // Write subvolume of data into a different "plotfile"
-    void WriteSubvolume (amrex::Vector<std::string> subvol_var_names);
+    void WriteSubvolume (int isub, amrex::Vector<std::string> subvol_var_names);
 
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
@@ -1006,14 +1006,15 @@ private:
     static int last_plot2d_file_step_1;
     static int last_plot2d_file_step_2;
     static int last_check_file_step;
-    static int last_subvol_step;
 
     static amrex::Real last_plot3d_file_time_1;
     static amrex::Real last_plot3d_file_time_2;
     static amrex::Real last_plot2d_file_time_1;
     static amrex::Real last_plot2d_file_time_2;
     static amrex::Real last_check_file_time;
-    static amrex::Real last_subvol_time;
+
+    amrex::Vector<int> last_subvol_step;
+    amrex::Vector<amrex::Real> last_subvol_time;
 
     static bool plot_file_on_restart;
 
@@ -1071,12 +1072,14 @@ private:
     int m_plot3d_int_2 = -1;
     int m_plot2d_int_1 = -1;
     int m_plot2d_int_2 = -1;
-    int m_subvol_int = -1;
+
+    amrex::Vector<int> m_subvol_int;
+    amrex::Vector<amrex::Real> m_subvol_per;
+
     amrex::Real m_plot3d_per_1 = -1.0;
     amrex::Real m_plot3d_per_2 = -1.0;
     amrex::Real m_plot2d_per_1 = -1.0;
     amrex::Real m_plot2d_per_2 = -1.0;
-    amrex::Real m_subvol_per = -1.0;
     bool m_plot_face_vels = false;
 
     bool plot_lsm = false;

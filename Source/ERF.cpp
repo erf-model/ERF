@@ -75,14 +75,12 @@ int ERF::last_plot3d_file_step_2 = -1;
 int ERF::last_plot2d_file_step_1 = -1;
 int ERF::last_plot2d_file_step_2 = -1;
 int ERF::last_check_file_step    = -1;
-int ERF::last_subvol_step        = -1;
 
 Real ERF::last_plot3d_file_time_1 = 0.0;
 Real ERF::last_plot3d_file_time_2 = 0.0;
 Real ERF::last_plot2d_file_time_1 = 0.0;
 Real ERF::last_plot2d_file_time_2 = 0.0;
 Real ERF::last_check_file_time    = 0.0;
-Real ERF::last_subvol_time        = 0.0;
 
 bool ERF::plot_file_on_restart = true;
 
@@ -603,10 +601,12 @@ ERF::Evolve ()
             if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
         }
 
-        if (writeNow(cur_time, step+1, m_subvol_int, m_subvol_per, dt[0], last_subvol_time)) {
-            last_subvol_step = step+1;
-            WriteSubvolume(subvol3d_var_names);
-            if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
+        for (int i = 0; i < m_subvol_int.size(); i++) {
+            if (writeNow(cur_time, step+1, m_subvol_int[i], m_subvol_per[i], dt[0], last_subvol_time[i])) {
+                last_subvol_step[i] = step+1;
+                WriteSubvolume(i,subvol3d_var_names);
+                if (m_subvol_per[i] > 0.) {last_subvol_time[i] += m_subvol_per[i];}
+            }
         }
 
         if (writeNow(cur_time, step+1, m_check_int, m_check_per, dt[0], last_check_file_time)) {
@@ -643,9 +643,12 @@ ERF::Evolve ()
         Write2DPlotFile(2,plotfile2d_type_1,plot2d_var_names_2);
         if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
     }
-    if ( (m_subvol_int > 0 || m_subvol_per > 0.) && istep[0] > last_subvol_step) {
-        WriteSubvolume(subvol3d_var_names);
-        if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
+
+    for (int i = 0; i < m_subvol_int.size(); i++) {
+        if ( (m_subvol_int[i] > 0 || m_subvol_per[i] > 0.) && istep[0] > last_subvol_step[i]) {
+            WriteSubvolume(i,subvol3d_var_names);
+            if (m_subvol_per[i] > 0.) {last_subvol_time[i] += m_subvol_per[i];}
+        }
     }
 
     if ( (m_check_int > 0 || m_check_per > 0.) && istep[0] > last_check_file_step) {
@@ -1678,10 +1681,12 @@ ERF::InitData_post ()
             if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
             last_plot2d_file_step_2 = istep[0];
         }
-        if (m_subvol_int > 0 || m_subvol_per > 0.) {
-            WriteSubvolume(subvol3d_var_names);
-            last_subvol_step = istep[0];
-            if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
+        for (int i = 0; i < m_subvol_int.size(); i++) {
+            if (m_subvol_int[i] > 0 || m_subvol_per[i] > 0.) {
+                WriteSubvolume(i,subvol3d_var_names);
+                last_subvol_step[i] = istep[0];
+                if (m_subvol_per[i] > 0.) {last_subvol_time[i] += m_subvol_per[i];}
+            }
         }
     }
 
@@ -2338,8 +2343,61 @@ ERF::ReadParameters ()
         pp.query("plot2d_per_2",  m_plot2d_per_2);
 
         pp.query("subvol_file",   subvol_file);
-        pp.query("subvol_int" , m_subvol_int);
-        pp.query("subvol_per" , m_subvol_per);
+
+        // Default if subvol_int not specified
+        m_subvol_int.resize(1); m_subvol_int[0] = -1;
+        m_subvol_per.resize(1); m_subvol_per[0] = -1.0;
+        last_subvol_step.resize(1);
+        last_subvol_time.resize(1);
+
+        int nsi = pp.countval("subvol_int");
+        int nsr = pp.countval("subvol_per");
+
+        // We must specify only subvol_int OR subvol_per
+        AMREX_ALWAYS_ASSERT (!(nsi > 0 && nsr > 0));
+
+        int nsub = -1;
+        if (nsi > 0 || nsr > 0) {
+            ParmParse pp_sv("erf.subvol");
+            int n1 = pp_sv.countval("origin"); int n2 = pp_sv.countval("nxnynz"); int n3 = pp_sv.countval("dxdydz");
+            if (n1 != n2 || n1 != n3 || n2 != n3) {
+                amrex::Abort("WriteSubvolume: must have same number of entries in origin, nxnynz, and dxdydz.");
+            }
+            if ( n1%AMREX_SPACEDIM != 0) {
+                amrex::Abort("WriteSubvolume: origin, nxnynz, and dxdydz must have multiples of AMReX_SPACEDIM");
+            }
+            nsub = n1/AMREX_SPACEDIM;
+            m_subvol_int.resize(nsub);
+            last_subvol_step.resize(nsub);
+            last_subvol_time.resize(nsub);
+            m_subvol_int.resize(nsub);
+            m_subvol_per.resize(nsub);
+        }
+
+        if (nsi > 0) {
+            for (int i = 1; i < nsub; i++) m_subvol_per[i] = -1.0;
+            if ( nsi == 1) {
+                m_subvol_int[0] = -1;
+                pp.get("subvol_int" , m_subvol_int[0]);
+            } else if ( nsi == nsub) {
+                pp.getarr("subvol_int" , m_subvol_int);
+            } else {
+                amrex::Abort("There must either be a single value of subvol_int or one for every subdomain");
+            }
+        }
+
+        if (nsr > 0) {
+            for (int i = 1; i < nsub; i++) m_subvol_int[i] = -1.0;
+            if ( nsr == 1) {
+                m_subvol_per[0] = -1.0;
+                pp.get("subvol_per" , m_subvol_per[0]);
+            } else if ( nsr == nsub) {
+                pp.getarr("subvol_per" , m_subvol_per);
+            } else {
+                amrex::Abort("There must either be a single value of subvol_per or one for every subdomain");
+            }
+        }
+
         setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
