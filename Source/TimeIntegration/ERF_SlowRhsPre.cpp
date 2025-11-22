@@ -501,9 +501,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<const Real> fcy_arr{};
         Array4<const Real> fcz_arr{};
         Array4<const Real> detJ_arr{};
-        Array4<const Real> u_detJ_arr{};
-        Array4<const Real> v_detJ_arr{};
-        Array4<const Real> w_detJ_arr{};
 
         if (solverChoice.terrain_type == TerrainType::EB)
         {
@@ -526,9 +523,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 az_arr   = az.const_array(mfi);
                 detJ_arr = detJ.const_array(mfi);
             }
-            u_detJ_arr = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
-            v_detJ_arr = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
-            w_detJ_arr = (ebfact.get_w_const_factory())->getVolFrac().const_array(mfi);
         } else {
             ax_arr   = ax.const_array(mfi);
             ay_arr   = ay.const_array(mfi);
@@ -699,6 +693,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     mf_my, mf_uy, mf_vy,
                     solverChoice, ebfact, bc_ptr_d);
             }
+            Gpu::streamSynchronize();
         }
 
         auto abl_pressure_grad    = solverChoice.abl_pressure_grad;
