@@ -153,11 +153,6 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
     // Read in the origin, number of cells in each dir, and resolution
     // **************************************************************
 
-    int n1 = pp.countval("origin");
-    int n2 = pp.countval("nxnynz");
-    int n3 = pp.countval("dxdydz");
-
-
     int lev_for_sub = 0;
     int offset = isub * AMREX_SPACEDIM;
 
