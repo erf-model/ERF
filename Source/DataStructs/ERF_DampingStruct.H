@@ -79,8 +79,8 @@ struct DampingChoice {
     amrex::Real rayleigh_ztop;
 
     bool        w_damping              = false;
-    amrex::Real w_damping_cfl          = 1.0;
-    amrex::Real w_damping_coeff        = 0.3; // damping coefficient [m/s]
+    amrex::Real w_damping_cfl          = 1.0; // from WRF manual -- note that WRF w_crit_cfl=1.2 by default
+    amrex::Real w_damping_coeff        = 0.3; // damping coefficient [m/s2]
 
     // Molecular transport model
     RayleighDampingType rayleigh_damping_type = RayleighDampingType::SlowExplicit;

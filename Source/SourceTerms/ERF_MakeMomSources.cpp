@@ -96,7 +96,6 @@ void make_mom_sources (Real time,
     //    8. Forest canopy
     //    9. Immersed forcing
     //   10. Constant mass flux
-    //   11. Vertical-velocity damping
     // *****************************************************************************
     // NOTE: buoyancy is now computed in a separate routine - it should not appear here
     // *****************************************************************************
@@ -831,60 +830,5 @@ void make_mom_sources (Real time,
             });
         }
 
-        // *****************************************************************************
-        // 11. Add w-damping
-        // *****************************************************************************
-        bool        w_damping       = solverChoice.dampingChoice.w_damping;
-        amrex::Real w_damping_coeff = solverChoice.dampingChoice.w_damping_coeff;
-        amrex::Real cflw_lim        = solverChoice.dampingChoice.w_damping_cfl;
-
-        if (w_damping && is_slow_step) {
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real dzInv;
-                if (z_nd_arr) {
-                    // average z_nd to face then diff
-                    if (k == domain.smallEnd(2)) {
-                        dzInv = 4.0 / (
-                            z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k)
-                          + z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k)
-                          + z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k)
-                          + z_nd_arr(i+1,j+1,k+1) - z_nd_arr(i+1,j+1,k) );
-                    } else if (k == domain.bigEnd(2)+1) {
-                        dzInv = 4.0 / (
-                            z_nd_arr(i  ,j  ,k) - z_nd_arr(i  ,j  ,k-1)
-                          + z_nd_arr(i+1,j  ,k) - z_nd_arr(i+1,j  ,k-1)
-                          + z_nd_arr(i  ,j+1,k) - z_nd_arr(i  ,j+1,k-1)
-                          + z_nd_arr(i+1,j+1,k) - z_nd_arr(i+1,j+1,k-1) );
-                    } else {
-                        // dz = 0.5 * (dz[i,j,k] + dz[i,j,k+1])
-                        //    = 0.5 * (z_nd_face[i,j,k+1] - z_nd_face[i,j,k-1])
-                        dzInv = 8.0 / (
-                            z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k-1)
-                          + z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k-1)
-                          + z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k-1)
-                          + z_nd_arr(i+1,j+1,k+1) - z_nd_arr(i+1,j+1,k-1) );
-                    }
-                } else {
-                    dzInv = dxInv[2];
-                }
-
-                Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
-                Real wmag = std::abs(rho_w(i,j,k) / rho_on_w_face);
-
-                Real cflw = wmag * dt * dzInv;
-                if (cflw > cflw_lim) {
-#ifdef AMREX_USE_GPU
-                    AMREX_DEVICE_PRINTF("w-damping applied at (%d,%d,%d) for w-CFL = %f > %f\n",
-                           i,j,k, cflw, cflw_lim);
-#else
-                    printf("w-damping applied at (%d,%d,%d) for w-CFL = %f > %f\n",
-                           i,j,k, cflw, cflw_lim);
-#endif
-                    Real sgn_w = (rho_w(i,j,k) > 0) ? 1.0 : -1.0;
-                    zmom_src_arr(i, j, k) -= rho_on_w_face * sgn_w * w_damping_coeff * (cflw - cflw_lim);
-                }
-            });
-        }
     } // mfi
 }
