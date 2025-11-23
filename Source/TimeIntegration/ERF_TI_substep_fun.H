@@ -183,7 +183,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
              (nrk == 2) &&
              (fast_step == n_sub-1))
         {
-
+            amrex::Real w_damping_const = solverChoice.dampingChoice.w_damping_const;
             amrex::Real w_damping_coeff = solverChoice.dampingChoice.w_damping_coeff;
             amrex::Real cflw_lim        = solverChoice.dampingChoice.w_damping_cfl;
 
@@ -226,6 +226,10 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                         dzInv = dxInv[2];
                     }
 
+                    Real dampcoef = (w_damping_const > 0)
+                                  ? w_damping_const
+                                  : w_damping_coeff / (dzInv * dt_advance * dt_advance);
+
                     Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                     Real wmag = std::abs(rho_w(i,j,k) / rho_on_w_face);
 
@@ -234,7 +238,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
 
                     if (cflw > cflw_lim) {
                         Real sgn_w = (rho_w(i,j,k) > 0) ? 1.0 : -1.0;
-                        rho_w(i, j, k) -= rho_on_w_face * sgn_w * w_damping_coeff * (cflw - cflw_lim) * dt_advance;
+                        rho_w(i, j, k) -= rho_on_w_face * sgn_w * dampcoef * (cflw - cflw_lim) * dt_advance;
 #ifdef AMREX_USE_GPU
                         AMREX_DEVICE_PRINTF("w-damping applied at (%d,%d,%d) for w-CFL = %f > %f : %f --> %f\n",
                                i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
