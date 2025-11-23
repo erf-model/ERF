@@ -1506,16 +1506,18 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     std::string plotfilenameU;
     std::string plotfilenameV;
     std::string plotfilenameW;
+
+    int file_name_digits = solverChoice.file_name_digits;
     if (which == 1) {
-       plotfilename = Concatenate(plot3d_file_1, istep[0], 5);
-       plotfilenameU = Concatenate(plot3d_file_1+"U", istep[0], 5);
-       plotfilenameV = Concatenate(plot3d_file_1+"V", istep[0], 5);
-       plotfilenameW = Concatenate(plot3d_file_1+"W", istep[0], 5);
+       plotfilename = Concatenate(plot3d_file_1, istep[0], file_name_digits);
+       plotfilenameU = Concatenate(plot3d_file_1+"U", istep[0], file_name_digits);
+       plotfilenameV = Concatenate(plot3d_file_1+"V", istep[0], file_name_digits);
+       plotfilenameW = Concatenate(plot3d_file_1+"W", istep[0], file_name_digits);
     } else if (which == 2) {
-       plotfilename = Concatenate(plot3d_file_2, istep[0], 5);
-       plotfilenameU = Concatenate(plot3d_file_2+"U", istep[0], 5);
-       plotfilenameV = Concatenate(plot3d_file_2+"V", istep[0], 5);
-       plotfilenameW = Concatenate(plot3d_file_2+"W", istep[0], 5);
+       plotfilename = Concatenate(plot3d_file_2, istep[0], file_name_digits);
+       plotfilenameU = Concatenate(plot3d_file_2+"U", istep[0], file_name_digits);
+       plotfilenameV = Concatenate(plot3d_file_2+"V", istep[0], file_name_digits);
+       plotfilenameW = Concatenate(plot3d_file_2+"W", istep[0], file_name_digits);
     }
 
     // LSM writes it's own data
@@ -2301,11 +2303,12 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     } // lev
 
+    int file_name_digits = solverChoice.file_name_digits;
     std::string plotfilename;
     if (which == 1) {
-       plotfilename = Concatenate(plot2d_file_1, istep[0], 5);
+       plotfilename = Concatenate(plot2d_file_1, istep[0], file_name_digits);
     } else if (which == 2) {
-       plotfilename = Concatenate(plot2d_file_2, istep[0], 5);
+       plotfilename = Concatenate(plot2d_file_2, istep[0], file_name_digits);
     }
 
     Vector<Geometry> my_geom(finest_level+1);
