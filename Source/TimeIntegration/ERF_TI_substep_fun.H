@@ -239,12 +239,13 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                     if (cflw > cflw_lim) {
                         Real sgn_w = (rho_w(i,j,k) > 0) ? 1.0 : -1.0;
                         rho_w(i, j, k) -= rho_on_w_face * sgn_w * dampcoef * (cflw - cflw_lim) * dt_advance;
+                        // Note: These prints are not immediately flushed to screen
 #ifdef AMREX_USE_GPU
-                        AMREX_DEVICE_PRINTF("w-damping applied at (%d,%d,%d) for w-CFL = %f > %f : %f --> %f\n",
-                               i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
+                        AMREX_DEVICE_PRINTF("t=%f w-damping applied at (%d,%d,%d) for w-CFL = %f > %f : %f --> %f\n",
+                               old_time+dt_advance, i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
 #else
-                        printf("w-damping applied at (%d,%d,%d) for w-CFL = %f > %f : %f --> %f\n",
-                               i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
+                        printf("t=%f w-damping applied at (%d,%d,%d) for w-CFL = %f > %f : %f --> %f\n",
+                               old_time+dt_advance, i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
 #endif
                     }
                 });
