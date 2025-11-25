@@ -417,6 +417,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Also note that FillCoarsePatch is hard-wired to act only on lev_new at coarse and fine
     // ********************************************************************************************
 
+#ifdef ERF_USE_NETCDF
     if ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) )
     {
         // Just making sure that ghost cells aren't uninitialized...
@@ -438,8 +439,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         dz_min[lev] = (*detJ_cc[lev]).min(0) * geom[lev].CellSize(2);
 
     } else {
+#endif
         FillCoarsePatch(lev, time);
+#ifdef ERF_USE_NETCDF
     }
+#endif
 
     // ********************************************************************************************
     // Initialize the integrator class
