@@ -488,6 +488,19 @@ List of Parameters
 | **erf.cfl**                | CFL number used to   | Real > 0 and   | 0.8                 |
 |                            | compute level 0 dt   | <= 1           |                     |
 +----------------------------+----------------------+----------------+---------------------+
+| **erf.cfl_init**           | Initial CFL for      | Real > 0       | Not set (no ramping)|
+|                            | CFL ramping. If      |                |                     |
+|                            | specified, CFL       |                |                     |
+|                            | ramps from this      |                |                     |
+|                            | value to target CFL  |                |                     |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.cfl_ramping_factor** | Scaling factor for   | Real >= 1.0    | 1.0 (no ramping)    |
+|                            | CFL ramping each     |                |                     |
+|                            | timestep. CFL is     |                |                     |
+|                            | multiplied by this   |                |                     |
+|                            | each step until      |                |                     |
+|                            | target is reached    |                |                     |
++----------------------------+----------------------+----------------+---------------------+
 | **erf.substepping_cfl**    | CFL number used to   | Real > 0 and   | 1.0                 |
 |                            | compute the number   | <= 1           |                     |
 |                            | of substeps          |                |                     |
@@ -578,6 +591,16 @@ Notes
          will be computed using the CFL condition for compressible flow, then adjusted (reduced if necessary)
          as above so that the ratio of slow timestep to fine timestep is an even integer.
          If **erf.substepping_cfl** is specified, that CFL value will be used.  If not, the default value will be used.
+
+-  | **CFL Ramping**: If **erf.cfl_init** is specified, the CFL number will start at this value and ramp up to the target 
+     **erf.cfl** value. Each timestep, the current CFL is multiplied by **erf.cfl_ramping_factor** until the target is reached.
+     This is useful for:
+
+   * | Gradually increasing the timestep during spin-up or initialization phases
+   * | Improving stability during early timesteps of simulations
+   * | Allowing aggressive final CFL values while maintaining stability at startup
+
+   If **erf.cfl_init** is not specified, the CFL remains constant at the value of **erf.cfl**.
 
 -  | If **erf.use_local_timestepping** is true, local timestepping is enabled for steady-state convergence acceleration.
      Each cell uses its own timestep based on local CFL constraints rather than a single global timestep. This is useful for:

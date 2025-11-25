@@ -1045,6 +1045,9 @@ private:
 
     // Time step controls
     static amrex::Real cfl;
+    static amrex::Real cfl_target;         // Target CFL for ramping
+    static amrex::Real cfl_init;           // Initial CFL for ramping
+    static amrex::Real cfl_ramping_factor; // Scaling factor for CFL ramping
     static amrex::Real sub_cfl;
     static amrex::Real init_shrink;
     static amrex::Real change_max;

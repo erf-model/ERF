@@ -46,6 +46,9 @@ Real ERF::low_time_interval  = std::numeric_limits<amrex::Real>::max();
 
 // Time step control
 Real ERF::cfl            = 0.8;
+Real ERF::cfl_target     = 0.8; // Will be set equal to cfl if no ramping
+Real ERF::cfl_init       = -1.0; // If < 0, no ramping (use cfl directly)
+Real ERF::cfl_ramping_factor = 1.0; // Default: no ramping
 Real ERF::sub_cfl        = 1.0;
 Real ERF::init_shrink    = 1.0;
 Real ERF::change_max     = 1.1;
@@ -2159,6 +2162,9 @@ ERF::ReadParameters ()
 
         // Time step controls
         pp.query("cfl", cfl);
+        cfl_target = cfl; // Save target for ramping
+        pp.query("cfl_init", cfl_init);
+        pp.query("cfl_ramping_factor", cfl_ramping_factor);
         pp.query("substepping_cfl", sub_cfl);
         pp.query("init_shrink", init_shrink);
         pp.query("change_max", change_max);

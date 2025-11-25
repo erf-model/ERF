@@ -11,6 +11,26 @@ using namespace amrex;
 void
 ERF::ComputeDt (int step)
 {
+    // Apply CFL ramping if enabled
+    if (cfl_init >= 0.0) {
+        if (step == 0) {
+            // Initialize CFL to cfl_init
+            cfl = cfl_init;
+            if (verbose) {
+                Print() << "CFL ramping enabled: starting at cfl = " << cfl 
+                        << " with ramping factor = " << cfl_ramping_factor 
+                        << " targeting cfl = " << cfl_target << std::endl;
+            }
+        } else {
+            // Ramp CFL by multiplying by ramping factor, but don't exceed target
+            Real cfl_new = cfl * cfl_ramping_factor;
+            cfl = amrex::min(cfl_new, cfl_target);
+            if (verbose && cfl < cfl_target) {
+                Print() << "CFL ramped to " << cfl << " (target: " << cfl_target << ")" << std::endl;
+            }
+        }
+    }
+
     Vector<Real> dt_tmp(finest_level+1);
 
     for (int lev = 0; lev <= finest_level; ++lev)
