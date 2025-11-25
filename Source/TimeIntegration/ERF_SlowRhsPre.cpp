@@ -242,15 +242,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     // *****************************************************************************
     // Define updates and fluxes in the current RK stage
     // *****************************************************************************
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-    {
-    std::array<FArrayBox,AMREX_SPACEDIM> flux;
-    std::array<FArrayBox,AMREX_SPACEDIM> flux_u;
-    std::array<FArrayBox,AMREX_SPACEDIM> flux_v;
-    std::array<FArrayBox,AMREX_SPACEDIM> flux_w;
-
     // Cell-centered masks for EB (used for flux interpolation)
     bool already_on_centroids = false;
     Vector<iMultiFab> physbnd_mask;
@@ -266,6 +257,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
         }
     }
 
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    {
     for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bx  = mfi.tilebox();
@@ -367,11 +362,16 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         // Define flux arrays for use in advection
         // *****************************************************************************
+        std::array<FArrayBox,AMREX_SPACEDIM> flux;
+        std::array<FArrayBox,AMREX_SPACEDIM> flux_u;
+        std::array<FArrayBox,AMREX_SPACEDIM> flux_v;
+        std::array<FArrayBox,AMREX_SPACEDIM> flux_w;
+
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             if (solverChoice.terrain_type != TerrainType::EB) {
-                flux[dir].resize(surroundingNodes(bx,dir),2);
+                flux[dir].resize(surroundingNodes(bx,dir),2,The_Async_Arena());
             } else {
-                flux[dir].resize(surroundingNodes(bx,dir).grow(1),2);
+                flux[dir].resize(surroundingNodes(bx,dir).grow(1),2,The_Async_Arena());
             }
             flux[dir].setVal<RunOn::Device>(0.);
         }
@@ -382,6 +382,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_u_arr{};
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_v_arr{};
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_w_arr{};
+
         if (solverChoice.terrain_type == TerrainType::EB) {
             for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
                 flux_u[dir].resize(tbx_grown[dir],1,The_Async_Arena());
@@ -693,7 +694,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     mf_my, mf_uy, mf_vy,
                     solverChoice, ebfact, bc_ptr_d);
             }
-            Gpu::streamSynchronize();
         }
 
         auto abl_pressure_grad    = solverChoice.abl_pressure_grad;
@@ -857,11 +857,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
                     dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
-
-            // This is necessary here so we don't go on to the next FArrayBox without
-            // having finished copying the fluxes into the FluxRegisters (since the fluxes
-            // are stored in temporary FArrayBox's)
-            Gpu::streamSynchronize();
 
         } // two-way coupling
         } // end profile

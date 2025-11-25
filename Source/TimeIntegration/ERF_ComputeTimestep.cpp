@@ -256,9 +256,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              return new_comp_dt;
          });
 
-         estdt_vert_lowM_inv = ReduceMax(S_new, ccvel, 0,
+         estdt_vert_lowM_inv = ReduceMax(ccvel, 0,
          [=] AMREX_GPU_HOST_DEVICE (Box const& b,
-                                    Array4<Real const> const& s,
                                     Array4<Real const> const& u) -> Real
          {
              Real new_lowM_dt = -1.e100;
@@ -332,18 +331,18 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      // Print out some extra diagnostics -- dt calcs are repeated so as to not
      // disrupt the overall code flow...
      if (l_comp_substepping_diag) {
-         Real dt = (fixed_dt[level] > 0.0) ? fixed_dt[level] : estdt_comp;
-         int  ns = (fixed_mri_dt_ratio > 0.0) ? fixed_mri_dt_ratio : dt_fast_ratio;
+         Real dt_diag = (fixed_dt[level] > 0.0) ? fixed_dt[level] : estdt_comp;
+         int  ns      = (fixed_mri_dt_ratio > 0.0) ? fixed_mri_dt_ratio : dt_fast_ratio;
 
          // horizontal acoustic CFL must be < 1 (fully explicit)
          // vertical   acoustic CFL may  be > 1
          Print() << "effective horiz,vert acoustic CFL with " << ns << " substeps : "
-            << (dt / ns) * estdt_comp_inv << " "
-            << (dt / ns) * estdt_vert_comp_inv << std::endl;
+            << (dt_diag / ns) * estdt_comp_inv << " "
+            << (dt_diag / ns) * estdt_vert_comp_inv << std::endl;
 
          // vertical advective CFL should be < 1, otherwise w-damping may be needed
          Print() << "effective vert advective CFL : "
-            << dt * estdt_vert_lowM_inv << std::endl;
+            << dt_diag * estdt_vert_lowM_inv << std::endl;
      }
 
      if (fixed_dt[level] > 0.0) {

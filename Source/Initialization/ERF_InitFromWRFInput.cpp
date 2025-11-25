@@ -653,6 +653,7 @@ ERF::init_from_wrfinput (int lev,
           }
         } // ivar
         Print() << "\n";
+        have_read_nc_init_file[lev][idx] = 1;
     } // idx
 
     // Convert the velocities using the map factors
@@ -901,10 +902,7 @@ ERF::init_from_wrfinput (int lev,
                                     lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                     geom[lev], use_moist);
         } // itime
-    } // use_real_bcs && lev == 0
 
-    if (solverChoice.use_real_bcs)
-    {
         //
         // Start at the earliest time (read_from_wrfbdy)
         // Note we only have start_bdy_time if at level 0 and init_type == InitType::WRFInput or InitType::Metgrid
@@ -920,7 +918,7 @@ ERF::init_from_wrfinput (int lev,
             t_new[lev] = t_new[0];
             t_old[lev] = t_old[0];
         }
-    } // use_real_bcs
+    } // use_real_bcs && (lev == 0)
 
     // *******************************************************************************************
     // Initialize the low data if available

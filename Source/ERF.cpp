@@ -94,6 +94,7 @@ StateInterpType ERF::interpolation_type;
 
 // NetCDF wrfinput (initialization) file(s)
 Vector<Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via input
+Vector<Vector<int>>         ERF::have_read_nc_init_file = {{0}};
 
 // NetCDF wrfbdy (lateral boundary) file
 std::string ERF::nc_bdy_file; // Must provide via input
@@ -2218,6 +2219,7 @@ ERF::ReadParameters ()
 
 #ifdef ERF_USE_NETCDF
         nc_init_file.resize(max_level+1);
+        have_read_nc_init_file.resize(max_level+1);
 
         // NetCDF wrfinput initialization files -- possibly multiple files at each of multiple levels
         //        but we always have exactly one file at level 0
@@ -2227,9 +2229,11 @@ ERF::ReadParameters ()
                 int num_files = pp.countval(nc_file_names.c_str());
                 num_files_at_level[lev] = num_files;
                 nc_init_file[lev].resize(num_files);
+                have_read_nc_init_file[lev].resize(num_files);
                 pp.queryarr(nc_file_names.c_str(), nc_init_file[lev],0,num_files);
                 for (int j = 0; j < num_files; j++) {
                     Print() << "Reading NC init file names at level " << lev << " and index " << j << " : " << nc_init_file[lev][j] << std::endl;
+                    have_read_nc_init_file[lev][j] = 0;
                 } // j
             } // if pp.contains
         } // lev

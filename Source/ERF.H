@@ -1219,6 +1219,7 @@ private:
 
     // NetCDF initialization (wrfinput) file
     static amrex::Vector<amrex::Vector<std::string>> nc_init_file;
+    static amrex::Vector<amrex::Vector<int>> have_read_nc_init_file;
 
     // NetCDF initialization (wrfbdy/met_em) file
     static std::string nc_bdy_file;

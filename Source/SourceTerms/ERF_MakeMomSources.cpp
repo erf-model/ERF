@@ -35,7 +35,7 @@ using namespace amrex;
  */
 
 void make_mom_sources (Real time,
-                       Real dt,
+                       Real /*dt*/,
                        const Vector<MultiFab>& S_data,
                              MultiFab& z_phys_nd,
                              MultiFab& z_phys_cc,
