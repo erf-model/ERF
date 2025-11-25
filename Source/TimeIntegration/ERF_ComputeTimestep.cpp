@@ -253,6 +253,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                          Real pressure = getPgivenRTh(rhotheta);
                          Real c = std::sqrt(Gamma * pressure / rho);
                          
+                         // Use actual physical spacing: dxinv[2] / detJ instead of dzinv
+                         const Real dz_inv_local = (vf(i,j,k) > 0.) ? dxinv[2] / vf(i,j,k) : dzinv;
+                         
                          Real dt_inv = 0.0;
                          if (l_substepping) {
                              if ((nxc > 1) && (nyc==1)) {
@@ -267,15 +270,15 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                              if (nxc > 1 && nyc > 1) {
                                  dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
                                                      (amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1],
-                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dzinv);
+                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local);
                              } else if (nxc > 1) {
                                  dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
-                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dzinv);
+                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local);
                              } else if (nyc > 1) {
                                  dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1],
-                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dzinv);
+                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local);
                              } else {
-                                 dt_inv = (amrex::Math::abs(u(i,j,k,2))+c)*dzinv;
+                                 dt_inv = (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local;
                              }
                          }
                          dt_arr(i,j,k) = (dt_inv > 0.0) ? cfl / dt_inv : LARGE_DT;
@@ -290,12 +293,16 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                  const Array4<Real>& dt_arr = dt_local.array(mfi);
                  const Array4<const Real>& s = S_new.const_array(mfi);
                  const Array4<const Real>& u = ccvel.const_array(mfi);
+                 const Array4<const Real>& detJ = detJ_cc[level]->const_array(mfi);
                  
                  ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                      const Real rho = s(i, j, k, Rho_comp);
                      const Real rhotheta = s(i, j, k, RhoTheta_comp);
                      Real pressure = getPgivenRTh(rhotheta);
                      Real c = std::sqrt(Gamma * pressure / rho);
+                     
+                     // Use actual physical spacing: dxinv[2] / detJ instead of dzinv
+                     const Real dz_inv_local = (detJ(i,j,k) > 0.) ? dxinv[2] / detJ(i,j,k) : dzinv;
                      
                      Real dt_inv = 0.0;
                      if (l_substepping) {
@@ -311,15 +318,15 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                          if (nxc > 1 && nyc > 1) {
                              dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
                                                  (amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1],
-                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dzinv);
+                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local);
                          } else if (nxc > 1) {
                              dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
-                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dzinv);
+                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local);
                          } else if (nyc > 1) {
                              dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1],
-                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dzinv);
+                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local);
                          } else {
-                             dt_inv = (amrex::Math::abs(u(i,j,k,2))+c)*dzinv;
+                             dt_inv = (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local;
                          }
                      }
                      dt_arr(i,j,k) = (dt_inv > 0.0) ? cfl / dt_inv : LARGE_DT;
