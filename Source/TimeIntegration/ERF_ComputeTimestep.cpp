@@ -229,6 +229,104 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      if (estdt_lowM_inv > 0.0_rt)
          estdt_lowM = cfl / estdt_lowM_inv;
 
+     // Compute local timesteps for steady-state convergence acceleration
+     if (solverChoice.use_local_timestepping && dt_cell[level]) {
+         MultiFab& dt_local = *dt_cell[level];
+         
+         // Compute local timestep for each cell based on local CFL constraint
+         if (solverChoice.terrain_type == TerrainType::EB) {
+             const eb_& eb_lev = get_eb(level);
+             const MultiFab& detJ = (eb_lev.get_const_factory())->getVolFrac();
+             
+             for (MFIter mfi(dt_local, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                 const Box& bx = mfi.tilebox();
+                 const Array4<Real>& dt_arr = dt_local.array(mfi);
+                 const Array4<const Real>& s = S_new.const_array(mfi);
+                 const Array4<const Real>& u = ccvel.const_array(mfi);
+                 const Array4<const Real>& vf = detJ.const_array(mfi);
+                 
+                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                     if (vf(i,j,k) > 0.) {
+                         const Real rho = s(i, j, k, Rho_comp);
+                         const Real rhotheta = s(i, j, k, RhoTheta_comp);
+                         Real pressure = getPgivenRTh(rhotheta);
+                         Real c = std::sqrt(Gamma * pressure / rho);
+                         
+                         Real dt_inv = 0.0;
+                         if (l_substepping) {
+                             if ((nxc > 1) && (nyc==1)) {
+                                 dt_inv = (amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0];
+                             } else if ((nyc > 1) && (nxc==1)) {
+                                 dt_inv = (amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1];
+                             } else {
+                                 dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
+                                                     (amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]);
+                             }
+                         } else {
+                             if (nxc > 1 && nyc > 1) {
+                                 dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
+                                                     (amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1],
+                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dzinv);
+                             } else if (nxc > 1) {
+                                 dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
+                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dzinv);
+                             } else if (nyc > 1) {
+                                 dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1],
+                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dzinv);
+                             } else {
+                                 dt_inv = (amrex::Math::abs(u(i,j,k,2))+c)*dzinv;
+                             }
+                         }
+                         dt_arr(i,j,k) = (dt_inv > 0.0) ? cfl / dt_inv : 1.e20;
+                     } else {
+                         dt_arr(i,j,k) = 1.e20;
+                     }
+                 });
+             }
+         } else {
+             for (MFIter mfi(dt_local, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                 const Box& bx = mfi.tilebox();
+                 const Array4<Real>& dt_arr = dt_local.array(mfi);
+                 const Array4<const Real>& s = S_new.const_array(mfi);
+                 const Array4<const Real>& u = ccvel.const_array(mfi);
+                 
+                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                     const Real rho = s(i, j, k, Rho_comp);
+                     const Real rhotheta = s(i, j, k, RhoTheta_comp);
+                     Real pressure = getPgivenRTh(rhotheta);
+                     Real c = std::sqrt(Gamma * pressure / rho);
+                     
+                     Real dt_inv = 0.0;
+                     if (l_substepping) {
+                         if ((nxc > 1) && (nyc==1)) {
+                             dt_inv = (amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0];
+                         } else if ((nyc > 1) && (nxc==1)) {
+                             dt_inv = (amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1];
+                         } else {
+                             dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
+                                                 (amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]);
+                         }
+                     } else {
+                         if (nxc > 1 && nyc > 1) {
+                             dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
+                                                 (amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1],
+                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dzinv);
+                         } else if (nxc > 1) {
+                             dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
+                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dzinv);
+                         } else if (nyc > 1) {
+                             dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1],
+                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dzinv);
+                         } else {
+                             dt_inv = (amrex::Math::abs(u(i,j,k,2))+c)*dzinv;
+                         }
+                     }
+                     dt_arr(i,j,k) = (dt_inv > 0.0) ? cfl / dt_inv : 1.e20;
+                 });
+             }
+         }
+     }
+
      // Additional vertical diagnostics
      if (l_comp_substepping_diag) {
          estdt_vert_comp_inv = ReduceMax(S_new, ccvel, 0,

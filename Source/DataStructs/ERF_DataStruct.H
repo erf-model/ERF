@@ -620,6 +620,9 @@ struct SolverChoice {
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
 
+        // Use local timestepping for steady-state convergence acceleration
+        pp.query("use_local_timestepping",use_local_timestepping);
+
         pp.query("hindcast_lateral_forcing", hindcast_lateral_forcing);
 
         if (hindcast_lateral_forcing) {
@@ -1019,6 +1022,9 @@ struct SolverChoice {
 
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;
+
+    // Use local timestepping for steady-state convergence acceleration
+    bool use_local_timestepping = false;
 
     // Type of perturbation
     PerturbationType pert_type;

@@ -112,11 +112,17 @@
 
                 } else { // Fixed or no terrain
                     const Array4<const Real>& dJ_old = detJ_cc[level]->const_array(mfi);
+                    
+                    // Get local timesteps if enabled
+                    const bool use_local_dt = (solverChoice.use_local_timestepping && dt_cell[level]);
+                    const Array4<const Real> dt_local_arr = use_local_dt ? dt_cell[level]->const_array(mfi) : Array4<const Real>{};
+                    
                     ParallelFor(bx, ncomp_fast[IntVars::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVars::cons] + nn;
                         if (dJ_old(i,j,k) > 0.0) {
-                            ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + slow_dt *
+                            const Real dt_local = use_local_dt ? dt_local_arr(i,j,k) : slow_dt;
+                            ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n) + dt_local *
                                ( fslow[IntVars::cons](i,j,k,n) );
                         } else {
                             ssum[IntVars::cons](i,j,k,n) = sold[IntVars::cons](i,j,k,n);
@@ -130,48 +136,60 @@
                         const Array4<const Real>& vfrac_v = (get_eb(level).get_v_const_factory())->getVolFrac().const_array(mfi);
                         const Array4<const Real>& vfrac_w = (get_eb(level).get_w_const_factory())->getVolFrac().const_array(mfi);
 
+                        const bool use_local_dt = (solverChoice.use_local_timestepping && dt_cell[level]);
+                        const Array4<const Real> dt_local_arr = use_local_dt ? dt_cell[level]->const_array(mfi) : Array4<const Real>{};
+
                         ParallelFor(tbx, tby, tbz,
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                             if (vfrac_u(i,j,k) > 0.0) {
+                                const Real dt_local = use_local_dt ? 0.5*(dt_local_arr(i-1,j,k)+dt_local_arr(i,j,k)) : slow_dt;
                                 // ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
                                 ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
-                                                           + slow_dt * fslow[IntVars::xmom](i,j,k);
+                                                           + dt_local * fslow[IntVars::xmom](i,j,k);
                             } else {
                                 ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
                             }
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                             if (vfrac_v(i,j,k) > 0.0) {
+                                const Real dt_local = use_local_dt ? 0.5*(dt_local_arr(i,j-1,k)+dt_local_arr(i,j,k)) : slow_dt;
                                 // ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
                                 ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
-                                                           + slow_dt * fslow[IntVars::ymom](i,j,k);
+                                                           + dt_local * fslow[IntVars::ymom](i,j,k);
                             } else {
                                 ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
                             }
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                             if (vfrac_w(i,j,k) > 0.0) {
+                                const Real dt_local = use_local_dt ? 0.5*(dt_local_arr(i,j,k-1)+dt_local_arr(i,j,k)) : slow_dt;
                                 // ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
                                 ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
-                                                           + slow_dt * fslow[IntVars::zmom](i,j,k);
+                                                           + dt_local * fslow[IntVars::zmom](i,j,k);
                             } else {
                                 ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
                             }
                         });
 
                     } else {
+                        const bool use_local_dt = (solverChoice.use_local_timestepping && dt_cell[level]);
+                        const Array4<const Real> dt_local_arr = use_local_dt ? dt_cell[level]->const_array(mfi) : Array4<const Real>{};
+                        
                         ParallelFor(tbx, tby, tbz,
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            const Real dt_local = use_local_dt ? 0.5*(dt_local_arr(i-1,j,k)+dt_local_arr(i,j,k)) : slow_dt;
                             ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
-                                                       + slow_dt * fslow[IntVars::xmom](i,j,k);
+                                                       + dt_local * fslow[IntVars::xmom](i,j,k);
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            const Real dt_local = use_local_dt ? 0.5*(dt_local_arr(i,j-1,k)+dt_local_arr(i,j,k)) : slow_dt;
                             ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
-                                                       + slow_dt * fslow[IntVars::ymom](i,j,k);
+                                                       + dt_local * fslow[IntVars::ymom](i,j,k);
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            const Real dt_local = use_local_dt ? 0.5*(dt_local_arr(i,j,k-1)+dt_local_arr(i,j,k)) : slow_dt;
                             ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
-                                                       + slow_dt * fslow[IntVars::zmom](i,j,k);
+                                                       + dt_local * fslow[IntVars::zmom](i,j,k);
                         });
                     } // no EB
                 } // not moving terrain

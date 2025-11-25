@@ -805,6 +805,9 @@ private:
     amrex::Vector<amrex::Real> dt;
     amrex::Vector<long> dt_mri_ratio;
 
+    // Local timesteps for steady-state convergence acceleration
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> dt_cell;
+
 #ifndef ERF_USE_MULTIBLOCK
     // Array of multifabs to store the solution at each level of refinement;
     // after advancing a level we use "swap".

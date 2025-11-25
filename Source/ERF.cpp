@@ -441,6 +441,9 @@ ERF::ERF_shared ()
     vel_t_avg.resize(nlevs_max);
     t_avg_cnt.resize(nlevs_max);
 
+    // Local timesteps for steady-state convergence
+    dt_cell.resize(nlevs_max);
+
     // Size lat long arrays and default to null pointers
     lat_m.resize(nlevs_max);
     lon_m.resize(nlevs_max);

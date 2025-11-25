@@ -224,6 +224,13 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         t_avg_cnt[lev] = 0.0;
     }
 
+    // Local timesteps for steady-state convergence acceleration
+    dt_cell[lev] = nullptr;
+    if (solverChoice.use_local_timestepping) {
+        dt_cell[lev] = std::make_unique<MultiFab>(ba, dm, 1, 0); // One timestep per cell
+        dt_cell[lev]->setVal(0.0);
+    }
+
     // ********************************************************************************************
     // Initialize flux registers whenever we create/re-create a level
     // ********************************************************************************************
