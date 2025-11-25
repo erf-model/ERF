@@ -528,6 +528,12 @@ List of Parameters
 |                            | subsequent           |                | ref_ratio           |
 |                            | levels               |                |                     |
 +----------------------------+----------------------+----------------+---------------------+
+| **erf.use_local_**         | Enable local         | true / false   | false               |
+| **timestepping**           | timestepping for     |                |                     |
+|                            | steady-state         |                |                     |
+|                            | convergence          |                |                     |
+|                            | acceleration         |                |                     |
++----------------------------+----------------------+----------------+---------------------+
 
 Notes
 -----------------
@@ -572,6 +578,17 @@ Notes
          will be computed using the CFL condition for compressible flow, then adjusted (reduced if necessary)
          as above so that the ratio of slow timestep to fine timestep is an even integer.
          If **erf.substepping_cfl** is specified, that CFL value will be used.  If not, the default value will be used.
+
+-  | If **erf.use_local_timestepping** is true, local timestepping is enabled for steady-state convergence acceleration.
+     Each cell uses its own timestep based on local CFL constraints rather than a single global timestep. This is useful for:
+
+   * | Problems where only the steady-state solution is of interest (not transient behavior)
+   * | Flow fields with regions of vastly different characteristic speeds
+   * | Accelerating convergence to equilibrium
+
+   The global timestep **dt** is still computed and represents the minimum timestep across all cells.
+   Local timestepping should **not** be used for time-dependent problems requiring temporal accuracy.
+   See :ref:`LocalTimestepping` for more details.
 
 .. _examples-of-usage-5:
 

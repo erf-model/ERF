@@ -159,3 +159,50 @@ substepping equations for horizontal momentum. According to Skamarock et al,
 this is equivalent to including a horizontal diffusion term in the continuity
 equation. A typical damping coefficient of :math:`\beta_d = 0.1` is used, as in
 WRF.
+
+.. _LocalTimestepping:
+
+Local Timestepping for Steady-State Convergence
+------------------------------------------------
+
+ERF provides an option to use local timestepping to accelerate convergence to steady state.
+When enabled via the runtime parameter ``erf.use_local_timestepping = true``, each computational
+cell uses its own local timestep based on the local CFL constraint, rather than a single global
+timestep limited by the most restrictive cell.
+
+This approach is beneficial for steady-state problems where:
+
+* Temporal accuracy is not required (only the final steady-state solution is of interest)
+* The flow field has regions with vastly different characteristic speeds
+* Faster convergence to equilibrium is desired
+
+The local timestep for each cell :math:`(i,j,k)` is computed as:
+
+.. math::
+
+   \Delta t_{i,j,k} = \frac{\text{CFL}}{\max\left(\frac{|u| + c}{\Delta x}, \frac{|v| + c}{\Delta y}, \frac{|w| + c}{\Delta z}\right)}
+
+where :math:`u, v, w` are the velocity components, :math:`c` is the local sound speed,
+and :math:`\Delta x, \Delta y, \Delta z` are the cell dimensions.
+
+During each Runge-Kutta stage, the solution update uses the local timestep:
+
+.. math::
+
+   \mathbf{S}^{n+1}_{i,j,k} = \mathbf{S}^{n}_{i,j,k} + \Delta t_{i,j,k} f(\mathbf{S}_{i,j,k})
+
+For momentum variables located on cell faces, the timestep is computed as the average
+of the adjacent cell-center timesteps.
+
+**Important Notes:**
+
+* Local timestepping should only be used for steady-state problems
+* Time-dependent features (e.g., time-accurate turbulence, waves) will not be correctly resolved
+* The global timestep ``dt`` is still computed and reported, representing the minimum timestep across all cells
+* This feature is compatible with both terrain types and embedded boundaries
+
+To enable local timestepping, add to your input file:
+
+.. code-block:: bash
+
+   erf.use_local_timestepping = true
