@@ -138,11 +138,23 @@
 
                         const bool use_local_dt = (solverChoice.use_local_timestepping && dt_cell[level]);
                         const Array4<const Real> dt_local_arr = use_local_dt ? dt_cell[level]->const_array(mfi) : Array4<const Real>{};
+                        const Box& dt_box = use_local_dt ? dt_cell[level]->box(mfi) : Box();
 
                         ParallelFor(tbx, tby, tbz,
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                             if (vfrac_u(i,j,k) > 0.0) {
-                                const Real dt_local = use_local_dt ? 0.5*(dt_local_arr(i-1,j,k)+dt_local_arr(i,j,k)) : slow_dt;
+                                Real dt_local = slow_dt;
+                                if (use_local_dt) {
+                                    // Average adjacent cell timesteps for face-centered momentum
+                                    // Use single-sided if at boundary
+                                    if (dt_box.contains(i-1,j,k) && dt_box.contains(i,j,k)) {
+                                        dt_local = 0.5*(dt_local_arr(i-1,j,k)+dt_local_arr(i,j,k));
+                                    } else if (dt_box.contains(i,j,k)) {
+                                        dt_local = dt_local_arr(i,j,k);
+                                    } else if (dt_box.contains(i-1,j,k)) {
+                                        dt_local = dt_local_arr(i-1,j,k);
+                                    }
+                                }
                                 // ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k);
                                 ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
                                                            + dt_local * fslow[IntVars::xmom](i,j,k);
@@ -152,7 +164,18 @@
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                             if (vfrac_v(i,j,k) > 0.0) {
-                                const Real dt_local = use_local_dt ? 0.5*(dt_local_arr(i,j-1,k)+dt_local_arr(i,j,k)) : slow_dt;
+                                Real dt_local = slow_dt;
+                                if (use_local_dt) {
+                                    // Average adjacent cell timesteps for face-centered momentum
+                                    // Use single-sided if at boundary
+                                    if (dt_box.contains(i,j-1,k) && dt_box.contains(i,j,k)) {
+                                        dt_local = 0.5*(dt_local_arr(i,j-1,k)+dt_local_arr(i,j,k));
+                                    } else if (dt_box.contains(i,j,k)) {
+                                        dt_local = dt_local_arr(i,j,k);
+                                    } else if (dt_box.contains(i,j-1,k)) {
+                                        dt_local = dt_local_arr(i,j-1,k);
+                                    }
+                                }
                                 // ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k);
                                 ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
                                                            + dt_local * fslow[IntVars::ymom](i,j,k);
@@ -162,7 +185,18 @@
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                             if (vfrac_w(i,j,k) > 0.0) {
-                                const Real dt_local = use_local_dt ? 0.5*(dt_local_arr(i,j,k-1)+dt_local_arr(i,j,k)) : slow_dt;
+                                Real dt_local = slow_dt;
+                                if (use_local_dt) {
+                                    // Average adjacent cell timesteps for face-centered momentum
+                                    // Use single-sided if at boundary
+                                    if (dt_box.contains(i,j,k-1) && dt_box.contains(i,j,k)) {
+                                        dt_local = 0.5*(dt_local_arr(i,j,k-1)+dt_local_arr(i,j,k));
+                                    } else if (dt_box.contains(i,j,k)) {
+                                        dt_local = dt_local_arr(i,j,k);
+                                    } else if (dt_box.contains(i,j,k-1)) {
+                                        dt_local = dt_local_arr(i,j,k-1);
+                                    }
+                                }
                                 // ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k);
                                 ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
                                                            + dt_local * fslow[IntVars::zmom](i,j,k);
@@ -174,20 +208,54 @@
                     } else {
                         const bool use_local_dt = (solverChoice.use_local_timestepping && dt_cell[level]);
                         const Array4<const Real> dt_local_arr = use_local_dt ? dt_cell[level]->const_array(mfi) : Array4<const Real>{};
+                        const Box& dt_box = use_local_dt ? dt_cell[level]->box(mfi) : Box();
                         
                         ParallelFor(tbx, tby, tbz,
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            const Real dt_local = use_local_dt ? 0.5*(dt_local_arr(i-1,j,k)+dt_local_arr(i,j,k)) : slow_dt;
+                            Real dt_local = slow_dt;
+                            if (use_local_dt) {
+                                // Average adjacent cell timesteps for face-centered momentum
+                                // Use single-sided if at boundary
+                                if (dt_box.contains(i-1,j,k) && dt_box.contains(i,j,k)) {
+                                    dt_local = 0.5*(dt_local_arr(i-1,j,k)+dt_local_arr(i,j,k));
+                                } else if (dt_box.contains(i,j,k)) {
+                                    dt_local = dt_local_arr(i,j,k);
+                                } else if (dt_box.contains(i-1,j,k)) {
+                                    dt_local = dt_local_arr(i-1,j,k);
+                                }
+                            }
                             ssum[IntVars::xmom](i,j,k) = sold[IntVars::xmom](i,j,k)
                                                        + dt_local * fslow[IntVars::xmom](i,j,k);
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            const Real dt_local = use_local_dt ? 0.5*(dt_local_arr(i,j-1,k)+dt_local_arr(i,j,k)) : slow_dt;
+                            Real dt_local = slow_dt;
+                            if (use_local_dt) {
+                                // Average adjacent cell timesteps for face-centered momentum
+                                // Use single-sided if at boundary
+                                if (dt_box.contains(i,j-1,k) && dt_box.contains(i,j,k)) {
+                                    dt_local = 0.5*(dt_local_arr(i,j-1,k)+dt_local_arr(i,j,k));
+                                } else if (dt_box.contains(i,j,k)) {
+                                    dt_local = dt_local_arr(i,j,k);
+                                } else if (dt_box.contains(i,j-1,k)) {
+                                    dt_local = dt_local_arr(i,j-1,k);
+                                }
+                            }
                             ssum[IntVars::ymom](i,j,k) = sold[IntVars::ymom](i,j,k)
                                                        + dt_local * fslow[IntVars::ymom](i,j,k);
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            const Real dt_local = use_local_dt ? 0.5*(dt_local_arr(i,j,k-1)+dt_local_arr(i,j,k)) : slow_dt;
+                            Real dt_local = slow_dt;
+                            if (use_local_dt) {
+                                // Average adjacent cell timesteps for face-centered momentum
+                                // Use single-sided if at boundary
+                                if (dt_box.contains(i,j,k-1) && dt_box.contains(i,j,k)) {
+                                    dt_local = 0.5*(dt_local_arr(i,j,k-1)+dt_local_arr(i,j,k));
+                                } else if (dt_box.contains(i,j,k)) {
+                                    dt_local = dt_local_arr(i,j,k);
+                                } else if (dt_box.contains(i,j,k-1)) {
+                                    dt_local = dt_local_arr(i,j,k-1);
+                                }
+                            }
                             ssum[IntVars::zmom](i,j,k) = sold[IntVars::zmom](i,j,k)
                                                        + dt_local * fslow[IntVars::zmom](i,j,k);
                         });

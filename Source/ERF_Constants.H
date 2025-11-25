@@ -94,4 +94,8 @@ constexpr amrex::Real omeps    = 1. - epsilo;
 constexpr amrex::Real rhoh2o   = 1.000e3;  // density of liquid water
 
 static constexpr int  ORB_UNDEF_INT  = 2000000000;  // undefined int
+
+// Timestep Constants
+constexpr amrex::Real LARGE_DT = 1.e20;  // Large timestep value for unlimited cells
+
 #endif

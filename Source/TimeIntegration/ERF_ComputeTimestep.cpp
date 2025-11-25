@@ -1,5 +1,6 @@
 #include <ERF_EOS.H>
 #include <ERF.H>
+#include <ERF_Constants.H>
 
 using namespace amrex;
 
@@ -55,8 +56,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 {
     BL_PROFILE("ERF::estTimeStep()");
 
-    Real estdt_comp = 1.e20;
-    Real estdt_lowM = 1.e20;
+    Real estdt_comp = LARGE_DT;
+    Real estdt_lowM = LARGE_DT;
 
     // We intentionally use the level 0 domain to compute whether to use this direction in the dt calculation
     const int nxc = geom[0].Domain().length(0);
@@ -277,9 +278,9 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                  dt_inv = (amrex::Math::abs(u(i,j,k,2))+c)*dzinv;
                              }
                          }
-                         dt_arr(i,j,k) = (dt_inv > 0.0) ? cfl / dt_inv : 1.e20;
+                         dt_arr(i,j,k) = (dt_inv > 0.0) ? cfl / dt_inv : LARGE_DT;
                      } else {
-                         dt_arr(i,j,k) = 1.e20;
+                         dt_arr(i,j,k) = LARGE_DT;
                      }
                  });
              }
@@ -321,7 +322,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                              dt_inv = (amrex::Math::abs(u(i,j,k,2))+c)*dzinv;
                          }
                      }
-                     dt_arr(i,j,k) = (dt_inv > 0.0) ? cfl / dt_inv : 1.e20;
+                     dt_arr(i,j,k) = (dt_inv > 0.0) ? cfl / dt_inv : LARGE_DT;
                  });
              }
          }
