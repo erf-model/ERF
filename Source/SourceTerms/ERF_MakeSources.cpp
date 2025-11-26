@@ -561,6 +561,11 @@ void make_sources (int level,
             const Array4<const Real>& u = xvel.array(mfi);
             const Array4<const Real>& v = yvel.array(mfi);
 
+            // geometric properties
+            const Real* dx_arr = geom.CellSize();
+            const Real dx_x = dx_arr[0];
+            const Real dx_y = dx_arr[1];
+
             const Real alpha_h          = solverChoice.if_Cd_scalar;
             const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
             const Real U_s              = 1.0; // unit velocity scale
@@ -590,7 +595,7 @@ void make_sources (int level,
                 if (t_blank_east < min_t_blank) { t_blank_east = 0.0; }
                 if (t_blank_west < min_t_blank) { t_blank_west = 0.0; } 
 
-                Real dx_z    = (z_cc_arr) ? 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx_arr[2];
+                Real dx_z    = (z_cc_arr) ? 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx[2];
                 Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, 1./3.);
 
                 const Real ux_cc_2r = 0.5 * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));

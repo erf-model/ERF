@@ -92,7 +92,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
         }
 
         make_mom_sources(old_substep_time, dtau, Svec_to_use,
-                         *z_phys_nd[level].get(), *z_phys_cc[level].get(), stretched_dz_h[level],
+                         z_phys_nd[level].get(), z_phys_cc[level].get(), stretched_dz_h[level],
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
                          base_to_use, forest_drag, terrain_blank,

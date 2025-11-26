@@ -37,8 +37,8 @@ using namespace amrex;
 void make_mom_sources (Real time,
                        Real /*dt*/,
                        const Vector<MultiFab>& S_data,
-                             MultiFab& z_phys_nd,
-                             MultiFab& z_phys_cc,
+                       const MultiFab* z_phys_nd,
+                       const MultiFab* z_phys_cc,
                              Vector<Real>& stretched_dz_h,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
@@ -314,8 +314,8 @@ void make_mom_sources (Real time,
         const Array4<const Real>& sphi_arr = (sinPhi_mf) ? sinPhi_mf->const_array(mfi) :
                                                            Array4<const Real>{};
 
-        const Array4<const Real>& z_nd_arr =  z_phys_nd.const_array(mfi);
-        const Array4<const Real>& z_cc_arr =  z_phys_cc.const_array(mfi);
+        const Array4<const Real>& z_nd_arr =  z_phys_nd->const_array(mfi);
+        const Array4<const Real>& z_cc_arr =  z_phys_cc->const_array(mfi);
 
 
         // *****************************************************************************
@@ -676,7 +676,6 @@ void make_mom_sources (Real time,
         // *****************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
-
             // geometric properties
             const Real* dx_arr = geom.CellSize();
             const Real dx_x = dx_arr[0];
@@ -820,8 +819,13 @@ void make_mom_sources (Real time,
         // 9b. Add immersed source terms for buildings
         // *****************************************************************************
         if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing ) &&
-            (is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
         {
+            // geometric properties
+            const Real* dx_arr = geom.CellSize();
+            const Real dx_x = dx_arr[0];
+            const Real dx_y = dx_arr[1];
+
             const Real alpha_m          = solverChoice.if_Cd_momentum;
             const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
             const Real min_t_blank      = 0.005; // threshold for where immersed forcing acts
@@ -835,7 +839,7 @@ void make_mom_sources (Real time,
                                        + w(i, j  , k+1) + w(i-1, j  , k+1) );
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
 
-                const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+                Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
                 if (t_blank < min_t_blank) { t_blank = 0.0; }
                 const Real dx_z    = (z_cc_arr) ? 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, 1./3.);
@@ -852,7 +856,7 @@ void make_mom_sources (Real time,
                                        + w(i  , j  , k+1) + w(i  , j-1, k+1) );
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
 
-                const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+                Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
                 if (t_blank < min_t_blank) { t_blank = 0.0; }
                 const Real dx_z    = (z_cc_arr) ? 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, 1./3.);
@@ -869,7 +873,7 @@ void make_mom_sources (Real time,
                 const Real uz = w(i, j, k);
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
 
-                const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+                Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
                 if (t_blank < min_t_blank) { t_blank = 0.0; }
                 const Real dx_z    = (z_nd_arr) ? 0.5 * (z_nd_arr(i,j,k) - z_nd_arr(i,j,k-2)) : dx_arr[2]; // ASW double check
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, 1./3.);
