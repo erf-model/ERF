@@ -522,7 +522,7 @@ rrtmgp_main (const int ncol, const int nlay,
   // Do longwave
   rrtmgp_lw(ncol, nlay,
             *k_dist_lw_k, p_lay, t_lay, p_lev, t_lev,
-            t_sfc, emis_sfc, lw_src,
+            t_sfc, sfc_emis, lw_src,
             gas_concs, aerosol_lw, clouds_lw_gpt,
             fluxes_lw, clnclrsky_fluxes_lw, clrsky_fluxes_lw, clnsky_fluxes_lw,
             extra_clnclrsky_diag, extra_clnsky_diag);
