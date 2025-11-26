@@ -571,11 +571,6 @@ void make_sources (int level,
             const Real U_s              = 1.0; // unit velocity scale
             const Real min_t_blank      = 0.005;
 
-            // MOST parameters
-            similarity_funs sfuns;
-            const Real ggg                = CONST_GRAV;
-            const Real kappa              = KAPPA;
-            const Real z0                 = solverChoice.if_z0;
             const Real init_surf_temp     = solverChoice.if_init_surf_temp;
             const Real surf_heating_rate  = solverChoice.if_surf_heating_rate;
 
@@ -603,7 +598,6 @@ void make_sources (int level,
                 const Real h_windspeed2r  = std::sqrt(ux_cc_2r * ux_cc_2r + uy_cc_2r * uy_cc_2r);
 
                 const Real theta          = cell_data(i,j,k  ,RhoTheta_comp) / cell_data(i,j,k  ,Rho_comp);
-                const Real theta_neighbor = cell_data(i,j,k+1,RhoTheta_comp) / cell_data(i,j,k+1,Rho_comp);
 
                 // SURFACE TEMP AND HEATING/COOLING RATE
                 if (init_surf_temp > 0.0) {
