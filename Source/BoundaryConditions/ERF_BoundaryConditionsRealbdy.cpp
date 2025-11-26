@@ -407,7 +407,7 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                                 dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                             }
                         } else {
-                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_lo.x,j,k,comp_idx);
+                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_lo.x,jj,k,comp_idx);
                         }
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -430,9 +430,9 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                                 dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                             }
                         } else if (var_idx == Vars::xvel) {
-                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x+1,j,k,comp_idx);
+                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x+1,jj,k,comp_idx);
                         } else {
-                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x,j,k,comp_idx);
+                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x,jj,k,comp_idx);
                         }
                     });
 

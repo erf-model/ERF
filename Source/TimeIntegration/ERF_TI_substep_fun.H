@@ -178,6 +178,80 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
 #include "ERF_Implicit.H"
         }
 
+        // Apply vertical velocity damping at the end of the timestep
+        if ( (solverChoice.dampingChoice.w_damping) &&
+             (nrk == 2) &&
+             (fast_step == n_sub-1))
+        {
+            amrex::Real w_damping_const = solverChoice.dampingChoice.w_damping_const;
+            amrex::Real w_damping_coeff = solverChoice.dampingChoice.w_damping_coeff;
+            amrex::Real cflw_lim        = solverChoice.dampingChoice.w_damping_cfl;
+
+            for ( MFIter mfi(S_data[IntVars::cons]); mfi.isValid(); ++mfi)
+            {
+                Box tbz = mfi.nodaltilebox(2);
+
+                const Array4<const Real>& z_nd_arr  = z_phys_nd[level]->const_array(mfi);
+
+                const Array4<const Real>& cell_data = S_data[IntVars::cons].const_array(mfi);
+                const Array4<      Real>& rho_w     = S_data[IntVars::zmom].array(mfi);
+
+                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real dzInv;
+                    if (z_nd_arr) {
+                        // average z_nd to face then diff
+                        if (k == domain.smallEnd(2)) {
+                            dzInv = 4.0 / (
+                                z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k)
+                              + z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k)
+                              + z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k)
+                              + z_nd_arr(i+1,j+1,k+1) - z_nd_arr(i+1,j+1,k) );
+                        } else if (k == domain.bigEnd(2)+1) {
+                            dzInv = 4.0 / (
+                                z_nd_arr(i  ,j  ,k) - z_nd_arr(i  ,j  ,k-1)
+                              + z_nd_arr(i+1,j  ,k) - z_nd_arr(i+1,j  ,k-1)
+                              + z_nd_arr(i  ,j+1,k) - z_nd_arr(i  ,j+1,k-1)
+                              + z_nd_arr(i+1,j+1,k) - z_nd_arr(i+1,j+1,k-1) );
+                        } else {
+                            // dz = 0.5 * (dz[i,j,k] + dz[i,j,k+1])
+                            //    = 0.5 * (z_nd_face[i,j,k+1] - z_nd_face[i,j,k-1])
+                            dzInv = 8.0 / (
+                                z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k-1)
+                              + z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k-1)
+                              + z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k-1)
+                              + z_nd_arr(i+1,j+1,k+1) - z_nd_arr(i+1,j+1,k-1) );
+                        }
+                    } else {
+                        dzInv = dxInv[2];
+                    }
+
+                    Real dampcoef = (w_damping_const > 0)
+                                  ? w_damping_const
+                                  : w_damping_coeff / (dzInv * dt_advance * dt_advance);
+
+                    Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                    Real wmag = std::abs(rho_w(i,j,k) / rho_on_w_face);
+
+                    // This is the dynamics timestep, not the slow or fast dt
+                    Real cflw = wmag * dt_advance * dzInv;
+
+                    if (cflw > cflw_lim) {
+                        Real sgn_w = (rho_w(i,j,k) > 0) ? 1.0 : -1.0;
+                        rho_w(i, j, k) -= rho_on_w_face * sgn_w * dampcoef * (cflw - cflw_lim) * dt_advance;
+                        // Note: These prints are not immediately flushed to screen
+#ifdef AMREX_USE_GPU
+                        AMREX_DEVICE_PRINTF("t=%f w-damping applied at (%d,%d,%d) for w-CFL = %f > %f : %f --> %f\n",
+                               old_time+dt_advance, i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
+#else
+                        printf("t=%f w-damping applied at (%d,%d,%d) for w-CFL = %f > %f : %f --> %f\n",
+                               old_time+dt_advance, i,j,k, cflw, cflw_lim, sgn_w*wmag, rho_w(i,j,k)/rho_on_w_face);
+#endif
+                    }
+                });
+            }
+        }
+
         // NOTE: Numerical diffusion is tested on in FillPatchIntermediate and dictates the size of the
         //       box over which VelocityToMomentum is computed. V2M requires one more ghost cell be
         //       filled for rho than velocity. This logical condition ensures we fill enough ghost cells

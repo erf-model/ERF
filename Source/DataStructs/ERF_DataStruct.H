@@ -362,6 +362,8 @@ struct SolverChoice {
             }
         }
 
+        pp.query("substepping_diag", substepping_diag);
+
         pp.query("beta_s", beta_s);
 
 
@@ -668,6 +670,8 @@ struct SolverChoice {
             }
         }
 
+        pp.query("file_name_digits", file_name_digits);
+
         check_params(max_level);
     }
 
@@ -926,6 +930,9 @@ struct SolverChoice {
     amrex::Vector<SubsteppingType> substepping_type;
     amrex::Vector<int> anelastic;
 
+    // do some extra CFL diagnostics for compressible with substepping
+    bool substepping_diag = false;
+
     // time off-centering coefficient, > 0 for forward weighting (i.e., bias
     // towards the future time step)
     amrex::Real beta_s = 0.1;
@@ -1075,5 +1082,7 @@ struct SolverChoice {
 
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
+
+    int file_name_digits = 5;
 };
 #endif
