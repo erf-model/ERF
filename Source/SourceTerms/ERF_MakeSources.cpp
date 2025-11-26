@@ -588,7 +588,7 @@ void make_sources (int level,
                 if (t_blank_north < min_t_blank) { t_blank_north = 0.0; }
                 if (t_blank_south < min_t_blank) { t_blank_south = 0.0; }
                 if (t_blank_east < min_t_blank) { t_blank_east = 0.0; }
-                if (t_blank_west < min_t_blank) { t_blank_west = 0.0; } 
+                if (t_blank_west < min_t_blank) { t_blank_west = 0.0; }
 
                 Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx[2];
                 Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, 1./3.);
@@ -606,10 +606,10 @@ void make_sources (int level,
                         const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
                         cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
 
-                    } else if (((t_blank > 0 && t_blank < t_blank_west && t_blank_east == 0.0) || 
+                    } else if (((t_blank > 0 && t_blank < t_blank_west && t_blank_east == 0.0) ||
                                 (t_blank > 0 && t_blank < t_blank_east && t_blank_west == 0.0) ||
                                 (t_blank > 0 && t_blank < t_blank_north && t_blank_south == 0.0) ||
-                                (t_blank > 0 && t_blank < t_blank_south && t_blank_north == 0.0))) { 
+                                (t_blank > 0 && t_blank < t_blank_south && t_blank_north == 0.0))) {
                         // this should enter for just building walls
                         // walls are currently separated to allow for flexible in the future to heat walls differently
 

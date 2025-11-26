@@ -1837,7 +1837,7 @@ ERF::InitData_post ()
     }
 
     if ( solverChoice.terrain_type == TerrainType::EB ||
-         solverChoice.terrain_type == TerrainType::ImmersedForcing  || 
+         solverChoice.terrain_type == TerrainType::ImmersedForcing  ||
          solverChoice.buildings_type == BuildingsType::ImmersedForcing )
     {
         bool write_eb_surface = false;
@@ -2075,7 +2075,7 @@ ERF::init_only (int lev, Real time)
     }
 
     // Set initial velocity field for immersed cells to be close to 0
-    if (solverChoice.terrain_type == TerrainType::ImmersedForcing || 
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         init_immersed_forcing(lev);
     }

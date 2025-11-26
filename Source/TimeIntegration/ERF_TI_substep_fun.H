@@ -39,7 +39,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
             m_forest_drag[level]->get_drag_field() : nullptr;
 
         // Immersed Forcing
-        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing || 
+        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                                    solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ?
             terrain_blanking[level].get() : nullptr;
 

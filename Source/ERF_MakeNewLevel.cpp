@@ -336,7 +336,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
         if (solverChoice.terrain_type == TerrainType::EB) {
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
-        } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing || 
+        } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
         }
@@ -556,7 +556,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Build the data structures for terrain-related quantities
     // ********************************************************************************************
     if ( solverChoice.terrain_type == TerrainType::EB ||
-         solverChoice.terrain_type == TerrainType::ImmersedForcing || 
+         solverChoice.terrain_type == TerrainType::ImmersedForcing ||
          solverChoice.buildings_type == BuildingsType::ImmersedForcing)
     {
         const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
