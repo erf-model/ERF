@@ -104,6 +104,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     Real estdt_vert_comp_inv;
     Real estdt_vert_lowM_inv;
 
+    // ************************************************************************
+    // Estimate compressible timestep
+    // ************************************************************************
+
     if (l_substepping && (nxc==1) && (nyc==1)) {
         // SCM -- should not depend on dx or dy; force minimum number of substeps
         estdt_comp_inv = std::numeric_limits<Real>::min();
@@ -232,6 +236,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     ParallelDescriptor::ReduceRealMax(estdt_comp_inv);
     estdt_comp = cfl / estdt_comp_inv;
 
+    // ************************************************************************
+    // Estimate low-Mach timestep
+    // ************************************************************************
+
      Real estdt_lowM_inv = ReduceMax(ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& u) -> Real
@@ -250,12 +258,31 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      if (estdt_lowM_inv > 0.0_rt)
          estdt_lowM = cfl / estdt_lowM_inv;
 
+     // ************************************************************************
      // Compute local timesteps for steady-state convergence acceleration
+     // ************************************************************************
+
      if (solverChoice.use_local_timestepping && dt_cell[level]) {
          MultiFab& dt_local = *dt_cell[level];
          
          // Compute local timestep for each cell based on local CFL constraint
-         if (solverChoice.terrain_type == TerrainType::EB) {
+         if (l_anelastic) {
+             for (MFIter mfi(dt_local, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                 const Box& bx = mfi.tilebox();
+                 const Array4<Real>& dt_arr = dt_local.array(mfi);
+                 const Array4<const Real>& u = ccvel.const_array(mfi);
+                 const Array4<const Real>& detJ = detJ_cc[level]->const_array(mfi);
+
+                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                     // Use actual physical spacing: dxinv[2] / detJ instead of dzinv
+                     const Real dz_inv_local = (detJ(i,j,k) > 0.) ? dxinv[2] / detJ(i,j,k) : dzinv;
+
+                     dt_arr(i,j,k) = cfl / amrex::max(amrex::Math::abs(u(i,j,k,0))*dxinv[0],
+                                                      amrex::Math::abs(u(i,j,k,1))*dxinv[1],
+                                                      amrex::Math::abs(u(i,j,k,2))*dz_inv_local);
+                 });
+             }
+         } else if (solverChoice.terrain_type == TerrainType::EB) {
              const eb_& eb_lev = get_eb(level);
              const MultiFab& detJ = (eb_lev.get_const_factory())->getVolFrac();
              
@@ -326,6 +353,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                      
                      Real dt_inv = 0.0;
                      if (l_substepping) {
+#if 0
                          if ((nxc > 1) && (nyc==1)) {
                              dt_inv = (amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0];
                          } else if ((nyc > 1) && (nxc==1)) {
@@ -334,6 +362,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                              dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
                                                  (amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]);
                          }
+#endif
                      } else {
                          if (nxc > 1 && nyc > 1) {
                              dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
@@ -349,13 +378,18 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                              dt_inv = (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local;
                          }
                      }
-                     dt_arr(i,j,k) = (dt_inv > 0.0) ? cfl / dt_inv : LARGE_DT;
+                     AMREX_ALWAYS_ASSERT(dt_inv > 0.0);
+                     dt_arr(i,j,k) = cfl / dt_inv;
                  });
              }
-         }
+         } // not EB
      }
 
-     // Additional vertical diagnostics
+     // ************************************************************************
+     // Print timestep info
+     // ************************************************************************
+
+     // Optional vertical diagnostics
      if (l_comp_substepping_diag) {
          estdt_vert_comp_inv = ReduceMax(S_new, ccvel, 0,
          [=] AMREX_GPU_HOST_DEVICE (Box const& b,
@@ -425,6 +459,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          }
      }
 
+     // ************************************************************************
+     // Calculate integer ratio of slow to fast timesteps
+     // ************************************************************************
+
      if (solverChoice.substepping_type[level] != SubsteppingType::None) {
          if (fixed_dt[level] > 0. && fixed_fast_dt[level] > 0.) {
              dt_fast_ratio = static_cast<long>( fixed_dt[level] / fixed_fast_dt[level] );
@@ -454,8 +492,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          }
      } // if substepping
 
-     // Print out some extra diagnostics -- dt calcs are repeated so as to not
-     // disrupt the overall code flow...
+     // Print out some extra diagnostics now that we have the dt ratio
      if (l_comp_substepping_diag) {
          Real dt_diag = (fixed_dt[level] > 0.0) ? fixed_dt[level] : estdt_comp;
          int  ns      = (fixed_mri_dt_ratio > 0.0) ? fixed_mri_dt_ratio : dt_fast_ratio;
@@ -486,7 +523,6 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
             } else {
                 return estdt_lowM;
             }
-
 
          // Compressible with or without substepping
          } else {

@@ -367,6 +367,11 @@ struct SolverChoice {
         pp.query("beta_s", beta_s);
 
 
+        // *******************************************************************************
+        // Use local timestepping for steady-state convergence acceleration -- EXPERIMENTAL
+        // *******************************************************************************
+        pp.query("use_local_timestepping",use_local_timestepping);
+
 
         // *******************************************************************************
         // Error check on deprecated input
@@ -402,6 +407,15 @@ struct SolverChoice {
             if (anelastic[lev] != 0)
             {
                 substepping_type[lev] = SubsteppingType::None;
+            }
+        }
+
+        // Local timestepping is an experimental feature, variable dt and dtau
+        // are not implemented in slow_rhs_pre...
+        if (use_local_timestepping) {
+            for (int lev = 0; lev <= max_level; lev++) {
+                if (substepping_type[lev] != SubsteppingType::None)
+                    amrex::Abort("Experimental local timestepping feature does not support acoustic substeps");
             }
         }
 
@@ -619,9 +633,6 @@ struct SolverChoice {
         pp.query("windfarm_y_shift",windfarm_y_shift);
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
-
-        // Use local timestepping for steady-state convergence acceleration
-        pp.query("use_local_timestepping",use_local_timestepping);
 
         pp.query("hindcast_lateral_forcing", hindcast_lateral_forcing);
 
