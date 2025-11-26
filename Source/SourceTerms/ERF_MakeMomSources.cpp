@@ -841,7 +841,7 @@ void make_mom_sources (Real time,
 
                 Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
                 if (t_blank < min_t_blank) { t_blank = 0.0; }
-                const Real dx_z    = (z_cc_arr) ? 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx_arr[2];
+                const Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, 1./3.);
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
                 const Real rho_xface = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
@@ -858,7 +858,7 @@ void make_mom_sources (Real time,
 
                 Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
                 if (t_blank < min_t_blank) { t_blank = 0.0; }
-                const Real dx_z    = (z_cc_arr) ? 0.5 * (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-2)) : dx_arr[2];
+                const Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, 1./3.);
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
                 const Real rho_yface =  0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
@@ -875,7 +875,7 @@ void make_mom_sources (Real time,
 
                 Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
                 if (t_blank < min_t_blank) { t_blank = 0.0; }
-                const Real dx_z    = (z_nd_arr) ? 0.5 * (z_nd_arr(i,j,k) - z_nd_arr(i,j,k-2)) : dx_arr[2]; // ASW double check
+                const Real dx_z    = (z_nd_arr) ? (z_nd_arr(i,j,k) - z_nd_arr(i,j,k-1)) : dx_arr[2]; // ASW double check
                 const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, 1./3.);
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
                 const Real rho_zface =  0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
