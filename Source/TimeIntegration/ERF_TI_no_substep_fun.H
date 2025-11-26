@@ -112,11 +112,11 @@
 
                 } else { // Fixed or no terrain
                     const Array4<const Real>& dJ_old = detJ_cc[level]->const_array(mfi);
-                    
+
                     // Get local timesteps if enabled
                     const bool use_local_dt = (solverChoice.use_local_timestepping && dt_cell[level]);
                     const Array4<const Real> dt_local_arr = use_local_dt ? dt_cell[level]->const_array(mfi) : Array4<const Real>{};
-                    
+
                     ParallelFor(bx, ncomp_fast[IntVars::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVars::cons] + nn;
@@ -209,7 +209,7 @@
                         const bool use_local_dt = (solverChoice.use_local_timestepping && dt_cell[level]);
                         const Array4<const Real> dt_local_arr = use_local_dt ? dt_cell[level]->const_array(mfi) : Array4<const Real>{};
                         const Box& dt_box = use_local_dt ? mfi.validbox() : Box();
-                        
+
                         ParallelFor(tbx, tby, tbz,
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                             Real dt_local = slow_dt;

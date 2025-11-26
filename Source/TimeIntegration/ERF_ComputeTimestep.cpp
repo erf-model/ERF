@@ -17,8 +17,8 @@ ERF::ComputeDt (int step)
             // Initialize CFL to cfl_init
             cfl = cfl_init;
             if (verbose) {
-                Print() << "CFL ramping enabled: starting at cfl = " << cfl 
-                        << " with ramping factor = " << cfl_ramping_factor 
+                Print() << "CFL ramping enabled: starting at cfl = " << cfl
+                        << " with ramping factor = " << cfl_ramping_factor
                         << " targeting cfl = " << cfl_target << std::endl;
             }
         } else {
@@ -264,7 +264,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
      if (solverChoice.use_local_timestepping && dt_cell[level]) {
          MultiFab& dt_local = *dt_cell[level];
-         
+
          // Compute local timestep for each cell based on local CFL constraint
          if (l_anelastic) {
              for (MFIter mfi(dt_local, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -285,24 +285,24 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          } else if (solverChoice.terrain_type == TerrainType::EB) {
              const eb_& eb_lev = get_eb(level);
              const MultiFab& detJ = (eb_lev.get_const_factory())->getVolFrac();
-             
+
              for (MFIter mfi(dt_local, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                  const Box& bx = mfi.tilebox();
                  const Array4<Real>& dt_arr = dt_local.array(mfi);
                  const Array4<const Real>& s = S_new.const_array(mfi);
                  const Array4<const Real>& u = ccvel.const_array(mfi);
                  const Array4<const Real>& vf = detJ.const_array(mfi);
-                 
+
                  ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                      if (vf(i,j,k) > 0.) {
                          const Real rho = s(i, j, k, Rho_comp);
                          const Real rhotheta = s(i, j, k, RhoTheta_comp);
                          Real pressure = getPgivenRTh(rhotheta);
                          Real c = std::sqrt(Gamma * pressure / rho);
-                         
+
                          // Use actual physical spacing: dxinv[2] / detJ instead of dzinv
                          const Real dz_inv_local = (vf(i,j,k) > 0.) ? dxinv[2] / vf(i,j,k) : dzinv;
-                         
+
                          Real dt_inv = 0.0;
                          if (l_substepping) {
                              if ((nxc > 1) && (nyc==1)) {
@@ -341,16 +341,16 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                  const Array4<const Real>& s = S_new.const_array(mfi);
                  const Array4<const Real>& u = ccvel.const_array(mfi);
                  const Array4<const Real>& detJ = detJ_cc[level]->const_array(mfi);
-                 
+
                  ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                      const Real rho = s(i, j, k, Rho_comp);
                      const Real rhotheta = s(i, j, k, RhoTheta_comp);
                      Real pressure = getPgivenRTh(rhotheta);
                      Real c = std::sqrt(Gamma * pressure / rho);
-                     
+
                      // Use actual physical spacing: dxinv[2] / detJ instead of dzinv
                      const Real dz_inv_local = (detJ(i,j,k) > 0.) ? dxinv[2] / detJ(i,j,k) : dzinv;
-                     
+
                      Real dt_inv = 0.0;
                      if (l_substepping) {
 #if 0

@@ -592,7 +592,7 @@ Notes
          as above so that the ratio of slow timestep to fine timestep is an even integer.
          If **erf.substepping_cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
--  | **CFL Ramping**: If **erf.cfl_init** is specified, the CFL number will start at this value and ramp up to the target 
+-  | **CFL Ramping**: If **erf.cfl_init** is specified, the CFL number will start at this value and ramp up to the target
      **erf.cfl** value. Each timestep, the current CFL is multiplied by **erf.cfl_ramping_factor** until the target is reached.
      This is useful for:
 

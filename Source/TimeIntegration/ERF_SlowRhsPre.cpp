@@ -716,7 +716,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         if (use_local_dt && dt_cell) {
             const Array4<const Real>& dt_arr = dt_cell->const_array(mfi);
             const Box& dt_box = mfi.validbox();
-            
+
             ParallelFor(tbx, tby,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             { // x-momentum equation

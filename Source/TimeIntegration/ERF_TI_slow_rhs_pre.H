@@ -173,7 +173,7 @@
             MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
                              S_data[IntVars::cons].nGrowVect());
             MultiFab::Copy(scratch, S_old[IntVars::cons], 0, 0, 2, S_data[IntVars::cons].nGrowVect()); // scratch := S_old               (for rho, rhotheta)
-            
+
             // Handle local timestepping
             if (solverChoice.use_local_timestepping && dt_cell[level]) {
                 for (MFIter mfi(scratch, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -181,7 +181,7 @@
                     const Array4<Real>& scratch_arr = scratch.array(mfi);
                     const Array4<const Real>& rhs_arr = S_rhs[IntVars::cons].const_array(mfi);
                     const Array4<const Real>& dt_arr = dt_cell[level]->const_array(mfi);
-                    
+
                     ParallelFor(bx, 2, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
                         scratch_arr(i,j,k,n) += dt_arr(i,j,k) * rhs_arr(i,j,k,n);
                     });
@@ -204,7 +204,7 @@
 #endif
             if (solverChoice.implicit_momentum_diffusion) {
                 MultiFab::Copy(scratch_xmom, S_old[IntVars::xmom], 0, 0, 1,  S_data[IntVars::xmom].nGrowVect()); // scratch := S_old
-                
+
                 // Handle local timestepping for x-momentum
                 if (solverChoice.use_local_timestepping && dt_cell[level]) {
                     for (MFIter mfi(scratch_xmom, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -213,7 +213,7 @@
                         const Array4<const Real>& rhs_arr = S_rhs[IntVars::xmom].const_array(mfi);
                         const Array4<const Real>& dt_arr = dt_cell[level]->const_array(mfi);
                         const Box& dt_box = mfi.validbox();
-                        
+
                         ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                             Real dt_local = slow_dt;
                             if (dt_box.contains(i-1,j,k) && dt_box.contains(i,j,k)) {
@@ -232,7 +232,7 @@
                 scratch_xmom.FillBoundary(geom[level].periodicity());
 
                 MultiFab::Copy(scratch_ymom, S_old[IntVars::ymom], 0, 0, 1,  S_data[IntVars::ymom].nGrowVect()); // scratch := S_old
-                
+
                 // Handle local timestepping for y-momentum
                 if (solverChoice.use_local_timestepping && dt_cell[level]) {
                     for (MFIter mfi(scratch_ymom, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -241,7 +241,7 @@
                         const Array4<const Real>& rhs_arr = S_rhs[IntVars::ymom].const_array(mfi);
                         const Array4<const Real>& dt_arr = dt_cell[level]->const_array(mfi);
                         const Box& dt_box = mfi.validbox();
-                        
+
                         ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                             Real dt_local = slow_dt;
                             if (dt_box.contains(i,j-1,k) && dt_box.contains(i,j,k)) {
@@ -260,7 +260,7 @@
                 scratch_ymom.FillBoundary(geom[level].periodicity());
 #ifdef ERF_IMPLICIT_W
                 MultiFab::Copy(scratch_zmom, S_old[IntVars::zmom], 0, 0, 1,  S_data[IntVars::zmom].nGrowVect()); // scratch := S_old
-                
+
                 // Handle local timestepping for z-momentum
                 if (solverChoice.use_local_timestepping && dt_cell[level]) {
                     for (MFIter mfi(scratch_zmom, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -269,7 +269,7 @@
                         const Array4<const Real>& rhs_arr = S_rhs[IntVars::zmom].const_array(mfi);
                         const Array4<const Real>& dt_arr = dt_cell[level]->const_array(mfi);
                         const Box& dt_box = mfi.validbox();
-                        
+
                         ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                             Real dt_local = slow_dt;
                             if (dt_box.contains(i,j,k-1) && dt_box.contains(i,j,k)) {
@@ -292,14 +292,14 @@
 #include "ERF_Implicit.H"
 
             MultiFab::Saxpy(scratch, -1.0, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
-            
+
             // Handle local timestepping for division by dt
             if (solverChoice.use_local_timestepping && dt_cell[level]) {
                 for (MFIter mfi(scratch, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                     const Box& bx = mfi.tilebox();
                     const Array4<Real>& scratch_arr = scratch.array(mfi);
                     const Array4<const Real>& dt_arr = dt_cell[level]->const_array(mfi);
-                    
+
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                         scratch_arr(i,j,k,1) /= dt_arr(i,j,k);  // Division for rhotheta component
                     });
@@ -311,7 +311,7 @@
 
             if (solverChoice.implicit_momentum_diffusion) {
                 MultiFab::Saxpy(scratch_xmom, -1.0, S_old[IntVars::xmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                
+
                 // Handle local timestepping for x-momentum division
                 if (solverChoice.use_local_timestepping && dt_cell[level]) {
                     for (MFIter mfi(scratch_xmom, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -319,7 +319,7 @@
                         const Array4<Real>& scratch_arr = scratch_xmom.array(mfi);
                         const Array4<const Real>& dt_arr = dt_cell[level]->const_array(mfi);
                         const Box& dt_box = mfi.validbox();
-                        
+
                         ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                             Real dt_local = slow_dt;
                             if (dt_box.contains(i-1,j,k) && dt_box.contains(i,j,k)) {
@@ -338,7 +338,7 @@
                 MultiFab::Copy(S_rhs[IntVars::xmom], scratch_xmom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
 
                 MultiFab::Saxpy(scratch_ymom, -1.0, S_old[IntVars::ymom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                
+
                 // Handle local timestepping for y-momentum division
                 if (solverChoice.use_local_timestepping && dt_cell[level]) {
                     for (MFIter mfi(scratch_ymom, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -346,7 +346,7 @@
                         const Array4<Real>& scratch_arr = scratch_ymom.array(mfi);
                         const Array4<const Real>& dt_arr = dt_cell[level]->const_array(mfi);
                         const Box& dt_box = mfi.validbox();
-                        
+
                         ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                             Real dt_local = slow_dt;
                             if (dt_box.contains(i,j-1,k) && dt_box.contains(i,j,k)) {
@@ -365,7 +365,7 @@
                 MultiFab::Copy(S_rhs[IntVars::ymom], scratch_ymom, 0, 0, 1, 0);        // slow_rhs := (S_new - S_old) / slow_dt
 #ifdef ERF_IMPLICIT_W
                 MultiFab::Saxpy(scratch_zmom, -1.0, S_old[IntVars::zmom], 0, 0, 1, 0); // scratch  := (S_new - S_old)
-                
+
                 // Handle local timestepping for z-momentum division
                 if (solverChoice.use_local_timestepping && dt_cell[level]) {
                     for (MFIter mfi(scratch_zmom, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -373,7 +373,7 @@
                         const Array4<Real>& scratch_arr = scratch_zmom.array(mfi);
                         const Array4<const Real>& dt_arr = dt_cell[level]->const_array(mfi);
                         const Box& dt_box = mfi.validbox();
-                        
+
                         ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                             Real dt_local = slow_dt;
                             if (dt_box.contains(i,j,k-1) && dt_box.contains(i,j,k)) {
