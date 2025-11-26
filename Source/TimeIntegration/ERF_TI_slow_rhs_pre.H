@@ -56,7 +56,8 @@
             m_forest_drag[level]->get_drag_field() : nullptr;
 
         // Immersed Forcing
-        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing) ?
+        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing || 
+                                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
             terrain_blanking[level].get() : nullptr;
 
         // Update the total moisture variable *before* computing sources since this is used in
