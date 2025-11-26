@@ -94,7 +94,9 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       std::unique_ptr<SHOCInterface>& shoc_lev,
 #endif
                       amrex::YAFluxRegister* fr_as_crse,
-                      amrex::YAFluxRegister* fr_as_fine);
+                      amrex::YAFluxRegister* fr_as_fine,
+                      bool use_local_dt,
+                      amrex::MultiFab* dt_cell);
 
 /**
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
