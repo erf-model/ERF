@@ -359,6 +359,7 @@ calc_edge_intersections ()
 
   RealVect vIP;
   Real distIP;
+  constexpr Real tol = 1.e-15;
 
   amrex::Array<bool, 8> vertex_intersected{}; // true if vertex has been intersected within a path.
 
@@ -371,7 +372,7 @@ calc_edge_intersections ()
 
       amrex::Real length = (v0-v1).vectorLength();
 
-      if ( almostEqual(distIP, 0.0) ) {
+      if ( Math::abs(distIP) < tol ) {
         m_F1.add_vertex(v0);
         m_F4.add_vertex(v0);
         m_F5.add_vertex(v0);
@@ -380,7 +381,7 @@ calc_edge_intersections ()
           vertex_intersected[0] = true;
           ++cuts;
         }
-      } else if ( almostEqual(distIP, length) ) {
+      } else if ( Math::abs(distIP - length) < tol ) {
         m_F1.add_vertex(v1);
         m_F2.add_vertex(v1);
         m_F5.add_vertex(v1);
@@ -408,7 +409,7 @@ calc_edge_intersections ()
 
       amrex::Real length = (v1-v4).vectorLength();
 
-      if ( almostEqual(distIP, 0.0) ) {
+      if ( Math::abs(distIP) < tol ) {
         m_F1.add_vertex(v1);
         m_F2.add_vertex(v1);
         m_F5.add_vertex(v1);
@@ -417,7 +418,7 @@ calc_edge_intersections ()
           vertex_intersected[1] = true;
           ++cuts;
         }
-      } else if ( almostEqual(distIP, length) ) {
+      } else if ( Math::abs(distIP - length) < tol ) {
         m_F2.add_vertex(v4);
         m_F3.add_vertex(v4);
         m_F5.add_vertex(v4);
@@ -445,7 +446,7 @@ calc_edge_intersections ()
 
       amrex::Real length = (v4-v7).vectorLength();
 
-      if ( almostEqual(distIP, 0.0)) {
+      if ( Math::abs(distIP) < tol) {
         m_F2.add_vertex(v4);
         m_F3.add_vertex(v4);
         m_F5.add_vertex(v4);
@@ -454,7 +455,7 @@ calc_edge_intersections ()
           vertex_intersected[4] = true;
           ++cuts;
         }
-      } else if ( almostEqual(distIP, length)) {
+      } else if ( Math::abs(distIP - length) < tol) {
         m_F2.add_vertex(v7);
         m_F3.add_vertex(v7);
         m_F6.add_vertex(v7);
@@ -485,12 +486,12 @@ calc_edge_intersections ()
 
     amrex::Real length = (v1-v5).vectorLength();
 
-    if ( almostEqual(distIP, 0.0)) {
+    if ( Math::abs(distIP) < tol) {
       m_F1.add_vertex(v1);
       m_F2.add_vertex(v1);
       m_F5.add_vertex(v1);
       m_F7.add_vertex(v1);
-    } else if ( almostEqual(distIP, length)) {
+    } else if ( Math::abs(distIP - length) < tol) {
       m_F1.add_vertex(v5);
       m_F2.add_vertex(v5);
       m_F6.add_vertex(v5);
@@ -510,7 +511,7 @@ calc_edge_intersections ()
 
       amrex::Real length = (v0-v2).vectorLength();
 
-      if ( almostEqual(distIP, 0.0) ) {
+      if ( Math::abs(distIP) < tol ) {
         m_F1.add_vertex(v0);
         m_F4.add_vertex(v0);
         m_F5.add_vertex(v0);
@@ -519,7 +520,7 @@ calc_edge_intersections ()
           vertex_intersected[0] = true;
           ++cuts;
         }
-      } else if ( almostEqual(distIP, length) ) {
+      } else if ( Math::abs(distIP - length) < tol ) {
         m_F1.add_vertex(v2);
         m_F4.add_vertex(v2);
         m_F6.add_vertex(v2);
@@ -547,7 +548,7 @@ calc_edge_intersections ()
 
       amrex::Real length = (v2-v5).vectorLength();
 
-      if ( almostEqual(distIP, 0.0)) {
+      if ( Math::abs(distIP) < tol) {
         m_F1.add_vertex(v2);
         m_F4.add_vertex(v2);
         m_F6.add_vertex(v2);
@@ -556,7 +557,7 @@ calc_edge_intersections ()
           vertex_intersected[2] = true;
           ++cuts;
         }
-      } else if ( almostEqual(distIP, length)) {
+      } else if ( Math::abs(distIP - length) < tol) {
         m_F1.add_vertex(v5);
         m_F2.add_vertex(v5);
         m_F6.add_vertex(v5);
@@ -583,7 +584,7 @@ calc_edge_intersections ()
 
       amrex::Real length = (v5-v7).vectorLength();
 
-      if ( almostEqual(distIP, 0.0)) {
+      if ( Math::abs(distIP) < tol) {
         m_F1.add_vertex(v5);
         m_F2.add_vertex(v5);
         m_F6.add_vertex(v5);
@@ -592,7 +593,7 @@ calc_edge_intersections ()
           vertex_intersected[5] = true;
           ++cuts;
         }
-      } else if ( almostEqual(distIP, length)) {
+      } else if ( Math::abs(distIP - length) < tol) {
         m_F2.add_vertex(v7);
         m_F3.add_vertex(v7);
         m_F6.add_vertex(v7);
@@ -623,12 +624,12 @@ calc_edge_intersections ()
 
     amrex::Real length = (v2-v6).vectorLength();
 
-    if ( almostEqual(distIP, 0.0)) {
+    if ( Math::abs(distIP) < tol) {
       m_F1.add_vertex(v2);
       m_F4.add_vertex(v2);
       m_F6.add_vertex(v2);
       m_F7.add_vertex(v2);
-    } else if ( almostEqual(distIP, length)) {
+    } else if ( Math::abs(distIP - length) < tol) {
       m_F3.add_vertex(v6);
       m_F4.add_vertex(v6);
       m_F6.add_vertex(v6);
@@ -649,7 +650,7 @@ calc_edge_intersections ()
 
       amrex::Real length = (v0-v3).vectorLength();
 
-      if ( almostEqual(distIP, 0.0)) {
+      if ( Math::abs(distIP) < tol) {
         m_F1.add_vertex(v0);
         m_F4.add_vertex(v0);
         m_F5.add_vertex(v0);
@@ -658,7 +659,7 @@ calc_edge_intersections ()
           vertex_intersected[0] = true;
           ++cuts;
         }
-      } else if ( almostEqual(distIP, length)) {
+      } else if ( Math::abs(distIP - length) < tol) {
         m_F3.add_vertex(v3);
         m_F4.add_vertex(v3);
         m_F5.add_vertex(v3);
@@ -686,7 +687,7 @@ calc_edge_intersections ()
 
       amrex::Real length = (v3-v6).vectorLength();
 
-      if ( almostEqual(distIP, 0.0)) {
+      if ( Math::abs(distIP) < tol) {
         m_F3.add_vertex(v3);
         m_F4.add_vertex(v3);
         m_F5.add_vertex(v3);
@@ -695,7 +696,7 @@ calc_edge_intersections ()
           vertex_intersected[3] = true;
           ++cuts;
         }
-      } else if ( almostEqual(distIP, length)) {
+      } else if ( Math::abs(distIP - length) < tol) {
         m_F3.add_vertex(v6);
         m_F4.add_vertex(v6);
         m_F6.add_vertex(v6);
@@ -723,7 +724,7 @@ calc_edge_intersections ()
 
       amrex::Real length = (v6-v7).vectorLength();
 
-      if ( almostEqual(distIP, 0.0)) {
+      if ( Math::abs(distIP) < tol) {
         m_F3.add_vertex(v6);
         m_F4.add_vertex(v6);
         m_F6.add_vertex(v6);
@@ -732,7 +733,7 @@ calc_edge_intersections ()
           vertex_intersected[6] = true;
           ++cuts;
         }
-      } else if ( almostEqual(distIP, length)) {
+      } else if ( Math::abs(distIP - length) < tol) {
         m_F2.add_vertex(v7);
         m_F3.add_vertex(v7);
         m_F6.add_vertex(v7);
@@ -763,12 +764,12 @@ calc_edge_intersections ()
 
     amrex::Real length = (v3-v4).vectorLength();
 
-    if ( almostEqual(distIP, 0.0)) {
+    if ( Math::abs(distIP) < tol) {
       m_F3.add_vertex(v3);
       m_F4.add_vertex(v3);
       m_F5.add_vertex(v3);
       m_F7.add_vertex(v3);
-    } else if ( almostEqual(distIP, length)) {
+    } else if ( Math::abs(distIP - length) < tol) {
       m_F2.add_vertex(v4);
       m_F3.add_vertex(v4);
       m_F5.add_vertex(v4);
