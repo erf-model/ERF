@@ -108,7 +108,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        std::unique_ptr<SHOCInterface>& shoc_lev,
 #endif
                        YAFluxRegister* fr_as_crse,
-                       YAFluxRegister* fr_as_fine)
+                       YAFluxRegister* fr_as_fine,
+                       bool use_local_dt,
+                       MultiFab* dt_cell)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -637,14 +639,27 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // If anelastic and in second RK stage, take average of old-time and new-time source
         if ( l_anelastic && (nrk == 1) )
         {
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                cell_rhs(i,j,k,     Rho_comp) *= 0.5;
-                cell_rhs(i,j,k,RhoTheta_comp) *= 0.5;
+            if (use_local_dt && dt_cell) {
+                const Array4<const Real>& dt_arr = dt_cell->const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i,j,k,     Rho_comp) *= 0.5;
+                    cell_rhs(i,j,k,RhoTheta_comp) *= 0.5;
 
-                cell_rhs(i,j,k,     Rho_comp) += 0.5 / dt * (cell_data(i,j,k,     Rho_comp) - cell_old(i,j,k,     Rho_comp));
-                cell_rhs(i,j,k,RhoTheta_comp) += 0.5 / dt * (cell_data(i,j,k,RhoTheta_comp) - cell_old(i,j,k,RhoTheta_comp));
-            });
+                    Real dt_local = dt_arr(i,j,k);
+                    cell_rhs(i,j,k,     Rho_comp) += 0.5 / dt_local * (cell_data(i,j,k,     Rho_comp) - cell_old(i,j,k,     Rho_comp));
+                    cell_rhs(i,j,k,RhoTheta_comp) += 0.5 / dt_local * (cell_data(i,j,k,RhoTheta_comp) - cell_old(i,j,k,RhoTheta_comp));
+                });
+            } else {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i,j,k,     Rho_comp) *= 0.5;
+                    cell_rhs(i,j,k,RhoTheta_comp) *= 0.5;
+
+                    cell_rhs(i,j,k,     Rho_comp) += 0.5 / dt * (cell_data(i,j,k,     Rho_comp) - cell_old(i,j,k,     Rho_comp));
+                    cell_rhs(i,j,k,RhoTheta_comp) += 0.5 / dt * (cell_data(i,j,k,RhoTheta_comp) - cell_old(i,j,k,RhoTheta_comp));
+                });
+            }
         }
 
         // *****************************************************************************
@@ -698,45 +713,108 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         auto abl_pressure_grad    = solverChoice.abl_pressure_grad;
 
-        ParallelFor(tbx, tby,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        { // x-momentum equation
+        if (use_local_dt && dt_cell) {
+            const Array4<const Real>& dt_arr = dt_cell->const_array(mfi);
+            const Box& dt_box = mfi.validbox();
+            
+            ParallelFor(tbx, tby,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            { // x-momentum equation
 
-            // Note that gradp arrays now carry the map factor in them
+                // Note that gradp arrays now carry the map factor in them
 
-            Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : 0.0;
+                Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : 0.0;
 
-            rho_u_rhs(i, j, k) += (-gpx_arr(i,j,k) - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k);
+                rho_u_rhs(i, j, k) += (-gpx_arr(i,j,k) - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k);
 
-            if (l_moving_terrain) {
-                Real h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
-                rho_u_rhs(i, j, k) *= h_zeta;
-            }
+                if (l_moving_terrain) {
+                    Real h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
+                    rho_u_rhs(i, j, k) *= h_zeta;
+                }
 
-            if ( l_anelastic && (nrk == 1) ) {
-              rho_u_rhs(i,j,k) *= 0.5;
-              rho_u_rhs(i,j,k) += 0.5 / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
-            }
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        { // y-momentum equation
+                if ( l_anelastic && (nrk == 1) ) {
+                  rho_u_rhs(i,j,k) *= 0.5;
+                  // Use averaged dt from adjacent cells for face-centered momentum
+                  Real dt_local = dt;
+                  if (dt_box.contains(i-1,j,k) && dt_box.contains(i,j,k)) {
+                      dt_local = 0.5 * (dt_arr(i-1,j,k) + dt_arr(i,j,k));
+                  } else if (dt_box.contains(i,j,k)) {
+                      dt_local = dt_arr(i,j,k);
+                  } else if (dt_box.contains(i-1,j,k)) {
+                      dt_local = dt_arr(i-1,j,k);
+                  }
+                  rho_u_rhs(i,j,k) += 0.5 / dt_local * (rho_u(i,j,k) - rho_u_old(i,j,k));
+                }
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            { // y-momentum equation
 
-            // Note that gradp arrays now carry the map factor in them
+                // Note that gradp arrays now carry the map factor in them
 
-            Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : 0.0;
+                Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : 0.0;
 
-            rho_v_rhs(i, j, k) += (-gpy_arr(i,j,k) - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k);
+                rho_v_rhs(i, j, k) += (-gpy_arr(i,j,k) - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k);
 
-            if (l_moving_terrain) {
-                Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
-                rho_v_rhs(i, j, k) *= h_zeta;
-            }
+                if (l_moving_terrain) {
+                    Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
+                    rho_v_rhs(i, j, k) *= h_zeta;
+                }
 
-            if ( l_anelastic && (nrk == 1) ) {
-              rho_v_rhs(i,j,k) *= 0.5;
-              rho_v_rhs(i,j,k) += 0.5 / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
-            }
-        });
+                if ( l_anelastic && (nrk == 1) ) {
+                  rho_v_rhs(i,j,k) *= 0.5;
+                  // Use averaged dt from adjacent cells for face-centered momentum
+                  Real dt_local = dt;
+                  if (dt_box.contains(i,j-1,k) && dt_box.contains(i,j,k)) {
+                      dt_local = 0.5 * (dt_arr(i,j-1,k) + dt_arr(i,j,k));
+                  } else if (dt_box.contains(i,j,k)) {
+                      dt_local = dt_arr(i,j,k);
+                  } else if (dt_box.contains(i,j-1,k)) {
+                      dt_local = dt_arr(i,j-1,k);
+                  }
+                  rho_v_rhs(i,j,k) += 0.5 / dt_local * (rho_v(i,j,k) - rho_v_old(i,j,k));
+                }
+            });
+        } else {
+            ParallelFor(tbx, tby,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            { // x-momentum equation
+
+                // Note that gradp arrays now carry the map factor in them
+
+                Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i-1,j,k)) : 0.0;
+
+                rho_u_rhs(i, j, k) += (-gpx_arr(i,j,k) - abl_pressure_grad[0]) / (1.0 + q) + xmom_src_arr(i,j,k);
+
+                if (l_moving_terrain) {
+                    Real h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
+                    rho_u_rhs(i, j, k) *= h_zeta;
+                }
+
+                if ( l_anelastic && (nrk == 1) ) {
+                  rho_u_rhs(i,j,k) *= 0.5;
+                  rho_u_rhs(i,j,k) += 0.5 / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
+                }
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            { // y-momentum equation
+
+                // Note that gradp arrays now carry the map factor in them
+
+                Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k) + qt_arr(i,j-1,k)) : 0.0;
+
+                rho_v_rhs(i, j, k) += (-gpy_arr(i,j,k) - abl_pressure_grad[1]) / (1.0 + q) + ymom_src_arr(i,j,k);
+
+                if (l_moving_terrain) {
+                    Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
+                    rho_v_rhs(i, j, k) *= h_zeta;
+                }
+
+                if ( l_anelastic && (nrk == 1) ) {
+                  rho_v_rhs(i,j,k) *= 0.5;
+                  rho_v_rhs(i,j,k) += 0.5 / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
+                }
+            });
+        }
 
         // *****************************************************************************
         // Zero out source terms for x- and y- momenta if at walls or inflow

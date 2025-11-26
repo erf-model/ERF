@@ -163,7 +163,8 @@
 #ifdef ERF_USE_SHOC
                          shoc_interface[level],
 #endif
-                         fr_as_crse, fr_as_fine);
+                         fr_as_crse, fr_as_fine,
+                         solverChoice.use_local_timestepping, dt_cell[level].get());
 
         if ((solverChoice.vert_implicit_fac[nrk] > 0.) && solverChoice.implicit_before_substep) {
             MultiFab scratch(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(), 2,
