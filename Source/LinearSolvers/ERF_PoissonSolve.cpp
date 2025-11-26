@@ -41,7 +41,8 @@ void ERF::project_velocity (int lev, Real l_dt)
  * Project the single-level momenta to enforce the anelastic constraint
  * Note that the level may or may not be level 0.
  */
-void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
+void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf,
+                           bool use_local_dt, MultiFab* dt_cell)
 {
     BL_PROFILE("ERF::project_momenta()");
 
@@ -575,9 +576,63 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     // Define gradp from fluxes -- note that fluxes is dt * change in Gp
     //   (weighted by map factor!)
     // ****************************************************************************
-    MultiFab::Saxpy(gradp[lev][GpVars::gpx],-1.0/l_dt,fluxes[0][0],0,0,1,0);
-    MultiFab::Saxpy(gradp[lev][GpVars::gpy],-1.0/l_dt,fluxes[0][1],0,0,1,0);
-    MultiFab::Saxpy(gradp[lev][GpVars::gpz],-1.0/l_dt,fluxes[0][2],0,0,1,0);
+    if (use_local_dt && dt_cell) {
+        for (MFIter mfi(gradp[lev][GpVars::gpx], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            Box xbx = mfi.nodaltilebox(0);
+            Box ybx = mfi.nodaltilebox(1);
+            Box zbx = mfi.nodaltilebox(2);
+            const Array4<Real>& gpx_arr = gradp[lev][GpVars::gpx].array(mfi);
+            const Array4<Real>& gpy_arr = gradp[lev][GpVars::gpy].array(mfi);
+            const Array4<Real>& gpz_arr = gradp[lev][GpVars::gpz].array(mfi);
+            const Array4<const Real>& flx_x = fluxes[0][0].const_array(mfi);
+            const Array4<const Real>& flx_y = fluxes[0][1].const_array(mfi);
+            const Array4<const Real>& flx_z = fluxes[0][2].const_array(mfi);
+            const Array4<const Real>& dt_arr = dt_cell->const_array(mfi);
+            const Box& dt_box = mfi.validbox();
+            
+            ParallelFor(xbx, ybx, zbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                // Use averaged dt from adjacent cells for face-centered gradient
+                Real dt_local = l_dt;
+                if (dt_box.contains(i-1,j,k) && dt_box.contains(i,j,k)) {
+                    dt_local = 0.5 * (dt_arr(i-1,j,k) + dt_arr(i,j,k));
+                } else if (dt_box.contains(i,j,k)) {
+                    dt_local = dt_arr(i,j,k);
+                } else if (dt_box.contains(i-1,j,k)) {
+                    dt_local = dt_arr(i-1,j,k);
+                }
+                gpx_arr(i,j,k) += -1.0 / dt_local * flx_x(i,j,k);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                // Use averaged dt from adjacent cells for face-centered gradient
+                Real dt_local = l_dt;
+                if (dt_box.contains(i,j-1,k) && dt_box.contains(i,j,k)) {
+                    dt_local = 0.5 * (dt_arr(i,j-1,k) + dt_arr(i,j,k));
+                } else if (dt_box.contains(i,j,k)) {
+                    dt_local = dt_arr(i,j,k);
+                } else if (dt_box.contains(i,j-1,k)) {
+                    dt_local = dt_arr(i,j-1,k);
+                }
+                gpy_arr(i,j,k) += -1.0 / dt_local * flx_y(i,j,k);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                // Use averaged dt from adjacent cells for face-centered gradient
+                Real dt_local = l_dt;
+                if (dt_box.contains(i,j,k-1) && dt_box.contains(i,j,k)) {
+                    dt_local = 0.5 * (dt_arr(i,j,k-1) + dt_arr(i,j,k));
+                } else if (dt_box.contains(i,j,k)) {
+                    dt_local = dt_arr(i,j,k);
+                } else if (dt_box.contains(i,j,k-1)) {
+                    dt_local = dt_arr(i,j,k-1);
+                }
+                gpz_arr(i,j,k) += -1.0 / dt_local * flx_z(i,j,k);
+            });
+        }
+    } else {
+        MultiFab::Saxpy(gradp[lev][GpVars::gpx],-1.0/l_dt,fluxes[0][0],0,0,1,0);
+        MultiFab::Saxpy(gradp[lev][GpVars::gpy],-1.0/l_dt,fluxes[0][1],0,0,1,0);
+        MultiFab::Saxpy(gradp[lev][GpVars::gpz],-1.0/l_dt,fluxes[0][2],0,0,1,0);
+    }
 
     gradp[lev][GpVars::gpx].FillBoundary(geom_tmp[0].periodicity());
     gradp[lev][GpVars::gpy].FillBoundary(geom_tmp[0].periodicity());
@@ -658,5 +713,18 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     // ****************************************************************************
     // Update pressure variable with phi -- note that phi is dt * change in pressure
     // ****************************************************************************
-    MultiFab::Saxpy(pp_inc[lev], 1.0/l_dt, phi_lev,0,0,1,1);
+    if (use_local_dt && dt_cell) {
+        for (MFIter mfi(pp_inc[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.growntilebox(1);
+            const Array4<Real>& pp_arr = pp_inc[lev].array(mfi);
+            const Array4<const Real>& phi_arr = phi_lev.const_array(mfi);
+            const Array4<const Real>& dt_arr = dt_cell->const_array(mfi);
+            
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                pp_arr(i,j,k) += (1.0 / dt_arr(i,j,k)) * phi_arr(i,j,k);
+            });
+        }
+    } else {
+        MultiFab::Saxpy(pp_inc[lev], 1.0/l_dt, phi_lev,0,0,1,1);
+    }
 }

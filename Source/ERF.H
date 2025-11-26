@@ -187,7 +187,8 @@ public:
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_velocity (int lev, amrex::Real dt);
-    void project_momenta (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars);
+    void project_momenta (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars,
+                          bool use_local_dt = false, amrex::MultiFab* dt_cell = nullptr);
 
     // Project the velocities to be divergence-free with a thin body
     void project_velocity_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars);

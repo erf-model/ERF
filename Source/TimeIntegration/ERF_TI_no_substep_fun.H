@@ -391,7 +391,8 @@
             if (have_tb) {
                 project_velocity_tb(level, slow_dt, S_sum);
             } else {
-                project_momenta(level, slow_dt, S_sum);
+                project_momenta(level, slow_dt, S_sum,
+                               solverChoice.use_local_timestepping, dt_cell[level].get());
             }
         }
     };
