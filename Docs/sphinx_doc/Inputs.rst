@@ -613,6 +613,15 @@ Notes
    Local timestepping should **not** be used for time-dependent problems requiring temporal accuracy.
    See :ref:`LocalTimestepping` for more details.
 
+-  | If **erf.smooth_local_dt** is true (default: false), the local timestep field is smoothed after computation
+     using a 27-point stencil average. This can improve stability by reducing sharp gradients in the timestep field.
+     Only applies when **erf.use_local_timestepping** is true. For each cell, the smoothed timestep is computed as:
+     
+     .. math::
+        dt_{smooth}(i,j,k) = \frac{1}{N} \sum_{ii=i-1}^{i+1} \sum_{jj=j-1}^{j+1} \sum_{kk=k-1}^{k+1} dt(ii,jj,kk)
+     
+     where :math:`N` is the number of valid neighbors (reduced at boundaries).
+
 .. _examples-of-usage-5:
 
 Examples of Usage of Additional Parameters

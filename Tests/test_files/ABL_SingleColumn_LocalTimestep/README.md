@@ -46,6 +46,15 @@ timestep based on local CFL constraints. This accelerates convergence because:
 - Cells in the free atmosphere with lower velocities can use larger timesteps
 - The system reaches steady state faster than with a global minimum timestep
 
+### Timestep Smoothing
+
+Setting `erf.smooth_local_dt = true` applies a 27-point stencil averaging to the
+local timestep field after computation. This smoothing:
+
+- Reduces sharp gradients in the timestep field
+- Improves stability by avoiding abrupt timestep changes between neighboring cells
+- Is especially useful for flows with complex velocity structures
+
 ## Expected Behavior
 
 At steady state, the flow should reach a balance between:

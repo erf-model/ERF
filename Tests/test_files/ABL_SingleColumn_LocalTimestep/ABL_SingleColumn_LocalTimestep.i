@@ -38,6 +38,7 @@ erf.substepping_type = None
 
 # Enable local timestepping for steady-state convergence
 erf.use_local_timestepping = true
+erf.smooth_local_dt = true  # Smooth the timestep field for better stability
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval = 10      # timesteps between computing mass
