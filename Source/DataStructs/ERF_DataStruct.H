@@ -59,6 +59,10 @@ AMREX_ENUM(TerrainType,
     None, StaticFittedMesh, MovingFittedMesh, EB, ImmersedForcing
 );
 
+AMREX_ENUM(BuildingsType,
+    None, ImmersedForcing
+);
+
 AMREX_ENUM(MoistureModelType,
     Eulerian, Lagrangian, Undefined
 );
@@ -230,6 +234,13 @@ struct SolverChoice {
             terrain_type = TerrainType::StaticFittedMesh;
         } else {
             pp.query_enum_case_insensitive("terrain_type",terrain_type);
+        }
+
+        // Get buildings type
+        std::string buildings_type_temp = "";
+        pp.query("buildings_type", buildings_type_temp);
+        if (buildings_type_temp == "ImmersedForcing") {
+            buildings_type = BuildingsType::ImmersedForcing;
         }
 
         //
@@ -434,6 +445,21 @@ struct SolverChoice {
             (if_Olen_in != 1e-8 && if_surf_temp_flux != 1e-8))
         {
             amrex::Abort("Can only specify one of init_surf_temp, surf_temp_flux, or Olen");
+        }
+
+        if (if_use_most && buildings_type == BuildingsType::ImmersedForcing)
+        {
+            amrex::Abort("MOST wall-model with immersed forcing for buildings is not currently supported");
+        }
+
+        if (if_surf_temp_flux != 1e-8 && buildings_type == BuildingsType::ImmersedForcing)
+        {
+            amrex::Abort("Specifying surf_temp_flux with immersed forcing for buildings is not currently supported");
+        }
+
+        if (if_Olen_in != 1e-8  && buildings_type == BuildingsType::ImmersedForcing)
+        {
+            amrex::Abort("Specifying Olen with immersed forcing for buildings is not currently supported");
         }
 
         // Flag to do MOST rotations with terrain
@@ -784,6 +810,12 @@ struct SolverChoice {
             amrex::Print() << "Terrain Type: None" << std::endl;
         }
 
+        if (buildings_type == BuildingsType::ImmersedForcing) {
+            amrex::Print() << "Buildings Type: ImmersedForcing" << std::endl;
+        } else {
+            amrex::Print() << "Buildings Type: None" << std::endl;
+        }
+
         if (mesh_type == MeshType::ConstantDz) {
             amrex::Print() << "   Mesh Type: ConstantDz" << std::endl;
         } else if (mesh_type == MeshType::StretchedDz) {
@@ -903,6 +935,9 @@ struct SolverChoice {
 
     inline static
     TerrainType terrain_type = TerrainType::None;
+
+    inline static
+    BuildingsType buildings_type = BuildingsType::None;
 
     inline static
     bool use_real_bcs = false;

@@ -83,7 +83,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
                z_t_rk[lev] = nullptr;
     }
 
-    if (SolverChoice::terrain_type == TerrainType::ImmersedForcing)
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+        solverChoice.buildings_type == BuildingsType::ImmersedForcing)
     {
         terrain_blanking[lev] = std::make_unique<MultiFab>(ba,dm,1,ngrow);
         terrain_blanking[lev]->setVal(1.0);
@@ -647,12 +648,6 @@ ERF::init_zphys (int lev, Real time)
 
         z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
 
-        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
-            terrain_blanking[lev]->setVal(1.0);
-            MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ngrow);
-            terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
-        }
-
         if (lev == 0) {
             Real zmax = z_phys_nd[0]->max(0,0,false);
             Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
@@ -664,6 +659,14 @@ ERF::init_zphys (int lev, Real time)
         } // lev == 0
 
     } // init_type
+
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+        solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+        terrain_blanking[lev]->setVal(1.0);
+        MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ComputeGhostCells(solverChoice) + 2);
+        terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
+        init_immersed_forcing(lev); // needed for real cases
+    }
 
     // Compute the min dz and pass to the micro model
     Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
@@ -696,7 +699,8 @@ ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys
 
     } // lev > 0
 
-    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+        solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         //
         // This assumes we have already remade the EBGeometry
         //
