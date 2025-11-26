@@ -613,8 +613,9 @@ Notes
    Local timestepping should **not** be used for time-dependent problems requiring temporal accuracy.
    See :ref:`LocalTimestepping` for more details.
 
--  | If **erf.smooth_local_dt** is true (default: false), the local timestep field is smoothed after computation
-     using a 27-point stencil average. This can improve stability by reducing sharp gradients in the timestep field.
+-  | If **erf.n_smooth_local_dt** is > 0 (default: 0), the local timestep field is smoothed after computation
+     using a 27-point stencil average. This parameter controls the number of smoothing passes that are taken.
+     This can improve stability by reducing sharp gradients in the timestep field.
      Only applies when **erf.use_local_timestepping** is true. For each cell, the smoothed timestep is computed as:
      
      .. math::

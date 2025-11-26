@@ -371,7 +371,7 @@ struct SolverChoice {
         // Use local timestepping for steady-state convergence acceleration -- EXPERIMENTAL
         // *******************************************************************************
         pp.query("use_local_timestepping",use_local_timestepping);
-        pp.query("smooth_local_dt",smooth_local_dt);
+        pp.query("n_smooth_local_dt",n_smooth_local_dt);
 
 
         // *******************************************************************************
@@ -1037,7 +1037,7 @@ struct SolverChoice {
 
     // Use local timestepping for steady-state convergence acceleration
     bool use_local_timestepping = false;
-    bool smooth_local_dt = false;
+    int n_smooth_local_dt = 0;
 
     // Type of perturbation
     PerturbationType pert_type;
