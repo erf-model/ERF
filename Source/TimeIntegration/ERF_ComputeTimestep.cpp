@@ -305,6 +305,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
                          Real dt_inv = 0.0;
                          if (l_substepping) {
+#if 0
                              if ((nxc > 1) && (nyc==1)) {
                                  dt_inv = (amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0];
                              } else if ((nyc > 1) && (nxc==1)) {
@@ -313,6 +314,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                  dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
                                                      (amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]);
                              }
+#endif
                          } else {
                              if (nxc > 1 && nyc > 1) {
                                  dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
@@ -328,7 +330,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                  dt_inv = (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local;
                              }
                          }
-                         dt_arr(i,j,k) = (dt_inv > 0.0) ? cfl / dt_inv : LARGE_DT;
+                         AMREX_ALWAYS_ASSERT(dt_inv > 0.0);
+                         dt_arr(i,j,k) = cfl / dt_inv;
                      } else {
                          dt_arr(i,j,k) = LARGE_DT;
                      }
