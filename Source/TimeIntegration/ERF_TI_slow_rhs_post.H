@@ -152,4 +152,25 @@
             //advance_microphysics(lev, S_new,    dt_lev,  iteration, time);
             advance_microphysics(level, S_new[0], slow_dt, 123456789, old_step_time);
         }
+        
+        // ****************************************************************************
+        // Convergence monitoring for steady-state problems
+        // ****************************************************************************
+        if (convergence_interval > 0 && (nstep % convergence_interval == 0)) {
+            // Compute L2 norm of RHS source terms for RhoTheta and momentum components
+            Real l2_rhotheta = S_rhs[IntVars::cons].norm2(RhoTheta_comp);
+            Real l2_xmom = S_rhs[IntVars::xmom].norm2(0);
+            Real l2_ymom = S_rhs[IntVars::ymom].norm2(0);
+            Real l2_zmom = S_rhs[IntVars::zmom].norm2(0);
+            
+            // Print convergence information
+            if (ParallelDescriptor::IOProcessor()) {
+                Print() << "CONVERGENCE: Step " << nstep 
+                        << " Time " << std::setprecision(8) << new_stage_time
+                        << " L2(RHS): RhoTheta=" << std::scientific << std::setprecision(6) << l2_rhotheta
+                        << " Xmom=" << l2_xmom
+                        << " Ymom=" << l2_ymom
+                        << " Zmom=" << l2_zmom << std::endl;
+            }
+        }
     }; // end slow_rhs_fun_post

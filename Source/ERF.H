@@ -1212,6 +1212,9 @@ private:
     static int sum_interval;
     static int pert_interval;
     static amrex::Real sum_per;
+    
+    // Convergence monitoring interval (for steady-state problems)
+    static int convergence_interval;
 
     // Write in native AMReX or NetCDF format for each plotfile
     static PlotFileType plotfile3d_type_1;

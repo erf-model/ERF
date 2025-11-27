@@ -41,9 +41,10 @@ erf.use_local_timestepping = true
 erf.smooth_local_dt = true  # Smooth the timestep field for better stability
 
 # DIAGNOSTICS & VERBOSITY
-erf.sum_interval = 10      # timesteps between computing mass
-erf.v            = 1       # verbosity in ERF.cpp
-amr.v            = 1       # verbosity in Amr.cpp
+erf.sum_interval = 10           # timesteps between computing mass
+erf.convergence_interval = 10   # timesteps between monitoring convergence
+erf.v            = 1            # verbosity in ERF.cpp
+amr.v            = 1            # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
 amr.max_level = 0  # no refinement

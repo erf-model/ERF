@@ -677,6 +677,17 @@ List of Parameters
 |                            | print integral   |                |                |
 |                            | quantities       |                |                |
 +----------------------------+------------------+----------------+----------------+
+| **erf.convergence_interval**| if              |                |                |
+|                            | :math:`> 0,`     |                |                |
+|                            | how often (in    |                |                |
+|                            | level-0 time     |                |                |
+|                            | steps)           |                |                |
+|                            | to compute and   | Integer        | -1             |
+|                            | print L2 norm of |                |                |
+|                            | RHS source terms |                |                |
+|                            | for convergence  |                |                |
+|                            | monitoring       |                |                |
++----------------------------+------------------+----------------+----------------+
 
 .. _examples-of-usage-9:
 
@@ -692,6 +703,15 @@ Examples of Usage
    | TIME= 1.91717746 MASS= 1.792410279e+34
    | for example. If this line is commented out then it will not compute
      and print these quantities.
+
+-  | **erf.convergence_interval** = 10
+   | if **erf.convergence_interval** :math:`> 0` then the code computes and
+     prints the L2 norm of RHS source terms for RhoTheta and the three momentum
+     components every **erf.convergence_interval** level-0 steps. This is useful
+     for monitoring convergence to steady state. The print statements have the form:
+   | CONVERGENCE: Step 100 Time 5.000000 L2(RHS): RhoTheta=1.234e-05 Xmom=2.345e-06 Ymom=3.456e-06 Zmom=4.567e-06
+   | Decreasing L2 norms indicate the solution is approaching steady state. This feature
+     is particularly useful with local timestepping enabled.
 
 Diagnostic Outputs
 ==================

@@ -73,6 +73,9 @@ Real ERF::sum_per       = -1.0;
 
 int  ERF::pert_interval = -1;
 
+// Convergence monitoring interval
+int ERF::convergence_interval = -1;
+
 int ERF::last_plot3d_file_step_1 = -1;
 int ERF::last_plot3d_file_step_2 = -1;
 int ERF::last_plot2d_file_step_1 = -1;
@@ -2159,6 +2162,9 @@ ERF::ReadParameters ()
         pp.query("sum_period"  , sum_per);
 
         pp.query("pert_interval", pert_interval);
+        
+        // Convergence monitoring for steady-state problems
+        pp.query("convergence_interval", convergence_interval);
 
         // Time step controls
         pp.query("cfl", cfl);
