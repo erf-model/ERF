@@ -269,11 +269,14 @@ Radiation::alloc_buffers ()
     d_tint                   = real2d_k("d_tint"                  , m_ncol, m_nlay+1);
     p_lev                    = real2d_k("p_lev"                   , m_ncol, m_nlay+1);
     t_lev                    = real2d_k("t_lev"                   , m_ncol, m_nlay+1);
+
     sw_flux_up               = real2d_k("sw_flux_up"              , m_ncol, m_nlay+1);
     sw_flux_dn               = real2d_k("sw_flux_dn"              , m_ncol, m_nlay+1);
     sw_flux_dn_dir           = real2d_k("sw_flux_dn_dir"          , m_ncol, m_nlay+1);
-    lw_flux_up               = real2d_k("sw_flux_up"              , m_ncol, m_nlay+1);
-    lw_flux_dn               = real2d_k("sw_flux_dn"              , m_ncol, m_nlay+1);
+
+    lw_flux_up               = real2d_k("lw_flux_up"              , m_ncol, m_nlay+1);
+    lw_flux_dn               = real2d_k("lw_flux_dn"              , m_ncol, m_nlay+1);
+
     sw_clnclrsky_flux_up     = real2d_k("sw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
     sw_clnclrsky_flux_dn     = real2d_k("sw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
     sw_clnclrsky_flux_dn_dir = real2d_k("sw_clnclrsky_flux_dn_dir", m_ncol, m_nlay+1);
@@ -283,6 +286,7 @@ Radiation::alloc_buffers ()
     sw_clnsky_flux_up        = real2d_k("sw_clnsky_flux_up"       , m_ncol, m_nlay+1);
     sw_clnsky_flux_dn        = real2d_k("sw_clnsky_flux_dn"       , m_ncol, m_nlay+1);
     sw_clnsky_flux_dn_dir    = real2d_k("sw_clnsky_flux_dn_dir"   , m_ncol, m_nlay+1);
+
     lw_clnclrsky_flux_up     = real2d_k("lw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
     lw_clnclrsky_flux_dn     = real2d_k("lw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
     lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"       , m_ncol, m_nlay+1);
@@ -298,7 +302,7 @@ Radiation::alloc_buffers ()
 
     // 3d size (ncol, nlay+1, nlwbands)
     lw_bnd_flux_up = real3d_k("lw_bnd_flux_up" , m_ncol, m_nlay+1, m_nlwbands);
-    lw_bnd_flux_dn = real3d_k("lw_bnd_flux_up" , m_ncol, m_nlay+1, m_nlwbands);
+    lw_bnd_flux_dn = real3d_k("lw_bnd_flux_dn" , m_ncol, m_nlay+1, m_nlwbands);
 
     // 2d size (ncol, nswbands)
     sfc_alb_dir = real2d_k("sfc_alb_dir", m_ncol, m_nswbands);
