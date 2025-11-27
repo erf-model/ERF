@@ -567,7 +567,6 @@ void make_sources (int level,
             const Real dx_y = dx_arr[1];
 
             const Real alpha_h          = solverChoice.if_Cd_scalar;
-            const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
             const Real U_s              = 1.0; // unit velocity scale
             const Real min_t_blank      = 0.005;
 
@@ -592,12 +591,6 @@ void make_sources (int level,
 
                 Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx[2];
                 Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, 1./3.);
-
-                const Real ux_cc_2r = 0.5 * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
-                const Real uy_cc_2r = 0.5 * (v(i  ,j  ,k+1) + v(i  ,j+1,k+1));
-                const Real h_windspeed2r  = std::sqrt(ux_cc_2r * ux_cc_2r + uy_cc_2r * uy_cc_2r);
-
-                const Real theta          = cell_data(i,j,k  ,RhoTheta_comp) / cell_data(i,j,k  ,Rho_comp);
 
                 // SURFACE TEMP AND HEATING/COOLING RATE
                 if (init_surf_temp > 0.0) {
