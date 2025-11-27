@@ -372,6 +372,7 @@ struct SolverChoice {
         // *******************************************************************************
         pp.query("use_local_timestepping",use_local_timestepping);
         pp.query("n_smooth_local_dt",n_smooth_local_dt);
+        pp.query("smooth_local_dt_coeff",smooth_local_dt_coeff);
 
 
         // *******************************************************************************
@@ -1036,8 +1037,9 @@ struct SolverChoice {
     bool time_avg_vel = false;
 
     // Use local timestepping for steady-state convergence acceleration
-    bool use_local_timestepping = false;
-    int n_smooth_local_dt = 0;
+    bool        use_local_timestepping = false;
+    int         n_smooth_local_dt      = 0;
+    amrex::Real smooth_local_dt_coeff  = 0.1; // 0: no smoothing, 1: pure smoothing
 
     // Type of perturbation
     PerturbationType pert_type;

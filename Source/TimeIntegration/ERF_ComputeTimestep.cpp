@@ -395,14 +395,16 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          (solverChoice.n_smooth_local_dt > 0) &&
           dt_cell[level] )
      {
-         MultiFab dt_smoothed(grids[level], dmap[level], 1, 0);
+         MultiFab rdt_smoothed(grids[level], dmap[level], 1, 0);
          MultiFab& dt_local = *dt_cell[level];
+
+         Real alpha = solverChoice.smooth_local_dt_coeff;
 
          for (int nsmoo = 0; nsmoo < solverChoice.n_smooth_local_dt; ++nsmoo) {
 
-             for (MFIter mfi(dt_smoothed, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+             for (MFIter mfi(rdt_smoothed, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                  const Box& bx = mfi.tilebox();
-                 const Array4<Real>& dt_smooth = dt_smoothed.array(mfi);
+                 const Array4<Real>& rdt_smooth = rdt_smoothed.array(mfi);
                  const Array4<const Real>& dt_arr = dt_local.const_array(mfi);
 
                  // Get the valid box to handle boundaries
@@ -410,35 +412,30 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
                  ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                      // 27-point average (or fewer at boundaries) for 3D stencil
-                     Real sum = 0.0;
+                     Real sum_rdt = 0.0;
                      int count = 0;
 
-                     // harmonic mean
                      for (int kk = k-1; kk <= k+1; ++kk) {
                          for (int jj = j-1; jj <= j+1; ++jj) {
                              for (int ii = i-1; ii <= i+1; ++ii) {
                                  if (vbx.contains(ii, jj, kk)) {
-                                     sum += 1.0 / dt_arr(ii, jj, kk);
+                                     // harmonic mean
+                                     sum_rdt += 1.0 / dt_arr(ii, jj, kk);
                                      count++;
                                  }
                              }
                          }
                      }
 
-                     dt_smooth(i,j,k) = (count > 0) ? count / sum : dt_arr(i,j,k);
-
-                     if (i==0 && j==0) {
-                         amrex::Print() << "smoothed dt"<<IntVect(i,j,k)
-                             << " = " << dt_smooth(i,j,k)
-                             << " from " << dt_arr(i,j,k)
-                             << std::endl;
-                     }
+                     rdt_smooth(i,j,k) = (count > 1) ? sum_rdt / count : 1.0 / dt_arr(i,j,k);
                  });
+
              } // smoothing pass
 
-             // Copy smoothed values back to dt_cell
-             MultiFab::Copy(dt_local, dt_smoothed, 0, 0, 1, 0);
-             //std::swap(dt_local, dt_smoothed);
+             // Blend original and smoothed reciprocal dt, store in dt_cell
+             dt_local.invert(1.0 - alpha, 0, 1, 0);                       // dt := (1-α) * rdt
+             MultiFab::Saxpy(dt_local, alpha, rdt_smoothed, 0, 0, 1, 0);  // dt := dt + α * rdt_smoothed
+             dt_local.invert(1.0, 0, 1, 0);                               // dt == 1 / ( (1-α) * rdt + α * rdt_smoothed )
          }
      }
 
