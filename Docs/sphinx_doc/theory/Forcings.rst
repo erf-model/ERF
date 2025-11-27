@@ -210,6 +210,39 @@ An example of using immersed forcing for a Witch of Agnesi hill is available in 
 
 .. note:: When using fully compressible simulations, it is recommended to apply immersed forcing on the substep for numerical stability.
 
+Immersed forcing to represent buildings
+----------------------
+
+The immersed forcing capability can also be used to represent buildings.
+Currently, the implementation is similar to the formulation for fully immersed cells for terrain, but is proportional to the volume fraction :math:`V_f` thus implicitly applying a no-slip boundary condition following `Muñoz-Esparza et al. (2020) <https://doi.org/10.1029/2020MS002141>`_.
+A more advanced wall-model for buildings will be added in the near future (see `Wise et al. (2025) <https://ams.confex.com/ams/25BLT/meetingapp.cgi/Paper/460715>`_ for additional details and a demonstration).
+The momentum forcing is defined as follows:
+
+.. math::
+
+    F_{\rho u_i} = -C_{d,m} \beta_r V_f \sqrt[3]{\Delta x \Delta y \Delta z} \rho u_i U
+
+Temperature forcing for building walls and roofs can similar be specified following the same formulation as immersed forcing for terrain; however, only the option to specify a surface temperature and heating rate is currently available.
+
+Inputs that can be used with immersed forcing for buildings are as follows:
+
+::
+
+        erf.buildings_type             = STRING #ImmersedForcing or None
+        erf.buildings_file_name        = STRING
+        erf.if_Cd_scalar               = FLOAT
+        erf.if_Cd_momentum             = FLOAT
+        erf.if_init_surf_temp          = FLOAT
+        erf.if_surf_heating_rate       = FLOAT
+        erf.immersed_forcing_substep   = BOOL
+
+Immersed forcing for buildings can be used in conjunction with the ``StaticFittedMesh`` terrain option.
+However, currently, the user must specify the z-coordinates using ``erf.terrain_z_levels``.
+In the future, this requirement will be removed.
+Note that the volume fraction is calculated prior to the grid transformation; therefore, building heights when located in steep terrain should be considered approximate.
+
+An example of immersed forcing for a building located on top of a Witch of Agnesi hill is available in ``Exec/ABL/immersed_forcing``.
+
 
 Problem-Specific Forcing
 ========================
