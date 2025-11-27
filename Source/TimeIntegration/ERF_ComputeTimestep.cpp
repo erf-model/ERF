@@ -413,18 +413,19 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                      Real sum = 0.0;
                      int count = 0;
 
+                     // harmonic mean
                      for (int kk = k-1; kk <= k+1; ++kk) {
                          for (int jj = j-1; jj <= j+1; ++jj) {
                              for (int ii = i-1; ii <= i+1; ++ii) {
                                  if (vbx.contains(ii, jj, kk)) {
-                                     sum += dt_arr(ii, jj, kk);
+                                     sum += 1.0 / dt_arr(ii, jj, kk);
                                      count++;
                                  }
                              }
                          }
                      }
 
-                     dt_smooth(i,j,k) = (count > 0) ? sum / count : dt_arr(i,j,k);
+                     dt_smooth(i,j,k) = (count > 0) ? count / sum : dt_arr(i,j,k);
 
                      if (i==0 && j==0) {
                          amrex::Print() << "smoothed dt"<<IntVect(i,j,k)
