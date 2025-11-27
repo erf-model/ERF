@@ -558,9 +558,6 @@ void make_sources (int level,
         if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing ) &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
         {
-            const Array4<const Real>& u = xvel.array(mfi);
-            const Array4<const Real>& v = yvel.array(mfi);
-
             // geometric properties
             const Real* dx_arr = geom.CellSize();
             const Real dx_x = dx_arr[0];
