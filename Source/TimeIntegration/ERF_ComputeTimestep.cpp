@@ -265,21 +265,56 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      if (solverChoice.use_local_timestepping && dt_cell[level]) {
          MultiFab& dt_local = *dt_cell[level];
 
+         // Get effective eddy viscosity
+         DiffChoice dc = solverChoice.diffChoice;
+         TurbChoice tc = solverChoice.turbChoice[level];
+         MultiFab nu_h(grids[level], dmap[level], 1, 0);
+         MultiFab nu_v(grids[level], dmap[level], 1, 0);
+         nu_h.setVal(dc.dynamic_viscosity / dc.rho0_trans);
+         nu_v.setVal(dc.dynamic_viscosity / dc.rho0_trans);
+         if ( (tc.les_type != LESType::None) ||
+              (tc.pbl_type != PBLType::None) ) {
+            MultiFab::Add(nu_h, *eddyDiffs_lev[level], EddyDiff::Mom_h, 0, 1, 0);
+            MultiFab::Add(nu_v, *eddyDiffs_lev[level], EddyDiff::Mom_v, 0, 1, 0);
+            MultiFab::Divide(nu_h, S_new, Rho_comp, 0, 1, 0);
+            MultiFab::Divide(nu_v, S_new, Rho_comp, 0, 1, 0);
+         }
+
          // Compute local timestep for each cell based on local CFL constraint
          if (l_anelastic) {
              for (MFIter mfi(dt_local, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                  const Box& bx = mfi.tilebox();
                  const Array4<Real>& dt_arr = dt_local.array(mfi);
                  const Array4<const Real>& u = ccvel.const_array(mfi);
+                 const Array4<const Real>& Kmh = nu_h.const_array(mfi);
+                 const Array4<const Real>& Kmv = nu_v.const_array(mfi);
                  const Array4<const Real>& detJ = detJ_cc[level]->const_array(mfi);
 
                  ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                      // Use actual physical spacing: dxinv[2] / detJ instead of dzinv
                      const Real dz_inv_local = (detJ(i,j,k) > 0.) ? dxinv[2] / detJ(i,j,k) : dzinv;
 
-                     dt_arr(i,j,k) = cfl / amrex::max(amrex::Math::abs(u(i,j,k,0))*dxinv[0],
-                                                      amrex::Math::abs(u(i,j,k,1))*dxinv[1],
-                                                      amrex::Math::abs(u(i,j,k,2))*dz_inv_local);
+                     // Reciprocal advective time scale
+                     Real rdt_adv = amrex::max(amrex::Math::abs(u(i,j,k,0))*dxinv[0],
+                                               amrex::Math::abs(u(i,j,k,1))*dxinv[1],
+                                               amrex::Math::abs(u(i,j,k,2))*dz_inv_local);
+
+                     // Reciprocal diffusive time scale
+                     Real rdt_dif = 0.5 * amrex::max(Kmh(i,j,k)*dxinv[0]*dxinv[0],
+                                                     Kmh(i,j,k)*dxinv[1]*dxinv[1],
+                                                     Kmv(i,j,k)*dz_inv_local*dz_inv_local);
+
+                     dt_arr(i,j,k) = cfl / amrex::max(rdt_adv, rdt_dif);
+
+#if 0
+                     if (i==0 && j==0) {
+                         amrex::Print() << "dt"<<IntVect(i,j,k)
+                             << " = " << dt_arr(i,j,k)
+                             << " from dz= " << 1.0 / dz_inv_local
+                             << " (diffusion limited? " << (rdt_dif > rdt_adv) << ")"
+                             << std::endl;
+                     }
+#endif
                  });
              }
          } else if (solverChoice.terrain_type == TerrainType::EB) {
@@ -291,6 +326,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                  const Array4<Real>& dt_arr = dt_local.array(mfi);
                  const Array4<const Real>& s = S_new.const_array(mfi);
                  const Array4<const Real>& u = ccvel.const_array(mfi);
+                 const Array4<const Real>& Kmh = nu_h.const_array(mfi);
+                 const Array4<const Real>& Kmv = nu_v.const_array(mfi);
                  const Array4<const Real>& vf = detJ.const_array(mfi);
 
                  ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -317,17 +354,29 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 #endif
                          } else {
                              if (nxc > 1 && nyc > 1) {
+                                 Real dt_inv_visc = 0.5 * amrex::max(Kmh(i,j,k)*dxinv[0]*dxinv[0],
+                                                                     Kmh(i,j,k)*dxinv[1]*dxinv[1],
+                                                                     Kmv(i,j,k)*dz_inv_local*dz_inv_local);
                                  dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
                                                      (amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1],
-                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local);
+                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local,
+                                                     dt_inv_visc);
                              } else if (nxc > 1) {
+                                 Real dt_inv_visc = 0.5 * amrex::max(Kmh(i,j,k)*dxinv[0]*dxinv[0],
+                                                                     Kmv(i,j,k)*dz_inv_local*dz_inv_local);
                                  dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
-                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local);
+                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local,
+                                                     dt_inv_visc);
                              } else if (nyc > 1) {
+                                 Real dt_inv_visc = 0.5 * amrex::max(Kmh(i,j,k)*dxinv[1]*dxinv[1],
+                                                                     Kmv(i,j,k)*dz_inv_local*dz_inv_local);
                                  dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1],
-                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local);
+                                                     (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local,
+                                                     dt_inv_visc);
                              } else {
-                                 dt_inv = (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local;
+                                 Real dt_inv_visc = 0.5 * Kmv(i,j,k)*dz_inv_local*dz_inv_local;
+                                 dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local,
+                                                     dt_inv_visc);
                              }
                          }
                          AMREX_ALWAYS_ASSERT(dt_inv > 0.0);
@@ -343,6 +392,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                  const Array4<Real>& dt_arr = dt_local.array(mfi);
                  const Array4<const Real>& s = S_new.const_array(mfi);
                  const Array4<const Real>& u = ccvel.const_array(mfi);
+                 const Array4<const Real>& Kmh = nu_h.const_array(mfi);
+                 const Array4<const Real>& Kmv = nu_v.const_array(mfi);
                  const Array4<const Real>& detJ = detJ_cc[level]->const_array(mfi);
 
                  ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -368,17 +419,29 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 #endif
                      } else {
                          if (nxc > 1 && nyc > 1) {
+                             Real dt_inv_visc = 0.5 * amrex::max(Kmh(i,j,k)*dxinv[0]*dxinv[0],
+                                                                 Kmh(i,j,k)*dxinv[1]*dxinv[1],
+                                                                 Kmv(i,j,k)*dz_inv_local*dz_inv_local);
                              dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
                                                  (amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1],
-                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local);
+                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local,
+                                                 dt_inv_visc);
                          } else if (nxc > 1) {
+                             Real dt_inv_visc = 0.5 * amrex::max(Kmh(i,j,k)*dxinv[0]*dxinv[0],
+                                                                 Kmv(i,j,k)*dz_inv_local*dz_inv_local);
                              dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0],
-                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local);
+                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local,
+                                                 dt_inv_visc);
                          } else if (nyc > 1) {
+                             Real dt_inv_visc = 0.5 * amrex::max(Kmh(i,j,k)*dxinv[1]*dxinv[1],
+                                                                 Kmv(i,j,k)*dz_inv_local*dz_inv_local);
                              dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1],
-                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local);
+                                                 (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local,
+                                                 dt_inv_visc);
                          } else {
-                             dt_inv = (amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local;
+                             Real dt_inv_visc = 0.5 * Kmv(i,j,k)*dz_inv_local*dz_inv_local;
+                             dt_inv = amrex::max((amrex::Math::abs(u(i,j,k,2))+c)*dz_inv_local,
+                                                 dt_inv_visc);
                          }
                      }
                      AMREX_ALWAYS_ASSERT(dt_inv > 0.0);
