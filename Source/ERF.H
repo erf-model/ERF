@@ -141,13 +141,22 @@ public:
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
     // Refinement criteria for hurricanes
-    void HurricaneTracker(int lev,
-                          const amrex::MultiFab& U_new,
-                          const amrex::MultiFab& V_new,
-                          const amrex::MultiFab& W_new,
-                          const amrex::Real velmag_threshold,
-                          const bool is_track_io,
-                          amrex::TagBoxArray* tags = nullptr);
+    void HurricaneTracker (int lev,
+                           amrex::Real time,
+                           const amrex::MultiFab& U_new,
+                           const amrex::MultiFab& V_new,
+                           const amrex::MultiFab& W_new,
+                           const amrex::Real velmag_threshold,
+                           amrex::TagBoxArray* tags = nullptr);
+
+    void HurricaneTrackerInitial (int lev,
+                                  const amrex::MultiFab& U_new,
+                                  const amrex::MultiFab& V_new,
+                                  const amrex::MultiFab& W_new,
+                                  const amrex::Real velmag_threshold,
+                                  amrex::TagBoxArray* tags = nullptr);
+
+    void HurricaneTrackerNotInitial (int lev, amrex::TagBoxArray* tags = nullptr);
 
     // Hurricane track line output as VTKPolyline
     amrex::Vector<std::array<amrex::Real, 2>> hurricane_track_xy;
@@ -469,24 +478,15 @@ public:
 
     void init_thin_body (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
-    void CreateWeatherDataGeomBoxArrayDistMap(const std::string& filename,
-                                              amrex::Geometry& geom_weather,
-                                              amrex::BoxArray& nba,
-                                              amrex::DistributionMapping& dm);
+    void FillForecastStateMultiFabs(const int lev,
+                                    const std::string& filename,
+                                    const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                                    amrex::Vector<amrex::Vector<amrex::MultiFab>>& weather_forecast_data);
 
-    void FillWeatherDataMultiFab(const std::string& filename,
-                                 const amrex::Geometry& geom_weather,
-                                 const amrex::BoxArray& nba,
-                                 const amrex::DistributionMapping& dm,
-                                 amrex::Vector<amrex::MultiFab>& weather_forecast_data);
-
-    void InterpWeatherDataOntoMesh(const amrex::Geometry& geom_weather,
-                                   amrex::MultiFab& weather_forecast_interp,
-                                   amrex::Vector<amrex::Vector<amrex::MultiFab>>& forecast_state);
-
-    void CreateForecastStateMultiFabs(amrex::Vector<amrex::Vector<amrex::MultiFab>>& forecast_state);
-
-    void WeatherDataInterpolation(const amrex::Real time);
+    void WeatherDataInterpolation(const int nlevs,
+                                  const amrex::Real time,
+                                  amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                                  bool regrid_forces_file_read);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver

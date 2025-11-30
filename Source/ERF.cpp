@@ -523,6 +523,9 @@ ERF::ERF_shared ()
         auto gshop = EB2::makeShop(implicit_fun);
         amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
     }
+    forecast_state_1.resize(nlevs_max);
+    forecast_state_2.resize(nlevs_max);
+    forecast_state_interp.resize(nlevs_max);
 }
 
 ERF::~ERF () = default;
@@ -560,6 +563,13 @@ ERF::Evolve ()
         //    only when a) time > start_time, and b) particles have not yet been initialized
         initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,cur_time);
 #endif
+
+        if(solverChoice.init_type == InitType::HindCast and
+          solverChoice.hindcast_lateral_forcing) {
+            for(int lev=0;lev<finest_level+1;lev++){
+                WeatherDataInterpolation(lev,cur_time,z_phys_nd,false);
+            }
+        }
 
         auto dEvolveTime0 = amrex::second();
 
@@ -832,32 +842,6 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
       }
-    }
-
-    bool is_hurricane_tracker_io=false;
-    ParmParse pp("erf");
-    pp.query("is_hurricane_tracker_io", is_hurricane_tracker_io);
-
-    if (is_hurricane_tracker_io) {
-        if(nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0){
-            std::string filename = MakeVTKFilename(nstep);
-            Real velmag_threshold = 1e10;
-            pp.query("hurr_track_io_velmag_greater_than", velmag_threshold);
-            if(velmag_threshold==1e10) {
-                Abort("As hurricane tracking IO is active using erf.is_hurricane_tracker_io = true"
-                      " there needs to be an input erf.hurr_track_io_velmag_greater_than which specifies the"
-                      " magnitude of velocity above which cells will be tagged for refinement.");
-            }
-            int levc=finest_level;
-            MultiFab& U_new = vars_new[levc][Vars::xvel];
-            MultiFab& V_new = vars_new[levc][Vars::yvel];
-            MultiFab& W_new = vars_new[levc][Vars::zvel];
-
-            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, true);
-            if (ParallelDescriptor::IOProcessor()) {
-                WriteVTKPolyline(filename,hurricane_track_xy);
-            }
-        }
     }
 
     if(solverChoice.io_hurricane_eye_tracker and (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0)) {
