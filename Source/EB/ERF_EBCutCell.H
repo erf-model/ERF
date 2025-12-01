@@ -351,9 +351,17 @@ calc_edge_intersections ()
   RealVect v6(m_rbox.lo(0), m_rbox.hi(1), m_rbox.hi(2));
   RealVect v7(m_rbox.hi(0), m_rbox.hi(1), m_rbox.hi(2));
 
-  m_F1.add_vertex(v0);
-  m_F4.add_vertex(v0);
-  m_F5.add_vertex(v0);
+  constexpr bool print_F1 = false;
+  constexpr bool print_F2 = false;
+  constexpr bool print_F3 = false;
+  constexpr bool print_F4 = false;
+  constexpr bool print_F5 = false;
+  constexpr bool print_F6 = false;
+  constexpr bool print_F7 = false;
+
+  m_F1.add_vertex(v0,"Initial: add v0 -> F1",print_F1);
+  m_F4.add_vertex(v0,"Initial: add v0 -> F4",print_F4);
+  m_F5.add_vertex(v0,"Initial: add v0 -> F5",print_F5);
 
   int add_v7(1);
 
@@ -373,36 +381,36 @@ calc_edge_intersections ()
       amrex::Real length = (v0-v1).vectorLength();
 
       if ( Math::abs(distIP) < tol ) {
-        m_F1.add_vertex(v0);
-        m_F4.add_vertex(v0);
-        m_F5.add_vertex(v0);
-        m_F7.add_vertex(v0);
+        m_F1.add_vertex(v0,"Path 1: v0--v1: add v0 -> F1",print_F1);
+        m_F4.add_vertex(v0,"Path 1: v0--v1: add v0 -> F4",print_F4);
+        m_F5.add_vertex(v0,"Path 1: v0--v1: add v0 -> F5",print_F5);
+        m_F7.add_vertex(v0,"Path 1: v0--v1: add v0 -> F7",print_F7);
         if (!vertex_intersected[0]) {
           vertex_intersected[0] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol ) {
-        m_F1.add_vertex(v1);
-        m_F2.add_vertex(v1);
-        m_F5.add_vertex(v1);
-        m_F7.add_vertex(v1);
+        m_F1.add_vertex(v1,"Path 1: v0--v1: add v1 -> F1",print_F1);
+        m_F2.add_vertex(v1,"Path 1: v0--v1: add v1 -> F2",print_F2);
+        m_F5.add_vertex(v1,"Path 1: v0--v1: add v1 -> F5",print_F5);
+        m_F7.add_vertex(v1,"Path 1: v0--v1: add v1 -> F7",print_F7);
         if (!vertex_intersected[1]) {
           vertex_intersected[1] = true;
           ++cuts;
         }
       } else {
-        m_F1.add_vertex(vIP);
-        m_F5.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
+        m_F1.add_vertex(vIP,"Path 1: v0--v1: add vIP -> F1",print_F1);
+        m_F5.add_vertex(vIP,"Path 1: v0--v1: add vIP -> F5",print_F5);
+        m_F7.add_vertex(vIP,"Path 1: v0--v1: add vIP -> F7",print_F7);
         ++cuts;
       }
 
-    } // P1: v0--v1
+    } // Path 1: v0--v1
 
     if (cuts%2 == 0) {
-      m_F1.add_vertex(v1);
-      m_F2.add_vertex(v1);
-      m_F5.add_vertex(v1);
+      m_F1.add_vertex(v1,"Path 1: after v0--v1, cuts%2 == 0: add v1 -> F1",print_F1);
+      m_F2.add_vertex(v1,"Path 1: after v0--v1, cuts%2 == 0: add v1 -> F2",print_F2);
+      m_F5.add_vertex(v1,"Path 1: after v0--v1, cuts%2 == 0: add v1 -> F5",print_F5);
     }
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v1, v4, vIP, distIP)) {
@@ -410,36 +418,36 @@ calc_edge_intersections ()
       amrex::Real length = (v1-v4).vectorLength();
 
       if ( Math::abs(distIP) < tol ) {
-        m_F1.add_vertex(v1);
-        m_F2.add_vertex(v1);
-        m_F5.add_vertex(v1);
-        m_F7.add_vertex(v1);
+        m_F1.add_vertex(v1,"Path 1: v1--v4: add v1 -> F1",print_F1);
+        m_F2.add_vertex(v1,"Path 1: v1--v4: add v1 -> F2",print_F2);
+        m_F5.add_vertex(v1,"Path 1: v1--v4: add v1 -> F5",print_F5);
+        m_F7.add_vertex(v1,"Path 1: v1--v4: add v1 -> F7",print_F7);
         if (!vertex_intersected[1]) {
           vertex_intersected[1] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol ) {
-        m_F2.add_vertex(v4);
-        m_F3.add_vertex(v4);
-        m_F5.add_vertex(v4);
-        m_F7.add_vertex(v4);
+        m_F2.add_vertex(v4,"Path 1: v1--v4: add v4 -> F2",print_F2);
+        m_F3.add_vertex(v4,"Path 1: v1--v4: add v4 -> F3",print_F3);
+        m_F5.add_vertex(v4,"Path 1: v1--v4: add v4 -> F5",print_F5);
+        m_F7.add_vertex(v4,"Path 1: v1--v4: add v4 -> F7",print_F7);
         if (!vertex_intersected[4]) {
           vertex_intersected[4] = true;
           ++cuts;
         }
       } else {
-        m_F2.add_vertex(vIP);
-        m_F5.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
+        m_F2.add_vertex(vIP,"Path 1: v1--v4: add vIP -> F2",print_F2);
+        m_F5.add_vertex(vIP,"Path 1: v1--v4: add vIP -> F5",print_F5);
+        m_F7.add_vertex(vIP,"Path 1: v1--v4: add vIP -> F7",print_F7);
         ++cuts;
       }
 
     } // P1: v1--v4
 
     if (cuts%2 == 0) {
-      m_F2.add_vertex(v4);
-      m_F3.add_vertex(v4);
-      m_F5.add_vertex(v4);
+      m_F2.add_vertex(v4,"Path 1: after v1--v4, cuts%2 == 0: add v4 -> F2",print_F2);
+      m_F3.add_vertex(v4,"Path 1: after v1--v4, cuts%2 == 0: add v4 -> F3",print_F3);
+      m_F5.add_vertex(v4,"Path 1: after v1--v4, cuts%2 == 0: add v4 -> F5",print_F5);
     }
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v4, v7, vIP, distIP)) {
@@ -447,36 +455,36 @@ calc_edge_intersections ()
       amrex::Real length = (v4-v7).vectorLength();
 
       if ( Math::abs(distIP) < tol) {
-        m_F2.add_vertex(v4);
-        m_F3.add_vertex(v4);
-        m_F5.add_vertex(v4);
-        m_F7.add_vertex(v4);
+        m_F2.add_vertex(v4,"Path 1: v4--v7: add v4 -> F2",print_F2);
+        m_F3.add_vertex(v4,"Path 1: v4--v7: add v4 -> F3",print_F3);
+        m_F5.add_vertex(v4,"Path 1: v4--v7: add v4 -> F5",print_F5);
+        m_F7.add_vertex(v4,"Path 1: v4--v7: add v4 -> F7",print_F7);
         if (!vertex_intersected[4]) {
           vertex_intersected[4] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol) {
-        m_F2.add_vertex(v7);
-        m_F3.add_vertex(v7);
-        m_F6.add_vertex(v7);
-        m_F7.add_vertex(v7);
+        m_F2.add_vertex(v7,"Path 1: v4--v7: add v7 -> F2",print_F2);
+        m_F3.add_vertex(v7,"Path 1: v4--v7: add v7 -> F3",print_F3);
+        m_F6.add_vertex(v7,"Path 1: v4--v7: add v7 -> F6",print_F6);
+        m_F7.add_vertex(v7,"Path 1: v4--v7: add v7 -> F7",print_F7);
         if (!vertex_intersected[7]) {
           vertex_intersected[7] = true;
           ++cuts;
         }
       } else {
-        m_F2.add_vertex(vIP);
-        m_F3.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
+        m_F2.add_vertex(vIP,"Path 1: v4--v7: add vIP -> F2",print_F2);
+        m_F3.add_vertex(vIP,"Path 1: v4--v7: add vIP -> F3",print_F3);
+        m_F7.add_vertex(vIP,"Path 1: v4--v7: add vIP -> F7",print_F7);
         ++cuts;
       }
 
     } // P1: v4--v7
 
     if (cuts == 2 && add_v7) {
-      m_F2.add_vertex(v7);
-      m_F3.add_vertex(v7);
-      m_F6.add_vertex(v7);
+      m_F2.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F2",print_F2);
+      m_F3.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F3",print_F3);
+      m_F6.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F6",print_F6);
       add_v7 = 0;
     }
   } // end Path 1
@@ -487,19 +495,19 @@ calc_edge_intersections ()
     amrex::Real length = (v1-v5).vectorLength();
 
     if ( Math::abs(distIP) < tol) {
-      m_F1.add_vertex(v1);
-      m_F2.add_vertex(v1);
-      m_F5.add_vertex(v1);
-      m_F7.add_vertex(v1);
+      m_F1.add_vertex(v1,"Path 4: v1--v5: add v1 -> F1",print_F1);
+      m_F2.add_vertex(v1,"Path 4: v1--v5: add v1 -> F2",print_F2);
+      m_F5.add_vertex(v1,"Path 4: v1--v5: add v1 -> F5",print_F5);
+      m_F7.add_vertex(v1,"Path 4: v1--v5: add v1 -> F7",print_F7);
     } else if ( Math::abs(distIP - length) < tol) {
-      m_F1.add_vertex(v5);
-      m_F2.add_vertex(v5);
-      m_F6.add_vertex(v5);
-      m_F7.add_vertex(v5);
+      m_F1.add_vertex(v5,"Path 4: v1--v5: add v5 -> F1",print_F1);
+      m_F2.add_vertex(v5,"Path 4: v1--v5: add v5 -> F2",print_F2);
+      m_F6.add_vertex(v5,"Path 4: v1--v5: add v5 -> F6",print_F6);
+      m_F7.add_vertex(v5,"Path 4: v1--v5: add v5 -> F7",print_F7);
     } else {
-      m_F1.add_vertex(vIP);
-      m_F2.add_vertex(vIP);
-      m_F7.add_vertex(vIP);
+      m_F1.add_vertex(vIP,"Path 4: v1--v5: add vIP -> F1",print_F1);
+      m_F2.add_vertex(vIP,"Path 4: v1--v5: add vIP -> F2",print_F2);
+      m_F7.add_vertex(vIP,"Path 4: v1--v5: add vIP -> F7",print_F7);
     }
   }
 
@@ -512,36 +520,36 @@ calc_edge_intersections ()
       amrex::Real length = (v0-v2).vectorLength();
 
       if ( Math::abs(distIP) < tol ) {
-        m_F1.add_vertex(v0);
-        m_F4.add_vertex(v0);
-        m_F5.add_vertex(v0);
-        m_F7.add_vertex(v0);
+        m_F1.add_vertex(v0,"Path 2: v0--v2: add v0 -> F1",print_F1);
+        m_F4.add_vertex(v0,"Path 2: v0--v2: add v0 -> F4",print_F4);
+        m_F5.add_vertex(v0,"Path 2: v0--v2: add v0 -> F5",print_F5);
+        m_F7.add_vertex(v0,"Path 2: v0--v2: add v0 -> F7",print_F7);
         if (!vertex_intersected[0]) {
           vertex_intersected[0] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol ) {
-        m_F1.add_vertex(v2);
-        m_F4.add_vertex(v2);
-        m_F6.add_vertex(v2);
-        m_F7.add_vertex(v2);
+        m_F1.add_vertex(v2,"Path 2: v0--v2: add v2 -> F1",print_F1);
+        m_F4.add_vertex(v2,"Path 2: v0--v2: add v2 -> F4",print_F4);
+        m_F6.add_vertex(v2,"Path 2: v0--v2: add v2 -> F6",print_F6);
+        m_F7.add_vertex(v2,"Path 2: v0--v2: add v2 -> F7",print_F7);
         if (!vertex_intersected[2]) {
           vertex_intersected[2] = true;
           ++cuts;
         }
       } else {
-        m_F1.add_vertex(vIP);
-        m_F4.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
+        m_F1.add_vertex(vIP,"Path 2: v0--v2: add vIP -> F1",print_F1);
+        m_F4.add_vertex(vIP,"Path 2: v0--v2: add vIP -> F4",print_F4);
+        m_F7.add_vertex(vIP,"Path 2: v0--v2: add vIP -> F7",print_F7);
         ++cuts;
       }
 
     } // P2: v0--v2
 
     if (cuts%2 == 0) {
-      m_F1.add_vertex(v2);
-      m_F4.add_vertex(v2);
-      m_F6.add_vertex(v2);
+      m_F1.add_vertex(v2,"Path 2: after v0--v2, cuts%2 == 0: add v2 -> F1",print_F1);
+      m_F4.add_vertex(v2,"Path 2: after v0--v2, cuts%2 == 0: add v2 -> F4",print_F4);
+      m_F6.add_vertex(v2,"Path 2: after v0--v2, cuts%2 == 0: add v2 -> F6",print_F6);
     }
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v2, v5, vIP, distIP)) {
@@ -549,35 +557,35 @@ calc_edge_intersections ()
       amrex::Real length = (v2-v5).vectorLength();
 
       if ( Math::abs(distIP) < tol) {
-        m_F1.add_vertex(v2);
-        m_F4.add_vertex(v2);
-        m_F6.add_vertex(v2);
-        m_F7.add_vertex(v2);
+        m_F1.add_vertex(v2,"Path 2: v2--v5: add v2 -> F1",print_F1);
+        m_F4.add_vertex(v2,"Path 2: v2--v5: add v2 -> F4",print_F4);
+        m_F6.add_vertex(v2,"Path 2: v2--v5: add v2 -> F6",print_F6);
+        m_F7.add_vertex(v2,"Path 2: v2--v5: add v2 -> F7",print_F7);
         if (!vertex_intersected[2]) {
           vertex_intersected[2] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol) {
-        m_F1.add_vertex(v5);
-        m_F2.add_vertex(v5);
-        m_F6.add_vertex(v5);
-        m_F7.add_vertex(v5);
+        m_F1.add_vertex(v5,"Path 2: v2--v5: add v5 -> F1",print_F1);
+        m_F2.add_vertex(v5,"Path 2: v2--v5: add v5 -> F2",print_F2);
+        m_F6.add_vertex(v5,"Path 2: v2--v5: add v5 -> F6",print_F6);
+        m_F7.add_vertex(v5,"Path 2: v2--v5: add v5 -> F7",print_F7);
         if (!vertex_intersected[5]) {
           vertex_intersected[5] = true;
           ++cuts;
         }
       } else {
-        m_F1.add_vertex(vIP);
-        m_F6.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
+        m_F1.add_vertex(vIP,"Path 2: v2--v5: add vIP -> F1",print_F1);
+        m_F6.add_vertex(vIP,"Path 2: v2--v5: add vIP -> F6",print_F6);
+        m_F7.add_vertex(vIP,"Path 2: v2--v5: add vIP -> F7",print_F7);
         ++cuts;
       }
     }
 
     if (cuts%2 == 0) {
-      m_F1.add_vertex(v5);
-      m_F2.add_vertex(v5);
-      m_F6.add_vertex(v5);
+      m_F1.add_vertex(v5,"Path 2: after v2--v5, cuts%2 == 0: add v5 -> F1",print_F1);
+      m_F2.add_vertex(v5,"Path 2: after v2--v5, cuts%2 == 0: add v5 -> F2",print_F2);
+      m_F6.add_vertex(v5,"Path 2: after v2--v5, cuts%2 == 0: add v5 -> F6",print_F6);
     }
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v5, v7, vIP, distIP)) {
@@ -585,35 +593,35 @@ calc_edge_intersections ()
       amrex::Real length = (v5-v7).vectorLength();
 
       if ( Math::abs(distIP) < tol) {
-        m_F1.add_vertex(v5);
-        m_F2.add_vertex(v5);
-        m_F6.add_vertex(v5);
-        m_F7.add_vertex(v5);
+        m_F1.add_vertex(v5,"Path 2: v5--v7: add v5 -> F1",print_F1);
+        m_F2.add_vertex(v5,"Path 2: v5--v7: add v5 -> F2",print_F2);
+        m_F6.add_vertex(v5,"Path 2: v5--v7: add v5 -> F6",print_F6);
+        m_F7.add_vertex(v5,"Path 2: v5--v7: add v5 -> F7",print_F7);
         if (!vertex_intersected[5]) {
           vertex_intersected[5] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol) {
-        m_F2.add_vertex(v7);
-        m_F3.add_vertex(v7);
-        m_F6.add_vertex(v7);
-        m_F7.add_vertex(v7);
+        m_F2.add_vertex(v7,"Path 2: v5--v7: add v7 -> F2",print_F2);
+        m_F3.add_vertex(v7,"Path 2: v5--v7: add v7 -> F3",print_F3);
+        m_F6.add_vertex(v7,"Path 2: v5--v7: add v7 -> F6",print_F6);
+        m_F7.add_vertex(v7,"Path 2: v5--v7: add v7 -> F7",print_F7);
         if (!vertex_intersected[7]) {
           vertex_intersected[7] = true;
           ++cuts;
         }
       } else {
-        m_F2.add_vertex(vIP);
-        m_F6.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
+        m_F2.add_vertex(vIP,"Path 2: v5--v7: add vIP -> F2",print_F2);
+        m_F6.add_vertex(vIP,"Path 2: v5--v7: add vIP -> F6",print_F6);
+        m_F7.add_vertex(vIP,"Path 2: v5--v7: add vIP -> F7",print_F7);
         ++cuts;
       }
-    }
+    } // Path 2: v5--v7
 
     if (cuts == 2 && add_v7) {
-      m_F2.add_vertex(v7);
-      m_F3.add_vertex(v7);
-      m_F6.add_vertex(v7);
+      m_F2.add_vertex(v7,"Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F2",print_F2);
+      m_F3.add_vertex(v7,"Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F3",print_F3);
+      m_F6.add_vertex(v7,"Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F6",print_F6);
       add_v7 = 0;
     }
 
@@ -625,19 +633,19 @@ calc_edge_intersections ()
     amrex::Real length = (v2-v6).vectorLength();
 
     if ( Math::abs(distIP) < tol) {
-      m_F1.add_vertex(v2);
-      m_F4.add_vertex(v2);
-      m_F6.add_vertex(v2);
-      m_F7.add_vertex(v2);
+      m_F1.add_vertex(v2,"Path 5: v2--v6: add v2 -> F1",print_F1);
+      m_F4.add_vertex(v2,"Path 5: v2--v6: add v2 -> F4",print_F4);
+      m_F6.add_vertex(v2,"Path 5: v2--v6: add v2 -> F6",print_F6);
+      m_F7.add_vertex(v2,"Path 5: v2--v6: add v2 -> F7",print_F7);
     } else if ( Math::abs(distIP - length) < tol) {
-      m_F3.add_vertex(v6);
-      m_F4.add_vertex(v6);
-      m_F6.add_vertex(v6);
-      m_F7.add_vertex(v6);
+      m_F3.add_vertex(v6,"Path 5: v2--v6: add v6 -> F3",print_F3);
+      m_F4.add_vertex(v6,"Path 5: v2--v6: add v6 -> F4",print_F4);
+      m_F6.add_vertex(v6,"Path 5: v2--v6: add v6 -> F6",print_F6);
+      m_F7.add_vertex(v6,"Path 5: v2--v6: add v6 -> F7",print_F7);
     } else {
-      m_F4.add_vertex(vIP);
-      m_F6.add_vertex(vIP);
-      m_F7.add_vertex(vIP);
+      m_F4.add_vertex(vIP,"Path 5: v2--v6: add vIP -> F4",print_F4);
+      m_F6.add_vertex(vIP,"Path 5: v2--v6: add vIP -> F6",print_F6);
+      m_F7.add_vertex(vIP,"Path 5: v2--v6: add vIP -> F7",print_F7);
     }
   } // end Path 5
 
@@ -651,36 +659,36 @@ calc_edge_intersections ()
       amrex::Real length = (v0-v3).vectorLength();
 
       if ( Math::abs(distIP) < tol) {
-        m_F1.add_vertex(v0);
-        m_F4.add_vertex(v0);
-        m_F5.add_vertex(v0);
-        m_F7.add_vertex(v0);
+        m_F1.add_vertex(v0,"Path 3: v0--v3: add v0 -> F1",print_F1);
+        m_F4.add_vertex(v0,"Path 3: v0--v3: add v0 -> F4",print_F4);
+        m_F5.add_vertex(v0,"Path 3: v0--v3: add v0 -> F5",print_F5);
+        m_F7.add_vertex(v0,"Path 3: v0--v3: add v0 -> F7",print_F7);
         if (!vertex_intersected[0]) {
           vertex_intersected[0] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol) {
-        m_F3.add_vertex(v3);
-        m_F4.add_vertex(v3);
-        m_F5.add_vertex(v3);
-        m_F7.add_vertex(v3);
+        m_F3.add_vertex(v3,"Path 3: v0--v3: add v3 -> F3",print_F3);
+        m_F4.add_vertex(v3,"Path 3: v0--v3: add v3 -> F4",print_F4);
+        m_F5.add_vertex(v3,"Path 3: v0--v3: add v3 -> F5",print_F5);
+        m_F7.add_vertex(v3,"Path 3: v0--v3: add v3 -> F7",print_F7);
         if (!vertex_intersected[3]) {
           vertex_intersected[3] = true;
           ++cuts;
         }
       } else {
-        m_F4.add_vertex(vIP);
-        m_F5.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
+        m_F4.add_vertex(vIP,"Path 3: v0--v3: add vIP -> F4",print_F4);
+        m_F5.add_vertex(vIP,"Path 3: v0--v3: add vIP -> F5",print_F5);
+        m_F7.add_vertex(vIP,"Path 3: v0--v3: add vIP -> F7",print_F7);
         ++cuts;
       }
 
     } // P3: v0--v3
 
     if (cuts%2 == 0) {
-      m_F3.add_vertex(v3);
-      m_F4.add_vertex(v3);
-      m_F5.add_vertex(v3);
+      m_F3.add_vertex(v3,"Path 3: after v0--v3, cuts%2 == 0: add v3 -> F3",print_F3);
+      m_F4.add_vertex(v3,"Path 3: after v0--v3, cuts%2 == 0: add v3 -> F4",print_F4);
+      m_F5.add_vertex(v3,"Path 3: after v0--v3, cuts%2 == 0: add v3 -> F5",print_F5);
     }
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v3, v6, vIP, distIP)) {
@@ -688,36 +696,36 @@ calc_edge_intersections ()
       amrex::Real length = (v3-v6).vectorLength();
 
       if ( Math::abs(distIP) < tol) {
-        m_F3.add_vertex(v3);
-        m_F4.add_vertex(v3);
-        m_F5.add_vertex(v3);
-        m_F7.add_vertex(v3);
+        m_F3.add_vertex(v3,"Path 3: v3--v6: add v3 -> F3",print_F3);
+        m_F4.add_vertex(v3,"Path 3: v3--v6: add v3 -> F4",print_F4);
+        m_F5.add_vertex(v3,"Path 3: v3--v6: add v3 -> F5",print_F5);
+        m_F7.add_vertex(v3,"Path 3: v3--v6: add v3 -> F7",print_F7);
         if (!vertex_intersected[3]) {
           vertex_intersected[3] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol) {
-        m_F3.add_vertex(v6);
-        m_F4.add_vertex(v6);
-        m_F6.add_vertex(v6);
-        m_F7.add_vertex(v6);
+        m_F3.add_vertex(v6,"Path 3: v3--v6: add v6 -> F3",print_F3);
+        m_F4.add_vertex(v6,"Path 3: v3--v6: add v6 -> F4",print_F4);
+        m_F6.add_vertex(v6,"Path 3: v3--v6: add v6 -> F6",print_F6);
+        m_F7.add_vertex(v6,"Path 3: v3--v6: add v6 -> F7",print_F7);
         if (!vertex_intersected[6]) {
           vertex_intersected[6] = true;
           ++cuts;
         }
       } else {
-        m_F3.add_vertex(vIP);
-        m_F4.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
+        m_F3.add_vertex(vIP,"Path 3: v3--v6: add vIP -> F3",print_F3);
+        m_F4.add_vertex(vIP,"Path 3: v3--v6: add vIP -> F4",print_F4);
+        m_F7.add_vertex(vIP,"Path 3: v3--v6: add vIP -> F7",print_F7);
         ++cuts;
       }
 
     } // P3: v3--v6
 
     if (cuts%2 == 0) {
-      m_F3.add_vertex(v6);
-      m_F4.add_vertex(v6);
-      m_F6.add_vertex(v6);
+      m_F3.add_vertex(v6,"Path 3: after v3--v6, cuts%2 == 0: add v6 -> F3",print_F3);
+      m_F4.add_vertex(v6,"Path 3: after v3--v6, cuts%2 == 0: add v6 -> F4",print_F4);
+      m_F6.add_vertex(v6,"Path 3: after v3--v6, cuts%2 == 0: add v6 -> F6",print_F6);
     }
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v6, v7, vIP, distIP)) {
@@ -725,35 +733,35 @@ calc_edge_intersections ()
       amrex::Real length = (v6-v7).vectorLength();
 
       if ( Math::abs(distIP) < tol) {
-        m_F3.add_vertex(v6);
-        m_F4.add_vertex(v6);
-        m_F6.add_vertex(v6);
-        m_F7.add_vertex(v6);
+        m_F3.add_vertex(v6,"Path 3: v6--v7: add v6 -> F3",print_F3);
+        m_F4.add_vertex(v6,"Path 3: v6--v7: add v6 -> F4",print_F4);
+        m_F6.add_vertex(v6,"Path 3: v6--v7: add v6 -> F6",print_F6);
+        m_F7.add_vertex(v6,"Path 3: v6--v7: add v6 -> F7",print_F7);
         if (!vertex_intersected[6]) {
           vertex_intersected[6] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol) {
-        m_F2.add_vertex(v7);
-        m_F3.add_vertex(v7);
-        m_F6.add_vertex(v7);
-        m_F7.add_vertex(v7);
+        m_F2.add_vertex(v7,"Path 3: v6--v7: add v7 -> F2",print_F2);
+        m_F3.add_vertex(v7,"Path 3: v6--v7: add v7 -> F3",print_F3);
+        m_F6.add_vertex(v7,"Path 3: v6--v7: add v7 -> F6",print_F6);
+        m_F7.add_vertex(v7,"Path 3: v6--v7: add v7 -> F7",print_F7);
         if (!vertex_intersected[7]) {
           vertex_intersected[7] = true;
           ++cuts;
         }
       } else {
-        m_F3.add_vertex(vIP);
-        m_F6.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
+        m_F3.add_vertex(vIP,"Path 3: v6--v7: add vIP -> F3",print_F3);
+        m_F6.add_vertex(vIP,"Path 3: v6--v7: add vIP -> F6",print_F6);
+        m_F7.add_vertex(vIP,"Path 3: v6--v7: add vIP -> F7",print_F7);
         ++cuts;
       }
     } // P3: v6--v7
 
     if (cuts == 2 && add_v7) {
-      m_F2.add_vertex(v7);
-      m_F3.add_vertex(v7);
-      m_F6.add_vertex(v7);
+      m_F2.add_vertex(v7,"Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F2",print_F2);
+      m_F3.add_vertex(v7,"Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F3",print_F3);
+      m_F6.add_vertex(v7,"Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F6",print_F6);
       add_v7 = 0;
     }
 
@@ -765,19 +773,19 @@ calc_edge_intersections ()
     amrex::Real length = (v3-v4).vectorLength();
 
     if ( Math::abs(distIP) < tol) {
-      m_F3.add_vertex(v3);
-      m_F4.add_vertex(v3);
-      m_F5.add_vertex(v3);
-      m_F7.add_vertex(v3);
+      m_F3.add_vertex(v3,"Path 6: v3--v4: add v3 -> F3",print_F3);
+      m_F4.add_vertex(v3,"Path 6: v3--v4: add v3 -> F4",print_F4);
+      m_F5.add_vertex(v3,"Path 6: v3--v4: add v3 -> F5",print_F5);
+      m_F7.add_vertex(v3,"Path 6: v3--v4: add v3 -> F7",print_F7);
     } else if ( Math::abs(distIP - length) < tol) {
-      m_F2.add_vertex(v4);
-      m_F3.add_vertex(v4);
-      m_F5.add_vertex(v4);
-      m_F7.add_vertex(v4);
+      m_F2.add_vertex(v4,"Path 6: v3--v4: add v4 -> F2",print_F2);
+      m_F3.add_vertex(v4,"Path 6: v3--v4: add v4 -> F3",print_F3);
+      m_F5.add_vertex(v4,"Path 6: v3--v4: add v4 -> F5",print_F5);
+      m_F7.add_vertex(v4,"Path 6: v3--v4: add v4 -> F7",print_F7);
     } else {
-      m_F3.add_vertex(vIP);
-      m_F5.add_vertex(vIP);
-      m_F7.add_vertex(vIP);
+      m_F3.add_vertex(vIP,"Path 6: v3--v4: add vIP -> F3",print_F3);
+      m_F5.add_vertex(vIP,"Path 6: v3--v4: add vIP -> F5",print_F5);
+      m_F7.add_vertex(vIP,"Path 6: v3--v4: add vIP -> F7",print_F7);
     }
   } // end Path 6
 }

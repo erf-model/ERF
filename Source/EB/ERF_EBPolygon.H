@@ -40,10 +40,12 @@ class polygon_ {
     {}
 
     void add_vertex (amrex::RealVect const& a_v,
-                    const std::string& msg)
+                    const std::string& msg, bool print_msg = false)
     {
+      if (print_msg) {
         amrex::Print() << msg << "\n";
-        add_vertex(a_v);
+      }
+      add_vertex(a_v);
     }
 
     AMREX_GPU_HOST_DEVICE
