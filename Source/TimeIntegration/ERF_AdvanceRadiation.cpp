@@ -37,8 +37,8 @@ void ERF::advance_radiation (int lev,
         amrex::Real time_for_rad = t_new[lev] + start_time;
         rad[lev]->Run(lev, istep[lev], time_for_rad, dt_advance,
                       cons.boxArray(), geom[lev], &(cons),
-                      sw_lw_fluxes[lev].get(), solar_zenith[lev].get(),
                       lmask_lev[lev][0].get(), t_surf,
+                      sw_lw_fluxes[lev].get(), solar_zenith[lev].get(),
                       lsm_input_ptrs, lsm_output_ptrs,
                       qheating_rates[lev].get(), rad_fluxes[lev].get(),
                       z_phys_nd[lev].get()     , lat_ptr, lon_ptr);

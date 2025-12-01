@@ -138,10 +138,10 @@ Radiation::set_grids (int& level,
                       const BoxArray& ba,
                       Geometry& geom,
                       MultiFab* cons_in,
-                      MultiFab* lsm_fluxes,
-                      MultiFab* lsm_zenith,
                       iMultiFab* lmask,
                       MultiFab*  t_surf,
+                      MultiFab* lsm_fluxes,
+                      MultiFab* lsm_zenith,
                       Vector<MultiFab*>& lsm_input_ptrs,
                       MultiFab* qheating_rates,
                       MultiFab* rad_fluxes,
@@ -588,8 +588,8 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                 const int imin   = vbx.smallEnd(0);
                 const int jmin   = vbx.smallEnd(1);
                 const int offset = m_col_offsets[mfi.index()];
-                const Array4<const Real>& lmask_arr  = (lmask)  ? lmask->const_array(mfi) :
-                                                                  Array4<const Real> {};
+                const Array4<const int>& lmask_arr  = (lmask)   ? lmask->const_array(mfi) :
+                                                                  Array4<const int> {};
                 const Array4<const Real>& tsurf_arr  = (t_surf) ? t_surf->const_array(mfi) :
                                                                   Array4<const Real> {};
                 const Array4<const Real>& lsm_in_arr = (lsm_input_ptrs[ivar]) ? lsm_input_ptrs[ivar]->const_array(mfi) :

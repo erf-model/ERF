@@ -32,6 +32,8 @@ public:
          amrex::MultiFab* cons_in,
          amrex::MultiFab* lsm_fluxes,
          amrex::MultiFab* lsm_zenith,
+         amrex::iMultiFab* lmask,
+         amrex::MultiFab*  t_surf,
          amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
          amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs,
          amrex::MultiFab* qheating_rates,
