@@ -199,10 +199,10 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                                       ng_vect);
 
                     // Bounding
-                    int i_xlo = bx_xlo.bigEnd(0);
-                    int i_xhi = bx_xhi.smallEnd(0);
-                    int j_ylo = bx_ylo.bigEnd(1);
-                    int j_yhi = bx_yhi.smallEnd(1);
+                    int i_xlo = bx_xlo.bigEnd(0)   + 1;
+                    int i_xhi = bx_xhi.smallEnd(0) - 1;
+                    int j_ylo = bx_ylo.bigEnd(1)   + 1;
+                    int j_yhi = bx_yhi.smallEnd(1) - 1;
 
                     // Destination array
                     const Array4<Real>& dest_arr = mf.array(mfi);
