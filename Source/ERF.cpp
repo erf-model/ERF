@@ -1581,6 +1581,18 @@ ERF::InitData_post ()
                                                        sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
         }
 
+        // If initializing from an input_sounding, make sure the surface layer
+        // is using the same surface conditions
+        if (solverChoice.init_type == InitType::Input_Sounding) {
+            const Real theta0 = input_sounding_data.theta_ref_inp_sound;
+            const Real qv0    = input_sounding_data.qv_ref_inp_sound;
+            for (int lev = 0; lev <= finest_level; lev++) {
+                MultiFab* t_surf_lev = m_SurfaceLayer->get_t_surf(lev);
+                MultiFab* q_surf_lev = m_SurfaceLayer->get_q_surf(lev);
+                t_surf_lev->setVal(theta0);
+                q_surf_lev->setVal(qv0);
+            }
+        }
 
         if (restart_chkfile != "") {
             // Update surface fields if needed (and available)
