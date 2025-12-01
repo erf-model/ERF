@@ -361,8 +361,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         // Define the "normal" components
         for (int comp = 0; comp < nvars; ++comp) {
             const MultiFab& src = vars_new[lev][comp];
-            int ncomp = src.nComp();
-            int ng = src.nGrow();
+            ncomp = src.nComp();
+            ngrow = src.nGrow();
 
             forecast_state_1[lev][comp].define(ba, dm, ncomp, ng);
             forecast_state_2[lev][comp].define(ba, dm, ncomp, ng);
@@ -372,12 +372,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         // Define the "extra" component (last slot)
         {
             const MultiFab& src0 = vars_new[lev][0];
-            int ng = src0.nGrow();
+            ngrow = src0.nGrow();
             int idx = nvars;
 
-            forecast_state_1[lev][idx].define(ba, dm, ncomp_extra, ng);
-            forecast_state_2[lev][idx].define(ba, dm, ncomp_extra, ng);
-            forecast_state_interp[lev][idx].define(ba, dm, ncomp_extra, ng);
+            forecast_state_1[lev][idx].define(ba, dm, ncomp_extra, ngrow);
+            forecast_state_2[lev][idx].define(ba, dm, ncomp_extra, ngrow);
+            forecast_state_interp[lev][idx].define(ba, dm, ncomp_extra, ngrow);
         }
         bool regrid_forces_file_read = true;
         WeatherDataInterpolation(lev, t_new[0],z_phys_nd, regrid_forces_file_read);

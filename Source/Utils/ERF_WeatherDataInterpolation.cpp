@@ -63,7 +63,7 @@ void PlotMultiFab(const MultiFab& mf,
 void
 ERF::FillForecastStateMultiFabs(const int lev,
                                 const std::string& filename,
-                                const std::unique_ptr<MultiFab>& z_phys_nd,
+                                const std::unique_ptr<MultiFab>& a_z_phys_nd,
                                 Vector<Vector<MultiFab>>& forecast_state)
 {
 
@@ -160,7 +160,7 @@ ERF::FillForecastStateMultiFabs(const int lev,
     // Interpolate the data on to the ERF mesh
 
      for (MFIter mfi(erf_mf_cons); mfi.isValid(); ++mfi) {
-        const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
+        const auto z_arr    = (a_z_phys_nd) ? a_z_phys_nd->const_array(mfi) :
                                             Array4<const Real> {};
         const Array4<Real> &fine_cons_arr = erf_mf_cons.array(mfi);
         const Array4<Real> &fine_xvel_arr = erf_mf_xvel.array(mfi);
@@ -346,14 +346,14 @@ ERF::FillForecastStateMultiFabs(const int lev,
 void
 ERF::WeatherDataInterpolation(const int lev,
                               const Real time,
-                              amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                              amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd,
                               bool regrid_forces_file_read)
 {
 
     static amrex::Vector<Real> next_read_forecast_time;
     static amrex::Vector<Real> last_read_forecast_time;
 
-    const int nlevs = z_phys_nd.size();
+    const int nlevs = a_z_phys_nd.size();
 
     Real hindcast_data_interval = solverChoice.hindcast_data_interval_in_hrs*3600.0;
 
@@ -411,8 +411,8 @@ ERF::WeatherDataInterpolation(const int lev,
         filename1 = bin_files[idx1];
         filename2 = bin_files[idx2];
 
-        FillForecastStateMultiFabs(lev, filename1, z_phys_nd[lev], forecast_state_1);
-        FillForecastStateMultiFabs(lev, filename2, z_phys_nd[lev], forecast_state_2);
+        FillForecastStateMultiFabs(lev, filename1, a_z_phys_nd[lev], forecast_state_1);
+        FillForecastStateMultiFabs(lev, filename2, a_z_phys_nd[lev], forecast_state_2);
 
          // Create the time-interpolated forecast state
         //CreateForecastStateMultiFabs(forecast_state_interp);
