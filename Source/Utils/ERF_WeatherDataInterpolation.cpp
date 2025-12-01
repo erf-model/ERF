@@ -165,7 +165,7 @@ ERF::FillForecastStateMultiFabs(const int lev,
         const Array4<Real> &fine_cons_arr = erf_mf_cons.array(mfi);
         const Array4<Real> &fine_xvel_arr = erf_mf_xvel.array(mfi);
         const Array4<Real> &fine_yvel_arr = erf_mf_yvel.array(mfi);
-        //const Array4<Real> &fine_zvel_arr = erf_mf_zvel.array(mfi);
+        const Array4<Real> &fine_zvel_arr = erf_mf_zvel.array(mfi);
         const Array4<Real> &fine_latlon_arr = erf_mf_latlon.array(mfi);
 
 
@@ -173,6 +173,7 @@ ERF::FillForecastStateMultiFabs(const int lev,
 
         const Box &gtbx = mfi.tilebox(IntVect(1,0,0));
         const Box &gtby = mfi.tilebox(IntVect(0,1,0));
+        const Box &gtbz = mfi.tilebox(IntVect(0,0,1));
         const auto prob_lo  = geom[lev].ProbLoArray();
         const auto dx       = geom[lev].CellSizeArray();
        //const Box &gtbz = mfi.tilebox(IntVect(0,0,1));
@@ -212,6 +213,12 @@ ERF::FillForecastStateMultiFabs(const int lev,
 
             bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
                                    dxvec, dyvec,
+                                   nx, ny, nz,
+                                   x, y, z,
+                                   qr_d_ptr, tmp_qr);
+
+            bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                   dxvec, dyvec,
                                    nx, ny, 1,
                                    x, y, 0.0,
                                    latvec_d_ptr, tmp_lat);
@@ -227,7 +234,7 @@ ERF::FillForecastStateMultiFabs(const int lev,
             fine_latlon_arr(i,j,k,1) = tmp_lon;
         });
 
-        ParallelFor(gtbx, gtby,
+        ParallelFor(gtbx, gtby, gtbz,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
             Real x = prob_lo_erf[0] + i       * dx_erf[0];
@@ -259,6 +266,22 @@ ERF::FillForecastStateMultiFabs(const int lev,
                                    vvel_d_ptr, tmp_vvel);
 
             fine_yvel_arr(i, j, k, 0) = tmp_vvel;
+        },
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+             // Physical location of the fine node
+            Real x = prob_lo_erf[0] + (i+0.5) * dx_erf[0];
+            Real y = prob_lo_erf[1] + (j+0.5) * dx_erf[1];
+            Real z = prob_lo_erf[2] + k       * dx_erf[2];
+            //const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/2.0;
+
+            Real tmp_wvel;
+            bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                   dxvec, dyvec,
+                                   nx, ny, nz,
+                                   x, y, z,
+                                   wvel_d_ptr, tmp_wvel);
+
+            fine_zvel_arr(i, j, k, 0) = tmp_wvel;
         });
     }
 
