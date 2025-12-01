@@ -200,7 +200,8 @@ void make_sources (int level,
     //    7. sponging
     //    8. turbulent perturbation
     //    9. nudging towards input sounding values (only for theta)
-    //   10. Immersed forcing
+    //   10a. Immersed forcing for terrain
+    //   10b. Immersed forcing for buildings
     //   11. Four stream radiation source for (rho theta)
     // *****************************************************************************
 
@@ -443,7 +444,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // 10. Add Immersed source terms
+        // 10a. Add immersed source terms for terrain
         // *************************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
@@ -548,6 +549,86 @@ void make_sources (int level,
                     }
                 }
 
+            });
+        }
+
+        // *************************************************************************************
+        // 10b. Add immersed source terms for buildings
+        // *************************************************************************************
+        if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing ) &&
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
+        {
+            // geometric properties
+            const Real* dx_arr = geom.CellSize();
+            const Real dx_x = dx_arr[0];
+            const Real dx_y = dx_arr[1];
+
+            const Real alpha_h          = solverChoice.if_Cd_scalar;
+            const Real U_s              = 1.0; // unit velocity scale
+            const Real min_t_blank      = 0.005;
+
+            const Real init_surf_temp     = solverChoice.if_init_surf_temp;
+            const Real surf_heating_rate  = solverChoice.if_surf_heating_rate;
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                Real t_blank       = t_blank_arr(i, j, k);
+                Real t_blank_below = t_blank_arr(i, j, k-1);
+                Real t_blank_above = t_blank_arr(i, j, k+1);
+                Real t_blank_north  = t_blank_arr(i  , j+1, k);
+                Real t_blank_south  = t_blank_arr(i  , j-1, k);
+                Real t_blank_east   = t_blank_arr(i+1, j  , k);
+                Real t_blank_west   = t_blank_arr(i-1, j  , k);
+                if (t_blank < min_t_blank) { t_blank = 0.0; } // deal with situations where very small volfrac exist
+                if (t_blank_below < min_t_blank) { t_blank_below = 0.0; }
+                if (t_blank_north < min_t_blank) { t_blank_north = 0.0; }
+                if (t_blank_south < min_t_blank) { t_blank_south = 0.0; }
+                if (t_blank_east < min_t_blank) { t_blank_east = 0.0; }
+                if (t_blank_west < min_t_blank) { t_blank_west = 0.0; }
+
+                Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx[2];
+                Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, 1./3.);
+
+                // SURFACE TEMP AND HEATING/COOLING RATE
+                if (init_surf_temp > 0.0) {
+                    const Real surf_temp    = init_surf_temp + surf_heating_rate*time/3600;
+                    if (t_blank > 0 && (t_blank_above == 0.0) && (t_blank_below == 1.0)) { // building roof
+                        const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
+                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
+
+                    } else if (((t_blank > 0 && t_blank < t_blank_west && t_blank_east == 0.0) ||
+                                (t_blank > 0 && t_blank < t_blank_east && t_blank_west == 0.0) ||
+                                (t_blank > 0 && t_blank < t_blank_north && t_blank_south == 0.0) ||
+                                (t_blank > 0 && t_blank < t_blank_south && t_blank_north == 0.0))) {
+                        // this should enter for just building walls
+                        // walls are currently separated to allow for flexible in the future to heat walls differently
+
+                        // south face
+                        if ((t_blank < t_blank_north) && (t_blank_north == 1.0)) {
+                            const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
+                            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
+                        }
+
+                        // north face
+                        if ((t_blank < t_blank_south) && (t_blank_south == 1.0)) {
+                            const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
+                            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
+                        }
+
+                        // west face
+                        if ((t_blank < t_blank_east) && (t_blank_east == 1.0)) {
+                            const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
+                            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
+                        }
+
+                        // east face
+                        if ((t_blank < t_blank_west) && (t_blank_west == 1.0)) {
+                            const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
+                            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
+                        }
+
+                    }
+                }
             });
         }
 

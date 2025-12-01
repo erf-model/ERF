@@ -188,28 +188,38 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     (ref_tags[j].Field() == "terrain_blanking") )
         {
             MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,1);
-        } else if (ref_tags[j].Field() == "velmag") {
+        }
+        else if (ref_tags[j].Field() == "velmag")
+        {
             ParmParse pp(pp_prefix);
             Vector<std::string> refinement_indicators;
             pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
-            Real velmag_threshold = 1e10;
+            Real velmag_threshold;
             bool is_hurricane_tracker = false;
             for (int i=0; i<refinement_indicators.size(); ++i)
             {
-                if(refinement_indicators[i]=="hurricane_tracker"){
+                if (refinement_indicators[i]=="hurricane_tracker") {
                     is_hurricane_tracker = true;
                     std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
                     ParmParse ppr(ref_prefix);
-                    if (!ppr.query("value_greater", velmag_threshold)) {
-                        Abort("ERROR: hurricane_tracker requires 'erf.hurricane_tracker.value_greater' option.");
-                    }
+                    ppr.get("value_greater", velmag_threshold);
                     break;
                 }
             }
-            if(is_hurricane_tracker) {
+
+            if (is_hurricane_tracker) {
                 HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, false, &tags);
             } else {
-                Abort("ERROR: velmag refinement is implemented only for hurricane tracker");
+                Vector<MultiFab> mf_cc_vel(1);
+                mf_cc_vel[0].define(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
+                average_face_to_cellcenter(mf_cc_vel[0],0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new});
+                for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    auto& dfab = (*mf)[mfi];
+                    auto& sfab = mf_cc_vel[0][mfi];
+                    derived::erf_dermagvel(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
+                }
             }
 
 #ifdef ERF_USE_PARTICLES

@@ -39,7 +39,8 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
             m_forest_drag[level]->get_drag_field() : nullptr;
 
         // Immersed Forcing
-        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing) ?
+        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                   solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ?
             terrain_blanking[level].get() : nullptr;
 
         Vector<MultiFab> Svec_to_use;
@@ -92,7 +93,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
         }
 
         make_mom_sources(old_substep_time, dtau, Svec_to_use,
-                         *z_phys_nd[level].get(), *z_phys_cc[level].get(), stretched_dz_h[level],
+                         z_phys_nd[level].get(), z_phys_cc[level].get(), stretched_dz_h[level],
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
                          base_to_use, forest_drag, terrain_blank,

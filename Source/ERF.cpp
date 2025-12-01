@@ -512,6 +512,17 @@ ERF::ERF_shared ()
             amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
         }
     }
+
+    if ( solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+        int ngrow_for_eb = 4;
+        Box buildings_bx(surroundingNodes(geom[max_level].Domain())); buildings_bx.grow(3);
+        FArrayBox buildings_fab(makeSlab(buildings_bx,2,0),1);
+        Real dummy_time = 0.0;
+        prob->init_buildings_surface(geom[max_level], buildings_fab, dummy_time);
+        TerrainIF implicit_fun(buildings_fab, geom[max_level], stretched_dz_d[max_level]);
+        auto gshop = EB2::makeShop(implicit_fun);
+        amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+    }
 }
 
 ERF::~ERF () = default;
@@ -1826,7 +1837,8 @@ ERF::InitData_post ()
     }
 
     if ( solverChoice.terrain_type == TerrainType::EB ||
-         solverChoice.terrain_type == TerrainType::ImmersedForcing)
+         solverChoice.terrain_type == TerrainType::ImmersedForcing  ||
+         solverChoice.buildings_type == BuildingsType::ImmersedForcing )
     {
         bool write_eb_surface = false;
         pp.query("write_eb_surface", write_eb_surface);
@@ -2063,7 +2075,8 @@ ERF::init_only (int lev, Real time)
     }
 
     // Set initial velocity field for immersed cells to be close to 0
-    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+        solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         init_immersed_forcing(lev);
     }
 }

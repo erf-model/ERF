@@ -34,8 +34,8 @@ Radiation::Radiation (const int& lev,
     // Construct parser object for following reads
     ParmParse pp("erf");
 
-    // Must specify a surface temp without a LSM
-    if (!m_lsm) { pp.get("rad_t_sfc",m_rad_t_sfc); }
+    // Must specify a surface temp (LSM can overwrite)
+    pp.get("rad_t_sfc",m_rad_t_sfc);
 
     // Radiation timestep, as a number of atm steps
     pp.query("rad_freq_in_steps", m_rad_freq_in_steps);
@@ -138,6 +138,8 @@ Radiation::set_grids (int& level,
                       const BoxArray& ba,
                       Geometry& geom,
                       MultiFab* cons_in,
+                      iMultiFab* lmask,
+                      MultiFab*  t_surf,
                       MultiFab* lsm_fluxes,
                       MultiFab* lsm_zenith,
                       Vector<MultiFab*>& lsm_input_ptrs,
@@ -188,7 +190,7 @@ Radiation::set_grids (int& level,
         alloc_buffers();
 
         // Fill the KOKKOS Views from AMReX MFs
-        mf_to_kokkos_buffers(lsm_input_ptrs);
+        mf_to_kokkos_buffers(lmask, t_surf, lsm_input_ptrs);
 
         // Initialize datalog MF on first step
         if (m_first_step) {
@@ -309,7 +311,7 @@ Radiation::alloc_buffers ()
     sfc_alb_dif = real2d_k("sfc_alb_dif", m_ncol, m_nswbands);
 
     // 2d size (ncol, nlwbands)
-    emis_sfc    = real2d_k("emis_sfc", m_ncol, m_nlwbands);
+    //emis_sfc    = real2d_k("emis_sfc", m_ncol, m_nlwbands);
 
     /*
     // 3d size (ncol, nlay, n[sw,lw]bands)
@@ -415,7 +417,7 @@ Radiation::dealloc_buffers ()
     sfc_alb_dif = real2d_k();
 
     // 2d size (ncol, nlwbands)
-    emis_sfc = real2d_k();
+    //emis_sfc = real2d_k();
 
     /*
     // 3d size (ncol, nlay, n[sw,lw]bands)
@@ -436,7 +438,9 @@ Radiation::dealloc_buffers ()
 
 
 void
-Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
+Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
+                                 MultiFab*  t_surf,
+                                 Vector<MultiFab*>& lsm_input_ptrs)
 {
     Table2D<Real,Order::C> r_lay_tab(r_lay.data(), {0,0}, {static_cast<int>(r_lay.extent(0)),static_cast<int>(r_lay.extent(1))});
     Table2D<Real,Order::C> p_lay_tab(p_lay.data(), {0,0}, {static_cast<int>(p_lay.extent(0)),static_cast<int>(p_lay.extent(1))});
@@ -464,6 +468,7 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
     const bool has_lsm = m_lsm;
     const bool has_lat = m_lat;
     const bool has_lon = m_lon;
+    const bool has_surflayer = (t_surf);
     int  ncol  = m_ncol;
     int  nlay  = m_nlay;
     Real dz    = m_geom.CellSize(2);
@@ -551,7 +556,7 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
     } // mfi
 
     // Populate vars LSM would provide
-    if (!has_lsm) {
+    if (!has_lsm && !has_surflayer) {
         // Parsed surface temp
         Kokkos::deep_copy(t_sfc, rad_t_sfc);
 
@@ -565,7 +570,7 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
         //           the code to plug into these if we need it.
         //
         // Current EAMXX constants
-        Kokkos::deep_copy(emis_sfc, 0.98);
+        Kokkos::deep_copy(sfc_emis, 0.98);
         Kokkos::deep_copy(lw_src  , 0.0 );
     } else {
         Vector<real1d_k> rrtmgp_in_vars = {t_sfc, sfc_emis,
@@ -576,27 +581,45 @@ Radiation::mf_to_kokkos_buffers (Vector<MultiFab*>& lsm_input_ptrs)
                                             0.06, 0.06};
         for (int ivar(0); ivar<lsm_input_ptrs.size(); ivar++) {
             auto rrtmgp_to_fill = rrtmgp_in_vars[ivar];
-            if (!lsm_input_ptrs[ivar]) {
-                Kokkos::deep_copy(rrtmgp_to_fill, rrtmgp_default_vals[ivar]);
-            } else {
-                for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
-                    const auto& vbx  = mfi.validbox();
-                    const auto& sbx  = makeSlab(vbx,2,vbx.smallEnd(2));
-                    const int nx     = vbx.length(0);
-                    const int imin   = vbx.smallEnd(0);
-                    const int jmin   = vbx.smallEnd(1);
-                    const int offset = m_col_offsets[mfi.index()];
-                    const Array4<const Real>& lsm_in_arr = lsm_input_ptrs[ivar]->const_array(mfi);
-                    ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                    {
-                        // map [i,j,k] 0-based to [icol, ilay] 0-based
-                        const int icol   = (j-jmin)*nx + (i-imin) + offset;
+            for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
+                const auto& vbx  = mfi.validbox();
+                const auto& sbx  = makeSlab(vbx,2,vbx.smallEnd(2));
+                const int nx     = vbx.length(0);
+                const int imin   = vbx.smallEnd(0);
+                const int jmin   = vbx.smallEnd(1);
+                const int offset = m_col_offsets[mfi.index()];
+                const Array4<const int>& lmask_arr  = (lmask)   ? lmask->const_array(mfi) :
+                                                                  Array4<const int> {};
+                const Array4<const Real>& tsurf_arr  = (t_surf) ? t_surf->const_array(mfi) :
+                                                                  Array4<const Real> {};
+                const Array4<const Real>& lsm_in_arr = (lsm_input_ptrs[ivar]) ? lsm_input_ptrs[ivar]->const_array(mfi) :
+                                                                                Array4<const Real> {};
+                ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    // map [i,j,k] 0-based to [icol, ilay] 0-based
+                    const int icol   = (j-jmin)*nx + (i-imin) + offset;
 
-                        // 2D mf and 1D view
+                    // Check if over land
+                    bool is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+
+                    // Check if valid LSM data
+                    bool valid_lsm_data{false};
+                    if (lsm_in_arr) { valid_lsm_data = (lsm_in_arr(i,j,k) > 0.); }
+
+                    // Have LSM and are over land
+                    if (is_land && valid_lsm_data) {
                         rrtmgp_to_fill(icol) = lsm_in_arr(i,j,k);
-                    });
-                } //mfi
-            } // valid lsm ptr
+                    }
+                    // We have a SurfLayer (enforce consistency with temperature)
+                    else if (tsurf_arr && (ivar==0)) {
+                        rrtmgp_to_fill(icol) = tsurf_arr(i,j,k);
+                    }
+                    // Use the default value
+                    else {
+                        rrtmgp_to_fill(icol) = rrtmgp_default_vals[ivar];
+                    }
+                });
+            } //mfi
         } // ivar
         Kokkos::deep_copy(lw_src, 0.0 );
     } // have lsm
@@ -1151,7 +1174,7 @@ Radiation::run_impl ()
                         p_lev, t_lev,
                         m_gas_concs,
                         sfc_alb_dir, sfc_alb_dif, mu0,
-                        t_sfc, emis_sfc, lw_src,
+                        t_sfc, sfc_emis, lw_src,
                         lwp, iwp, eff_radius_qc, eff_radius_qi, cldfrac_tot,
                         aero_tau_sw, aero_ssa_sw, aero_g_sw, aero_tau_lw,
                         cld_tau_sw_bnd, cld_tau_lw_bnd,
@@ -1216,7 +1239,7 @@ Radiation::run_impl ()
                         p_lev, t_lev,
                         m_gas_concs,
                         sfc_alb_dir, sfc_alb_dif, mu0,
-                        t_sfc, emis_sfc, lw_src,
+                        t_sfc, sfc_emis, lw_src,
                         lwp, iwp, eff_radius_qc, eff_radius_qi, cldfrac_tot,
                         aero_tau_sw, aero_ssa_sw, aero_g_sw, aero_tau_lw,
                         cld_tau_sw_bnd, cld_tau_lw_bnd,

@@ -37,8 +37,8 @@ using namespace amrex;
 void make_mom_sources (Real time,
                        Real /*dt*/,
                        const Vector<MultiFab>& S_data,
-                             MultiFab& z_phys_nd,
-                             MultiFab& z_phys_cc,
+                       const MultiFab* z_phys_nd,
+                       const MultiFab* z_phys_cc,
                              Vector<Real>& stretched_dz_h,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
@@ -94,7 +94,8 @@ void make_mom_sources (Real time,
     //    6. Numerical diffusion for (xmom,ymom,zmom)
     //    7. Sponge
     //    8. Forest canopy
-    //    9. Immersed forcing
+    //    9a. Immersed forcing for terrain
+    //    9b. Immersed forcing for buildings
     //   10. Constant mass flux
     // *****************************************************************************
     // NOTE: buoyancy is now computed in a separate routine - it should not appear here
@@ -313,8 +314,8 @@ void make_mom_sources (Real time,
         const Array4<const Real>& sphi_arr = (sinPhi_mf) ? sinPhi_mf->const_array(mfi) :
                                                            Array4<const Real>{};
 
-        const Array4<const Real>& z_nd_arr =  z_phys_nd.const_array(mfi);
-        const Array4<const Real>& z_cc_arr =  z_phys_cc.const_array(mfi);
+        const Array4<const Real>& z_nd_arr =  z_phys_nd->const_array(mfi);
+        const Array4<const Real>& z_cc_arr =  z_phys_cc->const_array(mfi);
 
 
         // *****************************************************************************
@@ -671,11 +672,10 @@ void make_mom_sources (Real time,
             });
         }
         // *****************************************************************************
-        // 9. Add Immersed source terms
+        // 9a. Add immersed source terms for terrain
         // *****************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
-
             // geometric properties
             const Real* dx_arr = geom.CellSize();
             const Real dx_x = dx_arr[0];
@@ -809,6 +809,74 @@ void make_mom_sources (Real time,
                 const Real uz = w(i, j, k);
                 const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
                 const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
+                const Real rho_zface =  0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                zmom_src_arr(i, j, k) -= t_blank * rho_zface * CdM * uz * windspeed;
+            });
+        }
+
+        // *****************************************************************************
+        // 9b. Add immersed source terms for buildings
+        // *****************************************************************************
+        if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing ) &&
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
+        {
+            // geometric properties
+            const Real* dx_arr = geom.CellSize();
+            const Real dx_x = dx_arr[0];
+            const Real dx_y = dx_arr[1];
+
+            const Real alpha_m          = solverChoice.if_Cd_momentum;
+            const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
+            const Real min_t_blank      = 0.005; // threshold for where immersed forcing acts
+
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                const Real ux = u(i, j, k);
+                const Real uy = 0.25 * ( v(i, j  , k  ) + v(i-1, j  , k  )
+                                       + v(i, j+1, k  ) + v(i-1, j+1, k  ) );
+                const Real uz = 0.25 * ( w(i, j  , k  ) + w(i-1, j  , k  )
+                                       + w(i, j  , k+1) + w(i-1, j  , k+1) );
+                const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+
+                Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+                if (t_blank < min_t_blank) { t_blank = 0.0; }
+                const Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
+                const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, 1./3.);
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
+                const Real rho_xface = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                xmom_src_arr(i, j, k) -= t_blank * rho_xface * CdM * ux * windspeed;
+            });
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                const Real ux = 0.25 * ( u(i  , j  , k  ) + u(i  , j-1, k  )
+                                       + u(i+1, j  , k  ) + u(i+1, j-1, k  ) );
+                const Real uy = v(i, j, k);
+                const Real uz = 0.25 * ( w(i  , j  , k  ) + w(i  , j-1, k  )
+                                       + w(i  , j  , k+1) + w(i  , j-1, k+1) );
+                const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+
+                Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+                if (t_blank < min_t_blank) { t_blank = 0.0; }
+                const Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
+                const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, 1./3.);
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
+                const Real rho_yface =  0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                ymom_src_arr(i, j, k) -= t_blank * rho_yface * CdM * uy * windspeed;
+            });
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                const Real ux = 0.25 * ( u(i  , j  , k  ) + u(i+1, j  , k  )
+                                       + u(i  , j  , k-1) + u(i+1, j  , k-1) );
+                const Real uy = 0.25 * ( v(i  , j  , k  ) + v(i  , j+1, k  )
+                                       + v(i  , j  , k-1) + v(i  , j+1, k-1) );
+                const Real uz = w(i, j, k);
+                const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+
+                Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+                if (t_blank < min_t_blank) { t_blank = 0.0; }
+                const Real dx_z    = (z_nd_arr) ? (z_nd_arr(i,j,k) - z_nd_arr(i,j,k-1)) : dx_arr[2]; // ASW double check
+                const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, 1./3.);
                 const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
                 const Real rho_zface =  0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                 zmom_src_arr(i, j, k) -= t_blank * rho_zface * CdM * uz * windspeed;
