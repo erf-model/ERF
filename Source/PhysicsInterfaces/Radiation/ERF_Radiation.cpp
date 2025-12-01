@@ -602,8 +602,12 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                     // Check if over land
                     bool is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
 
+                    // Check if valid LSM data
+                    bool valid_lsm_data{false};
+                    if (lsm_in_arr) { valid_lsm_data = (lsm_in_arr(i,j,k) > 0.); }
+
                     // Have LSM and are over land
-                    if (is_land && lsm_in_arr) {
+                    if (is_land && valid_lsm_data) {
                         rrtmgp_to_fill(icol) = lsm_in_arr(i,j,k);
                     }
                     // We have a SurfLayer (enforce consistency with temperature)
