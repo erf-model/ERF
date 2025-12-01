@@ -573,7 +573,7 @@ ERF::HurricaneTrackerInitial(int levc,
         eye_x = h_coords[0]/h_found[0];
         eye_y = h_coords[1]/h_found[0];
 
-        Real rad_tag = 3e5*std::pow(2, max_level-1-levc);
+        Real rad_tag = 4e5*std::pow(2, max_level-1-levc);
 
         for (MFIter mfi(*tags); mfi.isValid(); ++mfi) {
             TagBox& tag = (*tags)[mfi];
@@ -636,17 +636,14 @@ ERF::HurricaneTracker(int levc,
                       const Real velmag_threshold,
                       TagBoxArray* tags)
 {
-    Print() << "Calling tagginng by level" << levc << std::endl;
     static Vector<char> is_start;
     if(is_start.empty()){
-        is_start.resize(2,1);
+        is_start.resize(max_level+1,1);
     }
     if(time==0.0){
-        Print() << "Calling initial tagging by level " << levc << std::endl;
         HurricaneTrackerInitial(levc, U_new, V_new, W_new, velmag_threshold, tags);
         is_start[levc] = 0;
     } else {
-        Print() << "Calling NOT initial tagging by level " << levc << std::endl;
         HurricaneTrackerNotInitial(levc, tags);
     }
 }
