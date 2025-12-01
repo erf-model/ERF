@@ -1587,10 +1587,8 @@ ERF::InitData_post ()
             const Real theta0 = input_sounding_data.theta_ref_inp_sound;
             const Real qv0    = input_sounding_data.qv_ref_inp_sound;
             for (int lev = 0; lev <= finest_level; lev++) {
-                MultiFab* t_surf_lev = m_SurfaceLayer->get_t_surf(lev);
-                MultiFab* q_surf_lev = m_SurfaceLayer->get_q_surf(lev);
-                t_surf_lev->setVal(theta0);
-                q_surf_lev->setVal(qv0);
+                m_SurfaceLayer->set_t_surf(lev, theta0);
+                m_SurfaceLayer->set_q_surf(lev, qv0);
             }
         }
 
