@@ -15,7 +15,7 @@ void ERF::advance_radiation (int lev,
         MultiFab *lon_ptr = nullptr;
 #endif
         // T surf from SurfaceLayer if we have it
-        MultiFab* t_surf = (SurfLayer) ? SurfLayer->get_t_surf(lev) : nullptr;
+        MultiFab* t_surf = (m_SurfaceLayer) ? m_SurfaceLayer->get_t_surf(lev) : nullptr;
 
         // RRTMGP inputs names and pointers
         Vector<std::string> lsm_input_names = rad[lev]->get_lsm_input_varnames();
