@@ -16,6 +16,8 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 
+#include "ERF_NCWpsFile.H"
+
 void
 compute_terrain_top_and_bottom (Real& terrain_bottom_min,
                                 Real& terrain_bottom_max,
@@ -47,6 +49,30 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                const MultiFab& mf_PB,
                                const MultiFab& mf_P,
                                const bool& use_P_eos);
+
+Real
+read_start_time_from_wrfinput(int lev, const std::string& fname)
+{
+    std::string NC_dateTime;
+    Real        NC_epochTime;
+    if (ParallelDescriptor::IOProcessor()) {
+        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+
+        NC_dateTime = ncf.get_attr("SIMULATION_START_DATE");
+
+        const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
+        NC_epochTime = getEpochTime(NC_dateTime, dateTimeFormat);
+
+        ncf.close();
+
+        amrex::Print() << "Have read start_time string at level "<< lev << " is " << NC_dateTime << std::endl;
+        amrex::Print() << "Have read start_time number at level "<< lev << " is " << NC_epochTime << std::endl;
+    }
+
+    amrex::ParallelDescriptor::Bcast(&NC_epochTime,1,amrex::ParallelDescriptor::IOProcessorNumber());
+
+    return NC_epochTime;
+}
 
 /**
  * ERF function that initializes data from a WRF dataset
@@ -627,6 +653,7 @@ ERF::init_from_wrfinput (int lev,
           }
         } // ivar
         Print() << "\n";
+        have_read_nc_init_file[lev][idx] = 1;
     } // idx
 
     // Convert the velocities using the map factors
@@ -875,10 +902,7 @@ ERF::init_from_wrfinput (int lev,
                                     lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                     geom[lev], use_moist);
         } // itime
-    } // use_real_bcs && lev == 0
 
-    if (solverChoice.use_real_bcs)
-    {
         //
         // Start at the earliest time (read_from_wrfbdy)
         // Note we only have start_bdy_time if at level 0 and init_type == InitType::WRFInput or InitType::Metgrid
@@ -894,7 +918,7 @@ ERF::init_from_wrfinput (int lev,
             t_new[lev] = t_new[0];
             t_old[lev] = t_old[0];
         }
-    } // use_real_bcs
+    } // use_real_bcs && (lev == 0)
 
     // *******************************************************************************************
     // Initialize the low data if available

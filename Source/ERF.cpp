@@ -60,7 +60,9 @@ int  ERF::mg_verbose    = 0;
 bool ERF::use_fft       = false;
 
 // Should we check the solution for NaNs every time step?
-bool ERF::check_for_nans = false;
+// 1: check state/vels after dycore, state after microphysics, and state/vels at end of full time step
+// 2: add checks of state before dycore and of slow rhs
+int ERF::check_for_nans = 0;
 
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
@@ -73,14 +75,12 @@ int ERF::last_plot3d_file_step_2 = -1;
 int ERF::last_plot2d_file_step_1 = -1;
 int ERF::last_plot2d_file_step_2 = -1;
 int ERF::last_check_file_step    = -1;
-int ERF::last_subvol_step        = -1;
 
 Real ERF::last_plot3d_file_time_1 = 0.0;
 Real ERF::last_plot3d_file_time_2 = 0.0;
 Real ERF::last_plot2d_file_time_1 = 0.0;
 Real ERF::last_plot2d_file_time_2 = 0.0;
 Real ERF::last_check_file_time    = 0.0;
-Real ERF::last_subvol_time        = 0.0;
 
 bool ERF::plot_file_on_restart = true;
 
@@ -94,6 +94,7 @@ StateInterpType ERF::interpolation_type;
 
 // NetCDF wrfinput (initialization) file(s)
 Vector<Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via input
+Vector<Vector<int>>         ERF::have_read_nc_init_file = {{0}};
 
 // NetCDF wrfbdy (lateral boundary) file
 std::string ERF::nc_bdy_file; // Must provide via input
@@ -511,6 +512,17 @@ ERF::ERF_shared ()
             amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
         }
     }
+
+    if ( solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+        int ngrow_for_eb = 4;
+        Box buildings_bx(surroundingNodes(geom[max_level].Domain())); buildings_bx.grow(3);
+        FArrayBox buildings_fab(makeSlab(buildings_bx,2,0),1);
+        Real dummy_time = 0.0;
+        prob->init_buildings_surface(geom[max_level], buildings_fab, dummy_time);
+        TerrainIF implicit_fun(buildings_fab, geom[max_level], stretched_dz_d[max_level]);
+        auto gshop = EB2::makeShop(implicit_fun);
+        amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+    }
 }
 
 ERF::~ERF () = default;
@@ -559,10 +571,12 @@ ERF::Evolve ()
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                 << " DT = " << dt[0]  << std::endl;
 
-        if (check_for_nans) {
+        if (check_for_nans > 0) {
             amrex::Print() << "Testing new state and vels for NaNs at end of timestep" << std::endl;
-            check_new_state_for_nans();
-            check_new_vels_for_nans();
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                check_state_for_nans(vars_new[lev][IntVars::cons]);
+                check_vels_for_nans(vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],vars_new[lev][Vars::zvel]);
+            }
         }
 
         if (verbose > 0)
@@ -599,10 +613,12 @@ ERF::Evolve ()
             if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
         }
 
-        if (writeNow(cur_time, step+1, m_subvol_int, m_subvol_per, dt[0], last_subvol_time)) {
-            last_subvol_step = step+1;
-            WriteSubvolume(subvol3d_var_names);
-            if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
+        for (int i = 0; i < m_subvol_int.size(); i++) {
+            if (writeNow(cur_time, step+1, m_subvol_int[i], m_subvol_per[i], dt[0], last_subvol_time[i])) {
+                last_subvol_step[i] = step+1;
+                WriteSubvolume(i,subvol3d_var_names);
+                if (m_subvol_per[i] > 0.) {last_subvol_time[i] += m_subvol_per[i];}
+            }
         }
 
         if (writeNow(cur_time, step+1, m_check_int, m_check_per, dt[0], last_check_file_time)) {
@@ -639,9 +655,12 @@ ERF::Evolve ()
         Write2DPlotFile(2,plotfile2d_type_1,plot2d_var_names_2);
         if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
     }
-    if ( (m_subvol_int > 0 || m_subvol_per > 0.) && istep[0] > last_subvol_step) {
-        WriteSubvolume(subvol3d_var_names);
-        if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
+
+    for (int i = 0; i < m_subvol_int.size(); i++) {
+        if ( (m_subvol_int[i] > 0 || m_subvol_per[i] > 0.) && istep[0] > last_subvol_step[i]) {
+            WriteSubvolume(i,subvol3d_var_names);
+            if (m_subvol_per[i] > 0.) {last_subvol_time[i] += m_subvol_per[i];}
+        }
     }
 
     if ( (m_check_int > 0 || m_check_per > 0.) && istep[0] > last_check_file_step) {
@@ -1525,6 +1544,11 @@ ERF::InitData_post ()
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
     {
+        bool has_diff = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
+                          (solverChoice.turbChoice[0].les_type != LESType::None)           ||
+                          (solverChoice.turbChoice[0].pbl_type != PBLType::None) );
+        AMREX_ALWAYS_ASSERT(has_diff);
+
         bool rotate = solverChoice.use_rotate_surface_flux;
         if (rotate) {
             Print() << "Using surface layer model with stress rotations" << std::endl;
@@ -1545,12 +1569,11 @@ ERF::InitData_post ()
         // This call will allocate the arrays at each level. If we regrid later, either changing
         // the number of levels or just the grids at each existing level, we will call an update routine
         // to redefine the internal arrays in m_SurfaceLayer.
-        int nlevs = geom.size();
-        for (int lev = 0; lev < nlevs; lev++)
+        for (int lev = 0; lev <= finest_level; lev++)
         {
             Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                                          &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-            m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
+            m_SurfaceLayer->make_SurfaceLayer_at_level(lev,finest_level+1,
                                                        mfv_old, Theta_prim[lev], Qv_prim[lev],
                                                        Qr_prim[lev], z_phys_nd[lev],
                                                        Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
@@ -1670,10 +1693,12 @@ ERF::InitData_post ()
             if (m_plot2d_per_2 > 0.) {last_plot2d_file_time_2 += m_plot2d_per_2;}
             last_plot2d_file_step_2 = istep[0];
         }
-        if (m_subvol_int > 0 || m_subvol_per > 0.) {
-            WriteSubvolume(subvol3d_var_names);
-            last_subvol_step = istep[0];
-            if (m_subvol_per > 0.) {last_subvol_time += m_subvol_per;}
+        for (int i = 0; i < m_subvol_int.size(); i++) {
+            if (m_subvol_int[i] > 0 || m_subvol_per[i] > 0.) {
+                WriteSubvolume(i,subvol3d_var_names);
+                last_subvol_step[i] = istep[0];
+                if (m_subvol_per[i] > 0.) {last_subvol_time[i] += m_subvol_per[i];}
+            }
         }
     }
 
@@ -1812,7 +1837,8 @@ ERF::InitData_post ()
     }
 
     if ( solverChoice.terrain_type == TerrainType::EB ||
-         solverChoice.terrain_type == TerrainType::ImmersedForcing)
+         solverChoice.terrain_type == TerrainType::ImmersedForcing  ||
+         solverChoice.buildings_type == BuildingsType::ImmersedForcing )
     {
         bool write_eb_surface = false;
         pp.query("write_eb_surface", write_eb_surface);
@@ -2049,7 +2075,8 @@ ERF::init_only (int lev, Real time)
     }
 
     // Set initial velocity field for immersed cells to be close to 0
-    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+        solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         init_immersed_forcing(lev);
     }
 }
@@ -2065,18 +2092,34 @@ ERF::ReadParameters ()
             max_step = std::numeric_limits<int>::max();
         }
 
+        // TODO: more robust general datetime parsing
         std::string start_datetime, stop_datetime;
         if (pp.query("start_datetime", start_datetime)) {
             if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 start_datetime += ":00"; // add seconds
             }
+            if (start_datetime.length() != 19) {
+                Print() << "Got start_datetime = \"" << start_datetime
+                    << "\", format should be " << datetime_format << std::endl;
+                exit(0);
+            }
             start_time = getEpochTime(start_datetime, datetime_format);
+            Print() << "Start datetime : " << start_datetime << std::endl;
 
             if (pp.query("stop_datetime", stop_datetime)) {
                 if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                     stop_datetime += ":00"; // add seconds
                 }
+                if (stop_datetime.length() != 19) {
+                    Print() << "Got stop_datetime = \"" << stop_datetime
+                        << "\", format should be " << datetime_format << std::endl;
+                    exit(0);
+                }
                 stop_time = getEpochTime(stop_datetime, datetime_format);
+                Print() << "Stop  datetime : " << start_datetime << std::endl;
+            } else if (pp.query("stop_time", stop_time)) {
+                Print() << "Sim length     : " << stop_time << " s" << std::endl;
+                stop_time += start_time;
             }
 
             use_datetime = true;
@@ -2189,6 +2232,7 @@ ERF::ReadParameters ()
 
 #ifdef ERF_USE_NETCDF
         nc_init_file.resize(max_level+1);
+        have_read_nc_init_file.resize(max_level+1);
 
         // NetCDF wrfinput initialization files -- possibly multiple files at each of multiple levels
         //        but we always have exactly one file at level 0
@@ -2198,9 +2242,11 @@ ERF::ReadParameters ()
                 int num_files = pp.countval(nc_file_names.c_str());
                 num_files_at_level[lev] = num_files;
                 nc_init_file[lev].resize(num_files);
+                have_read_nc_init_file[lev].resize(num_files);
                 pp.queryarr(nc_file_names.c_str(), nc_init_file[lev],0,num_files);
                 for (int j = 0; j < num_files; j++) {
                     Print() << "Reading NC init file names at level " << lev << " and index " << j << " : " << nc_init_file[lev][j] << std::endl;
+                    have_read_nc_init_file[lev][j] = 0;
                 } // j
             } // if pp.contains
         } // lev
@@ -2314,8 +2360,61 @@ ERF::ReadParameters ()
         pp.query("plot2d_per_2",  m_plot2d_per_2);
 
         pp.query("subvol_file",   subvol_file);
-        pp.query("subvol_int" , m_subvol_int);
-        pp.query("subvol_per" , m_subvol_per);
+
+        // Default if subvol_int not specified
+        m_subvol_int.resize(1); m_subvol_int[0] = -1;
+        m_subvol_per.resize(1); m_subvol_per[0] = -1.0;
+        last_subvol_step.resize(1);
+        last_subvol_time.resize(1);
+
+        int nsi = pp.countval("subvol_int");
+        int nsr = pp.countval("subvol_per");
+
+        // We must specify only subvol_int OR subvol_per
+        AMREX_ALWAYS_ASSERT (!(nsi > 0 && nsr > 0));
+
+        int nsub = -1;
+        if (nsi > 0 || nsr > 0) {
+            ParmParse pp_sv("erf.subvol");
+            int n1 = pp_sv.countval("origin"); int n2 = pp_sv.countval("nxnynz"); int n3 = pp_sv.countval("dxdydz");
+            if (n1 != n2 || n1 != n3 || n2 != n3) {
+                amrex::Abort("WriteSubvolume: must have same number of entries in origin, nxnynz, and dxdydz.");
+            }
+            if ( n1%AMREX_SPACEDIM != 0) {
+                amrex::Abort("WriteSubvolume: origin, nxnynz, and dxdydz must have multiples of AMReX_SPACEDIM");
+            }
+            nsub = n1/AMREX_SPACEDIM;
+            m_subvol_int.resize(nsub);
+            last_subvol_step.resize(nsub);
+            last_subvol_time.resize(nsub);
+            m_subvol_int.resize(nsub);
+            m_subvol_per.resize(nsub);
+        }
+
+        if (nsi > 0) {
+            for (int i = 1; i < nsub; i++) m_subvol_per[i] = -1.0;
+            if ( nsi == 1) {
+                m_subvol_int[0] = -1;
+                pp.get("subvol_int" , m_subvol_int[0]);
+            } else if ( nsi == nsub) {
+                pp.getarr("subvol_int" , m_subvol_int);
+            } else {
+                amrex::Abort("There must either be a single value of subvol_int or one for every subdomain");
+            }
+        }
+
+        if (nsr > 0) {
+            for (int i = 1; i < nsub; i++) m_subvol_int[i] = -1.0;
+            if ( nsr == 1) {
+                m_subvol_per[0] = -1.0;
+                pp.get("subvol_per" , m_subvol_per[0]);
+            } else if ( nsr == nsub) {
+                pp.getarr("subvol_per" , m_subvol_per);
+            } else {
+                amrex::Abort("There must either be a single value of subvol_per or one for every subdomain");
+            }
+        }
+
         setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
@@ -2760,52 +2859,111 @@ ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Re
 }
 
 void
-ERF::check_new_state_for_nans()
+ERF::check_state_for_nans(MultiFab const& S)
 {
-    if (check_for_nans) {
-        int ncomp = vars_new[0][Vars::cons].nComp();
-        for (int lev = 0; lev <= finest_level; lev++)
-        {
-            //
-            // Test at the end of every full timestep whether the solution data contains NaNs
-            //
-            auto& lev_new = vars_new[lev];
-            for (int i = 0; i < ncomp; i++) {
-                if (lev_new[Vars::cons].contains_nan(i,1,0))
-                {
-                    amrex::Print() << "ith conserved variable at new time contains NaNs" << i << '\n';
-                    exit(0);
-                }
+    int ncomp = S.nComp();
+    for (int lev = 0; lev <= finest_level; lev++)
+    {
+        //
+        // Test at the end of every full timestep whether the solution data contains NaNs
+        //
+        bool any_have_nans = false;
+        for (int i = 0; i < ncomp; i++) {
+            if (S.contains_nan(i,1,0))
+            {
+                amrex::Print() << "Component " << i << "of conserved variables contains NaNs" << '\n';
+                any_have_nans = true;
             }
+        }
+        if (any_have_nans) {
+            exit(0);
         }
     }
 }
 
 void
-ERF::check_new_vels_for_nans()
+ERF::check_vels_for_nans(MultiFab const& xvel, MultiFab const& yvel, MultiFab const& zvel)
 {
-    if (check_for_nans) {
-        for (int lev = 0; lev <= finest_level; lev++)
-        {
-            //
-            // Test at the end of every full timestep whether the solution data contains NaNs
-            //
-            auto& lev_new = vars_new[lev];
-            if (lev_new[Vars::xvel].contains_nan(0,1,0))
-            {
-                amrex::Print() << "x-velocity at new time contains NaNs" << '\n';
-                exit(0);
-            }
-            if (lev_new[Vars::yvel].contains_nan(0,1,0))
-            {
-                amrex::Print() << "y-velocity at new time contains NaNs" << '\n';
-                exit(0);
-            }
-            if (lev_new[Vars::zvel].contains_nan(0,1,0))
-            {
-                amrex::Print() << "z-velocity at new time contains NaNs" << '\n';
-                exit(0);
-            }
-        }
+    //
+    // Test at the end of every full timestep whether the solution data contains NaNs
+    //
+    bool any_have_nans = false;
+    if (xvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "x-velocity contains NaNs " << '\n';
+        any_have_nans = true;
     }
+    if (yvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "y-velocity contains NaNs" << '\n';
+        any_have_nans = true;
+    }
+    if (zvel.contains_nan(0,1,0))
+    {
+        amrex::Print() << "z-velocity contains NaNs" << '\n';
+        any_have_nans = true;
+    }
+    if (any_have_nans) {
+        exit(0);
+    }
+}
+
+void
+ERF::check_for_low_temp(amrex::MultiFab& S)
+{
+    // *****************************************************************************
+    // Test for low temp (low is defined as beyond the microphysics range of validity)
+    // *****************************************************************************
+    //
+    // This value is defined in erf_dtesati in Source/Utils/ERF_MicrophysicsUtils.H
+    Real t_low = 273.16 - 85.;
+    //
+    for (MFIter mfi(S); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.tilebox();
+        const Array4<Real> &s_arr  = S.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real rho      = s_arr(i, j, k, Rho_comp);
+            const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
+            const Real qv       = s_arr(i, j, k, RhoQ1_comp);
+
+            Real temp = getTgivenRandRTh(rho, rhotheta, qv);
+
+            if (temp < t_low) {
+#ifdef AMREX_USE_GPU
+                AMREX_DEVICE_PRINTF("Temperature too low going into microphysics in cell: %d %d %d %e \n", i,j,k,temp);
+#else
+                printf("Temperature too low going into microphyics in cell: %d %d %d \n", i,j,k);
+                printf("Based on temp / rhotheta / rho %e %e %e \n", temp,rhotheta,rho);
+                amrex::Abort();
+#endif
+            }
+        });
+    }
+}
+
+void
+ERF::check_for_negative_theta(amrex::MultiFab& S)
+{
+    // *****************************************************************************
+    // Test for negative (rho theta)
+    // *****************************************************************************
+    for (MFIter mfi(S); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.tilebox();
+        const Array4<Real> &s_arr  = S.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
+            if (rhotheta <= 0.) {
+#ifdef AMREX_USE_GPU
+                AMREX_DEVICE_PRINTF("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
+#else
+                printf("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
+                amrex::Abort("Bad theta in check_for_negative_theta");
+#endif
+            }
+            });
+    } // mfi
 }

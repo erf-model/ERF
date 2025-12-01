@@ -59,6 +59,10 @@ AMREX_ENUM(TerrainType,
     None, StaticFittedMesh, MovingFittedMesh, EB, ImmersedForcing
 );
 
+AMREX_ENUM(BuildingsType,
+    None, ImmersedForcing
+);
+
 AMREX_ENUM(MoistureModelType,
     Eulerian, Lagrangian, Undefined
 );
@@ -232,6 +236,13 @@ struct SolverChoice {
             pp.query_enum_case_insensitive("terrain_type",terrain_type);
         }
 
+        // Get buildings type
+        std::string buildings_type_temp = "";
+        pp.query("buildings_type", buildings_type_temp);
+        if (buildings_type_temp == "ImmersedForcing") {
+            buildings_type = BuildingsType::ImmersedForcing;
+        }
+
         //
         // Read the init_type here to make sure we correctly set the mesh and terrain types
         //
@@ -362,53 +373,11 @@ struct SolverChoice {
             }
         }
 
+        pp.query("substepping_diag", substepping_diag);
+
         pp.query("beta_s", beta_s);
 
-#ifndef ERF_USE_SHOC
-        // This controls the time-centering of the vertical differences in the diffusive term
-        bool do_vert_implicit = false;
-        if (pp.query("vert_implicit", do_vert_implicit) && do_vert_implicit) {
-            // set to default here
-            vert_implicit_fac[0] = 1.0;
-            vert_implicit_fac[1] = 1.0;
-            vert_implicit_fac[2] = 0.0;
-        }
 
-        // This may be one value for all RK stages or a different value in each stage
-        int n_impfac = pp.countval("vert_implicit_fac");
-        AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
-        if (n_impfac > 0 && do_vert_implicit) {
-            amrex::Print() << "Overriding defaults with specified implicit factor(s)" << std::endl;
-        }
-
-        if (n_impfac == 1) {
-            amrex::Real fac_in;
-            pp.get("vert_implicit_fac", fac_in);
-            for (int i=0; i<3; ++i) vert_implicit_fac[i] = fac_in;
-        } else if (n_impfac == 3) {
-            pp.getarr("vert_implicit_fac", vert_implicit_fac);
-        }
-
-        // If true (default), include implicit contributions to vertical
-        // thermal diffusion
-        pp.query("implicit_thermal_diffusion", implicit_thermal_diffusion);
-
-        // If true (default), include implicit contributions in tau13, tau23,
-        // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
-        pp.query("implicit_momentum_diffusion", implicit_momentum_diffusion);
-
-        if (!implicit_thermal_diffusion && !implicit_momentum_diffusion) {
-            amrex::Print() << "Thermal and momentum diffusion are both turned off -- turning off vertical implicit solve" << std::endl;
-            vert_implicit_fac[0] = 0.0;
-            vert_implicit_fac[1] = 0.0;
-            vert_implicit_fac[2] = 0.0;
-        }
-
-        // This controls when the vertical implicit solve for the diffusive terms will happen relative to
-        //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > 0.)
-        // The default is true (i.e. that it happens before the acoustic substepping).
-        pp.query("implicit_before_substep", implicit_before_substep);
-#endif
 
         // *******************************************************************************
         // Error check on deprecated input
@@ -476,6 +445,21 @@ struct SolverChoice {
             (if_Olen_in != 1e-8 && if_surf_temp_flux != 1e-8))
         {
             amrex::Abort("Can only specify one of init_surf_temp, surf_temp_flux, or Olen");
+        }
+
+        if (if_use_most && buildings_type == BuildingsType::ImmersedForcing)
+        {
+            amrex::Abort("MOST wall-model with immersed forcing for buildings is not currently supported");
+        }
+
+        if (if_surf_temp_flux != 1e-8 && buildings_type == BuildingsType::ImmersedForcing)
+        {
+            amrex::Abort("Specifying surf_temp_flux with immersed forcing for buildings is not currently supported");
+        }
+
+        if (if_Olen_in != 1e-8  && buildings_type == BuildingsType::ImmersedForcing)
+        {
+            amrex::Abort("Specifying Olen with immersed forcing for buildings is not currently supported");
         }
 
         // Flag to do MOST rotations with terrain
@@ -548,6 +532,8 @@ struct SolverChoice {
         dampingChoice.init_params(pp_prefix);
          spongeChoice.init_params(pp_prefix);
 
+
+
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
@@ -582,6 +568,53 @@ struct SolverChoice {
 
         // Are we using SHOC? (test on compilation done in turb struct)
         if (turbChoice[0].pbl_type == PBLType::SHOC) { use_shoc = true; }
+
+        // Implicit vertical diffusion (not available with Shoc)
+        if (!use_shoc) {
+            // This controls the time-centering of the vertical differences in the diffusive term
+             bool do_vert_implicit = false;
+             if (pp.query("vert_implicit", do_vert_implicit) && do_vert_implicit) {
+                 // set to default here
+                 vert_implicit_fac[0] = 1.0;
+                 vert_implicit_fac[1] = 1.0;
+                 vert_implicit_fac[2] = 0.0;
+             }
+
+             // This may be one value for all RK stages or a different value in each stage
+             int n_impfac = pp.countval("vert_implicit_fac");
+             AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
+             if (n_impfac > 0 && do_vert_implicit) {
+                 amrex::Print() << "Overriding defaults with specified implicit factor(s)" << std::endl;
+             }
+
+             if (n_impfac == 1) {
+                 amrex::Real fac_in;
+                 pp.get("vert_implicit_fac", fac_in);
+                 for (int i=0; i<3; ++i) { vert_implicit_fac[i] = fac_in; }
+             } else if (n_impfac == 3) {
+                 pp.getarr("vert_implicit_fac", vert_implicit_fac);
+             }
+
+             // If true (default), include implicit contributions to vertical
+             // thermal diffusion
+             pp.query("implicit_thermal_diffusion", implicit_thermal_diffusion);
+
+             // If true (default), include implicit contributions in tau13, tau23,
+             // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
+             pp.query("implicit_momentum_diffusion", implicit_momentum_diffusion);
+
+             if (!implicit_thermal_diffusion && !implicit_momentum_diffusion) {
+                 amrex::Print() << "Thermal and momentum diffusion are both turned off -- turning off vertical implicit solve" << std::endl;
+                 vert_implicit_fac[0] = 0.0;
+                 vert_implicit_fac[1] = 0.0;
+                 vert_implicit_fac[2] = 0.0;
+             }
+
+             // This controls when the vertical implicit solve for the diffusive terms will happen relative to
+             //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > 0.)
+             // The default is true (i.e. that it happens before the acoustic substepping).
+             pp.query("implicit_before_substep", implicit_before_substep);
+         }
 
         // Which type of multilevel coupling
         coupling_type = CouplingType::TwoWay; // Default
@@ -662,6 +695,8 @@ struct SolverChoice {
                               " location of the eye in the initial condition");
             }
         }
+
+        pp.query("file_name_digits", file_name_digits);
 
         check_params(max_level);
     }
@@ -773,6 +808,12 @@ struct SolverChoice {
             amrex::Print() << "Terrain Type: ImmersedForcing" << std::endl;
         } else {
             amrex::Print() << "Terrain Type: None" << std::endl;
+        }
+
+        if (buildings_type == BuildingsType::ImmersedForcing) {
+            amrex::Print() << "Buildings Type: ImmersedForcing" << std::endl;
+        } else {
+            amrex::Print() << "Buildings Type: None" << std::endl;
         }
 
         if (mesh_type == MeshType::ConstantDz) {
@@ -896,6 +937,9 @@ struct SolverChoice {
     TerrainType terrain_type = TerrainType::None;
 
     inline static
+    BuildingsType buildings_type = BuildingsType::None;
+
+    inline static
     bool use_real_bcs = false;
 
     inline static
@@ -920,6 +964,9 @@ struct SolverChoice {
 
     amrex::Vector<SubsteppingType> substepping_type;
     amrex::Vector<int> anelastic;
+
+    // do some extra CFL diagnostics for compressible with substepping
+    bool substepping_diag = false;
 
     // time off-centering coefficient, > 0 for forward weighting (i.e., bias
     // towards the future time step)
@@ -1070,5 +1117,7 @@ struct SolverChoice {
 
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
+
+    int file_name_digits = 5;
 };
 #endif

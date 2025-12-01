@@ -94,6 +94,8 @@ public:
          const amrex::BoxArray& ba,
          amrex::Geometry& geom,
          amrex::MultiFab* cons_in,
+         amrex::iMultiFab* lmask,
+         amrex::MultiFab*  t_surf,
          amrex::MultiFab* lsm_fluxes,
          amrex::MultiFab* lsm_zenith,
          amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
@@ -105,8 +107,8 @@ public:
          amrex::MultiFab* lon_ptr) override
     {
         set_grids(level, step, time, dt, ba, geom,
-                  cons_in, lsm_fluxes, lsm_zenith,
-                  lsm_input_ptrs, qheating_rates,
+                  cons_in, lmask, t_surf, lsm_fluxes,
+                  lsm_zenith, lsm_input_ptrs, qheating_rates,
                   rad_fluxes, z_phys, lat_ptr, lon_ptr);
         rad_run_impl(lsm_output_ptrs);
     }
@@ -120,6 +122,8 @@ public:
                const amrex::BoxArray& ba,
                amrex::Geometry& geom,
                amrex::MultiFab* cons_in,
+               amrex::iMultiFab* lmask,
+               amrex::MultiFab*  t_surf,
                amrex::MultiFab* lsm_fluxes,
                amrex::MultiFab* lsm_zenith,
                amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
@@ -139,7 +143,9 @@ public:
 
     // Fill KOKKOS Views from AMReX MultiFabs
     void
-    mf_to_kokkos_buffers(amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs);
+    mf_to_kokkos_buffers(amrex::iMultiFab* lmask,
+                         amrex::MultiFab*  t_surf,
+                         amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs);
 
     // Fill AMReX MultiFabs from KOKKOS Views
     void

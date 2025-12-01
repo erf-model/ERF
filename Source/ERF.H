@@ -228,9 +228,11 @@ public:
     // Restart
     void restart ();
 
-    // Check for NaNs
-    void check_new_state_for_nans();
-    void check_new_vels_for_nans();
+    // Check for NaNs and other bad stuff
+    void check_state_for_nans(amrex::MultiFab const& S);
+    void check_vels_for_nans(amrex::MultiFab const& xvel, amrex::MultiFab const& yvel, amrex::MultiFab const& zvel);
+    void check_for_negative_theta (amrex::MultiFab& S);
+    void check_for_low_temp       (amrex::MultiFab& S);
 
     // Is it time to write a plotfile or checkpoint?
     bool writeNow (const amrex::Real cur_time, const int nstep, const int plot_int,
@@ -416,7 +418,7 @@ public:
     void Write2DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
 
     // Write subvolume of data into a different "plotfile"
-    void WriteSubvolume (amrex::Vector<std::string> subvol_var_names);
+    void WriteSubvolume (int isub, amrex::Vector<std::string> subvol_var_names);
 
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
@@ -1004,14 +1006,15 @@ private:
     static int last_plot2d_file_step_1;
     static int last_plot2d_file_step_2;
     static int last_check_file_step;
-    static int last_subvol_step;
 
     static amrex::Real last_plot3d_file_time_1;
     static amrex::Real last_plot3d_file_time_2;
     static amrex::Real last_plot2d_file_time_1;
     static amrex::Real last_plot2d_file_time_2;
     static amrex::Real last_check_file_time;
-    static amrex::Real last_subvol_time;
+
+    amrex::Vector<int> last_subvol_step;
+    amrex::Vector<amrex::Real> last_subvol_time;
 
     static bool plot_file_on_restart;
 
@@ -1069,12 +1072,14 @@ private:
     int m_plot3d_int_2 = -1;
     int m_plot2d_int_1 = -1;
     int m_plot2d_int_2 = -1;
-    int m_subvol_int = -1;
+
+    amrex::Vector<int> m_subvol_int;
+    amrex::Vector<amrex::Real> m_subvol_per;
+
     amrex::Real m_plot3d_per_1 = -1.0;
     amrex::Real m_plot3d_per_2 = -1.0;
     amrex::Real m_plot2d_per_1 = -1.0;
     amrex::Real m_plot2d_per_2 = -1.0;
-    amrex::Real m_subvol_per = -1.0;
     bool m_plot_face_vels = false;
 
     bool plot_lsm = false;
@@ -1194,7 +1199,7 @@ private:
     static int mg_verbose;
     static bool use_fft;
 
-    static bool check_for_nans;
+    static int check_for_nans;
 
     // Diagnostic output interval
     static int sum_interval;
@@ -1214,6 +1219,7 @@ private:
 
     // NetCDF initialization (wrfinput) file
     static amrex::Vector<amrex::Vector<std::string>> nc_init_file;
+    static amrex::Vector<amrex::Vector<int>> have_read_nc_init_file;
 
     // NetCDF initialization (wrfbdy/met_em) file
     static std::string nc_bdy_file;
