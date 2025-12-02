@@ -260,15 +260,17 @@ SurfaceLayer::update_fluxes (const int& lev,
             return x + (y - x) * dt;
         };
 
+        sfc_sst = linear_interp(t0, t1, time, sfc[1][sfc_time_ind], sfc[1][sfc_time_ind + 1]);
         sfc_qflux = linear_interp(t0, t1, time, sfc[3][sfc_time_ind], sfc[3][sfc_time_ind + 1]);
         sfc_tflux = linear_interp(t0, t1, time, sfc[2][sfc_time_ind], sfc[2][sfc_time_ind + 1]);
 
-        amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time " << time << ": SHF = " << sfc_tflux << " LHF = " << sfc_qflux << std::endl;
+        amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time " << time << ": SHF = " << sfc_tflux << " LHF = " << sfc_qflux << " SST = " << sfc_sst << std::endl;
     
         // since no rho factors, these can be set here
         //t_star[lev]->setVal(sfc_tflux / Cp_d);
         //q_star[lev]->setVal(sfc_qflux / L_v);
 
+        t_surf[lev]->setVal(sfc_sst);
         t_star[lev]->setVal(sfc_tflux / 1004.0);
         q_star[lev]->setVal(sfc_qflux / 2.5104e6);
     }

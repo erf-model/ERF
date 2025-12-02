@@ -631,6 +631,8 @@ public:
       m_tsk_lev[lev][itime] = tsk_ptr;
   }
 
+  bool use_sfc_fluxes() { return use_sfc_fluxes; }
+
   enum struct FluxCalcType {
     MOENG = 0,  ///< Moeng functional form
     DONELAN,    ///< Donelan functional form
@@ -700,6 +702,7 @@ private:
   int sfc_time_ind = 0;
   amrex::Real sfc_qflux;
   amrex::Real sfc_tflux;
+  amrex::Real sfc_sst;
 
   bool use_moisture;
   bool m_has_lsm_tsurf  = false;
