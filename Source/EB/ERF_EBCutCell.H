@@ -351,6 +351,7 @@ calc_edge_intersections ()
   RealVect v6(m_rbox.lo(0), m_rbox.hi(1), m_rbox.hi(2));
   RealVect v7(m_rbox.hi(0), m_rbox.hi(1), m_rbox.hi(2));
 
+#ifndef AMREX_USE_GPU
   constexpr bool print_F1 = false;
   constexpr bool print_F2 = false;
   constexpr bool print_F3 = false;
@@ -358,10 +359,17 @@ calc_edge_intersections ()
   constexpr bool print_F5 = false;
   constexpr bool print_F6 = false;
   constexpr bool print_F7 = false;
+#endif
 
+#ifdef AMREX_USE_GPU
+  m_F1.add_vertex(v0);
+  m_F4.add_vertex(v0);
+  m_F5.add_vertex(v0);
+#else
   m_F1.add_vertex(v0,"Initial: add v0 -> F1",print_F1);
   m_F4.add_vertex(v0,"Initial: add v0 -> F4",print_F4);
   m_F5.add_vertex(v0,"Initial: add v0 -> F5",print_F5);
+#endif
 
   int add_v7(1);
 
@@ -444,7 +452,7 @@ calc_edge_intersections ()
       amrex::Real length = (v1-v4).vectorLength();
 
       if ( Math::abs(distIP) < tol ) {
-#ifdef AMREX_USE_GPU        
+#ifdef AMREX_USE_GPU
         m_F1.add_vertex(v1);
         m_F2.add_vertex(v1);
         m_F5.add_vertex(v1);
