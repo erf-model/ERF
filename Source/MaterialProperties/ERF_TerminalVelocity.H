@@ -153,7 +153,8 @@ struct TerminalVelocity
      *  and
      *
      *  Code: https://doi.org/10.5281/zenodo.3483650
-     *  File: [...]/contrib/SDM/sdm_motion.f90 */
+     *  File: [...]/contrib/SDM/sdm_motion.f90
+     *  Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     AMREX_GPU_HOST_DEVICE
     RT IceBohm ( const RT a_m,      /*!< mass */
                  const RT a_a,      /*!< ice particle equatorial radius */

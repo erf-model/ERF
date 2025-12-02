@@ -331,6 +331,8 @@ struct CollisionKernel
         return k12;
     }
 
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     /*! \brief Beard & Grover, 1974 */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT BeardGrover1974 ( const RT a_sr, /*!< Size ratio */
@@ -363,7 +365,9 @@ struct CollisionKernel
         return retval;
     }
 
-    /*! \brief Beard & Grover, 1974 */
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
+    /*! \brief Erfani & Mitchell, 2017 (Plate) */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT ErfaniMitchell2017_Plate ( const RT a_Re, /*!< Reynolds number */
                                   const RT a_Fr  /*!< Froude number */ ) const noexcept
@@ -402,7 +406,9 @@ struct CollisionKernel
         }
     }
 
-    /*! \brief Beard & Grover, 1974 */
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
+    /*! \brief Erfani & Mitchell, 2017 (Column) */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT ErfaniMitchell2017_Column ( const RT a_Re, /*!< Reynolds number */
                                    const RT a_Fr  /*!< Froude number */ ) const noexcept
