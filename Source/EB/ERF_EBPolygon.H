@@ -39,6 +39,7 @@ class polygon_ {
       , m_zdir(0.)
     {}
 
+    AMREX_GPU_HOST
     void add_vertex (amrex::RealVect const& a_v,
                     const std::string& msg, bool print_msg = false)
     {
@@ -51,8 +52,9 @@ class polygon_ {
     AMREX_GPU_HOST_DEVICE
     void add_vertex ( amrex::RealVect const& a_v ) {
       for ( int i(0); i<m_num_vertices; ++i) {
-        if ( amrex::almostEqual(m_vertices[i][0],a_v[0]) && amrex::almostEqual(m_vertices[i][1],a_v[1])
-          && amrex::almostEqual(m_vertices[i][2],a_v[2]) ) {
+        if ( amrex::almostEqual(m_vertices[i][0],a_v[0]) &&
+             amrex::almostEqual(m_vertices[i][1],a_v[1]) &&
+             amrex::almostEqual(m_vertices[i][2],a_v[2]) ) {
           return;
         }
       }
