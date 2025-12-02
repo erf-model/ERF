@@ -179,60 +179,6 @@ SurfaceLayer::update_fluxes (const int& lev,
         }
     }
 
-    // If using SLM LSM, then overwrite u_star and t_star with values calculated from SLM
-    if (use_lsm_most) {
-        // This assumes LSM stores ustar at index 1 and tstar at index 2
-        for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
-        {
-            Box gtbx = mfi.growntilebox();
-
-            auto u_star_arr = u_star[lev]->array(mfi);
-            auto t_star_arr = t_star[lev]->array(mfi);
-            auto q_star_arr = q_star[lev]->array(mfi);
-
-            AMREX_ASSERT(m_lsm_data_lev[lev][1]);
-            AMREX_ASSERT(m_lsm_data_lev[lev][2]);
-            AMREX_ASSERT(m_lsm_data_lev[lev][3]);
-
-            auto lsm_ustar_arr = m_lsm_data_lev[lev][1]->const_array(mfi);
-            auto lsm_tstar_arr = m_lsm_data_lev[lev][2]->const_array(mfi);
-            auto lsm_qstar_arr = m_lsm_data_lev[lev][3]->const_array(mfi);
-
-            // TODO: LSM does not carry lateral ghost cells.
-            //       This copies the valid box into the ghost cells.
-            //       Fillboundary is called after this to pick up the
-            //       interior ghost and periodic directions. Is there
-            //       a better approach?
-            Box vbx  = mfi.validbox();
-            int i_lo = vbx.smallEnd(0); int i_hi = vbx.bigEnd(0);
-            int j_lo = vbx.smallEnd(1); int j_hi = vbx.bigEnd(1);
-
-            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                int li = amrex::min(amrex::max(i, i_lo), i_hi);
-                int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-
-                //amrex::Print() << " ABLMost: i = " << i << " j = " << j << " k = " << k << ": SLM- OLD ustar = " << u_star_arr(i, j, k) << " tstar = " << t_star_arr(i, j, k) << " qstar = " << q_star_arr(i, j, k) << std::endl;
-
-                if (time > 0.0) {
-                    u_star_arr(i, j, k) = lsm_ustar_arr(li, lj, k);
-                    t_star_arr(i, j, k) = lsm_tstar_arr(li, lj, k);
-                    q_star_arr(i, j, k) = lsm_qstar_arr(li, lj, k);
-
-                    //amrex::Print() << " ABLMost: i = " << i << " j = " << j << " k = " << k << ": SLM- setting ustar = " << u_star_arr(i, j, k) << " tstar = " << t_star_arr(i, j, k) << " qstar = " << q_star_arr(i, j, k) << std::endl;
-                }
-            });
-        }
-
-        // Fill interior ghost cells
-        u_star[lev]->FillBoundary(m_geom[lev].periodicity());
-        t_star[lev]->FillBoundary(m_geom[lev].periodicity());
-        q_star[lev]->FillBoundary(m_geom[lev].periodicity());
-    
-        m_lsm_data_lev[lev][11]->FillBoundary(m_geom[lev].periodicity());
-        m_lsm_data_lev[lev][12]->FillBoundary(m_geom[lev].periodicity());
-    }
-
     if (m_use_sfc_fluxes)
     {
         amrex::Real t0 = sfc[0][sfc_time_ind];
@@ -488,39 +434,11 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         auto lsm_tau13_arr  = Array4<Real> {};
         auto lsm_tau23_arr  = Array4<Real> {};
         for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
+            if (m_use_sfc_fluxes) continue; // skip setting LSM fields if forcing with sfc file
             if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
             if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
             if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
             if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
-        }
-
-
-        const bool use_lsm = use_lsm_most;
-        //auto lsm_flbu_arr = (use_lsm_most && m_lsm_data_lev[lev][11]) ? m_lsm_data_lev[lev][11]->array(mfi) : Array4<Real> {};
-        //auto lsm_flbv_arr = (use_lsm_most && m_lsm_data_lev[lev][12]) ? m_lsm_data_lev[lev][12]->array(mfi) : Array4<Real> {};
-
-        if (m_use_sfc_fluxes) {
-            amrex::Real d_sfc_tflux = sfc_tflux;
-            amrex::Real d_sfc_qflux = sfc_qflux;
-
-            /*
-            ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                const amrex::Real rho = cons_arr(i, j, k, Rho_comp);
-
-                // NOTE: interpolated t and q need to be converted: SHF / Cp * rho, LHF / L_v * rho
-                // SLM branch removed rho factor in Custom MOST stress for tstar and qstar, so add rho factor back here
-                //  -> SHF = rho * (SHF / Cp * rho) -> SHF = SHF / Cp
-                //  -> LHF = rho * (LHF / L_v * rho) -> LHF = LHF / L_v
-                t_star_arr(i, j, 0) = d_sfc_tflux / Cp_d;
-                q_star_arr(i, j, 0) = d_sfc_qflux / L_v;
-            });
-            */
-
-            // Fill interior ghost cells
-            //u_star[lev]->FillBoundary(m_geom[lev].periodicity());
-            //t_star[lev]->FillBoundary(m_geom[lev].periodicity());
-            //q_star[lev]->FillBoundary(m_geom[lev].periodicity());
         }
 
         // Rho*Theta flux

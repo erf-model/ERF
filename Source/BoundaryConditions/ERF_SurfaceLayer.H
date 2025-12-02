@@ -355,14 +355,6 @@ public:
 
       pp.query("most.use_sfc_fluxes", m_use_sfc_fluxes);
 
-      if (lsm_data.size() > 1 && lsm_data[1] && !m_use_sfc_fluxes)
-      {
-          // If the LSM has more than theta defined, use ustar and tstar from LSM
-          use_lsm_most = true; // enable SLM -> MOST coupling
-          //use_lsm_most = false; // disable SLM -> MOST coupling
-          amrex::Print() << "  MOST: Using ustar and tstar from LSM" << std::endl;
-      }
-
       if (m_use_sfc_fluxes)
       {
           // load sensible and latent heat fluxes from sfc to prescribe
@@ -701,7 +693,6 @@ private:
   amrex::Real depth{30.0};
   amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};
-  bool use_lsm_most = false;
   bool m_use_sfc_fluxes = false;
   int sfc_time_ind = 0;
   amrex::Real sfc_qflux;
