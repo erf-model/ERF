@@ -1,6 +1,5 @@
 #include <ERF.H>
 #include <ERF_Derive.H>
-#include "ERF_HurricaneDiagnostics.H"
 
 using namespace amrex;
 
