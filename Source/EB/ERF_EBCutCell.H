@@ -487,7 +487,7 @@ calc_edge_intersections ()
         m_F3.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F3",print_F3);
         m_F6.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F6",print_F6);
         add_v7 = 0;
-      }    
+      }
     }
   } // end Path 1
 
