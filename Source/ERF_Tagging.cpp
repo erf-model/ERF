@@ -1,5 +1,6 @@
 #include <ERF.H>
 #include <ERF_Derive.H>
+#include "ERF_HurricaneDiagnostics.H"
 
 using namespace amrex;
 
@@ -132,6 +133,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         // This mf must have ghost cells because we may take differences between adjacent values
         //
         std::unique_ptr<MultiFab> mf = std::make_unique<MultiFab>(grids[levc], dmap[levc], 1, 1);
+        mf->setVal(0.0);
 
         // This allows dynamic refinement based on the value of the density
         if (ref_tags[j].Field() == "density")
@@ -636,6 +638,7 @@ ERF::HurricaneTracker(int levc,
                       const Real velmag_threshold,
                       TagBoxArray* tags)
 {
+
     static Vector<char> is_start;
     if(is_start.empty()){
         is_start.resize(max_level+1,1);
