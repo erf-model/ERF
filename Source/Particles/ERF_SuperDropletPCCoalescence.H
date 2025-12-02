@@ -28,6 +28,8 @@ struct CollisionKernel
         return b * (X_1 + X_2);
     }
 
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     /*! \brief Sedimentation kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT sedimentation (  const RT a_r1, /*!< radius of particle 1 */
@@ -45,6 +47,8 @@ struct CollisionKernel
         return PI*(a_r1+a_r2)*(a_r1+a_r2)*E*dv;
     }
 
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     /*! \brief Long's kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Longs ( const RT a_r1, /*!< radius of particle 1 */
@@ -71,6 +75,8 @@ struct CollisionKernel
         return c_rate*dv;
     }
 
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     /*! \brief r0col data for Hall's kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Halls_data_r0col (const int a_i /*!< index */) const noexcept
@@ -93,6 +99,8 @@ struct CollisionKernel
         return vec[a_i];
     }
 
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     /*! \brief r0col data for Hall's kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     int Halls_data_r0col ( const RT a_r /*!< radius */) const noexcept
@@ -105,6 +113,8 @@ struct CollisionKernel
         return i;
     }
 
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     /*! \brief ratcol data for Hall's kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Halls_data_ratcol ( const int a_i /*!< index */) const noexcept
@@ -133,6 +143,8 @@ struct CollisionKernel
         return vec[a_i];
     }
 
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     /*! \brief ratcol data for Hall's kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     int Halls_data_ratcol ( const RT a_r /*!< ratio */) const noexcept
@@ -144,6 +156,8 @@ struct CollisionKernel
         return i;
     }
 
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     /*! \brief ecoll data for Hall's kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Halls_data_ecoll ( const int a_i, /*!< row index */
@@ -175,6 +189,8 @@ struct CollisionKernel
     }
 
 
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     /*! \brief Hall's kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Halls ( const RT a_r1, /*!< radius of particle 1 */
@@ -235,6 +251,8 @@ struct CollisionKernel
         return c_rate*dv;
     }
 
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     /*! \brief Brownian kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Brownian_SeinfeldPandis ( const RT a_r1, /*!< radius of particle 1 */
