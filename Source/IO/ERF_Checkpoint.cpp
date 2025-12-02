@@ -35,7 +35,8 @@ ERF::WriteCheckpointFile () const
     // etc.                these subdirectories will hold the MultiFab data at each level of refinement
 
     // checkpoint file name, e.g., chk00010
-    const std::string& checkpointname = Concatenate(check_file,istep[0],5);
+    int file_name_digits = solverChoice.file_name_digits;
+    const std::string& checkpointname = Concatenate(check_file,istep[0],file_name_digits);
 
     Print() << "Writing native checkpoint " << checkpointname << "\n";
 

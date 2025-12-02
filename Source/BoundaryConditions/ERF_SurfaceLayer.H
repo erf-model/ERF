@@ -362,9 +362,9 @@ public:
           m_lsm_flux_lev[lev][n] = lsm_flux[n];
       }
 
-      pp.query("most.use_sfc_fluxes", use_sfc_fluxes);
+      pp.query("most.use_sfc_fluxes", m_use_sfc_fluxes);
 
-      if (use_sfc_fluxes)
+      if (m_use_sfc_fluxes)
       {
           AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_surface_model, "Cannot use surface flux forcing with LSM/Urban model!");
 
@@ -638,6 +638,8 @@ public:
       m_tsk_lev[lev][itime] = tsk_ptr;
   }
 
+  bool use_sfc_fluxes() { return m_use_sfc_fluxes; }
+
   enum struct FluxCalcType {
     MOENG = 0,  ///< Moeng functional form
     DONELAN,    ///< Donelan functional form
@@ -702,10 +704,11 @@ private:
   amrex::Real depth{30.0};
   amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};
-  bool use_sfc_fluxes = false;
+  bool m_use_sfc_fluxes = false;
   int sfc_time_ind = 0;
   amrex::Real sfc_qflux;
   amrex::Real sfc_tflux;
+  amrex::Real sfc_sst;
 
   bool use_moisture;
   bool m_has_lsm_tsurf  = false;

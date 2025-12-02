@@ -1421,9 +1421,36 @@ List of Parameters
 |                            | CFL for w-damping to be applied, |                   |             |
 |                            | if ``erf.w_damping`` is true     |                   |             |
 +----------------------------+----------------------------------+-------------------+-------------+
-| **erf.w_damping_coeff**    | w-damping coefficient (m/s)      | Real              | 0.3         |
+| **erf.w_damping_const**    | w-damping coefficient (m/s2)     | Real              | -1          |
++----------------------------+----------------------------------+-------------------+-------------+
+| **erf.w_damping_coeff**    | w-damping coefficient (-)        | Real              | -1          |
 +----------------------------+----------------------------------+-------------------+-------------+
 
+If ``erf.w_damping`` is true, then either ``erf.w_damping_const`` or ``erf.w_damping_coeff`` must
+be specified. For WRF-like damping, set ``erf.w_damping_const = 0.3`` to give
+
+.. math::
+
+   f_d = - \rho\,\text{sgn}(w)\,(C-C_{crit}) \cdot \gamma,
+
+where :math:`\gamma` is a constant damping coefficient with units of m/s2 and the advective Courant
+number is :math:`C = |w|\Delta t / \Delta z`.
+
+If ``erf.w_damping_coeff`` is specified instead, then
+
+.. math::
+
+   f_d = - \rho\,\text{sgn}(w)\,(|w|-w_{crit}) \cdot \frac{\alpha}{\Delta t},
+
+where :math:`\alpha` is a dimensionless damping factor and :math:`w_{crit} = C_{crit} \Delta z / \Delta t`.
+This is equivalent to:
+
+.. math::
+
+   f_d = - \rho\,\text{sgn}(w)\,(C-C_{crit}) \cdot \alpha \frac{\Delta z}{(\Delta t)^2}.
+
+This approach gives a damping coefficient that is sensitive to the vertical grid spacing and
+robustly damps towards the critical Courant number.
 
 
 Initialization

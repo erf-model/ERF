@@ -34,8 +34,8 @@ Radiation::Radiation (const int& lev,
     // Construct parser object for following reads
     ParmParse pp("erf");
 
-    // Must specify a surface temp without a LSM
-    if (!m_lsm) { pp.get("rad_t_sfc",m_rad_t_sfc); }
+    // Must specify a surface temp (LSM can overwrite)
+    pp.get("rad_t_sfc",m_rad_t_sfc);
 
     // Radiation timestep, as a number of atm steps
     pp.query("rad_freq_in_steps", m_rad_freq_in_steps);
@@ -274,11 +274,14 @@ Radiation::alloc_buffers ()
     d_tint                   = real2d_k("d_tint"                  , m_ncol, m_nlay+1);
     p_lev                    = real2d_k("p_lev"                   , m_ncol, m_nlay+1);
     t_lev                    = real2d_k("t_lev"                   , m_ncol, m_nlay+1);
+
     sw_flux_up               = real2d_k("sw_flux_up"              , m_ncol, m_nlay+1);
     sw_flux_dn               = real2d_k("sw_flux_dn"              , m_ncol, m_nlay+1);
     sw_flux_dn_dir           = real2d_k("sw_flux_dn_dir"          , m_ncol, m_nlay+1);
-    lw_flux_up               = real2d_k("sw_flux_up"              , m_ncol, m_nlay+1);
-    lw_flux_dn               = real2d_k("sw_flux_dn"              , m_ncol, m_nlay+1);
+
+    lw_flux_up               = real2d_k("lw_flux_up"              , m_ncol, m_nlay+1);
+    lw_flux_dn               = real2d_k("lw_flux_dn"              , m_ncol, m_nlay+1);
+
     sw_clnclrsky_flux_up     = real2d_k("sw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
     sw_clnclrsky_flux_dn     = real2d_k("sw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
     sw_clnclrsky_flux_dn_dir = real2d_k("sw_clnclrsky_flux_dn_dir", m_ncol, m_nlay+1);
@@ -288,6 +291,7 @@ Radiation::alloc_buffers ()
     sw_clnsky_flux_up        = real2d_k("sw_clnsky_flux_up"       , m_ncol, m_nlay+1);
     sw_clnsky_flux_dn        = real2d_k("sw_clnsky_flux_dn"       , m_ncol, m_nlay+1);
     sw_clnsky_flux_dn_dir    = real2d_k("sw_clnsky_flux_dn_dir"   , m_ncol, m_nlay+1);
+
     lw_clnclrsky_flux_up     = real2d_k("lw_clnclrsky_flux_up"    , m_ncol, m_nlay+1);
     lw_clnclrsky_flux_dn     = real2d_k("lw_clnclrsky_flux_dn"    , m_ncol, m_nlay+1);
     lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"       , m_ncol, m_nlay+1);
@@ -303,14 +307,14 @@ Radiation::alloc_buffers ()
 
     // 3d size (ncol, nlay+1, nlwbands)
     lw_bnd_flux_up = real3d_k("lw_bnd_flux_up" , m_ncol, m_nlay+1, m_nlwbands);
-    lw_bnd_flux_dn = real3d_k("lw_bnd_flux_up" , m_ncol, m_nlay+1, m_nlwbands);
+    lw_bnd_flux_dn = real3d_k("lw_bnd_flux_dn" , m_ncol, m_nlay+1, m_nlwbands);
 
     // 2d size (ncol, nswbands)
     sfc_alb_dir = real2d_k("sfc_alb_dir", m_ncol, m_nswbands);
     sfc_alb_dif = real2d_k("sfc_alb_dif", m_ncol, m_nswbands);
 
     // 2d size (ncol, nlwbands)
-    emis_sfc    = real2d_k("emis_sfc", m_ncol, m_nlwbands);
+    //emis_sfc    = real2d_k("emis_sfc", m_ncol, m_nlwbands);
 
     /*
     // 3d size (ncol, nlay, n[sw,lw]bands)
@@ -416,7 +420,7 @@ Radiation::dealloc_buffers ()
     sfc_alb_dif = real2d_k();
 
     // 2d size (ncol, nlwbands)
-    emis_sfc = real2d_k();
+    //emis_sfc = real2d_k();
 
     /*
     // 3d size (ncol, nlay, n[sw,lw]bands)
@@ -566,7 +570,7 @@ Radiation::mf_to_kokkos_buffers (const Vector<const MultiFab*>& lsm_input_ptrs)
         //           the code to plug into these if we need it.
         //
         // Current EAMXX constants
-        Kokkos::deep_copy(emis_sfc, 0.98);
+        Kokkos::deep_copy(sfc_emis, 0.98);
         Kokkos::deep_copy(lw_src  , 0.0 );
     } else {
         Vector<real1d_k> rrtmgp_in_vars = {t_sfc, sfc_emis,
@@ -1186,7 +1190,7 @@ Radiation::run_impl ()
                         p_lev, t_lev,
                         m_gas_concs,
                         sfc_alb_dir, sfc_alb_dif, mu0,
-                        t_sfc, emis_sfc, lw_src,
+                        t_sfc, sfc_emis, lw_src,
                         lwp, iwp, eff_radius_qc, eff_radius_qi, cldfrac_tot,
                         aero_tau_sw, aero_ssa_sw, aero_g_sw, aero_tau_lw,
                         cld_tau_sw_bnd, cld_tau_lw_bnd,
@@ -1251,7 +1255,7 @@ Radiation::run_impl ()
                         p_lev, t_lev,
                         m_gas_concs,
                         sfc_alb_dir, sfc_alb_dif, mu0,
-                        t_sfc, emis_sfc, lw_src,
+                        t_sfc, sfc_emis, lw_src,
                         lwp, iwp, eff_radius_qc, eff_radius_qi, cldfrac_tot,
                         aero_tau_sw, aero_ssa_sw, aero_g_sw, aero_tau_lw,
                         cld_tau_sw_bnd, cld_tau_lw_bnd,

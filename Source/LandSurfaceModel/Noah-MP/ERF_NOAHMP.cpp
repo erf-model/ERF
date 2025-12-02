@@ -55,7 +55,7 @@ NOAHMP::Init (const int& lev,
     //       direct copying between lsm data/flux vars cannot be done in a parfor.
 
     // Set 2D box array for lsm data
-    IntVect ng(0,0,0);
+    IntVect ng(1,1,0);
     BoxArray ba = cons_in.boxArray();
     DistributionMapping dm = cons_in.DistributionMap();
     BoxList bl_lsm = ba.boxList();
@@ -232,18 +232,20 @@ NOAHMP::Advance_With_State (const int& lev,
     int idb = 0;
     for (MFIter mfi(cons_in, false); mfi.isValid(); ++mfi, ++idb) {
 
-        Box bx = mfi.tilebox();
+        Box bx  = mfi.tilebox();
+        Box gbx = mfi.tilebox(IntVect(0,0,0),IntVect(1,1,0));
 
         // Check if tile is at the lower boundary in lower z direction
         if (bx.smallEnd(2) != domain.smallEnd(2)) { continue; }
 
         bx.makeSlab(2,domain.smallEnd(2));
+        gbx.makeSlab(2,domain.smallEnd(2));
 
         NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
 
         const Array4<const Real>& U_PHY  = xvel_in.const_array(mfi);
         const Array4<const Real>& V_PHY  = yvel_in.const_array(mfi);
-        const Array4<const Real>& QV_TH  = cons_in.const_array(mfi);
+        const Array4<const Real>& CONS   = cons_in.const_array(mfi);
 
         // Into NOAH-MP
         const Array4<const Real>& SWDOWN = lsm_fab_data[LsmData_NOAHMP::sw_flux_dn]->const_array(mfi);
@@ -286,26 +288,26 @@ NOAHMP::Advance_With_State (const int& lev,
         FArrayBox tmp_albsfcdif_nir(bx, 1, The_Pinned_Arena());
 
         // Get array views
-        auto const& tmp_u_phy_arr = tmp_u_phy.array();
-        auto const& tmp_v_phy_arr = tmp_v_phy.array();
-        auto const& tmp_t_phy_arr = tmp_t_phy.array();
+        auto const& tmp_u_phy_arr   = tmp_u_phy.array();
+        auto const& tmp_v_phy_arr   = tmp_v_phy.array();
+        auto const& tmp_t_phy_arr   = tmp_t_phy.array();
         auto const& tmp_qv_curr_arr = tmp_qv_curr.array();
-        auto const& tmp_p8w_arr = tmp_p8w.array();
-        auto const& tmp_swdown_arr = tmp_swdown.array();
-        auto const& tmp_glw_arr = tmp_glw.array();
-        auto const& tmp_coszen_arr = tmp_coszen.array();
+        auto const& tmp_p8w_arr     = tmp_p8w.array();
+        auto const& tmp_swdown_arr  = tmp_swdown.array();
+        auto const& tmp_glw_arr     = tmp_glw.array();
+        auto const& tmp_coszen_arr  = tmp_coszen.array();
 
         // Copy forcing data from ERF to Noahmp.
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
         {
             tmp_u_phy_arr(i,j,0)   = 0.5*(U_PHY(i,j,0)+U_PHY(i+1,j  ,0));
             tmp_v_phy_arr(i,j,0)   = 0.5*(V_PHY(i,j,0)+V_PHY(i  ,j+1,0));
-            tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(QV_TH(i,j,0,Rho_comp),QV_TH(i,j,0,RhoTheta_comp));
-            tmp_qv_curr_arr(i,j,0) = QV_TH(i,j,0,RhoQ1_comp)/QV_TH(i,j,0,Rho_comp);
-            tmp_p8w_arr(i,j,0)     = getPgivenRTh(QV_TH(i,j,0,RhoTheta_comp));
-            tmp_swdown_arr(i,j,0)    = SWDOWN(i,j,0);
-            tmp_glw_arr(i,j,0)       = GLW(i,j,0);
-            tmp_coszen_arr(i,j,0)    = COSZEN(i,j,0);
+            tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(CONS(i,j,0,Rho_comp),CONS(i,j,0,RhoTheta_comp));
+            tmp_qv_curr_arr(i,j,0) = CONS(i,j,0,RhoQ1_comp)/CONS(i,j,0,Rho_comp);
+            tmp_p8w_arr(i,j,0)     = getPgivenRTh(CONS(i,j,0,RhoTheta_comp));
+            tmp_swdown_arr(i,j,0)  = SWDOWN(i,j,0);
+            tmp_glw_arr(i,j,0)     = GLW(i,j,0);
+            tmp_coszen_arr(i,j,0)  = COSZEN(i,j,0);
         });
 
         // Synchronize to ensure GPU kernel is complete before host access
@@ -313,25 +315,25 @@ NOAHMP::Advance_With_State (const int& lev,
 
         // Now on the host, copy data to NoahmpIO arrays
         // Use LoopOnCpu for CPU-side parallelization
-        const auto& h_u_arr = tmp_u_phy.const_array();
-        const auto& h_v_arr = tmp_v_phy.const_array();
-        const auto& h_t_arr = tmp_t_phy.const_array();
-        const auto& h_qv_arr = tmp_qv_curr.const_array();
-        const auto& h_p8w_arr = tmp_p8w.const_array();
+        const auto& h_u_arr      = tmp_u_phy.const_array();
+        const auto& h_v_arr      = tmp_v_phy.const_array();
+        const auto& h_t_arr      = tmp_t_phy.const_array();
+        const auto& h_qv_arr     = tmp_qv_curr.const_array();
+        const auto& h_p8w_arr    = tmp_p8w.const_array();
         const auto& h_swdown_arr = tmp_swdown.const_array();
-        const auto& h_glw_arr = tmp_glw.const_array();
+        const auto& h_glw_arr    = tmp_glw.const_array();
         const auto& h_coszen_arr = tmp_coszen.const_array();
 
         LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
         {
-            noahmpio->U_PHY(i,1,j) = h_u_arr(i,j,0);
-            noahmpio->V_PHY(i,1,j) = h_v_arr(i,j,0);
-            noahmpio->T_PHY(i,1,j) = h_t_arr(i,j,0);
+            noahmpio->U_PHY(i,1,j)   = h_u_arr(i,j,0);
+            noahmpio->V_PHY(i,1,j)   = h_v_arr(i,j,0);
+            noahmpio->T_PHY(i,1,j)   = h_t_arr(i,j,0);
             noahmpio->QV_CURR(i,1,j) = h_qv_arr(i,j,0);
-            noahmpio->P8W(i,1,j) = h_p8w_arr(i,j,0);
-            noahmpio->SWDOWN(i,j) = h_swdown_arr(i,j,0);
-            noahmpio->GLW(i,j) = h_glw_arr(i,j,0);
-            noahmpio->COSZEN(i,j) = h_coszen_arr(i,j,0);
+            noahmpio->P8W(i,1,j)     = h_p8w_arr(i,j,0);
+            noahmpio->SWDOWN(i,j)    = h_swdown_arr(i,j,0);
+            noahmpio->GLW(i,j)       = h_glw_arr(i,j,0);
+            noahmpio->COSZEN(i,j)    = h_coszen_arr(i,j,0);
         });
 
         // Call the noahmpio driver code. This runs the land model forcing for
@@ -340,12 +342,12 @@ NOAHMP::Advance_With_State (const int& lev,
         noahmpio->DriverMain();
 
         // Copy results from NoahmpIO back to temporary arrays
-        auto h_hfx_arr = tmp_hfx.array();
-        auto h_lh_arr = tmp_lh.array();
-        auto h_tau_ew_arr = tmp_tau_ew.array();
-        auto h_tau_ns_arr = tmp_tau_ns.array();
-        auto h_tsk_arr = tmp_tsk.array();
-        auto h_emiss_arr = tmp_emiss.array();
+        auto h_hfx_arr           = tmp_hfx.array();
+        auto h_lh_arr            = tmp_lh.array();
+        auto h_tau_ew_arr        = tmp_tau_ew.array();
+        auto h_tau_ns_arr        = tmp_tau_ns.array();
+        auto h_tsk_arr           = tmp_tsk.array();
+        auto h_emiss_arr         = tmp_emiss.array();
         auto h_albsfcdir_vis_arr = tmp_albsfcdir_vis.array();
         auto h_albsfcdir_nir_arr = tmp_albsfcdir_nir.array();
         auto h_albsfcdif_vis_arr = tmp_albsfcdif_vis.array();
@@ -353,12 +355,12 @@ NOAHMP::Advance_With_State (const int& lev,
 
         LoopOnCpu(bx, [&] (int i, int j, int ) noexcept
         {
-            h_hfx_arr(i,j,0) = noahmpio->HFX(i,j);
-            h_lh_arr(i,j,0) = noahmpio->LH(i,j);
-            h_tau_ew_arr(i,j,0)  = noahmpio->TAU_EW(i,j);
-            h_tau_ns_arr(i,j,0)  = noahmpio->TAU_NS(i,j);
-            h_tsk_arr(i,j,0)        = noahmpio->TSK(i,j);
-            h_emiss_arr(i,j,0)      = noahmpio->EMISS(i,j);
+            h_hfx_arr(i,j,0)           = noahmpio->HFX(i,j);
+            h_lh_arr(i,j,0)            = noahmpio->LH(i,j);
+            h_tau_ew_arr(i,j,0)        = noahmpio->TAU_EW(i,j);
+            h_tau_ns_arr(i,j,0)        = noahmpio->TAU_NS(i,j);
+            h_tsk_arr(i,j,0)           = noahmpio->TSK(i,j);
+            h_emiss_arr(i,j,0)         = noahmpio->EMISS(i,j);
             h_albsfcdir_vis_arr(i,j,0) = noahmpio->ALBSFCDIRXY(i,1,j);
             h_albsfcdir_nir_arr(i,j,0) = noahmpio->ALBSFCDIRXY(i,2,j);
             h_albsfcdif_vis_arr(i,j,0) = noahmpio->ALBSFCDIFXY(i,1,j);
@@ -366,12 +368,12 @@ NOAHMP::Advance_With_State (const int& lev,
         });
 
         // Copy results back to output arrays
-        auto const& tmp_hfx_arr = tmp_hfx.array();
-        auto const& tmp_lh_arr = tmp_lh.array();
-        auto const& tmp_tau_ew_arr = tmp_tau_ew.array();
-        auto const& tmp_tau_ns_arr = tmp_tau_ns.array();
-        auto const& tmp_tsk_arr = tmp_tsk.array();
-        auto const& tmp_emiss_arr = tmp_emiss.array();
+        auto const& tmp_hfx_arr           = tmp_hfx.array();
+        auto const& tmp_lh_arr            = tmp_lh.array();
+        auto const& tmp_tau_ew_arr        = tmp_tau_ew.array();
+        auto const& tmp_tau_ns_arr        = tmp_tau_ns.array();
+        auto const& tmp_tsk_arr           = tmp_tsk.array();
+        auto const& tmp_emiss_arr         = tmp_emiss.array();
         auto const& tmp_albsfcdir_vis_arr = tmp_albsfcdir_vis.array();
         auto const& tmp_albsfcdir_nir_arr = tmp_albsfcdir_nir.array();
         auto const& tmp_albsfcdif_vis_arr = tmp_albsfcdif_vis.array();
@@ -381,17 +383,29 @@ NOAHMP::Advance_With_State (const int& lev,
         // Copy forcing data from Noahmp to ERF
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
         {
-            t_flux_arr(i,j,0) = tmp_hfx_arr(i,j,0)/(QV_TH(i,j,0,Rho_comp)*Cp_d);
-            q_flux_arr(i,j,0) = tmp_lh_arr(i,j,0)/(QV_TH(i,j,0,Rho_comp)*L_v);
-            tau13_arr(i,j,0)  = tmp_tau_ew_arr(i,j,0)/QV_TH(i,j,0,Rho_comp);
-            tau23_arr(i,j,0)  = tmp_tau_ns_arr(i,j,0)/QV_TH(i,j,0,Rho_comp);
-            TSK(i,j,0)        = tmp_tsk_arr(i,j,0);
-            EMISS(i,j,0)      = tmp_emiss_arr(i,j,0);
+            // SurfaceLayer fluxes at CC
+            t_flux_arr(i,j,0)    = tmp_hfx_arr(i,j,0)/(CONS(i,j,0,Rho_comp)*Cp_d);
+            q_flux_arr(i,j,0)    = tmp_lh_arr(i,j,0)/(CONS(i,j,0,Rho_comp)*L_v);
+
+            // NOTE: The following fluxes are nodal in xz/yz.
+            //       The 2D MFs have 1 ghost cell so we can average these
+            //       when using them in the surface layer class.
+            tau13_arr(i,j,0)  = tmp_tau_ew_arr(i,j,0)/CONS(i,j,0,Rho_comp);
+            tau23_arr(i,j,0)  = tmp_tau_ns_arr(i,j,0)/CONS(i,j,0,Rho_comp);
+
+            // RRTMGP variables
+            TSK(i,j,0)           = tmp_tsk_arr(i,j,0);
+            EMISS(i,j,0)         = tmp_emiss_arr(i,j,0);
             ALBSFCDIR_VIS(i,j,0) = tmp_albsfcdir_vis_arr(i,j,0);
             ALBSFCDIR_NIR(i,j,0) = tmp_albsfcdir_nir_arr(i,j,0);
             ALBSFCDIF_VIS(i,j,0) = tmp_albsfcdif_vis_arr(i,j,0);
             ALBSFCDIF_NIR(i,j,0) = tmp_albsfcdif_nir_arr(i,j,0);
         });
+    }
+
+    // Fill the ghost cells
+    for (auto ivar = 0; ivar < LsmFlux_NOAHMP::NumVars; ++ivar) {
+        lsm_fab_flux[ivar]->FillBoundary(m_geom.periodicity());
     }
     Print () << "Noah-MP driver completed" << std::endl;
 };

@@ -56,7 +56,8 @@
             m_forest_drag[level]->get_drag_field() : nullptr;
 
         // Immersed Forcing
-        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing) ?
+        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
             terrain_blanking[level].get() : nullptr;
 
         // Update the total moisture variable *before* computing sources since this is used in
@@ -126,7 +127,7 @@
         // Make remaining (not gradp or buoyancy) momentum sources
         // *****************************************************************************
         make_mom_sources(old_stage_time, slow_dt,
-                         S_data, *zpn_to_use, *zpc_to_use, stretched_dz_h[level],
+                         S_data, zpn_to_use, zpc_to_use, stretched_dz_h[level],
                          xvel_new, yvel_new, zvel_new,
                          xmom_src, ymom_src, zmom_src,
                          base_to_use, forest_drag, terrain_blank,

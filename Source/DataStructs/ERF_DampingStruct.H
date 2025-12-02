@@ -50,7 +50,12 @@ struct DampingChoice {
         // Include vertical-velocity damping to improve robustness
         pp.query("w_damping", w_damping);
         pp.query("w_damping_cfl", w_damping_cfl);
+        pp.query("w_damping_const", w_damping_const);
         pp.query("w_damping_coeff", w_damping_coeff);
+
+        if (w_damping && (w_damping_const < 0 && w_damping_coeff < 0)) {
+            amrex::Abort("Need to specify vertical damping coefficient w_damping_const (like WRF) or w_damping_coeff (~ dz/dt**2)");
+        }
     }
 
     void display()
@@ -67,7 +72,13 @@ struct DampingChoice {
         } else {
             amrex::Print() << " None" << std::endl;
         }
-        amrex::Print() << "w damping                   : " << w_damping << std::endl;
+
+        amrex::Print() << "w damping                   : " << w_damping;
+        if (w_damping_const > 0) {
+            amrex::Print() << " (coeff = " << w_damping_const << ")" << std::endl;
+        } else {
+            amrex::Print() << " (coeff = " << w_damping_coeff << " * dz/dt**2)" << std::endl;
+        }
     }
 
     bool        rayleigh_damp_U        = false;
@@ -79,8 +90,12 @@ struct DampingChoice {
     amrex::Real rayleigh_ztop;
 
     bool        w_damping              = false;
-    amrex::Real w_damping_cfl          = 1.0;
-    amrex::Real w_damping_coeff        = 0.3; // damping coefficient [m/s]
+    amrex::Real w_damping_cfl          = 1.0; // from WRF manual -- WRF source code has default
+                                              //   w_crit_cfl=1.2
+    amrex::Real w_damping_const        = -1;  // damping coefficient -- to used a constant value
+                                              //   (WRF uses 0.3 m/s2), set to a positive value;
+                                              //   otherwise, the damping coefficient will be
+    amrex::Real w_damping_coeff        = -1;  //   grid-dependent: coeff * dz/dt**2
 
     // Molecular transport model
     RayleighDampingType rayleigh_damping_type = RayleighDampingType::SlowExplicit;

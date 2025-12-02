@@ -179,7 +179,7 @@ SurfaceLayer::update_fluxes (const int& lev,
         }
     }
 
-    if (use_sfc_fluxes)
+    if (m_use_sfc_fluxes)
     {
         amrex::Real t0 = sfc[0][sfc_time_ind];
         amrex::Real t1 = sfc[0][sfc_time_ind+1];
@@ -206,15 +206,17 @@ SurfaceLayer::update_fluxes (const int& lev,
             return x + (y - x) * dt;
         };
 
+        sfc_sst = linear_interp(t0, t1, time, sfc[1][sfc_time_ind], sfc[1][sfc_time_ind + 1]);
         sfc_qflux = linear_interp(t0, t1, time, sfc[3][sfc_time_ind], sfc[3][sfc_time_ind + 1]);
         sfc_tflux = linear_interp(t0, t1, time, sfc[2][sfc_time_ind], sfc[2][sfc_time_ind + 1]);
 
-        amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time " << time << ": SHF = " << sfc_tflux << " LHF = " << sfc_qflux << std::endl;
+        amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time " << time << ": SHF = " << sfc_tflux << " LHF = " << sfc_qflux << " SST = " << sfc_sst << std::endl;
     
         // since no rho factors, these can be set here
         //t_star[lev]->setVal(sfc_tflux / Cp_d);
         //q_star[lev]->setVal(sfc_qflux / L_v);
 
+        t_surf[lev]->setVal(sfc_sst);
         t_star[lev]->setVal(sfc_tflux / 1004.0);
         q_star[lev]->setVal(sfc_qflux / 2.5104e6);
     }
@@ -457,34 +459,11 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         auto lsm_tau13_arr  = Array4<Real> {};
         auto lsm_tau23_arr  = Array4<Real> {};
         for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
+            if (m_use_sfc_fluxes) continue; // skip setting LSM fields if forcing with sfc file
             if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
             if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
             if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
             if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
-        }
-
-        if (use_sfc_fluxes) {
-            amrex::Real d_sfc_tflux = sfc_tflux;
-            amrex::Real d_sfc_qflux = sfc_qflux;
-
-            /*
-            ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                const amrex::Real rho = cons_arr(i, j, k, Rho_comp);
-
-                // NOTE: interpolated t and q need to be converted: SHF / Cp * rho, LHF / L_v * rho
-                // SLM branch removed rho factor in Custom MOST stress for tstar and qstar, so add rho factor back here
-                //  -> SHF = rho * (SHF / Cp * rho) -> SHF = SHF / Cp
-                //  -> LHF = rho * (LHF / L_v * rho) -> LHF = LHF / L_v
-                t_star_arr(i, j, 0) = d_sfc_tflux / Cp_d;
-                q_star_arr(i, j, 0) = d_sfc_qflux / L_v;
-            });
-            */
-
-            // Fill interior ghost cells
-            //u_star[lev]->FillBoundary(m_geom[lev].periodicity());
-            //t_star[lev]->FillBoundary(m_geom[lev].periodicity());
-            //q_star[lev]->FillBoundary(m_geom[lev].periodicity());
         }
 
         // Get weight averaged LSM+Urban fluxes
@@ -560,15 +539,21 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             {
                 // Valid tau13 from LSM and over land
                 Real stressx;
-                int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
-                if (surf_uflux_arr && is_land) {
-                    // use the flux directly from LSM+Urban
-                    int ic, jc;
-                    ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
-                    jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
-                    ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
-                    jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
-                    stressx = 0.5*(surf_uflux_arr(ic-1, jc, 0) + surf_uflux_arr(ic, jc, 0));
+                int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,klo) : 1;
+                int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,klo) : 1;
+                if (surf_uflux_arr && (is_land_hi || is_land_lo)) {
+                    stressx = 0.;
+                    if (!is_land_hi || !is_land_lo) {
+                        stressx += 0.5 * flux_comp.compute_u_flux(i, j, k,
+                                                                  cons_arr, velx_arr, vely_arr,
+                                                                  umm_arr, um_arr, u_star_arr);
+                    }
+                    if (is_land_hi) {
+                        stressx += 0.5 * surf_uflux_arr(i  ,j,k);
+                    }
+                    if (is_land_lo) {
+                        stressx += 0.5 * surf_uflux_arr(i-1,j,k);
+                    }
                 } else {
                     stressx = flux_comp.compute_u_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
@@ -586,15 +571,21 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             {
                 // Valid tau13 from LSM and over land
                 Real stressy;
-                int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
-                if (surf_vflux_arr && is_land) {
-                    // use the flux directly from LSM+Urban
-                    int ic, jc;
-                    ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
-                    jc = j  < lbound(cons_arr).y+1 ? lbound(cons_arr).y+1 : j;
-                    ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
-                    jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
-                    stressy = 0.5 * (surf_vflux_arr(ic, jc-1, 0) + surf_vflux_arr(ic, jc, 0));
+                int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,klo) : 1;
+                int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,klo) : 1;
+                if (surf_vflux_arr && (is_land_hi || is_land_lo)) {
+                    stressy = 0.;
+                    if (!is_land_hi || !is_land_lo) {
+                        stressy += 0.5 * flux_comp.compute_v_flux(i, j, k,
+                                                                  cons_arr, velx_arr, vely_arr,
+                                                                  umm_arr, vm_arr, u_star_arr);
+                    }
+                    if (is_land_hi) {
+                        stressy += 0.5 * surf_vflux_arr(i,j  ,k);
+                    }
+                    if (is_land_lo) {
+                        stressy += 0.5 * surf_vflux_arr(i,j-1,k);
+                    }
                 } else {
                     stressy = flux_comp.compute_v_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
