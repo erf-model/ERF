@@ -208,7 +208,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             }
 
             if (is_hurricane_tracker) {
-                HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, false, &tags);
+                HurricaneTracker(levc, time, U_new, V_new, W_new, velmag_threshold, &tags);
             } else {
                 Vector<MultiFab> mf_cc_vel(1);
                 mf_cc_vel[0].define(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
@@ -498,12 +498,11 @@ ERF::refinement_criteria_setup ()
 }
 
 void
-ERF::HurricaneTracker(int levc,
+ERF::HurricaneTrackerInitial(int levc,
                       const MultiFab& U_new,
                       const MultiFab& V_new,
                       const MultiFab& W_new,
                       const Real velmag_threshold,
-                      const bool is_track_io,
                       TagBoxArray* tags)
 {
     const auto dx = geom[levc].CellSizeArray();
@@ -574,16 +573,7 @@ ERF::HurricaneTracker(int levc,
         eye_x = h_coords[0]/h_found[0];
         eye_y = h_coords[1]/h_found[0];
 
-        // Data structure to hold the hurricane track for I/O
-        if (amrex::ParallelDescriptor::IOProcessor() and is_track_io) {
-            hurricane_track_xy.push_back({eye_x, eye_y});
-        }
-
-        if(is_track_io) {
-            return;
-        }
-
-        Real rad_tag = 3e5*std::pow(2, max_level-1-levc);
+        Real rad_tag = 4e5*std::pow(2, max_level-1-levc);
 
         for (MFIter mfi(*tags); mfi.isValid(); ++mfi) {
             TagBox& tag = (*tags)[mfi];
@@ -603,5 +593,57 @@ ERF::HurricaneTracker(int levc,
                 }
             });
         }
+    }
+}
+
+void
+ERF::HurricaneTrackerNotInitial(int levc, TagBoxArray* tags)
+{
+    const auto dx = geom[levc].CellSizeArray();
+    const auto prob_lo = geom[levc].ProbLoArray();
+
+    Real rad_tag = 4e5*std::pow(2, max_level-1-levc);
+    const auto& last = hurricane_eye_track_xy.back();
+    Real eye_x = last[0];
+    Real eye_y = last[1];
+
+    for (MFIter mfi(*tags); mfi.isValid(); ++mfi) {
+        TagBox& tag = (*tags)[mfi];
+        auto tag_arr = tag.array();  // Get device-accessible array
+
+        const Box& tile_box = mfi.tilebox(); // The box for this tile
+
+        ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+            // Compute cell center coordinates
+            Real x = prob_lo[0] + (i + 0.5) * dx[0];
+            Real y = prob_lo[1] + (j + 0.5) * dx[1];
+
+            Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
+
+            if (dist < rad_tag) {
+                tag_arr(i,j,k) = TagBox::SET;
+            }
+        });
+    }
+}
+
+void
+ERF::HurricaneTracker(int levc,
+                      Real time,
+                      const MultiFab& U_new,
+                      const MultiFab& V_new,
+                      const MultiFab& W_new,
+                      const Real velmag_threshold,
+                      TagBoxArray* tags)
+{
+    static Vector<char> is_start;
+    if(is_start.empty()){
+        is_start.resize(max_level+1,1);
+    }
+    if(time==0.0){
+        HurricaneTrackerInitial(levc, U_new, V_new, W_new, velmag_threshold, tags);
+        is_start[levc] = 0;
+    } else {
+        HurricaneTrackerNotInitial(levc, tags);
     }
 }

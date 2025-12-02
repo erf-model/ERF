@@ -557,8 +557,10 @@ public:
   }
 
   amrex::MultiFab* get_t_surf (const int& lev) { return t_surf[lev].get(); }
+  void set_t_surf(const int& lev, const amrex::Real tsurf) { t_surf[lev]->setVal(tsurf); }
 
   amrex::MultiFab* get_q_surf (const int& lev) { return q_surf[lev].get(); }
+  void set_q_surf(const int& lev, const amrex::Real qsurf) { q_surf[lev]->setVal(qsurf); }
 
   amrex::Real get_zref () { return m_ma.get_zref(); }
 

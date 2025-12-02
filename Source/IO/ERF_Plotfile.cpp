@@ -2170,9 +2170,9 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 {
                     const Box& bx = mfi.tilebox();
                     const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer->get_t_surf(lev)->const_array(mfi);
+                    const auto& tsurf  = m_SurfaceLayer->get_t_surf(lev)->const_array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
+                       derdat(i, j, k, mf_comp) = tsurf(i, j, 0);
                     });
                 }
             } else {
