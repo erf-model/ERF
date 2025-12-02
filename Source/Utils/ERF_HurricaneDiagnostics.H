@@ -326,7 +326,6 @@ HurricaneMaxVelTracker(const amrex::Geometry& geom,
     amrex::Real h_val_max_global = -1.0e30;
      #ifdef AMREX_USE_MPI
         MPI_Allreduce(&h_val_max_local, &h_val_max_global, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-        h_val_max_global = h_val_max_local;
     #else
         h_val_max_global = h_val_max_local;
     #endif

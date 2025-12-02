@@ -29,10 +29,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Base state holds r_0, pres_0, pi_0, th_0 (in that order)
     //
-    // Here is where we set 3 ghost cells for the base state!
-    //
+    // Here is where we set the number of ghost cells for the base state!
     // ********************************************************************************************
-    tmp_base_state.define(ba,dm,BaseState::num_comps,3);
+    int ngb = (solverChoice.terrain_type == TerrainType::EB) ? 4 : 3;
+    tmp_base_state.define(ba,dm,BaseState::num_comps,ngb);
     tmp_base_state.setVal(0.);
 
     if (solverChoice.terrain_type == TerrainType::MovingFittedMesh) {

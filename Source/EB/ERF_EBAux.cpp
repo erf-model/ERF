@@ -37,9 +37,9 @@ define( [[maybe_unused]] int const& a_level,
 
   const IntVect vdim(IntVect::TheDimensionVector(a_idim));
 
-  const BoxArray& grids = amrex::convert(a_grids, vdim);
+  const BoxArray& my_grids = amrex::convert(a_grids, vdim);
 
-  m_cellflags = new FabArray<EBCellFlagFab>(grids, a_dmap, 1, a_ngrow[0], MFInfo(),
+  m_cellflags = new FabArray<EBCellFlagFab>(my_grids, a_dmap, 1, a_ngrow[0], MFInfo(),
                                             DefaultFabFactory<EBCellFlagFab>());
 
   // Set m_cellflags type to singlevalued
@@ -49,23 +49,17 @@ define( [[maybe_unused]] int const& a_level,
     fab.setType(FabType::singlevalued);
   }
 
-  m_volfrac = new MultiFab(grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
-  m_volcent = new MultiFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_volfrac = new MultiFab(my_grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
+  m_volcent = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-      const BoxArray& faceba = amrex::convert(a_grids, IntVect::TheDimensionVector(idim));
-      if (idim == a_idim) {
-          m_areafrac[idim] = new MultiFab(a_grids, a_dmap,                1, a_ngrow[1]+1, MFInfo(), FArrayBoxFactory());
-          m_facecent[idim] = new MultiFab(a_grids, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-      } else {
-          m_areafrac[idim] = new MultiFab(faceba, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
-          m_facecent[idim] = new MultiFab(faceba, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-      }
+    m_areafrac[idim] = new MultiFab(a_grids, a_dmap,                1, a_ngrow[1]+1, MFInfo(), FArrayBoxFactory());
+    m_facecent[idim] = new MultiFab(a_grids, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
   }
 
-  m_bndryarea = new MultiFab(grids, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-  m_bndrycent = new MultiFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-  m_bndrynorm = new MultiFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndryarea = new MultiFab(my_grids, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndrycent = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndrynorm = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
 
   // Initialize with zeros
   m_volfrac->setVal(0.0);
@@ -848,23 +842,22 @@ define( [[maybe_unused]] int const& a_level,
 
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
 
-      const Box& bx = mfi.validbox();
-      const Box& bx_grown = mfi.growntilebox();
+    const Box& bx = mfi.validbox();
+    const Box& bx_grown = mfi.growntilebox();
 
-      Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
-      Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
-      Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
-      Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
-      Array4<Real>       const& aux_afrac_z = m_areafrac[2]->array(mfi);
+    Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
+    Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
+    Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
+    Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
+    Array4<Real>       const& aux_afrac_z = m_areafrac[2]->array(mfi);
 
-      Array4<Real>       const& aux_vcent = m_volcent->array(mfi);
-      Array4<Real>       const& aux_fcent_x = m_facecent[0]->array(mfi);
-      Array4<Real>       const& aux_fcent_y = m_facecent[1]->array(mfi);
-      Array4<Real>       const& aux_fcent_z = m_facecent[2]->array(mfi);
-      Array4<Real>       const& aux_barea = m_bndryarea->array(mfi);
-      Array4<Real>       const& aux_bcent = m_bndrycent->array(mfi);
-      Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
-
+    Array4<Real>       const& aux_vcent = m_volcent->array(mfi);
+    Array4<Real>       const& aux_fcent_x = m_facecent[0]->array(mfi);
+    Array4<Real>       const& aux_fcent_y = m_facecent[1]->array(mfi);
+    Array4<Real>       const& aux_fcent_z = m_facecent[2]->array(mfi);
+    Array4<Real>       const& aux_barea = m_bndryarea->array(mfi);
+    Array4<Real>       const& aux_bcent = m_bndrycent->array(mfi);
+    Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
 
     if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
 
