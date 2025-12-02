@@ -638,7 +638,6 @@ ERF::HurricaneTracker(int levc,
                       const Real velmag_threshold,
                       TagBoxArray* tags)
 {
-
     static Vector<char> is_start;
     if(is_start.empty()){
         is_start.resize(max_level+1,1);
