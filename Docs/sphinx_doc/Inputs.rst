@@ -117,54 +117,54 @@ Resolution
 List of Parameters
 ------------------
 
-+-----------------------------------+-----------------+-----------------+-------------+
-| Parameter                         | Definition      | Acceptable      | Default     |
-|                                   |                 | Values          |             |
-+===================================+=================+=================+=============+
-| **amr.n_cell**                    | number of cells | Integer > 0     | must be set |
-|                                   | in each         |                 |             |
-|                                   | direction at    |                 |             |
-|                                   | the coarsest    |                 |             |
-|                                   | level           |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.max_level**                 | number of       | Integer >= 0    | must be set |
-|                                   | levels of       |                 |             |
-|                                   | refinement      |                 |             |
-|                                   | above the       |                 |             |
-|                                   | coarsest level  |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.ref_ratio**                 | ratio of coarse | 2 / 3 / 4       | 2 for all   |
-|                                   | to fine grid    | (one per level) | levels      |
-|                                   | spacing between |                 |             |
-|                                   | subsequent      |                 |             |
-|                                   | levels          |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.ref_ratio_vect**            | ratio of coarse | 3 integers      | 2 for all   |
-|                                   | to fine grid    | (one per dir)   | directions  |
-|                                   | spacing between | 2 / 3 / 4       |             |
-|                                   | subsequent      |                 |             |
-|                                   | levels          |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.regrid_int**                | how often to    | Integer > 0     | -1          |
-|                                   | regrid          | (if negative,   |             |
-|                                   |                 | no regridding)  |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.regrid_on_restart**         | should we       | 0 or 1          | 0           |
-|                                   | regrid          |                 |             |
-|                                   | immediately     |                 |             |
-|                                   | after           |                 |             |
-|                                   | restarting      |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.regrid_level_0_on_restart** | should we       | true or false   | false       |
-|                                   | regrid level    |                 |             |
-|                                   | immediately     |                 |             |
-|                                   | after           |                 |             |
-|                                   | restarting      |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
-| **amr.iterate_grids**             | do we iterate   | true, false     | true        |
-|                                   | on the grids?   |                 |             |
-|                                   |                 |                 |             |
-+-----------------------------------+-----------------+-----------------+-------------+
++-----------------------------------+--------------------+-----------------+-------------+
+| Parameter                         | Definition         | Acceptable      | Default     |
+|                                   |                    | Values          |             |
++===================================+====================+=================+=============+
+| **amr.n_cell**                    | number of cells    | Integer > 0     | must be set |
+|                                   | in each            |                 |             |
+|                                   | direction at       |                 |             |
+|                                   | the coarsest       |                 |             |
+|                                   | level              |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.max_level**                 | number of          | Integer >= 0    | must be set |
+|                                   | levels of          |                 |             |
+|                                   | refinement         |                 |             |
+|                                   | above the          |                 |             |
+|                                   | coarsest level     |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.ref_ratio**                 | ratio of coarse    | Integer >= 1    | 2 for all   |
+|                                   | to fine grid       | (one per level) | levels      |
+|                                   | spacing between    |                 |             |
+|                                   | subsequent         |                 |             |
+|                                   | levels             |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.ref_ratio_vect**            | ratio of coarse    | 3 integers >= 1 | 2 for all   |
+|                                   | to fine grid       | (one per dir)   | directions  |
+|                                   | spacing between    |                 |             |
+|                                   | subsequent         |                 |             |
+|                                   | levels             |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.regrid_int**                | how often to       | Integer > 0     | -1          |
+|                                   | regrid             | (if negative,   |             |
+|                                   |                    | no regridding)  |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.regrid_on_restart**         | should we          | 0 or 1          | 0           |
+|                                   | regrid             |                 |             |
+|                                   | immediately        |                 |             |
+|                                   | after              |                 |             |
+|                                   | restarting         |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.regrid_level_0_on_restart** | should we          | true or false   | false       |
+|                                   | regrid level       |                 |             |
+|                                   | immediately        |                 |             |
+|                                   | after              |                 |             |
+|                                   | restarting         |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
+| **amr.iterate_grids**             | do we iterate      | true, false     | true        |
+|                                   | on the grids?      |                 |             |
+|                                   |                    |                 |             |
++-----------------------------------+--------------------+-----------------+-------------+
 
 Note: if **amr.max_level** = 0 then you do not need to set
 **amr.ref_ratio** or **amr.regrid_int**.
@@ -506,6 +506,12 @@ List of Parameters
 +----------------------------+----------------------+----------------+---------------------+
 | **erf.dt_max_initial**     | maximum initial      | Real > 0       | 1.0                 |
 |                            | timestep             |                |                     |
++----------------------------+----------------------+----------------+---------------------+
+| **erf.dt_ref_ratio**       | ratio of coarse      | Integer >= 1   | same as             |
+|                            | to fine grid         | (one per level)| maximum over        |
+|                            | time steps between   |                | directions of       |
+|                            | subsequent           |                | ref_ratio           |
+|                            | levels               |                |                     |
 +----------------------------+----------------------+----------------+---------------------+
 
 Notes

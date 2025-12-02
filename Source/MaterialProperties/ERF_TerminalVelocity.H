@@ -44,6 +44,8 @@ struct TerminalVelocity
         return a*(std::exp(b*std::log(D)));
     };
 
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     /*! \brief Terminal velocity - cloud/rain droplets
         Shima et al., 2009, "The super-droplet method for the numerical simulation of clouds and
         precipitation: A particle-based and probabilistic microphysics model coupled with a non-
@@ -107,6 +109,8 @@ struct TerminalVelocity
         return v_terminal;
     }
 
+    /* The following code is adapted from SCALE-SDM:
+     * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
     /*! \brief Compute vz_b(x) */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT vz_b_x ( const RT a_x /*!< x */) const noexcept

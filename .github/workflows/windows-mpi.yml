@@ -1,0 +1,163 @@
+name: Windows
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.head_ref }}-windows
+  cancel-in-progress: true
+
+jobs:
+  WIN64-MSVC:
+    name: WIN64-MSVC - MPI ${{ matrix.mpi }} - Particles ${{ matrix.particles }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        particles: [OFF, ON]
+        mpi: [ON]
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install MS-MPI SDK only
+        shell: pwsh
+        run: |
+          curl -L -o msmpisdk.msi  https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisdk.msi
+          msiexec /i msmpisdk.msi /qn /norestart
+
+          $msmpiInc = 'C:\Program Files (x86)\Microsoft SDKs\MPI\Include'
+          $msmpiLib = 'C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64'
+          "MSMPI_INC=$msmpiInc" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "MSMPI_LIB=$msmpiLib" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Configure (CMake)
+        shell: pwsh
+        run: |
+          cmake -S . -B build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DERF_ENABLE_MPI=ON `
+            -DMPI_CXX_LIB_NAMES=msmpi `
+            -DMPI_C_LIB_NAMES=msmpi `
+            -DMPI_msmpi_LIBRARY="$env:MSMPI_LIB\msmpi.lib" `
+              ${{ github.workspace }}
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build build --parallel 2 --verbose
+
+      - name: Create Installation README
+        shell: pwsh
+        run: |
+          @"
+          # ERF Windows Build - Installation Instructions
+
+          ## Build Information
+          - Build Type: Release
+          - MPI Enabled: ${{ matrix.mpi }}
+          - Particles Enabled: ${{ matrix.particles }}
+          - MS-MPI Version: 10.1.1
+          - Built on: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC")
+          - Commit: ${{ github.sha }}
+
+          ## Required Runtime Installation
+
+          This executable requires MS-MPI Runtime v10.1.1 to run.
+
+          ### Quick Install (PowerShell):
+          ``````powershell
+          # Download and install MS-MPI Runtime v10.1.1
+          Invoke-WebRequest -Uri "https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisetup.exe" -OutFile "msmpisetup.exe"
+          .\msmpisetup.exe
+
+          # After installation, open a NEW PowerShell window to refresh PATH
+          ``````
+
+          ### Alternative Install (using vcpkg):
+          ``````powershell
+          # vcpkg will download the installer and prompt you to run it
+          vcpkg install msmpi:x64-windows
+          # Follow the instructions vcpkg provides to run the downloaded installer
+          ``````
+
+          ## Running the Executable
+
+          Navigate to the executable directory (e.g., `Exec\ABL\Debug\` or `Exec\ABL\Release\`) and run:
+
+          ``````powershell
+          # Single process
+          mpiexec -n 1 .\erf_abl.exe path\to\inputs_file
+
+          # Multiple processes (e.g., 4)
+          mpiexec -n 4 .\erf_abl.exe path\to\inputs_file
+          ``````
+
+          **Important:** Always use `mpiexec` or `mpirun` to launch. Running `.\erf_abl.exe` directly will trigger Windows Defender firewall warnings.
+
+          ## Troubleshooting
+
+          ### Executable runs but produces no output:
+          - MS-MPI runtime is not installed, or the wrong version is installed.
+          - Install MS-MPI v10.1.1 runtime using the script above
+          - Open a NEW terminal after installation
+
+          ### "mpiexec not recognized":
+          - Open a new PowerShell window after installing MS-MPI
+          - Or manually refresh PATH: `$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")`
+
+          ## Build Details
+
+          This build was compiled with:
+          - Compiler: MSVC 19.29+
+          - CMake Configuration:
+            - CMAKE_BUILD_TYPE=Release
+            - ERF_ENABLE_MPI=ON
+            - ERF_ENABLE_PARTICLES=${{ matrix.particles }}
+          "@ | Out-File -FilePath build\INSTALL.txt -Encoding utf8
+
+      - name: Add Installation Instructions to Job Summary
+        shell: pwsh
+        run: |
+          @"
+          ## ✅ Build Complete: ERF Windows (MPI: ${{ matrix.mpi }}, Particles: ${{ matrix.particles }})
+
+          ### 📦 Artifact Information
+          - **Build Type:** Release
+          - **MS-MPI Version:** 10.1.1
+          - **Commit:** ${{ github.sha }}
+
+          ### ⚠️ Required for Running
+
+          This executable requires **MS-MPI Runtime v10.1.1**
+
+          #### Quick Install:
+          ``````powershell
+          Invoke-WebRequest -Uri "https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisetup.exe" -OutFile "msmpisetup.exe"
+          .\msmpisetup.exe
+          ``````
+
+          #### Or use vcpkg:
+          ``````powershell
+          vcpkg install msmpi:x64-windows
+          ``````
+
+          ### 🚀 Running the Executable
+
+          ``````powershell
+          mpiexec -n 4 .\erf_abl.exe path\to\inputs_file
+          ``````
+
+          **Note:** Always use `mpiexec` to launch (not `.\erf_abl.exe` directly) to avoid Windows Defender warnings.
+
+          See `INSTALL.txt` in the artifact for complete instructions.
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload artifact (from build tree)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ERF-win64-Release-mpi-${{ matrix.mpi }}-particles-${{ matrix.particles }}
+          path: |
+            build
+          if-no-files-found: warn

@@ -313,6 +313,8 @@ class SuperDropletPC : public ERFPC
 
         int m_distribution_grid_size; /*!< Size of 1D grid to compute distributions on */
 
+        amrex::MultiFab m_mf_buf;
+
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
         amrex::Real m_bindist_rmin; /*!< min radius for binned distribution */
         amrex::Real m_bindist_rmax; /*!< max radius for binned distribution */

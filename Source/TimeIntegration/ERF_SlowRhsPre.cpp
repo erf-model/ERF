@@ -159,6 +159,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
+    // **************************************************************************************
+    // If doing advection with EB we need the extra values for tangential interpolation
+    // **************************************************************************************
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        S_data[IntVars::xmom].FillBoundary(geom.periodicity());
+        S_data[IntVars::ymom].FillBoundary(geom.periodicity());
+        S_data[IntVars::zmom].FillBoundary(geom.periodicity());
+    }
+
     // *****************************************************************************
     // Pre-computed quantities
     // *****************************************************************************
@@ -176,8 +185,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     if (l_use_diff) {
 #ifdef ERF_USE_SHOC
-        // Populate vertical component of eddyDiffs
-        shoc_lev->set_eddy_diffs();
+        if (solverChoice.use_shoc) {
+            // Populate vertical component of eddyDiffs
+            shoc_lev->set_eddy_diffs();
+        }
 #endif
 
         // With solverChoice.vert_implicit_fac > 0, tau31 and tau32 will always
@@ -192,8 +203,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
 #ifdef ERF_USE_SHOC
-        // Zero out the surface stresses of tau13/tau23
-        shoc_lev->set_diff_stresses();
+        if (solverChoice.use_shoc) {
+            // Zero out the surface stresses of tau13/tau23
+            shoc_lev->set_diff_stresses();
+        }
 #else
         // This is computed pre step in Advance if we use SHOC
         if (l_use_SurfLayer) {
@@ -611,15 +624,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             cell_rhs(i,j,k,Rho_comp)      += source_arr(i,j,k,Rho_comp);
             cell_rhs(i,j,k,RhoTheta_comp) += source_arr(i,j,k,RhoTheta_comp);
         });
-
-        // Multiply the slow RHS for rho and rhotheta by detJ here so we don't have to later
-        if (l_moving_terrain) {
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                cell_rhs(i,j,k,Rho_comp)      *= detJ_arr(i,j,k);
-                cell_rhs(i,j,k,RhoTheta_comp) *= detJ_arr(i,j,k);
-            });
-        }
 
         // If anelastic and in second RK stage, take average of old-time and new-time source
         if ( l_anelastic && (nrk == 1) )
