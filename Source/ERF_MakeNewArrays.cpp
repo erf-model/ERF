@@ -469,6 +469,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     #ifdef ERF_USE_WINDFARM
         //init_windfarm(lev);
     #endif
+
+    if (lev > 0) {
+        fine_mask[lev] = std::make_unique<MultiFab>(grids[lev-1], dmap[lev-1], 1, 0);
+        build_fine_mask(lev, *fine_mask[lev].get());
+    }
 }
 
 void

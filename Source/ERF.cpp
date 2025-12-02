@@ -399,6 +399,9 @@ ERF::ERF_shared ()
     // Map factors
     mapfac.resize(nlevs_max);
 
+    // Fine mask
+    fine_mask.resize(nlevs_max);
+
     // Thin immersed body
     xflux_imask.resize(nlevs_max);
     yflux_imask.resize(nlevs_max);
