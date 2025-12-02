@@ -17,8 +17,7 @@ jobs:
         run: |
           .github/workflows/dependencies/documentation.sh
           python3 -m pip install --upgrade pip
-          python3 -m pip install sphinx==5.0.0 sphinx_rtd_theme # breathe -- not using breathe at the moment
-          python3 -m pip install -I docutils==0.16  # Downgrade docutils so that bullet points render properly with Sphinx
+          python3 -m pip install -r Docs/sphinx_doc/requirements.txt
 
       - name: Build Docs
         run: |

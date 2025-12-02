@@ -286,7 +286,7 @@ public:
           }
       }
 
-      if ((lev == 0) || (lev > nlevs - 1)) {
+      if (m_eddyDiffs_lev.size() < lev+1) {
           m_Hwave_lev.resize(nlevs);
           m_Lwave_lev.resize(nlevs);
           m_eddyDiffs_lev.resize(nlevs);
@@ -353,9 +353,9 @@ public:
           m_lsm_flux_lev[lev][n] = lsm_flux[n];
       }
 
-      pp.query("most.use_sfc_fluxes", use_sfc_fluxes);
+      pp.query("most.use_sfc_fluxes", m_use_sfc_fluxes);
 
-      if (lsm_data.size() > 1 && lsm_data[1] && !use_sfc_fluxes)
+      if (lsm_data.size() > 1 && lsm_data[1] && !m_use_sfc_fluxes)
       {
           // If the LSM has more than theta defined, use ustar and tstar from LSM
           use_lsm_most = true; // enable SLM -> MOST coupling
@@ -363,7 +363,7 @@ public:
           amrex::Print() << "  MOST: Using ustar and tstar from LSM" << std::endl;
       }
 
-      if (use_sfc_fluxes)
+      if (m_use_sfc_fluxes)
       {
           // load sensible and latent heat fluxes from sfc to prescribe
           std::string sfc_file = "";
@@ -460,6 +460,7 @@ public:
       q_surf[lev]->setVal(default_land_surf_moist);
 
       // TODO: Do we want an enum struct for indexing?
+
       if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_has_lsm_tsurf) {
           // Valid SST, TSK or LSM data; t_surf set before computing fluxes (avoids
           // extended lambda capture) Note that land temp will be set from m_tsk_lev
@@ -470,13 +471,16 @@ public:
           bool use_tsk = (m_tsk_lev[lev][0]);
           bool use_sst = (m_sst_lev[lev][0]);
           amrex::Print() << "Using MOST with specified surface temperature ";
-          if (use_tsk && !use_sst) { m_ignore_sst = true; }
+          // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
+          //       So if we have TSK, it contains everything and has been
+          //       sanity checked for valid SST values.
+          if (use_tsk) { m_ignore_sst = true; }
           if (use_tsk) {
               amrex::Print() << "(land: TSK, ";
           } else {
               amrex::Print() << "(land: T0, ";
           }
-          if (use_tsk && m_ignore_sst) {
+          if (use_tsk && !use_sst) {
               amrex::Print() << "sea: TSK)" << std::endl;
           } else {
               amrex::Print() << "sea: SST)" << std::endl;
@@ -631,7 +635,7 @@ public:
       m_tsk_lev[lev][itime] = tsk_ptr;
   }
 
-  bool use_sfc_fluxes() { return use_sfc_fluxes; }
+  bool use_sfc_fluxes() { return m_use_sfc_fluxes; }
 
   enum struct FluxCalcType {
     MOENG = 0,  ///< Moeng functional form
@@ -698,7 +702,7 @@ private:
   amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};
   bool use_lsm_most = false;
-  bool use_sfc_fluxes = false;
+  bool m_use_sfc_fluxes = false;
   int sfc_time_ind = 0;
   amrex::Real sfc_qflux;
   amrex::Real sfc_tflux;

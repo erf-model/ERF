@@ -68,6 +68,7 @@ update_sst_tsk (const int itime,
                 const amrex::MultiFab& cons,
                 const amrex::MultiFab& mf_PSFC_lev,
                 const amrex::Real rdOcp,
+                std::unique_ptr<amrex::iMultiFab>& lmask,
                 const bool use_moist);
 
 #endif // ERF_USE_NETCDF

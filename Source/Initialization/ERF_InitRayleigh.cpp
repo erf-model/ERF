@@ -14,10 +14,16 @@ void
 ERF::initRayleigh ()
 {
     const int khi = geom[0].Domain().bigEnd(2);
-    solverChoice.rayleigh_ztop = (solverChoice.terrain_type == TerrainType::None) ?  geom[0].ProbHi(2) : zlevels_stag[0][khi+1];
+    solverChoice.dampingChoice.rayleigh_ztop = (solverChoice.terrain_type == TerrainType::None) ?  geom[0].ProbHi(2) : zlevels_stag[0][khi+1];
 
     h_rayleigh_ptrs.resize(max_level+1);
     d_rayleigh_ptrs.resize(max_level+1);
+
+    h_sinesq_ptrs.resize(max_level+1);
+    d_sinesq_ptrs.resize(max_level+1);
+
+    h_sinesq_stag_ptrs.resize(max_level+1);
+    d_sinesq_stag_ptrs.resize(max_level+1);
 
     for (int lev = 0; lev <= finest_level; lev++)
     {
@@ -33,14 +39,47 @@ ERF::initRayleigh ()
             d_rayleigh_ptrs[lev][n].resize(zlen_rayleigh, 0.0_rt);
         }
 
-        // Init the host vectors
-        prob->erf_init_rayleigh(h_rayleigh_ptrs[lev], geom[lev], z_phys_nd[lev], solverChoice.rayleigh_zdamp);
+        h_sinesq_ptrs[lev].resize(zlen_rayleigh);
+        d_sinesq_ptrs[lev].resize(zlen_rayleigh);
+
+        h_sinesq_stag_ptrs[lev].resize(zlen_rayleigh+1);
+        d_sinesq_stag_ptrs[lev].resize(zlen_rayleigh+1);
+
+        Real ztop     = solverChoice.dampingChoice.rayleigh_ztop;
+        Real zdamp    = solverChoice.dampingChoice.rayleigh_zdamp;
+
+        for (int k = 0; k < zlen_rayleigh; k++) {
+            Real z = 0.5 * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
+            if (z > (ztop - zdamp)) {
+                Real zfrac = 1.0 - (ztop - z) / zdamp;
+                Real s = std::sin(PIoTwo*zfrac);
+                h_sinesq_ptrs[lev][k] = s*s;
+            } else {
+                h_sinesq_ptrs[lev][k] = 0.0;
+            }
+        }
+
+        for (int k = 0; k < zlen_rayleigh+1; k++) {
+            Real z = zlevels_stag[lev][k];
+            if (z > (ztop - zdamp)) {
+                Real zfrac = 1.0 - (ztop - z) / zdamp;
+                Real s = std::sin(PIoTwo*zfrac);
+                h_sinesq_stag_ptrs[lev][k] = s*s;
+            } else {
+                h_sinesq_stag_ptrs[lev][k] = 0.0;
+            }
+        }
+
+        // Init the host vectors for the reference states
+        prob->erf_init_rayleigh(h_rayleigh_ptrs[lev], geom[lev], z_phys_nd[lev], solverChoice.dampingChoice.rayleigh_zdamp);
 
         // Copy from host vectors to device vectors
         for (int n = 0; n < Rayleigh::nvars; n++) {
             Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][n].begin(), h_rayleigh_ptrs[lev][n].end(),
                       d_rayleigh_ptrs[lev][n].begin());
         }
+        Gpu::copy(Gpu::hostToDevice, h_sinesq_ptrs[lev].begin(), h_sinesq_ptrs[lev].end(), d_sinesq_ptrs[lev].begin());
+        Gpu::copy(Gpu::hostToDevice, h_sinesq_stag_ptrs[lev].begin(), h_sinesq_stag_ptrs[lev].end(), d_sinesq_stag_ptrs[lev].begin());
     }
 }
 

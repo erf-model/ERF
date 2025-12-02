@@ -66,8 +66,8 @@ namespace HSEutils
         }
         while (std::abs(F)>m_tol && iter<max_iter);
         if (iter>=max_iter) {
-            printf("WARNING: HSE Newton iterations did not converge to tolerance!\n");
-            printf("HSE Newton tol: %e %e\n",F,m_tol);
+            AMREX_DEVICE_PRINTF("WARNING: HSE Newton iterations did not converge to tolerance!\n%s", "");
+            AMREX_DEVICE_PRINTF("HSE Newton tol: %e %e\n",F,m_tol);
         }
     }
 

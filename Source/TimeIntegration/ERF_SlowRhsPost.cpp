@@ -217,9 +217,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             if (solverChoice.terrain_type != TerrainType::EB) {
-                flux[dir].resize(surroundingNodes(tbx,dir),nvars);
+                flux[dir].resize(surroundingNodes(tbx,dir),nvars,The_Async_Arena());
             } else {
-                flux[dir].resize(surroundingNodes(tbx,dir).grow(1),nvars);
+                flux[dir].resize(surroundingNodes(tbx,dir).grow(1),nvars,The_Async_Arena());
             }
             flux[dir].setVal<RunOn::Device>(0.);
         }
@@ -483,7 +483,9 @@ void erf_slow_rhs_post (int level, int finest_level,
 #endif
 
 #ifdef ERF_USE_SHOC
-        shoc_lev->add_slow_tend(mfi,tbx,cell_rhs);
+        if (solverChoice.use_shoc) {
+            shoc_lev->add_slow_tend(mfi,tbx,cell_rhs);
+        }
 #endif
 
         // This updates just the "slow" conserved variables

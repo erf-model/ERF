@@ -1,4 +1,5 @@
 #include <ERF.H>
+#include <ERF_EpochTime.H>
 #include <AMReX_buildInfo.H>
 
 extern std::string inputs_name;
@@ -38,6 +39,12 @@ ERF::writeJobInfo (const std::string& dir) const
                 << getCPUTime() / 3600.0;
 
     jobInfoFile << "\n\n";
+
+    if (use_datetime) {
+        const std::string dt_format = "%Y-%m-%d %H:%M:%S"; // ISO 8601 standard
+        jobInfoFile << "Simulation time: " << getTimestamp(start_time+t_new[0], dt_format) << "\n";
+        jobInfoFile << "\n\n";
+    }
 
     // plotfile information
     jobInfoFile << PrettyLine;

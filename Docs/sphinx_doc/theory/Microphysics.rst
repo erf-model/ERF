@@ -38,6 +38,9 @@ Model overview and transported quantities in ERF
 | Double moment      | ``Morrison``           | :math:`q_i` | :math:`q_r` | :math:`q_s` | :math:`q_g` |
 |                    |                        |             |             |             |             |
 +--------------------+------------------------+-------------+-------------+-------------+-------------+
+| Predicted Particle | ``P3``                 | :math:`q_i` | :math:`q_r` | :math:      | --          |
+| Properties         |                        |             |             | `q_{rim}`   |             |
++--------------------+------------------------+-------------+-------------+-------------+-------------+
 
 
 Kessler Microphysics model
@@ -213,3 +216,22 @@ Saturation Adjustment (SatAdj) Microphysics Model
 -------------------------------------------------
 The saturation adjustment microphysics model is the simplest possible moisture model and only transports the
 water vapor mixing ratio, :math:`q_v`, and the cloud water mixing ration, :math:`q_c`. Evaporation, :math:`q_v \longrightarrow q_c`, and condensation, :math:`q_c \longrightarrow q_v`, are the only relevant mechanisms. The final saturation state, :math:`q_v = q_{vs}(T)` is obtained from Newton-Raphson iterations on the thermal temperature :math:`T`.
+
+Predicted Particle Properties (P3) Microphysics Model
+------------------------------------------------------
+
+The P3 microphysics scheme uses a fundamentally different approach than traditional bulk schemes.
+Rather than using fixed hydrometeor categories (ice, snow, graupel), P3 predicts evolving ice particle
+properties, allowing continuous transitions from unrimed ice to heavily rimed particles.
+
+P3 transports water vapor (:math:`q_v`), cloud water (:math:`q_c`), rain (:math:`q_r`), total ice mass
+(:math:`q_i`), and rime mass (:math:`q_{rim}`). Additional prognostic variables include ice number
+concentration and rime volume.
+
+The scheme represents physical processes including vapor deposition/sublimation, riming, aggregation,
+melting, and sedimentation. Particle properties evolve continuously based on environmental conditions
+and microphysical processes.
+
+.. P3 requires ``USE_P3=TRUE`` at build time and interfaces with E3SM's P3 implementation.
+
+For details, see Morrison and Milbrandt (2015, *J. Atmos. Sci.*, 72, 287–311).

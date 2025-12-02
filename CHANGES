@@ -1,3 +1,14 @@
+#25.11
+    -- Kokkos GPU fix (#2667)
+
+    -- AMR projection fixes( #2656)
+
+    -- SHOC integration (#2660,2642,2624)
+
+    -- Implicit vertical diffusion (#2617)
+
+    -- EB two-way coupling (#2640)
+
 #25.10
     -- Different dt for Line and plane sampler (#2570)
 

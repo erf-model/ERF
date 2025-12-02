@@ -294,7 +294,7 @@ public:
             //       but we are using the "new" versions (in S_sum) of the velocities
             //      (because we did    update the fast variables in the substepping)
             // ****************************************************
-            slow_rhs_post(*F_slow, S_old, S_new, *S_sum,  time, old_time_stage, time_stage, nrk);
+            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, time, old_time_stage, time_stage, nrk);
           } // nrk
 
         } else {

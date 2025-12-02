@@ -37,15 +37,15 @@ ERF::init_immersed_forcing (int lev)
         ParallelFor(xbx, ybx, zbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
-            if (t_blank >= 0.9) { xvel_arr(i, j, k) = epsilon; }
+            if (t_blank == 1.0) { xvel_arr(i, j, k) = epsilon; }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
-            if (t_blank >= 0.9) { yvel_arr(i, j, k) = epsilon; }
+            if (t_blank == 1.0) { yvel_arr(i, j, k) = epsilon; }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             const Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
-            if (t_blank >= 0.9) { zvel_arr(i, j, k) = epsilon; }
+            if (t_blank == 1.0) { zvel_arr(i, j, k) = epsilon; }
         });
     } //mfi
 }

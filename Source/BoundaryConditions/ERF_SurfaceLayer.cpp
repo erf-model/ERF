@@ -233,7 +233,7 @@ SurfaceLayer::update_fluxes (const int& lev,
         m_lsm_data_lev[lev][12]->FillBoundary(m_geom[lev].periodicity());
     }
 
-    if (use_sfc_fluxes)
+    if (m_use_sfc_fluxes)
     {
         amrex::Real t0 = sfc[0][sfc_time_ind];
         amrex::Real t1 = sfc[0][sfc_time_ind+1];
@@ -499,7 +499,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         //auto lsm_flbu_arr = (use_lsm_most && m_lsm_data_lev[lev][11]) ? m_lsm_data_lev[lev][11]->array(mfi) : Array4<Real> {};
         //auto lsm_flbv_arr = (use_lsm_most && m_lsm_data_lev[lev][12]) ? m_lsm_data_lev[lev][12]->array(mfi) : Array4<Real> {};
 
-        if (use_sfc_fluxes) {
+        if (m_use_sfc_fluxes) {
             amrex::Real d_sfc_tflux = sfc_tflux;
             amrex::Real d_sfc_qflux = sfc_qflux;
 
@@ -587,15 +587,21 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             {
                 // Valid tau13 from LSM and over land
                 Real stressx;
-                int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
-                if (lsm_tau13_arr && is_land) {
-                    //stressx = lsm_tau13_arr(i,j,k);
-                    int ic, jc;
-                    ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
-                    jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
-                    ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
-                    jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
-                    stressx = 0.5*(lsm_tau13_arr(ic-1, jc, k) + lsm_tau13_arr(ic, jc, k));
+                int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,klo) : 1;
+                int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,klo) : 1;
+                if (lsm_tau13_arr && (is_land_hi || is_land_lo)) {
+                    stressx = 0.;
+                    if (!is_land_hi || !is_land_lo) {
+                        stressx += 0.5 * flux_comp.compute_u_flux(i, j, k,
+                                                                  cons_arr, velx_arr, vely_arr,
+                                                                  umm_arr, um_arr, u_star_arr);
+                    }
+                    if (is_land_hi) {
+                        stressx += 0.5 * lsm_tau13_arr(i  ,j,k);
+                    }
+                    if (is_land_lo) {
+                        stressx += 0.5 * lsm_tau13_arr(i-1,j,k);
+                    }
                 } else {
                     stressx = flux_comp.compute_u_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,
@@ -613,17 +619,21 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             {
                 // Valid tau13 from LSM and over land
                 Real stressy;
-                int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
-                if (lsm_tau23_arr && is_land) {
-                    //stressy = lsm_tau23_arr(i,j,k);
-                    int ic, jc;
-                    ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
-                    jc = j  < lbound(cons_arr).y+1 ? lbound(cons_arr).y+1 : j;
-                    ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
-                    jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
-                    //stressy = lsm_flbv_arr(ic, jc, -1);
-                    stressy = 0.5 * (lsm_tau23_arr(ic, jc-1, k) + lsm_tau23_arr(ic, jc, k));
-                    //stressy = 0.5 * (lsm_flbv_arr(i, j-1, -1) + lsm_flbv_arr(i, j, -1));
+                int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,klo) : 1;
+                int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,klo) : 1;
+                if (lsm_tau23_arr && (is_land_hi || is_land_lo)) {
+                    stressy = 0.;
+                    if (!is_land_hi || !is_land_lo) {
+                        stressy += 0.5 * flux_comp.compute_v_flux(i, j, k,
+                                                                  cons_arr, velx_arr, vely_arr,
+                                                                  umm_arr, vm_arr, u_star_arr);
+                    }
+                    if (is_land_hi) {
+                        stressy += 0.5 * lsm_tau13_arr(i,j  ,k);
+                    }
+                    if (is_land_lo) {
+                        stressy += 0.5 * lsm_tau23_arr(i,j-1,k);
+                    }
                 } else {
                     stressy = flux_comp.compute_v_flux(i, j, k,
                                                        cons_arr, velx_arr, vely_arr,

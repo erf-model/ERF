@@ -9,7 +9,7 @@ CEXE_sources += ERF_MakeFastCoeffs.cpp
 CEXE_sources += ERF_MakeTauTerms.cpp
 CEXE_sources += ERF_SlowRhsPre.cpp
 CEXE_sources += ERF_SlowRhsPost.cpp
-CEXE_sources += ERF_Substep_N.cpp
+CEXE_sources += ERF_Substep_NS.cpp
 CEXE_sources += ERF_Substep_T.cpp
 CEXE_sources += ERF_Substep_MT.cpp
 

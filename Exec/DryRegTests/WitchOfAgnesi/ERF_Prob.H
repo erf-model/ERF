@@ -4,7 +4,6 @@
 #include <string>
 
 #include "AMReX_REAL.H"
-
 #include "ERF_ProbCommon.H"
 
 struct ProbParm : ProbParmDefaults {
@@ -19,6 +18,9 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real hmax = 0.0;   // full hill height, can be negative to simulate valleys
   amrex::Real L = 0.0;      // hill length at half-height
   amrex::Real z_offset = 0.0;  // shift in height
+
+  // Default to the x-direction
+  int dir = 0;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase

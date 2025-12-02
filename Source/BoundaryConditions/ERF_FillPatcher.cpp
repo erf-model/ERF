@@ -123,11 +123,47 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
     // Minimal bounding box of fine BA plus a halo cell
     Box fba_bnd = grow(fba.minimalBox(), IntVect(1,1,1));
 
+    BoxArray fba_per;
+    Box fdomain = m_fgeom.Domain();
+    // Here we add additional boxes that are periodic wraparounds of existing boxes
+    if (m_fgeom.isAnyPeriodic())
+    {
+        Box domain_cc(fdomain); domain_cc.enclosedCells();
+        BoxList bl_mf = fba.boxList();
+        BoxList bl_mf_new;
+        for (auto& b : bl_mf) {
+            for (int dim = 0; dim < AMREX_SPACEDIM; dim++) {
+                if (m_fgeom.isPeriodic(dim)) {
+                    int n = domain_cc.length(dim);
+                    if (b.smallEnd(dim) == fdomain.smallEnd(dim)) {
+                        Box bb_lo(b); bb_lo.enclosedCells(); bb_lo.shift(dim,n); bb_lo.setType(b.ixType());
+                        bb_lo &= fba_bnd;
+                        bl_mf_new.push_back(bb_lo);
+                    }
+                    Box bb_hi(b); bb_hi.enclosedCells();
+                    if (bb_hi.bigEnd(dim) == fdomain.bigEnd(dim)) {
+                        bb_hi.shift(dim,-n); bb_hi.setType(b.ixType());
+                        bb_hi &= fba_bnd;
+                        bl_mf_new.push_back(bb_hi);
+                    }
+               } // periodic
+            } // dim
+        } // bl_mf
+
+        for (auto& b : bl_mf_new) {
+            bl_mf.push_back(b);
+        } // bl_mf
+        fba_per.define(std::move(bl_mf));
+
+    } else {
+        fba_per = fba;
+    }
+
     // BoxList and BoxArray to store complement
     BoxList com_bl; BoxArray com_ba;
 
     // Compute the complement
-    fba.complementIn(com_bl,fba_bnd);
+    fba_per.complementIn(com_bl,fba_bnd);
 
     // com_bl cannot be null since we grew with halo cells
     AMREX_ALWAYS_ASSERT(com_bl.size() > 0);

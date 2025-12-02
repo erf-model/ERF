@@ -107,6 +107,12 @@ List of Parameters for 3D Plotfiles
 |                             | components on the|                       |            |
 |                             | staggered grid.  |                       |            |
 +-----------------------------+------------------+-----------------------+------------+
+| **erf.file_name_digits**    | Number of digits | Integer               | 5          |
+|                             | to be appended   | :math:`> 0`           |            |
+|                             | to the plot file |                       |            |
+|                             | and checkpoint   |                       |            |
+|                             | file names       |                       |            |
++-----------------------------+------------------+-----------------------+------------+
 
 List of Parameters for 2D Plotfiles
 -----------------------------------
@@ -586,7 +592,18 @@ Output Options for 2D plotfiles
 | **z0**            | Roughness height           |
 |                   | (with SurfaceLayer only)   |
 +-------------------+----------------------------+
-
+| **OLR**           | Outgoing long wavelength   |
+|                   | radiation (with RRTMGP)    |
++-------------------+----------------------------+
+| **sens_flux**     | Sensible heat flux         |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **laten_flux**    | Latent heat flux           |
+|                   | (with SurfaceLayer only)   |
++-------------------+----------------------------+
+| **surf_pres**     | Surface pressure           |
+|                   |                            |
++-------------------+----------------------------+
 
 Examples of Usage
 -----------------
