@@ -479,8 +479,6 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                     continue;
                 }
 
-                if (ivar == ivarT) { continue; }
-
                 realbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
                                                width, set_width_x, set_width_y,
                                                dom_lo, dom_hi,
@@ -541,8 +539,6 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 } else {
                     continue;
                 }
-
-                if (ivar == ivarT) { continue; }
 
                 realbdy_compute_laplacian_relaxation(icomp, 1,
                                                      width, dx, ProbLo, ProbHi, F1, F2,

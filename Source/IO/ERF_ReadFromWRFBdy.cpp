@@ -572,7 +572,7 @@ convert_wrfbdy_data (const int itime,
                 Real xmu         = (mu_arr(i,j,0) + mub_arr(i,j,0));
                 Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + wrf_theta_ref;
-                Real qv_fac      = (1. + bdy_qv_arr(i,j,k) / 0.622 / xmu_mult);
+                Real qv_fac      = (1. + (R_v/R_d) * bdy_qv_arr(i,j,k) / xmu_mult);
                 new_bdy_Th      /= qv_fac;
                 bdy_t_tmp(i,j,k) = new_bdy_Th;
             }
