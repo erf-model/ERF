@@ -482,10 +482,12 @@ calc_edge_intersections ()
     } // P1: v4--v7
 
     if (cuts == 2 && add_v7) {
-      m_F2.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F2",print_F2);
-      m_F3.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F3",print_F3);
-      m_F6.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F6",print_F6);
-      add_v7 = 0;
+      if (!utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
+        m_F2.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F2",print_F2);
+        m_F3.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F3",print_F3);
+        m_F6.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F6",print_F6);
+        add_v7 = 0;
+      }    
     }
   } // end Path 1
 
@@ -619,10 +621,12 @@ calc_edge_intersections ()
     } // Path 2: v5--v7
 
     if (cuts == 2 && add_v7) {
-      m_F2.add_vertex(v7,"Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F2",print_F2);
-      m_F3.add_vertex(v7,"Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F3",print_F3);
-      m_F6.add_vertex(v7,"Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F6",print_F6);
-      add_v7 = 0;
+      if (!utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
+        m_F2.add_vertex(v7,"Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F2",print_F2);
+        m_F3.add_vertex(v7,"Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F3",print_F3);
+        m_F6.add_vertex(v7,"Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F6",print_F6);
+        add_v7 = 0;
+      }
     }
 
   } // end Path 2
@@ -759,10 +763,12 @@ calc_edge_intersections ()
     } // P3: v6--v7
 
     if (cuts == 2 && add_v7) {
-      m_F2.add_vertex(v7,"Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F2",print_F2);
-      m_F3.add_vertex(v7,"Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F3",print_F3);
-      m_F6.add_vertex(v7,"Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F6",print_F6);
-      add_v7 = 0;
+      if (!utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
+        m_F2.add_vertex(v7,"Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F2",print_F2);
+        m_F3.add_vertex(v7,"Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F3",print_F3);
+        m_F6.add_vertex(v7,"Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F6",print_F6);
+        add_v7 = 0;
+      }
     }
 
   } // end Path 3
@@ -788,6 +794,11 @@ calc_edge_intersections ()
       m_F7.add_vertex(vIP,"Path 6: v3--v4: add vIP -> F7",print_F7);
     }
   } // end Path 6
+
+  if (print_F1 || print_F2 || print_F3 || print_F4 || print_F5 || print_F6 || print_F7){
+    amrex::Print()<<"\n";
+  }
+
 }
 
 
