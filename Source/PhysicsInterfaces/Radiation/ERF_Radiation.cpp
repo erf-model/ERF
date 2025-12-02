@@ -580,6 +580,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                             0.06, 0.06,
                                             0.06, 0.06};
         for (int ivar(0); ivar<lsm_input_ptrs.size(); ivar++) {
+            auto rrtmgp_default_val = rrtmgp_default_vals[ivar];
             auto rrtmgp_to_fill = rrtmgp_in_vars[ivar];
             for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
                 const auto& vbx  = mfi.validbox();
@@ -616,7 +617,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                     }
                     // Use the default value
                     else {
-                        rrtmgp_to_fill(icol) = rrtmgp_default_vals[ivar];
+                        rrtmgp_to_fill(icol) = rrtmgp_default_val;
                     }
                 });
             } //mfi
