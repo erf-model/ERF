@@ -132,6 +132,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         // This mf must have ghost cells because we may take differences between adjacent values
         //
         std::unique_ptr<MultiFab> mf = std::make_unique<MultiFab>(grids[levc], dmap[levc], 1, 1);
+        mf->setVal(0.0);
 
         // This allows dynamic refinement based on the value of the density
         if (ref_tags[j].Field() == "density")
