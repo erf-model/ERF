@@ -148,7 +148,7 @@ void
 Problem::init_custom_terrain (
     const Geometry& geom,
     FArrayBox& terrain_fab,
-    const Real& time)
+    const Real& /*time*/)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();
