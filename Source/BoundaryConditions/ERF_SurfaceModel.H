@@ -35,40 +35,6 @@ public:
         m_geom2d.resize(m_nlevs);
         m_lmask.resize(m_nlevs);
 
-        for (int lev = 0; lev < m_nlevs; lev++)
-        {
-            // Create a 2D ba, dm, & ghost cells
-            amrex::BoxArray ba = m_ba[lev];
-            amrex::BoxList bl2d = ba.boxList();
-            for (auto& b : bl2d) {
-                b.setRange(2, 0);
-            }
-            m_ba2d[lev] = amrex::BoxArray(std::move(bl2d));
-
-            amrex::RealBox dom2d = m_geom[lev].ProbDomain();
-            dom2d.setHi(2, m_geom[lev].CellSize(2));
-            m_geom2d[lev].define(m_ba2d[lev].minimalBox(), dom2d, m_geom[lev].Coord(), m_geom[lev].isPeriodic());
-
-            m_lmask[lev] = lmask_lev[lev][0].get();
-
-            amrex::IntVect ng(1,1,0);
-            // Create output arrays for surface boundary condition
-            u_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 2, ng);
-            t_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
-            q_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
-            t_surf[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
-
-            u_star[lev]->setVal(0.0);
-            t_star[lev]->setVal(0.0);
-            q_star[lev]->setVal(0.0);
-            t_surf[lev]->setVal(300.0);
-
-            // Initialize storage for weight average factors
-            wavg[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 2, ng);
-            //  - default to land=1, urban=0 (i.e, 100% land, no urban fraction)
-            wavg[lev]->setVal(1.0, SurfaceModelType::LAND, 1, 0);
-            wavg[lev]->setVal(0.0, SurfaceModelType::URBAN, 1, 0);
-        }
 
         urban_frac_lev.resize(m_nlevs);
         lsm_data_lev.resize(m_nlevs);
@@ -77,6 +43,66 @@ public:
         // set initial fields for each model to none
         lsm_fields = amrex::Vector<int>{4, -1};
         urban_fields = amrex::Vector<int>{4, -1};
+    }
+
+    void initialize_for_level(int lev, const amrex::BoxArray &ba, amrex::Geometry &geom, amrex::DistributionMapping &dm, amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev)
+    {
+        if (lev > m_nlevs) {
+            m_nlevs = lev+1;
+
+            u_star.resize(m_nlevs);
+            t_star.resize(m_nlevs);
+            q_star.resize(m_nlevs);
+            t_surf.resize(m_nlevs);
+
+            wavg.resize(m_nlevs);
+
+            m_dmap.resize(m_nlevs);
+            m_ba.resize(m_nlevs);
+            m_ba2d.resize(m_nlevs);
+            m_geom.resize(m_nlevs);
+            m_geom2d.resize(m_nlevs);
+            m_lmask.resize(m_nlevs);
+
+            urban_frac_lev.resize(m_nlevs);
+            lsm_data_lev.resize(m_nlevs);
+            urban_data_lev.resize(m_nlevs);
+        }
+
+        m_ba[lev] = ba;
+        m_geom[lev] = geom;
+        m_dmap[lev] = dm;
+
+        // Create a 2D ba, dm, & ghost cells
+        amrex::BoxList bl2d = ba.boxList();
+        for (auto& b : bl2d) {
+            b.setRange(2, 0);
+        }
+        m_ba2d[lev] = amrex::BoxArray(std::move(bl2d));
+
+        amrex::RealBox dom2d = geom.ProbDomain();
+        dom2d.setHi(2, geom.CellSize(2));
+        m_geom2d[lev].define(m_ba2d[lev].minimalBox(), dom2d, geom.Coord(), geom.isPeriodic());
+
+        m_lmask[lev] = lmask_lev[0].get();
+
+        amrex::IntVect ng(1,1,0);
+        // Create output arrays for surface boundary condition
+        u_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 2, ng);
+        t_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
+        q_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
+        t_surf[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
+
+        u_star[lev]->setVal(0.0);
+        t_star[lev]->setVal(0.0);
+        q_star[lev]->setVal(0.0);
+        t_surf[lev]->setVal(300.0);
+
+        // Initialize storage for weight average factors
+        wavg[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 2, ng);
+        //  - default to land=1, urban=0 (i.e, 100% land, no urban fraction)
+        wavg[lev]->setVal(1.0, SurfaceModelType::LAND, 1, 0);
+        wavg[lev]->setVal(0.0, SurfaceModelType::URBAN, 1, 0);
     }
 
     /**

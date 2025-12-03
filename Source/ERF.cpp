@@ -1516,9 +1516,11 @@ ERF::InitData_post ()
    // send_to_ww3(my_lev);
 #endif
 
-    if (solverChoice.lsm_type != LandSurfaceType::None) {
-        // || solverChoice.urban_type != UrbanType::None) {
-        m_SurfaceModel = std::make_unique<SurfaceModel>(max_level+1, grids, geom, dmap, solverChoice, lmask_lev);
+    if (solverChoice.lsm_type != LandSurfaceType::None) { // || solverChoice.urban_type != UrbanType::None) {
+        m_SurfaceModel = std::make_unique<SurfaceModel>(finest_level+1, grids, geom, dmap, solverChoice, lmask_lev);
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            m_SurfaceModel->initialize_for_level(lev, grids[lev], geom[lev], dmap[lev], lmask_lev[lev]);
+        }
         if (solverChoice.lsm_type != LandSurfaceType::None) {
             for (int lev = 0; lev <= finest_level; ++lev) {
                 m_SurfaceModel->set_model_data(lev, lsm_data[lev], lsm_data_name, SurfaceModelType::LAND);
