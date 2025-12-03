@@ -1532,8 +1532,9 @@ ERF::InitData_post ()
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
     {
         bool has_diff = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
-                          (solverChoice.turbChoice[0].les_type != LESType::None)           ||
-                          (solverChoice.turbChoice[0].pbl_type != PBLType::None) );
+                          (solverChoice.turbChoice[0].les_type  != LESType::None)          ||
+                          (solverChoice.turbChoice[0].rans_type != RANSType::None)         ||
+                          (solverChoice.turbChoice[0].pbl_type  != PBLType::None) );
         AMREX_ALWAYS_ASSERT(has_diff);
 
         bool rotate = solverChoice.use_rotate_surface_flux;

@@ -122,28 +122,58 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             const Real t_excess = -const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar;
             const Real t_surf   = t_layer + std::max(std::min(t_excess, 3.0), 0.0);
 
-            int kpbl  = klo;
-            Real zval = 10;
-            bool above_critical = false;
-            while (!above_critical && ((kpbl + 1) <= khi)) {
+            int kpbl = klo;
+            Real zval0, zval, Rib0, Rib;
+            {
                 zval = (use_terrain_fitted_coords)
                      ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
                      : gdata.ProbLo(2) + (kpbl + 0.5) * gdata.CellSize(2);
-                kpbl += 1;
                 const Real theta = cell_data(i, j, kpbl, RhoTheta_comp) /
                                    cell_data(i, j, kpbl, Rho_comp);
                 const Real ws2 = 0.25 * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
                                           (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                           (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real Rib = CONST_GRAV * zval * (theta - t_surf) / (ws2 * t_layer);
+                Rib = CONST_GRAV * zval * (theta - t_surf) / (ws2 * t_layer);
+            }
+
+            bool above_critical = false;
+            while (!above_critical && ((kpbl + 1) <= khi)) {
+                zval0 = zval;
+                Rib0 = Rib;
+                kpbl += 1;
+
+                zval = (use_terrain_fitted_coords)
+                     ? Compute_Zrel_AtCellCenter(i, j, kpbl, z_nd_arr)
+                     : gdata.ProbLo(2) + (kpbl + 0.5) * gdata.CellSize(2);
+                const Real theta = cell_data(i, j, kpbl, RhoTheta_comp) /
+                                   cell_data(i, j, kpbl, Rho_comp);
+                const Real ws2 = 0.25 * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
+                                          (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                          (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                          (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                Rib = CONST_GRAV * zval * (theta - t_surf) / (ws2 * t_layer);
                 above_critical = (Rib >= Ribcr);
             }
-            //const Real c_pblh = (l_obuk_arr(i, j, 0) > 0) ? 0.16 : 0.60;
-            //const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
-            const Real pblh_emp = gdata.ProbLo(2) + 0.5 * gdata.CellSize(2);
-            pblh_corr_arr(i, j, 0) = (above_critical) ? zval : pblh_emp;
-                 pbli_arr(i, j, 0) = (above_critical) ? kpbl : klo+1;  // k < kpbl is considered the PBL
+
+            if (above_critical) {
+                // Interpolate to height at which Rib == Ribcr
+                Real pblh_interp = zval0 + (zval - zval0) / (Rib - Rib0) * (Ribcr - Rib0);
+                pblh_corr_arr(i, j, 0) = pblh_interp;
+                     pbli_arr(i, j, 0) = kpbl;  // k < kpbl is considered the PBL
+            } else {
+                // Empirical expression for PBLH is given by h = c u* / f
+                // Garratt (1994) and Tennekes (1982)
+                // Also, c.f. Zilitinkevitch et al 2012 referenced in Pedersen et al. 2014.
+                //const Real c_pblh = (l_obuk_arr(i, j, 0) > 0) ? 0.16 : 0.60;
+                //const Real pblh_emp = c_pblh * u_star_arr(i, j, 0) / f0;
+
+                // Fallback to first cell
+                pblh_corr_arr(i, j, 0) = (use_terrain_fitted_coords)
+                                       ? Compute_Zrel_AtCellCenter(i, j, klo, z_nd_arr)
+                                       : gdata.ProbLo(2) + 0.5 * gdata.CellSize(2);
+                     pbli_arr(i, j, 0) = klo + 1;
+            }
         });
         /*
           amrex::Print() << "PBL height computed for MRF scheme at level "
