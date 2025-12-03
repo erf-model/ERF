@@ -479,7 +479,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                 const Array4<Real const>& mf_uy = mapfac[lev][MapFacType::u_y]->const_array(mfi);
                 const Array4<Real const>& mf_vx = mapfac[lev][MapFacType::v_x]->const_array(mfi);
                 const Array4<Real const>& mf_vy = mapfac[lev][MapFacType::v_y]->const_array(mfi);
-                const Array4<Real const>& mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi); const Array4<Real const>& mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+                const Array4<Real const>& mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+                const Array4<Real const>& mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
                 ParallelFor(xbx,ybx,zbx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
@@ -510,8 +511,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             if (will_solve_with_mlmg) {
                 solve_with_mlmg(lev, rhs_sub, phi_sub, fluxes_sub);
             } else {
-                Box my_region(subdomains[lev][isub].minimalBox());
 #ifdef ERF_USE_FFT
+                Box my_region(subdomains[lev][isub].minimalBox());
                 solve_with_fft(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
 #endif
             }
