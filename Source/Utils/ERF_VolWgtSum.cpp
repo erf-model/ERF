@@ -27,7 +27,6 @@ ERF::volWgtSumMF (int lev,
 
     Real sum = 0.0;
     MultiFab tmp(mf_to_be_summed.boxArray(), mf_to_be_summed.DistributionMap(), 1, 0);
-    amrex::Print() <<" IN VWS " << mf_to_be_summed.boxArray() << std::endl;
 
     // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
     // m is the map scale factor at cell centers

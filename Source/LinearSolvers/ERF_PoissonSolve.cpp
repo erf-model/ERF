@@ -99,7 +99,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
     // If !fixed_density, we must convert (rho u) which came in
     // to (rho0 u) which is what we will project
-    if (!solverChoice.fixed_density) {
+    if (!solverChoice.fixed_density[lev]) {
         ConvertForProjection(mom_mf[Vars::cons], r_hse,
                              mom_mf[IntVars::xmom],
                              mom_mf[IntVars::ymom],
@@ -511,7 +511,9 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                 solve_with_mlmg(lev, rhs_sub, phi_sub, fluxes_sub);
             } else {
                 Box my_region(subdomains[lev][isub].minimalBox());
+#ifdef ERF_USE_FFT
                 solve_with_fft(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
+#endif
             }
         } // No terrain or grid stretching
         // ****************************************************************************
@@ -682,7 +684,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
     // If !fixed_density, we must convert (rho0 u) back
     // to (rho0 u) which is what we will pass back out
-    if (!solverChoice.fixed_density) {
+    if (!solverChoice.fixed_density[lev]) {
         ConvertForProjection(r_hse, mom_mf[Vars::cons],
                              mom_mf[IntVars::xmom],
                              mom_mf[IntVars::ymom],
