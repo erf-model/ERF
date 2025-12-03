@@ -57,8 +57,8 @@ ERF::sum_integrated_quantities (Real time)
         auto& mfx = *mapfac[lev][MapFacType::m_x];
         auto& mfy = *mapfac[lev][MapFacType::m_x];
         auto&  dJ = *detJ_cc[lev];
-        rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,mfx,mfy,dJ,true);
-        scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,mfx,mfy,dJ,true);
+        rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,dJ,mfx,mfy,true);
+        scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,dJ,mfx,mfy,true);
         if (solverChoice.moisture_type != MoistureType::None) {
             int n_qstate_moist = micro->Get_Qstate_Moist_Size();
             for (int qoff(0); qoff<n_qstate_moist; ++qoff) {
