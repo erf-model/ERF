@@ -213,3 +213,574 @@ Saturation Adjustment (SatAdj) Microphysics Model
 -------------------------------------------------
 The saturation adjustment microphysics model is the simplest possible moisture model and only transports the
 water vapor mixing ratio, :math:`q_v`, and the cloud water mixing ration, :math:`q_c`. Evaporation, :math:`q_v \longrightarrow q_c`, and condensation, :math:`q_c \longrightarrow q_v`, are the only relevant mechanisms. The final saturation state, :math:`q_v = q_{vs}(T)` is obtained from Newton-Raphson iterations on the thermal temperature :math:`T`.
+
+
+Super-Droplet Method (SDM) Microphysics Model
+----------------------------------------------
+
+The super-droplet method (SDM) is a particle-based, probabilistic approach for the simulation of cloud microphysics.
+Unlike the bulk parametrization and spectral bin methods, SDM directly tracks computational particles (called "super-droplets")
+that represent multiple real droplets with identical attributes. This Lagrangian approach enables accurate simulation of
+detailed cloud microphysical processes with reasonable computational cost.
+
+Overview and Method
+~~~~~~~~~~~~~~~~~~~
+
+The implementation in ERF is based on the method described in Shima et al., 2009 (Q. J. R. Meteorol. Soc., 135: 1307-1320).
+The key innovation is the concept of a super-droplet: a computational particle that represents :math:`\xi_i(t)` identical
+physical droplets, where :math:`\xi_i(t)` is the multiplicity. Each super-droplet has its own position :math:`\mathbf{x}_i(t)`
+and attributes :math:`\mathbf{a}_i(t)` that characterize the state of the :math:`\xi_i(t)` physical droplets it represents.
+
+For the warm-rain system implemented in ERF, the attributes are:
+
+- Equivalent radius of water, :math:`R_i(t)`, representing the amount of water the droplet contains
+- Mass of solute contained in the droplet, :math:`M_i(t)`, for multiple aerosol species
+- Additional species masses for multi-component systems
+
+The total number of physical droplets represented is :math:`N_r(t) = \sum_{i=1}^{N_s(t)} \xi_i(t)`, where :math:`N_s(t)`
+is the number of super-droplets in the simulation domain.
+
+Initialization of Super-Droplets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The initialization process creates super-droplets in the computational domain with prescribed spatial and attribute distributions.
+The implementation supports multiple initialization regions and allows flexible specification of particle properties.
+
+Spatial Distribution
+^^^^^^^^^^^^^^^^^^^^
+
+Super-droplets can be initialized with two spatial distribution types:
+
+**Uniform Distribution**: Particles are placed uniformly within a rectangular box defined by ``particle_box_lo`` and ``particle_box_hi``.
+Within each grid cell that intersects the initialization box, the specified number of super-droplets per cell (``particles_per_cell``)
+are created. If the initialization box is smaller than a grid cell (subgrid initialization), particles are placed only in cells
+that contain the box.
+
+**Bubble Distribution**: Particles are placed uniformly within an ellipsoidal bubble defined by ``particle_bubble_center`` (center position)
+and ``particle_bubble_radius`` (radii in each direction). The bubble region is determined by:
+
+.. math::
+   \sqrt{\left(\frac{x-x_c}{r_x}\right)^2 + \left(\frac{y-y_c}{r_y}\right)^2 + \left(\frac{z-z_c}{r_z}\right)^2} \leq 1
+
+where :math:`(x_c, y_c, z_c)` is the bubble center and :math:`(r_x, r_y, r_z)` are the radii.
+
+Particle Position
+^^^^^^^^^^^^^^^^^
+
+Within each grid cell, super-droplet positions can be assigned in two ways controlled by ``place_randomly_in_cells``:
+
+- **Random placement** (default): Particles are randomly distributed within the cell or initialization region using a uniform random distribution.
+  For bubble distributions, random positions are generated using spherical coordinates with uniform angular distribution and radial
+  position sampled to ensure uniform volume distribution.
+
+- **Fixed placement**: Particles are placed at the cell center or initialization region center.
+
+For terrain-following coordinates, particle positions in the vertical direction are adjusted to account for the terrain height
+using bilinear interpolation of the terrain surface at the particle's horizontal position.
+
+Attribute Distribution
+^^^^^^^^^^^^^^^^^^^^^^
+
+Each super-droplet is assigned physical attributes including masses of water vapor/condensate species and aerosol species.
+The mass distribution for each species and aerosol can be specified independently using one of four distribution types:
+
+**mass_constant**: All super-droplets have the same mass for the species, set to ``species_mean_mass_<NAME>`` or ``aerosol_mean_mass_<NAME>``.
+
+**mass_exponential**: Masses are sampled from an exponential distribution with mean ``species_mean_mass_<NAME>`` or ``aerosol_mean_mass_<NAME>``,
+truncated between the minimum and maximum mass values.
+
+**radius_log_normal**: Dry radii are sampled from a log-normal distribution with mean radius ``species_mean_radius_<NAME>`` or
+``aerosol_mean_radius_<NAME>`` and geometric standard deviation ``species_geomstd_radius_<NAME>`` or ``aerosol_geomstd_radius_<NAME>``.
+The mass is computed from the radius using the species density.
+
+**radius_lognormal_autorange**: Similar to ``radius_log_normal``, but the minimum and maximum radii are automatically determined
+from the distribution parameters to capture the specified range of the distribution.
+
+Multiplicity Assignment
+^^^^^^^^^^^^^^^^^^^^^^^
+
+The multiplicity :math:`\xi_i` (number of physical droplets represented by each super-droplet) can be assigned using two methods
+specified by ``multiplicity_type``:
+
+**Constant multiplicity**: Each super-droplet represents the same number of physical particles. The multiplicity is computed as:
+
+.. math::
+   \xi = \left\lceil \frac{N_\text{par}}{N_\text{SD}} \right\rceil
+
+where :math:`N_\text{par}` is the total number of physical particles per cell (from ``initial_number_density`` times cell volume)
+and :math:`N_\text{SD}` is the number of super-droplets per cell (``particles_per_cell``).
+
+**Sampled multiplicity**: Multiplicities are sampled from the mass/radius distribution to better represent the underlying
+size distribution. The sampled multiplicities are scaled to ensure the total number of physical particles matches the specified
+number density. This approach can provide better statistical representation of the particle size distribution, especially for
+broad distributions.
+
+Effective Radius and Total Mass
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+After assigning species and aerosol masses, each super-droplet's effective radius and total mass are computed. The effective
+radius accounts for the water content, soluble species (which affect the droplet solution properties), and insoluble species
+(which form cores within the droplet):
+
+.. math::
+   r_\text{eff} = \left(\frac{m_w + m_s + \frac{\rho_w}{\rho_p}m_p}{\frac{4}{3}\pi\rho_w}\right)^{1/3}
+
+where :math:`m_w` is the water mass, :math:`m_s` is the total mass of soluble species and aerosols, :math:`m_p` is the total
+mass of insoluble species and aerosols, :math:`\rho_w` is the water density, and :math:`\rho_p` is the weighted average density
+of insoluble components.
+
+The total mass stored in the super-droplet includes all species and aerosol masses:
+
+.. math::
+   m_\text{total} = m_w + \sum_{j=1}^{N_\text{sp}} m_{\text{sp},j} + \sum_{j=1}^{N_\text{ae}} m_{\text{ae},j}
+
+Initialization from Condensate Density
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+An alternative initialization method (``initial_distribution_type = condensate_density``) allows super-droplet attributes to
+be set from a prescribed condensate mass density field. In this case, the multiplicity of each super-droplet is varied randomly
+around the mean value, and the mass per physical particle is computed to match the local condensate density. The radius is then
+determined from the mass assuming spherical water droplets.
+
+Density Scaling
+^^^^^^^^^^^^^^^
+
+If ``density_scaling`` is enabled, super-droplet multiplicities are scaled by the local air density after initialization. This
+allows the number of physical droplets to vary with altitude, reflecting realistic atmospheric conditions where particle
+concentrations typically decrease with height.
+
+Multiple Initializations
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The implementation supports multiple initialization regions (``num_initializations``), each with its own spatial distribution,
+particle count, and attribute distributions. Parameters for each region are specified with the prefix ``super_droplets_moisture.N``
+where ``N`` is the initialization index (0, 1, 2, ...). This allows complex initial conditions with multiple cloud regions or
+layers with different properties.
+
+Microphysical Processes
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Motion and Sedimentation
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Droplets are assumed to immediately reach their terminal velocity. The motion of each super-droplet is governed by:
+
+.. math::
+   \mathbf{v}_i(t) &= \mathbf{U}(\mathbf{x}_i) - \hat{z}v_\infty(R_i), \\
+   \frac{d\mathbf{x}_i}{dt} &= \mathbf{v}_i,
+
+where :math:`\mathbf{U}(\mathbf{x}_i)` is the wind velocity at the droplet position and :math:`v_\infty(R_i)` is the terminal
+velocity. The terminal velocity can be computed using several empirical models, including the Rogers-Yau formula,
+Atlas-Ulbrich formula, or the cloud-rain formula from Shima et al.
+
+Condensation and Evaporation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The growth/shrinkage of droplets through condensation/evaporation is described by Köhler theory, which accounts for both
+curvature and solution effects:
+
+.. math::
+   R_i \frac{dR_i}{dt} = \frac{(S-1) - \frac{a}{R_i} + \frac{b}{R_i^3}}{F_k + F_d},
+
+where:
+
+- :math:`S` is the ambient saturation ratio
+- :math:`a/R_i` represents the curvature effect (increase in saturation ratio over a droplet compared to a plane surface)
+- :math:`b/R_i^3` represents the solution effect (reduction in vapor pressure due to dissolved solute), with :math:`b \propto M_i`
+- :math:`F_k` and :math:`F_d` are thermodynamic and diffusion terms:
+
+.. math::
+   F_k &= \left(\frac{L}{R_v T} - 1\right) \frac{L\rho_{liq}}{KT}, \\
+   F_d &= \frac{\rho_{liq} R_v T}{D e_s(T)},
+
+where :math:`L` is the latent heat of vaporization, :math:`R_v` is the gas constant for water vapor, :math:`K` is the
+thermal conductivity, :math:`D` is the molecular diffusion coefficient, and :math:`e_s(T)` is the saturation vapor pressure.
+
+The implementation uses an implicit time integration scheme (backward Euler or higher-order methods like Runge-Kutta)
+with a Newton-Raphson solver to solve this nonlinear ordinary differential equation.
+
+Stochastic Coalescence
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Coalescence (collision and merging) of droplets is treated probabilistically. For two super-droplets :math:`j` and :math:`k`
+in a well-mixed volume :math:`\Delta V`, the coalescence probability during time interval :math:`\Delta t_c` is:
+
+.. math::
+   P_{jk}^{(s)} = \max(\xi_j, \xi_k) \frac{K(R_j, R_k) \Delta t_c}{\Delta V},
+
+where :math:`K(R_j, R_k) = E(R_j, R_k) \pi(R_j + R_k)^2 |\mathbf{v}_j - \mathbf{v}_k|` is the coalescence kernel, and
+:math:`E(R_j, R_k)` is the collection efficiency accounting for flow deflection and droplet bounce effects.
+
+When super-droplets :math:`j` and :math:`k` coalesce (assuming :math:`\xi_j > \xi_k` without loss of generality),
+:math:`\min(\xi_j, \xi_k)` pairs of physical droplets merge:
+
+.. math::
+   \xi'_j &= \xi_j - \xi_k, \quad \xi'_k = \xi_k, \\
+   R'_j &= R_j, \quad R'_k = (R_j^3 + R_k^3)^{1/3}, \\
+   M'_j &= M_j, \quad M'_k = M_j + M_k.
+
+This formulation preserves the number of super-droplets in most cases, maintaining accuracy even as the number of physical
+droplets changes dramatically.
+
+The Monte Carlo scheme for coalescence achieves :math:`O(n_s)` computational cost (where :math:`n_s` is the number of
+super-droplets in a grid cell) by examining only :math:`[n_s/2]` randomly generated, non-overlapping pairs rather than
+all possible :math:`n_s(n_s-1)/2` pairs. The coalescence probability is scaled accordingly.
+
+Several collision kernels are implemented:
+
+- **Golovin kernel**: :math:`K = b(X_j + X_k)` where :math:`X = \frac{4\pi}{3}R^3` (primarily for testing)
+- **Sedimentation kernel**: Based on geometric collision cross-section
+- **Long's kernel**: Empirical formula for gravitational collision
+- **Hall's kernel**: Table-based collection efficiency for realistic cloud conditions
+
+Coupling with Eulerian Dynamics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The super-droplets are coupled to the non-hydrostatic Eulerian dynamics through three source terms:
+
+**Momentum coupling** through the liquid water density:
+
+.. math::
+   \rho_w(\mathbf{x}, t) = \sum_{i=1}^{N_s} \xi_i m_i(t) \delta^3[\mathbf{x} - \mathbf{x}_i(t)],
+
+where :math:`m_i = \frac{4\pi}{3} R_i^3 \rho_{liq}` is the mass of a physical droplet.
+
+**Vapor source** from condensation/evaporation:
+
+.. math::
+   S_v(\mathbf{x}, t) = -\frac{1}{\rho(\mathbf{x}, t)} \sum_{i=1}^{N_s} \xi_i \frac{dm_i(t)}{dt} \delta^3[\mathbf{x} - \mathbf{x}_i(t)].
+
+**Latent heat release**:
+
+.. math::
+   \frac{L}{c_p} S_v
+
+In the numerical implementation, these delta functions are smoothed onto the Eulerian grid using appropriate
+interpolation functions to ensure conservation and numerical stability.
+
+Input Parameters and Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The super-droplet method is configured through input parameters specified in the input file with the prefix ``super_droplets_moisture``.
+
+SDM Parameters
+^^^^^^^^^^^^^^
+
+All SDM parameters use the prefix ``super_droplets_moisture``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 20 40
+
+   * - Parameter
+     - Default Value
+     - Description
+   * - **Microphysics Model**
+     -
+     -
+   * - ``include_phase_change``
+     - ``true``
+     - Enable/disable condensation and evaporation
+   * - ``include_advection``
+     - ``true``
+     - Enable/disable particle advection
+   * - ``include_coalescence``
+     - ``true``
+     - Enable/disable stochastic coalescence
+   * - ``initial_distribution_type``
+     - ``uniform``
+     - Initial distribution type (``uniform``, ``condensate_density``)
+   * - ``radius_raindrop``
+     - ``4.0e-5``
+     - Minimum radius (m) to classify droplet as rain
+   * - ``kinematic_mode``
+     - ``false``
+     - Run in kinematic mode (no feedback to dynamics)
+   * - ``dimensionality``
+     - ``three_d``
+     - Simulation dimensionality (``one_d_z``, ``two_d_xz``, ``two_d_yz``, ``three_d``)
+   * - ``recycle_particles``
+     - ``false``
+     - Enable particle recycling at boundaries
+   * - ``species``
+     - ``H2O``
+     - List of vapour/condensate species
+   * - ``aerosols``
+     - (none)
+     - List of aerosol species
+   * - ``diagnostics_interval``
+     - ``1``
+     - Timesteps between diagnostic output
+   * - ``num_substeps_phase_change``
+     - ``1``
+     - Number of substeps for phase change process
+   * - ``initial_phase_change_relaxation``
+     - ``false``
+     - Allow initial relaxation of droplet sizes
+   * - ``initial_phase_change_relaxation_time``
+     - ``10.0``
+     - Duration (s) of initial relaxation
+   * - **Particle Container**
+     -
+     -
+   * - ``density_scaling``
+     - ``false``
+     - Scale initial SD number with air density
+   * - ``nucleate_particles``
+     - ``false``
+     - Nucleate new super-droplets from vapor
+   * - ``advect_with_flow``
+     - ``true``
+     - Advect particles with fluid velocity
+   * - ``advect_with_gravity``
+     - ``true``
+     - Include gravitational settling
+   * - ``prescribed_advection``
+     - ``false``
+     - Use prescribed vertical velocity
+   * - ``coalescence_kernel``
+     - ``sedimentation``
+     - Coalescence kernel type (``golovin``, ``sedimentation``, ``Longs``, ``Halls``)
+   * - ``terminal_velocity_model``
+     - ``CloudRainShima``
+     - Terminal velocity formula (``RogersYau``, ``AtlasUlbrich``, ``CloudRainShima``)
+   * - ``include_brownian_coalescence``
+     - ``false``
+     - Include Brownian motion in coalescence
+   * - ``coalescence_bin_size``
+     - ``[1,1,1]``
+     - Grid coarsening factor for coalescence cells
+   * - ``mass_change_cfl``
+     - ``1000.0``
+     - CFL number for phase change time integration
+   * - ``mass_change_ti_method``
+     - ``backward_euler``
+     - Time integrator for mass change ODE (``rk3bs``, ``rk4``, ``backward_euler``, ``crank_nicolson``, ``dirk2``)
+   * - ``newton_solver_rtol``
+     - ``1.0e-6``
+     - Newton solver relative tolerance
+   * - ``newton_solver_atol``
+     - ``1.0e-99``
+     - Newton solver absolute tolerance
+   * - ``newton_solver_stol``
+     - ``1.0e-12``
+     - Newton solver step tolerance
+   * - ``newton_solver_maxits``
+     - ``10``
+     - Newton solver maximum iterations
+   * - ``place_randomly_in_cells``
+     - ``true``
+     - Randomly place SDs within grid cells
+   * - ``sigma0``
+     - ``0.62``
+     - Kernel width parameter for distribution estimation
+   * - ``distribution_grid_size``
+     - ``100``
+     - Grid size for computing distributions
+   * - ``inactive_threshold``
+     - ``0.01``
+     - Multiplicity threshold for deactivating particles
+   * - ``write_inactive_plt``
+     - ``false``
+     - Write inactive particles to plot files
+   * - ``num_initializations``
+     - ``1``
+     - Number of initialization regions
+   * - ``num_injections``
+     - ``0``
+     - Number of injection sources
+
+Initialization Parameters
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For each initialization region (indexed by ``N``), parameters are specified with prefix ``super_droplets_moisture.N``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 25 40
+
+   * - Parameter
+     - Default Value
+     - Description
+   * - ``distribution_type``
+     - ``uniform``
+     - Spatial distribution (``uniform``, ``bubble``)
+   * - ``particles_per_cell``
+     - (required)
+     - Number of super-droplets per grid cell
+   * - ``particle_box_lo``
+     - domain lower bounds
+     - Lower corner of initialization box (for ``uniform``)
+   * - ``particle_box_hi``
+     - domain upper bounds
+     - Upper corner of initialization box (for ``uniform``)
+   * - ``particle_bubble_center``
+     - --
+     - Center of initialization bubble (for ``bubble``)
+   * - ``particle_bubble_radius``
+     - --
+     - Radius of initialization bubble (for ``bubble``)
+   * - ``initial_number_density``
+     - --
+     - Physical droplet number density (m\ :sup:`-3`)
+   * - ``multiplicity_type``
+     - ``sampled``
+     - How to assign multiplicity (``sampled``, etc.)
+   * - ``maximum_multiplicity``
+     - --
+     - Maximum multiplicity value
+
+Species and Aerosol Distribution Parameters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For each initialization region (indexed by ``N``) and each species/aerosol (``<NAME>``), distribution parameters are specified with prefix ``super_droplets_moisture.N.initial_``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 25 35
+
+   * - Parameter
+     - Default Value
+     - Description
+   * - **Species Parameters**
+     -
+     -
+   * - ``species_distribution_type_<NAME>``
+     - ``mass_constant``
+     - Distribution type for species <NAME>: ``mass_constant``, ``mass_exponential``, ``radius_log_normal``, ``radius_lognormal_autorange``
+   * - ``species_min_mass_<NAME>``
+     - --
+     - Minimum mass (kg) for species <NAME>
+   * - ``species_mean_mass_<NAME>``
+     - --
+     - Mean mass (kg) for species <NAME>
+   * - ``species_max_mass_<NAME>``
+     - 5 × mean_mass
+     - Maximum mass (kg) for species <NAME>
+   * - ``species_min_radius_<NAME>``
+     - --
+     - Minimum radius (m) for species <NAME>
+   * - ``species_max_radius_<NAME>``
+     - --
+     - Maximum radius (m) for species <NAME>
+   * - ``species_mean_radius_<NAME>``
+     - --
+     - Mean radius (m) for species <NAME> (used with log-normal distributions)
+   * - ``species_std_radius_<NAME>``
+     - --
+     - Standard deviation of radius (m) for species <NAME> (converted to geometric std; cannot specify both std and geomstd)
+   * - ``species_geomstd_radius_<NAME>``
+     - --
+     - Geometric standard deviation (dimensionless) of radius for species <NAME> (used with log-normal distributions)
+   * - **Aerosol Parameters**
+     -
+     -
+   * - ``aerosol_distribution_type_<NAME>``
+     - ``mass_constant``
+     - Distribution type for aerosol <NAME>: ``mass_constant``, ``mass_exponential``, ``radius_log_normal``, ``radius_lognormal_autorange``
+   * - ``aerosol_min_mass_<NAME>``
+     - --
+     - Minimum mass (kg) for aerosol <NAME>
+   * - ``aerosol_mean_mass_<NAME>``
+     - --
+     - Mean mass (kg) for aerosol <NAME>
+   * - ``aerosol_max_mass_<NAME>``
+     - 5 × mean_mass
+     - Maximum mass (kg) for aerosol <NAME>
+   * - ``aerosol_min_radius_<NAME>``
+     - --
+     - Minimum radius (m) for aerosol <NAME>
+   * - ``aerosol_max_radius_<NAME>``
+     - --
+     - Maximum radius (m) for aerosol <NAME>
+   * - ``aerosol_mean_radius_<NAME>``
+     - --
+     - Mean radius (m) for aerosol <NAME> (used with log-normal distributions)
+   * - ``aerosol_std_radius_<NAME>``
+     - --
+     - Standard deviation of radius (m) for aerosol <NAME> (converted to geometric std; cannot specify both std and geomstd)
+   * - ``aerosol_geomstd_radius_<NAME>``
+     - --
+     - Geometric standard deviation (dimensionless) of radius for aerosol <NAME> (used with log-normal distributions)
+
+Diagnostic Parameters
+^^^^^^^^^^^^^^^^^^^^^
+
+Diagnostic parameters use the prefix ``super_droplets_moisture``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 30 30
+
+   * - Parameter
+     - Default Value
+     - Description
+   * - ``mass_change_unconverged_log``
+     - ``false``
+     - Log particles with unconverged mass change
+   * - ``mass_change_unconverged_log_filename``
+     - ``unconverged_superdroplets.log``
+     - Filename for unconverged particle log
+   * - ``distribution_rmin``
+     - ``1.0e-6``
+     - Minimum radius (m) for binned distributions
+   * - ``distribution_rmax``
+     - ``5.0e-3``
+     - Maximum radius (m) for binned distributions
+
+Output Files
+~~~~~~~~~~~~
+
+The super-droplet method generates several types of output files in addition to the standard AMReX plot files and particle output files.
+
+Particle Plot Files
+^^^^^^^^^^^^^^^^^^^
+
+Super-droplet data is written to AMReX particle plot files at regular intervals (controlled by the main ERF output settings). These files contain all particle attributes including position, velocity, mass, radius, multiplicity, and species/aerosol masses. The particle files can be visualized and analyzed using standard AMReX visualization tools.
+
+Inactive Particle Plot Files
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When ``write_inactive_plt`` is enabled, deactivated (inactive) super-droplets are written to separate plot file directories named ``deac_SD_NNNNN`` where ``NNNNN`` is the timestep number. These files allow tracking of particles that have been deactivated due to evaporation or other processes. Each output includes both a dummy Eulerian field and the particle data in a standard AMReX plot file format.
+
+Droplet Size Distribution Files
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The model can output droplet size distribution (DSD) data in two formats:
+
+**Kernel-Smoothed Distributions** (``super_droplets_moisture_g_lnR_NNNNN.txt``):
+
+These text files contain kernel-smoothed mass distributions as a function of the natural logarithm of droplet radius. The files are written at intervals specified by ``diagnostics_interval`` and contain multiple columns:
+
+- Column 1: Droplet radius :math:`R` (m)
+- Column 2: Mass-weighted distribution :math:`g_m(\ln R)` (kg/m\ :sup:`3`)
+- Columns 3+: Mass distributions for individual aerosol species (if present)
+
+The kernel-smoothed distribution is computed using:
+
+.. math::
+   g_m(\ln R) = \sum_{i=1}^{N_s} \gamma \xi_i m_i \exp\left(-\lambda (\ln R - \ln R_i)^2\right)
+
+where the kernel width is controlled by ``sigma0``.
+
+**Binned Distributions** (available with ``ERF_USE_ML_UPHYS_DIAGNOSTICS``):
+
+When compiled with machine learning diagnostics enabled, binned distributions are written to both text and plot file formats:
+
+- ``super_droplets_moisture_binned_dsd_NNNNN.txt``: Domain-integrated binned distributions with columns for radius, mass distribution :math:`g_m(\ln R)`, and number distribution :math:`g_n(\ln R)`.
+
+- ``super_droplets_moisture_binned_dsd_mass_NNNNN/`` and ``super_droplets_moisture_binned_dsd_number_NNNNN/``: AMReX plot file directories containing cell-wise binned mass and number distributions. These files allow spatial analysis of the droplet size distribution.
+
+The binned distributions divide the radius range from ``distribution_rmin`` to ``distribution_rmax`` into ``distribution_grid_size`` bins with logarithmic spacing. The distributions are normalized by cell volume and bin width :math:`d\ln R`.
+
+Unconverged Particle Log
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When ``mass_change_unconverged_log`` is enabled (CPU only), particles that fail to converge during the phase change time integration are logged to the file specified by ``mass_change_unconverged_log_filename`` (default: ``unconverged_superdroplets.log``). This file helps diagnose numerical issues with the condensation/evaporation solver and can be used to tune solver tolerances.
+
+References
+~~~~~~~~~~
+
+- Shima, S., K. Kusano, A. Kawano, T. Sugiyama, and S. Kawahara, 2009: The super-droplet method for the numerical
+  simulation of clouds and precipitation: A particle-based and probabilistic microphysics model coupled with a
+  non-hydrostatic model. Q. J. R. Meteorol. Soc., 135: 1307-1320.
