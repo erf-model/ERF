@@ -127,6 +127,7 @@ public:
     {
         int nlev = m_lsm_model.size();
         int nvar = this->Get_Data_Size();
+        int nlev_valid = nlev;
         amrex::Vector<std::string> varnames;
 
         // Only write if we have valid pointers
@@ -137,7 +138,10 @@ public:
             std::string plotfilename = amrex::Concatenate(plot_file_lsm, level_steps[0], 5);
             for (int lev(0); lev<nlev; ++lev) {
                 m_lsm_geom_lev[lev] = this->Get_Lsm_Geom(lev);
-
+                if (m_lsm_geom_lev[lev].Domain().isEmpty()) {
+                    nlev_valid--;
+                    continue;
+                }
                 amrex::MultiFab* mf_lsm = this->Get_Data_Ptr(lev,0);
                 amrex::IntVect ng(0,0,0);
                 amrex::BoxArray ba = mf_lsm->boxArray();
@@ -150,7 +154,7 @@ public:
                 }
             }
             if (plotfile_type == PlotFileType::Amrex) {
-                WriteMultiLevelPlotfile (plotfilename, nlev, GetVecOfConstPtrs(m_lsm_data_lev),
+                WriteMultiLevelPlotfile (plotfilename, nlev_valid, GetVecOfConstPtrs(m_lsm_data_lev),
                                          varnames, m_lsm_geom_lev, time, level_steps, ref_ratio);
 #ifdef ERF_USE_NETCDF
             } else if (plotfile_type == PlotFileType::Netcdf) {
@@ -165,9 +169,9 @@ public:
             m_lsm_geom_lev.clear();
             m_lsm_data_lev.clear();
 
-            if (nlev > 0 && m_lsm_model[0]->Lsm_Type() == LSM_Type::SLM)
+            if (nlev_valid > 0 && m_lsm_model[0]->Lsm_Type() == LSM_Type::SLM)
             {
-                for (int lev(0); lev<nlev; ++lev) {
+                for (int lev(0); lev<nlev_valid; ++lev) {
                     static_cast<SLM*>(m_lsm_model[lev].get())->writeSLM_Data(plotfile_type, time, plot_file_lsm, level_steps[0]);
                 }
             }
