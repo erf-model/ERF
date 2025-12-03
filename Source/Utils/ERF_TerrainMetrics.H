@@ -710,7 +710,7 @@ rotate_stress_tensor (const int& i,
     // Body-fixed tau
     amrex::Real T11    = 2.0*R_mat(0,0)*R_mat(2,0)*flux;
     amrex::Real T22    = 2.0*R_mat(0,1)*R_mat(2,1)*flux;
-    amrex::Real T33    = 2.0*R_mat(0,2)*R_mat(2,2)*flux;
+    //amrex::Real T33    = 2.0*R_mat(0,2)*R_mat(2,2)*flux;
     amrex::Real T12    = (R_mat(0,0)*R_mat(2,1) + R_mat(2,0)*R_mat(0,1))*flux;
     amrex::Real T13    = (R_mat(0,0)*R_mat(2,2) + R_mat(0,2)*R_mat(2,0))*flux;
     amrex::Real T23    = (R_mat(0,1)*R_mat(2,2) + R_mat(0,2)*R_mat(2,1))*flux;
