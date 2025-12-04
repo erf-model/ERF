@@ -27,7 +27,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
     if (!flag) { return; }
 
     if (m_save_inactive) {
-
+#ifndef ERF_USE_NETCDF
         const auto& geom = Geom(m_lev);
         const auto plo = geom.ProbLoArray();
         const auto dxi = geom.InvCellSizeArray();
@@ -56,6 +56,31 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             jobInfoFile.close();
         }
         tmp.WritePlotFile(fname, name, this->varNames());
+#else
+        amrex::Abort("Saving deactivated particles to plotfile not implemented when built with NetCDF support.");
+        /* The line
+         *      auto tmp = this->make_alike<amrex::PinnedArenaAllocator>();
+         * gives the following compilation error on Tuolumne when compiling with NetCDF:
+         *
+                In file included from /g/g92/ghosh5/Codes/ERF/Source/Particles/ERF_SuperDropletPCRecycle.cpp:3:
+                In file included from /g/g92/ghosh5/Codes/ERF/Source/Particles/ERF_SuperDropletPC.H:9:
+                In file included from /g/g92/ghosh5/Codes/ERF/Source/Particles/ERF_SuperDropletPCDefinitions.H:8:
+                In file included from /g/g92/ghosh5/Codes/ERF/Submodules/AMReX/Src/Particle/AMReX_Particles.H:5:
+                /g/g92/ghosh5/Codes/ERF/Submodules/AMReX/Src/Particle/AMReX_ParticleContainer.H:1394:13: error: 'SetSoACompileTimeNames' is a protected member of 'amrex::ParticleContainer_impl<amrex::Particle<0, 1>, 5, 0, amrex::PinnedArenaAllocator>'
+                 1394 |         tmp.SetSoACompileTimeNames(real_ct_names, int_ct_names);
+                      |             ^
+                /g/g92/ghosh5/Codes/ERF/Source/Particles/ERF_SuperDropletPCRecycle.cpp:38:26: note: in instantiation of function template specialization 'amrex::ParticleContainer_impl<amrex::Particle<0, 1>, 5, 0, amrex::DefaultAllocator, ERFParticlesAssignor>::make_alike<amrex::PinnedArenaAllocator>' requested here
+                   38 |         auto tpc = this->make_alike<amrex::PinnedArenaAllocator>();
+                      |                          ^
+                /g/g92/ghosh5/Codes/ERF/Submodules/AMReX/Src/Particle/AMReX_ParticleContainer.H:1474:10: note: declared protected here
+                 1474 |     void SetSoACompileTimeNames (std::vector<std::string> const & rdata_name, std::vector<std::string> const & idata_name);
+                      |          ^
+                1 error generated when compiling for gfx942.
+
+         * Need to understand what is going on. Not sure if it will give this error when compiline on other machines
+         * with NetCDF support.
+         */
+#endif
     }
 
     if (a_recycle) {
