@@ -531,6 +531,14 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 } else if (ivar  == ivarV) {
                     tbx_xlo.setRange(0,0,-1);
                     tbx_xhi.setRange(0,0,-1);
+                    if (tbx.smallEnd(0) == domain.smallEnd(0)) {
+                        tbx_ylo.setSmall(0,domain.smallEnd(0));
+                        tbx_yhi.setSmall(0,domain.smallEnd(0));
+                    }
+                    if (tbx.bigEnd(0) == domain.bigEnd(0)) {
+                        tbx_ylo.setBig(0,domain.bigEnd(0));
+                        tbx_yhi.setBig(0,domain.bigEnd(0));
+                    }
                     arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
                     arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
                     rhs_arr  = S_rhs[IntVars::ymom].array(mfi);
