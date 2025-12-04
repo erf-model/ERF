@@ -102,10 +102,17 @@ ERF::compute_shoc_tendencies (int lev,
                                    tau13, tau23, hfx3, qfx3,
                                    eddyDiffs, z_phys_nd);
 
+    auto t0 = amrex::second();
     shoc_interface[lev]->initialize_impl();
+    auto t1 = amrex::second();
     shoc_interface[lev]->run_impl(dt_advance);
+    auto t2 = amrex::second();
     shoc_interface[lev]->finalize_impl(dt_advance);
+    auto t3 = amrex::second();
 
+    Print() << "Time in SHOC: initialize_impl() " << t1 - t0 << std::endl;
+    Print() << "Time in SHOC: run_impl()        " << t2 - t1 << std::endl;
+    Print() << "Time in SHOC: finalize_impl()   " << t3 - t2 << std::endl;
     Print() << "Done advancing SHOC\n";
 }
 
