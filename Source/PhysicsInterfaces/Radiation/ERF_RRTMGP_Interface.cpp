@@ -386,7 +386,7 @@ rrtmgp_main (const int ncol, const int nlay,
              real2d_k& p_lev, real2d_k& t_lev,
              gas_concs_t& gas_concs,
              real2d_k& sfc_alb_dir, real2d_k& sfc_alb_dif, real1d_k& mu0,
-             real1d_k& t_sfc      , real2d_k& emis_sfc   , real1d_k& lw_src,
+             real1d_k& t_sfc      , real1d_k& sfc_emis   , real1d_k& lw_src,
              real2d_k& lwp, real2d_k& iwp,
              real2d_k& rel, real2d_k& rei, real2d_k& cldfrac,
              real3d_k& /*aer_tau_sw*/, real3d_k& /*aer_ssa_sw*/, real3d_k& /*aer_asm_sw*/,
@@ -522,7 +522,7 @@ rrtmgp_main (const int ncol, const int nlay,
   // Do longwave
   rrtmgp_lw(ncol, nlay,
             *k_dist_lw_k, p_lay, t_lay, p_lev, t_lev,
-            t_sfc, emis_sfc, lw_src,
+            t_sfc, sfc_emis, lw_src,
             gas_concs, aerosol_lw, clouds_lw_gpt,
             fluxes_lw, clnclrsky_fluxes_lw, clrsky_fluxes_lw, clnsky_fluxes_lw,
             extra_clnclrsky_diag, extra_clnsky_diag);
@@ -903,7 +903,7 @@ rrtmgp_lw (const int ncol,
            gas_optics_t& k_dist,
            real2d_k& p_lay, real2d_k& t_lay,
            real2d_k& p_lev, real2d_k& t_lev,
-           real1d_k& t_sfc, real2d_k& emis_sfc, real1d_k& lw_src,
+           real1d_k& t_sfc, real1d_k& sfc_emis, real1d_k& lw_src,
            gas_concs_t& gas_concs,
            optical_props1_t& aerosol,
            optical_props1_t& clouds,
@@ -990,7 +990,7 @@ rrtmgp_lw (const int ncol,
     Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {ncol, nbnd}),
                          KOKKOS_LAMBDA (int icol, int ibnd)
     {
-        emis_sfc_T(ibnd,icol) = emis_sfc(icol,ibnd);
+        emis_sfc_T(ibnd,icol) = sfc_emis(icol);
     });
     //Kokkos::deep_copy(emis_sfc_T, 0.98);
 

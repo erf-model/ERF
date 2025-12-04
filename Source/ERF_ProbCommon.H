@@ -119,7 +119,8 @@ public:
                       amrex::Array4<amrex::Real const> const& /*mf_m*/,
                       amrex::Array4<amrex::Real const> const& /*mf_u*/,
                       amrex::Array4<amrex::Real const> const& /*mf_v*/,
-                      const SolverChoice& /*sc*/)
+                      const SolverChoice& /*sc*/,
+                      const int /*lev*/)
     {
         amrex::Print() << "No perturbation to background fields supplied for "
             << name() << " problem" << std::endl;
@@ -264,6 +265,31 @@ public:
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, u_geos.begin(), u_geos.end(), d_u_geos.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, v_geos.begin(), v_geos.end(), d_v_geos.begin());
     }
+
+    /**
+     * Function to perform custom initialization of buildings
+     *
+     * @param[in] geom container for geometric information
+     * @param[out] z_phys_nd height coordinate at nodes
+     * @param[in] time current time
+    */
+    void
+    init_buildings_surface (const amrex::Geometry& geom,
+                          amrex::FArrayBox& buildings_fab,
+                          const amrex::Real& time)
+    {
+        // Check if a valid text file exists for the buildings
+        std::string fname;
+        amrex::ParmParse pp("erf");
+        auto valid_fname = pp.query("buildings_file_name",fname);
+
+        if (valid_fname) {
+            read_custom_terrain(fname,false,geom,buildings_fab,time);
+        } else {
+            init_custom_terrain(geom, buildings_fab, time);
+        }
+    }
+
 
     /**
      * Function to perform custom initialization of terrain

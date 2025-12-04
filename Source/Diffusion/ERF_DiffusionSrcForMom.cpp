@@ -119,6 +119,7 @@ DiffusionSrcForMom (const Box& bxx, const Box& bxy , const Box& bxz,
             Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
             // Note: We don't compute a source term for z-momentum on the bottom or top domain boundary (from erf_slow_rhs_pre)
+            //Real dzinv_loc = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
             Real dzinv_loc = 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
             Real diffContrib  = ( (tau31(i+1, j  , k  ) - tau31(i  , j  , k  )) * dxinv * mfsq // Contribution to z-mom eqn from diffusive flux in x-dir

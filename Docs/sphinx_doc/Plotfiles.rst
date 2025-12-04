@@ -107,6 +107,12 @@ List of Parameters for 3D Plotfiles
 |                             | components on the|                       |            |
 |                             | staggered grid.  |                       |            |
 +-----------------------------+------------------+-----------------------+------------+
+| **erf.file_name_digits**    | Number of digits | Integer               | 5          |
+|                             | to be appended   | :math:`> 0`           |            |
+|                             | to the plot file |                       |            |
+|                             | and checkpoint   |                       |            |
+|                             | file names       |                       |            |
++-----------------------------+------------------+-----------------------+------------+
 
 List of Parameters for 2D Plotfiles
 -----------------------------------

@@ -67,7 +67,8 @@ Problem::init_custom_pert(
     amrex::Array4<amrex::Real const> const& /*mf_m*/,
     amrex::Array4<amrex::Real const> const& /*mf_u*/,
     amrex::Array4<amrex::Real const> const& /*mf_v*/,
-    const SolverChoice& sc)
+    const SolverChoice& sc,
+    const int /*lev*/)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 

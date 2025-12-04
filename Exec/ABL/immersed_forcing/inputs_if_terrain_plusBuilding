@@ -1,0 +1,89 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+#max_step = 4000
+stop_time = 1800
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent =  1280     1280    1280
+amr.n_cell           =    256     256    256
+
+geometry.is_periodic = 1 1 0
+
+zlo.type = "NoSlipWall" ### Does not matter when using immersed forcing
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.fixed_dt           = 0.125  # fixed time step depending on grid resolution
+erf.substepping_cfl    = 0.5
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# planar averaging (with erf.v = 1)
+erf.data_log    = surf_hist.dat mean_profiles.dat covar_profiles.dat sfs_profiles.dat
+erf.profile_int = 60
+erf.destag_profiles = false
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = -1        # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt       # prefix of plotfile name
+erf.plot_int_1      = 600        # number of timesteps between plotfiles
+erf.plot_vars_1     = z_phys density terrain_IB_mask rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.17
+
+erf.rayleigh_damp_U = true
+erf.rayleigh_damp_V = true
+erf.rayleigh_damp_W = true
+erf.rayleigh_damp_T = true
+prob.dampcoef = 0.2 # [1/s] following FastEddy
+prob.zdamp = 300. # from model top"
+
+
+# INITIALIZATION 
+erf.init_type           = "input_sounding"
+erf.init_sounding_ideal = 1
+erf.input_sounding_file = "input_sounding_CBL"
+
+## TERRRAIN GRID TYPE
+erf.terrain_type      = StaticFittedMesh
+erf.terrain_file_name = WoA_dx5m_h100m.txt
+erf.terrain_smoothing = 0
+erf.terrain_z_levels = 0.00 4.77 9.53 14.30 19.06 23.83 28.59 33.36 38.12 42.89 47.65 52.42 57.19 61.95 66.72 71.48 76.25 81.01 85.78 90.54 95.31 100.07 104.84 109.60 114.37 119.14 123.90 128.67 133.43 138.20 142.96 147.73 152.49 157.26 162.02 166.79 171.56 176.32 181.09 185.85 190.62 195.38 200.15 204.91 209.68 214.44 219.21 223.97 228.74 233.51 238.27 243.04 247.80 252.57 257.33 262.10 266.86 271.63 276.39 281.16 285.93 290.69 295.46 300.22 304.99 309.75 314.52 319.28 324.05 328.81 333.58 338.35 343.11 347.88 352.64 357.41 362.17 366.94 371.70 376.47 381.23 386.00 390.76 395.53 400.30 405.06 409.83 414.59 419.36 424.12 428.89 433.65 438.42 443.18 447.95 452.72 457.48 462.25 467.01 471.78 476.54 481.31 486.07 490.84 495.60 500.37 505.13 509.90 514.67 519.43 524.20 528.96 533.73 538.49 543.26 548.02 552.79 557.55 562.32 567.09 571.85 576.62 581.38 586.15 590.91 595.68 600.44 605.21 609.97 614.74 619.51 624.27 629.04 633.80 638.57 643.33 648.10 652.86 657.63 662.39 667.16 671.92 676.69 681.46 686.22 690.99 695.75 700.52 705.28 710.05 714.81 719.58 724.34 729.11 733.88 738.64 743.41 748.17 752.94 757.70 762.47 767.23 772.00 776.76 781.53 786.29 791.06 795.83 800.59 805.36 810.12 814.89 819.65 824.42 829.18 833.95 838.71 843.48 848.25 853.01 857.78 862.54 867.31 872.07 876.84 881.60 886.37 891.13 895.90 900.66 905.43 910.20 914.96 919.73 924.49 929.26 934.02 938.79 943.55 948.32 953.08 957.85 962.62 967.38 972.15 976.91 981.68 986.44 991.21 995.97 1000.74 1005.50 1010.27 1015.04 1019.80 1024.57 1029.33 1034.10 1038.86 1043.63 1048.39 1053.16 1057.92 1062.69 1067.45 1072.22 1076.99 1081.75 1086.52 1091.28 1096.05 1100.81 1105.58 1110.34 1115.11 1119.87 1124.64 1129.41 1134.17 1138.94 1143.70 1148.47 1153.23 1158.00 1162.76 1167.53 1172.29 1177.06 1181.82 1186.59 1191.36 1196.12 1200.89 1205.65 1210.42 1215.18 1219.94
+erf.buildings_type = ImmersedForcing
+erf.buildings_file_name = skyscraper_5m.txt
+erf.immersed_forcing_substep = true
+erf.if_Cd_momentum = 500.0
+erf.if_Cd_scalar   =  50.0
+erf.if_init_surf_temp = 292.0
+erf.if_surf_heating_rate = 1.0
+
+# Coriolis parameter f = 
+erf.use_coriolis = true
+erf.latitude = 40.0
+erf.rotational_time_period = 86400.0
+
+# Geostrophic wind 
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 8.0 0.0 0.0
+
+# Higher values of perturbations lead to instability
+# Instability seems to be coming from BC
+prob.T_0_Pert_Mag    = 0.5 # [K]
+prob.pert_ref_height = 500. # [m]

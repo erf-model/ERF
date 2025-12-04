@@ -72,10 +72,16 @@ void ERF::advance_dycore (int level,
 
     Vector<Real*> d_rayleigh_ptrs_at_lev;
     d_rayleigh_ptrs_at_lev.resize(Rayleigh::nvars);
-    d_rayleigh_ptrs_at_lev[Rayleigh::ubar]     = solverChoice.rayleigh_damp_U   ? d_rayleigh_ptrs[level][Rayleigh::ubar].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::vbar]     = solverChoice.rayleigh_damp_V   ? d_rayleigh_ptrs[level][Rayleigh::vbar].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::wbar]     = solverChoice.rayleigh_damp_W   ? d_rayleigh_ptrs[level][Rayleigh::wbar].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::thetabar] = solverChoice.rayleigh_damp_T   ? d_rayleigh_ptrs[level][Rayleigh::thetabar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::ubar]     = solverChoice.dampingChoice.rayleigh_damp_U   ? d_rayleigh_ptrs[level][Rayleigh::ubar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::vbar]     = solverChoice.dampingChoice.rayleigh_damp_V   ? d_rayleigh_ptrs[level][Rayleigh::vbar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::wbar]     = solverChoice.dampingChoice.rayleigh_damp_W   ? d_rayleigh_ptrs[level][Rayleigh::wbar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::thetabar] = solverChoice.dampingChoice.rayleigh_damp_T   ? d_rayleigh_ptrs[level][Rayleigh::thetabar].data() : nullptr;
+
+    bool use_rayleigh =
+       (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T);
+    Real* d_sinesq_at_lev      = (use_rayleigh)  ? d_sinesq_ptrs[level].data() : nullptr;
+    Real* d_sinesq_stag_at_lev = (use_rayleigh)  ? d_sinesq_stag_ptrs[level].data() : nullptr;
 
     Vector<Real*> d_sponge_ptrs_at_lev;
     if(sc.sponge_type=="input_sponge")
@@ -89,7 +95,6 @@ void ERF::advance_dycore (int level,
     bool l_use_kturb   = tc.use_kturb;
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
                            l_use_kturb );
-    bool l_implicit_substepping = ( solverChoice.substepping_type[level] == SubsteppingType::Implicit );
 
     const bool use_SurfLayer = (m_SurfaceLayer != nullptr);
     const MultiFab* z_0     = (use_SurfLayer) ? m_SurfaceLayer->get_z0(level) : nullptr;
@@ -114,9 +119,6 @@ void ERF::advance_dycore (int level,
     BL_PROFILE("erf_advance_strain");
     if (l_use_diff) {
 
-        // Here we use the implicit flag from first RK stage
-        bool l_vert_implicit_fac = (solverChoice.vert_implicit_fac[0] > 0.);
-
         const BCRec* bc_ptr_h = domain_bcs_type.data();
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
@@ -125,7 +127,6 @@ void ERF::advance_dycore (int level,
 #endif
         for ( MFIter mfi(state_new[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
-            Box bx    = mfi.tilebox();
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
             Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
@@ -156,12 +157,9 @@ void ERF::advance_dycore (int level,
             Array4<Real> tau13 = Tau[level][TauType::tau13].get()->array(mfi);
             Array4<Real> tau23 = Tau[level][TauType::tau23].get()->array(mfi);
 
-            bool need_tau31_tau32 = (solverChoice.mesh_type == MeshType::StretchedDz ||
-                                     l_use_terrain_fitted_coords ||
-                                     l_vert_implicit_fac > 0);
             Array4<Real> tau21 = l_use_terrain_fitted_coords ? Tau[level][TauType::tau21].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau31 = need_tau31_tau32            ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
-            Array4<Real> tau32 = need_tau31_tau32            ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau31 = l_use_terrain_fitted_coords ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau32 = l_use_terrain_fitted_coords ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
             const Array4<const Real>& z_nd = z_phys_nd[level]->const_array(mfi);
 
             const Array4<const Real> mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
@@ -171,10 +169,11 @@ void ERF::advance_dycore (int level,
             const Array4<const Real> mf_uy = mapfac[level][MapFacType::u_y]->const_array(mfi);
             const Array4<const Real> mf_vy = mapfac[level][MapFacType::v_y]->const_array(mfi);
 
-            Array4<Real> no_SmnSmn_calc_here{};
+            // We update Tau_corr[level] in erf_make_tau_terms, not here
+            Array4<Real> no_tau_corr_update_here{};
 
             if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                ComputeStrain_S(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_S(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau21,
@@ -182,10 +181,9 @@ void ERF::advance_dycore (int level,
                                 tau23, tau32,
                                 stretched_dz_d[level], dxInv,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                no_SmnSmn_calc_here,
-                                l_vert_implicit_fac);
+                                no_tau_corr_update_here, no_tau_corr_update_here);
             } else if (l_use_terrain_fitted_coords) {
-                ComputeStrain_T(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau21,
@@ -193,19 +191,15 @@ void ERF::advance_dycore (int level,
                                 tau23, tau32,
                                 z_nd, detJ_cc[level]->const_array(mfi), dxInv,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                no_SmnSmn_calc_here,
-                                l_vert_implicit_fac);
+                                no_tau_corr_update_here, no_tau_corr_update_here);
             } else {
-                ComputeStrain_N(bx, bxcc, tbxxy, tbxxz, tbxyz, domain,
+                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
-                                tau12, /*tau21,*/
-                                tau13, tau31,
-                                tau23, tau32,
+                                tau12, tau13, tau23,
                                 dxInv,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                no_SmnSmn_calc_here,
-                                l_vert_implicit_fac);
+                                no_tau_corr_update_here, no_tau_corr_update_here);
             }
         } // mfi
     } // l_use_diff

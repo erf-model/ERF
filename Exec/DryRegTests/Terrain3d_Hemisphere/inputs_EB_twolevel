@@ -86,8 +86,8 @@ erf.write_eb_surface = TRUE
 erf.terrain_smoothing = 0
 
 # Constant diffusion coefficient
-erf.molec_diff_type   = "ConstantAlpha"
-erf.dynamic_viscosity = 0.1 # [kg/(m-s)]
+erf.molec_diff_type   = "None"
+erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
 erf.alpha_T           = 0.0 # [m^2/s]
 erf.theta_ref = 300.0
 

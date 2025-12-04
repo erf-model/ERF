@@ -38,6 +38,9 @@ Model overview and transported quantities in ERF
 | Double moment      | ``Morrison``           | :math:`q_i` | :math:`q_r` | :math:`q_s` | :math:`q_g` |
 |                    |                        |             |             |             |             |
 +--------------------+------------------------+-------------+-------------+-------------+-------------+
+| Predicted Particle | ``P3``                 | :math:`q_i` | :math:`q_r` | :math:      | --          |
+| Properties         |                        |             |             | `q_{rim}`   |             |
++--------------------+------------------------+-------------+-------------+-------------+-------------+
 
 
 Kessler Microphysics model
@@ -784,3 +787,22 @@ References
 - Shima, S., K. Kusano, A. Kawano, T. Sugiyama, and S. Kawahara, 2009: The super-droplet method for the numerical
   simulation of clouds and precipitation: A particle-based and probabilistic microphysics model coupled with a
   non-hydrostatic model. Q. J. R. Meteorol. Soc., 135: 1307-1320.
+=======
+Predicted Particle Properties (P3) Microphysics Model
+------------------------------------------------------
+
+The P3 microphysics scheme uses a fundamentally different approach than traditional bulk schemes.
+Rather than using fixed hydrometeor categories (ice, snow, graupel), P3 predicts evolving ice particle
+properties, allowing continuous transitions from unrimed ice to heavily rimed particles.
+
+P3 transports water vapor (:math:`q_v`), cloud water (:math:`q_c`), rain (:math:`q_r`), total ice mass
+(:math:`q_i`), and rime mass (:math:`q_{rim}`). Additional prognostic variables include ice number
+concentration and rime volume.
+
+The scheme represents physical processes including vapor deposition/sublimation, riming, aggregation,
+melting, and sedimentation. Particle properties evolve continuously based on environmental conditions
+and microphysical processes.
+
+.. P3 requires ``USE_P3=TRUE`` at build time and interfaces with E3SM's P3 implementation.
+
+For details, see Morrison and Milbrandt (2015, *J. Atmos. Sci.*, 72, 287–311).

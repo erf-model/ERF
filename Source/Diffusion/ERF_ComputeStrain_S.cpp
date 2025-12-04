@@ -32,10 +32,11 @@ using namespace amrex;
  * @param[in] mf_my map factor at cell center
  * @param[in] mf_uy map factor at x-face
  * @param[in] mf_vy map factor at y-face
- * @param[in] implicit_fac -- factor of implicitness for vertical differences only
+ * @param[in] tau13i contribution to strain from du/dz
+ * @param[in] tau23i contribution to strain from dv/dz
  */
 void
-ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
+ComputeStrain_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& u,
                  const Array4<const Real>& v,
                  const Array4<const Real>& w,
@@ -54,8 +55,7 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& mf_uy,
                  const Array4<const Real>& mf_vy,
                  const BCRec* bc_ptr,
-                 Array4<Real>& SmnSmn_a,
-                 const Real /*implicit_fac*/)
+                 Array4<Real>& tau13i, Array4<Real>& tau23i)
 {
     // Convert domain to each index type to test if we are on dirichlet boundary
     Box domain_xy = convert(domain, tbxxy.ixType());
@@ -179,14 +179,17 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
+            Real du_dz = (u(i, j, k) - u(i, j, k-1))*dz_inv;
             if (!need_to_test || u(dom_lo.x,j,k) <= 0.) {
-                 tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dz_inv
-                                      + ( (-(8./3.) * w(i-1,j,k) + 3. * w(i,j,k) - (1./3.) * w(i+1,j,k))*dxInv[0]) * mfx );
+                tau13(i,j,k) = 0.5 * ( du_dz
+                                     + (-(8./3.) * w(i-1,j,k) + 3. * w(i,j,k) - (1./3.) * w(i+1,j,k))*dxInv[0] * mfx );
             } else {
-                tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j, k-1))*dz_inv
-                                     + ( (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]) * mfx );
+                tau13(i,j,k) = 0.5 * ( du_dz
+                                     + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0] * mfx );
             }
             tau31(i,j,k) = tau13(i,j,k);
+
+            if (tau13i) tau13i(i,j,k) = 0.5 * du_dz;
         });
     }
 
@@ -201,14 +204,17 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
+            Real du_dz = (u(i, j, k) - u(i, j, k-1))*dz_inv;
             if (!need_to_test || u(dom_hi.x+1,j,k) <= 0.) {
-                tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dz_inv
-                                     - ( (-(8./3.) * w(i,j,k) + 3. * w(i-1,j,k) - (1./3.) * w(i-2,j,k))*dxInv[0]) * mfx );
+                tau13(i,j,k) = 0.5 * ( du_dz
+                                     - (-(8./3.) * w(i,j,k) + 3. * w(i-1,j,k) - (1./3.) * w(i-2,j,k))*dxInv[0] * mfx );
             } else {
-                tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j, k-1))*dz_inv
-                                     + ( (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]) * mfx );
+                tau13(i,j,k) = 0.5 * ( du_dz
+                                     + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0] * mfx );
             }
             tau31(i,j,k) = tau13(i,j,k);
+
+            if (tau13i) tau13i(i,j,k) = 0.5 * du_dz;
         });
     }
 
@@ -265,14 +271,17 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
+            Real dv_dz = (v(i, j, k) - v(i, j, k-1))*dz_inv;
             if (!need_to_test || v(i,dom_lo.y,k) >= 0.) {
-                tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dz_inv
-                                     + ( (-(8./3.) * w(i,j-1,k) + 3. * w(i,j  ,k) - (1./3.) * w(i,j+1,k))*dxInv[1]) * mfy );
+                tau23(i,j,k) = 0.5 * ( dv_dz
+                                     + (-(8./3.) * w(i,j-1,k) + 3. * w(i,j  ,k) - (1./3.) * w(i,j+1,k))*dxInv[1] * mfy );
             } else {
-                tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j  , k-1))*dz_inv
-                                     + ( (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]) * mfy );
+                tau23(i,j,k) = 0.5 * ( dv_dz
+                                     + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1] * mfy );
             }
             tau32(i,j,k) = tau23(i,j,k);
+
+            if (tau23i) tau23i(i,j,k) = 0.5 * dv_dz;
         });
     }
     if (yh_w_dir) {
@@ -286,14 +295,17 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
+            Real dv_dz = (v(i, j, k) - v(i, j, k-1))*dz_inv;
             if (!need_to_test || v(i,dom_hi.y+1,k) >= 0.) {
-                tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dz_inv
-                                     - ( (-(8./3.) * w(i,j  ,k) + 3. * w(i,j-1,k) - (1./3.) * w(i,j-2,k))*dxInv[1]) * mfy );
+                tau23(i,j,k) = 0.5 * ( dv_dz
+                                     - (-(8./3.) * w(i,j  ,k) + 3. * w(i,j-1,k) - (1./3.) * w(i,j-2,k))*dxInv[1] * mfy );
             } else {
-                tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j  , k-1))*dz_inv
-                                     + ( (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]) * mfy );
+                tau23(i,j,k) = 0.5 * ( dv_dz
+                                     + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1] * mfy );
             }
             tau32(i,j,k) = tau23(i,j,k);
+
+            if (tau23i) tau23i(i,j,k) = 0.5 * dv_dz;
         });
     }
 
@@ -317,9 +329,12 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real mfx = mf_ux(i,j,0);
 
-            tau13(i,j,k) = 0.5 * ( (c1 * u(i,j,k-1) + c2 * u(i,j,k) + c3 * u(i,j,k+1))*idz0
-                                 + ( (w(i, j, k) - w(i-1, j, k))*dxInv[0]) * mfx );
+            Real du_dz = (c1 * u(i,j,k-1) + c2 * u(i,j,k) + c3 * u(i,j,k+1))*idz0;
+            tau13(i,j,k) = 0.5 * ( du_dz
+                                 + (w(i, j, k) - w(i-1, j, k))*dxInv[0] * mfx );
             tau31(i,j,k) = tau13(i,j,k);
+
+            if (tau13i) tau13i(i,j,k) = 0.5 * du_dz;
         });
     }
     if (zh_u_dir) {
@@ -340,9 +355,12 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real mfx = mf_ux(i,j,0);
 
-            tau13(i,j,k) = 0.5 * ( -(c1 * u(i,j,k) + c2 * u(i,j,k-1) + c3 * u(i,j,k-2))*idz0
-                                 +  (w(i, j, k) - w(i-1, j, k))*dxInv[0]*mfx );
+            Real du_dz = -(c1 * u(i,j,k) + c2 * u(i,j,k-1) + c3 * u(i,j,k-2))*idz0;
+            tau13(i,j,k) = 0.5 * ( du_dz
+                                 + (w(i, j, k) - w(i-1, j, k))*dxInv[0]*mfx );
             tau31(i,j,k) = tau13(i,j,k);
+
+            if (tau13i) tau13i(i,j,k) = 0.5 * du_dz;
         });
     }
 
@@ -363,9 +381,12 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real mfy = mf_vy(i,j,0);
 
-            tau23(i,j,k) = 0.5 * ( (c1 * v(i,j,k-1) + c2 * v(i,j,k  ) + c3 * v(i,j,k+1))*idz0
-                                 + ( (w(i, j, k) - w(i, j-1, k))*dxInv[1]) * mfy );
+            Real dv_dz = (c1 * v(i,j,k-1) + c2 * v(i,j,k  ) + c3 * v(i,j,k+1))*idz0;
+            tau23(i,j,k) = 0.5 * ( dv_dz
+                                 + (w(i, j, k) - w(i, j-1, k))*dxInv[1] * mfy );
             tau32(i,j,k) = tau23(i,j,k);
+
+            if (tau23i) tau23i(i,j,k) = 0.5 * dv_dz;
         });
     }
     if (zh_v_dir && (tbxyz.bigEnd(2) == domain_yz.bigEnd(2))) {
@@ -386,9 +407,12 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real mfy = mf_vy(i,j,0);
 
-            tau23(i,j,k) = 0.5 * ( -(c1 * v(i,j,k  ) + c2 * v(i,j,k-1) + c3 * v(i,j,k-2))*idz0
+            Real dv_dz = -(c1 * v(i,j,k  ) + c2 * v(i,j,k-1) + c3 * v(i,j,k-2))*idz0;
+            tau23(i,j,k) = 0.5 * ( dv_dz
                                  + (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mfy );
             tau32(i,j,k) = tau23(i,j,k);
+
+            if (tau23i) tau23i(i,j,k) = 0.5 * dv_dz;
         });
     }
 
@@ -434,9 +458,12 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
-            tau13(i,j,k) = 0.5 *  (u(i, j, k) - u(i  , j, k-1))*dz_inv
-                               +  (w(i, j, k) - w(i-1, j, k  ))*dxInv[0] * mfx;
+            Real du_dz = (u(i, j, k) - u(i  , j, k-1))*dz_inv;
+            tau13(i,j,k) = 0.5 * ( du_dz
+                                 + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0] * mfx );
             tau31(i,j,k) = tau13(i,j,k);
+
+            if (tau13i) tau13i(i,j,k) = 0.5 * du_dz;
         });
     }
     if (!zl_v_dir && (tbxyz.smallEnd(2) == domain_yz.smallEnd(2))) {
@@ -448,9 +475,12 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
-            tau23(i,j,k) = 0.5 * (v(i, j, k) - v(i, j  , k-1))*dz_inv
-                               + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1] * mfy;
+            Real dv_dz = (v(i, j, k) - v(i, j  , k-1))*dz_inv;
+            tau23(i,j,k) = 0.5 * ( dv_dz
+                                 + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1] * mfy );
             tau32(i,j,k) = tau23(i,j,k);
+
+            if (tau23i) tau23i(i,j,k) = 0.5 * dv_dz;
         });
     }
 
@@ -466,9 +496,12 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
-            tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j, k-1))*dz_inv
+            Real du_dz = (u(i, j, k) - u(i  , j, k-1))*dz_inv;
+            tau13(i,j,k) = 0.5 * ( du_dz
                                  + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]*mfx );
             tau31(i,j,k) = tau13(i,j,k);
+
+            if (tau13i) tau13i(i,j,k) = 0.5 * du_dz;
         });
     }
     if (!zh_v_dir && (tbxyz.bigEnd(2) == domain_yz.bigEnd(2))) {
@@ -480,9 +513,12 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
             Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
-            tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j  , k-1))*dz_inv
+            Real dv_dz = (v(i, j, k) - v(i, j  , k-1))*dz_inv;
+            tau23(i,j,k) = 0.5 * ( dv_dz
                                  + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]*mfy );
             tau32(i,j,k) = tau23(i,j,k);
+
+            if (tau23i) tau23i(i,j,k) = 0.5 * dv_dz;
         });
     }
 
@@ -516,26 +552,23 @@ ComputeStrain_S (Box bx, Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
 
         Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
-        tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j, k-1))*dz_inv
-                             + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]) * mfx;
+        Real du_dz = (u(i, j, k) - u(i  , j, k-1))*dz_inv;
+        tau13(i,j,k) = 0.5 * ( du_dz
+                             + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0] * mfx );
         tau31(i,j,k) = tau13(i,j,k);
+
+        if (tau13i) tau13i(i,j,k) = 0.5 * du_dz;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real mfy = mf_vy(i,j,0);
 
         Real dz_inv = (k == 0) ? 1.0 / dz_ptr[k] : 2.0 / (dz_ptr[k] + dz_ptr[k-1]);
 
-        tau23(i,j,k) = 0.5 * (v(i, j, k) - v(i, j  , k-1))*dz_inv
-                          +  (w(i, j, k) - w(i, j-1, k  ))*dxInv[1] * mfy;
+        Real dv_dz = (v(i, j, k) - v(i, j  , k-1))*dz_inv;
+        tau23(i,j,k) = 0.5 * ( dv_dz
+                             + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1] * mfy );
         tau32(i,j,k) = tau23(i,j,k);
-    });
 
-    if (SmnSmn_a) {
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,
-                                            tau11,tau22,tau33,
-                                            tau12,tau13,tau23);
-        });
-    }
+        if (tau23i) tau23i(i,j,k) = 0.5 * dv_dz;
+    });
 }

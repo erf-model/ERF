@@ -578,14 +578,8 @@ ERF::MakeVTKFilename(int nstep) {
         fs::create_directory(dir);
     }
 
-    // Construct filename with zero-padded step
     std::ostringstream oss;
-    if(nstep==0){
-        oss << dir << "/hurricane_track_" << std::setw(7) << std::setfill('0') << nstep << ".vtk";
-    } else {
-        oss << dir << "/hurricane_track_" << std::setw(7) << std::setfill('0') << nstep+1 << ".vtk";
-    }
-
+    oss << dir << "/hurricane_track_" << std::setw(7) << std::setfill('0') << nstep << ".vtk";
     return oss.str();
 }
 
@@ -599,12 +593,7 @@ ERF::MakeVTKFilename_TrackerCircle(int nstep) {
 
     // Construct filename with zero-padded step
     std::ostringstream oss;
-    if(nstep==0){
-        oss << dir << "/hurricane_tracker_circle_" << std::setw(7) << std::setfill('0') << nstep << ".vtk";
-    } else {
-        oss << dir << "/hurricane_tracker_circle_" << std::setw(7) << std::setfill('0') << nstep+1 << ".vtk";
-    }
-
+    oss << dir << "/hurricane_tracker_circle_" << std::setw(7) << std::setfill('0') << nstep << ".vtk";
     return oss.str();
 }
 
@@ -618,12 +607,7 @@ ERF::MakeVTKFilename_EyeTracker_xy(int nstep) {
 
     // Construct filename with zero-padded step
     std::ostringstream oss;
-    if(nstep==0){
-        oss << dir << "/hurricane_track_xy_" << std::setw(7) << std::setfill('0') << nstep << ".vtk";
-    } else {
-        oss << dir << "/hurricane_track_xy_" << std::setw(7) << std::setfill('0') << nstep+1 << ".vtk";
-    }
-
+    oss << dir << "/hurricane_track_xy_" << std::setw(7) << std::setfill('0') << nstep << ".vtk";
     return oss.str();
 }
 
@@ -637,12 +621,7 @@ ERF::MakeFilename_EyeTracker_latlon(int nstep) {
 
     // Construct filename with zero-padded step
     std::ostringstream oss;
-    if(nstep==0){
-        oss << dir << "/hurricane_track_latlon" << std::setw(7) << std::setfill('0') << nstep << ".txt";
-    } else {
-        oss << dir << "/hurricane_track_latlon" << std::setw(7) << std::setfill('0') << nstep+1 << ".txt";
-    }
-
+    oss << dir << "/hurricane_track_latlon" << std::setw(7) << std::setfill('0') << nstep << ".txt";
     return oss.str();
 }
 
@@ -656,12 +635,7 @@ ERF::MakeFilename_EyeTracker_maxvel(int nstep) {
 
     // Construct filename with zero-padded step
     std::ostringstream oss;
-    if(nstep==0){
-        oss << dir << "/hurricane_maxvel_" << std::setw(7) << std::setfill('0') << nstep << ".txt";
-    } else {
-        oss << dir << "/hurricane_maxvel_" << std::setw(7) << std::setfill('0') << nstep+1 << ".txt";
-    }
-
+    oss << dir << "/hurricane_maxvel_" << std::setw(7) << std::setfill('0') << nstep << ".txt";
     return oss.str();
 }
 
