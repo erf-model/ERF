@@ -10,7 +10,7 @@ dane-build-and-test:
 tioga-build-and-test:
   variables:
     CI_MACHINE: "tioga"
-    ON_TIOGA: "ON"
+    ON_TIOGA: "OFF"
   extends: [.build-and-test]
   rules:
     # Runs except if we explicitly deactivate this system
