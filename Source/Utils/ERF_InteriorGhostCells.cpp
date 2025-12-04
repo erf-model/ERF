@@ -522,11 +522,15 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
                 Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
                 if (ivar  == ivarU) {
+                    tbx_ylo.setRange(1,0,-1);
+                    tbx_yhi.setRange(1,0,-1);
                     arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
                     arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
                     rhs_arr  = S_rhs[IntVars::xmom].array(mfi);
                     data_arr = S_cur_data[IntVars::xmom].array(mfi);
                 } else if (ivar  == ivarV) {
+                    tbx_xlo.setRange(0,0,-1);
+                    tbx_xhi.setRange(0,0,-1);
                     arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
                     arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
                     rhs_arr  = S_rhs[IntVars::ymom].array(mfi);

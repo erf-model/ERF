@@ -294,8 +294,10 @@ realbdy_compute_laplacian_relaxation (const int& icomp,
 {
     // RHS computation
     amrex::IntVect iv = bx_xlo.type();
-    amrex::Real ioff  = (iv[0]==1) ? 0.0 : 0.5;
-    amrex::Real joff  = (iv[1]==1) ? 0.0 : 0.5;
+    bool nodalx = (iv[0]==1);
+    bool nodaly = (iv[1]==1);
+    amrex::Real ioff  = (nodalx) ? 0.0 : 0.5;
+    amrex::Real joff  = (nodaly) ? 0.0 : 0.5;
     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // Corners with x boxes
@@ -307,7 +309,7 @@ realbdy_compute_laplacian_relaxation (const int& icomp,
         amrex::Real xi     = (x_end - x) / (x_end - ProbLo[0]);
         amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : 0.0;
         amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : 0.0;
-        amrex::Real eta    = std::max(eta_lo,eta_hi);
+        amrex::Real eta    = (nodalx) ? 0 : std::max(eta_lo,eta_hi);
         amrex::Real Factor = std::max(xi*xi,eta*eta);
 
         amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
@@ -335,7 +337,7 @@ realbdy_compute_laplacian_relaxation (const int& icomp,
         amrex::Real xi     = (x - x_strt) / (ProbHi[0] - x_strt);
         amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : 0.0;
         amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : 0.0;
-        amrex::Real eta    = std::max(eta_lo,eta_hi);
+        amrex::Real eta    = (nodalx) ? 0 : std::max(eta_lo,eta_hi);
         amrex::Real Factor = std::max(xi*xi,eta*eta);
 
         amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
