@@ -2869,7 +2869,7 @@ ERF::check_state_for_nans(MultiFab const& S)
         for (int i = 0; i < ncomp; i++) {
             if (S.contains_nan(i,1,0))
             {
-                amrex::Print() << "Component " << i << "of conserved variables contains NaNs" << '\n';
+                amrex::Print() << "Component " << i << " of conserved variables contains NaNs" << '\n';
                 any_have_nans = true;
             }
         }
