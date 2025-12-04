@@ -198,7 +198,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
     // Relaxation constants
     Real F1 = 1./(10.*delta_t);
-    Real F2 = 1./(50.*delta_t);
+    Real F2 = 0.0;//1./(50.*delta_t);
 
     // Time interpolation
     Real dT = bdy_time_interval;
