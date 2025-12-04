@@ -271,6 +271,8 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             U_xlo.resize(bx_xlo,1,The_Async_Arena()); U_xhi.resize(bx_xhi,1,The_Async_Arena());
             U_ylo.resize(bx_ylo,1,The_Async_Arena()); U_yhi.resize(bx_yhi,1,The_Async_Arena());
         } else if (ivar  == ivarV) {
+            bx_ylo.setSmall(0,domain.smallEnd(0)); bx_ylo.setBig(0,domain.bigEnd(0));
+            bx_yhi.setSmall(0,domain.smallEnd(0)); bx_yhi.setBig(0,domain.bigEnd(0));
             V_xlo.resize(bx_xlo,1,The_Async_Arena()); V_xhi.resize(bx_xhi,1,The_Async_Arena());
             V_ylo.resize(bx_ylo,1,The_Async_Arena()); V_yhi.resize(bx_yhi,1,The_Async_Arena());
         } else if (ivar  == ivarT){
@@ -305,7 +307,8 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             // We need lateral ghost cells for the Laplacian
             // NOTE: We don't write into the ghost cells
             IntVect ng_vect{2,2,0};
-            Box gtbx = grow(mfi.tilebox(ixtype.toIntVect()),ng_vect);
+            Box tbx  = mfi.tilebox(ixtype.toIntVect());
+            Box gtbx = grow(tbx,ng_vect);
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
             realbdy_interior_bxs_xy(gtbx, domain, width,
                                     tbx_xlo, tbx_xhi,
@@ -318,6 +321,14 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
                 arr_ylo = U_ylo.array(); arr_yhi = U_yhi.array();
             } else if (ivar  == ivarV) {
+                if (tbx.smallEnd(0) == domain.smallEnd(0)) {
+                    tbx_ylo.setSmall(0,domain.smallEnd(0));
+                    tbx_yhi.setSmall(0,domain.smallEnd(0));
+                }
+                if (tbx.bigEnd(0) == domain.bigEnd(0)) {
+                    tbx_ylo.setBig(0,domain.bigEnd(0));
+                    tbx_yhi.setBig(0,domain.bigEnd(0));
+                }
                 arr_xlo = V_xlo.array(); arr_xhi = V_xhi.array();
                 arr_ylo = V_ylo.array(); arr_yhi = V_yhi.array();
             } else if (ivar  == ivarT){
