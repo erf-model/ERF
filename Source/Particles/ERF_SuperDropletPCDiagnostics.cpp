@@ -618,7 +618,7 @@ void SuperDropletPC::ComputeBinnedDistributions( const int a_iter)
 
     outfile.flush();
     outfile.close();
-    if (!outfile.good()) { amrex::Abort("problem writing output file!"); }
+    if (!outfile.good()) { amrex::Abort("problem writing output file"); }
     }
 }
 
