@@ -11,7 +11,7 @@ Microphysics model
 ====================
 
 Model overview and transported quantities in ERF
-(note: ``Q1`` and ``Q2`` are always the mixing ratios of water vapor and cloud water)
+(note: ``Q1`` and ``Q2`` are the mixing ratios of water vapor and cloud water for bulk models. For the Super-Droplet Method, ``Q1`` is water vapor and ``Q2`` is liquid cloud water)
 
 +--------------------+------------------------+-------------+-------------+-------------+-------------+
 | Model              | Name in ERF            | ``Q3``      | ``Q4``      | ``Q5``      | ``Q6``      |
@@ -40,6 +40,9 @@ Model overview and transported quantities in ERF
 +--------------------+------------------------+-------------+-------------+-------------+-------------+
 | Predicted Particle | ``P3``                 | :math:`q_i` | :math:`q_r` | :math:      | --          |
 | Properties         |                        |             |             | `q_{rim}`   |             |
++--------------------+------------------------+-------------+-------------+-------------+-------------+
+| Super-Droplet      | ``SuperDropletsMoist`` | :math:`q_i` | :math:`q_r` | :math:`q_s` | :math:`q_g` |
+| Method (particle)  |                        |             |             |             |             |
 +--------------------+------------------------+-------------+-------------+-------------+-------------+
 
 
@@ -229,16 +232,29 @@ detailed cloud microphysical processes with reasonable computational cost.
 Overview and Method
 ~~~~~~~~~~~~~~~~~~~
 
-The implementation in ERF is based on the method described in Shima et al., 2009 (Q. J. R. Meteorol. Soc., 135: 1307-1320).
-The key innovation is the concept of a super-droplet: a computational particle that represents :math:`\xi_i(t)` identical
-physical droplets, where :math:`\xi_i(t)` is the multiplicity. Each super-droplet has its own position :math:`\mathbf{x}_i(t)`
-and attributes :math:`\mathbf{a}_i(t)` that characterize the state of the :math:`\xi_i(t)` physical droplets it represents.
+The implementation in ERF is based on the method described in Shima et al., 2009 (Q. J. R. Meteorol. Soc., 135: 1307-1320)
+for warm-rain processes, extended to include cold processes (ice, snow, and graupel formation) following the development
+described in Shima et al., 2020 (Geosci. Model Dev., 13: 4107-4157). The key innovation is the concept of a super-droplet:
+a computational particle that represents :math:`\xi_i(t)` identical physical droplets, where :math:`\xi_i(t)` is the multiplicity.
+Each super-droplet has its own position :math:`\mathbf{x}_i(t)` and attributes :math:`\mathbf{a}_i(t)` that characterize
+the state of the :math:`\xi_i(t)` physical droplets it represents.
 
-For the warm-rain system implemented in ERF, the attributes are:
+For the warm-rain and mixed-phase cloud system implemented in ERF, the attributes are:
+
+**For liquid droplets:**
 
 - Equivalent radius of water, :math:`R_i(t)`, representing the amount of water the droplet contains
 - Mass of solute contained in the droplet, :math:`M_i(t)`, for multiple aerosol species
+- Freezing temperature, :math:`T^{fz}_i`, determined by ice nucleation active surface sites (INAS) on insoluble aerosol particles
 - Additional species masses for multi-component systems
+
+**For ice particles:**
+
+- Equatorial radius :math:`a_i(t)` and polar radius :math:`c_i(t)` representing the ice particle's spatial extent (porous spheroid approximation)
+- Apparent density :math:`\rho^i_i(t)` representing the particle's internal structure (accounting for porosity and branching)
+- Rime mass :math:`m^{rime}_i(t)` recording mass obtained through riming
+- Number of monomers :math:`n^{mono}_i(t)` representing the number of primary ice crystals in aggregates
+- Freezing temperature :math:`T^{fz}_i` and aerosol masses (inherited from the droplet upon freezing)
 
 The total number of physical droplets represented is :math:`N_r(t) = \sum_{i=1}^{N_s(t)} \xi_i(t)`, where :math:`N_s(t)`
 is the number of super-droplets in the simulation domain.
@@ -436,6 +452,97 @@ Several collision kernels are implemented:
 - **Long's kernel**: Empirical formula for gravitational collision
 - **Hall's kernel**: Table-based collection efficiency for realistic cloud conditions
 
+Cold Microphysical Processes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The SDM implementation includes cold processes that lead to ice, snow, and graupel formation, following the porous spheroid
+approximation approach described in Shima et al., 2020.
+
+**Ice Particle Representation**
+
+Ice particles are approximated as porous spheroids characterized by:
+
+- Equatorial radius :math:`a` and polar radius :math:`c` defining the spatial extent
+- Aspect ratio :math:`\phi = c/a` (prolate spheroids for columns with :math:`\phi > 1`, oblate spheroids for plates/dendrites with :math:`\phi < 1`)
+- Apparent density :math:`\rho^i` representing internal structure (hollowing, branching, riming)
+- Volume :math:`V = \frac{4\pi}{3}a^2c` and mass :math:`m = \rho^i V`
+
+**Immersion/Condensation and Homogeneous Freezing**
+
+Supercooled droplets freeze when the ambient temperature falls below their freezing temperature :math:`T^{fz}`. The freezing
+temperature is determined by the ice nucleation active surface site (INAS) density on insoluble aerosol particles using
+the singular hypothesis framework. Upon freezing, the resulting ice crystal is initially spherical with true ice density
+:math:`\rho^i_{true} \approx 916.8` kg m\ :sup:`-3`.
+
+**Deposition and Sublimation**
+
+Ice particle growth and sublimation through vapor diffusion follows:
+
+.. math::
+   \frac{dm_i}{dt} = 4\pi C D_v(\rho_{vi} - \rho^{sfc}_{vi})f_{vnt} = 4\pi C\frac{S^i_i - 1}{F^i_k + F^i_d}f_{vnt}
+
+where :math:`C(a,c)` is the electric capacitance of the spheroid, :math:`S^i_i` is the saturation ratio over ice,
+:math:`f_{vnt}` is the ventilation coefficient, and :math:`F^i_k` and :math:`F^i_d` are thermodynamic and diffusion terms.
+
+The **primary growth habit** (columnar vs planar preference) is controlled by the inherent growth ratio :math:`\Gamma(T)`:
+
+.. math::
+   \frac{dc_i}{da_i} = \Gamma(T_i)f_{vnt}\frac{c_i}{a_i} =: \Gamma^*\frac{c_i}{a_i}
+
+The **secondary growth habit** (solid vs hollow, plate vs dendritic) is expressed through the deposition density :math:`\rho_{dep}`,
+which represents the apparent density of newly deposited ice. For deposition:
+
+.. math::
+   dV_i = \frac{dm_i}{\rho_{dep}}, \quad \text{for } dm_i \geq 0
+
+For sublimation, the particle density is preserved: :math:`\rho_{sbl} = \rho^i_i`.
+
+**Melting**
+
+When the ambient temperature rises above 0°C, ice particles melt instantaneously. The resulting droplet radius is:
+
+.. math::
+   r'_i = \left(\frac{a^2_i c_i \rho^i_i}{\rho_w}\right)^{1/3}
+
+**Riming**
+
+Riming occurs when supercooled droplets are collected by ice particles and freeze on contact. The collision-riming kernel is:
+
+.. math::
+   K_{rime} = E_{rime} A_g |v^\infty_j - v^\infty_k|
+
+where :math:`E_{rime}` is the collection efficiency and :math:`A_g` is the geometric cross-sectional area.
+
+The frozen droplet is characterized by a rime density :math:`\rho_{rime}` that depends on impact velocity and surface temperature.
+The filling-in approximation is used: the maximum dimension is preserved as unrimed crystals gradually grow into quasi-spherical
+graupel particles. For graupels (aspect ratio :math:`0.8 < \phi \leq 1.25`), the model accounts for tumbling by preserving
+the minor dimension during riming.
+
+**Aggregation**
+
+Ice particle aggregation is treated with a collision-aggregation kernel:
+
+.. math::
+   K_{agg} = E_{agg}\left(A^{1/2}_j + A^{1/2}_k\right)^2 |v^\infty_j - v^\infty_k|
+
+where :math:`E_{agg} = 0.1` is the aggregation efficiency and :math:`A` is the projected area.
+
+When two ice particles aggregate, the model accounts for compaction of fluffy snowflakes. The resultant aggregate's
+apparent density is interpolated between a minimum density (assuming no shape change and more empty space) and the
+volume-weighted average density (assuming complete compaction), based on how close the initial density is to a critical
+compaction density :math:`\rho^i_{crt} = 10` kg m\ :sup:`-3`.
+
+**Ice Particle Terminal Velocity**
+
+Terminal velocities are computed using the Böhm (1989, 1992, 1999) formula based on the maximum dimension
+:math:`D_i = 2\max(a_i, c_i)` and area ratio :math:`q_i`. The projected area accounts for porosity:
+
+.. math::
+   A_i = A^{ce}_i \left(\frac{\rho^i_i}{\rho^i_{true}}\right)^{\kappa(\phi_i)}
+
+where :math:`A^{ce}_i = \pi a_i \max(a_i, c_i)` is the circumscribed ellipse area and :math:`\kappa(\phi_i) = \exp(-\phi_i)`
+is an exponent that varies with aspect ratio.
+
 Coupling with Eulerian Dynamics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -490,12 +597,18 @@ All SDM parameters use the prefix ``super_droplets_moisture``:
    * - ``include_coalescence``
      - ``true``
      - Enable/disable stochastic coalescence
+   * - ``include_cold_processes``
+     - ``true``
+     - Enable/disable ice/snow/graupel formation (cold processes)
    * - ``initial_distribution_type``
      - ``uniform``
      - Initial distribution type (``uniform``, ``condensate_density``)
    * - ``radius_raindrop``
      - ``4.0e-5``
      - Minimum radius (m) to classify droplet as rain
+   * - ``rime_mass_ratio``
+     - ``0.3``
+     - Threshold rime mass ratio for classifying ice particles as graupel
    * - ``kinematic_mode``
      - ``false``
      - Run in kinematic mode (no feedback to dynamics)
@@ -545,8 +658,8 @@ All SDM parameters use the prefix ``super_droplets_moisture``:
      - ``sedimentation``
      - Coalescence kernel type (``golovin``, ``sedimentation``, ``Longs``, ``Halls``)
    * - ``terminal_velocity_model``
-     - ``CloudRainShima``
-     - Terminal velocity formula (``RogersYau``, ``AtlasUlbrich``, ``CloudRainShima``)
+     - ``CloudRainShima`` (water), ``IceBohm`` (ice)
+     - Terminal velocity formula. For water droplets: ``RogersYau``, ``AtlasUlbrich``, ``CloudRainShima``. For ice particles: ``IceBohm``. Can specify 1 value (applies to both) or 2 values (water, ice)
    * - ``include_brownian_coalescence``
      - ``false``
      - Include Brownian motion in coalescence
@@ -787,7 +900,19 @@ References
 - Shima, S., K. Kusano, A. Kawano, T. Sugiyama, and S. Kawahara, 2009: The super-droplet method for the numerical
   simulation of clouds and precipitation: A particle-based and probabilistic microphysics model coupled with a
   non-hydrostatic model. Q. J. R. Meteorol. Soc., 135: 1307-1320.
-=======
+
+- Shima, S., Y. Sato, A. Hashimoto, and R. Misumi, 2020: Predicting the morphology of ice particles in deep convection
+  using the super-droplet method: development and evaluation of SCALE-SDM 0.2.5-2.2.0, -2.2.1, and -2.2.2. Geosci. Model
+  Dev., 13: 4107-4157, https://doi.org/10.5194/gmd-13-4107-2020.
+
+- Böhm, J. P., 1989: A general equation for the terminal fall speed of solid hydrometeors. J. Atmos. Sci., 46: 2419-2427.
+
+- Böhm, J. P., 1992: A general hydrodynamic theory for mixed-phase microphysics. Part I: Drag and fall speed of
+  hydrometeors. Atmos. Res., 27: 253-274.
+
+- Böhm, J. P., 1999: Revision and clarification of "A general hydrodynamic theory for mixed-phase microphysics".
+  Atmos. Res., 52: 167-176.
+
 Predicted Particle Properties (P3) Microphysics Model
 ------------------------------------------------------
 
