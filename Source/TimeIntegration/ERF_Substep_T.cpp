@@ -4,7 +4,7 @@
 using namespace amrex;
 
 /**
- * Function for computing the fast RHS with fixed terrain
+ * Function for computing the fast RHS with fixed-in-time terrain
  *
  * @param[in   ] step  which fast time step within each Runge-Kutta step
  * @param[in   ] nrk   which Runge-Kutta step
@@ -32,12 +32,12 @@ using namespace amrex;
  * @param[in   ] dtau fast time step
  * @param[in   ] beta_s  Coefficient which determines how implicit vs explicit the solve is
  * @param[in   ] facinv inverse factor for time-averaging the momenta
- * @param[in   ] mapfac map factors
+ * @param[in   ] mapfac vector of map factors
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in   ] l_use_moisture
  * @param[in   ] l_reflux should we add fluxes to the FluxRegisters?
- * @param[in   ] l_implicit_substepping
+ * @param[in   ] l_damp_coef
  */
 
 void erf_substep_T (int step, int /*nrk*/,
@@ -69,7 +69,8 @@ void erf_substep_T (int step, int /*nrk*/,
                     YAFluxRegister* fr_as_fine,
                     bool l_use_moisture,
                     bool l_reflux,
-                    bool /*l_implicit_substepping*/)
+                    const Real* sinesq_stag_d,
+                    const Real l_damp_coef)
 {
     BL_PROFILE_REGION("erf_substep_T()");
 
@@ -84,6 +85,8 @@ void erf_substep_T (int step, int /*nrk*/,
     Real beta_d = 0.1;
 
     Real RvOverRd = R_v / R_d;
+
+    bool l_rayleigh_impl_for_w = (sinesq_stag_d != nullptr);
 
     const Real* dx = geom.CellSize();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
@@ -426,7 +429,7 @@ void erf_substep_T (int step, int /*nrk*/,
         // Define flux arrays for use in advection
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(surroundingNodes(bx,dir),2);
+            flux[dir].resize(surroundingNodes(bx,dir),2,The_Async_Arena());
             flux[dir].setVal<RunOn::Device>(0.);
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
@@ -647,7 +650,7 @@ void erf_substep_T (int step, int /*nrk*/,
 
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-              cur_zmom(i,j,k) = stage_zmom(i,j,k);
+            cur_zmom(i,j,k) = stage_zmom(i,j,k);
         });
 
         if (lo.z == domlo.z) {
@@ -658,10 +661,16 @@ void erf_substep_T (int step, int /*nrk*/,
         }
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-              Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),
-                                    new_drho_u,new_drho_v,
-                                    mf_ux,mf_vy,z_nd,dxInv);
-              cur_zmom(i,j,k) += wpp;
+            Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),
+                                  new_drho_u,new_drho_v,
+                                  mf_ux,mf_vy,z_nd,dxInv);
+
+            cur_zmom(i,j,k) += wpp;
+
+            if (l_rayleigh_impl_for_w) {
+              Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
+              cur_zmom(i,j,k) /= (1.0 + damping_coeff);
+            }
         });
 
         // **************************************************************************

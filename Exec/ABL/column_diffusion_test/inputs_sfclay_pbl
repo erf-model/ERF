@@ -1,0 +1,84 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+stop_time = 3600.0
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent =  40   40  1000
+amr.n_cell           =   4    4   100
+
+geometry.is_periodic = 1 1 0
+
+# Stretched grid with zhi ~ 1000 m
+amr.n_cell           =   4    4    51
+erf.initial_dz = 10.0
+erf.grid_stretching_ratio = 1.025
+
+# VERIFICATION FOR S PATH
+#amr.n_cell           =   4    4   100
+#erf.grid_stretching_ratio = 1.0
+
+# VERIFICATION FOR T PATH
+#amr.n_cell           =   4    4   100
+#erf.grid_stretching_ratio = 0
+#erf.terrain_type = StaticFittedMesh
+#erf.terrain_file_name = "flat_terrain.txt"
+#erf.most.average_policy    = 1
+
+# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
+#zlo.type        = "SlipWall"
+zlo.type        = "surface_layer"
+erf.surface_layer.flux_type = "custom"
+erf.most.ustar  = 0.5
+erf.most.tstar  = 0.15  # actually ustar*tstar
+erf.most.qstar  = 0.0   # actually ustar*qstar
+
+zhi.type        = "SlipWall"
+zhi.theta_grad  = 0.003  # [K/m] to match the input sounding
+
+# INITIALIZATION
+erf.init_type          = "input_sounding"
+erf.input_sounding_file = "input_sounding_U0"
+
+# TIME STEP CONTROL
+erf.fixed_mri_dt_ratio = 4
+
+erf.vert_implicit_fac  = 0.0  # fully explicit (default)
+erf.fixed_dt           = 2.5  # largest stable dt with explicit diffusion
+erf.fixed_dt           = 0.5  # reference
+
+erf.vert_implicit_fac  = 1.0 1.0 0.0  # implicit in first two stages, explicit in last RK stage
+erf.implicit_before_substep = 1
+#erf.implicit_divtau_terms = 0 # implicit rho*theta only
+erf.fixed_dt           = 20.0
+erf.fixed_dt           = 30.0
+erf.fixed_dt           = 60.0
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval    = 1       # timesteps between computing mass
+erf.v               = 1       # verbosity in ERF.cpp
+amr.v               = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = -1         # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt       # prefix of plotfile name
+erf.plot_per_1      = 300        # number of timesteps between plotfiles
+#erf.plot_int_1      = 1        # number of timesteps between plotfiles
+erf.plot_vars_1     = density theta x_velocity y_velocity z_velocity z_phys Kmv
+
+# SOLVER CHOICE
+#erf.molec_diff_type = "Constant"
+#erf.alpha_T         = 75.0 # [m^2/s]
+#erf.dynamic_viscosity = 1e-6
+
+erf.use_gravity = true
+erf.use_coriolis = false
+
+# Turbulence closure
+erf.les_type = "None"
+erf.pbl_type = "None"
+erf.pbl_type = "MRF"

@@ -30,13 +30,15 @@ using namespace amrex;
  * @param[in] dptr_v_geos  custom geostrophic wind profile
  * @param[in] dptr_wbar_sub  subsidence source term
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
+ * @param[in] d_sinesq_at_lev  sin( (pi/2) (z-z_t)/(damping depth)) at cell centers
+ * @param[in] d_sinesq_stag_at_lev  sin( (pi/2) (z-z_t)/(damping depth)) at z-faces
  */
 
 void make_mom_sources (Real time,
-                       Real dt,
+                       Real /*dt*/,
                        const Vector<MultiFab>& S_data,
-                             MultiFab& z_phys_nd,
-                             MultiFab& z_phys_cc,
+                       const MultiFab* z_phys_nd,
+                       const MultiFab* z_phys_cc,
                              Vector<Real>& stretched_dz_h,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
@@ -56,6 +58,8 @@ void make_mom_sources (Real time,
                        const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
+                       const amrex::Real* d_sinesq_at_lev,
+                       const amrex::Real* d_sinesq_stag_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
                        const Vector<MultiFab>* forecast_state_at_lev,
                              InputSoundingData& input_sounding_data,
@@ -74,7 +78,9 @@ void make_mom_sources (Real time,
     MultiFab r_hse (base_state, make_alias, BaseState::r0_comp , 1);
 
     // flags to apply certain source terms in substep call only
-    bool use_Rayleigh_fast = solverChoice.rayleigh_damp_substep;
+    bool use_Rayleigh_fast_uv = ( (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit) ||
+                                  (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit) );
+    bool use_Rayleigh_fast_w  = (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit);
     bool use_canopy_fast = solverChoice.forest_substep;
     bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
 
@@ -88,9 +94,9 @@ void make_mom_sources (Real time,
     //    6. Numerical diffusion for (xmom,ymom,zmom)
     //    7. Sponge
     //    8. Forest canopy
-    //    9. Immersed forcing
+    //    9a. Immersed forcing for terrain
+    //    9b. Immersed forcing for buildings
     //   10. Constant mass flux
-    //   11. Vertical-velocity damping
     // *****************************************************************************
     // NOTE: buoyancy is now computed in a separate routine - it should not appear here
     // *****************************************************************************
@@ -122,9 +128,9 @@ void make_mom_sources (Real time,
     // *****************************************************************************
     // Data for Rayleigh damping
     // *****************************************************************************
-    auto rayleigh_damp_U  = solverChoice.rayleigh_damp_U;
-    auto rayleigh_damp_V  = solverChoice.rayleigh_damp_V;
-    auto rayleigh_damp_W  = solverChoice.rayleigh_damp_W;
+    auto rayleigh_damp_U  = solverChoice.dampingChoice.rayleigh_damp_U;
+    auto rayleigh_damp_V  = solverChoice.dampingChoice.rayleigh_damp_V;
+    auto rayleigh_damp_W  = solverChoice.dampingChoice.rayleigh_damp_W;
 
     Real*     ubar = d_rayleigh_ptrs_at_lev[Rayleigh::ubar];
     Real*     vbar = d_rayleigh_ptrs_at_lev[Rayleigh::vbar];
@@ -308,8 +314,8 @@ void make_mom_sources (Real time,
         const Array4<const Real>& sphi_arr = (sinPhi_mf) ? sinPhi_mf->const_array(mfi) :
                                                            Array4<const Real>{};
 
-        const Array4<const Real>& z_nd_arr =  z_phys_nd.const_array(mfi);
-        const Array4<const Real>& z_cc_arr =  z_phys_cc.const_array(mfi);
+        const Array4<const Real>& z_nd_arr =  z_phys_nd->const_array(mfi);
+        const Array4<const Real>& z_cc_arr =  z_phys_cc->const_array(mfi);
 
 
         // *****************************************************************************
@@ -382,52 +388,38 @@ void make_mom_sources (Real time,
         // *****************************************************************************
         // 2. Add RAYLEIGH damping
         // *****************************************************************************
-        Real zlo      = geom.ProbLo(2);
-        Real dz       = geom.CellSize(2);
-        Real ztop     = solverChoice.rayleigh_ztop;
-        Real zdamp    = solverChoice.rayleigh_zdamp;
-        Real dampcoef = solverChoice.rayleigh_dampcoef;
+        Real dampcoef = solverChoice.dampingChoice.rayleigh_dampcoef;
 
-        if ((is_slow_step && !use_Rayleigh_fast) || (!is_slow_step && use_Rayleigh_fast)) {
+        if ( (is_slow_step && !use_Rayleigh_fast_uv) || (!is_slow_step && use_Rayleigh_fast_uv)) {
             if (rayleigh_damp_U) {
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
-                    Real zfrac = 1 - (ztop - zcc) / zdamp;
-                    if (zfrac > 0) {
-                        Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-                        Real uu = rho_u(i,j,k) / rho_on_u_face;
-                        Real sinefac = std::sin(PIoTwo*zfrac);
-                        xmom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (uu - ubar[k]) * rho_on_u_face;
-                    }
+                    Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                    Real uu = rho_u(i,j,k) / rho_on_u_face;
+                    Real sinesq = d_sinesq_at_lev[k];
+                    xmom_src_arr(i, j, k) -= dampcoef*sinesq * (uu - ubar[k]) * rho_on_u_face;
                 });
             }
 
             if (rayleigh_damp_V) {
                 ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real zcc = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
-                    Real zfrac = 1 - (ztop - zcc) / zdamp;
-                    if (zfrac > 0) {
-                        Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-                        Real vv = rho_v(i,j,k) / rho_on_v_face;
-                        Real sinefac = std::sin(PIoTwo*zfrac);
-                        ymom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (vv - vbar[k]) * rho_on_v_face;
-                    }
+                    Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                    Real vv = rho_v(i,j,k) / rho_on_v_face;
+                    Real sinesq = d_sinesq_at_lev[k];
+                    ymom_src_arr(i, j, k) -= dampcoef*sinesq * (vv - vbar[k]) * rho_on_v_face;
                 });
             }
+        } // fast or slow step
 
+        if ( (is_slow_step && !use_Rayleigh_fast_w) || (!is_slow_step && use_Rayleigh_fast_w)) {
             if (rayleigh_damp_W) {
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real zstag = (z_nd_arr) ? z_nd_arr(i,j,k) : zlo + k*dz;
-                    Real zfrac = 1 - (ztop - zstag) / zdamp;
-                    if (zfrac > 0) {
-                        Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
-                        Real ww = rho_w(i,j,k) / rho_on_w_face;
-                        Real sinefac = std::sin(PIoTwo*zfrac);
-                        zmom_src_arr(i, j, k) -= dampcoef*sinefac*sinefac * (ww - wbar[k]) * rho_on_w_face;
-                    }
+                    Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                    Real ww = rho_w(i,j,k) / rho_on_w_face;
+                    Real sinesq = d_sinesq_stag_at_lev[k];
+                    zmom_src_arr(i, j, k) -= dampcoef*sinesq * (ww - wbar[k]) * rho_on_w_face;
                 });
             }
         } // fast or slow step
@@ -680,11 +672,10 @@ void make_mom_sources (Real time,
             });
         }
         // *****************************************************************************
-        // 9. Add Immersed source terms
+        // 9a. Add immersed source terms for terrain
         // *****************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
-
             // geometric properties
             const Real* dx_arr = geom.CellSize();
             const Real dx_x = dx_arr[0];
@@ -825,6 +816,74 @@ void make_mom_sources (Real time,
         }
 
         // *****************************************************************************
+        // 9b. Add immersed source terms for buildings
+        // *****************************************************************************
+        if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing ) &&
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
+        {
+            // geometric properties
+            const Real* dx_arr = geom.CellSize();
+            const Real dx_x = dx_arr[0];
+            const Real dx_y = dx_arr[1];
+
+            const Real alpha_m          = solverChoice.if_Cd_momentum;
+            const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
+            const Real min_t_blank      = 0.005; // threshold for where immersed forcing acts
+
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                const Real ux = u(i, j, k);
+                const Real uy = 0.25 * ( v(i, j  , k  ) + v(i-1, j  , k  )
+                                       + v(i, j+1, k  ) + v(i-1, j+1, k  ) );
+                const Real uz = 0.25 * ( w(i, j  , k  ) + w(i-1, j  , k  )
+                                       + w(i, j  , k+1) + w(i-1, j  , k+1) );
+                const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+
+                Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+                if (t_blank < min_t_blank) { t_blank = 0.0; }
+                const Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
+                const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, 1./3.);
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
+                const Real rho_xface = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                xmom_src_arr(i, j, k) -= t_blank * rho_xface * CdM * ux * windspeed;
+            });
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                const Real ux = 0.25 * ( u(i  , j  , k  ) + u(i  , j-1, k  )
+                                       + u(i+1, j  , k  ) + u(i+1, j-1, k  ) );
+                const Real uy = v(i, j, k);
+                const Real uz = 0.25 * ( w(i  , j  , k  ) + w(i  , j-1, k  )
+                                       + w(i  , j  , k+1) + w(i  , j-1, k+1) );
+                const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+
+                Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+                if (t_blank < min_t_blank) { t_blank = 0.0; }
+                const Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
+                const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, 1./3.);
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
+                const Real rho_yface =  0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                ymom_src_arr(i, j, k) -= t_blank * rho_yface * CdM * uy * windspeed;
+            });
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                const Real ux = 0.25 * ( u(i  , j  , k  ) + u(i+1, j  , k  )
+                                       + u(i  , j  , k-1) + u(i+1, j  , k-1) );
+                const Real uy = 0.25 * ( v(i  , j  , k  ) + v(i  , j+1, k  )
+                                       + v(i  , j  , k-1) + v(i  , j+1, k-1) );
+                const Real uz = w(i, j, k);
+                const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
+
+                Real t_blank = 0.5 * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+                if (t_blank < min_t_blank) { t_blank = 0.0; }
+                const Real dx_z    = (z_nd_arr) ? (z_nd_arr(i,j,k) - z_nd_arr(i,j,k-1)) : dx_arr[2]; // ASW double check
+                const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, 1./3.);
+                const Real CdM = std::min(drag_coefficient / (windspeed + tiny), 1000.0);
+                const Real rho_zface =  0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                zmom_src_arr(i, j, k) -= t_blank * rho_zface * CdM * uz * windspeed;
+            });
+        }
+
+        // *****************************************************************************
         // 10. Enforce constant mass flux
         // *****************************************************************************
         if (is_slow_step && (enforce_massflux_x || enforce_massflux_y)) {
@@ -839,60 +898,5 @@ void make_mom_sources (Real time,
             });
         }
 
-        // *****************************************************************************
-        // 11. Add w-damping
-        // *****************************************************************************
-        bool        w_damping       = solverChoice.w_damping;
-        amrex::Real w_damping_coeff = solverChoice.w_damping_coeff;
-        amrex::Real cflw_lim        = solverChoice.w_damping_cfl;
-
-        if (w_damping && is_slow_step) {
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real dzInv;
-                if (z_nd_arr) {
-                    // average z_nd to face then diff
-                    if (k == domain.smallEnd(2)) {
-                        dzInv = 4.0 / (
-                            z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k)
-                          + z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k)
-                          + z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k)
-                          + z_nd_arr(i+1,j+1,k+1) - z_nd_arr(i+1,j+1,k) );
-                    } else if (k == domain.bigEnd(2)+1) {
-                        dzInv = 4.0 / (
-                            z_nd_arr(i  ,j  ,k) - z_nd_arr(i  ,j  ,k-1)
-                          + z_nd_arr(i+1,j  ,k) - z_nd_arr(i+1,j  ,k-1)
-                          + z_nd_arr(i  ,j+1,k) - z_nd_arr(i  ,j+1,k-1)
-                          + z_nd_arr(i+1,j+1,k) - z_nd_arr(i+1,j+1,k-1) );
-                    } else {
-                        // dz = 0.5 * (dz[i,j,k] + dz[i,j,k+1])
-                        //    = 0.5 * (z_nd_face[i,j,k+1] - z_nd_face[i,j,k-1])
-                        dzInv = 8.0 / (
-                            z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k-1)
-                          + z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k-1)
-                          + z_nd_arr(i  ,j+1,k+1) - z_nd_arr(i  ,j+1,k-1)
-                          + z_nd_arr(i+1,j+1,k+1) - z_nd_arr(i+1,j+1,k-1) );
-                    }
-                } else {
-                    dzInv = dxInv[2];
-                }
-
-                Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
-                Real wmag = std::abs(rho_w(i,j,k) / rho_on_w_face);
-
-                Real cflw = wmag * dt * dzInv;
-                if (cflw > cflw_lim) {
-#ifdef AMREX_USE_GPU
-                    AMREX_DEVICE_PRINTF("w-damping applied at (%d,%d,%d) for w-CFL = %f > %f\n",
-                           i,j,k, cflw, cflw_lim);
-#else
-                    printf("w-damping applied at (%d,%d,%d) for w-CFL = %f > %f\n",
-                           i,j,k, cflw, cflw_lim);
-#endif
-                    Real sgn_w = (rho_w(i,j,k) > 0) ? 1.0 : -1.0;
-                    zmom_src_arr(i, j, k) -= rho_on_w_face * sgn_w * w_damping_coeff * (cflw - cflw_lim);
-                }
-            });
-        }
     } // mfi
 }

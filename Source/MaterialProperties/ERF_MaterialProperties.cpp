@@ -233,7 +233,7 @@ void MaterialProperties::setProperties_NH4HSO4()
 AMREX_GPU_HOST_DEVICE
 void MaterialProperties::setProperties_soil()
 {
-    m_density = 1140.0; // NNSS Area 5 sample (Spriggs and Ray-Maitra, 2007)
+    m_density = 1220.0; // loose dry dirt
 
     m_ionization = 0;
 

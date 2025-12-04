@@ -26,6 +26,7 @@ void erf_make_tau_terms (int level, int nrk,
                          const amrex::MultiFab& yvel,
                          const amrex::MultiFab& zvel,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_corr_lev,
                                amrex::MultiFab* SmnSmn,
                                amrex::MultiFab* eddyDiffs,
                          const amrex::Geometry geom,
@@ -34,6 +35,9 @@ void erf_make_tau_terms (int level, int nrk,
                          amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                          const amrex::MultiFab& detJ,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac);
+
+void copy_surface_tau_for_implicit (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                                    amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_corr_lev);
 
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
@@ -60,6 +64,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       const amrex::MultiFab& buoyancy,
                       const amrex::MultiFab* zmom_crse_rhs,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_corr_lev,
                             amrex::MultiFab* SmnSmn,
                             amrex::MultiFab* eddyDiffs,
                             amrex::MultiFab* Hfx1,

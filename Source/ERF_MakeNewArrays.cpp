@@ -83,7 +83,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
                z_t_rk[lev] = nullptr;
     }
 
-    if (SolverChoice::terrain_type == TerrainType::ImmersedForcing)
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+        solverChoice.buildings_type == BuildingsType::ImmersedForcing)
     {
         terrain_blanking[lev] = std::make_unique<MultiFab>(ba,dm,1,ngrow);
         terrain_blanking[lev]->setVal(1.0);
@@ -154,7 +155,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
-    if (solverChoice.anelastic[lev] == 1 || solverChoice.project_initial_velocity) {
+    if (solverChoice.anelastic[lev] == 1 || solverChoice.project_initial_velocity[lev]) {
         pp_inc[lev].define(ba, dm, 1, 1);
         pp_inc[lev].setVal(0.0);
     }
@@ -346,6 +347,42 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
                                                    // sampling marker in a cell - 2 components
 #endif
 
+    if(solverChoice.init_type == InitType::HindCast and
+        solverChoice.hindcast_lateral_forcing) {
+
+        int ncomp_extra = 2;
+        int nvars = vars_new[lev].size();
+
+        // Resize all containers
+        forecast_state_1[lev].resize(nvars + 1);
+        forecast_state_2[lev].resize(nvars + 1);
+        forecast_state_interp[lev].resize(nvars + 1);
+
+        // Define the "normal" components
+        for (int comp = 0; comp < nvars; ++comp) {
+            const MultiFab& src = vars_new[lev][comp];
+            ncomp = src.nComp();
+            ngrow = src.nGrow();
+
+            forecast_state_1[lev][comp].define(ba, dm, ncomp, ng);
+            forecast_state_2[lev][comp].define(ba, dm, ncomp, ng);
+            forecast_state_interp[lev][comp].define(ba, dm, ncomp, ng);
+        }
+
+        // Define the "extra" component (last slot)
+        {
+            const MultiFab& src0 = vars_new[lev][0];
+            ngrow = src0.nGrow();
+            int idx = nvars;
+
+            forecast_state_1[lev][idx].define(ba, dm, ncomp_extra, ngrow);
+            forecast_state_2[lev][idx].define(ba, dm, ncomp_extra, ngrow);
+            forecast_state_interp[lev][idx].define(ba, dm, ncomp_extra, ngrow);
+        }
+        bool regrid_forces_file_read = true;
+        WeatherDataInterpolation(lev, t_new[0],z_phys_nd, regrid_forces_file_read);
+    }
+
 
 #ifdef ERF_USE_WW3_COUPLING
     // create a new BoxArray and DistributionMapping for a MultiFab with 1 box
@@ -468,6 +505,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     #ifdef ERF_USE_WINDFARM
         //init_windfarm(lev);
     #endif
+
+    if (lev > 0) {
+        fine_mask[lev] = std::make_unique<MultiFab>(grids[lev-1], dmap[lev-1], 1, 0);
+        build_fine_mask(lev, *fine_mask[lev].get());
+    }
 }
 
 void
@@ -493,6 +535,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     BoxArray ba23 = convert(ba, IntVect(0,1,1));
 
     Tau[lev].resize(9);
+    Tau_corr[lev].resize(3);
 
     if (l_use_diff) {
         //
@@ -525,6 +568,25 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             Tau[lev][TauType::tau31] = nullptr;
             Tau[lev][TauType::tau32] = nullptr;
         }
+
+        if (l_implicit_diff && solverChoice.implicit_momentum_diffusion)
+        {
+            Tau_corr[lev][0] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); // Tau31
+            Tau_corr[lev][1] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); // Tau32
+            Tau_corr[lev][0]->setVal(0.);
+            Tau_corr[lev][1]->setVal(0.);
+#ifdef ERF_IMPLICIT_W
+            Tau_corr[lev][2] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); // Tau33
+            Tau_corr[lev][2]->setVal(0.);
+#else
+            Tau_corr[lev][2] = nullptr;
+#endif
+        } else {
+            Tau_corr[lev][0] = nullptr;
+            Tau_corr[lev][1] = nullptr;
+            Tau_corr[lev][2] = nullptr;
+        }
+
         SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
         SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
         SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
@@ -627,12 +689,6 @@ ERF::init_zphys (int lev, Real time)
 
         z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
 
-        if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
-            terrain_blanking[lev]->setVal(1.0);
-            MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ngrow);
-            terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
-        }
-
         if (lev == 0) {
             Real zmax = z_phys_nd[0]->max(0,0,false);
             Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
@@ -644,6 +700,14 @@ ERF::init_zphys (int lev, Real time)
         } // lev == 0
 
     } // init_type
+
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+        solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+        terrain_blanking[lev]->setVal(1.0);
+        MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ComputeGhostCells(solverChoice) + 2);
+        terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
+        init_immersed_forcing(lev); // needed for real cases
+    }
 
     // Compute the min dz and pass to the micro model
     Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
@@ -676,7 +740,8 @@ ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys
 
     } // lev > 0
 
-    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+        solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         //
         // This assumes we have already remade the EBGeometry
         //

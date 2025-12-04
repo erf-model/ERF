@@ -4,6 +4,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+echo "Start: $(date)"
+
 echo "========="
 echo "GitLab CI"
 echo "========="
@@ -45,15 +47,13 @@ then
 fi
 module list
 
-# Temporary workaround for CUDA builds:
-#  AMReX fcompare seems to not work as expected if compiled with CUDA.
-#  This builds a CPU version first and uses that fcompare executable during the
-#  testing for the CUDA build
-
 # Default fcompare executable
 FCOMPARE_EXE="${build_dir}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare"
 
-if [[ "${ERF_ENABLE_CUDA}" == "ON" ]]
+# For GPU builds we use a CPU version of fcompare to compare output files as it
+# can be faster than the GPU version because data does not need to migrate to
+# device memory.
+if [[ "${ERF_ENABLE_CUDA}" == "ON" || "${ERF_ENABLE_HIP}" == "ON" ]]
 then
     echo "======================="
     echo "Build CPU amrex_fcompre"
@@ -73,7 +73,8 @@ then
          -D ERF_ENABLE_TESTS:BOOL=OFF \
          -D ERF_ENABLE_FCOMPARE:BOOL=ON \
          -D ERF_ENABLE_DOCUMENTATION:BOOL=OFF \
-         -D CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON
+         -D CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
+         -D ERF_ENABLE_CRAY_AUTO_FIXES=OFF
     time cmake --build "${build_dir}_cpu" --target fcompare
     FCOMPARE_EXE="${build_dir}_cpu/Submodules/AMReX/Tools/Plotfile/amrex_fcompare"
 fi
@@ -134,15 +135,16 @@ time cmake \
      -D AMReX_CUDA_ARCH:STRING="${CUDA_ARCH:-""}" \
      -D ERF_ENABLE_HIP:BOOL="${ERF_ENABLE_HIP:-"OFF"}" \
      -D AMReX_AMD_ARCH:STRING="${AMD_ARCH:-""}" \
+     -D ERF_ENABLE_FCOMPARE:BOOL=ON \
+     -D FCOMPARE_EXE="${FCOMPARE_EXE}" \
+     -D ERF_ENABLE_DOCUMENTATION:BOOL=OFF \
      -D ERF_ENABLE_TESTS:BOOL=ON \
      -D ERF_TEST_NRANKS:STRING=${ERF_TEST_NRANKS:-"4"} \
-     -D ERF_ENABLE_FCOMPARE:BOOL=ON \
-     -D ERF_ENABLE_DOCUMENTATION:BOOL=OFF \
-     -D FCOMPARE_EXE="${FCOMPARE_EXE}" \
      -D ERF_TEST_GOLD_FILES_DIRECTORY="${ERF_TEST_GOLD_FILES_DIRECTORY}" \
      -D ERF_TEST_FCOMPARE_RTOL="${ERF_TEST_FCOMPARE_RTOL:-"5.0e-9"}" \
      -D ERF_TEST_FCOMPARE_ATOL="${ERF_TEST_FCOMPARE_ATOL:-"2.0e-10"}" \
-     -D CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON
+     -D CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
+     -D ERF_ENABLE_CRAY_AUTO_FIXES=OFF
 
 echo "========="
 echo "Build ERF"
@@ -155,3 +157,5 @@ echo "Test ERF"
 echo "========"
 
 time ctest --test-dir "${build_dir}" --extra-verbose --output-on-failure
+
+echo "End: $(date)"

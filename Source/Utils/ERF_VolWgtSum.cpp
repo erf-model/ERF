@@ -8,22 +8,25 @@ using namespace amrex;
  * Utility function for computing a volume weighted sum of MultiFab data for a single component
  *
  * @param lev Current level
- * @param mf MultiFab on which we do the volume weighted sum
- * @param comp Index of the component we want to sum
- * @param local Boolean sets whether or not to reduce the sum over the domain (false) or compute sums local to each MPI rank (true)
- * @param finemask If a finer level is available, determines whether we mask fine data
+ * @param mf_to_be_summed : MultiFab on which we do the volume weighted sum
+ * @param dJ       : volume weighting due to metric terms
+ * @param mfmx     : map factor in x-direction at cell centers
+ * @param mfmy     : map factor in y-direction at cell centers
+ * @param comp     : Index of the component we want to sum
+ * @param finemask : If a finer level is available, determines whether we mask fine data
+ * @param local    : Boolean sets whether or not to reduce the sum over the domain (false) or compute sums local to each MPI rank (true)
  */
 Real
 ERF::volWgtSumMF (int lev,
-                  const MultiFab& mf,
-                  int comp,
-                  bool finemask)
+                  const MultiFab& mf_to_be_summed, int comp,
+                  const MultiFab& dJ, const MultiFab& mfmx, const MultiFab& mfmy,
+                  bool finemask,
+                  bool local)
 {
     BL_PROFILE("ERF::volWgtSumMF()");
 
     Real sum = 0.0;
-    MultiFab tmp(grids[lev], dmap[lev], 1, 0);
-    MultiFab::Copy(tmp, mf, comp, 0, 1, 0);
+    MultiFab tmp(mf_to_be_summed.boxArray(), mf_to_be_summed.DistributionMap(), 1, 0);
 
     // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
     // m is the map scale factor at cell centers
@@ -32,35 +35,35 @@ ERF::volWgtSumMF (int lev,
 #endif
     for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx   = mfi.tilebox();
-        const auto  dst = tmp.array(mfi);
-        const auto& mfx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-        const auto& mfy = mapfac[lev][MapFacType::m_y]->const_array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            dst(i,j,k) /= (mfx(i,j,0)*mfy(i,j,0));
-        });
+        const auto  dst_arr = tmp.array(mfi);
+        const auto  src_arr = mf_to_be_summed.array(mfi);
+        const auto& mfx_arr = mfmx.const_array(mfi);
+        const auto& mfy_arr = mfmy.const_array(mfi);
+        if (SolverChoice::mesh_type == MeshType::ConstantDz) {
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                dst_arr(i,j,k,0) = src_arr(i,j,k,comp) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+            });
+        } else {
+            const auto&  dJ_arr = dJ.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                dst_arr(i,j,k,0) = src_arr(i,j,k,comp) * dJ_arr(i,j,k) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+            });
+        }
     } // mfi
 
     if (lev < finest_level && finemask) {
-        const MultiFab& mask = build_fine_mask(lev+1);
-        MultiFab::Multiply(tmp, mask, 0, 0, 1, 0);
+        MultiFab::Multiply(tmp, *fine_mask[lev+1].get(), 0, 0, 1, 0);
     }
 
-    // Get volume including terrain (consistent with volWgtSumMF routine)
-    MultiFab volume(grids[lev], dmap[lev], 1, 0);
+    // If local = true  then "sum" will be the sum only over the FABs on each rank
+    // If local = false then "sum" will be the sum over the whole MultiFab, and will be broadcast to all ranks
+    sum = tmp.sum(0,local);
+
     auto const& dx = geom[lev].CellSizeArray();
-    Real cell_vol  = dx[0]*dx[1]*dx[2];
-    volume.setVal(cell_vol);
-    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-        MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
-    }
 
-    //
-    // Note that when we send in local = true, NO ParallelAllReduce::Sum
-    //      is called inside the Dot product -- we will do that before we print
-    //
-    bool local = true;
-    sum = MultiFab::Dot(tmp, 0, volume, 0, 1, 0, local);
+    sum *= dx[0]*dx[1]*dx[2];
 
     return sum;
 }
@@ -72,28 +75,23 @@ ERF::volWgtSumMF (int lev,
  *
  * @param level Fine level index which masks underlying coarser data
  */
-MultiFab&
-ERF::build_fine_mask (int level)
+void
+ERF::build_fine_mask (int level, MultiFab& fine_mask_lev)
 {
     // Mask for zeroing covered cells
     AMREX_ASSERT(level > 0);
 
-    const BoxArray& cba = grids[level-1];
-    const DistributionMapping& cdm = dmap[level-1];
+    BoxArray cba            = grids[level-1];
+    DistributionMapping cdm = dmap[level-1];
 
-    // TODO -- we should make a vector of these a member of ERF class
-    fine_mask.define(cba, cdm, 1, 0, MFInfo());
-    fine_mask.setVal(1.0);
+    BoxArray fba            = fine_mask_lev.boxArray();
 
-    BoxArray fba = grids[level];
-    iMultiFab ifine_mask = makeFineMask(cba, cdm, fba, ref_ratio[level-1], 1, 0);
+    iMultiFab ifine_mask_lev = makeFineMask(cba, cdm, fba, ref_ratio[level-1], 1, 0);
 
-    const auto  fma =  fine_mask.arrays();
-    const auto ifma = ifine_mask.arrays();
-    ParallelFor(fine_mask, [=] AMREX_GPU_DEVICE(int bno, int i, int j, int k) noexcept
+    const auto  fma =  fine_mask_lev.arrays();
+    const auto ifma = ifine_mask_lev.arrays();
+    ParallelFor(fine_mask_lev, [=] AMREX_GPU_DEVICE(int bno, int i, int j, int k) noexcept
     {
        fma[bno](i,j,k) = ifma[bno](i,j,k);
     });
-
-    return fine_mask;
 }
