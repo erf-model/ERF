@@ -149,7 +149,7 @@ function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
 
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log")
     foreach(PLTFILE ${ADD_TEST_LSM_PLTFILES})
-        set(test_command "${test_command} && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
+        set(test_command "${test_command} && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
     endforeach()
     message(STATUS "TEST COMMAND FOR '${TEST_NAME}': ${test_command}")
 
@@ -227,9 +227,9 @@ add_test_lsm(SLM_CASS_SAMRadiation            "DevTests/LandSurfaceModel_SLM_Cou
                                               EXTRA_FILES "${CMAKE_SOURCE_DIR}/Exec/DevTests/LandSurfaceModel_SLM_Coupled/sounding_cass_interpolated"
                                                           "${CMAKE_SOURCE_DIR}/Exec/DevTests/LandSurfaceModel_SLM_Coupled/lsf_cass"
                                                           "${ERF_TEST_EXTRA_FILES_DIRECTORY}/CASS_32x32x156_50m_50m_1s_rad_coszrs_combined.nc"
-                                              PLTFILES "plt43200"
-                                                       "plt_lsm_43200"
-                                                       "plt_lsm_2D_43200")
+                                              PLTFILES "plt34500"
+                                                       "plt_lsm_34500"
+                                                       "plt_lsm_2D_34500")
 
 #=============================================================================
 # Performance tests

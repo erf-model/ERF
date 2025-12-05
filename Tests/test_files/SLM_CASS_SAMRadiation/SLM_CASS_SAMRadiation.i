@@ -3,7 +3,8 @@
 #stop_time = 4800    #  1.5 hours
 #stop_time = 7200    #  2 hours
 #stop_time = 43200   #  12 hours
-max_step = 43200
+#max_step = 43200
+max_step = 34500
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
@@ -57,7 +58,7 @@ erf.check_int       = -1    # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 300    # number of timesteps between plotfiles
+erf.plot_int_1      = 300  #2300  # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta qt qp qv qc qsrc z_phys 
  
 erf.plotfile_type = "amrex"
