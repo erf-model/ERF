@@ -147,11 +147,10 @@ function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
     set(FCOMPARE_TOLERANCE "-r ${ERF_TEST_FCOMPARE_RTOL} --abs_tol ${ERF_TEST_FCOMPARE_ATOL}")
     set(FCOMPARE_FLAGS "--abort_if_not_all_found -a ${FCOMPARE_TOLERANCE}")
 
-    set(test_command "sh -c \"${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log")
     foreach(PLTFILE ${ADD_TEST_LSM_PLTFILES})
         set(test_command "${test_command} && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
     endforeach()
-    set(test_command "${test_command}\"")
     message(STATUS "TEST COMMAND FOR '${TEST_NAME}': ${test_command}")
 
     add_test(${TEST_NAME} ${test_command})
