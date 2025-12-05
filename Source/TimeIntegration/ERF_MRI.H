@@ -22,7 +22,8 @@ private:
     std::function<void(T&, T&, T&,     const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_pre;
     std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int )> slow_rhs_post;
     std::function<void(int, int, int, T&, const T&, T&, T&, const amrex::Real, const amrex::Real,
-                                                            const amrex::Real, const amrex::Real)> fast_rhs;
+                                                            const amrex::Real, const amrex::Real,
+                                                            const amrex::Real)> acoustic_substepping;
 
    /**
     * \brief Integrator timestep size (Real)
@@ -136,11 +137,12 @@ public:
         slow_rhs_post = F;
     }
 
-    void set_fast_rhs (std::function<void(int, int, int, T&, const T&, T&, T&,
-                                          const amrex::Real, const amrex::Real,
-                                          const amrex::Real, const amrex::Real)> F)
+    void set_acoustic_substepping (std::function<void(int, int, int, T&, const T&, T&, T&,
+                                                      const amrex::Real, const amrex::Real,
+                                                      const amrex::Real, const amrex::Real,
+                                                      const amrex::Real)> F)
     {
-        fast_rhs = F;
+        acoustic_substepping = F;
     }
 
     void set_slow_fast_timestep_ratio (const int timestep_ratio = 1)
@@ -276,8 +278,8 @@ public:
                 // *******************************************************************************
                 for (int ks = 0; ks < nsubsteps; ++ks)
                 {
-                    fast_rhs(ks, nsubsteps, nrk, *F_slow, S_old, S_new, *S_sum, dtau, inv_fac,
-                             time + ks*dtau, time + (ks+1) * dtau);
+                    acoustic_substepping(ks, nsubsteps, nrk, *F_slow, S_old, S_new, *S_sum, dtau, timestep, inv_fac,
+                                         time + ks*dtau, time + (ks+1) * dtau);
 
                 } // ks
 
@@ -292,7 +294,7 @@ public:
             //       but we are using the "new" versions (in S_sum) of the velocities
             //      (because we did    update the fast variables in the substepping)
             // ****************************************************
-            slow_rhs_post(*F_slow, S_old, S_new, *S_sum,  time, old_time_stage, time_stage, nrk);
+            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, time, old_time_stage, time_stage, nrk);
           } // nrk
 
         } else {

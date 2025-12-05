@@ -99,8 +99,44 @@ class eb_ {
     inline amrex::FabArray<amrex::EBCellFlagFab>&
     getNonConstEBCellFlags(const amrex::EBFArrayBoxFactory& ebfact)
     {
-        const amrex::FabArray<amrex::EBCellFlagFab>& flags_const = ebfact.getMultiEBCellFlagFab();
-        return const_cast<amrex::FabArray<amrex::EBCellFlagFab>&>(flags_const);
+      const amrex::FabArray<amrex::EBCellFlagFab>& flags_const = ebfact.getMultiEBCellFlagFab();
+      return const_cast<amrex::FabArray<amrex::EBCellFlagFab>&>(flags_const);
+    }
+
+    inline amrex::MultiFab&
+    getNonConstVolFrac(const amrex::EBFArrayBoxFactory& ebfact)
+    {
+      const amrex::MultiFab& vfrac_const = ebfact.getVolFrac();
+      return const_cast<amrex::MultiFab&>(vfrac_const);
+    }
+
+    inline amrex::MultiCutFab&
+    getNonConstCentroid(const amrex::EBFArrayBoxFactory& ebfact)
+    {
+      const amrex::MultiCutFab& vcent_const = ebfact.getCentroid();
+      return const_cast<amrex::MultiCutFab&>(vcent_const);
+    }
+
+    inline amrex::Array<amrex::MultiCutFab*, AMREX_SPACEDIM>
+    getNonConstAreaFrac(const amrex::EBFArrayBoxFactory& ebfact)
+    {
+      auto afrac_const = ebfact.getAreaFrac();
+      amrex::Array<amrex::MultiCutFab*, AMREX_SPACEDIM> afrac;
+      for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+          afrac[dir] = const_cast<amrex::MultiCutFab*>(afrac_const[dir]);
+      }
+      return afrac;
+    }
+
+    inline amrex::Array<amrex::MultiCutFab*, AMREX_SPACEDIM>
+    getNonConstFaceCent(const amrex::EBFArrayBoxFactory& ebfact)
+    {
+      auto fcent_const = ebfact.getFaceCent();
+      amrex::Array<amrex::MultiCutFab*, AMREX_SPACEDIM> fcent;
+      for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+          fcent[dir] = const_cast<amrex::MultiCutFab*>(fcent_const[dir]);
+      }
+      return fcent;
     }
 
 };

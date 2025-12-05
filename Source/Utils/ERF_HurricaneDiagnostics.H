@@ -107,7 +107,7 @@ void ComputeGlobalMinLocation(const amrex::Geometry& geom,
     amrex::Real eye_y =  prob_lo[1] + (global_j_min+0.5)*dx[1];
 
     hurricane_eye_track_xy.push_back({eye_x, eye_y});
-    hurricane_eye_track_latlon.push_back({eye_lat, eye_lon});
+    hurricane_eye_track_latlon.push_back({eye_lon, eye_lat});
 }
 
 void
@@ -326,7 +326,6 @@ HurricaneMaxVelTracker(const amrex::Geometry& geom,
     amrex::Real h_val_max_global = -1.0e30;
      #ifdef AMREX_USE_MPI
         MPI_Allreduce(&h_val_max_local, &h_val_max_global, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-        h_val_max_global = h_val_max_local;
     #else
         h_val_max_global = h_val_max_local;
     #endif

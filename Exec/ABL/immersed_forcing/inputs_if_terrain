@@ -1,0 +1,87 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+#max_step = 4000
+stop_time = 1800
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent =  1280     1280    1280
+amr.n_cell           =    256     256    256
+
+geometry.is_periodic = 1 1 0
+
+zlo.type = "NoSlipWall" ### Does not matter when using immersed forcing
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.fixed_dt           = 0.125  # fixed time step depending on grid resolution
+erf.substepping_cfl    = 0.5
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# planar averaging (with erf.v = 1)
+erf.data_log    = surf_hist.dat mean_profiles.dat covar_profiles.dat sfs_profiles.dat
+erf.profile_int = 60
+erf.destag_profiles = false
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = -1        # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt       # prefix of plotfile name
+erf.plot_int_1      = 600        # number of timesteps between plotfiles
+erf.plot_vars_1     = density terrain_IB_mask rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.17
+
+erf.rayleigh_damp_U = true
+erf.rayleigh_damp_V = true
+erf.rayleigh_damp_W = true
+erf.rayleigh_damp_T = true
+prob.dampcoef = 0.2 # [1/s] following FastEddy
+prob.zdamp = 300. # from model top"
+
+
+# INITIALIZATION 
+erf.init_type           = "input_sounding"
+erf.init_sounding_ideal = 1
+erf.input_sounding_file = "input_sounding_CBL"
+
+## TERRRAIN GRID TYPE
+erf.terrain_type      = ImmersedForcing
+erf.terrain_file_name = WoA_dx5m_h100m.txt
+erf.immersed_forcing_substep = true
+erf.if_use_most = true
+#erf.if_init_surf_temp = 292.0
+#erf.if_surf_heating_rate = 1.0
+#erf.if_Olen = 10
+erf.if_surf_temp_flux = 0.3
+#erf.if_surf_temp_flux = -0.3
+
+# Coriolis parameter f = 
+erf.use_coriolis = true
+erf.latitude = 40.0
+erf.rotational_time_period = 86400.0
+
+# Geostrophic wind 
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 8.0 0.0 0.0
+
+# Higher values of perturbations lead to instability
+# Instability seems to be coming from BC
+prob.T_0_Pert_Mag    = 0.5 # [K]
+prob.pert_ref_height = 500. # [m]

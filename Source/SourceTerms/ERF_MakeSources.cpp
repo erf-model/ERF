@@ -27,6 +27,7 @@ using namespace amrex;
  * @param[in] dptr_rhoqt_src  custom moisture source term
  * @param[in] dptr_wbar_sub  subsidence source term
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value of theta} used to define Rayleigh damping
+ * @param[in] d_sinesq_at_lev  sin( (pi/2) (z-z_t)/(damping depth)) at cell centers
  */
 
 void make_sources (int level,
@@ -49,6 +50,7 @@ void make_sources (int level,
                    const Real* dptr_rhoqt_src,
                    const Real* dptr_wbar_sub,
                    const Vector<Real*> d_rayleigh_ptrs_at_lev,
+                   const Real* d_sinesq_at_lev,
                    InputSoundingData& input_sounding_data,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step)
@@ -80,7 +82,8 @@ void make_sources (int level,
     Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
 
     // flags to apply certain source terms in substep call only
-    bool use_Rayleigh_fast = solverChoice.rayleigh_damp_substep;
+    bool use_Rayleigh_fast = ( (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit) ||
+                               (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit) );
     bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
 
     // flag for a moisture model
@@ -197,7 +200,8 @@ void make_sources (int level,
     //    7. sponging
     //    8. turbulent perturbation
     //    9. nudging towards input sounding values (only for theta)
-    //   10. Immersed forcing
+    //   10a. Immersed forcing for terrain
+    //   10b. Immersed forcing for buildings
     //   11. Four stream radiation source for (rho theta)
     // *****************************************************************************
 
@@ -240,24 +244,19 @@ void make_sources (int level,
         // *************************************************************************************
         // 3. Add Rayleigh damping for (rho theta)
         // *************************************************************************************
-        Real ztop     = solverChoice.rayleigh_ztop;
-        Real zdamp    = solverChoice.rayleigh_zdamp;
-        Real dampcoef = solverChoice.rayleigh_dampcoef;
+        Real dampcoef = solverChoice.dampingChoice.rayleigh_dampcoef;
 
-        if ((is_slow_step && !use_Rayleigh_fast) || (!is_slow_step && use_Rayleigh_fast)) {
-            if (solverChoice.rayleigh_damp_T) {
+        if (solverChoice.dampingChoice.rayleigh_damp_T) {
+            if ((is_slow_step && !use_Rayleigh_fast) || (!is_slow_step && use_Rayleigh_fast)) {
                 int n  = RhoTheta_comp;
                 int nr = Rho_comp;
                 int np = PrimTheta_comp;
+
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real zcc = z_cc_arr(i,j,k);
-                    Real zfrac = 1 - (ztop - zcc) / zdamp;
-                    if (zfrac > 0) {
-                        Real theta = cell_prim(i,j,k,np);
-                        Real sinefac = std::sin(PIoTwo*zfrac);
-                        cell_src(i, j, k, n) -= dampcoef*sinefac*sinefac * (theta - thetabar[k]) * cell_data(i,j,k,nr);
-                    }
+                    Real theta = cell_prim(i,j,k,np);
+                    Real sinesq = d_sinesq_at_lev[k];
+                    cell_src(i, j, k, n) -= dampcoef*sinesq * (theta - thetabar[k]) * cell_data(i,j,k,nr);
                 });
             }
         }
@@ -445,7 +444,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // 10. Add Immersed source terms
+        // 10a. Add immersed source terms for terrain
         // *************************************************************************************
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
@@ -550,6 +549,86 @@ void make_sources (int level,
                     }
                 }
 
+            });
+        }
+
+        // *************************************************************************************
+        // 10b. Add immersed source terms for buildings
+        // *************************************************************************************
+        if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing ) &&
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)))
+        {
+            // geometric properties
+            const Real* dx_arr = geom.CellSize();
+            const Real dx_x = dx_arr[0];
+            const Real dx_y = dx_arr[1];
+
+            const Real alpha_h          = solverChoice.if_Cd_scalar;
+            const Real U_s              = 1.0; // unit velocity scale
+            const Real min_t_blank      = 0.005;
+
+            const Real init_surf_temp     = solverChoice.if_init_surf_temp;
+            const Real surf_heating_rate  = solverChoice.if_surf_heating_rate;
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                Real t_blank       = t_blank_arr(i, j, k);
+                Real t_blank_below = t_blank_arr(i, j, k-1);
+                Real t_blank_above = t_blank_arr(i, j, k+1);
+                Real t_blank_north  = t_blank_arr(i  , j+1, k);
+                Real t_blank_south  = t_blank_arr(i  , j-1, k);
+                Real t_blank_east   = t_blank_arr(i+1, j  , k);
+                Real t_blank_west   = t_blank_arr(i-1, j  , k);
+                if (t_blank < min_t_blank) { t_blank = 0.0; } // deal with situations where very small volfrac exist
+                if (t_blank_below < min_t_blank) { t_blank_below = 0.0; }
+                if (t_blank_north < min_t_blank) { t_blank_north = 0.0; }
+                if (t_blank_south < min_t_blank) { t_blank_south = 0.0; }
+                if (t_blank_east < min_t_blank) { t_blank_east = 0.0; }
+                if (t_blank_west < min_t_blank) { t_blank_west = 0.0; }
+
+                Real dx_z    = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx[2];
+                Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, 1./3.);
+
+                // SURFACE TEMP AND HEATING/COOLING RATE
+                if (init_surf_temp > 0.0) {
+                    const Real surf_temp    = init_surf_temp + surf_heating_rate*time/3600;
+                    if (t_blank > 0 && (t_blank_above == 0.0) && (t_blank_below == 1.0)) { // building roof
+                        const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
+                        cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
+
+                    } else if (((t_blank > 0 && t_blank < t_blank_west && t_blank_east == 0.0) ||
+                                (t_blank > 0 && t_blank < t_blank_east && t_blank_west == 0.0) ||
+                                (t_blank > 0 && t_blank < t_blank_north && t_blank_south == 0.0) ||
+                                (t_blank > 0 && t_blank < t_blank_south && t_blank_north == 0.0))) {
+                        // this should enter for just building walls
+                        // walls are currently separated to allow for flexible in the future to heat walls differently
+
+                        // south face
+                        if ((t_blank < t_blank_north) && (t_blank_north == 1.0)) {
+                            const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
+                            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
+                        }
+
+                        // north face
+                        if ((t_blank < t_blank_south) && (t_blank_south == 1.0)) {
+                            const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
+                            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
+                        }
+
+                        // west face
+                        if ((t_blank < t_blank_east) && (t_blank_east == 1.0)) {
+                            const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
+                            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
+                        }
+
+                        // east face
+                        if ((t_blank < t_blank_west) && (t_blank_west == 1.0)) {
+                            const Real bc_forcing_rt_srf = -(cell_data(i,j,k,Rho_comp) * surf_temp - cell_data(i,j,k,RhoTheta_comp));
+                            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * U_s * bc_forcing_rt_srf;
+                        }
+
+                    }
+                }
             });
         }
 

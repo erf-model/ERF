@@ -25,6 +25,8 @@ Problem::Problem ()
   pp.query("L", parms.L);
   pp.query("z_offset", parms.z_offset);
 
+  pp.query("dir", parms.dir);
+
   init_base_parms(parms.rho_0, parms.T_0);
 }
 
@@ -69,9 +71,9 @@ Problem::init_custom_pert (
     });
 
     // Set the y-velocity
-    ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        y_vel_pert(i, j, k) = 0.0;
+        y_vel_pert(i, j, k) = parms_d.V_0;
     });
 
     const auto dx = geomdata.CellSize();
@@ -112,11 +114,11 @@ Problem::init_custom_terrain (
     bool test_mapfactor = false;
     pp.query("test_mapfactor",test_mapfactor);
 
-    Real mf_x;
+    Real mf_m;
     if (test_mapfactor) {
-        mf_x = 0.5;
+        mf_m = 0.5;
     } else {
-        mf_x = 1.;
+        mf_m = 1.;
     }
 
     // Domain cell size and real bounds
@@ -126,12 +128,14 @@ Problem::init_custom_terrain (
 
     const amrex::Box& domain = geom.Domain();
     int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
+    int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
     int domlo_z = domain.smallEnd(2);
 
     // User function parameters
     Real a    = 0.5;
     Real num  = 8. * a * a * a;
-    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]) / mf_x;
+    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]) / mf_m;
+    Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]) / mf_m;
 
     // if hm is nonzero, then use alternate hill definition
     Real hm = parms.hmax;
@@ -166,32 +170,53 @@ Problem::init_custom_terrain (
             int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
 
             // Location of nodes
-            Real x = (ProbLoArr[0] + ii * dx[0]) / mf_x - xcen;
-            Real y = (ProbLoArr[1] + jj * dx[1]) / mf_y - ycen;
+            Real x = (ProbLoArr[0] + ii * dx[0]) / mf_m - xcen;
+            Real y = (ProbLoArr[1] + jj * dx[1]) / mf_m - ycen;
 
             // WoA Hill in x-direction
             z_arr(i,j,k0) = num / (x*x + y*y + 4 * a * a);
         });
 #else
         // This is a 2D hill with variation in only the x-direction
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
-            // Clip indices for ghost-cells
-            int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-            // int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
+        if (parms.dir == 0) {
+            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
+                // Clip indices for ghost-cells
+                int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
+                // int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
 
-            // Location of nodes
-            Real x = (ProbLoArr[0] + ii * dx[0] - xcen) * mf_x;
-            // Real y = (ProbLoArr[1] + jj * dx[1] - ycen) * mf_y;
+                // Location of nodes
+                Real x = (ProbLoArr[0] + ii * dx[0] - xcen) * mf_m;
+                // Real y = (ProbLoArr[1] + jj * dx[1] - ycen) * mf_y;
 
-            // WoA Hill in x-direction
-            if (hm==0) {
-                z_arr(i,j,k0) = num / (x*x + 4 * a * a);
-            } else {
-                Real x_L = x / L;
-                z_arr(i,j,k0) = hm / (1 + x_L*x_L) + z_offset;
-            }
-        });
+                // WoA Hill in x-direction
+                if (hm==0) {
+                    z_arr(i,j,k0) = num / (x*x + 4 * a * a);
+                } else {
+                    Real x_L = x / L;
+                    z_arr(i,j,k0) = hm / (1 + x_L*x_L) + z_offset;
+                }
+            });
+        } else if (parms.dir == 1) {
+            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
+                // Clip indices for ghost-cells
+                int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
+
+                // Location of nodes
+                Real y = (ProbLoArr[1] + jj * dx[1] - ycen) * mf_m;
+
+                // WoA Hill in x-direction
+                if (hm==0) {
+                    z_arr(i,j,k0) = num / (y*y + 4.0 * a * a);
+                } else {
+                    Real y_L = y / L;
+                    z_arr(i,j,k0) = hm / (1.0 + y_L*y_L) + z_offset;
+                }
+            });
+        } else {
+            amrex::Abort("Unknown dir in ERF_Prob.cpp");
+        }
 #endif
     }
 }

@@ -17,9 +17,6 @@ using namespace amrex;
  */
 
 void
-check_for_negative_theta(amrex::MultiFab& S_old);
-
-void
 ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 {
     BL_PROFILE("ERF::Advance()");
@@ -149,6 +146,16 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // Update the "old" state using SHOC
     // **************************************************************************************
     if (solverChoice.use_shoc) {
+        // Get SFC fluxes from SurfaceLayer
+        if (m_SurfaceLayer) {
+            Vector<const MultiFab*> mfs = {&S_old, &U_old, &V_old, &W_old};
+            m_SurfaceLayer->impose_SurfaceLayer_bcs(lev, mfs, Tau[lev],
+                                                    SFS_hfx1_lev[lev].get() , SFS_hfx2_lev[lev].get() , SFS_hfx3_lev[lev].get(),
+                                                    SFS_q1fx1_lev[lev].get(), SFS_q1fx2_lev[lev].get(), SFS_q1fx3_lev[lev].get(),
+                                                    z_phys_nd[lev].get());
+        }
+
+        // Get Shoc tendencies and update the state
         Real* w_sub = (solverChoice.custom_w_subsidence) ? d_w_subsid[lev].data() : nullptr;
         compute_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
                                 Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
@@ -200,6 +207,16 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     state_new.push_back(MultiFab(rW_new[lev], amrex::make_alias, 0,     1)); // zmom
 
     // **************************************************************************************
+    // Tests on the reasonableness of the solution
+    // **************************************************************************************
+    // Test for NaNs after dycore
+    if (check_for_nans > 1) {
+        amrex::Print() << "Testing old state and vels for NaNs before dycore" << std::endl;
+        check_state_for_nans(S_old);
+        check_vels_for_nans(rU_old[lev],rV_old[lev],rW_old[lev]);
+    }
+
+    // **************************************************************************************
     // Update the dycore
     // **************************************************************************************
     advance_dycore(lev, state_old, state_new,
@@ -209,10 +226,40 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                    Geom(lev), dt_lev, time);
 
     // **************************************************************************************
+    // Tests on the reasonableness of the solution
+    // **************************************************************************************
+    // Test for NaNs after dycore
+    if (check_for_nans > 0) {
+        amrex::Print() << "Testing new state and vels for NaNs after dycore" << std::endl;
+        check_state_for_nans(S_new);
+        check_vels_for_nans(rU_new[lev],rV_new[lev],rW_new[lev]);
+    }
+
+    // We only test on low temp if we have a moisture model because we are protecting against
+    //    the test on low temp inside the moisture models
+    if (solverChoice.anelastic[lev] != 1) {
+        if (solverChoice.moisture_type != MoistureType::None) {
+            check_for_low_temp(S_new);
+        }
+        else
+        {
+            // Otherwise we will test on negative (rhotheta) coming out of the dycore
+            check_for_negative_theta(S_new);
+        }
+    }
+
+    // **************************************************************************************
     // Update the microphysics (moisture)
     // **************************************************************************************
-    if (!solverChoice.moisture_tight_coupling) {
+    if (!solverChoice.moisture_tight_coupling)
+    {
         advance_microphysics(lev, S_new, dt_lev, iteration, time);
+
+        // Test for NaNs after microphysics
+        if (check_for_nans > 0) {
+            amrex::Print() << "Testing new state for NaNs after advance_microphysics" << std::endl;
+            check_state_for_nans(S_new);
+        }
     }
 
     // **************************************************************************************
@@ -312,30 +359,4 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     if (solverChoice.time_avg_vel) {
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
-}
-
-void
-check_for_negative_theta(amrex::MultiFab& S_old)
-{
-    // *****************************************************************************
-    // Test for negative (rho theta)
-    // *****************************************************************************
-    for (MFIter mfi(S_old); mfi.isValid(); ++mfi)
-    {
-        Box bx = mfi.tilebox();
-        const Array4<Real> &cell_data  = S_old.array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-#ifdef AMREX_USE_GPU
-            if (cell_data(i,j,k,RhoTheta_comp) <= 0.) AMREX_DEVICE_PRINTF("BAD THETA AT %d %d %d %e %e \n",
-                i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
-#else
-            if (cell_data(i,j,k,RhoTheta_comp) <= 0.) {
-                printf("BAD THETA AT %d %d %d %e %e \n",
-                i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
-                amrex::Abort("Bad theta in check_for_negative_theta");
-            }
-#endif
-            });
-    } // mfi
 }

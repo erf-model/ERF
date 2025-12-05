@@ -7,6 +7,18 @@ function(target_link_libraries_system target visibility)
   endforeach(lib)
 endfunction(target_link_libraries_system)
 
+# Link library but only propagate include directories, not link options
+function(target_link_libraries_includes_only target visibility lib)
+  # Link the library (this target will use it)
+  target_link_libraries(${target} PRIVATE ${lib})
+  
+  # But propagate includes with specified visibility
+  get_target_property(lib_include_dirs ${lib} INTERFACE_INCLUDE_DIRECTORIES)
+  if(lib_include_dirs)
+    target_include_directories(${target} ${visibility} ${lib_include_dirs})
+  endif()
+endfunction()
+
 function(build_erf_lib erf_lib_name)
 
   set(SRC_DIR ${CMAKE_SOURCE_DIR}/Source)
@@ -25,6 +37,10 @@ function(build_erf_lib erf_lib_name)
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/ekat/src/pack>
                                $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Submodules/ekat/src/algorithm>
                               )
+  endif()
+
+  if(ERF_ENABLE_IMPLICIT_W)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_IMPLICIT_W)
   endif()
 
   if(ERF_ENABLE_MULTIBLOCK)
@@ -238,6 +254,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_N.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_S.cpp
        ${SRC_DIR}/Diffusion/ERF_DiffusionSrcForState_T.cpp
+       ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_N.cpp
+       ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_S.cpp
+       ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_T.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_S.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_T.cpp
@@ -326,9 +345,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_MakeTauTerms.cpp
        ${SRC_DIR}/TimeIntegration/ERF_SlowRhsPre.cpp
        ${SRC_DIR}/TimeIntegration/ERF_SlowRhsPost.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_FastRhs_N.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_FastRhs_T.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_FastRhs_MT.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_Substep_NS.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_Substep_T.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_Substep_MT.cpp
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
@@ -340,6 +359,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
        ${SRC_DIR}/Utils/ERF_ThinBodyWallDist.cpp
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
+       ${SRC_DIR}/Utils/ERF_VolWgtSum.cpp
        ${SRC_DIR}/Utils/ERF_WeatherDataInterpolation.cpp
        ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
        ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
@@ -363,8 +383,22 @@ function(build_erf_lib erf_lib_name)
   endif()
 
   if(ERF_ENABLE_EKAT)
-      target_link_libraries(${erf_lib_name} PUBLIC ekat::AllLibs spdlog::spdlog Kokkos::kokkos)
+    target_link_libraries(${erf_lib_name} PUBLIC ekat::AllLibs spdlog::spdlog Kokkos::kokkos)
   endif()
+#  if(ERF_ENABLE_EKAT)
+#    # Link privately to avoid duplicate link flags, but propagate includes
+#    target_link_libraries(${erf_lib_name} PRIVATE ekat::AllLibs spdlog::spdlog Kokkos::kokkos)
+
+#    # Manually propagate include directories (but not link options)
+#    foreach(lib IN ITEMS ekat::AllLibs spdlog::spdlog Kokkos::kokkos)
+#        if(TARGET ${lib})
+#            get_target_property(inc_dirs ${lib} INTERFACE_INCLUDE_DIRECTORIES)
+#            if(inc_dirs)
+#                target_include_directories(${erf_lib_name} PUBLIC ${inc_dirs})
+#            endif()
+#        endif()
+#    endforeach()
+#  endif()
 
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
@@ -446,9 +480,54 @@ function(build_erf_exe erf_exe_name)
   )
   endif()
 
-  target_link_libraries(${erf_exe_name}  PUBLIC ${erf_lib_name})
-  include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
-  set_erf_compile_flags(${erf_exe_name})
+target_link_libraries(${erf_exe_name} PUBLIC ${erf_lib_name})
+include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
+set_erf_compile_flags(${erf_exe_name})
+
+  if(ERF_ENABLE_EKAT)
+    # Link privately to avoid duplicate link flags, but propagate includes
+    target_link_libraries(${erf_exe_name} PRIVATE ekat::AllLibs spdlog::spdlog Kokkos::kokkos)
+
+    # Manually propagate include directories (but not link options)
+    foreach(lib IN ITEMS ekat::AllLibs spdlog::spdlog Kokkos::kokkos)
+        if(TARGET ${lib})
+            get_target_property(inc_dirs ${lib} INTERFACE_INCLUDE_DIRECTORIES)
+            if(inc_dirs)
+                target_include_directories(${erf_exe_name} PUBLIC ${inc_dirs})
+            endif()
+        endif()
+    endforeach()
+  endif()
+
+  # Remove duplicate HIP link flags from executable
+  if(ERF_ENABLE_HIP AND ERF_ENABLE_EKAT)
+      get_target_property(exe_link_opts ${erf_exe_name} LINK_OPTIONS)
+      if(exe_link_opts)
+          # Deduplicate by converting to list and back
+          list(REMOVE_DUPLICATES exe_link_opts)
+
+          # Keep only one --hip-link and one --offload-arch
+          set(filtered "")
+          set(seen_hip FALSE)
+          set(seen_offload FALSE)
+          foreach(opt IN LISTS exe_link_opts)
+              if(opt STREQUAL "--hip-link")
+                  if(NOT seen_hip)
+                      list(APPEND filtered ${opt})
+                      set(seen_hip TRUE)
+                  endif()
+              elseif(opt MATCHES "^--offload-arch=")
+                  if(NOT seen_offload)
+                      list(APPEND filtered ${opt})
+                      set(seen_offload TRUE)
+                  endif()
+              else()
+                  list(APPEND filtered ${opt})
+              endif()
+          endforeach()
+          set_target_properties(${erf_exe_name} PROPERTIES LINK_OPTIONS "${filtered}")
+       endif()
+  endif()
 
   if(ERF_ENABLE_CUDA)
     set(pctargets "${erf_exe_name}")

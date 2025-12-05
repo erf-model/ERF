@@ -209,7 +209,8 @@ public:
                            amrex::MultiFab& rhs, amrex::MultiFab& p,
                            amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
                            amrex::MultiFab& ax_sub, amrex::MultiFab& ay_sub,
-                           amrex::MultiFab& znd_sub);
+                           amrex::MultiFab& az_sub,
+                           amrex::MultiFab& /*dJ_sub*/, amrex::MultiFab& znd_sub);
 
     void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
@@ -226,6 +227,12 @@ public:
 
     // Restart
     void restart ();
+
+    // Check for NaNs and other bad stuff
+    void check_state_for_nans(amrex::MultiFab const& S);
+    void check_vels_for_nans(amrex::MultiFab const& xvel, amrex::MultiFab const& yvel, amrex::MultiFab const& zvel);
+    void check_for_negative_theta (amrex::MultiFab& S);
+    void check_for_low_temp       (amrex::MultiFab& S);
 
     // Is it time to write a plotfile or checkpoint?
     bool writeNow (const amrex::Real cur_time, const int nstep, const int plot_int,
@@ -411,7 +418,7 @@ public:
     void Write2DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
 
     // Write subvolume of data into a different "plotfile"
-    void WriteSubvolume  ();
+    void WriteSubvolume (int isub, amrex::Vector<std::string> subvol_var_names);
 
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
@@ -696,14 +703,16 @@ private:
     // get plotfile name
     [[nodiscard]] std::string PlotFileName (int lev) const;
 
-    // set plotfile variables names
-    static amrex::Vector<std::string> PlotFileVarNames (amrex::Vector<std::string> plot_var_names) ;
+    // set plotfile variable names
+    static amrex::Vector<std::string> PlotFileVarNames (amrex::Vector<std::string> plot_var_names);
 
     // set which variables and derived quantities go into plotfiles
     void setPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
     void setPlotVariables2D (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
     // append variables to plot
     void appendPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
+
+    void setSubVolVariables (const std::string& pp_subvol_var_names, amrex::Vector<std::string>& subvol_var_names);
 
 #ifdef ERF_USE_NETCDF
     //! Create 1D vertical column output for coupling
@@ -868,7 +877,7 @@ private:
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW)
-
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn)
 #ifdef ERF_USE_SHOC
     amrex::Vector<std::unique_ptr<SHOCInterface>> shoc_interface; // SHOC model at each level
 #endif
@@ -894,6 +903,7 @@ private:
 
     // Diffusive stresses and Smag
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> Tau_corr; // correction to tau for implicit
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 
@@ -996,14 +1006,15 @@ private:
     static int last_plot2d_file_step_1;
     static int last_plot2d_file_step_2;
     static int last_check_file_step;
-    static int last_subvol_step;
 
     static amrex::Real last_plot3d_file_time_1;
     static amrex::Real last_plot3d_file_time_2;
     static amrex::Real last_plot2d_file_time_1;
     static amrex::Real last_plot2d_file_time_2;
     static amrex::Real last_check_file_time;
-    static amrex::Real last_subvol_time;
+
+    amrex::Vector<int> last_subvol_step;
+    amrex::Vector<amrex::Real> last_subvol_time;
 
     static bool plot_file_on_restart;
 
@@ -1061,12 +1072,14 @@ private:
     int m_plot3d_int_2 = -1;
     int m_plot2d_int_1 = -1;
     int m_plot2d_int_2 = -1;
-    int m_subvol_int = -1;
+
+    amrex::Vector<int> m_subvol_int;
+    amrex::Vector<amrex::Real> m_subvol_per;
+
     amrex::Real m_plot3d_per_1 = -1.0;
     amrex::Real m_plot3d_per_2 = -1.0;
     amrex::Real m_plot2d_per_1 = -1.0;
     amrex::Real m_plot2d_per_2 = -1.0;
-    amrex::Real m_subvol_per = -1.0;
     bool m_plot_face_vels = false;
 
     bool plot_lsm = false;
@@ -1079,6 +1092,8 @@ private:
     std::string check_file {"chk"};
     int m_check_int = -1;
     amrex::Real m_check_per = -1.0;
+
+    amrex::Vector<std::string> subvol3d_var_names;
 
     amrex::Vector<std::string> plot3d_var_names_1;
     amrex::Vector<std::string> plot3d_var_names_2;
@@ -1135,8 +1150,14 @@ private:
     const amrex::Vector<std::string> derived_names_2d {
         "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
         "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
-        "t_surf", "q_surf", "z0"
+        "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
+        "surf_pres"
     };
+
+    // **************************************************************************************
+    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_WriteSubVolume.cpp
+    // **************************************************************************************
+    const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar"};
 
     // algorithm choices
     static SolverChoice solverChoice;
@@ -1178,6 +1199,8 @@ private:
     static int mg_verbose;
     static bool use_fft;
 
+    static int check_for_nans;
+
     // Diagnostic output interval
     static int sum_interval;
     static int pert_interval;
@@ -1196,6 +1219,7 @@ private:
 
     // NetCDF initialization (wrfinput) file
     static amrex::Vector<amrex::Vector<std::string>> nc_init_file;
+    static amrex::Vector<amrex::Vector<int>> have_read_nc_init_file;
 
     // NetCDF initialization (wrfbdy/met_em) file
     static std::string nc_bdy_file;
@@ -1275,16 +1299,20 @@ private:
                                 const amrex::Vector<amrex::Real>& zlev_stag);
 
     // This is a vector over levels of vectors across quantities of Vectors
-    amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
+    amrex::Vector<amrex::Vector<amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
+    amrex::Vector<amrex::Vector<amrex::Vector<amrex::Real> > > h_sponge_ptrs;
 
-    // This is a vector over levels of vectors across quantities of Vectors
-    amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_sponge_ptrs;
+    // These are vectors over levels of Vectors
+    amrex::Vector<amrex::Vector<amrex::Real> > h_sinesq_ptrs;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_sinesq_stag_ptrs;
 
     // This is a vector over levels of vectors across quantities of DeviceVectors
     amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_rayleigh_ptrs;
-
-    // This is a vector over levels of vectors across quantities of DeviceVectors
     amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_sponge_ptrs;
+
+    // These are vectors over levels of DeviceVectors
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_sinesq_ptrs;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_sinesq_stag_ptrs;
 
     amrex::Vector<amrex::Real> h_havg_density;
     amrex::Vector<amrex::Real> h_havg_temperature;

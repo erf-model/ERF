@@ -450,9 +450,18 @@ ERF::FillWeatherDataMultiFab(const std::string& filename,
                        uvel_h, vvel_h, wvel_h,
                        theta_h, qv_h, qc_h, qr_h);
 
+    Real zmax = *std::max_element(zvec_h.begin(), zvec_h.end());
+
     const auto prob_lo_erf  = geom[0].ProbLoArray();
     const auto prob_hi_erf  = geom[0].ProbHiArray();
     const auto dx_erf       = geom[0].CellSizeArray();
+
+    if (prob_hi_erf[2] >= zmax) {
+        Abort("ERROR: the maximum z of the domain (" + std::to_string(prob_hi_erf[2]) +
+        ") should be less than the maximum z in the forecast data (" + std::to_string(zmax) +
+        "). Change geometry.prob_hi[2] in the inputs to be less than " + std::to_string(zmax) + "."
+        );
+    }
 
     if(prob_lo_erf[0] < xvec_h.front() + 4*dx_erf[0]){
         amrex::Abort("The xlo value of the domain has to be greater than " + std::to_string(xvec_h.front() + 4*dx_erf[0]));

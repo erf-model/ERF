@@ -103,7 +103,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     //
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing) ||
+            bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing || solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ||
                                (derived_names[i] != "terrain_IB_mask") );
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
                                (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
@@ -320,7 +320,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     //     because we don't need to set interior fine points.
     // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
 
-    // Level 0 FilLPatch
+    // Level 0 FillPatch
     FillPatchCrseLevel(0, t_new[0], {&vars_new[0][Vars::cons], &vars_new[0][Vars::xvel],
                        &vars_new[0][Vars::yvel], &vars_new[0][Vars::zvel]});
 
@@ -423,6 +423,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {
+        // Make sure getPgivenRTh and getTgivenRandRTh don't fail
+        if (check_for_nans) {
+            check_for_negative_theta(vars_new[lev][Vars::cons]);
+        }
+
         int mf_comp = 0;
 
         BoxArray ba(vars_new[lev][Vars::cons].boxArray());
@@ -1501,16 +1506,18 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     std::string plotfilenameU;
     std::string plotfilenameV;
     std::string plotfilenameW;
+
+    int file_name_digits = solverChoice.file_name_digits;
     if (which == 1) {
-       plotfilename = Concatenate(plot3d_file_1, istep[0], 5);
-       plotfilenameU = Concatenate(plot3d_file_1+"U", istep[0], 5);
-       plotfilenameV = Concatenate(plot3d_file_1+"V", istep[0], 5);
-       plotfilenameW = Concatenate(plot3d_file_1+"W", istep[0], 5);
+       plotfilename = Concatenate(plot3d_file_1, istep[0], file_name_digits);
+       plotfilenameU = Concatenate(plot3d_file_1+"U", istep[0], file_name_digits);
+       plotfilenameV = Concatenate(plot3d_file_1+"V", istep[0], file_name_digits);
+       plotfilenameW = Concatenate(plot3d_file_1+"W", istep[0], file_name_digits);
     } else if (which == 2) {
-       plotfilename = Concatenate(plot3d_file_2, istep[0], 5);
-       plotfilenameU = Concatenate(plot3d_file_2+"U", istep[0], 5);
-       plotfilenameV = Concatenate(plot3d_file_2+"V", istep[0], 5);
-       plotfilenameW = Concatenate(plot3d_file_2+"W", istep[0], 5);
+       plotfilename = Concatenate(plot3d_file_2, istep[0], file_name_digits);
+       plotfilenameU = Concatenate(plot3d_file_2+"U", istep[0], file_name_digits);
+       plotfilenameV = Concatenate(plot3d_file_2+"V", istep[0], file_name_digits);
+       plotfilenameW = Concatenate(plot3d_file_2+"W", istep[0], file_name_digits);
     }
 
     // LSM writes it's own data
@@ -1930,10 +1937,19 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     // **********************************************************************************************
     for (int lev = 0; lev <= finest_level; ++lev)
     {
+        // Make sure getPgivenRTh and getTgivenRandRTh don't fail
+        if (check_for_nans) {
+            check_for_negative_theta(vars_new[lev][Vars::cons]);
+        }
+
         int mf_comp = 0;
 
         // Set all components to zero in case they aren't defined below
         mf[lev].setVal(0.0);
+
+        // Expose domain khi and klo at each level
+        int klo = geom[lev].Domain().smallEnd(2);
+        int khi = geom[lev].Domain().bigEnd(2);
 
         if (containerHasElement(plot_var_names, "z_surf")) {
 #ifdef _OPENMP
@@ -2204,13 +2220,95 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
             mf_comp++;
         } // z0
+
+        if (containerHasElement(plot_var_names, "OLR")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (solverChoice.rad_type != RadiationType::None) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& olr    = rad_fluxes[lev]->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i, j, k, mf_comp) = olr(i, j, khi, 2);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // OLR
+
+        if (containerHasElement(plot_var_names, "sens_flux")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (SFS_hfx3_lev[lev]) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& hfx_arr = SFS_hfx3_lev[lev]->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i, j, k, mf_comp) = hfx_arr(i, j, klo);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // sens_flux
+
+        if (containerHasElement(plot_var_names, "laten_flux")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            if (SFS_hfx3_lev[lev]) {
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const auto& derdat = mf[lev].array(mfi);
+                    const auto& qfx_arr = SFS_q1fx3_lev[lev]->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i, j, k, mf_comp) = qfx_arr(i, j, klo);
+                    });
+                }
+            } else {
+                mf[lev].setVal(-999,mf_comp,1,0);
+            }
+            mf_comp++;
+        } // laten_flux
+
+        if (containerHasElement(plot_var_names, "surf_pres")) {
+            bool moist = (solverChoice.moisture_type != MoistureType::None);
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const auto& derdat   = mf[lev].array(mfi);
+                const auto& cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    auto rt = cons_arr(i,j,klo,RhoTheta_comp);
+                    auto qv = (moist) ? cons_arr(i,j,klo,RhoQ1_comp)/cons_arr(i,j,klo,Rho_comp)
+                                      : 0.0;
+                    derdat(i, j, k, mf_comp) = getPgivenRTh(rt, qv);
+                });
+            }
+            mf_comp++;
+        } // surf_pres
+
     } // lev
 
+    int file_name_digits = solverChoice.file_name_digits;
     std::string plotfilename;
     if (which == 1) {
-       plotfilename = Concatenate(plot2d_file_1, istep[0], 5);
+       plotfilename = Concatenate(plot2d_file_1, istep[0], file_name_digits);
     } else if (which == 2) {
-       plotfilename = Concatenate(plot2d_file_2, istep[0], 5);
+       plotfilename = Concatenate(plot2d_file_2, istep[0], file_name_digits);
     }
 
     Vector<Geometry> my_geom(finest_level+1);

@@ -44,48 +44,46 @@ using namespace amrex;
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in   ]  l_use_moisture
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
- * @param[in   ]  l_implicit_substepping
  */
 
-void erf_fast_rhs_MT (int step, int /*nrk*/,
-                      int level, int finest_level,
-                      Vector<MultiFab>& S_slow_rhs,                  // the slow RHS already computed
-                      const Vector<MultiFab>& S_prev,                // if step == 0, this is S_old, else the previous solution
-                      Vector<MultiFab>& S_stg_data,                  // at last RK stg: S^n, S^* or S^**
-                      const MultiFab& S_stg_prim,                    // Primitive version of S_stg_data[IntVars::cons]
-                      const MultiFab& qt,                            // Total moisture
-                      const MultiFab& pi_stage,                      // Exner function evaluated at last RK stg
-                      const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
-                      Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
-                      MultiFab& lagged_delta_rt,
-                      MultiFab& avg_xmom,
-                      MultiFab& avg_ymom,
-                      MultiFab& avg_zmom,
-                      const MultiFab& cc_src,
-                      const MultiFab& xmom_src,
-                      const MultiFab& ymom_src,
-                      const MultiFab& zmom_src,
-                      const Geometry geom,
-                      const Real gravity,
-                      const bool use_lagged_delta_rt,
-                      std::unique_ptr<MultiFab>& z_t_rk,             // evaluated from previous RK stg to next RK stg
-                      const MultiFab* z_t_pert,                      // evaluated from tau to (tau + delta tau) - z_t_rk
-                      std::unique_ptr<MultiFab>& z_phys_nd_old,      // at previous substep time (tau)
-                      std::unique_ptr<MultiFab>& z_phys_nd_new,      // at      new substep time (tau + delta tau)
-                      std::unique_ptr<MultiFab>& z_phys_nd_stg,      // at last RK stg
-                      std::unique_ptr<MultiFab>& detJ_cc_old,        // at previous substep time (tau)
-                      std::unique_ptr<MultiFab>& detJ_cc_new,        // at      new substep time (tau + delta tau)
-                      std::unique_ptr<MultiFab>& detJ_cc_stg,        // at last RK stg
-                      const Real dtau, const Real beta_s,
-                      const Real facinv,
-                      Vector<std::unique_ptr<MultiFab>>& mapfac,
-                      YAFluxRegister* fr_as_crse,
-                      YAFluxRegister* fr_as_fine,
-                      bool l_use_moisture,
-                      bool l_reflux,
-                      bool /*l_implicit_substepping*/)
+void erf_substep_MT (int step, int /*nrk*/,
+                     int level, int finest_level,
+                     Vector<MultiFab>& S_slow_rhs,                  // the slow RHS already computed
+                     const Vector<MultiFab>& S_prev,                // if step == 0, this is S_old, else the previous solution
+                     Vector<MultiFab>& S_stg_data,                  // at last RK stg: S^n, S^* or S^**
+                     const MultiFab& S_stg_prim,                    // Primitive version of S_stg_data[IntVars::cons]
+                     const MultiFab& qt,                            // Total moisture
+                     const MultiFab& pi_stage,                      // Exner function evaluated at last RK stg
+                     const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
+                     Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
+                     MultiFab& lagged_delta_rt,
+                     MultiFab& avg_xmom,
+                     MultiFab& avg_ymom,
+                     MultiFab& avg_zmom,
+                     const MultiFab& cc_src,
+                     const MultiFab& xmom_src,
+                     const MultiFab& ymom_src,
+                     const MultiFab& zmom_src,
+                     const Geometry geom,
+                     const Real gravity,
+                     const bool use_lagged_delta_rt,
+                     std::unique_ptr<MultiFab>& z_t_rk,             // evaluated from previous RK stg to next RK stg
+                     const MultiFab* z_t_pert,                      // evaluated from tau to (tau + delta tau) - z_t_rk
+                     std::unique_ptr<MultiFab>& z_phys_nd_old,      // at previous substep time (tau)
+                     std::unique_ptr<MultiFab>& z_phys_nd_new,      // at      new substep time (tau + delta tau)
+                     std::unique_ptr<MultiFab>& z_phys_nd_stg,      // at last RK stg
+                     std::unique_ptr<MultiFab>& detJ_cc_old,        // at previous substep time (tau)
+                     std::unique_ptr<MultiFab>& detJ_cc_new,        // at      new substep time (tau + delta tau)
+                     std::unique_ptr<MultiFab>& detJ_cc_stg,        // at last RK stg
+                     const Real dtau, const Real beta_s,
+                     const Real facinv,
+                     Vector<std::unique_ptr<MultiFab>>& mapfac,
+                     YAFluxRegister* fr_as_crse,
+                     YAFluxRegister* fr_as_fine,
+                     bool l_use_moisture,
+                     bool l_reflux)
 {
-    BL_PROFILE_REGION("erf_fast_rhs_MT()");
+    BL_PROFILE_REGION("erf_substep_MT()");
 
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
@@ -205,8 +203,6 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         Box gtbx  = mfi.nodaltilebox(0); gtbx.grow(1); gtbx.setSmall(2,0);
         Box gtby  = mfi.nodaltilebox(1); gtby.grow(1); gtby.setSmall(2,0);
 
-        {
-        BL_PROFILE("fast_rhs_copies_0");
         if (step == 0) {
             ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -248,7 +244,6 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
                 theta_extrap(i,j,k) *= (1.0 + RvOverRd*qv);
             });
         } // if step
-        } // end profile
 
         RHS_fab.resize     (tbz,1, The_Async_Arena());
         soln_fab.resize    (tbz,1, The_Async_Arena());
@@ -268,7 +263,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
         {
-        BL_PROFILE("fast_rhs_xymom_T");
+        BL_PROFILE("substep_xymom_T");
         ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -324,7 +319,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         // Define flux arrays for use in advection
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(surroundingNodes(bx,dir),2);
+            flux[dir].resize(surroundingNodes(bx,dir),2,The_Async_Arena());
             flux[dir].setVal<RunOn::Device>(0.);
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
@@ -346,11 +341,11 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
             Real yflux_hi = cur_ymom(i,j+1,k) - stg_ymom(i,j+1,k)*h_zeta_stg_yhi;
 
             // NOTE: we are saving the (1/J) weighting for later when we add this to rho and theta
-            temp_rhs_arr(i,j,k,0) =  ( xflux_hi - xflux_lo ) * dxi + ( yflux_hi - yflux_lo ) * dyi;
-            temp_rhs_arr(i,j,k,1) = (( xflux_hi * (prim(i,j,k,0) + prim(i+1,j,k,0)) -
-                                       xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi +
-                                     ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
-                                       yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi) * 0.5;
+            temp_rhs_arr(i,j,k,0) = ( ( xflux_hi - xflux_lo ) * dxi + ( yflux_hi - yflux_lo ) * dyi );
+            temp_rhs_arr(i,j,k,1) = ( (( xflux_hi * (prim(i,j,k,0) + prim(i+1,j,k,0)) -
+                                         xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi +
+                                       ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
+                                         yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi) * 0.5 );
 
             if (l_reflux) {
                 (flx_arr[0])(i,j,k,0) = xflux_lo;
@@ -426,10 +421,6 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         //Note we don't act on the bottom or top boundaries of the domain
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real     dJ_old_kface = 0.5 * (detJ_old(i,j,k) + detJ_old(i,j,k-1));
-            Real     dJ_new_kface = 0.5 * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
-            Real     dJ_stg_kface = 0.5 * (detJ_stg(i,j,k) + detJ_stg(i,j,k-1));
-
             Real q = (l_use_moisture) ? 0.5 * (qt_arr(i,j,k-1) + qt_arr(i,j,k)) : 0.0;
 
             Real coeff_P = coeffP_a(i,j,k) / (1.0 + q);
@@ -440,39 +431,44 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
             Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
             // line 2 last two terms (order dtau)
-            Real R0_tmp  = coeff_P * cur_cons(i,j,k  ,RhoTheta_comp) * dJ_old_kface
-                         + coeff_Q * cur_cons(i,j,k-1,RhoTheta_comp) * dJ_old_kface
-                         - coeff_P * stg_cons(i,j,k  ,RhoTheta_comp) * dJ_stg_kface
-                         - coeff_Q * stg_cons(i,j,k-1,RhoTheta_comp) * dJ_stg_kface
-                       - halfg   * ( cur_cons(i,j,k,Rho_comp) + cur_cons(i,j,k-1,Rho_comp) ) * dJ_old_kface
-                       + halfg   * ( stg_cons(i,j,k,Rho_comp) + stg_cons(i,j,k-1,Rho_comp) ) * dJ_stg_kface;
+            Real R0_tmp  = coeff_P * cur_cons(i,j,k  ,RhoTheta_comp)
+                         + coeff_Q * cur_cons(i,j,k-1,RhoTheta_comp)
+                         - coeff_P * stg_cons(i,j,k  ,RhoTheta_comp)
+                         - coeff_Q * stg_cons(i,j,k-1,RhoTheta_comp)
+                       - halfg   * ( cur_cons(i,j,k,Rho_comp) + cur_cons(i,j,k-1,Rho_comp) )
+                       + halfg   * ( stg_cons(i,j,k,Rho_comp) + stg_cons(i,j,k-1,Rho_comp) );
 
             // line 3 residuals (order dtau^2) 1.0 <-> beta_2
-            Real R1_tmp = - halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +
-                                      slow_rhs_cons(i,j,k-1,Rho_comp) )
-                      +   ( coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) +
-                            coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
+            Real R1_tmp = - halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp)
+                                    + slow_rhs_cons(i,j,k-1,Rho_comp) )
+                          + coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp)
+                          + coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp);
 
             Real Omega_kp1 = omega_arr(i,j,k+1);
             Real Omega_k   = omega_arr(i,j,k  );
             Real Omega_km1 = omega_arr(i,j,k-1);
 
+            Real detJdiff = (detJ_old(i,j,k) - detJ_old(i,j,k-1)) / (detJ_old(i,j,k)*detJ_old(i,j,k-1));
+
             // consolidate lines 4&5 (order dtau^2)
-            R1_tmp += ( halfg ) *
-                      ( beta_1 * dzi * (Omega_kp1 - Omega_km1) + temp_rhs_arr(i,j,k,Rho_comp) + temp_rhs_arr(i,j,k-1,Rho_comp));
+            R1_tmp += halfg * ( beta_1 * dzi * (Omega_kp1/detJ_old(i,j,k) + detJdiff*Omega_k - Omega_km1/detJ_old(i,j,k-1))
+                                + temp_rhs_arr(i,j,k,Rho_comp)/detJ_old(i,j,k) + temp_rhs_arr(i,j,k-1,Rho_comp)/detJ_old(i,j,k-1) );
 
             // consolidate lines 6&7 (order dtau^2)
-            R1_tmp += -(
-                 coeff_P * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) ) +
-                 coeff_Q * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
+            R1_tmp += -( coeff_P/detJ_stg(i,j,k  ) * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) +
+                        temp_rhs_arr(i,j,k  ,RhoTheta_comp) )
+                       + coeff_Q/detJ_stg(i,j,k-1) * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) +
+                        temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
             // line 1
-            RHS_a(i,j,k) = dJ_old_kface * prev_zmom(i,j,k) - dJ_stg_kface * stg_zmom(i,j,k)
-                            + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp + zmom_src_arr(i,j,k));
+            Real detJ_half = 0.5 * (detJ_stg(i,j,k) + detJ_stg(i,j,k-1)); // TODO: THIS MAY NOT BE RIGHT
+            RHS_a(i,j,k) = prev_zmom(i,j,k) - stg_zmom(i,j,k)
+                + dtau * (slow_rhs_rho_w(i,j,k) + zmom_src_arr(i,j,k)) / detJ_half
+                + dtau * (R0_tmp + dtau*beta_2*R1_tmp);
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
-            Real UppVpp = dJ_new_kface * OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
-                         -dJ_stg_kface * OmegaFromW(i,j,k,0.,stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
+            Real UppVpp = OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,mf_ux,mf_vy,z_nd_new,dxInv)
+                        - OmegaFromW(i,j,k,0.,stg_xmom,stg_ymom,mf_ux,mf_vy,z_nd_stg,dxInv);
             RHS_a(i,j,k) += UppVpp;
         });
         } // end profile
@@ -484,7 +480,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         auto const hi = ubound(bx);
 
         {
-        BL_PROFILE("fast_rhs_b2d_loop_t");
+        BL_PROFILE("substep_b2d_loop_t");
 
 #ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
@@ -555,7 +551,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         } // end profile
 
         {
-        BL_PROFILE("fast_rhs_new_drhow");
+        BL_PROFILE("substep_new_drhow");
         tbz.setBig(2,hi.z);
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -608,7 +604,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
               // We have already scaled the slow source term to have the extra factor of dJ
               Real fast_rhs_rho = -(temp_rhs_arr(i,j,k,0) + ( zflux_hi - zflux_lo ) * dzi);
               Real temp_rho = detJ_old(i,j,k) * cur_cons(i,j,k,0) +
-                              dtau * ( slow_rhs_cons(i,j,k,0) + fast_rhs_rho );
+                              dtau * ( slow_rhs_cons(i,j,k,0)*detJ_stg(i,j,k) + fast_rhs_rho );
               cur_cons(i,j,k,0) = temp_rho / detJ_new(i,j,k);
 
               // Note that the factor of (1/J) in the fast source term is canceled
@@ -618,7 +614,7 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
                                         ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1))
                                         - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi );
               Real temp_rth = detJ_old(i,j,k) * cur_cons(i,j,k,1) +
-                              dtau * ( slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta );
+                              dtau * ( slow_rhs_cons(i,j,k,1)*detJ_stg(i,j,k) + fast_rhs_rhotheta );
               cur_cons(i,j,k,1) = temp_rth / detJ_new(i,j,k);
               if (l_reflux) {
                   (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
@@ -641,7 +637,8 @@ void erf_fast_rhs_MT (int step, int /*nrk*/,
         // We only add to the flux registers in the final RK step
         if (l_reflux) {
             int strt_comp_reflux = 0;
-            int  num_comp_reflux = 2;
+            // For now we don't reflux (rho theta) because it seems to create issues at c/f boundaries
+            int  num_comp_reflux = 1;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
