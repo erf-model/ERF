@@ -38,7 +38,9 @@ build_dir="$(realpath -- "${src_dir}/../build_${host}_${CI_PIPELINE_ID}_$(date +
 echo "Build directory: ${build_dir}"
 
 # Parse test labels (if any)
-if [[ ${CI_COMMIT_MESSAGE} =~ \[run-ci[[:space:]]*([[:alpha:]]*)[[:space:]]*\]$ ]];
+printenv
+echo "COMMIT: '${CI_COMMIT_MESSAGE}'"
+if [[ "${CI_COMMIT_MESSAGE}" =~ \[run-ci[[:space:]]*([[:alpha:]]*)[[:space:]]*\] ]];
 then
     ctest_label=${BASH_REMATCH[1]}
     echo "Running tests for CTest label: '${ctest_label}'"
