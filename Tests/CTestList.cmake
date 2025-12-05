@@ -109,6 +109,54 @@ function(add_test_0 TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     )
 endfunction(add_test_0)
 
+# Regression test for land surface models
+function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
+    set(options )
+    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS" "LABEL")
+    set(multiValueArgs PLTFILES)
+    cmake_parse_arguments(ADD_TEST_LSM "${options}" "${oneValueArgs}"
+        "${multiValueArgs}" ${ARGN})
+
+    setup_test()
+
+    set(RUNTIME_OPTIONS "${ADD_TEST_LSM_RUNTIME_OPTIONS}")
+    if(NOT "${ADD_TEST_LSM_INPUT_SOUNDING}" STREQUAL "")
+      string(APPEND RUNTIME_OPTIONS "erf.input_sounding_file=${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_LSM_INPUT_SOUNDING}")
+    endif()
+
+    if (ADD_TEST_LSM_LABEL)
+        set(test_labels "${ADD_TEST_LSM_LABEL}")
+    else()
+        set(test_labels "regression")    
+    endif()
+
+    if(WIN32)
+        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe")
+    else()
+        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}")
+    endif()
+
+    set(FCOMPARE_TOLERANCE "-r ${ERF_TEST_FCOMPARE_RTOL} --abs_tol ${ERF_TEST_FCOMPARE_ATOL}")
+    set(FCOMPARE_FLAGS "--abort_if_not_all_found -a ${FCOMPARE_TOLERANCE}")
+
+    set(test_command "sh -c \"${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log")
+    foreach(PLTFILE ${ADD_TEST_LSM_PLTFILES})
+        set(test_command "${test_command} && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
+    endforeach()
+    set(test_command "${test_command}\"")
+    message(STATUS "TEST COMMAND FOR '${TEST_NAME}': ${test_command}")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 5400
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS ${test_labels}
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
+    )
+endfunction(add_test_lsm)
+
 #=============================================================================
 # Regression tests
 #=============================================================================
@@ -164,6 +212,10 @@ add_test_0(PoiseuilleFlow_x                  "DryRegTests/Couette_Poiseuille" "e
 add_test_0(PoiseuilleFlow_y                  "DryRegTests/Couette_Poiseuille" "erf_couette_poiseuille" "plt00010")
 add_test_0(InitSoundingIdeal_stationary      "ABL" "erf_abl" "plt00010")
 add_test_0(Deardorff_stationary              "ABL" "erf_abl" "plt00010")
+
+# test w/out plotfile comparisons
+#add_test_lsm(SLM_CASS                        "DevTests/LandSurfaceModel_SLM_Coupled" "LandSurfaceModel_SLMERF")
+add_test_lsm(SLM_CASS_SAMRadiation            "DevTests/LandSurfaceModel_SLM_Coupled" "LandSurfaceModel_SLMERF" LABEL "slm" PLTFILES "plt43200" "plt_lsm_43200" "plt_lsm_2D_43200")
 
 #=============================================================================
 # Performance tests
