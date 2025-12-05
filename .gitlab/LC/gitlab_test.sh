@@ -37,6 +37,13 @@ echo "Source directory: ${src_dir}"
 build_dir="$(realpath -- "${src_dir}/../build_${host}_${CI_PIPELINE_ID}_$(date +%F_%H_%M_%S)")"
 echo "Build directory: ${build_dir}"
 
+# Parse test labels (if any)
+if [[ ${CI_COMMIT_MESSAGE} =~ \[run-ci[[:space:]]*([[:alpha:]]*)[[:space:]]*\]$ ]];
+then
+    ctest_label=${BASH_REMATCH[1]}
+    echo "Running tests for CTest label: '${ctest_label}'"
+fi
+
 echo "============="
 echo "Setup modules"
 echo "============="
@@ -160,4 +167,4 @@ echo "========"
 echo "Test ERF"
 echo "========"
 
-time ctest --test-dir "${build_dir}" --extra-verbose --output-on-failure
+time ctest --test-dir "${build_dir}" --extra-verbose --output-on-failure -L ${ctest_label:-""}

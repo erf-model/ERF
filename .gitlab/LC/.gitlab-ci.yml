@@ -40,7 +40,7 @@ workflow:
     - if: $CI_COMMIT_MESSAGE =~ /\[skip-ci\]/
       when: never
     # Test if the commit message contains [run-ci]
-    - if: $CI_COMMIT_MESSAGE =~ /\[run-ci\]/
+    - if: $CI_COMMIT_MESSAGE =~ /\[run-ci.*\]/
     # Test branches starting with "gitlab"
     - if: $CI_COMMIT_BRANCH =~ /^gitlab.*/
     # Test merge requests
