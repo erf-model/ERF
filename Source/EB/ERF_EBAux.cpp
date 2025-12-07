@@ -862,30 +862,27 @@ define( [[maybe_unused]] int const& a_level,
     if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
 
       // Corrections for small cells
-      Box my_xbx(bx); if (a_idim == 0) my_xbx.growLo(0,1);
+      Box my_xbx(bx); if (a_idim == 0) my_xbx.growLo(0,1); if (a_idim != 0) my_xbx.growHi(0,1);
       ParallelFor(my_xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac) {
-          aux_afrac_x(i  ,j  ,k  ) = 0.0;
-          aux_afrac_x(i+1,j  ,k  ) = 0.0;
+        if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i-1,j,k) < small_volfrac) {
+          aux_afrac_x(i,j,k) = 0.0;
         }
       });
 
-      Box my_ybx(bx); if (a_idim == 1) my_ybx.growLo(1,1);
+      Box my_ybx(bx); if (a_idim == 1) my_ybx.growLo(1,1); if (a_idim != 1) my_ybx.growHi(1,1);
       ParallelFor(my_ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac) {
-          aux_afrac_y(i  ,j  ,k  ) = 0.0;
-          aux_afrac_y(i  ,j+1,k  ) = 0.0;
+        if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i,j-1,k) < small_volfrac) {
+          aux_afrac_y(i,j,k) = 0.0;
         }
       });
 
-      Box my_zbx(bx); if (a_idim == 2) my_zbx.growLo(2,1);
+      Box my_zbx(bx); if (a_idim == 2) my_zbx.growLo(2,1); if (a_idim != 2) my_zbx.growHi(2,1);
       ParallelFor(my_zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac) {
-          aux_afrac_z(i  ,j  ,k+1) = 0.0;
-          aux_afrac_z(i  ,j  ,k  ) = 0.0;
+        if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i,j,k-1) < small_volfrac) {
+          aux_afrac_z(i,j,k) = 0.0;
         }
       });
 
@@ -1102,7 +1099,6 @@ define( [[maybe_unused]] int const& a_level,
   // Fill Boundary
 
   m_cellflags->FillBoundary(a_geom.periodicity());
-
 }
 
 const FabArray<EBCellFlagFab>&
