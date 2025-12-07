@@ -75,6 +75,27 @@ class eb_cut_cell_ {
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real volume_debug () const {
+
+      if (m_flag.isCovered() ) { return 0.; }
+      if (m_flag.isRegular() ) { return m_rbox.volume(); }
+
+      amrex::Real volume(0.);
+
+      amrex::Real const* lo = m_rbox.lo();
+      amrex::RealVect v0(lo[0], lo[1], lo[2]);
+
+      if (m_F2.ok() ) { volume += m_F2.area() * m_F2.distance(v0); }
+      if (m_F3.ok() ) { volume += m_F3.area() * m_F3.distance(v0); }
+      if (m_F6.ok() ) { volume += m_F6.area() * m_F6.distance(v0); }
+      if (m_F7.ok() ) { volume += m_F7.area() * m_F7.distance(v0); }
+
+      volume /= 3.;
+
+      return m_invert*volume + (1.-m_invert)*(m_rbox.volume()-volume);
+    }
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real areaLo ( int const a_idim ) const noexcept {
       AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
       if (m_flag.isCovered() ) { return 0.; }
@@ -157,6 +178,36 @@ class eb_cut_cell_ {
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect centVol () const noexcept {
+      amrex::RealVect vcent = m_cell_cent;
+      if (m_flag.isSingleValued()) {
+        amrex::Real xm = m_rbox.lo(0);
+        amrex::Real xp = m_rbox.hi(0);
+        amrex::Real ym = m_rbox.lo(1);
+        amrex::Real yp = m_rbox.hi(1);
+        amrex::Real zm = m_rbox.lo(2);
+        amrex::Real zp = m_rbox.hi(2);
+
+        amrex::Real axm = areaLo(0);
+        amrex::Real axp = areaHi(0);
+        amrex::Real aym = areaLo(1);
+        amrex::Real ayp = areaHi(1);
+        amrex::Real azm = areaLo(2);
+        amrex::Real azp = areaHi(2);
+
+        amrex::Real barea = m_F7.area();
+        amrex::RealVect bcent = m_F7.get_centroid();
+
+        amrex::Real vol = volume();
+
+        vcent[0] = 0.5 * ( - xm * xm * axm + xp * xp * axp + bcent[0] * bcent[0] * m_eb_normal[0] * barea ) / vol;
+        vcent[1] = 0.5 * ( - ym * ym * aym + yp * yp * ayp + bcent[1] * bcent[1] * m_eb_normal[1] * barea ) / vol;
+        vcent[2] = 0.5 * ( - zm * zm * azm + zp * zp * azp + bcent[2] * bcent[2] * m_eb_normal[2] * barea ) / vol;
+      }
+      return vcent;
+    }
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::RealVect centVol_debug ([[maybe_unused]] int i, [[maybe_unused]] int j, [[maybe_unused]] int k) const noexcept {
       amrex::RealVect vcent = m_cell_cent;
       if (m_flag.isSingleValued()) {
         amrex::Real xm = m_rbox.lo(0);
@@ -351,25 +402,23 @@ calc_edge_intersections ()
   RealVect v6(m_rbox.lo(0), m_rbox.hi(1), m_rbox.hi(2));
   RealVect v7(m_rbox.hi(0), m_rbox.hi(1), m_rbox.hi(2));
 
-#ifndef AMREX_USE_GPU
-  constexpr bool print_F1 = false;
-  constexpr bool print_F2 = false;
-  constexpr bool print_F3 = false;
-  constexpr bool print_F4 = false;
-  constexpr bool print_F5 = false;
-  constexpr bool print_F6 = false;
-  constexpr bool print_F7 = false;
-#endif
+// #ifndef AMREX_USE_GPU
 
-#ifdef AMREX_USE_GPU
-  m_F1.add_vertex(v0);
-  m_F4.add_vertex(v0);
-  m_F5.add_vertex(v0);
-#else
-  m_F1.add_vertex(v0,"Initial: add v0 -> F1",print_F1);
-  m_F4.add_vertex(v0,"Initial: add v0 -> F4",print_F4);
-  m_F5.add_vertex(v0,"Initial: add v0 -> F5",print_F5);
-#endif
+  bool print_initial = ( Math::abs(m_eb_point[0]-1.666667e-01)<1.e-4 && 
+                         Math::abs(m_eb_point[1]+4.194018e-01)<1.e-4 && 
+                         Math::abs(m_eb_point[2]+1.666667e-01)<1.e-4 );
+  const bool print_F1 = print_initial && false;
+  const bool print_F2 = print_initial && false;
+  const bool print_F3 = print_initial && false;
+  const bool print_F4 = print_initial && false;
+  const bool print_F5 = print_initial && false;
+  const bool print_F6 = print_initial && false;
+  const bool print_F7 = print_initial && false;
+// #endif
+
+  m_F1.add_vertex(v0); if(print_F1) printf("Initial: add v0 -> F1\n");
+  m_F4.add_vertex(v0); if(print_F4) printf("Initial: add v0 -> F4\n");
+  m_F5.add_vertex(v0); if(print_F5) printf("Initial: add v0 -> F5\n");
 
   int add_v7(1);
 
@@ -389,62 +438,36 @@ calc_edge_intersections ()
       amrex::Real length = (v0-v1).vectorLength();
 
       if ( Math::abs(distIP) < tol ) {
-#ifdef AMREX_USE_GPU
-        m_F1.add_vertex(v0);
-        m_F4.add_vertex(v0);
-        m_F5.add_vertex(v0);
-        m_F7.add_vertex(v0);
-#else
-        m_F1.add_vertex(v0,"Path 1: v0--v1: add v0 -> F1",print_F1);
-        m_F4.add_vertex(v0,"Path 1: v0--v1: add v0 -> F4",print_F4);
-        m_F5.add_vertex(v0,"Path 1: v0--v1: add v0 -> F5",print_F5);
-        m_F7.add_vertex(v0,"Path 1: v0--v1: add v0 -> F7",print_F7);
-#endif
+        m_F1.add_vertex(v0); if(print_F1) printf("Path 1: v0--v1: add v0 -> F1\n");
+        m_F4.add_vertex(v0); if(print_F4) printf("Path 1: v0--v1: add v0 -> F4\n");
+        m_F5.add_vertex(v0); if(print_F5) printf("Path 1: v0--v1: add v0 -> F5\n");
+        m_F7.add_vertex(v0); if(print_F7) printf("Path 1: v0--v1: add v0 -> F7\n");
         if (!vertex_intersected[0]) {
           vertex_intersected[0] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol ) {
-#ifdef AMREX_USE_GPU
-        m_F1.add_vertex(v1);
-        m_F2.add_vertex(v1);
-        m_F5.add_vertex(v1);
-        m_F7.add_vertex(v1);
-#else
-        m_F1.add_vertex(v1,"Path 1: v0--v1: add v1 -> F1",print_F1);
-        m_F2.add_vertex(v1,"Path 1: v0--v1: add v1 -> F2",print_F2);
-        m_F5.add_vertex(v1,"Path 1: v0--v1: add v1 -> F5",print_F5);
-        m_F7.add_vertex(v1,"Path 1: v0--v1: add v1 -> F7",print_F7);
-#endif
+        m_F1.add_vertex(v1); if(print_F1) printf("Path 1: v0--v1: add v1 -> F1\n");
+        m_F2.add_vertex(v1); if(print_F2) printf("Path 1: v0--v1: add v1 -> F2\n");
+        m_F5.add_vertex(v1); if(print_F5) printf("Path 1: v0--v1: add v1 -> F5\n");
+        m_F7.add_vertex(v1); if(print_F7) printf("Path 1: v0--v1: add v1 -> F7\n");
         if (!vertex_intersected[1]) {
           vertex_intersected[1] = true;
           ++cuts;
         }
       } else {
-#ifdef AMREX_USE_GPU
-        m_F1.add_vertex(vIP);
-        m_F5.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
-#else
-        m_F1.add_vertex(vIP,"Path 1: v0--v1: add vIP -> F1",print_F1);
-        m_F5.add_vertex(vIP,"Path 1: v0--v1: add vIP -> F5",print_F5);
-        m_F7.add_vertex(vIP,"Path 1: v0--v1: add vIP -> F7",print_F7);
-#endif
+        m_F1.add_vertex(vIP); if(print_F1) printf("Path 1: v0--v1: add vIP -> F1\n");
+        m_F5.add_vertex(vIP); if(print_F5) printf("Path 1: v0--v1: add vIP -> F5\n");
+        m_F7.add_vertex(vIP); if(print_F7) printf("Path 1: v0--v1: add vIP -> F7\n");
         ++cuts;
       }
 
     } // Path 1: v0--v1
 
     if (cuts%2 == 0) {
-#ifdef AMREX_USE_GPU
-      m_F1.add_vertex(v1);
-      m_F2.add_vertex(v1);
-      m_F5.add_vertex(v1);
-#else
-      m_F1.add_vertex(v1,"Path 1: after v0--v1, cuts%2 == 0: add v1 -> F1",print_F1);
-      m_F2.add_vertex(v1,"Path 1: after v0--v1, cuts%2 == 0: add v1 -> F2",print_F2);
-      m_F5.add_vertex(v1,"Path 1: after v0--v1, cuts%2 == 0: add v1 -> F5",print_F5);
-#endif
+      m_F1.add_vertex(v1); if(print_F1) printf("Path 1: after v0--v1, cuts-mod-2==0: add v1 -> F1\n");
+      m_F2.add_vertex(v1); if(print_F2) printf("Path 1: after v0--v1, cuts-mod-2==0: add v1 -> F2\n");
+      m_F5.add_vertex(v1); if(print_F5) printf("Path 1: after v0--v1, cuts-mod-2==0: add v1 -> F5\n");
     }
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v1, v4, vIP, distIP)) {
@@ -452,62 +475,36 @@ calc_edge_intersections ()
       amrex::Real length = (v1-v4).vectorLength();
 
       if ( Math::abs(distIP) < tol ) {
-#ifdef AMREX_USE_GPU
-        m_F1.add_vertex(v1);
-        m_F2.add_vertex(v1);
-        m_F5.add_vertex(v1);
-        m_F7.add_vertex(v1);
-#else
-        m_F1.add_vertex(v1,"Path 1: v1--v4: add v1 -> F1",print_F1);
-        m_F2.add_vertex(v1,"Path 1: v1--v4: add v1 -> F2",print_F2);
-        m_F5.add_vertex(v1,"Path 1: v1--v4: add v1 -> F5",print_F5);
-        m_F7.add_vertex(v1,"Path 1: v1--v4: add v1 -> F7",print_F7);
-#endif
+        m_F1.add_vertex(v1); if(print_F1) printf("Path 1: v1--v4: add v1 -> F1\n");
+        m_F2.add_vertex(v1); if(print_F2) printf("Path 1: v1--v4: add v1 -> F2\n");
+        m_F5.add_vertex(v1); if(print_F5) printf("Path 1: v1--v4: add v1 -> F5\n");
+        m_F7.add_vertex(v1); if(print_F7) printf("Path 1: v1--v4: add v1 -> F7\n");
         if (!vertex_intersected[1]) {
           vertex_intersected[1] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol ) {
-#ifdef AMREX_USE_GPU
-        m_F2.add_vertex(v4);
-        m_F3.add_vertex(v4);
-        m_F5.add_vertex(v4);
-        m_F7.add_vertex(v4);
-#else
-        m_F2.add_vertex(v4,"Path 1: v1--v4: add v4 -> F2",print_F2);
-        m_F3.add_vertex(v4,"Path 1: v1--v4: add v4 -> F3",print_F3);
-        m_F5.add_vertex(v4,"Path 1: v1--v4: add v4 -> F5",print_F5);
-        m_F7.add_vertex(v4,"Path 1: v1--v4: add v4 -> F7",print_F7);
-#endif
+        m_F2.add_vertex(v4); if(print_F2) printf("Path 1: v1--v4: add v4 -> F2\n");
+        m_F3.add_vertex(v4); if(print_F3) printf("Path 1: v1--v4: add v4 -> F3\n");
+        m_F5.add_vertex(v4); if(print_F5) printf("Path 1: v1--v4: add v4 -> F5\n");
+        m_F7.add_vertex(v4); if(print_F7) printf("Path 1: v1--v4: add v4 -> F7\n");
         if (!vertex_intersected[4]) {
           vertex_intersected[4] = true;
           ++cuts;
         }
       } else {
-#ifdef AMREX_USE_GPU
-        m_F2.add_vertex(vIP);
-        m_F5.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
-#else
-        m_F2.add_vertex(vIP,"Path 1: v1--v4: add vIP -> F2",print_F2);
-        m_F5.add_vertex(vIP,"Path 1: v1--v4: add vIP -> F5",print_F5);
-        m_F7.add_vertex(vIP,"Path 1: v1--v4: add vIP -> F7",print_F7);
-#endif
+        m_F2.add_vertex(vIP); if(print_F2) printf("Path 1: v1--v4: add vIP -> F2\n");
+        m_F5.add_vertex(vIP); if(print_F5) printf("Path 1: v1--v4: add vIP -> F5\n");
+        m_F7.add_vertex(vIP); if(print_F7) printf("Path 1: v1--v4: add vIP -> F7\n");
         ++cuts;
       }
 
     } // P1: v1--v4
 
     if (cuts%2 == 0) {
-#ifdef AMREX_USE_GPU
-      m_F2.add_vertex(v4);
-      m_F3.add_vertex(v4);
-      m_F5.add_vertex(v4);
-#else
-      m_F2.add_vertex(v4,"Path 1: after v1--v4, cuts%2 == 0: add v4 -> F2",print_F2);
-      m_F3.add_vertex(v4,"Path 1: after v1--v4, cuts%2 == 0: add v4 -> F3",print_F3);
-      m_F5.add_vertex(v4,"Path 1: after v1--v4, cuts%2 == 0: add v4 -> F5",print_F5);
-#endif
+      m_F2.add_vertex(v4,"Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F2",print_F2);
+      m_F3.add_vertex(v4,"Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F3",print_F3);
+      m_F5.add_vertex(v4,"Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F5",print_F5);
     }
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v4, v7, vIP, distIP)) {
@@ -515,47 +512,27 @@ calc_edge_intersections ()
       amrex::Real length = (v4-v7).vectorLength();
 
       if ( Math::abs(distIP) < tol) {
-#ifdef AMREX_USE_GPU
-        m_F2.add_vertex(v4);
-        m_F3.add_vertex(v4);
-        m_F5.add_vertex(v4);
-        m_F7.add_vertex(v4);
-#else
-        m_F2.add_vertex(v4,"Path 1: v4--v7: add v4 -> F2",print_F2);
-        m_F3.add_vertex(v4,"Path 1: v4--v7: add v4 -> F3",print_F3);
-        m_F5.add_vertex(v4,"Path 1: v4--v7: add v4 -> F5",print_F5);
-        m_F7.add_vertex(v4,"Path 1: v4--v7: add v4 -> F7",print_F7);
-#endif
+        m_F2.add_vertex(v4); if(print_F2) printf("Path 1: v4--v7: add v4 -> F2\n");
+        m_F3.add_vertex(v4); if(print_F3) printf("Path 1: v4--v7: add v4 -> F3\n");
+        m_F5.add_vertex(v4); if(print_F5) printf("Path 1: v4--v7: add v4 -> F5\n");
+        m_F7.add_vertex(v4); if(print_F7) printf("Path 1: v4--v7: add v4 -> F7\n");
         if (!vertex_intersected[4]) {
           vertex_intersected[4] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol) {
-#ifdef AMREX_USE_GPU
-        m_F2.add_vertex(v7);
-        m_F3.add_vertex(v7);
-        m_F6.add_vertex(v7);
-        m_F7.add_vertex(v7);
-#else
-        m_F2.add_vertex(v7,"Path 1: v4--v7: add v7 -> F2",print_F2);
-        m_F3.add_vertex(v7,"Path 1: v4--v7: add v7 -> F3",print_F3);
-        m_F6.add_vertex(v7,"Path 1: v4--v7: add v7 -> F6",print_F6);
-        m_F7.add_vertex(v7,"Path 1: v4--v7: add v7 -> F7",print_F7);
-#endif
+        m_F2.add_vertex(v7); if(print_F2) printf("Path 1: v4--v7: add v7 -> F2\n");
+        m_F3.add_vertex(v7); if(print_F3) printf("Path 1: v4--v7: add v7 -> F3\n");
+        m_F6.add_vertex(v7); if(print_F6) printf("Path 1: v4--v7: add v7 -> F6\n");
+        m_F7.add_vertex(v7); if(print_F7) printf("Path 1: v4--v7: add v7 -> F7\n");
         if (!vertex_intersected[7]) {
           vertex_intersected[7] = true;
           ++cuts;
         }
       } else {
-#ifdef AMREX_USE_GPU
-        m_F2.add_vertex(vIP);
-        m_F3.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
-#else
-        m_F2.add_vertex(vIP,"Path 1: v4--v7: add vIP -> F2",print_F2);
-        m_F3.add_vertex(vIP,"Path 1: v4--v7: add vIP -> F3",print_F3);
-        m_F7.add_vertex(vIP,"Path 1: v4--v7: add vIP -> F7",print_F7);
-#endif
+        m_F2.add_vertex(vIP); if(print_F2) printf("Path 1: v4--v7: add vIP -> F2\n");
+        m_F3.add_vertex(vIP); if(print_F3) printf("Path 1: v4--v7: add vIP -> F3\n");
+        m_F7.add_vertex(vIP); if(print_F7) printf("Path 1: v4--v7: add vIP -> F7\n");
         ++cuts;
       }
 
@@ -563,15 +540,9 @@ calc_edge_intersections ()
 
     if (cuts == 2 && add_v7) {
       if (!utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
-#ifdef AMREX_USE_GPU
-        m_F2.add_vertex(v7);
-        m_F3.add_vertex(v7);
-        m_F6.add_vertex(v7);
-#else
-        m_F2.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F2",print_F2);
-        m_F3.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F3",print_F3);
-        m_F6.add_vertex(v7,"Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F6",print_F6);
-#endif
+        m_F2.add_vertex(v7); if(print_F2) printf("Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F2\n");
+        m_F3.add_vertex(v7); if(print_F3) printf("Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F3\n");
+        m_F6.add_vertex(v7); if(print_F6) printf("Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F6\n");
         add_v7 = 0;
       }
     }
@@ -583,39 +554,19 @@ calc_edge_intersections ()
     amrex::Real length = (v1-v5).vectorLength();
 
     if ( Math::abs(distIP) < tol) {
-#ifdef AMREX_USE_GPU
-      m_F1.add_vertex(v1);
-      m_F2.add_vertex(v1);
-      m_F5.add_vertex(v1);
-      m_F7.add_vertex(v1);
-#else
-      m_F1.add_vertex(v1,"Path 4: v1--v5: add v1 -> F1",print_F1);
-      m_F2.add_vertex(v1,"Path 4: v1--v5: add v1 -> F2",print_F2);
-      m_F5.add_vertex(v1,"Path 4: v1--v5: add v1 -> F5",print_F5);
-      m_F7.add_vertex(v1,"Path 4: v1--v5: add v1 -> F7",print_F7);
-#endif
+      m_F1.add_vertex(v1); if(print_F1) printf("Path 4: v1--v5: add v1 -> F1\n");
+      m_F2.add_vertex(v1); if(print_F2) printf("Path 4: v1--v5: add v1 -> F2\n");
+      m_F5.add_vertex(v1); if(print_F5) printf("Path 4: v1--v5: add v1 -> F5\n");
+      m_F7.add_vertex(v1); if(print_F7) printf("Path 4: v1--v5: add v1 -> F7\n");
     } else if ( Math::abs(distIP - length) < tol) {
-#ifdef AMREX_USE_GPU
-      m_F1.add_vertex(v5);
-      m_F2.add_vertex(v5);
-      m_F6.add_vertex(v5);
-      m_F7.add_vertex(v5);
-#else
-      m_F1.add_vertex(v5,"Path 4: v1--v5: add v5 -> F1",print_F1);
-      m_F2.add_vertex(v5,"Path 4: v1--v5: add v5 -> F2",print_F2);
-      m_F6.add_vertex(v5,"Path 4: v1--v5: add v5 -> F6",print_F6);
-      m_F7.add_vertex(v5,"Path 4: v1--v5: add v5 -> F7",print_F7);
-#endif
+      m_F1.add_vertex(v5); if(print_F1) printf("Path 4: v1--v5: add v5 -> F1\n");
+      m_F2.add_vertex(v5); if(print_F2) printf("Path 4: v1--v5: add v5 -> F2\n");
+      m_F6.add_vertex(v5); if(print_F6) printf("Path 4: v1--v5: add v5 -> F6\n");
+      m_F7.add_vertex(v5); if(print_F7) printf("Path 4: v1--v5: add v5 -> F7\n");
     } else {
-#ifdef AMREX_USE_GPU
-      m_F1.add_vertex(vIP);
-      m_F2.add_vertex(vIP);
-      m_F7.add_vertex(vIP);
-#else
-      m_F1.add_vertex(vIP,"Path 4: v1--v5: add vIP -> F1",print_F1);
-      m_F2.add_vertex(vIP,"Path 4: v1--v5: add vIP -> F2",print_F2);
-      m_F7.add_vertex(vIP,"Path 4: v1--v5: add vIP -> F7",print_F7);
-#endif
+      m_F1.add_vertex(vIP); if(print_F1) printf("Path 4: v1--v5: add vIP -> F1\n");
+      m_F2.add_vertex(vIP); if(print_F2) printf("Path 4: v1--v5: add vIP -> F2\n");
+      m_F7.add_vertex(vIP); if(print_F7) printf("Path 4: v1--v5: add vIP -> F7\n");
     }
   }
 
@@ -628,62 +579,36 @@ calc_edge_intersections ()
       amrex::Real length = (v0-v2).vectorLength();
 
       if ( Math::abs(distIP) < tol ) {
-#ifdef AMREX_USE_GPU
-        m_F1.add_vertex(v0);
-        m_F4.add_vertex(v0);
-        m_F5.add_vertex(v0);
-        m_F7.add_vertex(v0);
-#else
-        m_F1.add_vertex(v0,"Path 2: v0--v2: add v0 -> F1",print_F1);
-        m_F4.add_vertex(v0,"Path 2: v0--v2: add v0 -> F4",print_F4);
-        m_F5.add_vertex(v0,"Path 2: v0--v2: add v0 -> F5",print_F5);
-        m_F7.add_vertex(v0,"Path 2: v0--v2: add v0 -> F7",print_F7);
-#endif
+        m_F1.add_vertex(v0); if(print_F1) printf("Path 2: v0--v2: add v0 -> F1\n");
+        m_F4.add_vertex(v0); if(print_F4) printf("Path 2: v0--v2: add v0 -> F4\n");
+        m_F5.add_vertex(v0); if(print_F5) printf("Path 2: v0--v2: add v0 -> F5\n");
+        m_F7.add_vertex(v0); if(print_F7) printf("Path 2: v0--v2: add v0 -> F7\n");
         if (!vertex_intersected[0]) {
           vertex_intersected[0] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol ) {
-#ifdef AMREX_USE_GPU
-        m_F1.add_vertex(v2);
-        m_F4.add_vertex(v2);
-        m_F6.add_vertex(v2);
-        m_F7.add_vertex(v2);
-#else
-        m_F1.add_vertex(v2,"Path 2: v0--v2: add v2 -> F1",print_F1);
-        m_F4.add_vertex(v2,"Path 2: v0--v2: add v2 -> F4",print_F4);
-        m_F6.add_vertex(v2,"Path 2: v0--v2: add v2 -> F6",print_F6);
-        m_F7.add_vertex(v2,"Path 2: v0--v2: add v2 -> F7",print_F7);
-#endif
+        m_F1.add_vertex(v2); if(print_F1) printf("Path 2: v0--v2: add v2 -> F1\n");
+        m_F4.add_vertex(v2); if(print_F4) printf("Path 2: v0--v2: add v2 -> F4\n");
+        m_F6.add_vertex(v2); if(print_F6) printf("Path 2: v0--v2: add v2 -> F6\n");
+        m_F7.add_vertex(v2); if(print_F7) printf("Path 2: v0--v2: add v2 -> F7\n");
         if (!vertex_intersected[2]) {
           vertex_intersected[2] = true;
           ++cuts;
         }
       } else {
-#ifdef AMREX_USE_GPU
-        m_F1.add_vertex(vIP);
-        m_F4.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
-#else
-        m_F1.add_vertex(vIP,"Path 2: v0--v2: add vIP -> F1",print_F1);
-        m_F4.add_vertex(vIP,"Path 2: v0--v2: add vIP -> F4",print_F4);
-        m_F7.add_vertex(vIP,"Path 2: v0--v2: add vIP -> F7",print_F7);
-#endif
+        m_F1.add_vertex(vIP); if(print_F1) printf("Path 2: v0--v2: add vIP -> F1\n");
+        m_F4.add_vertex(vIP); if(print_F4) printf("Path 2: v0--v2: add vIP -> F4\n");
+        m_F7.add_vertex(vIP); if(print_F7) printf("Path 2: v0--v2: add vIP -> F7\n");
         ++cuts;
       }
 
     } // P2: v0--v2
 
     if (cuts%2 == 0) {
-#ifdef AMREX_USE_GPU
-      m_F1.add_vertex(v2);
-      m_F4.add_vertex(v2);
-      m_F6.add_vertex(v2);
-#else
-      m_F1.add_vertex(v2,"Path 2: after v0--v2, cuts%2 == 0: add v2 -> F1",print_F1);
-      m_F4.add_vertex(v2,"Path 2: after v0--v2, cuts%2 == 0: add v2 -> F4",print_F4);
-      m_F6.add_vertex(v2,"Path 2: after v0--v2, cuts%2 == 0: add v2 -> F6",print_F6);
-#endif
+      m_F1.add_vertex(v2); if(print_F1) printf("Path 2: after v0--v2, cuts-mod-2==0: add v2 -> F1\n");
+      m_F4.add_vertex(v2); if(print_F4) printf("Path 2: after v0--v2, cuts-mod-2==0: add v2 -> F4\n");
+      m_F6.add_vertex(v2); if(print_F6) printf("Path 2: after v0--v2, cuts-mod-2==0: add v2 -> F6\n");
     }
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v2, v5, vIP, distIP)) {
@@ -691,61 +616,35 @@ calc_edge_intersections ()
       amrex::Real length = (v2-v5).vectorLength();
 
       if ( Math::abs(distIP) < tol) {
-#ifdef AMREX_USE_GPU
-        m_F1.add_vertex(v2);
-        m_F4.add_vertex(v2);
-        m_F6.add_vertex(v2);
-        m_F7.add_vertex(v2);
-#else
-        m_F1.add_vertex(v2,"Path 2: v2--v5: add v2 -> F1",print_F1);
-        m_F4.add_vertex(v2,"Path 2: v2--v5: add v2 -> F4",print_F4);
-        m_F6.add_vertex(v2,"Path 2: v2--v5: add v2 -> F6",print_F6);
-        m_F7.add_vertex(v2,"Path 2: v2--v5: add v2 -> F7",print_F7);
-#endif
+        m_F1.add_vertex(v2); if(print_F1) printf("Path 2: v2--v5: add v2 -> F1\n");
+        m_F4.add_vertex(v2); if(print_F4) printf("Path 2: v2--v5: add v2 -> F4\n");
+        m_F6.add_vertex(v2); if(print_F6) printf("Path 2: v2--v5: add v2 -> F6\n");
+        m_F7.add_vertex(v2); if(print_F7) printf("Path 2: v2--v5: add v2 -> F7\n");
         if (!vertex_intersected[2]) {
           vertex_intersected[2] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol) {
-#ifdef AMREX_USE_GPU
-        m_F1.add_vertex(v5);
-        m_F2.add_vertex(v5);
-        m_F6.add_vertex(v5);
-        m_F7.add_vertex(v5);
-#else
-        m_F1.add_vertex(v5,"Path 2: v2--v5: add v5 -> F1",print_F1);
-        m_F2.add_vertex(v5,"Path 2: v2--v5: add v5 -> F2",print_F2);
-        m_F6.add_vertex(v5,"Path 2: v2--v5: add v5 -> F6",print_F6);
-        m_F7.add_vertex(v5,"Path 2: v2--v5: add v5 -> F7",print_F7);
-#endif
+        m_F1.add_vertex(v5); if(print_F1) printf("Path 2: v2--v5: add v5 -> F1\n");
+        m_F2.add_vertex(v5); if(print_F2) printf("Path 2: v2--v5: add v5 -> F2\n");
+        m_F6.add_vertex(v5); if(print_F6) printf("Path 2: v2--v5: add v5 -> F6\n");
+        m_F7.add_vertex(v5); if(print_F7) printf("Path 2: v2--v5: add v5 -> F7\n");
         if (!vertex_intersected[5]) {
           vertex_intersected[5] = true;
           ++cuts;
         }
       } else {
-#ifdef AMREX_USE_GPU
-        m_F1.add_vertex(vIP);
-        m_F6.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
-#else
-        m_F1.add_vertex(vIP,"Path 2: v2--v5: add vIP -> F1",print_F1);
-        m_F6.add_vertex(vIP,"Path 2: v2--v5: add vIP -> F6",print_F6);
-        m_F7.add_vertex(vIP,"Path 2: v2--v5: add vIP -> F7",print_F7);
-#endif
+        m_F1.add_vertex(vIP); if(print_F1) printf("Path 2: v2--v5: add vIP -> F1\n");
+        m_F6.add_vertex(vIP); if(print_F6) printf("Path 2: v2--v5: add vIP -> F6\n");
+        m_F7.add_vertex(vIP); if(print_F7) printf("Path 2: v2--v5: add vIP -> F7\n");
         ++cuts;
       }
     }
 
     if (cuts%2 == 0) {
-#ifdef AMREX_USE_GPU
-      m_F1.add_vertex(v5);
-      m_F2.add_vertex(v5);
-      m_F6.add_vertex(v5);
-#else
-      m_F1.add_vertex(v5,"Path 2: after v2--v5, cuts%2 == 0: add v5 -> F1",print_F1);
-      m_F2.add_vertex(v5,"Path 2: after v2--v5, cuts%2 == 0: add v5 -> F2",print_F2);
-      m_F6.add_vertex(v5,"Path 2: after v2--v5, cuts%2 == 0: add v5 -> F6",print_F6);
-#endif
+      m_F1.add_vertex(v5); if(print_F1) printf("Path 2: after v2--v5, cuts-mod-2==0: add v5 -> F1\n");
+      m_F2.add_vertex(v5); if(print_F2) printf("Path 2: after v2--v5, cuts-mod-2==0: add v5 -> F2\n");
+      m_F6.add_vertex(v5); if(print_F6) printf("Path 2: after v2--v5, cuts-mod-2==0: add v5 -> F6\n");
     }
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v5, v7, vIP, distIP)) {
@@ -753,62 +652,36 @@ calc_edge_intersections ()
       amrex::Real length = (v5-v7).vectorLength();
 
       if ( Math::abs(distIP) < tol) {
-#ifdef AMREX_USE_GPU
-        m_F1.add_vertex(v5);
-        m_F2.add_vertex(v5);
-        m_F6.add_vertex(v5);
-        m_F7.add_vertex(v5);
-#else
-        m_F1.add_vertex(v5,"Path 2: v5--v7: add v5 -> F1",print_F1);
-        m_F2.add_vertex(v5,"Path 2: v5--v7: add v5 -> F2",print_F2);
-        m_F6.add_vertex(v5,"Path 2: v5--v7: add v5 -> F6",print_F6);
-        m_F7.add_vertex(v5,"Path 2: v5--v7: add v5 -> F7",print_F7);
-#endif
+        m_F1.add_vertex(v5); if(print_F1) printf("Path 2: v5--v7: add v5 -> F1\n");
+        m_F2.add_vertex(v5); if(print_F2) printf("Path 2: v5--v7: add v5 -> F2\n");
+        m_F6.add_vertex(v5); if(print_F6) printf("Path 2: v5--v7: add v5 -> F6\n");
+        m_F7.add_vertex(v5); if(print_F7) printf("Path 2: v5--v7: add v5 -> F7\n");
         if (!vertex_intersected[5]) {
           vertex_intersected[5] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol) {
-#ifdef AMREX_USE_GPU
-        m_F2.add_vertex(v7);
-        m_F3.add_vertex(v7);
-        m_F6.add_vertex(v7);
-        m_F7.add_vertex(v7);
-#else
-        m_F2.add_vertex(v7,"Path 2: v5--v7: add v7 -> F2",print_F2);
-        m_F3.add_vertex(v7,"Path 2: v5--v7: add v7 -> F3",print_F3);
-        m_F6.add_vertex(v7,"Path 2: v5--v7: add v7 -> F6",print_F6);
-        m_F7.add_vertex(v7,"Path 2: v5--v7: add v7 -> F7",print_F7);
-#endif
+        m_F2.add_vertex(v7); if(print_F2) printf("Path 2: v5--v7: add v7 -> F2\n");
+        m_F3.add_vertex(v7); if(print_F3) printf("Path 2: v5--v7: add v7 -> F3\n");
+        m_F6.add_vertex(v7); if(print_F6) printf("Path 2: v5--v7: add v7 -> F6\n");
+        m_F7.add_vertex(v7); if(print_F7) printf("Path 2: v5--v7: add v7 -> F7\n");
         if (!vertex_intersected[7]) {
           vertex_intersected[7] = true;
           ++cuts;
         }
       } else {
-#ifdef AMREX_USE_GPU
-        m_F2.add_vertex(vIP);
-        m_F6.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
-#else
-        m_F2.add_vertex(vIP,"Path 2: v5--v7: add vIP -> F2",print_F2);
-        m_F6.add_vertex(vIP,"Path 2: v5--v7: add vIP -> F6",print_F6);
-        m_F7.add_vertex(vIP,"Path 2: v5--v7: add vIP -> F7",print_F7);
-#endif
+        m_F2.add_vertex(vIP); if(print_F2) printf("Path 2: v5--v7: add vIP -> F2\n");
+        m_F6.add_vertex(vIP); if(print_F6) printf("Path 2: v5--v7: add vIP -> F6\n");
+        m_F7.add_vertex(vIP); if(print_F7) printf("Path 2: v5--v7: add vIP -> F7\n");
         ++cuts;
       }
     } // Path 2: v5--v7
 
     if (cuts == 2 && add_v7) {
       if (!utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
-#ifdef AMREX_USE_GPU
-        m_F2.add_vertex(v7);
-        m_F3.add_vertex(v7);
-        m_F6.add_vertex(v7);
-#else
-        m_F2.add_vertex(v7,"Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F2",print_F2);
-        m_F3.add_vertex(v7,"Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F3",print_F3);
-        m_F6.add_vertex(v7,"Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F6",print_F6);
-#endif
+        m_F2.add_vertex(v7); if(print_F2) printf("Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F2\n");
+        m_F3.add_vertex(v7); if(print_F3) printf("Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F3\n");
+        m_F6.add_vertex(v7); if(print_F6) printf("Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F6\n");
         add_v7 = 0;
       }
     }
@@ -821,39 +694,19 @@ calc_edge_intersections ()
     amrex::Real length = (v2-v6).vectorLength();
 
     if ( Math::abs(distIP) < tol) {
-#ifdef AMREX_USE_GPU
-      m_F1.add_vertex(v2);
-      m_F4.add_vertex(v2);
-      m_F6.add_vertex(v2);
-      m_F7.add_vertex(v2);
-#else
-      m_F1.add_vertex(v2,"Path 5: v2--v6: add v2 -> F1",print_F1);
-      m_F4.add_vertex(v2,"Path 5: v2--v6: add v2 -> F4",print_F4);
-      m_F6.add_vertex(v2,"Path 5: v2--v6: add v2 -> F6",print_F6);
-      m_F7.add_vertex(v2,"Path 5: v2--v6: add v2 -> F7",print_F7);
-#endif
+      m_F1.add_vertex(v2); if(print_F1) printf("Path 5: v2--v6: add v2 -> F1\n");
+      m_F4.add_vertex(v2); if(print_F4) printf("Path 5: v2--v6: add v2 -> F4\n");
+      m_F6.add_vertex(v2); if(print_F6) printf("Path 5: v2--v6: add v2 -> F6\n");
+      m_F7.add_vertex(v2); if(print_F7) printf("Path 5: v2--v6: add v2 -> F7\n");
     } else if ( Math::abs(distIP - length) < tol) {
-#ifdef AMREX_USE_GPU
-      m_F3.add_vertex(v6);
-      m_F4.add_vertex(v6);
-      m_F6.add_vertex(v6);
-      m_F7.add_vertex(v6);
-#else
-      m_F3.add_vertex(v6,"Path 5: v2--v6: add v6 -> F3",print_F3);
-      m_F4.add_vertex(v6,"Path 5: v2--v6: add v6 -> F4",print_F4);
-      m_F6.add_vertex(v6,"Path 5: v2--v6: add v6 -> F6",print_F6);
-      m_F7.add_vertex(v6,"Path 5: v2--v6: add v6 -> F7",print_F7);
-#endif
+      m_F3.add_vertex(v6); if(print_F3) printf("Path 5: v2--v6: add v6 -> F3\n");
+      m_F4.add_vertex(v6); if(print_F4) printf("Path 5: v2--v6: add v6 -> F4\n");
+      m_F6.add_vertex(v6); if(print_F6) printf("Path 5: v2--v6: add v6 -> F6\n");
+      m_F7.add_vertex(v6); if(print_F7) printf("Path 5: v2--v6: add v6 -> F7\n");
     } else {
-#ifdef AMREX_USE_GPU
-      m_F4.add_vertex(vIP);
-      m_F6.add_vertex(vIP);
-      m_F7.add_vertex(vIP);
-#else
-      m_F4.add_vertex(vIP,"Path 5: v2--v6: add vIP -> F4",print_F4);
-      m_F6.add_vertex(vIP,"Path 5: v2--v6: add vIP -> F6",print_F6);
-      m_F7.add_vertex(vIP,"Path 5: v2--v6: add vIP -> F7",print_F7);
-#endif
+      m_F4.add_vertex(vIP); if(print_F4) printf("Path 5: v2--v6: add vIP -> F4\n");
+      m_F6.add_vertex(vIP); if(print_F6) printf("Path 5: v2--v6: add vIP -> F6\n");
+      m_F7.add_vertex(vIP); if(print_F7) printf("Path 5: v2--v6: add vIP -> F7\n");
     }
   } // end Path 5
 
@@ -867,62 +720,36 @@ calc_edge_intersections ()
       amrex::Real length = (v0-v3).vectorLength();
 
       if ( Math::abs(distIP) < tol) {
-#ifdef AMREX_USE_GPU
-        m_F1.add_vertex(v0);
-        m_F4.add_vertex(v0);
-        m_F5.add_vertex(v0);
-        m_F7.add_vertex(v0);
-#else
-        m_F1.add_vertex(v0,"Path 3: v0--v3: add v0 -> F1",print_F1);
-        m_F4.add_vertex(v0,"Path 3: v0--v3: add v0 -> F4",print_F4);
-        m_F5.add_vertex(v0,"Path 3: v0--v3: add v0 -> F5",print_F5);
-        m_F7.add_vertex(v0,"Path 3: v0--v3: add v0 -> F7",print_F7);
-#endif
+        m_F1.add_vertex(v0); if(print_F1) printf("Path 3: v0--v3: add v0 -> F1\n");
+        m_F4.add_vertex(v0); if(print_F4) printf("Path 3: v0--v3: add v0 -> F4\n");
+        m_F5.add_vertex(v0); if(print_F5) printf("Path 3: v0--v3: add v0 -> F5\n");
+        m_F7.add_vertex(v0); if(print_F7) printf("Path 3: v0--v3: add v0 -> F7\n");
         if (!vertex_intersected[0]) {
           vertex_intersected[0] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol) {
-#ifdef AMREX_USE_GPU
-        m_F3.add_vertex(v3);
-        m_F4.add_vertex(v3);
-        m_F5.add_vertex(v3);
-        m_F7.add_vertex(v3);
-#else
-        m_F3.add_vertex(v3,"Path 3: v0--v3: add v3 -> F3",print_F3);
-        m_F4.add_vertex(v3,"Path 3: v0--v3: add v3 -> F4",print_F4);
-        m_F5.add_vertex(v3,"Path 3: v0--v3: add v3 -> F5",print_F5);
-        m_F7.add_vertex(v3,"Path 3: v0--v3: add v3 -> F7",print_F7);
-#endif
+        m_F3.add_vertex(v3); if(print_F3) printf("Path 3: v0--v3: add v3 -> F3\n");
+        m_F4.add_vertex(v3); if(print_F4) printf("Path 3: v0--v3: add v3 -> F4\n");
+        m_F5.add_vertex(v3); if(print_F5) printf("Path 3: v0--v3: add v3 -> F5\n");
+        m_F7.add_vertex(v3); if(print_F7) printf("Path 3: v0--v3: add v3 -> F7\n");
         if (!vertex_intersected[3]) {
           vertex_intersected[3] = true;
           ++cuts;
         }
       } else {
-#ifdef AMREX_USE_GPU
-        m_F4.add_vertex(vIP);
-        m_F5.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
-#else
-        m_F4.add_vertex(vIP,"Path 3: v0--v3: add vIP -> F4",print_F4);
-        m_F5.add_vertex(vIP,"Path 3: v0--v3: add vIP -> F5",print_F5);
-        m_F7.add_vertex(vIP,"Path 3: v0--v3: add vIP -> F7",print_F7);
-#endif
+        m_F4.add_vertex(vIP); if(print_F4) printf("Path 3: v0--v3: add vIP -> F4\n");
+        m_F5.add_vertex(vIP); if(print_F5) printf("Path 3: v0--v3: add vIP -> F5\n");
+        m_F7.add_vertex(vIP); if(print_F7) printf("Path 3: v0--v3: add vIP -> F7\n");
         ++cuts;
       }
 
     } // P3: v0--v3
 
     if (cuts%2 == 0) {
-#ifdef AMREX_USE_GPU
-      m_F3.add_vertex(v3);
-      m_F4.add_vertex(v3);
-      m_F5.add_vertex(v3);
-#else
-      m_F3.add_vertex(v3,"Path 3: after v0--v3, cuts%2 == 0: add v3 -> F3",print_F3);
-      m_F4.add_vertex(v3,"Path 3: after v0--v3, cuts%2 == 0: add v3 -> F4",print_F4);
-      m_F5.add_vertex(v3,"Path 3: after v0--v3, cuts%2 == 0: add v3 -> F5",print_F5);
-#endif
+      m_F3.add_vertex(v3); if(print_F3) printf("Path 3: after v0--v3, cuts-mod-2 == 0: add v3 -> F3\n");
+      m_F4.add_vertex(v3); if(print_F4) printf("Path 3: after v0--v3, cuts-mod-2 == 0: add v3 -> F4\n");
+      m_F5.add_vertex(v3); if(print_F5) printf("Path 3: after v0--v3, cuts-mod-2 == 0: add v3 -> F5\n");
     }
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v3, v6, vIP, distIP)) {
@@ -930,62 +757,36 @@ calc_edge_intersections ()
       amrex::Real length = (v3-v6).vectorLength();
 
       if ( Math::abs(distIP) < tol) {
-#ifdef AMREX_USE_GPU
-        m_F3.add_vertex(v3);
-        m_F4.add_vertex(v3);
-        m_F5.add_vertex(v3);
-        m_F7.add_vertex(v3);
-#else
-        m_F3.add_vertex(v3,"Path 3: v3--v6: add v3 -> F3",print_F3);
-        m_F4.add_vertex(v3,"Path 3: v3--v6: add v3 -> F4",print_F4);
-        m_F5.add_vertex(v3,"Path 3: v3--v6: add v3 -> F5",print_F5);
-        m_F7.add_vertex(v3,"Path 3: v3--v6: add v3 -> F7",print_F7);
-#endif
+        m_F3.add_vertex(v3); if(print_F3) printf("Path 3: v3--v6: add v3 -> F3\n");
+        m_F4.add_vertex(v3); if(print_F4) printf("Path 3: v3--v6: add v3 -> F4\n");
+        m_F5.add_vertex(v3); if(print_F5) printf("Path 3: v3--v6: add v3 -> F5\n");
+        m_F7.add_vertex(v3); if(print_F7) printf("Path 3: v3--v6: add v3 -> F7\n");
         if (!vertex_intersected[3]) {
           vertex_intersected[3] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol) {
-#ifdef AMREX_USE_GPU
-        m_F3.add_vertex(v6);
-        m_F4.add_vertex(v6);
-        m_F6.add_vertex(v6);
-        m_F7.add_vertex(v6);
-#else
-        m_F3.add_vertex(v6,"Path 3: v3--v6: add v6 -> F3",print_F3);
-        m_F4.add_vertex(v6,"Path 3: v3--v6: add v6 -> F4",print_F4);
-        m_F6.add_vertex(v6,"Path 3: v3--v6: add v6 -> F6",print_F6);
-        m_F7.add_vertex(v6,"Path 3: v3--v6: add v6 -> F7",print_F7);
-#endif
+        m_F3.add_vertex(v6); if(print_F3) printf("Path 3: v3--v6: add v6 -> F3\n");
+        m_F4.add_vertex(v6); if(print_F4) printf("Path 3: v3--v6: add v6 -> F4\n");
+        m_F6.add_vertex(v6); if(print_F6) printf("Path 3: v3--v6: add v6 -> F6\n");
+        m_F7.add_vertex(v6); if(print_F7) printf("Path 3: v3--v6: add v6 -> F7\n");
         if (!vertex_intersected[6]) {
           vertex_intersected[6] = true;
           ++cuts;
         }
       } else {
-#ifdef AMREX_USE_GPU
-        m_F3.add_vertex(vIP);
-        m_F4.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
-#else
-        m_F3.add_vertex(vIP,"Path 3: v3--v6: add vIP -> F3",print_F3);
-        m_F4.add_vertex(vIP,"Path 3: v3--v6: add vIP -> F4",print_F4);
-        m_F7.add_vertex(vIP,"Path 3: v3--v6: add vIP -> F7",print_F7);
-#endif
+        m_F3.add_vertex(vIP); if(print_F3) printf("Path 3: v3--v6: add vIP -> F3\n");
+        m_F4.add_vertex(vIP); if(print_F4) printf("Path 3: v3--v6: add vIP -> F4\n");
+        m_F7.add_vertex(vIP); if(print_F7) printf("Path 3: v3--v6: add vIP -> F7\n");
         ++cuts;
       }
 
     } // P3: v3--v6
 
     if (cuts%2 == 0) {
-#ifdef AMREX_USE_GPU
-      m_F3.add_vertex(v6);
-      m_F4.add_vertex(v6);
-      m_F6.add_vertex(v6);
-#else
-      m_F3.add_vertex(v6,"Path 3: after v3--v6, cuts%2 == 0: add v6 -> F3",print_F3);
-      m_F4.add_vertex(v6,"Path 3: after v3--v6, cuts%2 == 0: add v6 -> F4",print_F4);
-      m_F6.add_vertex(v6,"Path 3: after v3--v6, cuts%2 == 0: add v6 -> F6",print_F6);
-#endif
+      m_F3.add_vertex(v6); if(print_F3) printf("Path 3: after v3--v6, cuts-mod-2 == 0: add v6 -> F3\n");
+      m_F4.add_vertex(v6); if(print_F4) printf("Path 3: after v3--v6, cuts-mod-2 == 0: add v6 -> F4\n");
+      m_F6.add_vertex(v6); if(print_F6) printf("Path 3: after v3--v6, cuts-mod-2 == 0: add v6 -> F6\n");
     }
 
     if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v6, v7, vIP, distIP)) {
@@ -993,62 +794,36 @@ calc_edge_intersections ()
       amrex::Real length = (v6-v7).vectorLength();
 
       if ( Math::abs(distIP) < tol) {
-#ifdef AMREX_USE_GPU
-        m_F3.add_vertex(v6);
-        m_F4.add_vertex(v6);
-        m_F6.add_vertex(v6);
-        m_F7.add_vertex(v6);
-#else
-        m_F3.add_vertex(v6,"Path 3: v6--v7: add v6 -> F3",print_F3);
-        m_F4.add_vertex(v6,"Path 3: v6--v7: add v6 -> F4",print_F4);
-        m_F6.add_vertex(v6,"Path 3: v6--v7: add v6 -> F6",print_F6);
-        m_F7.add_vertex(v6,"Path 3: v6--v7: add v6 -> F7",print_F7);
-#endif
+        m_F3.add_vertex(v6); if(print_F3) printf("Path 3: v6--v7: add v6 -> F3\n");
+        m_F4.add_vertex(v6); if(print_F4) printf("Path 3: v6--v7: add v6 -> F4\n");
+        m_F6.add_vertex(v6); if(print_F6) printf("Path 3: v6--v7: add v6 -> F6\n");
+        m_F7.add_vertex(v6); if(print_F7) printf("Path 3: v6--v7: add v6 -> F7\n");
         if (!vertex_intersected[6]) {
           vertex_intersected[6] = true;
           ++cuts;
         }
       } else if ( Math::abs(distIP - length) < tol) {
-#ifdef AMREX_USE_GPU
-        m_F2.add_vertex(v7);
-        m_F3.add_vertex(v7);
-        m_F6.add_vertex(v7);
-        m_F7.add_vertex(v7);
-#else
-        m_F2.add_vertex(v7,"Path 3: v6--v7: add v7 -> F2",print_F2);
-        m_F3.add_vertex(v7,"Path 3: v6--v7: add v7 -> F3",print_F3);
-        m_F6.add_vertex(v7,"Path 3: v6--v7: add v7 -> F6",print_F6);
-        m_F7.add_vertex(v7,"Path 3: v6--v7: add v7 -> F7",print_F7);
-#endif
+        m_F2.add_vertex(v7); if(print_F2) printf("Path 3: v6--v7: add v7 -> F2\n");
+        m_F3.add_vertex(v7); if(print_F3) printf("Path 3: v6--v7: add v7 -> F3\n");
+        m_F6.add_vertex(v7); if(print_F6) printf("Path 3: v6--v7: add v7 -> F6\n");
+        m_F7.add_vertex(v7); if(print_F7) printf("Path 3: v6--v7: add v7 -> F7\n");
         if (!vertex_intersected[7]) {
           vertex_intersected[7] = true;
           ++cuts;
         }
       } else {
-#ifdef AMREX_USE_GPU
-        m_F3.add_vertex(vIP);
-        m_F6.add_vertex(vIP);
-        m_F7.add_vertex(vIP);
-#else
-        m_F3.add_vertex(vIP,"Path 3: v6--v7: add vIP -> F3",print_F3);
-        m_F6.add_vertex(vIP,"Path 3: v6--v7: add vIP -> F6",print_F6);
-        m_F7.add_vertex(vIP,"Path 3: v6--v7: add vIP -> F7",print_F7);
-#endif
+        m_F3.add_vertex(vIP); if(print_F3) printf("Path 3: v6--v7: add vIP -> F3\n");
+        m_F6.add_vertex(vIP); if(print_F6) printf("Path 3: v6--v7: add vIP -> F6\n");
+        m_F7.add_vertex(vIP); if(print_F7) printf("Path 3: v6--v7: add vIP -> F7\n");
         ++cuts;
       }
     } // P3: v6--v7
 
     if (cuts == 2 && add_v7) {
       if (!utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
-#ifdef AMREX_USE_GPU
-        m_F2.add_vertex(v7);
-        m_F3.add_vertex(v7);
-        m_F6.add_vertex(v7);
-#else
-        m_F2.add_vertex(v7,"Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F2",print_F2);
-        m_F3.add_vertex(v7,"Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F3",print_F3);
-        m_F6.add_vertex(v7,"Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F6",print_F6);
-#endif
+        m_F2.add_vertex(v7); if(print_F2) printf("Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F2\n");
+        m_F3.add_vertex(v7); if(print_F3) printf("Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F3\n");
+        m_F6.add_vertex(v7); if(print_F6) printf("Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F6\n");
         add_v7 = 0;
       }
     }
@@ -1061,39 +836,19 @@ calc_edge_intersections ()
     amrex::Real length = (v3-v4).vectorLength();
 
     if ( Math::abs(distIP) < tol) {
-#ifdef AMREX_USE_GPU
-      m_F3.add_vertex(v3);
-      m_F4.add_vertex(v3);
-      m_F5.add_vertex(v3);
-      m_F7.add_vertex(v3);
-#else
-      m_F3.add_vertex(v3,"Path 6: v3--v4: add v3 -> F3",print_F3);
-      m_F4.add_vertex(v3,"Path 6: v3--v4: add v3 -> F4",print_F4);
-      m_F5.add_vertex(v3,"Path 6: v3--v4: add v3 -> F5",print_F5);
-      m_F7.add_vertex(v3,"Path 6: v3--v4: add v3 -> F7",print_F7);
-#endif
+      m_F3.add_vertex(v3); if(print_F3) printf("Path 6: v3--v4: add v3 -> F3\n");
+      m_F4.add_vertex(v3); if(print_F4) printf("Path 6: v3--v4: add v3 -> F4\n");
+      m_F5.add_vertex(v3); if(print_F5) printf("Path 6: v3--v4: add v3 -> F5\n");
+      m_F7.add_vertex(v3); if(print_F7) printf("Path 6: v3--v4: add v3 -> F7\n");
     } else if ( Math::abs(distIP - length) < tol) {
-#ifdef AMREX_USE_GPU
-      m_F2.add_vertex(v4);
-      m_F3.add_vertex(v4);
-      m_F5.add_vertex(v4);
-      m_F7.add_vertex(v4);
-#else
-      m_F2.add_vertex(v4,"Path 6: v3--v4: add v4 -> F2",print_F2);
-      m_F3.add_vertex(v4,"Path 6: v3--v4: add v4 -> F3",print_F3);
-      m_F5.add_vertex(v4,"Path 6: v3--v4: add v4 -> F5",print_F5);
-      m_F7.add_vertex(v4,"Path 6: v3--v4: add v4 -> F7",print_F7);
-#endif
+      m_F2.add_vertex(v4); if(print_F2) printf("Path 6: v3--v4: add v4 -> F2\n");
+      m_F3.add_vertex(v4); if(print_F3) printf("Path 6: v3--v4: add v4 -> F3\n");
+      m_F5.add_vertex(v4); if(print_F5) printf("Path 6: v3--v4: add v4 -> F5\n");
+      m_F7.add_vertex(v4); if(print_F7) printf("Path 6: v3--v4: add v4 -> F7\n");
     } else {
-#ifdef AMREX_USE_GPU
-      m_F3.add_vertex(vIP);
-      m_F5.add_vertex(vIP);
-      m_F7.add_vertex(vIP);
-#else
-      m_F3.add_vertex(vIP,"Path 6: v3--v4: add vIP -> F3",print_F3);
-      m_F5.add_vertex(vIP,"Path 6: v3--v4: add vIP -> F5",print_F5);
-      m_F7.add_vertex(vIP,"Path 6: v3--v4: add vIP -> F7",print_F7);
-#endif
+      m_F3.add_vertex(vIP); if(print_F3) printf("Path 6: v3--v4: add vIP -> F3\n");
+      m_F5.add_vertex(vIP); if(print_F5) printf("Path 6: v3--v4: add vIP -> F5\n");
+      m_F7.add_vertex(vIP); if(print_F7) printf("Path 6: v3--v4: add vIP -> F7\n");
     }
   } // end Path 6
 
