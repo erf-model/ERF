@@ -18,12 +18,8 @@ using namespace amrex;
 
 #include "ERF_NCWpsFile.H"
 
-void
-compute_terrain_top_and_bottom (Real& terrain_bottom_min,
-                                Real& terrain_bottom_max,
-                                Real& terrain_top_min,
-                                Real& terrain_top_max,
-                                const MultiFab& mf_PH,
+Real
+compute_terrain_top_and_bottom (const MultiFab& mf_PH,
                                 const MultiFab& mf_PHB,
                                 const Box& domain);
 
@@ -694,14 +690,7 @@ ERF::init_from_wrfinput (int lev,
     if (compute_terrain_here) {
         if (lev == 0) {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-            Real terrain_bottom_min, terrain_bottom_max;
-            Real terrain_top_min, terrain_top_max;
-            compute_terrain_top_and_bottom(terrain_bottom_min, terrain_bottom_max,
-                                           terrain_top_min, terrain_top_max,
-                                           mf_PH, mf_PHB, geom[lev].Domain());
-
-            z_top = 0.5 * (terrain_top_min + terrain_top_max);
-            amrex::Print() << "Warning: ProbHi(2) will be ignored; we are setting top of domain to " << z_top << std::endl;
+            z_top = compute_terrain_top_and_bottom(mf_PH, mf_PHB, geom[lev].Domain());
         } else {
             amrex::Print() << "Warning: using top of domain set at level 0 which is " << z_top << std::endl;
         }
@@ -1049,15 +1038,13 @@ init_base_state_from_wrfinput (const Box& subdomain,
  * @param NC_PH_fab  Vector of FArrayBox objects storing WRF terrain coordinate data (PH)
  * @param NC_PHB_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PHB)
  */
-void
-compute_terrain_top_and_bottom (Real& terrain_bottom_min,
-                                Real& terrain_bottom_max,
-                                Real& terrain_top_min,
-                                Real& terrain_top_max,
-                                const MultiFab& mf_PH,
+Real
+compute_terrain_top_and_bottom (const MultiFab& mf_PH,
                                 const MultiFab& mf_PHB,
                                 const Box& domain)
 {
+    Real z_top;
+
     //
     // For the bottom/top boundary (in that order)
     //
@@ -1065,8 +1052,8 @@ compute_terrain_top_and_bottom (Real& terrain_bottom_min,
     Gpu::DeviceVector<Real> Max_d(3);
     Gpu::copy(Gpu::hostToDevice, Max_h.begin(), Max_h.end(), Max_d.begin());
 
-    Gpu::HostVector  <Real> Min_h(1, 1.0e16);
-    Gpu::DeviceVector<Real> Min_d(1);
+    Gpu::HostVector  <Real> Min_h(2, 1.0e16);
+    Gpu::DeviceVector<Real> Min_d(2);
     Gpu::copy(Gpu::hostToDevice, Min_h.begin(), Min_h.end(), Min_d.begin());
 
     Real* min_d = Min_d.data();
@@ -1084,7 +1071,6 @@ compute_terrain_top_and_bottom (Real& terrain_bottom_min,
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for ( MFIter mfi(mf_PH, TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-
         Box vbx = mfi.validbox();
 
         Box nodal_box = amrex::surroundingNodes(vbx);
@@ -1136,6 +1122,7 @@ compute_terrain_top_and_bottom (Real& terrain_bottom_min,
                                       phb(ii,jj  ,khi) + phb(ii-1,jj  ,khi) +
                                       phb(ii,jj-1,khi) + phb(ii-1,jj-1,khi) ) / CONST_GRAV;
             amrex::Gpu::Atomic::Max(&(max_d[1]),z_calc_hi);
+            amrex::Gpu::Atomic::Min(&(min_d[1]),z_calc_hi);
         });
 
         //
@@ -1157,18 +1144,34 @@ compute_terrain_top_and_bottom (Real& terrain_bottom_min,
     Gpu::copy(Gpu::deviceToHost, Max_d.begin(), Max_d.end(), Max_h.begin());
 
     ParallelDescriptor::ReduceRealMin(Min_h[0]);
+    ParallelDescriptor::ReduceRealMin(Min_h[1]);
 
     ParallelDescriptor::ReduceRealMax(Max_h[0]);
     ParallelDescriptor::ReduceRealMax(Max_h[1]);
     ParallelDescriptor::ReduceRealMax(Max_h[2]);
 
-    terrain_bottom_max = Max_h[0];
-    terrain_bottom_min = Min_h[0];
-    terrain_top_max    = Max_h[1];
-    terrain_top_min    = Max_h[2];
+    Real terrain_bottom_max = Max_h[0];
+    Real terrain_bottom_min = Min_h[0];
+    Real terrain_top_max    = Max_h[1];
+    Real terrain_top_min    = Min_h[1];
+    Real terrain_km1_max    = Max_h[2];
 
-    Print() << "Terrain     has min value = " << terrain_bottom_min << " and max value = " << terrain_bottom_max << std::endl;
-    Print() << "Top of mesh has min value = " << terrain_top_min    << " and max value = " << terrain_top_max << std::endl;
+    Print() << "Terrain     has min value    = " << terrain_bottom_min << " and max value = " << terrain_bottom_max << std::endl;
+    Print() << "Top of mesh has min value    = " << terrain_top_min    << " and max value = " << terrain_top_max << std::endl;
+
+    // Average the top nodes to define a flat surface at the top
+    z_top = 0.5 * (terrain_top_min + terrain_top_max);
+
+    // If this creates a case where z_k < z_{k-1} then we do what we used to do
+    if (terrain_km1_max > z_top) {
+        amrex::Print() << "Max of second-to-highest row = " << terrain_km1_max <<
+                          " which is greater than average of top row so defaulting to alternate approach " << std::endl;
+        z_top = 0.5 * (terrain_km1_max + terrain_top_max);
+    }
+
+    amrex::Print() << "Warning: ProbHi(2) will be ignored; we are setting top of domain to " << z_top << std::endl;
+
+    return z_top;
 }
 
 /**
@@ -1211,6 +1214,7 @@ init_terrain_from_wrfinput (int /*lev*/,
         {
             int ii = std::max(std::min(i,ihi),ilo);
             int jj = std::max(std::min(j,jhi),jlo);
+
             if (k < klo) {
                 Real z_klo   =  0.25 * ( nc_ph_arr (ii,jj  ,klo  ) + nc_ph_arr (ii-1,jj  ,klo  ) +
                                          nc_ph_arr (ii,jj-1,klo  ) + nc_ph_arr (ii-1,jj-1,klo) +
@@ -1228,6 +1232,10 @@ init_terrain_from_wrfinput (int /*lev*/,
                                          nc_phb_arr(ii,jj-1,khi-1) + nc_phb_arr(ii-1,jj-1,khi-1) ) / CONST_GRAV;
                 z_arr(i, j, k) = 2.0 * z_top - z_khim1;
             } else if (k == khi) {
+                z_arr(i, j, k) = 0.25 * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
+                                          nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
+                                          nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
+                                          nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
                 z_arr(i, j, k) = z_top;
             } else {
                 // Note: wrfinput geopotentials ph, phb are only staggered in the vertical, i.e.,
