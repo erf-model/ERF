@@ -391,7 +391,7 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
 struct eb_cut_cell_::path_data
 {
   AMREX_GPU_HOST_DEVICE
-  AMREX_FORCE_INLINE    
+  AMREX_FORCE_INLINE
   path_data() = default;
 
   bool intersected{};
@@ -442,8 +442,8 @@ calc_edge_intersections ()
 
 // #ifndef AMREX_USE_GPU
 
-  bool print_initial = ( Math::abs(m_eb_point[0]-1.666667e-01)<1.e-4 && 
-                         Math::abs(m_eb_point[1]+4.194018e-01)<1.e-4 && 
+  bool print_initial = ( Math::abs(m_eb_point[0]-1.666667e-01)<1.e-4 &&
+                         Math::abs(m_eb_point[1]+4.194018e-01)<1.e-4 &&
                          Math::abs(m_eb_point[2]+1.666667e-01)<1.e-4 );
   const bool print_F1 = print_initial && false;
   const bool print_F2 = print_initial && false;
