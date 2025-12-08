@@ -399,6 +399,9 @@ ERF::ERF_shared ()
     // Map factors
     mapfac.resize(nlevs_max);
 
+    // Fine mask
+    fine_mask.resize(nlevs_max);
+
     // Thin immersed body
     xflux_imask.resize(nlevs_max);
     yflux_imask.resize(nlevs_max);
@@ -1326,20 +1329,20 @@ ERF::InitData_post ()
     //
     if (restart_chkfile == "")
     {
-        if (solverChoice.project_initial_velocity) {
-            Real dummy_dt = 1.0;
-            if (verbose > 0) {
-                amrex::Print() << "Projecting initial velocity field" << std::endl;
-            }
-            for (int lev = 0; lev <= finest_level; ++lev)
-            {
+        for (int lev = 0; lev <= finest_level; ++lev)
+        {
+            if (solverChoice.project_initial_velocity[lev] == 1) {
+                Real dummy_dt = 1.0;
+                if (verbose > 0) {
+                    amrex::Print() << "Projecting initial velocity field at level " << lev << std::endl;
+                }
                 project_velocity(lev, dummy_dt);
                 pp_inc[lev].setVal(0.);
                 gradp[lev][GpVars::gpx].setVal(0.);
                 gradp[lev][GpVars::gpy].setVal(0.);
                 gradp[lev][GpVars::gpz].setVal(0.);
-            }
-        }
+            } // project
+        } // lev
     }
 
     // Copy from new into old just in case (after filling boundary conditions and possibly projecting)
@@ -1529,8 +1532,9 @@ ERF::InitData_post ()
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
     {
         bool has_diff = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
-                          (solverChoice.turbChoice[0].les_type != LESType::None)           ||
-                          (solverChoice.turbChoice[0].pbl_type != PBLType::None) );
+                          (solverChoice.turbChoice[0].les_type  != LESType::None)          ||
+                          (solverChoice.turbChoice[0].rans_type != RANSType::None)         ||
+                          (solverChoice.turbChoice[0].pbl_type  != PBLType::None) );
         AMREX_ALWAYS_ASSERT(has_diff);
 
         bool rotate = solverChoice.use_rotate_surface_flux;
@@ -2865,7 +2869,7 @@ ERF::check_state_for_nans(MultiFab const& S)
         for (int i = 0; i < ncomp; i++) {
             if (S.contains_nan(i,1,0))
             {
-                amrex::Print() << "Component " << i << "of conserved variables contains NaNs" << '\n';
+                amrex::Print() << "Component " << i << " of conserved variables contains NaNs" << '\n';
                 any_have_nans = true;
             }
         }

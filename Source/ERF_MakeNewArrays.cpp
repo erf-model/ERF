@@ -155,7 +155,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
-    if (solverChoice.anelastic[lev] == 1 || solverChoice.project_initial_velocity) {
+    if (solverChoice.anelastic[lev] == 1 || solverChoice.project_initial_velocity[lev]) {
         pp_inc[lev].define(ba, dm, 1, 1);
         pp_inc[lev].setVal(0.0);
     }
@@ -505,6 +505,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     #ifdef ERF_USE_WINDFARM
         //init_windfarm(lev);
     #endif
+
+    if (lev > 0) {
+        fine_mask[lev] = std::make_unique<MultiFab>(grids[lev-1], dmap[lev-1], 1, 0);
+        build_fine_mask(lev, *fine_mask[lev].get());
+    }
 }
 
 void

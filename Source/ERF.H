@@ -324,7 +324,9 @@ public:
 
     // Perform the volume-weighted sum
     amrex::Real
-    volWgtSumMF (int lev, const amrex::MultiFab& mf, int comp, bool finemask);
+    volWgtSumMF (int lev, const amrex::MultiFab& mf, int comp,
+                const amrex::MultiFab& dJ, const amrex::MultiFab& mfx, const amrex::MultiFab& mfy,
+                bool finemask, bool local = true);
 
     // Decide if it is time to take an action
     static bool is_it_time_for_action (int nstep, amrex::Real time, amrex::Real dt,
@@ -416,7 +418,7 @@ public:
                                 const amrex::Real& dt_advance);
 #endif
 
-    amrex::MultiFab& build_fine_mask (int lev);
+    void build_fine_mask (int lev, amrex::MultiFab& fine_mask);
 
     void MakeHorizontalAverages ();
     void MakeDiagnosticAverage (amrex::Vector<amrex::Real>& h_havg, amrex::MultiFab& S, int n);
@@ -956,6 +958,9 @@ private:
     // Map scale factors -- vector across levels of vector across types
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> mapfac;
 
+    // Mask to be used to identify cells covered by finer level (if level > 0)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> fine_mask;
+
     amrex::Vector<amrex::Vector<amrex::Real>> stretched_dz_h;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> stretched_dz_d;
 
@@ -1339,12 +1344,6 @@ private:
     static amrex::Vector<amrex::AMRErrorTag> ref_tags;
 
     amrex::Vector<amrex::Vector<amrex::BoxArray>> subdomains;
-
-    //
-    // Build a mask that zeroes out values on a coarse level underlying
-    //     grids on the next finest level
-    //
-    amrex::MultiFab fine_mask;
 
     amrex::Vector<amrex::Real> dz_min;
 
