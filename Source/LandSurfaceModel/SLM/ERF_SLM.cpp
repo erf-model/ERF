@@ -264,9 +264,6 @@ SLM::Init (const int& /*lev*/,
 	pp.query("SLM_use_inputs",set_from_file);
 
     if (!set_from_file && !use_wrfinput) {
-        ParmParse pp_erf("erf");
-        pp_erf.query("use_terrain", use_terrain);
-
         Real zlo      = m_geom.ProbLo(2);
         Real dz       = m_geom.CellSize(2);
         for ( MFIter mfi(cons_in,TileNoZ()); mfi.isValid(); ++mfi) {

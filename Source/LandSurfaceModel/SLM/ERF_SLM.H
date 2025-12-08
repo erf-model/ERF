@@ -184,6 +184,8 @@ public:
         //       but they are hard coded because this
         //       is a demonstration for now.
 
+        use_terrain = sc.terrain_type != TerrainType::None;
+
         // Check if initializing from WRFInput
         if (sc.init_type == InitType::WRFInput) {
             amrex::Print() << " SLM is initializing from WRFInput!" << std::endl;
@@ -334,11 +336,7 @@ public:
             }
 
             // update zref using updated z_phys_cc
-            // TODO: fix this - use_terrain flag is deprecated
             if (!set_from_file) {
-                amrex::ParmParse pp_erf("erf");
-                pp_erf.query("use_terrain", use_terrain);
-
                 amrex::Real zlo      = m_geom.ProbLo(2);
                 amrex::Real dz       = m_geom.CellSize(2);
                 for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
