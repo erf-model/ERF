@@ -75,27 +75,6 @@ class eb_cut_cell_ {
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    amrex::Real volume_debug () const {
-
-      if (m_flag.isCovered() ) { return 0.; }
-      if (m_flag.isRegular() ) { return m_rbox.volume(); }
-
-      amrex::Real volume(0.);
-
-      amrex::Real const* lo = m_rbox.lo();
-      amrex::RealVect v0(lo[0], lo[1], lo[2]);
-
-      if (m_F2.ok() ) { volume += m_F2.area() * m_F2.distance(v0); }
-      if (m_F3.ok() ) { volume += m_F3.area() * m_F3.distance(v0); }
-      if (m_F6.ok() ) { volume += m_F6.area() * m_F6.distance(v0); }
-      if (m_F7.ok() ) { volume += m_F7.area() * m_F7.distance(v0); }
-
-      volume /= 3.;
-
-      return m_invert*volume + (1.-m_invert)*(m_rbox.volume()-volume);
-    }
-
-    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real areaLo ( int const a_idim ) const noexcept {
       AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
       if (m_flag.isCovered() ) { return 0.; }
