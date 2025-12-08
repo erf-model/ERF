@@ -50,7 +50,8 @@ Problem::init_custom_pert (
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc)
+    const SolverChoice& sc,
+    const int /*lev*/)
 {
     const int khi = geomdata.Domain().bigEnd()[2];
 
@@ -148,7 +149,7 @@ void
 Problem::init_custom_terrain (
     const Geometry& geom,
     FArrayBox& terrain_fab,
-    const Real& time)
+    const Real& /*time*/)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();

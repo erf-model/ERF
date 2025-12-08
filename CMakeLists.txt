@@ -420,12 +420,19 @@ if(ERF_ENABLE_MPI)
       message(DEBUG "Created MPI::MPI_C target")
     endif()
 
+    if(NOT TARGET MPI::MPI_Fortran)
+      add_library(MPI::MPI_Fortran INTERFACE IMPORTED)
+      message(DEBUG "Created MPI::MPI_Fortran target")
+    endif()
+
     # Set MPI variables
     set(MPI_FOUND TRUE)
     set(MPI_CXX_FOUND TRUE)
     set(MPI_C_FOUND TRUE)
+    set(MPI_Fortran_FOUND TRUE)
     set(MPI_C_VERSION "${MPI_VERSION}")
     set(MPI_CXX_VERSION "${MPI_VERSION}")
+    set(MPI_Fortran_VERSION "${MPI_VERSION}")
 
     message(STATUS "Cray MPICH: ${MPICH_VERSION}")
     message(STATUS "MPI standard: ${MPI_VERSION}")

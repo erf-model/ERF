@@ -26,28 +26,21 @@ stages:
 ##############################################################################
 # UTILITIES
 
-.on_tuolumne:
+.on_matrix:
   tags:
     - shell
-    - tuolumne
+    - matrix
 
-.job_on_tuolumne:
-  extends: .on_tuolumne
+.job_on_matrix:
+  extends: .on_matrix
   stage: jobs-stage-1
-  variables:
-    # Note: "flux" gets expanded to "flux run" inside build script
-    MPIEXEC_EXECUTABLE: flux
-    MPIEXEC_PREFLAGS: "-c 1 -g 1 -o mpi-spectrum -o cpu-affinity=per-task -o gpu-affinity=per-task -vvv --setopt=mpibind=verbose:1"
   script:
     # Allocation information
     - echo -e "### Allocation name is ${ALLOC_NAME}"
-    - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
+    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - if [[ -z "${JOBID}" ]]; then echo "No JOBID found for ${ALLOC_NAME}"; exit 1; fi
-    - echo -e "### Job ID is ${JOBID}"
-    - export AMD_LOG_LEVEL=2
-    - export MPICH_GPU_SUPPORT_ENABLED=1
-    - export HSA_XNACK=1
-    - flux proxy "${JOBID}" flux run -N 1 -x -n 1 -vv ${TEST_SCRIPT}
+    - echo -e "### Job ID is ${JOBID}"s
+    - srun --jobid=${JOBID} -N 1 -v --overlap ${TEST_SCRIPT}
 
 ##############################################################################
 # JOBS
@@ -74,23 +67,23 @@ is_machine_up:
 allocate_resources:
   variables:
     GIT_STRATEGY: none
-    ALLOC_TIME: 60
-  extends: .on_tuolumne
+    ALLOC_TIME: 90
+  extends: .on_matrix
   stage: allocate-resources
   script:
     - echo -e "Allocating resources for ${ALLOC_NAME} on the ${ALLOC_QUEUE} queue for ${ALLOC_TIME} minutes"
-    - flux alloc -N 1 -q ${ALLOC_QUEUE} -t=${ALLOC_TIME} --bg --exclusive --job-name=${ALLOC_NAME} --setattr=thp=always
+    - salloc --exclusive -p ${ALLOC_QUEUE} --time=${ALLOC_TIME} --nodes=1 --no-shell --job-name=${ALLOC_NAME}
 
 # Deallocate resources for build and test
 # Note: in the rules above this is always run
 release_resources:
   variables:
     GIT_STRATEGY: none
-  extends: .on_tuolumne
+  extends: .on_matrix
   stage: release-resources
   script:
     - echo -e "Deallocating resources for ${ALLOC_NAME}"
-    - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
-    - ([[ -n "${JOBID}" ]] && flux cancel ${JOBID} || exit 0)
+    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
+    - ([[ -n "${JOBID}" ]] && scancel ${JOBID} || exit 0)
   when: always
   interruptible: false

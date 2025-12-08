@@ -26,7 +26,7 @@ variables:
   TEST_SCRIPT: .gitlab/LC/gitlab_test.sh
 
   # Git reference (branch name, tag, hash, etc.) to use in the gold file repo
-  CI_GOLD_FILES_GIT_REF: main
+  CI_GOLD_FILES_GIT_REF: slm
 
 # Common rules for all CI pipelines - conditions are checked in order and the
 # checks break on the first condition satisfied
@@ -40,7 +40,7 @@ workflow:
     - if: $CI_COMMIT_MESSAGE =~ /\[skip-ci\]/
       when: never
     # Test if the commit message contains [run-ci]
-    - if: $CI_COMMIT_MESSAGE =~ /\[run-ci\]/
+    - if: $CI_COMMIT_MESSAGE =~ /\[run-ci.*\]/
     # Test branches starting with "gitlab"
     - if: $CI_COMMIT_BRANCH =~ /^gitlab.*/
     # Test merge requests

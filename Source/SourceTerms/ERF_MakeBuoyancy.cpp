@@ -29,7 +29,8 @@ using namespace amrex;
  * @param[in]  n_qstate      Number of moist variables used by the current model
  */
 
-void make_buoyancy (const Vector<MultiFab>& S_data,
+void make_buoyancy (int lev,
+                    const Vector<MultiFab>& S_data,
                     const MultiFab& S_prim,
                     const MultiFab& qt,
                           MultiFab& buoyancy,
@@ -118,7 +119,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
                 // ******************************************************************************************
                 // Dry compressible
                 // ******************************************************************************************
-                if (solverChoice.buoyancy_type == 1) {
+                if (solverChoice.buoyancy_type[lev] == 1) {
 
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -129,7 +130,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
                                                                 r0_arr,cell_data,qt_arr);
                     });
                 }
-                else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3)
+                else if (solverChoice.buoyancy_type[lev] == 2 || solverChoice.buoyancy_type[lev] == 3)
                 {
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -140,7 +141,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
                                                                 r0_arr,p0_arr,th0_arr,cell_data);
                     });
                 }
-                else if (solverChoice.buoyancy_type == 4)
+                else if (solverChoice.buoyancy_type[lev] == 4)
                 {
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -162,10 +163,10 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
                     (solverChoice.moisture_type == MoistureType::SAM)            ||
                     (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) )
                 {
-                    AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
+                    AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type[lev] == 1);
                 }
 
-                if (solverChoice.buoyancy_type == 1)
+                if (solverChoice.buoyancy_type[lev] == 1)
                 {
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -173,7 +174,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
                                                                 r0_arr,cell_data,qt_arr);
                     });
                 }
-                else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3)
+                else if (solverChoice.buoyancy_type[lev] == 2 || solverChoice.buoyancy_type[lev] == 3)
                 {
 
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -183,7 +184,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
                                                                     cell_prim,cell_data,qt_arr);
                     });
                 }
-                else if (solverChoice.buoyancy_type == 4)
+                else if (solverChoice.buoyancy_type[lev] == 4)
                 {
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -196,7 +197,7 @@ void make_buoyancy (const Vector<MultiFab>& S_data,
         } else {
 
             // Currently, only dry compressible is supported
-            AMREX_ASSERT( !anelastic && (solverChoice.moisture_type == MoistureType::None) && solverChoice.buoyancy_type == 1 );
+            AMREX_ASSERT( !anelastic && (solverChoice.moisture_type == MoistureType::None) && solverChoice.buoyancy_type[lev] == 1 );
 
             Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
 

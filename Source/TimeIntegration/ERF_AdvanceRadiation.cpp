@@ -14,9 +14,16 @@ void ERF::advance_radiation (int lev,
         MultiFab *lat_ptr = nullptr;
         MultiFab *lon_ptr = nullptr;
 #endif
+        // T surf from SurfaceLayer if we have it
+        MultiFab* t_surf = (m_SurfaceLayer) ? m_SurfaceLayer->get_t_surf(lev) : nullptr;
+
         // RRTMGP inputs names and pointers
         Vector<const MultiFab*> lsm_input_ptrs;
         Vector<MultiFab*> lsm_output_ptrs;
+
+        if (m_SurfaceLayer && m_SurfaceLayer->use_sfc_fluxes()) {
+            lsm_input_ptrs = {t_surf};
+        }
 
         if (solverChoice.lsm_type == LandSurfaceType::SLM) {
             //rad[lev]->set_lsm_inputs(lsm.get_model_lev<SLM>(lev));
@@ -48,6 +55,7 @@ void ERF::advance_radiation (int lev,
         amrex::Print() << " AdvanceRadiation - start_time = " << start_time << " t_new = " << t_new[lev] << " time_for_rad = " << time_for_rad << std::endl;
         rad[lev]->Run(lev, istep[lev], time_for_rad, dt_advance,
                       cons.boxArray(), geom[lev], &(cons),
+                      lmask_lev[lev][0].get(), t_surf,
                       sw_lw_fluxes[lev].get(), solar_zenith[lev].get(),
                       lsm_input_ptrs, lsm_output_ptrs,
                       qheating_rates[lev].get(), rad_fluxes[lev].get(),

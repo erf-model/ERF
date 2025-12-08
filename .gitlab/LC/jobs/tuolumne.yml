@@ -1,11 +1,19 @@
 tuolumne_hip_6.4.0:
   variables:
-    MODULE_LIST: cmake/3.24.2 ninja/1.10.2 rocm/6.4.0 rocmcc/6.4.0-cce-19.0.0d-magic cray-fftw/3.3.10.11 cray-libsci/25.09.0
+    MODULE_LIST: cmake/3.29.2 ninja/1.10.2 rocm/6.4.0 rocmcc/6.4.0-cce-19.0.0d-magic cray-fftw/3.3.10.11 cray-libsci/25.09.0
 
     ERF_ENABLE_HIP: "ON"
     AMD_ARCH: "gfx942"
     # NOTE: Running with Debug build type causes AMD linking errors with AMReX plotfiles=ON
     BUILD_TYPE: "RelWithDebInfo"
+
+    #FFT:
+    ERF_ENABLE_FFT: "ON"
+    # HDF5+NetCDF:
+    ERF_ENABLE_NETCDF: "ON"
+    HDF5_ROOT: "/usr/workspace/accatm/software/tuolumne/hdf5-1.14.5"
+    NETCDF_DIR: "/usr/workspace/accatm/software/tuolumne/netcdf-c-4.9.2"
+    EXTRA_CMAKE_ARGS: "-DNETCDF_INCLUDE_DIRS=$NETCDF_DIR/include/"
 
     # RRTMGP/Kokkos options:
     #ERF_ENABLE_EKAT=ON

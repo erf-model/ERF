@@ -119,7 +119,8 @@ public:
                       amrex::Array4<amrex::Real const> const& /*mf_m*/,
                       amrex::Array4<amrex::Real const> const& /*mf_u*/,
                       amrex::Array4<amrex::Real const> const& /*mf_v*/,
-                      const SolverChoice& /*sc*/)
+                      const SolverChoice& /*sc*/,
+                      const int /*lev*/)
     {
         amrex::Print() << "No perturbation to background fields supplied for "
             << name() << " problem" << std::endl;

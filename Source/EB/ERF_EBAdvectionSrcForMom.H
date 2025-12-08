@@ -275,6 +275,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     if (v_cflag(i,j-jj-1,k).isCovered()) {
                         break;
                     }
+                    jcell++;
                 }
             }
             else if (rho_v_avg<0.)
@@ -283,6 +284,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     if (v_cflag(i,j+jj,k).isCovered()) {
                         break;
                     }
+                    jcell++;
                 }
             }
 

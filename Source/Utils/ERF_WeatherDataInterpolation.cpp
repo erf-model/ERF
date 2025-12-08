@@ -15,98 +15,7 @@
 using namespace amrex;
 namespace fs = std::filesystem;
 
-void fill_weather_data_multifab(MultiFab& mf,
-     const Geometry& geom_weather,
-     const int nx,
-     const int ny,
-     const int nz,
-     const Vector<Real>& latvec_h,
-     const Vector<Real>& lonvec_h,
-     const Vector<Real>& zvec_h,
-     const Vector<Real>& rho_h,
-     const Vector<Real>& uvel_h,
-     const Vector<Real>& vvel_h,
-     const Vector<Real>& wvel_h,
-     const Vector<Real>& theta_h,
-     const Vector<Real>& qv_h,
-     const Vector<Real>& qc_h,
-     const Vector<Real>& qr_h)
-{
-    const int nx_d = nx;
-    const int ny_d = ny;
-    const int nz_d = nz;
-    const int tot_size = nx*ny*nz;
-
-    amrex::Gpu::DeviceVector<Real> latvec_d(nx*ny), lonvec_d(nx*ny), zvec_d(nz);
-    amrex::Gpu::DeviceVector<Real> rho_d(tot_size), uvel_d(tot_size),
-                                   vvel_d(tot_size), wvel_d(tot_size), theta_d(tot_size),
-                                   qv_d(tot_size), qc_d(tot_size), qr_d(tot_size);
-
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, latvec_h.begin(), latvec_h.end(), latvec_d.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, lonvec_h.begin(), lonvec_h.end(), lonvec_d.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zvec_h.begin(), zvec_h.end(), zvec_d.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, uvel_h.begin(), uvel_h.end(), uvel_d.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, vvel_h.begin(), vvel_h.end(), vvel_d.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, wvel_h.begin(), wvel_h.end(), wvel_d.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qr_h.begin(), qr_h.end(), qr_d.begin());
-
-    Real* latvec_d_ptr  = latvec_d.data();
-    Real* lonvec_d_ptr  = lonvec_d.data();
-    Real* zvec_d_ptr  = zvec_d.data();
-    Real* rho_d_ptr   = rho_d.data();
-    Real* uvel_d_ptr  = uvel_d.data();
-    Real* vvel_d_ptr  = vvel_d.data();
-    Real* wvel_d_ptr  = wvel_d.data();
-    Real* theta_d_ptr = theta_d.data();
-    Real* qv_d_ptr = qv_d.data();
-    Real* qc_d_ptr = qc_d.data();
-    Real* qr_d_ptr = qr_d.data();
-
-    const auto prob_lo  = geom_weather.ProbLoArray();
-    const auto dx       = geom_weather.CellSizeArray();
-
-    for (MFIter mfi(mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        const Box& bx = mfi.nodaltilebox();
-        Array4<Real> const& arr = mf.array(mfi);
-
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            const Real z = prob_lo[2] + k * dx[2];
-            int kloc = -1;
-            for (int kk = 0; kk < nz_d; kk++) {
-                 if (zvec_d_ptr[kk] > z) {
-                     kloc = kk;
-                     break;
-                 }
-            }
-            // Replace this with logic using your coarse input data
-            int idx1 = get_single_index(i,j,kloc-1,nx_d,ny_d);
-            int idx2 = get_single_index(i,j,kloc,nx_d,ny_d);
-            Real dz = zvec_d_ptr[kloc] - zvec_d_ptr[kloc-1];
-            Real fac = (z-zvec_d_ptr[kloc-1])/dz;
-            arr(i,j,k,0) = rho_d_ptr[idx1]   + fac*(rho_d_ptr[idx2]-rho_d_ptr[idx1]);
-            arr(i,j,k,1) = uvel_d_ptr[idx1]  + fac*(uvel_d_ptr[idx2]-uvel_d_ptr[idx1]);
-            arr(i,j,k,2) = vvel_d_ptr[idx1]  + fac*(vvel_d_ptr[idx2]-vvel_d_ptr[idx1]);
-            arr(i,j,k,3) = wvel_d_ptr[idx1]  + fac*(wvel_d_ptr[idx2]-wvel_d_ptr[idx1]);
-            arr(i,j,k,4) = theta_d_ptr[idx1] + fac*(theta_d_ptr[idx2]-theta_d_ptr[idx1]);
-            arr(i,j,k,5) = qv_d_ptr[idx1]    + fac*(qv_d_ptr[idx2]-qv_d_ptr[idx1]);
-            arr(i,j,k,6) = qc_d_ptr[idx1]    + fac*(qc_d_ptr[idx2]-qc_d_ptr[idx1]);
-            arr(i,j,k,7) = qr_d_ptr[idx1]    + fac*(qr_d_ptr[idx2]-qr_d_ptr[idx1]);
-            idx1 = get_single_index(i,j,0,nx_d,ny_d);
-            arr(i,j,k,8) = latvec_d_ptr[idx1];
-            arr(i,j,k,9) = lonvec_d_ptr[idx1];
-        });
-    }
-}
-
-enum class BoundType { Lo, Hi };
 enum class MultiFabType { CC, NC };
-
 
 void PlotMultiFab(const MultiFab& mf,
                   const Geometry& geom_mf,
@@ -152,11 +61,12 @@ void PlotMultiFab(const MultiFab& mf,
 }
 
 void
-ERF::CreateWeatherDataGeomBoxArrayDistMap(const std::string& filename,
-                                          Geometry& geom_weather,
-                                          BoxArray& nba,
-                                          DistributionMapping& dm)
+ERF::FillForecastStateMultiFabs(const int lev,
+                                const std::string& filename,
+                                const std::unique_ptr<MultiFab>& a_z_phys_nd,
+                                Vector<Vector<MultiFab>>& forecast_state)
 {
+
     Vector<Real> latvec_h, lonvec_h, xvec_h, yvec_h, zvec_h;
     Vector<Real> rho_h, uvel_h, vvel_h, wvel_h, theta_h, qv_h, qc_h, qr_h;
 
@@ -165,9 +75,18 @@ ERF::CreateWeatherDataGeomBoxArrayDistMap(const std::string& filename,
                        uvel_h, vvel_h, wvel_h,
                        theta_h, qv_h, qc_h, qr_h);
 
-    const auto prob_lo_erf  = geom[0].ProbLoArray();
-    const auto prob_hi_erf  = geom[0].ProbHiArray();
-    const auto dx_erf       = geom[0].CellSizeArray();
+    Real zmax = *std::max_element(zvec_h.begin(), zvec_h.end());
+
+    const auto prob_lo_erf  = geom[lev].ProbLoArray();
+    const auto prob_hi_erf  = geom[lev].ProbHiArray();
+    const auto dx_erf       = geom[lev].CellSizeArray();
+
+    if (prob_hi_erf[2] >= zmax) {
+        Abort("ERROR: the maximum z of the domain (" + std::to_string(prob_hi_erf[2]) +
+        ") should be less than the maximum z in the forecast data (" + std::to_string(zmax) +
+        "). Change geometry.prob_hi[2] in the inputs to be less than " + std::to_string(zmax) + "."
+        );
+    }
 
     if(prob_lo_erf[0] < xvec_h.front() + 4*dx_erf[0]){
         amrex::Abort("The xlo value of the domain has to be greater than " + std::to_string(xvec_h.front() + 4*dx_erf[0]));
@@ -182,100 +101,55 @@ ERF::CreateWeatherDataGeomBoxArrayDistMap(const std::string& filename,
         amrex::Abort("The yhi value of the domain has to be less than " + std::to_string(yvec_h.back() - 4*dx_erf[1]));
     }
 
-    // Number of cells
-    int nx_cells = xvec_h.size()-1;
-    int ny_cells = yvec_h.size()-1;
 
-    const amrex::Geometry& geom0 = geom[0]; // or whatever your Geometry vector is called
-    const amrex::Box& domainBox = geom0.Domain();
-    const amrex::IntVect& domainSize = domainBox.size(); // Number of cells in each direction
-    int nz_cells = domainSize[2];
+    int nx = xvec_h.size();
+    int ny = yvec_h.size();
+    int nz = zvec_h.size();
 
-    IntVect dom_lo(0, 0, 0);
-    IntVect dom_hi(nx_cells-1, ny_cells-1, nz_cells-1);
-    Box domain(dom_lo, dom_hi);
+    amrex::Real dxvec = (xvec_h[nx-1]-xvec_h[0])/(nx-1);
+    amrex::Real dyvec = (yvec_h[ny-1]-yvec_h[0])/(ny-1);
 
-    const amrex::Real* prob_hi = geom0.ProbHi();
+    amrex::Gpu::DeviceVector<Real> latvec_d(nx*ny), lonvec_d(nx*ny), zvec_d(nz);
+    amrex::Gpu::DeviceVector<Real> xvec_d(nx*ny*nz), yvec_d(nx*ny*nz);
+    amrex::Gpu::DeviceVector<Real> rho_d(nx*ny*nz), uvel_d(nx*ny*nz), vvel_d(nx*ny*nz), wvel_d(nx*ny*nz),
+                                   theta_d(nx*ny*nz), qv_d(nx*ny*nz), qc_d(nx*ny*nz), qr_d(nx*ny*nz);
 
-    // Define the extents of the physical domain box
-    RealBox real_box({xvec_h[0], yvec_h[0], zvec_h[0]}, {xvec_h[nx_cells], yvec_h[ny_cells], prob_hi[2]});
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, latvec_h.begin(), latvec_h.end(), latvec_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, lonvec_h.begin(), lonvec_h.end(), lonvec_d.begin());
 
-    int coord = 0; // Cartesian
-    Array<int, AMREX_SPACEDIM> is_periodic{0, 0, 0}; // non-periodic
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xvec_h.begin(), xvec_h.end(), xvec_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yvec_h.begin(), yvec_h.end(), yvec_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zvec_h.begin(), zvec_h.end(), zvec_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, uvel_h.begin(), uvel_h.end(), uvel_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, vvel_h.begin(), vvel_h.end(), vvel_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, wvel_h.begin(), wvel_h.end(), wvel_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qr_h.begin(), qr_h.end(), qr_d.begin());
 
-    geom_weather.define(domain, real_box, coord, is_periodic);
+    amrex::Gpu::streamSynchronize();
 
-    BoxArray ba(domain);
-    ba.maxSize(64);
-    nba = amrex::convert(ba, IntVect::TheNodeVector()); // nodal in all directions
+    Real* latvec_d_ptr = latvec_d.data();
+    Real* lonvec_d_ptr = lonvec_d.data();
+    Real* xvec_d_ptr = xvec_d.data();
+    Real* yvec_d_ptr = yvec_d.data();
+    Real* zvec_d_ptr = zvec_d.data();
+    Real* rho_d_ptr   = rho_d.data();
+    Real* uvel_d_ptr  = uvel_d.data();
+    Real* vvel_d_ptr  = vvel_d.data();
+    Real* wvel_d_ptr  = wvel_d.data();
+    Real* theta_d_ptr = theta_d.data();
+    Real* qv_d_ptr = qv_d.data();
+    Real* qc_d_ptr = qc_d.data();
+    Real* qr_d_ptr = qr_d.data();
 
-    // Create DistributionMapping
-    dm = DistributionMapping(nba);
- }
-
-IntVect
-find_bound_idx(const Real& x, const Real& y, const Real& z,
-               const BoxList& bl_weather, const Geometry& geom_weather,
-               BoundType bound_type)
-{
-    const auto prob_lo_weather  = geom_weather.ProbLoArray();
-    const auto dx_weather       = geom_weather.CellSizeArray();
-
-    int i, j, k;
-
-    if (bound_type == BoundType::Lo) {
-        i = static_cast<int>(std::floor((x - prob_lo_weather[0]) / dx_weather[0]));
-        j = static_cast<int>(std::floor((y - prob_lo_weather[1]) / dx_weather[1]));
-        k = static_cast<int>(std::floor((z - prob_lo_weather[2]) / dx_weather[2]));
-    } else { // BoundType::Hi
-        i = static_cast<int>(std::ceil((x - prob_lo_weather[0]) / dx_weather[0]));
-        j = static_cast<int>(std::ceil((y - prob_lo_weather[1]) / dx_weather[1]));
-        k = static_cast<int>(std::ceil((z - prob_lo_weather[2]) / dx_weather[2]));
-    }
-
-    IntVect idx(i, j, k);
-
-    for (const auto& b : bl_weather) {
-        if (b.contains(idx)) {
-            return idx;
-        }
-    }
-
-    amrex::Abort("Bound index not found in any box in BoxList!");
-    return IntVect::TheZeroVector(); // unreachable if Abort
-}
-
-void
-ERF::CreateForecastStateMultiFabs(Vector<Vector<MultiFab>>& forecast_state)
-{
-
-    forecast_state.resize(max_level+1);
-    for (int lev = 0; lev < max_level+1; ++lev) {
-        forecast_state[lev].resize(vars_new[lev].size()+1);
-        for (int comp = 0; comp < vars_new[lev].size(); ++comp) {
-            const MultiFab& src = vars_new[lev][comp];
-            forecast_state[lev][comp].define(src.boxArray(), src.DistributionMap(),
-                                        src.nComp(), src.nGrow());
-         }
-         int comp = vars_new[lev].size();
-         const MultiFab& src = vars_new[lev][0];
-         forecast_state[lev][comp].define(src.boxArray(), src.DistributionMap(),
-                                          2, src.nGrow());
-     }
-}
-
-void
-ERF::InterpWeatherDataOntoMesh (const Geometry& geom_weather,
-                                MultiFab& weather_forecast_data,
-                                Vector<Vector<MultiFab>>& forecast_state)
-{
-
-    MultiFab& weather_mf    = weather_forecast_data;
-    MultiFab& erf_mf_cons   = forecast_state[0][Vars::cons];
-    MultiFab& erf_mf_xvel   = forecast_state[0][Vars::xvel];
-    MultiFab& erf_mf_yvel   = forecast_state[0][Vars::yvel];
-    MultiFab& erf_mf_zvel   = forecast_state[0][Vars::zvel];
-    MultiFab& erf_mf_latlon = forecast_state[0][4];
+    MultiFab& erf_mf_cons   = forecast_state[lev][Vars::cons];
+    MultiFab& erf_mf_xvel   = forecast_state[lev][Vars::xvel];
+    MultiFab& erf_mf_yvel   = forecast_state[lev][Vars::yvel];
+    MultiFab& erf_mf_zvel   = forecast_state[lev][Vars::zvel];
+    MultiFab& erf_mf_latlon = forecast_state[lev][4];
 
     erf_mf_cons.setVal(0.0);
     erf_mf_xvel.setVal(0.0);
@@ -283,95 +157,131 @@ ERF::InterpWeatherDataOntoMesh (const Geometry& geom_weather,
     erf_mf_zvel.setVal(0.0);
     erf_mf_latlon.setVal(0.0);
 
-    BoxList bl_erf     = erf_mf_cons.boxArray().boxList();
-    BoxList bl_weather = weather_mf.boxArray().boxList();
+    // Interpolate the data on to the ERF mesh
 
-    const auto prob_lo_erf  = geom[0].ProbLoArray();
-    const auto dx_erf       = geom[0].CellSizeArray();
-
-    for (auto& b : bl_erf) {
-        // You look at the lo corner of b, and find out the lowest cell in
-        // coarse weather data you need for the interpolation. That gives
-        // you the lo corner of the new b. Similarly, you can find out the
-        // hi corner of the new b. For cells outside the coarse_weath_data's
-        // bounding data, it's up to you. You probably want to use a biased
-        // interpolation stencil.
-
-        // Get the cell indices of the bottom corner and top corner
-        const IntVect& lo_erf = b.smallEnd();  // Lower corner (inclusive)
-        const IntVect& hi_erf = b.bigEnd();    // Upper corner (inclusive)
-
-        Real x = prob_lo_erf[0] + lo_erf[0] * dx_erf[0];
-        Real y = prob_lo_erf[1] + lo_erf[1] * dx_erf[1];
-        Real z = prob_lo_erf[2] + lo_erf[2] * dx_erf[2];
-
-        auto idx_lo = find_bound_idx(x, y, z, bl_weather, geom_weather, BoundType::Lo);
-
-        x = prob_lo_erf[0] + (hi_erf[0]+1) * dx_erf[0];
-        y = prob_lo_erf[1] + (hi_erf[1]+1) * dx_erf[1];
-        z = prob_lo_erf[2] + (hi_erf[2]+1) * dx_erf[2];
-
-        auto idx_hi = find_bound_idx(x, y, z, bl_weather, geom_weather, BoundType::Hi);
-
-        b.setSmall(idx_lo);
-        b.setBig(idx_hi);
-    }
-
-    BoxArray cba(std::move(bl_erf));
-    cba.convert(IndexType::TheNodeType());  // <-- Make it nodal in all directions
-    MultiFab tmp_coarse_data(cba, erf_mf_cons.DistributionMap(), weather_mf.nComp(), 0);
-    tmp_coarse_data.ParallelCopy(weather_mf);
-
-    //PlotMultiFab(weather_mf, geom_weather, "plt_coarse_weather_par_copy",MultiFabType::NC);
-
-    const auto prob_lo_weather  = geom_weather.ProbLoArray();
-    const auto dx_weather       = geom_weather.CellSizeArray();
-
-    for (MFIter mfi(erf_mf_cons); mfi.isValid(); ++mfi) {
+     for (MFIter mfi(erf_mf_cons); mfi.isValid(); ++mfi) {
+        const auto z_arr    = (a_z_phys_nd) ? a_z_phys_nd->const_array(mfi) :
+                                            Array4<const Real> {};
         const Array4<Real> &fine_cons_arr = erf_mf_cons.array(mfi);
         const Array4<Real> &fine_xvel_arr = erf_mf_xvel.array(mfi);
         const Array4<Real> &fine_yvel_arr = erf_mf_yvel.array(mfi);
-        //const Array4<Real> &fine_zvel_arr = erf_mf_zvel.array(mfi);
+        const Array4<Real> &fine_zvel_arr = erf_mf_zvel.array(mfi);
         const Array4<Real> &fine_latlon_arr = erf_mf_latlon.array(mfi);
 
-        const Array4<Real> &crse_arr = tmp_coarse_data.array(mfi);
 
         const Box& gbx = mfi.growntilebox(); // tilebox + ghost cells
 
         const Box &gtbx = mfi.tilebox(IntVect(1,0,0));
         const Box &gtby = mfi.tilebox(IntVect(0,1,0));
-        //const Box &gtbz = mfi.tilebox(IntVect(0,0,1));
+        const Box &gtbz = mfi.tilebox(IntVect(0,0,1));
+        const auto prob_lo  = geom[lev].ProbLoArray();
+        const auto dx       = geom[lev].CellSizeArray();
+       //const Box &gtbz = mfi.tilebox(IntVect(0,0,1));
 
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-             // Physical location of the fine node
-            Real x = prob_lo_erf[0] + (i+0.5) * dx_erf[0];
-            Real y = prob_lo_erf[1] + (j+0.5) * dx_erf[1];
-            Real z = prob_lo_erf[2] + (k+0.5) * dx_erf[2];
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            // Geometry (note we must include these here to get the data on device)
+            const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
+            const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
+            //const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
+            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/2.0;
 
-            Real rho    = interpolate_from_coarse(crse_arr, 0, x, y, z, prob_lo_weather.data(), dx_weather.data());
-            Real lat    = interpolate_from_coarse(crse_arr, 8, x, y, z, prob_lo_weather.data(), dx_weather.data());
-            Real lon    = interpolate_from_coarse(crse_arr, 9, x, y, z, prob_lo_weather.data(), dx_weather.data());
+            // First interpolate where the weather data is available from
+            Real tmp_rho, tmp_theta, tmp_qv, tmp_qc, tmp_qr, tmp_lat, tmp_lon;
+            bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                   dxvec, dyvec,
+                                   nx, ny, nz,
+                                   x, y, z,
+                                   rho_d_ptr, tmp_rho);
 
-            fine_cons_arr(i,j,k,Rho_comp) = rho;
+            bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                   dxvec, dyvec,
+                                   nx, ny, nz,
+                                   x, y, z,
+                                   theta_d_ptr, tmp_theta);
 
-            fine_latlon_arr(i,j,k,0) = lat;
-            fine_latlon_arr(i,j,k,1) = lon;
+            bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                   dxvec, dyvec,
+                                   nx, ny, nz,
+                                   x, y, z,
+                                   qv_d_ptr, tmp_qv);
+
+            bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                   dxvec, dyvec,
+                                   nx, ny, nz,
+                                   x, y, z,
+                                   qc_d_ptr, tmp_qc);
+
+            bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                   dxvec, dyvec,
+                                   nx, ny, nz,
+                                   x, y, z,
+                                   qr_d_ptr, tmp_qr);
+
+            bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                   dxvec, dyvec,
+                                   nx, ny, 1,
+                                   x, y, 0.0,
+                                   latvec_d_ptr, tmp_lat);
+
+            bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                   dxvec, dyvec,
+                                   nx, ny, 1,
+                                   x, y, 0.0,
+                                   lonvec_d_ptr, tmp_lon);
+
+            fine_cons_arr(i,j,k,Rho_comp) = tmp_rho;
+            fine_latlon_arr(i,j,k,0) = tmp_lat;
+            fine_latlon_arr(i,j,k,1) = tmp_lon;
         });
 
-        ParallelFor(gtbx, gtby,
+        ParallelFor(gtbx, gtby, gtbz,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
             Real x = prob_lo_erf[0] + i       * dx_erf[0];
             Real y = prob_lo_erf[1] + (j+0.5) * dx_erf[1];
-            Real z = prob_lo_erf[2] + (k+0.5) * dx_erf[2];
-            fine_xvel_arr(i, j, k, 0) = interpolate_from_coarse(crse_arr, 1, x, y, z, prob_lo_weather.data(), dx_weather.data());
+            //Real z = prob_lo_erf[2] + (k+0.5) * dx_erf[2];
+            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/2.0;
+
+            Real tmp_uvel;
+            bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                   dxvec, dyvec,
+                                   nx, ny, nz,
+                                   x, y, z,
+                                   uvel_d_ptr, tmp_uvel);
+
+            fine_xvel_arr(i, j, k, 0) = tmp_uvel;
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) {
              // Physical location of the fine node
             Real x = prob_lo_erf[0] + (i+0.5) * dx_erf[0];
             Real y = prob_lo_erf[1] + j       * dx_erf[1];
-            Real z = prob_lo_erf[2] + (k+0.5) * dx_erf[2];
-            fine_yvel_arr(i, j, k, 0) = interpolate_from_coarse(crse_arr, 2, x, y, z, prob_lo_weather.data(), dx_weather.data());
+            //Real z = prob_lo_erf[2] + (k+0.5) * dx_erf[2];
+            const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/2.0;
+
+            Real tmp_vvel;
+            bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                   dxvec, dyvec,
+                                   nx, ny, nz,
+                                   x, y, z,
+                                   vvel_d_ptr, tmp_vvel);
+
+            fine_yvel_arr(i, j, k, 0) = tmp_vvel;
+        },
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+             // Physical location of the fine node
+            Real x = prob_lo_erf[0] + (i+0.5) * dx_erf[0];
+            Real y = prob_lo_erf[1] + (j+0.5) * dx_erf[1];
+            Real z = prob_lo_erf[2] + k       * dx_erf[2];
+            //const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/2.0;
+
+            Real tmp_wvel;
+            bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                   dxvec, dyvec,
+                                   nx, ny, nz,
+                                   x, y, z,
+                                   wvel_d_ptr, tmp_wvel);
+
+            fine_zvel_arr(i, j, k, 0) = tmp_wvel;
         });
     }
 
@@ -386,7 +296,6 @@ ERF::InterpWeatherDataOntoMesh (const Geometry& geom_weather,
     Vector<std::string> varnames_plot_mf = {
     "rho", "rhotheta", "rhoqv", "rhoqc", "rhoqr", "xvel", "yvel", "zvel", "latitude", "longitude"
     }; // Customize variable names
-
 
     const Real time = 0.0;
 
@@ -435,85 +344,35 @@ ERF::InterpWeatherDataOntoMesh (const Geometry& geom_weather,
 }
 
 void
-ERF::FillWeatherDataMultiFab(const std::string& filename,
-                             const Geometry& geom_weather,
-                             const BoxArray& nba,
-                             const DistributionMapping& dm,
-                             Vector<MultiFab>& weather_forecast_data)
+ERF::WeatherDataInterpolation(const int lev,
+                              const Real time,
+                              amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd,
+                              bool regrid_forces_file_read)
 {
 
-    Vector<Real> latvec_h, lonvec_h, xvec_h, yvec_h, zvec_h;
-    Vector<Real> rho_h, uvel_h, vvel_h, wvel_h, theta_h, qv_h, qc_h, qr_h;
+    static amrex::Vector<Real> next_read_forecast_time;
+    static amrex::Vector<Real> last_read_forecast_time;
 
-    ReadCustomBinaryIC(filename, latvec_h, lonvec_h,
-                       xvec_h, yvec_h, zvec_h, rho_h,
-                       uvel_h, vvel_h, wvel_h,
-                       theta_h, qv_h, qc_h, qr_h);
+    const int nlevs = a_z_phys_nd.size();
 
-    Real zmax = *std::max_element(zvec_h.begin(), zvec_h.end());
-
-    const auto prob_lo_erf  = geom[0].ProbLoArray();
-    const auto prob_hi_erf  = geom[0].ProbHiArray();
-    const auto dx_erf       = geom[0].CellSizeArray();
-
-    if (prob_hi_erf[2] >= zmax) {
-        Abort("ERROR: the maximum z of the domain (" + std::to_string(prob_hi_erf[2]) +
-        ") should be less than the maximum z in the forecast data (" + std::to_string(zmax) +
-        "). Change geometry.prob_hi[2] in the inputs to be less than " + std::to_string(zmax) + "."
-        );
-    }
-
-    if(prob_lo_erf[0] < xvec_h.front() + 4*dx_erf[0]){
-        amrex::Abort("The xlo value of the domain has to be greater than " + std::to_string(xvec_h.front() + 4*dx_erf[0]));
-    }
-    if(prob_hi_erf[0] > xvec_h.back() - 4*dx_erf[0]){
-        amrex::Abort("The xhi value of the domain has to be less than " + std::to_string(xvec_h.back() - 4*dx_erf[0]));
-    }
-    if(prob_lo_erf[1] < yvec_h.front() + 4*dx_erf[1]){
-        amrex::Abort("The ylo value of the domain has to be greater than " + std::to_string(yvec_h.front() + 4*dx_erf[1]));
-    }
-    if(prob_hi_erf[1] > yvec_h.back() - 4*dx_erf[1]){
-        amrex::Abort("The yhi value of the domain has to be less than " + std::to_string(yvec_h.back() - 4*dx_erf[1]));
-    }
-
-    // Number of cells
-    int nx_cells = xvec_h.size()-1;
-    int ny_cells = yvec_h.size()-1;
-
-    const amrex::Geometry& geom0 = geom[0]; // or whatever your Geometry vector is called
-    const amrex::Box& domainBox = geom0.Domain();
-    const amrex::IntVect& domainSize = domainBox.size(); // Number of cells in each direction
-    int nz_cells = domainSize[2];
-
-
-    int ncomp = 10;
-    int ngrow = 0;
-
-    int n_time = 1;      // or however many time slices you want
-    weather_forecast_data.resize(n_time);
-    MultiFab& weather_mf = weather_forecast_data[0];
-    weather_mf.define(nba, dm, ncomp, ngrow);
-
-    fill_weather_data_multifab(weather_mf, geom_weather, nx_cells+1, ny_cells+1, nz_cells+1,
-                               latvec_h, lonvec_h, zvec_h,
-                               rho_h,uvel_h, vvel_h, wvel_h,
-                               theta_h, qv_h, qc_h, qr_h);
-
-    //PlotMultiFab(weather_mf, geom_weather, "plt_coarse_weather", MultiFabType::NC);
-}
-
-void
-ERF::WeatherDataInterpolation(const Real time)
-{
-
-    static Real next_read_forecast_time = -1.0;
     Real hindcast_data_interval = solverChoice.hindcast_data_interval_in_hrs*3600.0;
 
-    if (next_read_forecast_time < 0.0) {
-        int next_multiple = static_cast<int>(time / hindcast_data_interval);
-        next_read_forecast_time = next_multiple * hindcast_data_interval;
+    // Initialize static vectors once
+    if (next_read_forecast_time.empty()) {
+        next_read_forecast_time.resize(nlevs, -1.0);
+        last_read_forecast_time.resize(nlevs, -1.0);
+        Print() << "Initializing the time vector values here by " << lev << std::endl;
     }
-    if (time >= next_read_forecast_time) {
+
+    if (next_read_forecast_time[lev] < 0.0) {
+        int next_multiple = static_cast<int>(time / hindcast_data_interval);
+        next_read_forecast_time[lev] = next_multiple * hindcast_data_interval;
+        last_read_forecast_time[lev] = next_read_forecast_time[lev];
+    }
+
+    if (time >= next_read_forecast_time[lev] or regrid_forces_file_read) {
+
+        Print() << "Data reading happening at level " << lev << std::endl;
 
         std::string folder = solverChoice.hindcast_boundary_data_dir;
 
@@ -552,63 +411,56 @@ ERF::WeatherDataInterpolation(const Real time)
         filename1 = bin_files[idx1];
         filename2 = bin_files[idx2];
 
-        BoxArray nba;
-        DistributionMapping dm;
-        Geometry geom_weather;
+        FillForecastStateMultiFabs(lev, filename1, a_z_phys_nd[lev], forecast_state_1);
+        FillForecastStateMultiFabs(lev, filename2, a_z_phys_nd[lev], forecast_state_2);
 
-       //Read in weather_forecast_1
-        CreateWeatherDataGeomBoxArrayDistMap(filename1,
-                                             geom_weather,
-                                             nba,
-                                             dm);
-
-        FillWeatherDataMultiFab(filename1,
-                                geom_weather,
-                                nba,
-                                dm,
-                                weather_forecast_data_1);
-
-        CreateForecastStateMultiFabs(forecast_state_1);
-        InterpWeatherDataOntoMesh(geom_weather, weather_forecast_data_1[0], forecast_state_1);
-
-        FillWeatherDataMultiFab(filename2,
-                                geom_weather,
-                                nba,
-                                dm,
-                                weather_forecast_data_2);
-        CreateForecastStateMultiFabs(forecast_state_2);
-        InterpWeatherDataOntoMesh(geom_weather, weather_forecast_data_2[0], forecast_state_2);
-
-        CreateForecastStateMultiFabs(forecast_state_interp);
-
-        next_read_forecast_time += hindcast_data_interval;
+         // Create the time-interpolated forecast state
+        //CreateForecastStateMultiFabs(forecast_state_interp);
+        if(!regrid_forces_file_read){
+            last_read_forecast_time[lev] = next_read_forecast_time[lev];
+            next_read_forecast_time[lev] += hindcast_data_interval;
+            Print() << "Next forecast time getting updated here " << std::endl;
+        }
     }
-    Real alpha1 = 1.0 - (time - next_read_forecast_time)/hindcast_data_interval;
+
+    Real prev_read_time = last_read_forecast_time[lev];
+    Real alpha1 = 1.0 - (time - prev_read_time)/hindcast_data_interval;
     Real alpha2 = 1.0 - alpha1;
 
-    MultiFab& erf_mf_cons   = forecast_state_interp[0][Vars::cons];
-    MultiFab& erf_mf_xvel   = forecast_state_interp[0][Vars::xvel];
-    MultiFab& erf_mf_yvel   = forecast_state_interp[0][Vars::yvel];
+    amrex::Print()<< "The values of alpha1 and alpha2 are " << alpha1 << " "<< alpha2 <<std::endl;
+
+    if (alpha1 < 0.0 || alpha1 > 1.0 ||
+    alpha2 < 0.0 || alpha2 > 1.0)
+    {
+        std::stringstream ss;
+        ss << "Interpolation weights for hindcast files are incorrect: "
+        << "alpha1 = " << alpha1 << ", alpha2 = " << alpha2;
+       Abort(ss.str());
+    }
+
+    MultiFab& erf_mf_cons   = forecast_state_interp[lev][Vars::cons];
+    MultiFab& erf_mf_xvel   = forecast_state_interp[lev][Vars::xvel];
+    MultiFab& erf_mf_yvel   = forecast_state_interp[lev][Vars::yvel];
     //MultiFab& erf_mf_zvel   = forecast_state_interp[0][Vars::zvel];
-    MultiFab& erf_mf_latlon = forecast_state_interp[0][4];
+    MultiFab& erf_mf_latlon = forecast_state_interp[lev][4];
 
-    MultiFab::LinComb(forecast_state_interp[0][Vars::cons],
-                      alpha1, forecast_state_1[0][Vars::cons], 0,
-                      alpha2, forecast_state_2[0][Vars::cons], 0,
-                      0, erf_mf_cons.nComp(), forecast_state_interp[0][Vars::cons].nGrow());
-    MultiFab::LinComb(forecast_state_interp[0][Vars::xvel],
-                      alpha1, forecast_state_1[0][Vars::xvel], 0,
-                      alpha2, forecast_state_2[0][Vars::xvel], 0,
-                      0, erf_mf_xvel.nComp(), forecast_state_interp[0][Vars::xvel].nGrow());
-    MultiFab::LinComb(forecast_state_interp[0][Vars::yvel],
-                      alpha1, forecast_state_1[0][Vars::yvel], 0,
-                      alpha2, forecast_state_2[0][Vars::yvel], 0,
-                      0, erf_mf_yvel.nComp(), forecast_state_interp[0][Vars::yvel].nGrow());
-    MultiFab::LinComb(forecast_state_interp[0][4],
-                      alpha1, forecast_state_1[0][4], 0,
-                      alpha2, forecast_state_2[0][4], 0,
-                      0, erf_mf_latlon.nComp(), forecast_state_interp[0][4].nGrow());
-
+    // Fill the time-interpolated forecast states
+    MultiFab::LinComb(forecast_state_interp[lev][Vars::cons],
+                      alpha1, forecast_state_1[lev][Vars::cons], 0,
+                      alpha2, forecast_state_2[lev][Vars::cons], 0,
+                      0, erf_mf_cons.nComp(), forecast_state_interp[lev][Vars::cons].nGrow());
+    MultiFab::LinComb(forecast_state_interp[lev][Vars::xvel],
+                      alpha1, forecast_state_1[lev][Vars::xvel], 0,
+                      alpha2, forecast_state_2[lev][Vars::xvel], 0,
+                      0, erf_mf_xvel.nComp(), forecast_state_interp[lev][Vars::xvel].nGrow());
+    MultiFab::LinComb(forecast_state_interp[lev][Vars::yvel],
+                      alpha1, forecast_state_1[lev][Vars::yvel], 0,
+                      alpha2, forecast_state_2[lev][Vars::yvel], 0,
+                      0, erf_mf_yvel.nComp(), forecast_state_interp[lev][Vars::yvel].nGrow());
+    MultiFab::LinComb(forecast_state_interp[lev][4],
+                      alpha1, forecast_state_1[lev][4], 0,
+                      alpha2, forecast_state_2[lev][4], 0,
+                      0, erf_mf_latlon.nComp(), forecast_state_interp[lev][4].nGrow());
 
     /*Vector<std::string> varnames_plot_mf = {
     "rho", "rhotheta", "rhoqv", "rhoqc", "rhoqr", "xvel", "yvel", "zvel", "latitude", "longitude"
@@ -656,9 +508,6 @@ ERF::WeatherDataInterpolation(const Real time)
             time,
             0 // level
         );*/
-
-
-
 }
 
 #endif
