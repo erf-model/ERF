@@ -332,6 +332,20 @@ public:
                 // If using WRFInput, SLM init needs to be delayed here to use correct values set from WRFInput
                 slm_init();
 
+                // Convert soil moisture from wrfinput to soil wetness for SLM
+                for ( amrex::MFIter mfi(*lsm_fab_vars[LsmVar_SLM::soilw],TileNoZ()); mfi.isValid(); ++mfi) {
+                    const auto& box3d = mfi.tilebox();
+                    auto landmask_arr = landmask.const_array(mfi);
+                    auto poro_soil_arr = lsm_fab_vars[LsmVar_SLM::poro_soil]->const_array(mfi);
+                    auto wsoil_arr = lsm_fab_vars[LsmVar_SLM::soilw]->array(mfi);
+                    amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        if (landmask_arr(i, j, 0) == 1)
+                        {
+                            wsoil_arr(i, j, k) /= poro_soil_arr(i, j, k);
+                        }
+                    });
+                }
+
                 init_slm_vars();
             }
 

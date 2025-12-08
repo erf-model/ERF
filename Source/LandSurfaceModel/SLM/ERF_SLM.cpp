@@ -1188,8 +1188,6 @@ void SLM::init_soil_tw()
 
         auto soilt_arr = lsm_fab_vars[LsmVar_SLM::soilt]->array(mfi);
         auto soilw_arr = lsm_fab_vars[LsmVar_SLM::soilw]->array(mfi);
-        auto soilt_obs_arr = lsm_fab_vars[LsmVar_SLM::soilt_obs]->array(mfi);
-        auto soilw_obs_arr = lsm_fab_vars[LsmVar_SLM::soilw_obs]->array(mfi);
 
         auto sand_arr = lsm_fab_vars[LsmVar_SLM::sand]->array(mfi);
         auto clay_arr = lsm_fab_vars[LsmVar_SLM::clay]->array(mfi);
@@ -1280,9 +1278,6 @@ void SLM::init_soil_tw()
                     clay_arr(i,j,k) *= 100.0;
                 }
 
-                // initialize nudging profiles for soil based on the initial soilt and soilw
-                soilt_obs_arr(i, j, k) = soilt_arr(i, j, k);
-                soilw_obs_arr(i, j, k) = soilw_arr(i, j, k);
                 soil_relax_hgt_arr(i, j, k) = d_relax[(k*-1)+d_khi_lsm];
 
                 // TODO: nrestart conditional here
@@ -1457,6 +1452,10 @@ void SLM::init_slm_vars()
             }
         });
     }
+
+    // initialize nudging profiles for soil based on the initial soilt and soilw
+    MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilt_obs], *lsm_fab_vars[LsmVar_SLM::soilt], 0, 0, 1, 0);
+    MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilw_obs], *lsm_fab_vars[LsmVar_SLM::soilw], 0, 0, 1, 0);
 }
 
 void SLM::ReadParameterFile(const std::string &filename)
