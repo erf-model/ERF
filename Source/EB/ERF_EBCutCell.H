@@ -185,36 +185,6 @@ class eb_cut_cell_ {
       return vcent;
     }
 
-    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    amrex::RealVect centVol_debug ([[maybe_unused]] int i, [[maybe_unused]] int j, [[maybe_unused]] int k) const noexcept {
-      amrex::RealVect vcent = m_cell_cent;
-      if (m_flag.isSingleValued()) {
-        amrex::Real xm = m_rbox.lo(0);
-        amrex::Real xp = m_rbox.hi(0);
-        amrex::Real ym = m_rbox.lo(1);
-        amrex::Real yp = m_rbox.hi(1);
-        amrex::Real zm = m_rbox.lo(2);
-        amrex::Real zp = m_rbox.hi(2);
-
-        amrex::Real axm = areaLo(0);
-        amrex::Real axp = areaHi(0);
-        amrex::Real aym = areaLo(1);
-        amrex::Real ayp = areaHi(1);
-        amrex::Real azm = areaLo(2);
-        amrex::Real azp = areaHi(2);
-
-        amrex::Real barea = m_F7.area();
-        amrex::RealVect bcent = m_F7.get_centroid();
-
-        amrex::Real vol = volume();
-
-        vcent[0] = 0.5 * ( - xm * xm * axm + xp * xp * axp + bcent[0] * bcent[0] * m_eb_normal[0] * barea ) / vol;
-        vcent[1] = 0.5 * ( - ym * ym * aym + yp * yp * ayp + bcent[1] * bcent[1] * m_eb_normal[1] * barea ) / vol;
-        vcent[2] = 0.5 * ( - zm * zm * azm + zp * zp * azp + bcent[2] * bcent[2] * m_eb_normal[2] * barea ) / vol;
-      }
-      return vcent;
-    }
-
     void debug ( int const a_face = -1 );
 
   private:
