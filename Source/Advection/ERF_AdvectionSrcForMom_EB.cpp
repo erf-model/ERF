@@ -372,7 +372,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                         fxm = (Real(1.0)-fracy)*(Real(1.0)-fracz)*fxm
                             +      fracy *(Real(1.0)-fracz)*flx_u_arr[0](i,jj,k )
                             +      fracz *(Real(1.0)-fracy)*flx_u_arr[0](i,j ,kk)
-                            +      fracy *     fracz *flx_u_arr[0](i,jj,kk);
+                            +      fracy *           fracz *flx_u_arr[0](i,jj,kk);
                     }
 
                     Real fxp = flx_u_arr[0](i+1,j,k);
@@ -495,7 +495,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                         fym = (Real(1.0)-fracx)*(Real(1.0)-fracz)*fym
                             +      fracx *(Real(1.0)-fracz)*flx_v_arr[1](ii,j,k )
                             +      fracz *(Real(1.0)-fracx)*flx_v_arr[1](i ,j,kk)
-                            +      fracx *     fracz *flx_v_arr[1](ii,j,kk);
+                            +      fracx *           fracz *flx_v_arr[1](ii,j,kk);
                     }
 
                     Real fyp = flx_v_arr[1](i,j+1,k);

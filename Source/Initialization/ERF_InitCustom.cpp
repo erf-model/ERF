@@ -73,11 +73,11 @@ ERF::init_custom (int lev)
                                xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                                r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
                                geom[lev].data(), mf_m, mf_u, mf_v,
-                               solverChoice);
+                               solverChoice, lev);
     } //mfi
 
     // Add problem-specific perturbation to background flow if not doing anelastic with fixed-in-time density
-    if (!solverChoice.fixed_density) {
+    if (!solverChoice.fixed_density[lev]) {
         MultiFab::Add(lev_new[Vars::cons], cons_pert, Rho_comp,      Rho_comp,             1, cons_pert.nGrow());
     }
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp,        1, cons_pert.nGrow());

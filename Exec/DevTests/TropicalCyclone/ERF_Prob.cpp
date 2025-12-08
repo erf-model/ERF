@@ -50,7 +50,8 @@ Problem::init_custom_pert(
     Array4<Real const> const&,
     Array4<Real const> const&,
     Array4<Real const> const&,
-    const SolverChoice& sc)
+    const SolverChoice& sc,
+    const int /*lev*/)
 {
     const Real fcor = sc.coriolis_factor * sc.sinphi;
     amrex::Print() << "Initializing Rotunno-Emanuel vortex with f=" << fcor << std::endl;

@@ -49,7 +49,8 @@ public:
         amrex::Array4<amrex::Real const> const& mf_m,
         amrex::Array4<amrex::Real const> const& mf_u,
         amrex::Array4<amrex::Real const> const& mf_v,
-        const SolverChoice& sc) override;
+        const SolverChoice& sc,
+        const int lev) override;
 
 protected:
     std::string name() override { return "Tropical Cyclone"; }

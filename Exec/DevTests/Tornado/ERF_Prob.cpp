@@ -42,7 +42,8 @@ Problem::init_custom_pert (const amrex::Box&  bx,
                            amrex::Array4<amrex::Real const> const& /*mf_m*/,
                            amrex::Array4<amrex::Real const> const& /*mf_u*/,
                            amrex::Array4<amrex::Real const> const& /*mf_v*/,
-                           const SolverChoice& /*sc*/)
+                           const SolverChoice& /*sc*/,
+                           const int /*lev*/)
 {
     // Initialize KE for PBL model
     ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept

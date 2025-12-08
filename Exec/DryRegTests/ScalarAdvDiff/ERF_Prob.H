@@ -52,7 +52,8 @@ public:
         amrex::Array4<amrex::Real const> const& mf_m,
         amrex::Array4<amrex::Real const> const& mf_u,
         amrex::Array4<amrex::Real const> const& mf_v,
-        const SolverChoice& sc) override;
+        const SolverChoice& sc,
+        const int lev) override;
 
     void erf_init_rayleigh (
         amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
