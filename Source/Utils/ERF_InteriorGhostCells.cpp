@@ -225,32 +225,31 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
     */
 
     // Temporary FABs for storage (owned/filled on all ranks)
+    FArrayBox R_xlo, R_xhi, R_ylo, R_yhi;
     FArrayBox U_xlo, U_xhi, U_ylo, U_yhi;
     FArrayBox V_xlo, V_xhi, V_ylo, V_yhi;
-    FArrayBox R_xlo, R_xhi, R_ylo, R_yhi;
     FArrayBox T_xlo, T_xhi, T_ylo, T_yhi;
 
     // Variable index map (WRFBdyVars -> Vars)
-    Vector<int> var_map  = {Vars::xvel,    Vars::yvel,    Vars::cons,    Vars::cons};
-    Vector<int> ivar_map = {IntVars::xmom, IntVars::ymom, IntVars::cons, IntVars::cons};
+    Vector<int> var_map  = {Vars::cons,   Vars::xvel,    Vars::yvel,     Vars::cons   };
+    Vector<int> ivar_map = {IntVars::cons,IntVars::xmom, IntVars::ymom,  IntVars::cons};
 
     // Variable icomp map
-    Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
+    Vector<int> comp_map = {Rho_comp, 0, 0,  RhoTheta_comp};
 
     // Indices
+    int  ivarR = RealBdyVars::R;
     int  ivarU = RealBdyVars::U;
     int  ivarV = RealBdyVars::V;
-    int  ivarR = RealBdyVars::R;
     int  ivarT = RealBdyVars::T;
     int BdyEnd = RealBdyVars::NumTypes-1;
-
 
     // NOTE: These sizing of the temporary BDY FABS is
     //       GLOBAL and occurs over the entire BDY region.
 
     // Size the FABs
     //==========================================================
-    for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
+    for (int ivar(ivarR); ivar < BdyEnd; ivar++) {
         int ivar_idx = var_map[ivar];
         Box domain   = geom.Domain();
         auto ixtype  = S_cur_data[ivar_idx].boxArray().ixType();
@@ -268,16 +267,16 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                 0, ng_vect, true);
 
         // Size the FABs
-        if (ivar  == ivarU) {
-            U_xlo.resize(bx_xlo,1,The_Async_Arena()); U_xhi.resize(bx_xhi,1,The_Async_Arena());
-            U_ylo.resize(bx_ylo,1,The_Async_Arena()); U_yhi.resize(bx_yhi,1,The_Async_Arena());
-        } else if (ivar  == ivarV) {
-            V_xlo.resize(bx_xlo,1,The_Async_Arena()); V_xhi.resize(bx_xhi,1,The_Async_Arena());
-            V_ylo.resize(bx_ylo,1,The_Async_Arena()); V_yhi.resize(bx_yhi,1,The_Async_Arena());
-        } else if (ivar  == ivarR){
+        if (ivar == ivarR) {
             R_xlo.resize(bx_xlo,1,The_Async_Arena()); R_xhi.resize(bx_xhi,1,The_Async_Arena());
             R_ylo.resize(bx_ylo,1,The_Async_Arena()); R_yhi.resize(bx_yhi,1,The_Async_Arena());
-        } else if (ivar  == ivarT){
+        } else if (ivar == ivarU) {
+            U_xlo.resize(bx_xlo,1,The_Async_Arena()); U_xhi.resize(bx_xhi,1,The_Async_Arena());
+            U_ylo.resize(bx_ylo,1,The_Async_Arena()); U_yhi.resize(bx_yhi,1,The_Async_Arena());
+        } else if (ivar == ivarV) {
+            V_xlo.resize(bx_xlo,1,The_Async_Arena()); V_xhi.resize(bx_xhi,1,The_Async_Arena());
+            V_ylo.resize(bx_ylo,1,The_Async_Arena()); V_yhi.resize(bx_yhi,1,The_Async_Arena());
+        } else if (ivar == ivarT){
             T_xlo.resize(bx_xlo,1,The_Async_Arena()); T_xhi.resize(bx_xhi,1,The_Async_Arena());
             T_ylo.resize(bx_ylo,1,The_Async_Arena()); T_yhi.resize(bx_yhi,1,The_Async_Arena());
         } else {
@@ -294,7 +293,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
     // Populate FABs from bdy interpolation (primitive vars)
     //==========================================================
-    for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
+    for (int ivar(ivarR); ivar < BdyEnd; ivar++) {
         int ivar_idx = var_map[ivar];
         Box domain   = geom.Domain();
         auto ixtype  = S_cur_data[ivar_idx].boxArray().ixType();
@@ -318,16 +317,16 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
             Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
             Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
-            if (ivar  == ivarU) {
-                arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
-                arr_ylo = U_ylo.array(); arr_yhi = U_yhi.array();
-            } else if (ivar  == ivarV) {
-                arr_xlo = V_xlo.array(); arr_xhi = V_xhi.array();
-                arr_ylo = V_ylo.array(); arr_yhi = V_yhi.array();
-            } else if (ivar  == ivarR){
+            if (ivar == ivarR) {
                 arr_xlo = R_xlo.array(); arr_xhi = R_xhi.array();
                 arr_ylo = R_ylo.array(); arr_yhi = R_yhi.array();
-            } else if (ivar  == ivarT){
+            } else if (ivar == ivarU) {
+                arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
+                arr_ylo = U_ylo.array(); arr_yhi = U_yhi.array();
+            } else if (ivar == ivarV) {
+                arr_xlo = V_xlo.array(); arr_xhi = V_xhi.array();
+                arr_ylo = V_ylo.array(); arr_yhi = V_yhi.array();
+            } else if (ivar == ivarT){
                 arr_xlo = T_xlo.array(); arr_xhi = T_xhi.array();
                 arr_ylo = T_ylo.array(); arr_yhi = T_yhi.array();
             } else {
@@ -344,8 +343,9 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][ivar].const_array();
             const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][ivar].const_array();
 
-            // Current density to convert to conserved vars
-            Array4<Real> r_arr = S_cur_data[IntVars::cons].array(mfi);
+            // Density
+            r_arr_xlo = R_xlo.array(); r_arr_xhi = R_xhi.array();
+            r_arr_ylo = R_ylo.array(); r_arr_yhi = R_yhi.array();
 
             // NOTE: width is now one less than the total bndy width
             //       if we have a relaxation zone; so we can access
@@ -363,13 +363,18 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 int jj = std::max(j , dom_lo.y);
                     jj = std::min(jj, dom_hi.y);
 
+                int iim1 = std::max(ii-1 , dom_lo.x);
+                    iim1 = std::min(iim1, dom_lo.x+offset);
+                int jjm1 = std::max(jj-1 , dom_lo.y);
+                    jjm1 = std::min(jjm1, dom_hi.y);
+
                 Real rho_interp = 1.0;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = 0.5 * ( r_arr(iim1,jj,k) + r_arr(ii,jj,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = 0.5 * ( r_arr(ii,jjm1,k) + r_arr(ii,jj,k) );
                 } else if (ivar==ivarT) {
-                    rho_interp = r_arr(i,j,k);
+                    rho_interp = r_arr(ii,jj,k);
                 }
                 arr_xlo(i,j,k) = rho_interp * ( oma   * bdatxlo_n  (ii,jj,k,0)
                                               + alpha * bdatxlo_np1(ii,jj,k,0) );
@@ -381,13 +386,18 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 int jj = std::max(j , dom_lo.y);
                     jj = std::min(jj, dom_hi.y);
 
+                int iim1 = std::max(ii-1, dom_hi.x-offset);
+                    iim1 = std::min(iim1, dom_hi.x);
+                int jjm1 = std::max(jj-1, dom_lo.y);
+                    jjm1 = std::min(jjm1, dom_hi.y);
+
                 Real rho_interp = 1.0;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = 0.5 * ( r_arr(iim1,jj,k) + r_arr(ii,jj,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = 0.5 * ( r_arr(ii,jjm1,k) + r_arr(ii,jj,k) );
                 } else if (ivar==ivarT) {
-                    rho_interp = r_arr(i,j,k);
+                    rho_interp = r_arr(ii,jj,k);
                 }
                 arr_xhi(i,j,k) = rho_interp * ( oma   * bdatxhi_n  (ii,jj,k,0)
                                               + alpha * bdatxhi_np1(ii,jj,k,0) );
@@ -401,15 +411,20 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 int jj = std::max(j , dom_lo.y);
                     jj = std::min(jj, dom_lo.y+offset);
 
+                int iim1 = std::max(ii-1, dom_lo.x);
+                    iim1 = std::min(iim1, dom_hi.x);
+                int jjm1 = std::max(jj-1, dom_lo.y);
+                    jjm1 = std::min(jjm1, dom_lo.y+offset);
+
                 Real rho_interp = 1.0;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = 0.5 * ( r_arr(iim1,jj,k) + r_arr(ii,jj,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = 0.5 * ( r_arr(ii,jjm1,k) + r_arr(ii,jj,k) );
                 } else if (ivar==ivarT) {
-                    rho_interp = r_arr(i,j,k);
+                    rho_interp = r_arr(ii,jj,k);
                 }
-                arr_ylo(i,j,k) = rho_interp * ( oma   * bdatylo_n  (ii,jj,k,0)
+                arr_ylo(i,j,k) = rho_interp * ( oma   * bdatylo_n (ii,jj,k,0)
                                              + alpha * bdatylo_np1(ii,jj,k,0) );
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -419,13 +434,18 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 int jj = std::max(j , dom_hi.y-offset);
                     jj = std::min(jj, dom_hi.y);
 
+                int iim1 = std::max(ii-1, dom_lo.x);
+                    iim1 = std::min(iim1, dom_hi.x);
+                int jjm1 = std::max(jj-1, dom_hi.y-offset);
+                    jjm1 = std::min(jjm1, dom_hi.y);
+
                 Real rho_interp = 1.0;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(i-1,j  ,k) + r_arr(i,j,k) );
+                    rho_interp = 0.5 * ( r_arr(iim1,jj,k) + r_arr(ii,jj,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(i  ,j-1,k) + r_arr(i,j,k) );
+                    rho_interp = 0.5 * ( r_arr(ii,jjm1,k) + r_arr(ii,jj,k) );
                 } else if (ivar==ivarT) {
-                    rho_interp = r_arr(i,j,k);
+                    rho_interp = r_arr(ii,jj,k);
                 }
                 arr_yhi(i,j,k) = rho_interp * ( oma   * bdatyhi_n  (ii,jj,k,0)
                                               + alpha * bdatyhi_np1(ii,jj,k,0) );
@@ -440,7 +460,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
     // Compute RHS in specified region
     //==========================================================
     if (set_width > 0) {
-        for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
+        for (int ivar(ivarR); ivar < BdyEnd; ivar++) {
             int ivar_idx = ivar_map[ivar];
             int icomp    = comp_map[ivar];
 
@@ -467,22 +487,22 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 Array4<Real> rhs_arr; Array4<Real> data_arr;
                 Array4<Real> arr_xlo; Array4<Real> arr_xhi;
                 Array4<Real> arr_ylo; Array4<Real> arr_yhi;
-                if (ivar  == ivarU) {
-                    arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
-                    arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
-                    rhs_arr  = S_rhs[IntVars::xmom].array(mfi);
-                    data_arr = S_old_data[IntVars::xmom].array(mfi);
-                } else if (ivar  == ivarV) {
-                    arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
-                    arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
-                    rhs_arr  = S_rhs[IntVars::ymom].array(mfi);
-                    data_arr = S_old_data[IntVars::ymom].array(mfi);
-                } else if (ivar  == ivarR){
+                if (ivar == ivarR){
                     arr_xlo  = R_xlo.array(); arr_xhi = R_xhi.array();
                     arr_ylo  = R_ylo.array(); arr_yhi = R_yhi.array();
                     rhs_arr  = S_rhs[IntVars::cons].array(mfi);
                     data_arr = S_old_data[IntVars::cons].array(mfi);
-                } else if (ivar  == ivarT){
+                } else if (ivar == ivarU) {
+                    arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
+                    arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
+                    rhs_arr  = S_rhs[IntVars::xmom].array(mfi);
+                    data_arr = S_old_data[IntVars::xmom].array(mfi);
+                } else if (ivar == ivarV) {
+                    arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
+                    arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
+                    rhs_arr  = S_rhs[IntVars::ymom].array(mfi);
+                    data_arr = S_old_data[IntVars::ymom].array(mfi);
+                } else if (ivar == ivarT){
                     arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
                     arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
                     rhs_arr  = S_rhs[IntVars::cons].array(mfi);
@@ -511,7 +531,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
         auto dx = geom.CellSizeArray();
         auto ProbLo = geom.ProbLoArray();
         auto ProbHi = geom.ProbHiArray();
-        for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
+        for (int ivar(ivarR); ivar < BdyEnd; ivar++) {
             int ivar_idx = ivar_map[ivar];
             int icomp    = comp_map[ivar];
 
@@ -533,22 +553,22 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 Array4<Real> rhs_arr; Array4<Real> data_arr;
                 Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
                 Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
-                if (ivar  == ivarU) {
-                    arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
-                    arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
-                    rhs_arr  = S_rhs[IntVars::xmom].array(mfi);
-                    data_arr = S_cur_data[IntVars::xmom].array(mfi);
-                } else if (ivar  == ivarV) {
-                    arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
-                    arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
-                    rhs_arr  = S_rhs[IntVars::ymom].array(mfi);
-                    data_arr = S_cur_data[IntVars::ymom].array(mfi);
-                 } else if (ivar  == ivarR){
+                if (ivar == ivarR){
                     arr_xlo  = R_xlo.array(); arr_xhi = R_xhi.array();
                     arr_ylo  = R_ylo.array(); arr_yhi = R_yhi.array();
                     rhs_arr  = S_rhs[IntVars::cons].array(mfi);
                     data_arr = S_cur_data[IntVars::cons].array(mfi);
-                } else if (ivar  == ivarT){
+                } else if (ivar == ivarU) {
+                    arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
+                    arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
+                    rhs_arr  = S_rhs[IntVars::xmom].array(mfi);
+                    data_arr = S_cur_data[IntVars::xmom].array(mfi);
+                } else if (ivar == ivarV) {
+                    arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
+                    arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
+                    rhs_arr  = S_rhs[IntVars::ymom].array(mfi);
+                    data_arr = S_cur_data[IntVars::ymom].array(mfi);
+                } else if (ivar == ivarT){
                     arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
                     arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
                     rhs_arr  = S_rhs[IntVars::cons].array(mfi);
