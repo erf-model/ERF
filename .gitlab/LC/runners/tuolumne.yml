@@ -48,7 +48,7 @@ stages:
     - export HSA_XNACK=1
     - export SPINDLE_FLUXOPT=off
     - flux proxy "${JOBID}" flux batch -N 1 -x --flags waitable --output=none --error=none ${TEST_SCRIPT}
-    - flux proxy "${JOBID}" flux job attach -r $(flux job last)
+    - flux proxy "${JOBID}" flux job attach -r $(flux proxy "${JOBID}" flux job last)
     - flux proxy "${JOBID}" flux queue drain
     - flux proxy "${JOBID}" flux job wait --all
 
