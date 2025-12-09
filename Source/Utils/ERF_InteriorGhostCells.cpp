@@ -344,8 +344,8 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][ivar].const_array();
 
             // Density
-            r_arr_xlo = R_xlo.array(); r_arr_xhi = R_xhi.array();
-            r_arr_ylo = R_ylo.array(); r_arr_yhi = R_yhi.array();
+            Array4<Real> r_arr_xlo = R_xlo.array(); Array4<Real> r_arr_xhi = R_xhi.array();
+            Array4<Real> r_arr_ylo = R_ylo.array(); Array4<Real> r_arr_yhi = R_yhi.array();
 
             // NOTE: width is now one less than the total bndy width
             //       if we have a relaxation zone; so we can access
