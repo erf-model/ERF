@@ -370,11 +370,11 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
                 Real rho_interp = 1.0;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(iim1,jj,k) + r_arr(ii,jj,k) );
+                    rho_interp = 0.5 * ( r_arr_xlo(iim1,jj,k) + r_arr_xlo(ii,jj,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(ii,jjm1,k) + r_arr(ii,jj,k) );
+                    rho_interp = 0.5 * ( r_arr_xlo(ii,jjm1,k) + r_arr_xlo(ii,jj,k) );
                 } else if (ivar==ivarT) {
-                    rho_interp = r_arr(ii,jj,k);
+                    rho_interp = r_arr_xlo(ii,jj,k);
                 }
                 arr_xlo(i,j,k) = rho_interp * ( oma   * bdatxlo_n  (ii,jj,k,0)
                                               + alpha * bdatxlo_np1(ii,jj,k,0) );
@@ -393,11 +393,11 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
                 Real rho_interp = 1.0;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(iim1,jj,k) + r_arr(ii,jj,k) );
+                    rho_interp = 0.5 * ( r_arr_xhi(iim1,jj,k) + r_arr_xhi(ii,jj,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(ii,jjm1,k) + r_arr(ii,jj,k) );
+                    rho_interp = 0.5 * ( r_arr_xhi(ii,jjm1,k) + r_arr_xhi(ii,jj,k) );
                 } else if (ivar==ivarT) {
-                    rho_interp = r_arr(ii,jj,k);
+                    rho_interp = r_arr_xhi(ii,jj,k);
                 }
                 arr_xhi(i,j,k) = rho_interp * ( oma   * bdatxhi_n  (ii,jj,k,0)
                                               + alpha * bdatxhi_np1(ii,jj,k,0) );
@@ -418,11 +418,11 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
                 Real rho_interp = 1.0;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(iim1,jj,k) + r_arr(ii,jj,k) );
+                    rho_interp = 0.5 * ( r_arr_ylo(iim1,jj,k) + r_arr_ylo(ii,jj,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(ii,jjm1,k) + r_arr(ii,jj,k) );
+                    rho_interp = 0.5 * ( r_arr_ylo(ii,jjm1,k) + r_arr_ylo(ii,jj,k) );
                 } else if (ivar==ivarT) {
-                    rho_interp = r_arr(ii,jj,k);
+                    rho_interp = r_arr_ylo(ii,jj,k);
                 }
                 arr_ylo(i,j,k) = rho_interp * ( oma   * bdatylo_n (ii,jj,k,0)
                                              + alpha * bdatylo_np1(ii,jj,k,0) );
@@ -441,11 +441,11 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
                 Real rho_interp = 1.0;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr(iim1,jj,k) + r_arr(ii,jj,k) );
+                    rho_interp = 0.5 * ( r_arr_yhi(iim1,jj,k) + r_arr_yhi(ii,jj,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr(ii,jjm1,k) + r_arr(ii,jj,k) );
+                    rho_interp = 0.5 * ( r_arr_yhi(ii,jjm1,k) + r_arr_yhi(ii,jj,k) );
                 } else if (ivar==ivarT) {
-                    rho_interp = r_arr(ii,jj,k);
+                    rho_interp = r_arr_yhi(ii,jj,k);
                 }
                 arr_yhi(i,j,k) = rho_interp * ( oma   * bdatyhi_n  (ii,jj,k,0)
                                               + alpha * bdatyhi_np1(ii,jj,k,0) );
