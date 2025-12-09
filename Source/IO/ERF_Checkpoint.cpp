@@ -369,19 +369,32 @@ ERF::WriteCheckpointFile () const
         }
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
-            amrex::Print() << "Writing C1H/C2H/MUB variables at level " << lev << std::endl;
-            MultiFab tmp1d(ba1d[0],dmap[0],1,0);
+            if (lev == 0) {
+                amrex::Print() << "Writing C1H/C2H/MUB/PH/PHB/RDNW variables at level " << lev << std::endl;
+                MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
-            MultiFab::Copy(tmp1d,*mf_C1H,0,0,1,0);
-            VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C1H"));
+                MultiFab::Copy(tmp1d,*mf_C1H,0,0,1,0);
+                VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C1H"));
 
-            MultiFab::Copy(tmp1d,*mf_C2H,0,0,1,0);
-            VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
+                MultiFab::Copy(tmp1d,*mf_C2H,0,0,1,0);
+                VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
 
-            MultiFab tmp2d(ba2d[0],dmap[0],1,mf_MUB->nGrowVect());
+                MultiFab tmp2d(ba2d[0],dmap[0],1,mf_MUB->nGrowVect());
 
-            MultiFab::Copy(tmp2d,*mf_MUB,0,0,1,mf_MUB->nGrowVect());
-            VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
+                MultiFab::Copy(tmp2d,*mf_MUB,0,0,1,mf_MUB->nGrowVect());
+                VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
+
+                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,mf_PH->nGrowVect());
+
+                MultiFab::Copy(tmp3d,*mf_PH,0,0,1,mf_PH->nGrowVect());
+                VisMF::Write(tmp3d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PH"));
+
+                MultiFab::Copy(tmp3d,*mf_PHB,0,0,1,mf_PHB->nGrowVect());
+                VisMF::Write(tmp3d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "PHB"));
+
+                MultiFab::Copy(tmp1d,*mf_RDNW,0,0,1,0);
+                VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "RDNW"));
+            }
         }
 #endif
 
@@ -902,7 +915,6 @@ ERF::ReadCheckpointFile ()
         }
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
-
             if (lev == 0) {
                 MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
@@ -916,6 +928,17 @@ ERF::ReadCheckpointFile ()
 
                 VisMF::Read(tmp2d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MUB"));
                 MultiFab::Copy(*mf_MUB,tmp2d,0,0,1,mf_MUB->nGrowVect());
+
+                MultiFab tmp3d(convert(grids[0],IntVect(0,0,1)),dmap[0],1,mf_PH->nGrowVect());
+
+                VisMF::Read(tmp3d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PH"));
+                MultiFab::Copy(*mf_PH,tmp3d,0,0,1,mf_PH->nGrowVect());
+
+                VisMF::Write(tmp3d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "PHB"));
+                MultiFab::Copy(*mf_PHB,tmp3d,0,0,1,mf_PHB->nGrowVect());
+
+                VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "RDNW"));
+                MultiFab::Copy(*mf_RDNW,tmp1d,0,0,1,0);
             }
         }
 #endif

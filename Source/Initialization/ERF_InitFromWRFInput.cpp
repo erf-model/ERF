@@ -80,6 +80,9 @@ ERF::init_from_wrfinput (int lev,
                          MultiFab& mf_C1H_lev,
                          MultiFab& mf_C2H_lev,
                          MultiFab& mf_MUB_lev,
+                         MultiFab& mf_PH_lev,
+                         MultiFab& mf_PHB_lev,
+                         MultiFab& mf_RDNW_lev,
                          MultiFab& mf_PSFC_lev)
 {
     if (nc_init_file.empty()) {
@@ -111,26 +114,27 @@ ERF::init_from_wrfinput (int lev,
     NC_names.push_back("LANDMASK");  // 17
     NC_names.push_back("C1H");       // 18
     NC_names.push_back("C2H");       // 19
-    NC_names.push_back("XLAT_V");    // 20
-    NC_names.push_back("XLONG_U");   // 21
+    NC_names.push_back("RDNW");      // 20
+    NC_names.push_back("XLAT_V");    // 21
+    NC_names.push_back("XLONG_U");   // 22
     if (use_moist) {
-        NC_names.push_back("QVAPOR"); // 22
-        NC_names.push_back("QCLOUD"); // 23
-        NC_names.push_back("QRAIN");  // 24
+        NC_names.push_back("QVAPOR"); // 23
+        NC_names.push_back("QCLOUD"); // 24
+        NC_names.push_back("QRAIN");  // 25
     }
-    NC_names.push_back("IVGTYP");     // 25
-    NC_names.push_back("ISLTYP");     // 26
+    NC_names.push_back("IVGTYP");     // 26
+    NC_names.push_back("ISLTYP");     // 27
     if (use_lsm) {
-        NC_names.push_back("TSLB");   // 27
-        NC_names.push_back("SMOIS");  // 28
-        NC_names.push_back("SH2O");   // 29
-        NC_names.push_back("LAI");    // 30
-        NC_names.push_back("ZS");     // 31
-        NC_names.push_back("DZS");    // 32
-        NC_names.push_back("VEGFRA"); // 33
-        NC_names.push_back("TMN");    // 34
-        NC_names.push_back("SHDMIN"); // 35
-        NC_names.push_back("SHDMAX"); // 36
+        NC_names.push_back("TSLB");   // 28
+        NC_names.push_back("SMOIS");  // 29
+        NC_names.push_back("SH2O");   // 30
+        NC_names.push_back("LAI");    // 31
+        NC_names.push_back("ZS");     // 32
+        NC_names.push_back("DZS");    // 33
+        NC_names.push_back("VEGFRA"); // 34
+        NC_names.push_back("TMN");    // 35
+        NC_names.push_back("SHDMIN"); // 36
+        NC_names.push_back("SHDMAX"); // 37
 
         // --- debugging ---
         // print LSM varname->WRF input name map
@@ -155,7 +159,6 @@ ERF::init_from_wrfinput (int lev,
     //       the shapes in ERF_ReadFromWRFInput.cpp
     //       Most are 3D but MU/MUB are 2D and C1/2H are 1D
 
-    MultiFab mf_PH , mf_PHB;         // For geopotential height
     MultiFab mf_ALB, mf_PB , mf_P  ; // For base state
 
     // Temporary MFs for derived quantities
@@ -308,14 +311,12 @@ ERF::init_from_wrfinput (int lev,
 
           if ( var_name == "PH" ) {
               if (success) {
-                  auto& ba_w = lev_new[Vars::zvel].boxArray();
-                  mf_PH.define(ba_w, dm, 1, ngz);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                  for ( MFIter mfi(mf_PH, false); mfi.isValid(); ++mfi )
+                  for ( MFIter mfi(mf_PH_lev, false); mfi.isValid(); ++mfi )
                   {
-                    FArrayBox &cur_fab = mf_PH[mfi];
+                    FArrayBox &cur_fab = mf_PH_lev[mfi];
                     cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
                   }
                   var_fab.clear();
@@ -325,14 +326,12 @@ ERF::init_from_wrfinput (int lev,
               }
           } else if ( var_name == "PHB" ) {
               if (success) {
-                  auto& ba_w = lev_new[Vars::zvel].boxArray();
-                  mf_PHB.define(ba_w, dm, 1, ngz);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-                  for ( MFIter mfi(mf_PHB, false); mfi.isValid(); ++mfi )
+                  for ( MFIter mfi(mf_PHB_lev, false); mfi.isValid(); ++mfi )
                   {
-                    FArrayBox &cur_fab = mf_PHB[mfi];
+                    FArrayBox &cur_fab = mf_PHB_lev[mfi];
                     cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
                   }
                   var_fab.clear();
@@ -410,6 +409,16 @@ ERF::init_from_wrfinput (int lev,
               for ( MFIter mfi(mf_C2H_lev, false); mfi.isValid(); ++mfi )
               {
                 FArrayBox &cur_fab = mf_C2H_lev[mfi];
+                cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+              }
+              var_fab.clear();
+          } else if ( var_name == "RDNW" ) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+              for ( MFIter mfi(mf_RDNW_lev, false); mfi.isValid(); ++mfi )
+              {
+                FArrayBox &cur_fab = mf_RDNW_lev[mfi];
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
@@ -690,7 +699,7 @@ ERF::init_from_wrfinput (int lev,
     if (compute_terrain_here) {
         if (lev == 0) {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-            z_top = compute_terrain_top_and_bottom(mf_PH, mf_PHB, geom[lev].Domain());
+            z_top = compute_terrain_top_and_bottom(mf_PH_lev, mf_PHB_lev, geom[lev].Domain());
         } else {
             amrex::Print() << "Warning: using top of domain set at level 0 which is " << z_top << std::endl;
         }
@@ -698,13 +707,13 @@ ERF::init_from_wrfinput (int lev,
         // **************************************************************************
         // FillBoundary to populate the internal ghost cells (for averaging)
         // **************************************************************************
-         mf_PH.FillBoundary(geom[lev].periodicity());
-        mf_PHB.FillBoundary(geom[lev].periodicity());
+         mf_PH_lev.FillBoundary(geom[lev].periodicity());
+        mf_PHB_lev.FillBoundary(geom[lev].periodicity());
 
         // **************************************************************************
         // Initialize the terrain itself
         // **************************************************************************
-        init_terrain_from_wrfinput(lev, z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(), mf_PH, mf_PHB);
+        init_terrain_from_wrfinput(lev, z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(), mf_PH_lev, mf_PHB_lev);
 
         // **************************************************************************
         // Initialize the metric quantities
@@ -866,7 +875,7 @@ ERF::init_from_wrfinput (int lev,
         }
 
         bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
-                                                   bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                                    start_bdy_time);
 
         // *******************************************************************************************
@@ -876,8 +885,8 @@ ERF::init_from_wrfinput (int lev,
         int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
         for (int itime = 0; itime < ntimes; itime++)
         {
-            read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
-                             bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+            read_from_wrfbdy(itime, nc_bdy_file, geom[0].Domain(),
+                             bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                              real_width);
 
             if (itime == 0) {
@@ -887,7 +896,7 @@ ERF::init_from_wrfinput (int lev,
             }
 
             convert_all_wrfbdy_data(itime, geom[lev].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                    mf_MUB_lev, mf_C1H_lev, mf_C2H_lev,
+                                    mf_MUB_lev, mf_C1H_lev, mf_C2H_lev, mf_PH_lev, mf_PHB_lev, mf_RDNW_lev,
                                     lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                     geom[lev], use_moist);
         } // itime

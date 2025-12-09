@@ -555,6 +555,9 @@ public:
                              amrex::MultiFab& mf_C1H,
                              amrex::MultiFab& mf_C2H,
                              amrex::MultiFab& mf_MUB,
+                             amrex::MultiFab& mf_PH,
+                             amrex::MultiFab& mf_PHB,
+                             amrex::MultiFab& mf_RDNW,
                              amrex::MultiFab& mf_PSFC);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
@@ -563,13 +566,15 @@ public:
 #ifdef ERF_USE_WINDFARM
     void init_windfarm(int lev);
     void advance_windfarm (const amrex::Geometry& a_geom,
-                       const amrex::Real& dt_advance,
-                       amrex::MultiFab& cons_in,
-                       amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
-                       amrex::MultiFab& mf_vars_windfarm,
-                       const amrex::MultiFab& mf_Nturb,
-                       const amrex::MultiFab& mf_SMark,
-                       const amrex::Real& time);
+                           const amrex::Real& dt_advance,
+                           amrex::MultiFab& cons_in,
+                           amrex::MultiFab& U_old,
+                           amrex::MultiFab& V_old,
+                           amrex::MultiFab& W_old,
+                           amrex::MultiFab& mf_vars_windfarm,
+                           const amrex::MultiFab& mf_Nturb,
+                           const amrex::MultiFab& mf_SMark,
+                           const amrex::Real& time);
 #endif
 
     void MakeEBGeometry ();
@@ -1255,6 +1260,9 @@ private:
     std::unique_ptr<amrex::MultiFab> mf_C1H;
     std::unique_ptr<amrex::MultiFab> mf_C2H;
     std::unique_ptr<amrex::MultiFab> mf_MUB;
+    std::unique_ptr<amrex::MultiFab> mf_PH;
+    std::unique_ptr<amrex::MultiFab> mf_PHB;
+    std::unique_ptr<amrex::MultiFab> mf_RDNW;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_PSFC;
 

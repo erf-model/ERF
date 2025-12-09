@@ -126,7 +126,7 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
     // These fields are at half levels (unstaggered)
     // ******************************************************************
     Vector<std::string> nc_var_names;
-    Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","MU","PC"};
+    Vector<std::string> nc_var_prefix = {"U","V","R","T","QVAPOR","MU","PC"};
 
     for (int ip = 0; ip < nc_var_prefix.size(); ++ip)
     {
@@ -176,6 +176,8 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             bdyVarType = WRFBdyVars::U;
         } else if (first1 == "V") {
             bdyVarType = WRFBdyVars::V;
+        } else if (first1 == "R") {
+            bdyVarType = WRFBdyVars::R;
         } else if (first1 == "T") {
             bdyVarType = WRFBdyVars::T;
         } else if (first2 == "QV") {
@@ -223,9 +225,11 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Box xlo_line(IntVect(lo[0], lo[1], 0), IntVect(lo[0]+real_width-1, hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_x_stag, 1, Arena_Used)); // U
+                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_x_stag, 1, Arena_Used));  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_y_stag , 1, Arena_Used)); // V
+                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_y_stag, 1, Arena_Used));  // V
+            } else if (bdyVarType == WRFBdyVars::R) {
+                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // R
             } else if (bdyVarType == WRFBdyVars::T) {
                 bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
@@ -251,9 +255,11 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Box xhi_line(IntVect(hi[0]-real_width+1, lo[1], 0), IntVect(hi[0], hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_x_stag, 1, Arena_Used)); // U
+                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_x_stag, 1, Arena_Used));  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_y_stag , 1, Arena_Used)); // V
+                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_y_stag, 1, Arena_Used));  // V
+            } else if (bdyVarType == WRFBdyVars::R) {
+                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // R
             } else if (bdyVarType == WRFBdyVars::T) {
                 bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
@@ -279,9 +285,11 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Box ylo_line(IntVect(lo[0], lo[1], 0), IntVect(hi[0], lo[1]+real_width-1, 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_x_stag , 1, Arena_Used)); // U
+                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_x_stag, 1, Arena_Used));  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_y_stag, 1, Arena_Used)); // V
+                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_y_stag, 1, Arena_Used));  // V
+            } else if (bdyVarType == WRFBdyVars::R) {
+                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // R
             } else if (bdyVarType == WRFBdyVars::T) {
                 bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
@@ -307,9 +315,11 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Box yhi_line(IntVect(lo[0], hi[1]-real_width+1, 0), IntVect(hi[0], hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_x_stag , 1, Arena_Used)); // U
+                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_x_stag, 1, Arena_Used));  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_y_stag, 1, Arena_Used)); // V
+                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_y_stag, 1, Arena_Used));  // V
+            } else if (bdyVarType == WRFBdyVars::R) {
+                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // R
             } else if (bdyVarType == WRFBdyVars::T) {
                 bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
@@ -333,7 +343,8 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Array4<Real> fab_arr;
 
             if (bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V ||
-                bdyVarType == WRFBdyVars::T || bdyVarType == WRFBdyVars::QV)
+                bdyVarType == WRFBdyVars::R || bdyVarType == WRFBdyVars::T ||
+                bdyVarType == WRFBdyVars::QV)
             {
                 // xlo,xhi dims: (Time, bdy_width, bottom_top, south_north)
                 // ylo,yhi dims: (Time, bdy_width, bottom_top, west_east)
@@ -467,6 +478,9 @@ convert_wrfbdy_data (const int itime,
                      const MultiFab& mf_MUB,
                      const MultiFab& mf_C1H,
                      const MultiFab& mf_C2H,
+                     const MultiFab& mf_PH,
+                     const MultiFab& mf_PHB,
+                     const MultiFab& mf_RDNW,
                      const MultiFab& xvel,
                      const MultiFab& yvel,
                      const MultiFab& cons,
@@ -507,12 +521,14 @@ convert_wrfbdy_data (const int itime,
 
         const Box& bx_u  = (xbx & bdy_data[itime][WRFBdyVars::U].box());
         const Box& bx_v  = (ybx & bdy_data[itime][WRFBdyVars::V].box());
+        const Box& bx_r  = (tbx & bdy_data[itime][WRFBdyVars::R].box());
         const Box& bx_t  = (tbx & bdy_data[itime][WRFBdyVars::T].box());
         const Box& bx_qv = (tbx & bdy_data[itime][WRFBdyVars::QV].box());
 
         // TMP BDY data
         Array4<Real> bdy_u_tmp  = bdy_data_tmp[WRFBdyVars::U].array();  // This is x-face-centered
         Array4<Real> bdy_v_tmp  = bdy_data_tmp[WRFBdyVars::V].array();  // This is y-face-centered
+        Array4<Real> bdy_r_tmp  = bdy_data_tmp[WRFBdyVars::R].array();  // This is cell-centered
         Array4<Real> bdy_t_tmp  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
         Array4<Real> bdy_qv_tmp = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
 
@@ -522,9 +538,12 @@ convert_wrfbdy_data (const int itime,
         const Array4<const int>& mask_v_arr = mask_v->const_array(mfi);
 
         // Populated from read wrfinput
-        Array4<Real const> c1h_arr  = mf_C1H.const_array(mfi);
-        Array4<Real const> c2h_arr  = mf_C2H.const_array(mfi);
-        Array4<Real const> mub_arr  = mf_MUB.const_array(mfi);
+        Array4<Real const> c1h_arr   = mf_C1H.const_array(mfi);
+        Array4<Real const> c2h_arr   = mf_C2H.const_array(mfi);
+        Array4<Real const> mub_arr   = mf_MUB.const_array(mfi);
+        Array4<Real const> ph_arr    = mf_PH.const_array(mfi);
+        Array4<Real const> phb_arr   = mf_PHB.const_array(mfi);
+        Array4<Real const> rdnw_arr  = mf_RDNW.const_array(mfi);
 
         // Define u velocity
         ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -562,6 +581,14 @@ convert_wrfbdy_data (const int itime,
                 Real new_bdy     = bdy_v_arr(i,j,k) / xmu_mult;
                 bdy_v_tmp(i,j,k) = new_bdy;
             }
+        });
+
+        // Define density
+        ParallelFor(bx_r, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real xmu  = c1h_arr(0,0,k) * (mu_arr(i,j,0) + mub_arr(i,j,0)) + c2h_arr(0,0,k);
+            Real dpht = (ph_arr(i,j,k+1) + phb_arr(i,j,k+1)) - (ph_arr(i,j,k) + phb_arr(i,j,k));
+            bdy_r_tmp(i,j,k) = -xmu / ( dpht * rdnw_arr(0,0,k) );
         });
 
         // Convert perturbational moist pot. temp. (Th_m) to dry pot. temp. (Th_d)
@@ -608,6 +635,9 @@ convert_all_wrfbdy_data (const int itime,
                          const MultiFab& mf_MUB,
                          const MultiFab& mf_C1H,
                          const MultiFab& mf_C2H,
+                         const MultiFab& mf_PH,
+                         const MultiFab& mf_PHB,
+                         const MultiFab& mf_RDNW,
                          const MultiFab& xvel,
                          const MultiFab& yvel,
                          const MultiFab& cons,
@@ -615,16 +645,16 @@ convert_all_wrfbdy_data (const int itime,
                          const bool& use_moist)
 {
     convert_wrfbdy_data(itime, domain, bdy_data_xlo,
-                        mf_MUB, mf_C1H, mf_C2H,
+                        mf_MUB, mf_C1H, mf_C2H, mf_PH, mf_PHB, mf_RDNW,
                         xvel, yvel, cons, geom, use_moist);
     convert_wrfbdy_data(itime, domain, bdy_data_xhi,
-                        mf_MUB, mf_C1H, mf_C2H,
+                        mf_MUB, mf_C1H, mf_C2H, mf_PH, mf_PHB, mf_RDNW,
                         xvel, yvel, cons, geom, use_moist);
     convert_wrfbdy_data(itime, domain, bdy_data_ylo,
-                        mf_MUB, mf_C1H, mf_C2H,
+                        mf_MUB, mf_C1H, mf_C2H, mf_PH, mf_PHB, mf_RDNW,
                         xvel, yvel, cons, geom, use_moist);
     convert_wrfbdy_data(itime, domain, bdy_data_yhi,
-                        mf_MUB, mf_C1H, mf_C2H,
+                        mf_MUB, mf_C1H, mf_C2H, mf_PH, mf_PHB, mf_RDNW,
                         xvel, yvel, cons, geom, use_moist);
 }
 #endif // ERF_USE_NETCDF

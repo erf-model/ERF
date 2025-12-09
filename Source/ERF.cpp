@@ -1090,7 +1090,7 @@ ERF::InitData_post ()
                                  bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                  real_width);
                 convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                        *mf_MUB, *mf_C1H, *mf_C2H,
+                                        *mf_MUB, *mf_C1H, *mf_C2H, *mf_PH, *mf_PHB, *mf_RDNW,
                                         vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
                                         geom[lev], use_moist);
             } // itime
@@ -1988,7 +1988,7 @@ ERF::init_only (int lev, Real time)
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
 
-        init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
+        init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PH, *mf_PHB, *mf_RDNW, *mf_PSFC[lev]);
 
         if (lev==0) {
             if ((start_time > 0) && (start_time != start_bdy_time)) {

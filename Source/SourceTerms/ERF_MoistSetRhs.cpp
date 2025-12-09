@@ -35,8 +35,7 @@ moist_set_rhs (const Geometry& geom,
     if (width > set_width+1) width -= 1;
 
     // Relaxation constants
-    Real F1 = 1./(10.*dt);
-    Real F2 = 1./(50.*dt);
+    Real F1 = 1./dt;
 
     // Domain bounds
     const auto& dom_hi = ubound(domain);
@@ -75,7 +74,7 @@ moist_set_rhs (const Geometry& geom,
 
     // Size the FABs
     //==========================================================
-    IntVect ng_vect{2,2,0};
+    IntVect ng_vect(0);
     Box gdom(domain); gdom.grow(ng_vect);
     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
     realbdy_interior_bxs_xy(gdom, domain, width,
@@ -198,11 +197,11 @@ moist_set_rhs (const Geometry& geom,
                                 tbx_xlo, tbx_xhi,
                                 tbx_ylo, tbx_yhi,
                                 set_width, ng_vect);
-        realbdy_compute_laplacian_relaxation(RhoQ1_comp, 1,
-                                             width, dx, ProbLo, ProbHi, F1, F2,
-                                             tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                             arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                             new_cons, cell_rhs);
+        realbdy_compute_relaxation(RhoQ1_comp, 1,
+                                   width, dx, ProbLo, ProbHi, F1,
+                                   tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+                                   arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+                                   new_cons, cell_rhs);
     }
 
     /*
