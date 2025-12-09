@@ -75,21 +75,21 @@ class eb_cut_cell_ {
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    amrex::Real areaLo ( int const a_idim ) const noexcept {
-      AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
+    amrex::Real areaLo ( int const idir ) const noexcept {
+      AMREX_ASSERT( idir >=0 && idir < AMREX_SPACEDIM );
       if (m_flag.isCovered() ) { return 0.; }
-      if (m_flag.isRegular() ) { return m_lo_faces[a_idim]->area(); }
-      amrex::Real const area(m_lo_faces[a_idim]->area());
-      return m_invert*area + (1.-m_invert)*(m_rbox_area[a_idim] - area);
+      if (m_flag.isRegular() ) { return m_lo_faces[idir]->area(); }
+      amrex::Real const area(m_lo_faces[idir]->area());
+      return m_invert*area + (1.-m_invert)*(m_rbox_area[idir] - area);
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    amrex::Real areaHi ( int const a_idim ) const noexcept {
-      AMREX_ASSERT( a_idim >= 0 && a_idim < AMREX_SPACEDIM );
+    amrex::Real areaHi ( int const idir ) const noexcept {
+      AMREX_ASSERT( idir >= 0 && idir < AMREX_SPACEDIM );
       if (m_flag.isCovered() ) { return 0.; }
-      if (m_flag.isRegular() ) { return m_hi_faces[a_idim]->area(); }
-      amrex::Real const area(m_hi_faces[a_idim]->area());
-      return m_invert*area + (1.-m_invert)*(m_rbox_area[a_idim] - area);
+      if (m_flag.isRegular() ) { return m_hi_faces[idir]->area(); }
+      amrex::Real const area(m_hi_faces[idir]->area());
+      return m_invert*area + (1.-m_invert)*(m_rbox_area[idir] - area);
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -98,19 +98,19 @@ class eb_cut_cell_ {
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    amrex::RealVect centLo ( int const a_idim ) const noexcept {
-      AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
-      amrex::RealVect cent = m_cellface_cent[ m_lo_faces_id[a_idim] ];
+    amrex::RealVect centLo ( int const idir ) const noexcept {
+      AMREX_ASSERT( idir >=0 && idir < AMREX_SPACEDIM );
+      amrex::RealVect cent = m_cellface_cent[ m_lo_faces_id[idir] ];
       if (m_flag.isCovered() || m_flag.isRegular() ) {
         // Default cent
       } else {
-        amrex::Real const area_R = m_lo_faces[a_idim]->area();
-        if (amrex::almostEqual(area_R,0.0) || amrex::almostEqual(area_R, m_rbox_area[a_idim]) ){
+        amrex::Real const area_R = m_lo_faces[idir]->area();
+        if (amrex::almostEqual(area_R,0.0) || amrex::almostEqual(area_R, m_rbox_area[idir]) ){
           // Default cent
         } else {
           amrex::RealVect   cent_O = cent;
-          amrex::RealVect   cent_R = m_lo_faces[a_idim]->get_centroid();
-          amrex::Real const area_C = m_rbox_area[a_idim] - area_R;
+          amrex::RealVect   cent_R = m_lo_faces[idir]->get_centroid();
+          amrex::Real const area_C = m_rbox_area[idir] - area_R;
           cent = m_invert * cent_R + (1.-m_invert) * ((1.+area_R/area_C)*cent_O - area_R/area_C*cent_R);
         }
       }
@@ -118,19 +118,19 @@ class eb_cut_cell_ {
     }
 
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    amrex::RealVect centHi ( int const a_idim ) const noexcept {
-      AMREX_ASSERT( a_idim >=0 && a_idim < AMREX_SPACEDIM );
-      amrex::RealVect cent = m_cellface_cent[ m_hi_faces_id[a_idim] ];
+    amrex::RealVect centHi ( int const idir ) const noexcept {
+      AMREX_ASSERT( idir >=0 && idir < AMREX_SPACEDIM );
+      amrex::RealVect cent = m_cellface_cent[ m_hi_faces_id[idir] ];
       if (m_flag.isCovered() || m_flag.isRegular() ) {
         // Default cent
       } else {
-        amrex::Real const area_R = m_hi_faces[a_idim]->area();
-        if (amrex::almostEqual(area_R,0.0) || amrex::almostEqual(area_R, m_rbox_area[a_idim]) ){
+        amrex::Real const area_R = m_hi_faces[idir]->area();
+        if (amrex::almostEqual(area_R,0.0) || amrex::almostEqual(area_R, m_rbox_area[idir]) ){
           // Default cent
         } else {
           amrex::RealVect   cent_O = cent;
-          amrex::RealVect   cent_R = m_hi_faces[a_idim]->get_centroid();
-          amrex::Real const area_C = m_rbox_area[a_idim] - area_R;
+          amrex::RealVect   cent_R = m_hi_faces[idir]->get_centroid();
+          amrex::Real const area_C = m_rbox_area[idir] - area_R;
           cent = m_invert * cent_R + (1.-m_invert) * ((1.+area_R/area_C)*cent_O - area_R/area_C*cent_R);
         }
       }
@@ -264,7 +264,7 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
   RealVect v6(m_rbox.lo(0), m_rbox.hi(1), m_rbox.hi(2));
   RealVect v7(m_rbox.hi(0), m_rbox.hi(1), m_rbox.hi(2));
 
-  // Centoids of cell faces
+  // Centroids of cell faces
 
   m_cellface_cent[0] = 0.25 * ( v0 + v2 + v5 + v1 ); // F1
   m_cellface_cent[1] = 0.25 * ( v1 + v5 + v7 + v4 ); // F2

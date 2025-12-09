@@ -78,7 +78,7 @@ class polygon_ {
 
       m_defined = 1;
 
-      // We need at least 3 faces.
+      // We need at least 3 vertices.
       if (m_num_vertices < 3) { return; }
 
       // Check to see if the vertices of the face are inside or outside of the plane.
