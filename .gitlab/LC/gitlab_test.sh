@@ -170,6 +170,6 @@ echo "========"
 echo "Test ERF"
 echo "========"
 
-time ctest --test-dir "${build_dir}" --extra-verbose --output-on-failure -LE "manual" -L ${ctest_label:-""}
+time ctest --test-dir "${build_dir}" -j 6 --extra-verbose --output-on-failure -LE "manual" -L ${ctest_label:-""}
 
 echo "End: $(date)"
