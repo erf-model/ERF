@@ -9,7 +9,43 @@
 #include <AMReX_EBCellFlag.H>
 
 #include "ERF_EBPolygon.H"
-#include "ERF_EBUtils.H"
+
+namespace eb_utils {
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+int
+intersect_plane_edge ( amrex::RealVect const& a_plane_point,
+                       amrex::RealVect const& a_plane_normal,
+                       amrex::RealVect const& a_edge_point0,
+                       amrex::RealVect const& a_edge_point1,
+                       amrex::RealVect& a_intersection_point,
+                       amrex::Real& a_intersection_dist )
+{
+  amrex::RealVect const edge(a_edge_point1 - a_edge_point0);
+  amrex::Real const edge_length = edge.vectorLength();
+
+  AMREX_ALWAYS_ASSERT(edge_length > 0.);
+
+  amrex::RealVect edge_normal = edge / edge_length;
+
+  amrex::Real np_dot_ne = a_plane_normal.dotProduct(edge_normal);
+
+  // if ( amrex::Math::abs(np_dot_ne) < std::numeric_limits<amrex::Real>::min() )
+  if ( amrex::Math::abs(np_dot_ne) < 10.0 * std::numeric_limits<amrex::Real>::epsilon() )
+  { return 0; }
+
+  a_intersection_dist = a_plane_normal.dotProduct(a_plane_point)
+                      - a_plane_normal.dotProduct(a_edge_point0);
+  a_intersection_dist /= np_dot_ne;
+
+  a_intersection_point = a_edge_point0 + a_intersection_dist*edge_normal;
+
+  if (0. <= a_intersection_dist && a_intersection_dist <= edge_length) { return 1;}
+
+  return 0;
+}
+
+}
 
 class eb_cut_cell_ {
 
@@ -384,7 +420,7 @@ calc_edge_intersections ()
     int cuts(0);
     for (int i = 0; i < 8; ++i) vertex_intersected[i] = false;
 
-    if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v1, vIP, distIP)) {
+    if (eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v1, vIP, distIP)) {
 
       amrex::Real length = (v0-v1).vectorLength();
 
@@ -447,7 +483,7 @@ calc_edge_intersections ()
 #endif
     }
 
-    if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v1, v4, vIP, distIP)) {
+    if (eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v1, v4, vIP, distIP)) {
 
       amrex::Real length = (v1-v4).vectorLength();
 
@@ -510,7 +546,7 @@ calc_edge_intersections ()
 #endif
     }
 
-    if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v4, v7, vIP, distIP)) {
+    if (eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v4, v7, vIP, distIP)) {
 
       amrex::Real length = (v4-v7).vectorLength();
 
@@ -562,7 +598,7 @@ calc_edge_intersections ()
     } // P1: v4--v7
 
     if (cuts == 2 && add_v7) {
-      if (!utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
+      if (!eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
 #ifdef AMREX_USE_GPU
         m_F2.add_vertex(v7);
         m_F3.add_vertex(v7);
@@ -578,7 +614,7 @@ calc_edge_intersections ()
   } // end Path 1
 
   // Path 4
-  if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v1, v5, vIP, distIP)) {
+  if (eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v1, v5, vIP, distIP)) {
 
     amrex::Real length = (v1-v5).vectorLength();
 
@@ -623,7 +659,7 @@ calc_edge_intersections ()
   { int cuts(0);
     for (int i = 0; i < 8; ++i) vertex_intersected[i] = false;
 
-    if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v2, vIP, distIP)) {
+    if (eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v2, vIP, distIP)) {
 
       amrex::Real length = (v0-v2).vectorLength();
 
@@ -686,7 +722,7 @@ calc_edge_intersections ()
 #endif
     }
 
-    if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v2, v5, vIP, distIP)) {
+    if (eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v2, v5, vIP, distIP)) {
 
       amrex::Real length = (v2-v5).vectorLength();
 
@@ -748,7 +784,7 @@ calc_edge_intersections ()
 #endif
     }
 
-    if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v5, v7, vIP, distIP)) {
+    if (eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v5, v7, vIP, distIP)) {
 
       amrex::Real length = (v5-v7).vectorLength();
 
@@ -799,7 +835,7 @@ calc_edge_intersections ()
     } // Path 2: v5--v7
 
     if (cuts == 2 && add_v7) {
-      if (!utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
+      if (!eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
 #ifdef AMREX_USE_GPU
         m_F2.add_vertex(v7);
         m_F3.add_vertex(v7);
@@ -816,7 +852,7 @@ calc_edge_intersections ()
   } // end Path 2
 
   // Path 5
-  if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v2, v6, vIP, distIP)) {
+  if (eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v2, v6, vIP, distIP)) {
 
     amrex::Real length = (v2-v6).vectorLength();
 
@@ -862,7 +898,7 @@ calc_edge_intersections ()
   { int cuts(0);
     for (int i = 0; i < 8; ++i) vertex_intersected[i] = false;
 
-    if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v3, vIP, distIP)) {
+    if (eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v3, vIP, distIP)) {
 
       amrex::Real length = (v0-v3).vectorLength();
 
@@ -925,7 +961,7 @@ calc_edge_intersections ()
 #endif
     }
 
-    if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v3, v6, vIP, distIP)) {
+    if (eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v3, v6, vIP, distIP)) {
 
       amrex::Real length = (v3-v6).vectorLength();
 
@@ -988,7 +1024,7 @@ calc_edge_intersections ()
 #endif
     }
 
-    if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v6, v7, vIP, distIP)) {
+    if (eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v6, v7, vIP, distIP)) {
 
       amrex::Real length = (v6-v7).vectorLength();
 
@@ -1039,7 +1075,7 @@ calc_edge_intersections ()
     } // P3: v6--v7
 
     if (cuts == 2 && add_v7) {
-      if (!utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
+      if (!eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
 #ifdef AMREX_USE_GPU
         m_F2.add_vertex(v7);
         m_F3.add_vertex(v7);
@@ -1056,7 +1092,7 @@ calc_edge_intersections ()
   } // end Path 3
 
   // Path 6
-  if (utils::intersect_plane_edge(m_eb_point, m_eb_normal, v3, v4, vIP, distIP)) {
+  if (eb_utils::intersect_plane_edge(m_eb_point, m_eb_normal, v3, v4, vIP, distIP)) {
 
     amrex::Real length = (v3-v4).vectorLength();
 

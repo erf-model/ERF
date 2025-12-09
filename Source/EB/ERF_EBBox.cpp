@@ -29,11 +29,9 @@ make_box ( Geometry const& a_geom)
 
   Real const* dx = a_geom.CellSize();
 
-  if ( !almostEqual(dx[0],dx[1]) || !almostEqual(dx[1],dx[2])) {
-    amrex::Error(" EB Error: Mesh spacing must be uniform!.\n");
-  }
-
-  Real offset = 0.01*dx[0];
+  Real offset_x = 0.01*dx[0];
+  Real offset_y = 0.01*dx[1];
+  Real offset_z = 0.01*dx[2];
 
   for (int i = 0; i < AMREX_SPACEDIM; i++) {
       boxLo[i] = a_geom.ProbLo(i);
@@ -44,10 +42,16 @@ make_box ( Geometry const& a_geom)
   pp_box.queryarr("hi", boxHi,  0, AMREX_SPACEDIM);
 
   pp_box.query("internal_flow", inside);
-  pp_box.query("offset", offset);
 
-  Real xlo = boxLo[0] + offset;
-  Real xhi = boxHi[0] - offset;
+  Real offset_in;
+  if (pp_box.query("offset", offset_in)) {
+      offset_x = offset_in;
+      offset_y = offset_in;
+      offset_z = offset_in;
+  }
+
+  Real xlo = boxLo[0] + offset_x;
+  Real xhi = boxHi[0] - offset_x;
 
   // This ensures that the walls won't even touch the ghost cells. By
   // putting them one domain width away
@@ -58,8 +62,8 @@ make_box ( Geometry const& a_geom)
   }
 
 
-  Real ylo = boxLo[1] + offset;
-  Real yhi = boxHi[1] - offset;
+  Real ylo = boxLo[1] + offset_y;
+  Real yhi = boxHi[1] - offset_y;
 
   // This ensures that the walls won't even touch the ghost cells. By
   // putting them one domain width away
@@ -69,8 +73,8 @@ make_box ( Geometry const& a_geom)
       yhi = 2.0*a_geom.ProbHi(1) - a_geom.ProbLo(1);
   }
 
-  Real zlo = boxLo[2] + offset;
-  Real zhi = boxHi[2] - offset;
+  Real zlo = boxLo[2] + offset_z;
+  Real zhi = boxHi[2] - offset_z;
 
   // This ensures that the walls won't even touch the ghost cells. By
   // putting them one domain width away

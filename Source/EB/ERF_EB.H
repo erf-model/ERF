@@ -47,12 +47,6 @@ class eb_ {
 
     void set_connection_flags ();
 
-    void WriteEBSurface (const amrex::BoxArray & ba,
-                        const amrex::DistributionMapping & dmap,
-                        const amrex::Geometry & geom,
-                        const amrex::EBFArrayBoxFactory * ebf,
-                        const int level);
-
     eb_aux_ const* get_u_const_factory() const noexcept { return &m_u_factory; }
     eb_aux_ const* get_v_const_factory() const noexcept { return &m_v_factory; }
     eb_aux_ const* get_w_const_factory() const noexcept { return &m_w_factory; }

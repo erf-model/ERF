@@ -12,17 +12,19 @@
 #include "ERF.H"
 #include "AMReX_buildInfo.H"
 #include "AMReX_Random.H"
+#include "AMReX_WriteEBSurface.H"
 #include "AMReX_EB2_IF_Box.H"
-#include "AMReX_EB2_IF_Sphere.H"
+
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_EBIFTerrain.H"
+#include "ERF_HurricaneDiagnostics.H"
+
 #ifdef ERF_USE_NETCDF
 #include "ERF_ReadFromWRFInput.H"
 #include "ERF_ReadFromWRFBdy.H"
 #endif
-#include "ERF_HurricaneDiagnostics.H"
 
 using namespace amrex;
 
@@ -502,15 +504,6 @@ ERF::ERF_shared ()
             pp.query("box_lo", box_lo);
             pp.query("box_hi", box_hi);
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
-            auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
-        } else if (geometry == "sphere") {
-            auto ProbLoArr = geom[max_level].ProbLoArray();
-            auto ProbHiArr = geom[max_level].ProbHiArray();
-            const Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
-            const Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
-            RealArray sphere_center = {xcen, ycen, 0.0};
-            EB2::SphereIF implicit_fun(0.5, sphere_center, false);
             auto gshop = EB2::makeShop(implicit_fun);
             amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
         }
@@ -1840,7 +1833,12 @@ ERF::InitData_post ()
     {
         bool write_eb_surface = false;
         pp.query("write_eb_surface", write_eb_surface);
-        if (write_eb_surface) WriteMyEBSurface();
+        if (write_eb_surface) {
+            if (verbose > 0) {
+                amrex::Print() << "Writing the geometry to a vtp file.\n" << std::endl;
+            }
+            WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
+        }
     }
 
 }
