@@ -521,9 +521,9 @@ calc_edge_intersections ()
     } // P1: v1--v4
 
     if (cuts%2 == 0) {
-      m_F2.add_vertex(v4) if(print_F2) printf("Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F2\n");
-      m_F3.add_vertex(v4) if(print_F3) printf("Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F3\n");
-      m_F5.add_vertex(v4) if(print_F5) printf("Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F5\n");
+      m_F2.add_vertex(v4); if(print_F2) printf("Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F2\n");
+      m_F3.add_vertex(v4); if(print_F3) printf("Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F3\n");
+      m_F5.add_vertex(v4); if(print_F5) printf("Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F5\n");
     }
 
     if (p1[2].intersected) {
