@@ -47,7 +47,9 @@ stages:
     - export AMD_LOG_LEVEL=2
     - export MPICH_GPU_SUPPORT_ENABLED=1
     - export HSA_XNACK=1
-    - flux proxy "${JOBID}" flux batch -N 1 -x ${TEST_SCRIPT}
+    - flux proxy "${JOBID}" flux batch -N 1 -x --flags waitable ${TEST_SCRIPT}
+    - flux proxy "${JOBID}" flux queue drain
+    - flux proxy "${JOBID}" flux job wait --all
 
 ##############################################################################
 # JOBS
