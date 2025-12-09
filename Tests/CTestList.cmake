@@ -112,8 +112,8 @@ endfunction(add_test_0)
 # Regression test for land surface models
 function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
     set(options )
-    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS" "LABEL")
-    set(multiValueArgs PLTFILES "EXTRA_FILES")
+    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS")
+    set(multiValueArgs PLTFILES "EXTRA_FILES" "LABELS")
     cmake_parse_arguments(ADD_TEST_LSM "${options}" "${oneValueArgs}"
         "${multiValueArgs}" ${ARGN})
 
@@ -132,10 +132,13 @@ function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
         endforeach()
     endif()
 
-    if (ADD_TEST_LSM_LABEL)
-        set(test_labels "${ADD_TEST_LSM_LABEL}")
+    if (ADD_TEST_LSM_LABELS)
+        set(test_labels "")
+        foreach(LABEL ${ADD_TEST_LSM_LABELS})
+            list(APPEND test_labels "${LABEL}")
+        endforeach()
     else()
-        set(test_labels "regression")    
+        set(test_labels "regression")
     endif()
 
     if(WIN32)
@@ -159,7 +162,7 @@ function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
         TIMEOUT 5400
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS ${test_labels}
+        LABELS "${test_labels}"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
     )
 endfunction(add_test_lsm)
@@ -223,13 +226,21 @@ add_test_0(Deardorff_stationary              "ABL" "erf_abl" "plt00010")
 # test w/out plotfile comparisons
 #add_test_lsm(SLM_CASS                        "DevTests/LandSurfaceModel_SLM_Coupled" "LandSurfaceModel_SLMERF")
 add_test_lsm(SLM_CASS_SAMRadiation            "DevTests/LandSurfaceModel_SLM_Coupled" "LandSurfaceModel_SLMERF"
-                                              LABEL "slm"
+                                              LABELS "slm"
                                               EXTRA_FILES "${CMAKE_SOURCE_DIR}/Exec/DevTests/LandSurfaceModel_SLM_Coupled/sounding_cass_interpolated"
                                                           "${CMAKE_SOURCE_DIR}/Exec/DevTests/LandSurfaceModel_SLM_Coupled/lsf_cass"
                                                           "${ERF_TEST_EXTRA_FILES_DIRECTORY}/CASS_32x32x156_50m_50m_1s_rad_coszrs_combined.nc"
                                               PLTFILES "plt34500"
                                                        "plt_lsm_34500"
                                                        "plt_lsm_2D_34500")
+
+add_test_lsm(SLM_LBA_RRTMGP                   "DevTests/LandSurfaceModel_SLM_Coupled" "LandSurfaceModel_SLMERF"
+                                              LABELS "slm" "manual"
+                                              EXTRA_FILES "${CMAKE_SOURCE_DIR}/Exec/DevTests/LandSurfaceModel_SLM_Coupled/snd_lba"
+                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-sw-g112.nc"
+                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-lw-g128.nc"
+                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-sw.nc"
+                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-lw.nc")
 
 #=============================================================================
 # Performance tests
