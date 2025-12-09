@@ -1194,7 +1194,7 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
 void
 init_terrain_from_wrfinput (int /*lev*/,
                             const Real& z_top,
-                            const Box& subdomain,
+                            const Box& /*subdomain*/,
                             MultiFab* z_phys,
                             const MultiFab& mf_PH,
                             const MultiFab& mf_PHB)
@@ -1209,9 +1209,9 @@ init_terrain_from_wrfinput (int /*lev*/,
         const Array4<Real const>& nc_ph_arr  = mf_PH.const_array(mfi);
 
         // PHB and PH are on z-faces (0.5 dx/y ahead of zphys)
-        Box z_face_box = convert(subdomain,IntVect(0,0,1));
+        Box z_face_box = convert(mfi.validbox(),IntVect(0,0,1));
 
-        // Prevent averaging from going into domain ghost cells
+        // Prevent averaging from going into ghost cells
         int ilo = z_face_box.smallEnd()[0] + 1;
         int ihi = z_face_box.bigEnd()[0];
         int jlo = z_face_box.smallEnd()[1] + 1;
