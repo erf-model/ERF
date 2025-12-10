@@ -105,9 +105,9 @@ namespace BaseBCVars {
 
 namespace RealBdyVars {
     enum {
-        R  = 0,
-        U  = 1,
-        V  = 2,
+        U  = 0,
+        V  = 1,
+        R  = 2,
         T  = 3,
         QV = 4,
         NumTypes
@@ -116,9 +116,9 @@ namespace RealBdyVars {
 
 namespace WRFBdyVars {
     enum {
-        R  = 0,
-        U  = 1,
-        V  = 2,
+        U  = 0,
+        V  = 1,
+        R  = 2,
         T  = 3,
         QV    , // water vapor
         MU    , // bdy perturbation dry air mass in column (we will get mub from the initial data)
@@ -131,7 +131,7 @@ namespace MetGridBdyVars {
     enum {
         U = 0,
         V = 1,
-        T = 2,
+        T = 3,
         QV,
         NumTypes
     };
