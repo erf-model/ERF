@@ -254,7 +254,6 @@ class eb_cut_cell_ {
     amrex::Array<int const,3> m_lo_faces_id {3,4,0};
     amrex::Array<int const,3> m_hi_faces_id {1,5,2};
 
-    AMREX_GPU_HOST_DEVICE
     struct path_data;
 
     AMREX_GPU_HOST_DEVICE
