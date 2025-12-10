@@ -39,16 +39,6 @@ class polygon_ {
       , m_zdir(0.)
     {}
 
-    AMREX_GPU_HOST
-    void add_vertex (amrex::RealVect const& a_v,
-                    const std::string& msg, bool print_msg = false)
-    {
-      if (print_msg) {
-        amrex::Print() << msg << "\n";
-      }
-      add_vertex(a_v);
-    }
-
     AMREX_GPU_HOST_DEVICE
     void add_vertex ( amrex::RealVect const& a_v ) {
       for ( int i(0); i<m_num_vertices; ++i) {
