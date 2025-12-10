@@ -73,7 +73,6 @@ class eb_ {
     eb_aux_ m_v_factory;
     eb_aux_ m_w_factory;
 
-    void make_box     (amrex::Geometry const& a_geom);
     void make_terrain (amrex::Geometry const& a_geom);
 
     //! Construct EB levels from Geometry shop.

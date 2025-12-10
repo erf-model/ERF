@@ -266,7 +266,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_ComputeTurbulentViscosity.cpp
        ${SRC_DIR}/EB/ERF_EBAdvectionSrcForState.cpp
        ${SRC_DIR}/EB/ERF_EBAux.cpp
-       ${SRC_DIR}/EB/ERF_EBBox.cpp
        ${SRC_DIR}/EB/ERF_EB.cpp
        ${SRC_DIR}/EB/ERF_EBCutCell.cpp
        ${SRC_DIR}/EB/ERF_EBRedistribute.cpp

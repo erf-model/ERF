@@ -1,7 +1,6 @@
 CEXE_sources += ERF_EB.cpp
 CEXE_sources += ERF_EBAdvectionSrcForState.cpp
 CEXE_sources += ERF_EBAux.cpp
-CEXE_sources += ERF_EBBox.cpp
 CEXE_sources += ERF_EBCutCell.cpp
 CEXE_sources += ERF_EBRedistribute.cpp
 
