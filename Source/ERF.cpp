@@ -12,17 +12,20 @@
 #include "ERF.H"
 #include "AMReX_buildInfo.H"
 #include "AMReX_Random.H"
+#include "AMReX_WriteEBSurface.H"
 #include "AMReX_EB2_IF_Box.H"
 #include "AMReX_EB2_IF_Sphere.H"
+
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_EBIFTerrain.H"
+#include "ERF_HurricaneDiagnostics.H"
+
 #ifdef ERF_USE_NETCDF
 #include "ERF_ReadFromWRFInput.H"
 #include "ERF_ReadFromWRFBdy.H"
 #endif
-#include "ERF_HurricaneDiagnostics.H"
 
 using namespace amrex;
 
@@ -1840,7 +1843,12 @@ ERF::InitData_post ()
     {
         bool write_eb_surface = false;
         pp.query("write_eb_surface", write_eb_surface);
-        if (write_eb_surface) WriteMyEBSurface();
+        if (write_eb_surface) {
+            if (verbose > 0) {
+                amrex::Print() << "Writing the geometry to a vtp file.\n" << std::endl;
+            }
+            WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
+        }
     }
 
 }
