@@ -131,7 +131,7 @@ namespace MetGridBdyVars {
     enum {
         U = 0,
         V = 1,
-        T = 3,
+        T = 2,
         QV,
         NumTypes
     };
