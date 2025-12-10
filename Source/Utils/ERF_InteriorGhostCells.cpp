@@ -300,8 +300,6 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
         domain.convert(ixtype);
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
-        const auto& dom_lo_cc = lbound(geom.Domain());
-        const auto& dom_hi_cc = ubound(geom.Domain());
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -365,23 +363,18 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 int jj = std::max(j , dom_lo.y);
                     jj = std::min(jj, dom_hi.y);
 
-                int iicc = std::max(i   , dom_lo_cc.x);
-                    iicc = std::min(iicc, dom_lo_cc.x+offset);
-                int jjcc = std::max(j   , dom_lo_cc.y);
-                    jjcc = std::min(jjcc, dom_hi_cc.y);
-
-                int iiccm1 = std::max(i-1   , dom_lo_cc.x);
-                    iiccm1 = std::min(iiccm1, dom_lo_cc.x+offset);
-                int jjccm1 = std::max(j-1   , dom_lo_cc.y);
-                    jjccm1 = std::min(jjccm1, dom_hi_cc.y);
+                int iim1 = std::max(ii-1 , dom_lo.x);
+                    iim1 = std::min(iim1, dom_lo.x+offset);
+                int jjm1 = std::max(jj-1 , dom_lo.y);
+                    jjm1 = std::min(jjm1, dom_hi.y);
 
                 Real rho_interp = 1.0;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr_xlo(iiccm1,jjcc,k) + r_arr_xlo(iicc,jjcc,k) );
+                    rho_interp = 0.5 * ( r_arr_xlo(iim1,jj,k) + r_arr_xlo(ii,jj,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr_xlo(iicc,jjccm1,k) + r_arr_xlo(iicc,jjcc,k) );
+                    rho_interp = 0.5 * ( r_arr_xlo(ii,jjm1,k) + r_arr_xlo(ii,jj,k) );
                 } else if (ivar==ivarT) {
-                    rho_interp = r_arr_xlo(iicc,jjcc,k);
+                    rho_interp = r_arr_xlo(ii,jj,k);
                 }
                 arr_xlo(i,j,k) = rho_interp * ( oma   * bdatxlo_n  (ii,jj,k,0)
                                               + alpha * bdatxlo_np1(ii,jj,k,0) );
@@ -393,23 +386,18 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 int jj = std::max(j , dom_lo.y);
                     jj = std::min(jj, dom_hi.y);
 
-                int iicc = std::max(i   , dom_hi_cc.x-offset);
-                    iicc = std::min(iicc, dom_hi_cc.x);
-                int jjcc = std::max(j   , dom_lo_cc.y);
-                    jjcc = std::min(jjcc, dom_hi_cc.y);
-
-                int iiccm1 = std::max(i-1   , dom_hi_cc.x-offset);
-                    iiccm1 = std::min(iiccm1, dom_hi_cc.x);
-                int jjccm1 = std::max(j-1   , dom_lo_cc.y);
-                    jjccm1 = std::min(jjccm1, dom_hi_cc.y);
+                int iim1 = std::max(ii-1, dom_hi.x-offset);
+                    iim1 = std::min(iim1, dom_hi.x);
+                int jjm1 = std::max(jj-1, dom_lo.y);
+                    jjm1 = std::min(jjm1, dom_hi.y);
 
                 Real rho_interp = 1.0;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr_xhi(iiccm1,jjcc,k) + r_arr_xhi(iicc,jjcc,k) );
+                    rho_interp = 0.5 * ( r_arr_xhi(iim1,jj,k) + r_arr_xhi(ii,jj,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr_xhi(iicc,jjccm1,k) + r_arr_xhi(iicc,jjcc,k) );
+                    rho_interp = 0.5 * ( r_arr_xhi(ii,jjm1,k) + r_arr_xhi(ii,jj,k) );
                 } else if (ivar==ivarT) {
-                    rho_interp = r_arr_xhi(iicc,jjcc,k);
+                    rho_interp = r_arr_xhi(ii,jj,k);
                 }
                 arr_xhi(i,j,k) = rho_interp * ( oma   * bdatxhi_n  (ii,jj,k,0)
                                               + alpha * bdatxhi_np1(ii,jj,k,0) );
@@ -423,23 +411,18 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 int jj = std::max(j , dom_lo.y);
                     jj = std::min(jj, dom_lo.y+offset);
 
-                int iicc = std::max(i   , dom_lo_cc.x);
-                    iicc = std::min(iicc, dom_hi_cc.x);
-                int jjcc = std::max(j   , dom_lo_cc.y);
-                    jjcc = std::min(jjcc, dom_lo_cc.y+offset);
-
-                int iiccm1 = std::max(i-1   , dom_lo_cc.x);
-                    iiccm1 = std::min(iiccm1, dom_hi_cc.x);
-                int jjccm1 = std::max(j-1   , dom_lo_cc.y);
-                    jjccm1 = std::min(jjccm1, dom_lo_cc.y+offset);
+                int iim1 = std::max(ii-1, dom_lo.x);
+                    iim1 = std::min(iim1, dom_hi.x);
+                int jjm1 = std::max(jj-1, dom_lo.y);
+                    jjm1 = std::min(jjm1, dom_lo.y+offset);
 
                 Real rho_interp = 1.0;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr_ylo(iiccm1,jjcc,k) + r_arr_ylo(iicc,jjcc,k) );
+                    rho_interp = 0.5 * ( r_arr_ylo(iim1,jj,k) + r_arr_ylo(ii,jj,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr_ylo(iicc,jjccm1,k) + r_arr_ylo(iicc,jjcc,k) );
+                    rho_interp = 0.5 * ( r_arr_ylo(ii,jjm1,k) + r_arr_ylo(ii,jj,k) );
                 } else if (ivar==ivarT) {
-                    rho_interp = r_arr_ylo(iicc,jjcc,k);
+                    rho_interp = r_arr_ylo(ii,jj,k);
                 }
                 arr_ylo(i,j,k) = rho_interp * ( oma   * bdatylo_n (ii,jj,k,0)
                                              + alpha * bdatylo_np1(ii,jj,k,0) );
@@ -451,23 +434,18 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 int jj = std::max(j , dom_hi.y-offset);
                     jj = std::min(jj, dom_hi.y);
 
-                int iicc = std::max(i   , dom_lo_cc.x);
-                    iicc = std::min(iicc, dom_hi_cc.x);
-                int jjcc = std::max(j   , dom_hi_cc.y-offset);
-                    jjcc = std::min(jjcc, dom_hi_cc.y);
-
-                int iiccm1 = std::max(i-1   , dom_lo_cc.x);
-                    iiccm1 = std::min(iiccm1, dom_hi_cc.x);
-                int jjccm1 = std::max(j-1   , dom_hi_cc.y-offset);
-                    jjccm1 = std::min(jjccm1, dom_hi_cc.y);
+                int iim1 = std::max(ii-1, dom_lo.x);
+                    iim1 = std::min(iim1, dom_hi.x);
+                int jjm1 = std::max(jj-1, dom_hi.y-offset);
+                    jjm1 = std::min(jjm1, dom_hi.y);
 
                 Real rho_interp = 1.0;
                 if (ivar==ivarU) {
-                    rho_interp = 0.5 * ( r_arr_yhi(iiccm1,jjcc,k) + r_arr_yhi(iicc,jjcc,k) );
+                    rho_interp = 0.5 * ( r_arr_yhi(iim1,jj,k) + r_arr_yhi(ii,jj,k) );
                 } else if (ivar==ivarV) {
-                    rho_interp = 0.5 * ( r_arr_yhi(iicc,jjccm1,k) + r_arr_yhi(iicc,jjcc,k) );
+                    rho_interp = 0.5 * ( r_arr_yhi(ii,jjm1,k) + r_arr_yhi(ii,jj,k) );
                 } else if (ivar==ivarT) {
-                    rho_interp = r_arr_yhi(iicc,jjcc,k);
+                    rho_interp = r_arr_yhi(ii,jj,k);
                 }
                 arr_yhi(i,j,k) = rho_interp * ( oma   * bdatyhi_n  (ii,jj,k,0)
                                               + alpha * bdatyhi_np1(ii,jj,k,0) );

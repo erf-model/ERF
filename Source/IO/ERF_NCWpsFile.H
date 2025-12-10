@@ -151,7 +151,7 @@ void ReadTimeSliceFromNetCDFFile (const std::string& fname,
             std::string vname_to_write = names[n];
             std::string vname_to_read  = names[n];
             if (vname_to_read.substr(0,2) == "R_") {
-                vname_to_read  = names[n+12]; // This allows us to read "T" instead -- we will over-write this later
+                vname_to_read  = names[n+4]; // This allows us to read "T" instead -- we will over-write this later
             }
 
             success[n] = ncf.has_var(vname_to_read);
