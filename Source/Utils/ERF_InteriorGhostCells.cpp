@@ -255,11 +255,10 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
         auto ixtype  = S_cur_data[ivar_idx].boxArray().ixType();
         domain.convert(ixtype);
 
-        // We need lateral ghost cells for prim -> cons
+        // Grown domain to get the 4 halo boxes w/ ghost cells
+        // NOTE: 2 ghost cells needed here for Laplacian
+        //       halo cell.
         IntVect ng_vect(0);
-        if (ivar == ivarR) {
-            ng_vect[0] = 1; ng_vect[1] = 1;
-        }
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         realbdy_interior_bxs_xy(gdom, domain, width,
@@ -308,11 +307,9 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            // We need lateral ghost cells for prim -> cons
+            // We need lateral ghost cells for the Laplacian
+            // NOTE: We don't write into the ghost cells
             IntVect ng_vect(0);
-            if (ivar == ivarR) {
-                ng_vect[0] = 1; ng_vect[1] = 1;
-            }
             Box gtbx = grow(mfi.tilebox(ixtype.toIntVect()),ng_vect);
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
             realbdy_interior_bxs_xy(gtbx, domain, width,
