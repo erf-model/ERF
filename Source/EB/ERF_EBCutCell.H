@@ -392,7 +392,7 @@ struct eb_cut_cell_::path_data
     constexpr amrex::Real tol = 1.e-15;
     amrex::RealVect v_intersect;
     amrex::Real    dist_intersect;
-    intersected = utils::intersect_plane_edge(
+    intersected = intersect_plane_edge(
       eb_point, eb_normal, v_start, v_end, v_intersect, dist_intersect
     );
     vIP = v_intersect;
@@ -585,7 +585,7 @@ calc_edge_intersections ()
     } // P1: v4--v7
 
     if (cuts == 2 && add_v7) {
-      if (!utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
+      if (!intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
         m_F2.add_vertex(v7); if(print_F2) printf("Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F2\n");
         m_F3.add_vertex(v7); if(print_F3) printf("Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F3\n");
         m_F6.add_vertex(v7); if(print_F6) printf("Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F6\n");
@@ -712,7 +712,7 @@ calc_edge_intersections ()
     } // Path 2: v5--v7
 
     if (cuts == 2 && add_v7) {
-      if (!utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
+      if (!intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
         m_F2.add_vertex(v7); if(print_F2) printf("Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F2\n");
         m_F3.add_vertex(v7); if(print_F3) printf("Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F3\n");
         m_F6.add_vertex(v7); if(print_F6) printf("Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F6\n");
@@ -842,7 +842,7 @@ calc_edge_intersections ()
     } // P3: v6--v7
 
     if (cuts == 2 && add_v7) {
-      if (!utils::intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
+      if (!intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
         m_F2.add_vertex(v7); if(print_F2) printf("Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F2\n");
         m_F3.add_vertex(v7); if(print_F3) printf("Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F3\n");
         m_F6.add_vertex(v7); if(print_F6) printf("Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F6\n");
