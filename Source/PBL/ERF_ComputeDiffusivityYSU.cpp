@@ -56,7 +56,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             const auto& over_land_arr = (SurfLayer->get_lmask(level)) ? SurfLayer->get_lmask(level)->const_array(mfi) :
                                                                       Array4<int> {};
             const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
-            const Real most_zref = SurfLayer->get_zref();
+            const Real most_zref = SurfLayer->get_zref(level);
 
             // Require that MOST zref is 10 m so we get the wind speed at 10 m from most
             bool invalid_zref = false;
