@@ -22,7 +22,7 @@ struct EBChoice {
     {
         amrex::ParmParse pp(pp_prefix);
 
-        static std::string eb_boundary_type_string = "SlipWall";
+        static std::string eb_boundary_type_string = "NoSlipWall";
         pp.query("eb_boundary_type",eb_boundary_type_string);
 
         if (!eb_boundary_type_string.compare("SlipWall")) {
