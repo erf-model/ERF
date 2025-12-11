@@ -70,6 +70,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     Real vol = dx * dy * dz;
 
     EBChoice ebChoice = solverChoice.ebChoice;
+    const bool l_no_slip = (ebChoice.eb_boundary_type == EBBoundaryType::NoSlipWall);
 
     const bool l_constraint_x = solverChoice.diffChoice.eb_diff_constraint_x;
     const bool l_constraint_y = solverChoice.diffChoice.eb_diff_constraint_y;
@@ -129,7 +130,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
             rho_u_rhs(i,j,k) -= diffContrib;
 
-            if (!l_constraint_x && u_cellflg(i,j,k).isSingleValued()) {
+            if (!l_constraint_x && l_no_slip && (i,j,k).isSingleValued()) {
 
                 Real axm = u_afrac_x(i  ,j  ,k  );
                 Real axp = u_afrac_x(i+1,j  ,k  );
@@ -193,7 +194,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
             rho_v_rhs(i,j,k) -= diffContrib;
 
-            if (!l_constraint_y && v_cellflg(i,j,k).isSingleValued()) {
+            if (!l_constraint_y && l_no_slip && v_cellflg(i,j,k).isSingleValued()) {
 
                 Real axm = v_afrac_x(i  ,j  ,k  );
                 Real axp = v_afrac_x(i+1,j  ,k  );
@@ -255,7 +256,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
             diffContrib      /= w_volfrac(i,j,k);
             rho_w_rhs(i,j,k) -= diffContrib;
 
-            if (!l_constraint_z && w_cellflg(i,j,k).isSingleValued()) {
+            if (!l_constraint_z && l_no_slip && w_cellflg(i,j,k).isSingleValued()) {
 
                 Real axm = w_afrac_x(i  ,j  ,k  );
                 Real axp = w_afrac_x(i+1,j  ,k  );
