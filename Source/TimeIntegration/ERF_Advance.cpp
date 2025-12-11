@@ -41,11 +41,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     V_new.setVal(1.e34,V_new.nGrowVect());
     W_new.setVal(1.e34,W_new.nGrowVect());
 
-    // Do error checking for negative (rho theta) here
-    if (solverChoice.anelastic[lev] != 1) {
-        check_for_negative_theta(S_old);
-    }
-
     //
     // NOTE: the momenta here are not fillpatched (they are only used as scratch space)
     // If lev == 0 we have already FillPatched this in ERF::TimeStep
@@ -199,13 +194,29 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     state_new.push_back(MultiFab(rW_new[lev], amrex::make_alias, 0,     1)); // zmom
 
     // **************************************************************************************
-    // Tests on the reasonableness of the solution
+    // Tests on the reasonableness of the solution before the dycore
     // **************************************************************************************
     // Test for NaNs after dycore
     if (check_for_nans > 1) {
-        amrex::Print() << "Testing old state and vels for NaNs before dycore" << std::endl;
+        if (verbose > 1) {
+            amrex::Print() << "Testing old state and vels for NaNs before dycore" << std::endl;
+        }
         check_state_for_nans(S_old);
         check_vels_for_nans(rU_old[lev],rV_old[lev],rW_old[lev]);
+    }
+
+    // We only test on low temp if we have a moisture model because we are protecting against
+    //    the test on low temp inside the moisture models
+    if (solverChoice.moisture_type != MoistureType::None) {
+        if (verbose > 1) {
+            amrex::Print() << "Testing on low temperature before dycore" << std::endl;
+        }
+        check_for_low_temp(S_new);
+    } else {
+        if (verbose > 1) {
+            amrex::Print() << "Testing on negative temperature before dycore" << std::endl;
+        }
+        check_for_negative_theta(S_old);
     }
 
     // **************************************************************************************
@@ -218,26 +229,30 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                    Geom(lev), dt_lev, time);
 
     // **************************************************************************************
-    // Tests on the reasonableness of the solution
+    // Tests on the reasonableness of the solution after the dycore
     // **************************************************************************************
     // Test for NaNs after dycore
     if (check_for_nans > 0) {
-        amrex::Print() << "Testing new state and vels for NaNs after dycore" << std::endl;
+        if (verbose > 1) {
+            amrex::Print() << "Testing new state and vels for NaNs after dycore" << std::endl;
+        }
         check_state_for_nans(S_new);
         check_vels_for_nans(rU_new[lev],rV_new[lev],rW_new[lev]);
     }
 
     // We only test on low temp if we have a moisture model because we are protecting against
     //    the test on low temp inside the moisture models
-    if (solverChoice.anelastic[lev] != 1) {
-        if (solverChoice.moisture_type != MoistureType::None) {
-            check_for_low_temp(S_new);
+    if (solverChoice.moisture_type != MoistureType::None) {
+        if (verbose > 1) {
+            amrex::Print() << "Testing on low temperature after dycore" << std::endl;
         }
-        else
-        {
-            // Otherwise we will test on negative (rhotheta) coming out of the dycore
-            check_for_negative_theta(S_new);
+        check_for_low_temp(S_new);
+    } else {
+        // Otherwise we will test on negative (rhotheta) coming out of the dycore
+        if (verbose > 1) {
+            amrex::Print() << "Testing on negative temperature after dycore" << std::endl;
         }
+        check_for_negative_theta(S_new);
     }
 
     // **************************************************************************************
