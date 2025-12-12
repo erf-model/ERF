@@ -610,6 +610,12 @@ define( [[maybe_unused]] int const& a_level,
             aux_afrac_y(i,j,k) = (a_idim == 1) ? lo_areaLo_y : lo_areaLo_y + hi_areaLo_y;
             aux_afrac_z(i,j,k) = (a_idim == 2) ? lo_areaLo_z : lo_areaLo_z + hi_areaLo_z;
 
+            // // ===================== DEBUG =====================
+            // if (i==53 && j==59 && k==0) {
+            //   Print() << "aux_afrac_z(" << i << "," << j << "," << k << ") = " << aux_afrac_z(i,j,k) << std::endl;
+            // }
+            // // =================================================
+
             if (i==bx.bigEnd(0)) {
               Real lo_areaHi_x {lo_eb_cc.areaHi(0)};
               Real hi_areaHi_x {hi_eb_cc.areaHi(0)};
@@ -847,6 +853,13 @@ define( [[maybe_unused]] int const& a_level,
 
     const Box& bx = mfi.validbox();
     const Box& bx_grown = mfi.growntilebox();
+    const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
+    const int dom_lo_i = domain.smallEnd(0);
+    const int dom_hi_i = domain.bigEnd(0);
+    const int dom_lo_j = domain.smallEnd(1);
+    const int dom_hi_j = domain.bigEnd(1);
+    const int dom_lo_k = domain.smallEnd(2);
+    const int dom_hi_k = domain.bigEnd(2);
 
     Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
     Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
@@ -869,7 +882,12 @@ define( [[maybe_unused]] int const& a_level,
       ParallelFor(my_xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
         if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i-1,j,k) < small_volfrac) {
-          aux_afrac_x(i,j,k) = 0.0;
+          // At domain boundary, keep area fraction as is unless inside cell is small
+          if ((i == dom_lo_i && aux_vfrac(i,j,k) < small_volfrac) ||
+              (i == dom_hi_i+1 && aux_vfrac(i-1,j,k) < small_volfrac) ||
+              (i != dom_lo_i && i != dom_hi_i+1)) {
+              aux_afrac_x(i,j,k) = 0.0;
+          }
         }
       });
 
@@ -877,7 +895,12 @@ define( [[maybe_unused]] int const& a_level,
       ParallelFor(my_ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
         if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i,j-1,k) < small_volfrac) {
-          aux_afrac_y(i,j,k) = 0.0;
+          // At domain boundary, keep area fraction as is unless inside cell is small
+          if ((j == dom_lo_j && aux_vfrac(i,j,k) < small_volfrac) ||
+              (j == dom_hi_j+1 && aux_vfrac(i,j-1,k) < small_volfrac) ||
+              (j != dom_lo_j && j != dom_hi_j+1)) {
+              aux_afrac_y(i,j,k) = 0.0;
+          }
         }
       });
 
@@ -885,7 +908,12 @@ define( [[maybe_unused]] int const& a_level,
       ParallelFor(my_zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
         if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i,j,k-1) < small_volfrac) {
-          aux_afrac_z(i,j,k) = 0.0;
+          // At domain boundary, keep area fraction as is unless inside cell is small
+          if ((k == dom_lo_k && aux_vfrac(i,j,k) < small_volfrac) ||
+              (k == dom_hi_k+1 && aux_vfrac(i,j,k-1) < small_volfrac) ||
+              (k != dom_lo_k && k != dom_hi_k+1)) {
+              aux_afrac_z(i,j,k) = 0.0;
+          }
         }
       });
 
