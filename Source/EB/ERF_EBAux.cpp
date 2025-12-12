@@ -610,12 +610,6 @@ define( [[maybe_unused]] int const& a_level,
             aux_afrac_y(i,j,k) = (a_idim == 1) ? lo_areaLo_y : lo_areaLo_y + hi_areaLo_y;
             aux_afrac_z(i,j,k) = (a_idim == 2) ? lo_areaLo_z : lo_areaLo_z + hi_areaLo_z;
 
-            // // ===================== DEBUG =====================
-            // if (i==53 && j==59 && k==0) {
-            //   Print() << "aux_afrac_z(" << i << "," << j << "," << k << ") = " << aux_afrac_z(i,j,k) << std::endl;
-            // }
-            // // =================================================
-
             if (i==bx.bigEnd(0)) {
               Real lo_areaHi_x {lo_eb_cc.areaHi(0)};
               Real hi_areaHi_x {hi_eb_cc.areaHi(0)};
