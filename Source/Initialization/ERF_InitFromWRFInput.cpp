@@ -415,6 +415,7 @@ ERF::init_from_wrfinput (int lev,
               var_fab.clear();
           }
 
+          bool lat_periodic = (geom[lev].isPeriodic(0) && geom[lev].isPeriodic(1));
           int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
           int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
 
@@ -597,15 +598,29 @@ ERF::init_from_wrfinput (int lev,
                   Print() << "MAPFAC_U cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1.0);
               }
+              if (lat_periodic) {
+                  Print() << "MAPFAC_U resetting to 1 with lateral periodic BCs!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
               for ( MFIter mfi(*mapfac[lev][MapFacType::u_x], TilingIfNotGPU()); mfi.isValid(); ++mfi )
               {
-                  // Define fabs for holding the initial data
-                  FArrayBox &msf_fab = (*mapfac[lev][MapFacType::u_x])[mfi];
-                  msf_fab.template copy<RunOn::Device>(var_fab);
+                  Box gtbx = mfi.growntilebox();
+                  Box vbx  = mfi.validbox();
+                  int ilo = vbx.smallEnd(0); int ihi = vbx.bigEnd(0);
+                  int jlo = vbx.smallEnd(1); int jhi = vbx.bigEnd(1);
+                  const Array4<      Real>& dst_arr = mapfac[lev][MapFacType::u_x]->array(mfi);
+                  const Array4<const Real>& src_arr = var_fab.const_array();
+                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  {
+                      int li = amrex::min(amrex::max(i, ilo), ihi);
+                      int lj = amrex::min(amrex::max(j, jlo), jhi);
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
+                  });
               }
+              mapfac[lev][MapFacType::u_x]->FillBoundary(geom[lev].periodicity());
           }
 
           // Initialize MapFac V
@@ -615,15 +630,29 @@ ERF::init_from_wrfinput (int lev,
                   Print() << "MAPFAC_V cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1.0);
               }
+              if (lat_periodic) {
+                  Print() << "MAPFAC_V resetting to 1 with lateral periodic BCs!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
               for ( MFIter mfi(*mapfac[lev][MapFacType::v_x], TilingIfNotGPU()); mfi.isValid(); ++mfi )
               {
-                  // Define fabs for holding the initial data
-                  FArrayBox &msf_fab = (*mapfac[lev][MapFacType::v_x])[mfi];
-                  msf_fab.template copy<RunOn::Device>(var_fab);
+                  Box gtbx = mfi.growntilebox();
+                  Box vbx  = mfi.validbox();
+                  int ilo = vbx.smallEnd(0); int ihi = vbx.bigEnd(0);
+                  int jlo = vbx.smallEnd(1); int jhi = vbx.bigEnd(1);
+                  const Array4<      Real>& dst_arr = mapfac[lev][MapFacType::v_x]->array(mfi);
+                  const Array4<const Real>& src_arr = var_fab.const_array();
+                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  {
+                      int li = amrex::min(amrex::max(i, ilo), ihi);
+                      int lj = amrex::min(amrex::max(j, jlo), jhi);
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
+                  });
               }
+              mapfac[lev][MapFacType::v_x]->FillBoundary(geom[lev].periodicity());
           }
 
           // Initialize MapFac M
@@ -633,15 +662,29 @@ ERF::init_from_wrfinput (int lev,
                   Print() << "MAPFAC_M cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1.0);
               }
+              if (lat_periodic) {
+                  Print() << "MAPFAC_M resetting to 1 with lateral periodic BCs!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
               for ( MFIter mfi(*mapfac[lev][MapFacType::m_x], TilingIfNotGPU()); mfi.isValid(); ++mfi )
               {
-                  // Define fabs for holding the initial data
-                  FArrayBox &msf_fab = (*mapfac[lev][MapFacType::m_x])[mfi];
-                  msf_fab.template copy<RunOn::Device>(var_fab);
+               Box gtbx = mfi.growntilebox();
+                  Box vbx  = mfi.validbox();
+                  int ilo = vbx.smallEnd(0); int ihi = vbx.bigEnd(0);
+                  int jlo = vbx.smallEnd(1); int jhi = vbx.bigEnd(1);
+                  const Array4<      Real>& dst_arr = mapfac[lev][MapFacType::m_x]->array(mfi);
+                  const Array4<const Real>& src_arr = var_fab.const_array();
+                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  {
+                      int li = amrex::min(amrex::max(i, ilo), ihi);
+                      int lj = amrex::min(amrex::max(j, jlo), jhi);
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
+                  });
               }
+              mapfac[lev][MapFacType::m_x]->FillBoundary(geom[lev].periodicity());
           }
 
           if (success) {
