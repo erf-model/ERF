@@ -108,10 +108,6 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     Array4<const Real      > w_bcent = (ebfact.get_w_const_factory())->getBndryCent().const_array(mfi);
     Array4<const Real      > w_bnorm = (ebfact.get_w_const_factory())->getBndryNorm().const_array(mfi);
 
-    // Two methods are implemented:
-    // (1) Simple method: approximate the gradient at EB
-    // (2) Compute the gradient at EB using Least-Squares fitting
-
     ParallelFor(bxx, bxy, bxz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k)
     {
