@@ -415,6 +415,7 @@ ERF::init_from_wrfinput (int lev,
               var_fab.clear();
           }
 
+          bool lat_periodic = (geom[lev].periodicity().isPeriodic(0) && geom[lev].periodicity().isPeriodic(1));
           int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
           int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
 
@@ -597,6 +598,10 @@ ERF::init_from_wrfinput (int lev,
                   Print() << "MAPFAC_U cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1.0);
               }
+              if (lat_periodic) {
+                  Print() << "MAPFAC_U resetting to 1 with lateral periodic BCs!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -625,6 +630,10 @@ ERF::init_from_wrfinput (int lev,
                   Print() << "MAPFAC_V cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1.0);
               }
+              if (lat_periodic) {
+                  Print() << "MAPFAC_U resetting to 1 with lateral periodic BCs!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -651,6 +660,10 @@ ERF::init_from_wrfinput (int lev,
               Real max_val = var_fab.template max<RunOn::Device>();
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_M cannot be 0, resetting to 1!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
+              if (lat_periodic) {
+                  Print() << "MAPFAC_U resetting to 1 with lateral periodic BCs!\n";
                   var_fab.template setVal<RunOn::Device>(1.0);
               }
 #ifdef _OPENMP
