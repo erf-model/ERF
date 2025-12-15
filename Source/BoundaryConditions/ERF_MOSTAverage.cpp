@@ -432,7 +432,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
 
         m_zref[lev]->setVal( (lk + 0.5) * m_dz + m_zlo );
 
-        AMREX_ALWAYS_ALWAYS_ASSERT(lk >= m_radius);
+        AMREX_ALWAYS_ASSERT(lk >= m_radius);
 
         m_k_indx[lev]->setVal(lk);
     // Specified k_indx & compute z_ref
