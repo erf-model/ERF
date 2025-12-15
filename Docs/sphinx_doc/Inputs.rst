@@ -1731,7 +1731,7 @@ List of Parameters
 |                                |                            | Values             |             |
 +================================+============================+====================+=============+
 | **erf.land_surface_model**     | Enables land surface       | "None",            | "None"      |
-|                                | energy and moisture        | "Noah-MP",         |             |
+|                                | energy and moisture        | "NOAHMP",          |             |
 |                                | fluxes                     | "MM5", "SLM"       |             |
 +--------------------------------+----------------------------+--------------------+-------------+
 
