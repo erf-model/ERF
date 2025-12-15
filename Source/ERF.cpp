@@ -1282,8 +1282,8 @@ ERF::InitData_post ()
     if (solverChoice.large_scale_forcing)
     {
         lsf.read_forcing_file();
-        lsf.interp_forcing(geom[0].data(), zlevels_stag[0]);
-        lsf.start_time = start_time;
+        lsf.interp_forcing(geom[0].data(), zlevels_stag[0], input_sounding_data);
+        //lsf.start_time = start_time;
     }
 
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
