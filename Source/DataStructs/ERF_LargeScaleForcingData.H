@@ -13,6 +13,7 @@
 #include <ERF_Constants.H>
 #include <ERF_Interpolation_1D.H>
 #include <ERF_HSEUtils.H>
+#include <ERF_InputSoundingData.H>
 
 /**
  * Data structure storing large scale forcing data.
@@ -153,6 +154,10 @@ public:
                     z_in[0] = 0.0;
                 }
                 */
+                if (z < 0.0) {
+                    // if z < 0, then LSF is defined on pressure levels
+                    use_z_grid = false;
+                }
 
                 z_in.push_back(z);
                 p_in.push_back(p * 100.0);
@@ -199,7 +204,8 @@ public:
 
     void
     interp_forcing(const amrex::GeometryData &geom,
-                   const amrex::Vector<amrex::Real>& zlevels_stag)
+                   const amrex::Vector<amrex::Real>& zlevels_stag,
+                   const InputSoundingData &sounding)
     {
         const int klo = 0;
         const int khi = geom.Domain().bigEnd()[AMREX_SPACEDIM-1];
@@ -238,20 +244,39 @@ public:
             for (int k = 0; k < Nz; k++)
             {
                 bool set = false;
-                for (int lk = 2; lk < nz_lsf + 1; lk++)
-                {
-                    z_int_lsf[itime][k] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
-                                                        : zbot + (k + 0.5) * dz;
-                    if (z_int_lsf[itime][k] <= z_lsf[itime][lk])
+                if (use_z_grid) {
+                    for (int lk = 2; lk < nz_lsf + 1; lk++)
                     {
-                        amrex::Real coef = (z_int_lsf[itime][k] - z_lsf[itime][lk - 1]) / (z_lsf[itime][lk] - z_lsf[itime][lk - 1]);
-                        t_int_lsf[itime][k] = t_lsf[itime][lk - 1] + (t_lsf[itime][lk] - t_lsf[itime][lk-1])*coef;
-                        q_int_lsf[itime][k] = q_lsf[itime][lk - 1] + (q_lsf[itime][lk] - q_lsf[itime][lk-1])*coef;
-                        u_int_lsf[itime][k] = u_lsf[itime][lk - 1] + (u_lsf[itime][lk] - u_lsf[itime][lk-1])*coef;
-                        v_int_lsf[itime][k] = v_lsf[itime][lk - 1] + (v_lsf[itime][lk] - v_lsf[itime][lk-1])*coef;
-                        w_int_lsf[itime][k] = w_lsf[itime][lk - 1] + (w_lsf[itime][lk] - w_lsf[itime][lk-1])*coef;
-                        set = true;
-                        break;
+                        z_int_lsf[itime][k] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
+                                                            : zbot + (k + 0.5) * dz;
+                        if (z_int_lsf[itime][k] <= z_lsf[itime][lk])
+                        {
+                            amrex::Real coef = (z_int_lsf[itime][k] - z_lsf[itime][lk - 1]) / (z_lsf[itime][lk] - z_lsf[itime][lk - 1]);
+                            t_int_lsf[itime][k] = t_lsf[itime][lk - 1] + (t_lsf[itime][lk] - t_lsf[itime][lk-1])*coef;
+                            q_int_lsf[itime][k] = q_lsf[itime][lk - 1] + (q_lsf[itime][lk] - q_lsf[itime][lk-1])*coef;
+                            u_int_lsf[itime][k] = u_lsf[itime][lk - 1] + (u_lsf[itime][lk] - u_lsf[itime][lk-1])*coef;
+                            v_int_lsf[itime][k] = v_lsf[itime][lk - 1] + (v_lsf[itime][lk] - v_lsf[itime][lk-1])*coef;
+                            w_int_lsf[itime][k] = w_lsf[itime][lk - 1] + (w_lsf[itime][lk] - w_lsf[itime][lk-1])*coef;
+                            set = true;
+                            break;
+                        }
+                    }
+                } else {
+                    for (int lk = 2; lk < nz_lsf + 1; lk++)
+                    {
+                        z_int_lsf[itime][k] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
+                                                            : zbot + (k + 0.5) * dz;
+                        if (sounding.pm_integ[k] >= p_lsf[itime][lk])
+                        {
+                            amrex::Real coef = (sounding.pm_integ[k] - p_lsf[itime][lk - 1]) / (p_lsf[itime][lk] - p_lsf[itime][lk - 1]);
+                            t_int_lsf[itime][k] = t_lsf[itime][lk - 1] + (t_lsf[itime][lk] - t_lsf[itime][lk-1])*coef;
+                            q_int_lsf[itime][k] = q_lsf[itime][lk - 1] + (q_lsf[itime][lk] - q_lsf[itime][lk-1])*coef;
+                            u_int_lsf[itime][k] = u_lsf[itime][lk - 1] + (u_lsf[itime][lk] - u_lsf[itime][lk-1])*coef;
+                            v_int_lsf[itime][k] = v_lsf[itime][lk - 1] + (v_lsf[itime][lk] - v_lsf[itime][lk-1])*coef;
+                            w_int_lsf[itime][k] = w_lsf[itime][lk - 1] + (w_lsf[itime][lk] - w_lsf[itime][lk-1])*coef;
+                            set = true;
+                            break;
+                        }
                     }
                 }
 
@@ -356,6 +381,8 @@ public:
     amrex::Real start_time = 0.0; // simulation start time
     amrex::Real tau_lsf = 0.0; // timescale to apply lsf
     std::string lsf_file = "";
+
+    bool use_z_grid = true;
 
     // inputs from large scale forcing file
     int nz_lsf = -1;    // number of z levels in the LSF file
