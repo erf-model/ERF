@@ -359,8 +359,8 @@ struct SolverChoice {
 
         for (int i = 0; i <= max_level; ++i) {
             if (anelastic[i] == 1) {
-                project_initial_velocity[i] = true;
-                fixed_density[i]            = true; // We default to true but are allowed to override below
+                project_initial_velocity[i] = 1;
+                fixed_density[i]            = 1; // We default to true but are allowed to override below
                 buoyancy_type[i]            = 3; // (This isn't actually used when anelastic is set)
             }
         }
