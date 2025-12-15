@@ -889,7 +889,7 @@ struct SolverChoice {
         }
 
             advChoice.display(pp_prefix);
-           diffChoice.display();     
+           diffChoice.display();
          spongeChoice.display();
         dampingChoice.display();
 
