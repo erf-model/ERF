@@ -48,7 +48,7 @@ erf.sponge_z_velocity = 0.0
 # TIME STEP CONTROL
 erf.substepping_type    = None
 #erf.fixed_dt           = 1E-5
-erf.cfl = 0.5
+erf.cfl = 0.1
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass
