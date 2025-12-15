@@ -505,7 +505,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                                   umm_arr, vm_arr, u_star_arr);
                     }
                     if (is_land_hi) {
-                        stressy += 0.5 * lsm_tau13_arr(i,j  ,k);
+                        stressy += 0.5 * lsm_tau23_arr(i,j  ,k);
                     }
                     if (is_land_lo) {
                         stressy += 0.5 * lsm_tau23_arr(i,j-1,k);

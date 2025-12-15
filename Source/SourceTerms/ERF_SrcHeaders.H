@@ -14,7 +14,8 @@
  * equation for the z-component of momentum in the slow integrator.  There
  * are three options for how buoyancy is computed (two are the same in the absence of moisture).
  */
-void make_buoyancy (const amrex::Vector<amrex::MultiFab>& S_data,
+void make_buoyancy (int level,
+                    const amrex::Vector<amrex::MultiFab>& S_data,
                     const               amrex::MultiFab & S_prim,
                     const               amrex::MultiFab & qt,
                     amrex::MultiFab& buoyancy,

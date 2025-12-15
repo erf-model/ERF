@@ -17,8 +17,7 @@
  */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>
-erf_calc_slopes_eb_Dirichlet ([[maybe_unused]] int igrid_query,
-                    [[maybe_unused]] int igrid_data,
+erf_calc_slopes_eb_Dirichlet (
                     amrex::Real dx, amrex::Real dy, amrex::Real dz,
                     int i, int j, int k,
                     amrex::RealVect const& bcent_eb,
@@ -27,20 +26,10 @@ erf_calc_slopes_eb_Dirichlet ([[maybe_unused]] int igrid_query,
                     amrex::Array4<amrex::Real const> const& ccent,
                     amrex::Array4<amrex::EBCellFlag const> const& flag)
 {
-    AMREX_ASSERT( igrid_query == igrid_data );
-
-    // Fitting stencil
-
-    amrex::RealVect bias{0.,0.,0.};
-
     constexpr int dim_a = 27;
 
-    int ii_lo = -1;
-    int jj_lo = -1;
-    int kk_lo = -1;
-    int ii_hi = 1;
-    int jj_hi = 1;
-    int kk_hi = 1;
+    int ii_lo = -1; int jj_lo = -1; int kk_lo = -1;
+    int ii_hi =  1; int jj_hi =  1; int kk_hi =  1;
 
     amrex::Real A[dim_a][AMREX_SPACEDIM];
 
@@ -50,10 +39,10 @@ erf_calc_slopes_eb_Dirichlet ([[maybe_unused]] int igrid_query,
     for(int jj(jj_lo); jj<=jj_hi; jj++) {
     for(int ii(ii_lo); ii<=ii_hi; ii++) {
 
-        if (!flag(i+ii,j+jj,k+kk).isCovered() && !(ii==0 && jj==0 && kk==0)) {
-            A[ll][0] = ( amrex::Real(ii) + ccent(i+ii,j+jj,k+kk,0) + bias[0] - bcent_eb[0] ) * dx;
-            A[ll][1] = ( amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) + bias[1] - bcent_eb[1] ) * dy;
-            A[ll][2] = ( amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) + bias[2] - bcent_eb[2] ) * dz;
+        if (flag(i,j,k).isConnected(ii,jj,kk) && !(ii==0 && jj==0 && kk==0)) {
+            A[ll][0] = ( amrex::Real(ii) + ccent(i+ii,j+jj,k+kk,0) - bcent_eb[0] ) * dx;
+            A[ll][1] = ( amrex::Real(jj) + ccent(i+ii,j+jj,k+kk,1) - bcent_eb[1] ) * dy;
+            A[ll][2] = ( amrex::Real(kk) + ccent(i+ii,j+jj,k+kk,2) - bcent_eb[2] ) * dz;
         } else {
             A[ll][0] = amrex::Real(0.0);
             A[ll][1] = amrex::Real(0.0);
@@ -72,7 +61,7 @@ erf_calc_slopes_eb_Dirichlet ([[maybe_unused]] int igrid_query,
     for(int jj(jj_lo); jj<=jj_hi; jj++) {
     for(int ii(ii_lo); ii<=ii_hi; ii++) {
 
-        if (!flag(i+ii,j+jj,k+kk).isCovered() && !(ii==0 && jj==0 && kk==0)) {
+        if (flag(i,j,k).isConnected(ii,jj,kk) && !(ii==0 && jj==0 && kk==0)) {
             du[ll] = state(i+ii,j+jj,k+kk) - state_eb;
         } else {
             du[ll] = amrex::Real(0.0);
@@ -578,7 +567,5 @@ erf_calc_slopes_eb_staggered_upwind (int igrid_query,
 
     return {xslope,yslope,zslope};
 }
-
-
 
 #endif

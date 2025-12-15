@@ -76,7 +76,7 @@ erf.eb_diff_constraint_x = true
 erf.abl_driver_type = "PressureGradient"
 erf.abl_pressure_grad = 0. -0.02  0.
 
-erf.project_initial_velocity = false
+erf.project_initial_velocity = 0
 
 # Rayleigh Damping
 erf.rayleigh_damp_W = true

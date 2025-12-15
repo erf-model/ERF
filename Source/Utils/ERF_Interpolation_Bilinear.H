@@ -27,16 +27,21 @@ void bilinear_interpolation(const amrex::Real* xvec, const amrex::Real* yvec, co
                 const amrex::Real* varvec,
                 amrex::Real& tmp_var)
 {
-    int iloc=-1, jloc=-1, kloc=-1;
-    for(int k=0;k<nz;k++){
-    if(zvec[k] > z){
-        kloc = k-1;
-        break;
-    }
-    else if (zvec[k] == z) {
-        kloc = k;
+
+    if(z < 0.0){
+        tmp_var = 0.0;
+        return;
     }
 
+    int iloc=-1, jloc=-1, kloc=-1;
+    for(int k=0;k<nz;k++){
+        if(zvec[k] > z){
+            kloc = k-1;
+            break;
+        }
+        else if (zvec[k] == z) {
+            kloc = k;
+        }
     }
 
     iloc = static_cast<int>(std::floor((x - xvec[0]) / dxvec));
@@ -45,6 +50,10 @@ void bilinear_interpolation(const amrex::Real* xvec, const amrex::Real* yvec, co
     if(iloc > nx-1 or iloc < 0 or
        jloc > ny-1 or iloc < 0 or
        kloc > nz-1 or kloc < 0){
+        printf("There is a problem inside here %d %d %d %d %d %d\n", iloc, jloc, kloc, nx-1, ny-1, nz-1);
+        for(int k=0;k<nz;k++){
+            printf("Value of z is %d %0.15g %0.15g\n", k, zvec[k], z);
+       }
     }
 
     amrex::Real xlo = xvec[0] + iloc*dxvec;

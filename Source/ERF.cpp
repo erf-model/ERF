@@ -12,17 +12,20 @@
 #include "ERF.H"
 #include "AMReX_buildInfo.H"
 #include "AMReX_Random.H"
+#include "AMReX_WriteEBSurface.H"
 #include "AMReX_EB2_IF_Box.H"
 #include "AMReX_EB2_IF_Sphere.H"
+
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_EBIFTerrain.H"
+#include "ERF_HurricaneDiagnostics.H"
+
 #ifdef ERF_USE_NETCDF
 #include "ERF_ReadFromWRFInput.H"
 #include "ERF_ReadFromWRFBdy.H"
 #endif
-#include "ERF_HurricaneDiagnostics.H"
 
 using namespace amrex;
 
@@ -399,6 +402,9 @@ ERF::ERF_shared ()
     // Map factors
     mapfac.resize(nlevs_max);
 
+    // Fine mask
+    fine_mask.resize(nlevs_max);
+
     // Thin immersed body
     xflux_imask.resize(nlevs_max);
     yflux_imask.resize(nlevs_max);
@@ -523,6 +529,9 @@ ERF::ERF_shared ()
         auto gshop = EB2::makeShop(implicit_fun);
         amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
     }
+    forecast_state_1.resize(nlevs_max);
+    forecast_state_2.resize(nlevs_max);
+    forecast_state_interp.resize(nlevs_max);
 }
 
 ERF::~ERF () = default;
@@ -560,6 +569,13 @@ ERF::Evolve ()
         //    only when a) time > start_time, and b) particles have not yet been initialized
         initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,cur_time);
 #endif
+
+        if(solverChoice.init_type == InitType::HindCast and
+          solverChoice.hindcast_lateral_forcing) {
+            for(int lev=0;lev<finest_level+1;lev++){
+                WeatherDataInterpolation(lev,cur_time,z_phys_nd,false);
+            }
+        }
 
         auto dEvolveTime0 = amrex::second();
 
@@ -834,32 +850,6 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
       }
     }
 
-    bool is_hurricane_tracker_io=false;
-    ParmParse pp("erf");
-    pp.query("is_hurricane_tracker_io", is_hurricane_tracker_io);
-
-    if (is_hurricane_tracker_io) {
-        if(nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0){
-            std::string filename = MakeVTKFilename(nstep);
-            Real velmag_threshold = 1e10;
-            pp.query("hurr_track_io_velmag_greater_than", velmag_threshold);
-            if(velmag_threshold==1e10) {
-                Abort("As hurricane tracking IO is active using erf.is_hurricane_tracker_io = true"
-                      " there needs to be an input erf.hurr_track_io_velmag_greater_than which specifies the"
-                      " magnitude of velocity above which cells will be tagged for refinement.");
-            }
-            int levc=finest_level;
-            MultiFab& U_new = vars_new[levc][Vars::xvel];
-            MultiFab& V_new = vars_new[levc][Vars::yvel];
-            MultiFab& W_new = vars_new[levc][Vars::zvel];
-
-            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, true);
-            if (ParallelDescriptor::IOProcessor()) {
-                WriteVTKPolyline(filename,hurricane_track_xy);
-            }
-        }
-    }
-
     if(solverChoice.io_hurricane_eye_tracker and (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0)) {
         int levc=finest_level;
 
@@ -1004,14 +994,17 @@ ERF::InitData_post ()
     if (!restart_chkfile.empty()) {
         restart();
     }
-
     //
-    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one and if two way coupling
     //
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        if (solverChoice.coupling_type == CouplingType::OneWay) {
+            for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
+                average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+                average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
+            }
+        }
         for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
-            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
               detJ_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
             z_phys_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
         }
@@ -1342,20 +1335,20 @@ ERF::InitData_post ()
     //
     if (restart_chkfile == "")
     {
-        if (solverChoice.project_initial_velocity) {
-            Real dummy_dt = 1.0;
-            if (verbose > 0) {
-                amrex::Print() << "Projecting initial velocity field" << std::endl;
-            }
-            for (int lev = 0; lev <= finest_level; ++lev)
-            {
+        for (int lev = 0; lev <= finest_level; ++lev)
+        {
+            if (solverChoice.project_initial_velocity[lev] == 1) {
+                Real dummy_dt = 1.0;
+                if (verbose > 0) {
+                    amrex::Print() << "Projecting initial velocity field at level " << lev << std::endl;
+                }
                 project_velocity(lev, dummy_dt);
                 pp_inc[lev].setVal(0.);
                 gradp[lev][GpVars::gpx].setVal(0.);
                 gradp[lev][GpVars::gpy].setVal(0.);
                 gradp[lev][GpVars::gpz].setVal(0.);
-            }
-        }
+            } // project
+        } // lev
     }
 
     // Copy from new into old just in case (after filling boundary conditions and possibly projecting)
@@ -1545,8 +1538,9 @@ ERF::InitData_post ()
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
     {
         bool has_diff = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
-                          (solverChoice.turbChoice[0].les_type != LESType::None)           ||
-                          (solverChoice.turbChoice[0].pbl_type != PBLType::None) );
+                          (solverChoice.turbChoice[0].les_type  != LESType::None)          ||
+                          (solverChoice.turbChoice[0].rans_type != RANSType::None)         ||
+                          (solverChoice.turbChoice[0].pbl_type  != PBLType::None) );
         AMREX_ALWAYS_ASSERT(has_diff);
 
         bool rotate = solverChoice.use_rotate_surface_flux;
@@ -1581,6 +1575,16 @@ ERF::InitData_post ()
                                                        sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
         }
 
+        // If initializing from an input_sounding, make sure the surface layer
+        // is using the same surface conditions
+        if (solverChoice.init_type == InitType::Input_Sounding) {
+            const Real theta0 = input_sounding_data.theta_ref_inp_sound;
+            const Real qv0    = input_sounding_data.qv_ref_inp_sound;
+            for (int lev = 0; lev <= finest_level; lev++) {
+                m_SurfaceLayer->set_t_surf(lev, theta0);
+                m_SurfaceLayer->set_q_surf(lev, qv0);
+            }
+        }
 
         if (restart_chkfile != "") {
             // Update surface fields if needed (and available)
@@ -1842,7 +1846,12 @@ ERF::InitData_post ()
     {
         bool write_eb_surface = false;
         pp.query("write_eb_surface", write_eb_surface);
-        if (write_eb_surface) WriteMyEBSurface();
+        if (write_eb_surface) {
+            if (verbose > 0) {
+                amrex::Print() << "Writing the geometry to a vtp file.\n" << std::endl;
+            }
+            WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
+        }
     }
 
 }
@@ -2871,7 +2880,7 @@ ERF::check_state_for_nans(MultiFab const& S)
         for (int i = 0; i < ncomp; i++) {
             if (S.contains_nan(i,1,0))
             {
-                amrex::Print() << "Component " << i << "of conserved variables contains NaNs" << '\n';
+                amrex::Print() << "Component " << i << " of conserved variables contains NaNs" << '\n';
                 any_have_nans = true;
             }
         }

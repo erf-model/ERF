@@ -60,7 +60,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
     subdomains.resize(lev+1);
     if ( (lev == 0) || (
-         (solverChoice.anelastic[lev] == 0) && (!solverChoice.project_initial_velocity) &&
+         (solverChoice.anelastic[lev] == 0) && (solverChoice.project_initial_velocity[lev] == 0) &&
          (solverChoice.init_type != InitType::WRFInput) && (solverChoice.init_type != InitType::Metgrid) ) ) {
         BoxArray dom(geom[lev].Domain());
         subdomains[lev].push_back(dom);
@@ -307,7 +307,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // 1) all boxes in a given subdomain are "connected"
     // 2) no boxes in a subdomain touch any boxes in any other subdomain
     //
-    if (solverChoice.anelastic[lev] == 0 && !solverChoice.project_initial_velocity) {
+    if ( (solverChoice.anelastic[lev] == 0) && (solverChoice.project_initial_velocity[lev] == 0) ) {
         BoxArray dom(geom[lev].Domain());
         subdomains[lev].push_back(dom);
     } else {
@@ -577,7 +577,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Note that this shouldn't be necessary because the fine grid is created by interpolation
     // from the coarse ... but just in case ...
     // ********************************************************************************************
-    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+    if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && (solverChoice.coupling_type == CouplingType::OneWay) ) {
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
             average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
@@ -759,7 +759,7 @@ ERF::ClearLevel (int lev)
         zmom_crse_rhs[lev].clear();
     }
 
-    if (solverChoice.anelastic[lev] == 1 || solverChoice.project_initial_velocity) {
+    if ( (solverChoice.anelastic[lev] == 1) || (solverChoice.project_initial_velocity[lev] == 1) ) {
         pp_inc[lev].clear();
     }
     if (solverChoice.anelastic[lev] == 0) {
