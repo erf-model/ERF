@@ -204,7 +204,6 @@ void make_buoyancy (int lev,
                         buoyancy_fab(i, j, k) = 0.0;
                     });
                 } else {
-                    AMREX_ASSERT( solverChoice.buoyancy_type[lev] == 1 );
 
                     Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
                     
