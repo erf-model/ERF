@@ -998,7 +998,7 @@ ERF::InitData_post ()
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one and if two way coupling
     //
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-        if (solverChoice.coupling_type == CouplingType::OneWay) {
+        if (solverChoice.coupling_type == CouplingType::TwoWay) {
             for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
                 average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
                 average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
