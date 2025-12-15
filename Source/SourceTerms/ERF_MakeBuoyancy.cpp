@@ -206,7 +206,7 @@ void make_buoyancy (int lev,
                 } else {
 
                     Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-                    
+
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         buoyancy_fab(i, j, k) = buoyancy_dry_anelastic_eb(i,j,k,grav_gpu[2],
