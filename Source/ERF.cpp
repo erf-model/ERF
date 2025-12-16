@@ -2370,6 +2370,12 @@ ERF::ReadParameters ()
 
         pp.query("subvol_file",   subvol_file);
 
+        // Should we use format like plt1970-01-01_00:00:00.000000 (if true) or plt00001 (if false)
+        pp.query("use_real_time_in_pltname", use_real_time_in_pltname);
+
+        // If use_real_time_in_pltname is false, how many digits should we use for the timestep?
+        pp.query("file_name_digits", file_name_digits);
+
         // Default if subvol_int not specified
         m_subvol_int.resize(1); m_subvol_int[0] = -1;
         m_subvol_per.resize(1); m_subvol_per[0] = -1.0;

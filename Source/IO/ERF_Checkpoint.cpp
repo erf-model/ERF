@@ -35,7 +35,6 @@ ERF::WriteCheckpointFile () const
     // etc.                these subdirectories will hold the MultiFab data at each level of refinement
 
     // checkpoint file name, e.g., chk00010
-    int file_name_digits = solverChoice.file_name_digits;
     const std::string& checkpointname = Concatenate(check_file,istep[0],file_name_digits);
 
     Print() << "Writing native checkpoint " << checkpointname << "\n";
@@ -256,7 +255,7 @@ ERF::WriteCheckpointFile () const
 
         if (m_SurfaceLayer)  {
             amrex::Print() << "Writing SurfaceLayer variables at level " << lev << std::endl;
-            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            ng = IntVect(1,1,0);
             MultiFab   m_var(ba2d[lev],dmap[lev],1,ng);
             MultiFab* src = nullptr;
 
@@ -1066,7 +1065,7 @@ ERF::ReadCheckpointFileSurfaceLayer ()
     {
         amrex::Print() << "Reading MOST variables" << std::endl;
 
-        IntVect ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+        IntVect ng(1,1,0);
         MultiFab  m_var(ba2d[lev],dmap[lev],1,ng);
         MultiFab* dst = nullptr;
 

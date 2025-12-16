@@ -716,8 +716,6 @@ struct SolverChoice {
             }
         }
 
-        pp.query("file_name_digits", file_name_digits);
-
         check_params(max_level);
     }
 
@@ -1151,7 +1149,5 @@ struct SolverChoice {
 
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
-
-    int file_name_digits = 5;
 };
 #endif
