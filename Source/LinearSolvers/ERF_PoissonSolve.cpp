@@ -258,23 +258,23 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             rho0_u_sub[2].define(convert(ba_sub, IntVect::TheDimensionVector(2)), DistributionMapping(dm_sub), 1,
                                          mom_mf[IntVars::zmom].nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
         } else {
-            rhs_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, rhs_lev.nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
-            phi_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, phi_lev.nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+            rhs_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, rhs_lev.nGrowVect(), MFInfo{}.SetAlloc(false));
+            phi_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, phi_lev.nGrowVect(), MFInfo{}.SetAlloc(false));
 
-            mfmx_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_x]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
-            mfmy_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_y]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
-              dJ_sub.define(ba_sub, DistributionMapping(dm_sub), 1, detJ_cc[lev]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+            mfmx_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_x]->nGrowVect(), MFInfo{}.SetAlloc(false));
+            mfmy_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_y]->nGrowVect(), MFInfo{}.SetAlloc(false));
+              dJ_sub.define(ba_sub, DistributionMapping(dm_sub), 1, detJ_cc[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
 
             for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
                 fluxes_sub[0][idim].define(convert(ba_sub, IntVect::TheDimensionVector(idim)), DistributionMapping(dm_sub), 1,
-                                                   IntVect::TheZeroVector(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+                                                   IntVect::TheZeroVector(), MFInfo{}.SetAlloc(false));
             }
             rho0_u_sub[0].define(convert(ba_sub, IntVect::TheDimensionVector(0)), DistributionMapping(dm_sub), 1,
-                                         mom_mf[IntVars::xmom].nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+                                         mom_mf[IntVars::xmom].nGrowVect(), MFInfo{}.SetAlloc(false));
             rho0_u_sub[1].define(convert(ba_sub, IntVect::TheDimensionVector(1)), DistributionMapping(dm_sub), 1,
-                                         mom_mf[IntVars::ymom].nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+                                         mom_mf[IntVars::ymom].nGrowVect(), MFInfo{}.SetAlloc(false));
             rho0_u_sub[2].define(convert(ba_sub, IntVect::TheDimensionVector(2)), DistributionMapping(dm_sub), 1,
-                                         mom_mf[IntVars::zmom].nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+                                         mom_mf[IntVars::zmom].nGrowVect(), MFInfo{}.SetAlloc(false));
         }
 
         // Link the new MultiFabs to the FABs in the original MultiFabs (no copy required)
