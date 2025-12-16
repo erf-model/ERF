@@ -237,5 +237,9 @@ protected:
     //--------------------------------------------
     bool include_subgrid_vel = false;
     amrex::Vector<amrex::Real> m_Vsg;                                // Subgrid velocity scale (Mahrt & Sun 1995 MWR)
+
+    // Default values
+    //--------------------------------------------
+    const amrex::Real zref_default = 10.0;
 };
 #endif

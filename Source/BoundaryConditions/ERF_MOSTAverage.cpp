@@ -177,7 +177,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
 
         // Default zref to 10 and fill will true values later
         m_zref[lev] = std::make_unique<MultiFab>(ba,dm,1,ng);
-        m_zref[lev]->setVal(10.0);
+        m_zref[lev]->setVal(zref_default);
 
         if (use_terrain_fitted_coords && m_norm_vec && m_interp) {
             m_x_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -401,7 +401,7 @@ void
 MOSTAverage::set_k_indices_N (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = 10.0;;
+    Real zref_tmp = zref_default;
     auto read_z = pp.query("most.zref",zref_tmp);
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
@@ -409,8 +409,9 @@ MOSTAverage::set_k_indices_N (const int& lev)
     if (!read_z && !read_k) {
         Real m_zlo = m_geom[0].ProbLo(2);
         Real m_dz  = m_geom[0].CellSize(2);
-        m_zref[lev]->setVal( m_zlo + 0.5 * m_dz );
-        Print() << "Reference height for MOST set to " << m_zlo + 0.5 * m_dz << std::endl;
+        zref_tmp = m_zlo + 0.5 * m_dz;
+        m_zref[lev]->setVal( zref_tmp );
+        Print() << "Reference height for MOST set to " << zref_tmp << std::endl;
         read_z = true;
     }
 
@@ -457,7 +458,7 @@ void
 MOSTAverage::set_k_indices_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = 10.0;
+    Real zref_tmp = zref_default;
     auto read_z = pp.query("most.zref",zref_tmp);
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
@@ -525,7 +526,7 @@ void
 MOSTAverage::set_norm_indices_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = 10.0;
+    Real zref_tmp = zref_default;
     auto read_zref = pp.query("most.zref",zref_tmp);
     if (!read_zref) {
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
@@ -602,7 +603,7 @@ void
 MOSTAverage::set_z_positions_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = 10.0;
+    Real zref_tmp = zref_default;
     auto read_zref = pp.query("most.zref",zref_tmp);
     if (!read_zref) {
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
@@ -653,7 +654,7 @@ void
 MOSTAverage::set_norm_positions_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = 10.0;
+    Real zref_tmp = zref_default;
     auto read_zref = pp.query("most.zref",zref_tmp);
     if (!read_zref) {
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
