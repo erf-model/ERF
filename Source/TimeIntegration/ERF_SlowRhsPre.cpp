@@ -148,8 +148,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_use_SurfLayer = (SurfLayer != nullptr);
     const bool l_rotate        = (solverChoice.use_rotate_surface_flux);
 
-    const bool l_anelastic = solverChoice.anelastic[level];
-    const bool l_fixed_rho = solverChoice.fixed_density[level];
+    const bool l_anelastic = (solverChoice.anelastic[level]     == 1);
+    const bool l_fixed_rho = (solverChoice.fixed_density[level] == 1);
 
     const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
                             ( (l_anelastic && nrk == 1) || (!l_anelastic && nrk == 2) ) );

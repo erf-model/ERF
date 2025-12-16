@@ -66,6 +66,7 @@ erf.les_type = "None"
 erf.terrain_type = "EB"
 erf.write_eb_surface = TRUE
 erf.terrain_smoothing = 0
+erf.eb_boundary_type = "NoSlipWall"
 
 erf.molec_diff_type   = "Constant"
 erf.dynamic_viscosity = 60.0 # [kg/(m-s)]
