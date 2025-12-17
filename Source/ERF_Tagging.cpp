@@ -17,7 +17,7 @@ Real read_start_time_from_wrfinput (int lev, const std::string& fname);
 #endif
 
 void
-tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags, 
+tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
                          const Real eye_x, const Real eye_y, const Real rad_tag);
 
 void
@@ -201,7 +201,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             MultiFab& S_new = vars_new[levc][Vars::cons];
 
             // Define the 2D MultiFab holding the column-integrated (rho qv)
-            volWgtColumnSum(levc, S_new, RhoQ1_comp, mf_qv_int, *detJ_cc[levc]); 
+            volWgtColumnSum(levc, S_new, RhoQ1_comp, mf_qv_int, *detJ_cc[levc]);
 
             // Find the max value in the domain
             IntVect eye = mf_qv_int.maxIndex(0);
@@ -529,7 +529,7 @@ bool
 ERF::FindInitialEye(int levc,
                     const MultiFab& mf_cc_vel,
                     const Real velmag_threshold,
-                    Real& eye_x, Real& eye_y) 
+                    Real& eye_x, Real& eye_y)
 {
     const auto dx = geom[levc].CellSizeArray();
     const auto prob_lo = geom[levc].ProbLoArray();
