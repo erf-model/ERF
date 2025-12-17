@@ -998,7 +998,7 @@ ERF::InitData_post ()
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one and if two way coupling
     //
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-        if (solverChoice.coupling_type == CouplingType::OneWay) {
+        if (solverChoice.coupling_type == CouplingType::TwoWay) {
             for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
                 average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
                 average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
@@ -2369,6 +2369,12 @@ ERF::ReadParameters ()
         pp.query("plot2d_per_2",  m_plot2d_per_2);
 
         pp.query("subvol_file",   subvol_file);
+
+        // Should we use format like plt1970-01-01_00:00:00.000000 (if true) or plt00001 (if false)
+        pp.query("use_real_time_in_pltname", use_real_time_in_pltname);
+
+        // If use_real_time_in_pltname is false, how many digits should we use for the timestep?
+        pp.query("file_name_digits", file_name_digits);
 
         // Default if subvol_int not specified
         m_subvol_int.resize(1); m_subvol_int[0] = -1;

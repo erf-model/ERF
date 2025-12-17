@@ -43,10 +43,6 @@ eb_::make_all_factories ([[maybe_unused]] int level,
     // Correct cell connectivity
     eb_::set_connection_flags();
 
-#if 1
-    WriteEBSurface(ba, dm, a_geom, m_factory.get());
-#endif
-
     { int const idim(0);
         Print() << "making EB staggered u-factory\n";
         //m_u_factory.set_verbose();
@@ -83,10 +79,6 @@ eb_::make_cc_factory ([[maybe_unused]] int level,
     Print() << "making EB factory\n";
     m_factory = std::make_unique<EBFArrayBoxFactory>(a_eb_level, a_geom, ba, dm,
         Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
-
-#if 0
-    WriteEBSurface(ba, dm, a_geom, m_factory.get());
-#endif
 
     Print() << "\nDone making EB factory at level " << level << ".\n\n";
 }

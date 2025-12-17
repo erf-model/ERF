@@ -14,6 +14,7 @@
 #include <ERF_AdvStruct.H>
 #include <ERF_DampingStruct.H>
 #include <ERF_DiffStruct.H>
+#include <ERF_EBStruct.H>
 #include <ERF_SpongeStruct.H>
 #include <ERF_TurbStruct.H>
 #include <ERF_TurbPertStruct.H>
@@ -359,8 +360,8 @@ struct SolverChoice {
 
         for (int i = 0; i <= max_level; ++i) {
             if (anelastic[i] == 1) {
-                project_initial_velocity[i] = true;
-                fixed_density[i]            = true; // We default to true but are allowed to override below
+                project_initial_velocity[i] = 1;
+                fixed_density[i]            = 1; // We default to true but are allowed to override below
                 buoyancy_type[i]            = 3; // (This isn't actually used when anelastic is set)
             }
         }
@@ -537,8 +538,7 @@ struct SolverChoice {
            diffChoice.init_params(pp_prefix);
         dampingChoice.init_params(pp_prefix);
          spongeChoice.init_params(pp_prefix);
-
-
+             ebChoice.init_params(pp_prefix);
 
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
@@ -716,8 +716,6 @@ struct SolverChoice {
             }
         }
 
-        pp.query("file_name_digits", file_name_digits);
-
         check_params(max_level);
     }
 
@@ -831,6 +829,7 @@ struct SolverChoice {
             amrex::Print() << "Terrain Type: MovingFittedMesh" << std::endl;
         } else if (terrain_type == TerrainType::EB) {
             amrex::Print() << "Terrain Type: EB" << std::endl;
+            ebChoice.display();
         } else if (terrain_type == TerrainType::ImmersedForcing) {
             amrex::Print() << "Terrain Type: ImmersedForcing" << std::endl;
         } else {
@@ -993,6 +992,7 @@ struct SolverChoice {
     DampingChoice dampingChoice;
     SpongeChoice  spongeChoice;
     amrex::Vector<TurbChoice>  turbChoice;
+    EBChoice      ebChoice;
 
     int         force_stage1_single_substep = 1;
 
@@ -1149,7 +1149,5 @@ struct SolverChoice {
 
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
-
-    int file_name_digits = 5;
 };
 #endif

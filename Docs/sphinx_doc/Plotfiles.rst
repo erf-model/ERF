@@ -45,74 +45,88 @@ frequency and content of the two streams are controlled separately.
 
 .. _list-of-parameters-9:
 
+List of Parameters for Both 2D and 3D Plotfiles
+-----------------------------------------------
+
++----------------------------------+------------------+-----------------------+------------+
+| Parameter                        | Definition       | Acceptable            | Default    |
+|                                  |                  | Values                |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plotfile_type**            | AMReX or NETCDF  | "amrex" or            | "amrex"    |
+|                                  | format           | "netcdf / "NetCDF"    |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.use_real_time_in_pltname** | Use real time    | Boolean               | false      |
+|                                  | instead of time  |                       |            |
+|                                  | step for         |                       |            |
+|                                  | plotfile names   |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.file_name_digits**         | Number of digits | Integer               | 5          |
+|                                  | to be appended   | :math:`> 0`           |            |
+|                                  | to the plotfile  |                       |            |
+|                                  | and checkpoint   |                       |            |
+|                                  | file names if    |                       |            |
+|                                  | using time step  |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+
 List of Parameters for 3D Plotfiles
 -----------------------------------
 
-+-----------------------------+------------------+-----------------------+------------+
-| Parameter                   | Definition       | Acceptable            | Default    |
-|                             |                  | Values                |            |
-+=============================+==================+=======================+============+
-| **erf.plotfile_type**       | AMReX or NETCDF  | "amrex" or            | "amrex"    |
-|                             |                  | "netcdf / "NetCDF"    |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_file_1**         | prefix for       | String                | “*plt_1_*” |
-|                             | plotfiles        |                       |            |
-|                             | at first freq.   |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_file_2**         | prefix for       | String                | “*plt_2_*” |
-|                             | plotfiles        |                       |            |
-|                             | at seoncd freq.  |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_int_1**          | how often (by    | Integer               | -1         |
-|                             | level-0 time     | :math:`> 0`           |            |
-|                             | steps) to write  |                       |            |
-|                             | plot files       |                       |            |
-|                             | at first freq.   |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_int_2**          | how often (by    | Integer               | -1         |
-|                             | level-0 time     | :math:`> 0`           |            |
-|                             | steps) to write  |                       |            |
-|                             | plot files       |                       |            |
-|                             | at second freq.  |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_per_1**          | how often (in    | Real                  | -1.0       |
-|                             | simulation time) | :math:`> 0`           |            |
-|                             | to write         |                       |            |
-|                             | plot files       |                       |            |
-|                             | at first freq.   |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_per_2**          | how often (in    | Real                  | -1.0       |
-|                             | simulation time) | :math:`> 0`           |            |
-|                             | to write         |                       |            |
-|                             | plot files       |                       |            |
-|                             | at second freq.  |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_vars_1**         | name of          | list of names         | None       |
-|                             | variables to     |                       |            |
-|                             | include in       |                       |            |
-|                             | plotfiles        |                       |            |
-|                             | at first freq.   |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_vars_2**         | name of          | list of names         | None       |
-|                             | variables to     |                       |            |
-|                             | include in       |                       |            |
-|                             | plotfiles        |                       |            |
-|                             | at second freq.  |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.plot_face_vels**      | output plotfiles | Boolean               | false      |
-|                             | "{prefix}U",     |                       |            |
-|                             | "{prefix}V", and |                       |            |
-|                             | "{prefix}W"      |                       |            |
-|                             | with velocity    |                       |            |
-|                             | components on the|                       |            |
-|                             | staggered grid.  |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.file_name_digits**    | Number of digits | Integer               | 5          |
-|                             | to be appended   | :math:`> 0`           |            |
-|                             | to the plot file |                       |            |
-|                             | and checkpoint   |                       |            |
-|                             | file names       |                       |            |
-+-----------------------------+------------------+-----------------------+------------+
++----------------------------------+------------------+-----------------------+------------+
+| Parameter                        | Definition       | Acceptable            | Default    |
+|                                  |                  | Values                |            |
++==================================+==================+=======================+============+
+| **erf.plot_file_1**              | prefix for       | String                | “*plt_1_*” |
+|                                  | plotfiles        |                       |            |
+|                                  | at first freq.   |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_file_2**              | prefix for       | String                | “*plt_2_*” |
+|                                  | plotfiles        |                       |            |
+|                                  | at seoncd freq.  |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_int_1**               | how often (by    | Integer               | -1         |
+|                                  | level-0 time     | :math:`> 0`           |            |
+|                                  | steps) to write  |                       |            |
+|                                  | plot files       |                       |            |
+|                                  | at first freq.   |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_int_2**               | how often (by    | Integer               | -1         |
+|                                  | level-0 time     | :math:`> 0`           |            |
+|                                  | steps) to write  |                       |            |
+|                                  | plot files       |                       |            |
+|                                  | at second freq.  |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_per_1**               | how often (in    | Real                  | -1.0       |
+|                                  | simulation time) | :math:`> 0`           |            |
+|                                  | to write         |                       |            |
+|                                  | plot files       |                       |            |
+|                                  | at first freq.   |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_per_2**               | how often (in    | Real                  | -1.0       |
+|                                  | simulation time) | :math:`> 0`           |            |
+|                                  | to write         |                       |            |
+|                                  | plot files       |                       |            |
+|                                  | at second freq.  |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_vars_1**              | name of          | list of names         | None       |
+|                                  | variables to     |                       |            |
+|                                  | include in       |                       |            |
+|                                  | plotfiles        |                       |            |
+|                                  | at first freq.   |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_vars_2**              | name of          | list of names         | None       |
+|                                  | variables to     |                       |            |
+|                                  | include in       |                       |            |
+|                                  | plotfiles        |                       |            |
+|                                  | at second freq.  |                       |            |
++----------------------------------+------------------+-----------------------+------------+
+| **erf.plot_face_vels**           | output plotfiles | Boolean               | false      |
+|                                  | "{prefix}U",     |                       |            |
+|                                  | "{prefix}V", and |                       |            |
+|                                  | "{prefix}W"      |                       |            |
+|                                  | with velocity    |                       |            |
+|                                  | components on the|                       |            |
+|                                  | staggered grid.  |                       |            |
++----------------------------------+------------------+-----------------------+------------+
 
 List of Parameters for 2D Plotfiles
 -----------------------------------
@@ -121,9 +135,6 @@ List of Parameters for 2D Plotfiles
 | Parameter                   | Definition       | Acceptable            | Default      |
 |                             |                  | Values                |              |
 +=============================+==================+=======================+==============+
-| **erf.plotfile_type**       | AMReX or NETCDF  | "amrex" or            | "amrex"      |
-|                             |                  | "netcdf / "NetCDF"    |              |
-+-----------------------------+------------------+-----------------------+--------------+
 | **erf.plot2d_file_1**       | prefix for       | String                | “*plt2d_1_*” |
 |                             | 2d plotfiles     |                       |              |
 |                             | at first freq.   |                       |              |

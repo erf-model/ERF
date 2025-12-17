@@ -196,15 +196,43 @@ void make_buoyancy (int lev,
 
         } else {
 
-            // Currently, only dry compressible is supported
-            AMREX_ASSERT( !anelastic && (solverChoice.moisture_type == MoistureType::None) && solverChoice.buoyancy_type[lev] == 1 );
+            if ( anelastic && (solverChoice.moisture_type == MoistureType::None) ) {
 
-            Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+                if (grav_gpu[2]==0) {
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        buoyancy_fab(i, j, k) = 0.0;
+                    });
+                } else {
 
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        buoyancy_fab(i, j, k) = buoyancy_dry_anelastic_eb(i,j,k,grav_gpu[2],
+                                                                    r0_arr,th0_arr,cell_data,cellflg);
+                    });
+                }
+            }
+            else
             {
-                buoyancy_fab(i, j, k) = buoyancy_rhopert_eb(i,j,k,grav_gpu[2],r0_arr,cell_data,qt_arr,cellflg);
-            });
+                if (grav_gpu[2]==0) {
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        buoyancy_fab(i, j, k) = 0.0;
+                    });
+                } else {
+                    // Currently, only dry compressible is supported
+                    AMREX_ASSERT( !anelastic && (solverChoice.moisture_type == MoistureType::None) && solverChoice.buoyancy_type[lev] == 1 );
+
+                    Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        buoyancy_fab(i, j, k) = buoyancy_rhopert_eb(i,j,k,grav_gpu[2],r0_arr,cell_data,qt_arr,cellflg);
+                    });
+                }
+            }
         } // TerrainType::EB
     } // mfi
 }

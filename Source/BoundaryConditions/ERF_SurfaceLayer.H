@@ -383,8 +383,7 @@ public:
       amrex::BoxArray ba2d(std::move(bl2d));
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
-      amrex::IntVect ng = mf.nGrowVect();
-      ng[2] = 0;
+      amrex::IntVect ng{1,1,0};
 
       // Z0 heights FAB
       //--------------------------------------------------------
@@ -562,7 +561,7 @@ public:
   amrex::MultiFab* get_q_surf (const int& lev) { return q_surf[lev].get(); }
   void set_q_surf(const int& lev, const amrex::Real qsurf) { q_surf[lev]->setVal(qsurf); }
 
-  amrex::Real get_zref () { return m_ma.get_zref(); }
+  amrex::Real get_zref (const int& lev) { return (m_ma.get_zref(lev))->min(0); }
 
   amrex::MultiFab* get_z0 (const int& lev) { return &z_0[lev]; }
 

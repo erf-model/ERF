@@ -1217,6 +1217,9 @@ private:
     static PlotFileType plotfile2d_type_1;
     static PlotFileType plotfile2d_type_2;
 
+    int file_name_digits = 5;
+    bool use_real_time_in_pltname = false;
+
     static StateInterpType interpolation_type;
 
     // sponge_type:  "input_sponge"
