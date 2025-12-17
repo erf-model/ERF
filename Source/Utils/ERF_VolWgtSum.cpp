@@ -74,7 +74,6 @@ ERF::volWgtColumnSum (int lev, const MultiFab& mf_to_be_summed, int comp,
 {
     BL_PROFILE("ERF::volWgtSumColumnMF()");
 
-    Real sum = 0.0;
     MultiFab tmp(mf_to_be_summed.boxArray(), mf_to_be_summed.DistributionMap(), 1, 0);
 
     mf_2d.setVal(0.);
