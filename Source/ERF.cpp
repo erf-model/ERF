@@ -850,7 +850,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
       }
     }
 
-    if(solverChoice.io_hurricane_eye_tracker and (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0)) {
+    if ( solverChoice.io_hurricane_eye_tracker and (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0) )
+    {
         int levc=finest_level;
 
         HurricaneEyeTracker(geom[levc],
@@ -877,9 +878,9 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
                                hurricane_maxvel_vs_time);
 
         std::string filename_tracker = MakeVTKFilename_TrackerCircle(nstep);
-        std::string filename_xy = MakeVTKFilename_EyeTracker_xy(nstep);
-        std::string filename_latlon = MakeFilename_EyeTracker_latlon(nstep);
-        std::string filename_maxvel = MakeFilename_EyeTracker_maxvel(nstep);
+        std::string filename_xy      = MakeVTKFilename_EyeTracker_xy(nstep);
+        std::string filename_latlon  = MakeFilename_EyeTracker_latlon(nstep);
+        std::string filename_maxvel  = MakeFilename_EyeTracker_maxvel(nstep);
         if (ParallelDescriptor::IOProcessor()) {
             WriteVTKPolyline(filename_tracker, hurricane_tracker_circle);
             WriteVTKPolyline(filename_xy, hurricane_eye_track_xy);
@@ -887,7 +888,6 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
             WriteLinePlot(filename_maxvel, hurricane_maxvel_vs_time);
         }
     }
-
 } // post_timestep
 
 // This is called from main.cpp and handles all initialization, whether from start or restart

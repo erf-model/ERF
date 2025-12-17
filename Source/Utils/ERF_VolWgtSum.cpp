@@ -68,6 +68,47 @@ ERF::volWgtSumMF (int lev,
     return sum;
 }
 
+void
+ERF::volWgtColumnSum (int lev, const MultiFab& mf_to_be_summed, int comp,
+                      MultiFab& mf_2d, const MultiFab& dJ)
+{
+    BL_PROFILE("ERF::volWgtSumColumnMF()");
+
+    Real sum = 0.0;
+    MultiFab tmp(mf_to_be_summed.boxArray(), mf_to_be_summed.DistributionMap(), 1, 0);
+
+    mf_2d.setVal(0.);
+
+    // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
+    // m is the map scale factor at cell centers
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx   = mfi.tilebox();
+        const auto  dst_arr = tmp.array(mfi);
+        const auto  src_arr = mf_to_be_summed.array(mfi);
+        const auto& mfx_arr = mfmx.const_array(mfi);
+        const auto& mfy_arr = mfmy.const_array(mfi);
+        if (SolverChoice::mesh_type == MeshType::ConstantDz) {
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                dst_arr(i,j,0) += src_arr(i,j,k,comp);
+            });
+        } else {
+            const auto& dJ_arr = dJ.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                dst_arr(i,j,0) += src_arr(i,j,k,comp) * dJ_arr(i,j,k);
+            });
+        }
+    } // mfi
+
+    auto const& dx = geom[lev].CellSizeArray();
+
+    mf_2d.mult(dx[2]);
+}
+
 /**
  * Helper function for constructing a fine mask, that is, a MultiFab
  * masking coarser data at a lower level by zeroing out covered cells

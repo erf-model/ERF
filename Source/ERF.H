@@ -143,20 +143,14 @@ public:
     // Refinement criteria for hurricanes
     void HurricaneTracker (int lev,
                            amrex::Real time,
-                           const amrex::MultiFab& U_new,
-                           const amrex::MultiFab& V_new,
-                           const amrex::MultiFab& W_new,
+                           const amrex::MultiFab& cc_vel,
                            const amrex::Real velmag_threshold,
                            amrex::TagBoxArray* tags = nullptr);
 
-    void HurricaneTrackerInitial (int lev,
-                                  const amrex::MultiFab& U_new,
-                                  const amrex::MultiFab& V_new,
-                                  const amrex::MultiFab& W_new,
-                                  const amrex::Real velmag_threshold,
-                                  amrex::TagBoxArray* tags = nullptr);
-
-    void HurricaneTrackerNotInitial (int lev, amrex::TagBoxArray* tags = nullptr);
+    bool FindInitialEye (int lev,
+                         const amrex::MultiFab& cc_vel,
+                         const amrex::Real velmag_threshold,
+                         amrex::Real& eye_x, amrex::Real& eye_y);
 
     // Hurricane track line output as VTKPolyline
     amrex::Vector<std::array<amrex::Real, 2>> hurricane_track_xy;
@@ -325,8 +319,12 @@ public:
     // Perform the volume-weighted sum
     amrex::Real
     volWgtSumMF (int lev, const amrex::MultiFab& mf, int comp,
-                const amrex::MultiFab& dJ, const amrex::MultiFab& mfx, const amrex::MultiFab& mfy,
-                bool finemask, bool local = true);
+                 const amrex::MultiFab& dJ, const amrex::MultiFab& mfx, const amrex::MultiFab& mfy,
+                 bool finemask, bool local = true);
+
+    void
+    volWgtColumnSum (int lev, const amrex::MultiFab& mf, int comp,
+                     amrex::MultiFab& mf_2d, const amrex::MultiFab& dJ);
 
     // Decide if it is time to take an action
     static bool is_it_time_for_action (int nstep, amrex::Real time, amrex::Real dt,
