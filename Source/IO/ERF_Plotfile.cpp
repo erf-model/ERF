@@ -1511,7 +1511,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     if (which == 1) {
        if (use_real_time_in_pltname) {
            const std::string dt_format = "%Y-%m-%d_%H:%M:%S"; // ISO 8601 standard
-           plotfilename = plot3d_file_1+getTimestamp(start_time+t_new[0], dt_format);
+           plotfilename = plot3d_file_1+"_"+getTimestamp(start_time+t_new[0], dt_format,false);
        } else {
            plotfilename  = Concatenate(plot3d_file_1, istep[0], file_name_digits);
        }
@@ -1521,7 +1521,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     } else if (which == 2) {
        if (use_real_time_in_pltname) {
            const std::string dt_format = "%Y-%m-%d_%H:%M:%S"; // ISO 8601 standard
-           plotfilename = plot3d_file_2+getTimestamp(start_time+t_new[0], dt_format);
+           plotfilename = plot3d_file_2+"_"+getTimestamp(start_time+t_new[0], dt_format,false);
        } else {
            plotfilename  = Concatenate(plot3d_file_2, istep[0], file_name_digits);
        }
