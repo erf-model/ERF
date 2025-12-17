@@ -1502,8 +1502,8 @@ List of Parameters
 |                                  | mesoscale data at   |                    |                       |
 |                                  | lateral boundaries  |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.project_initial_velocity** | project initial     |  true or false     | true if anelastic;    |
-|                                  | velocity?           |                    | false if compressible |
+| **erf.project_initial_velocity** | project initial     |  0 or 1            | 1 if anelastic;       |
+|                                  | velocity?           |                    | 0 if compressible     |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.real_width**               | Lateral boundary    |  Integer           | 0                     |
 |                                  | total width if      |                    |                       |
