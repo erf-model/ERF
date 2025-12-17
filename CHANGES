@@ -1,3 +1,12 @@
+#25.12
+    -- Corrections for projection (#2777)
+
+    -- ERA pathway with AMR (#2766)
+
+    -- Corrections for EB advection/diffusion (#2765)
+
+    -- Fixes to BDY region (#2750, 2770, 2778)
+    
 #25.11
     -- Kokkos GPU fix (#2667)
 
