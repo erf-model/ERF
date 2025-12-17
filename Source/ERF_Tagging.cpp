@@ -198,7 +198,6 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         {
             // Create the volume-weighted sum of (rho qv) in each column
             MultiFab mf_qv_int(ba2d[levc], dmap[levc], 1, 0); mf_qv_int.setVal(0.);
-            MultiFab& S_new = vars_new[levc][Vars::cons];
 
             // Define the 2D MultiFab holding the column-integrated (rho qv)
             volWgtColumnSum(levc, S_new, RhoQ1_comp, mf_qv_int, *detJ_cc[levc]);
