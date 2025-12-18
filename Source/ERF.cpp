@@ -489,8 +489,16 @@ ERF::ERF_shared ()
         ParmParse pp("eb2");
         pp.queryAdd("geometry", geometry);
 
-        int ngrow_for_eb = 4;  // This is the default in amrex but we need to explicitly pass it here since
+        constexpr int ngrow_for_eb = 4;  // This is the default in amrex but we need to explicitly pass it here since
                                // we want to also pass the build_coarse_level_by_coarsening argument
+        const bool build_eb_for_multigrid = (solverChoice.terrain_type == TerrainType::EB &&
+                                            ((solverChoice.project_initial_velocity[0] == 1) ||
+                                            solverChoice.anelastic[0] == 1));
+        // Note this just needs to be an integer > number of V-cycles one might use
+        const int max_coarsening_level = (build_eb_for_multigrid) ? 100 : 0;
+        const bool build_coarse_level_by_coarsening(false);
+
+        // Define GeometryShop using the implicit function
         if (geometry == "terrain") {
             Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
             FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
@@ -498,7 +506,12 @@ ERF::ERF_shared ()
             prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
             TerrainIF implicit_fun(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            if (build_eb_for_multigrid) {
+                EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
+                            ngrow_for_eb, build_coarse_level_by_coarsening);
+            } else {
+                EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            }
         } else if (geometry == "box") {
             RealArray box_lo{0.0, 0.0, 0.0};
             RealArray box_hi{0.0, 0.0, 0.0};
@@ -506,7 +519,12 @@ ERF::ERF_shared ()
             pp.query("box_hi", box_hi);
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            if (build_eb_for_multigrid) {
+                EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
+                            ngrow_for_eb, build_coarse_level_by_coarsening);
+            } else {
+                EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            }
         } else if (geometry == "sphere") {
             auto ProbLoArr = geom[max_level].ProbLoArray();
             auto ProbHiArr = geom[max_level].ProbHiArray();
@@ -515,19 +533,24 @@ ERF::ERF_shared ()
             RealArray sphere_center = {xcen, ycen, 0.0};
             EB2::SphereIF implicit_fun(0.5, sphere_center, false);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            if (build_eb_for_multigrid) {
+                EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
+                            ngrow_for_eb, build_coarse_level_by_coarsening);
+            } else {
+                EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            }
         }
     }
 
     if ( solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
-        int ngrow_for_eb = 4;
+        constexpr int ngrow_for_eb = 4;
         Box buildings_bx(surroundingNodes(geom[max_level].Domain())); buildings_bx.grow(3);
         FArrayBox buildings_fab(makeSlab(buildings_bx,2,0),1);
         Real dummy_time = 0.0;
         prob->init_buildings_surface(geom[max_level], buildings_fab, dummy_time);
         TerrainIF implicit_fun(buildings_fab, geom[max_level], stretched_dz_d[max_level]);
         auto gshop = EB2::makeShop(implicit_fun);
-        amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+        EB2::Build(gshop, this->Geom(), ngrow_for_eb);
     }
     forecast_state_1.resize(nlevs_max);
     forecast_state_2.resize(nlevs_max);
