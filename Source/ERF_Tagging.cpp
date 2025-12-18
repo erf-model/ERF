@@ -129,8 +129,6 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                               false, true);
     }
 
-     amrex::Print() <<" SIZE OF REF TAGS " << ref_tags.size() << std::endl;
-
     for (int j=0; j < ref_tags.size(); ++j)
     {
         //
@@ -330,7 +328,6 @@ ERF::refinement_criteria_setup ()
         for (int i=0; i<refinement_indicators.size(); ++i)
         {
             std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
-            amrex::Print() << "READING REF INDICATOR " << refinement_indicators[i] << std::endl;
 
             ParmParse ppr(ref_prefix);
             RealBox realbox;
@@ -639,7 +636,6 @@ tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
             Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
 
             if (dist < rad_tag) {
-                if (j == 0  and k == 0) amrex::Print() << "TAGGING DIST " << IntVect(i,j,k) << " " << dist << " " << rad_tag << std::endl;
                 tag_arr(i,j,k) = TagBox::SET;
             } else {
                 tag_arr(i,j,k) = TagBox::CLEAR;
