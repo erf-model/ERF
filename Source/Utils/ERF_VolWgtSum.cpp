@@ -74,8 +74,6 @@ ERF::volWgtColumnSum (int lev, const MultiFab& mf_to_be_summed, int comp,
 {
     BL_PROFILE("ERF::volWgtSumColumnMF()");
 
-    MultiFab tmp(mf_to_be_summed.boxArray(), mf_to_be_summed.DistributionMap(), 1, 0);
-
     mf_2d.setVal(0.);
 
     // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
@@ -83,9 +81,9 @@ ERF::volWgtColumnSum (int lev, const MultiFab& mf_to_be_summed, int comp,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(mf_to_be_summed, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx   = mfi.tilebox();
-        const auto  dst_arr = tmp.array(mfi);
+        const auto  dst_arr = mf_2d.array(mfi);
         const auto  src_arr = mf_to_be_summed.array(mfi);
         if (SolverChoice::mesh_type == MeshType::ConstantDz) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

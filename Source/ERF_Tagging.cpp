@@ -105,9 +105,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     }
                 } // has file been read?
             } // isub
+            return;
         } // file not empty
-
-        return;
     }
 #endif
 
@@ -129,6 +128,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                            base_state[levc], base_state[levc],
                               false, true);
     }
+
+     amrex::Print() <<" SIZE OF REF TAGS " << ref_tags.size() << std::endl;
 
     for (int j=0; j < ref_tags.size(); ++j)
     {
@@ -193,27 +194,6 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     (ref_tags[j].Field() == "terrain_blanking") )
         {
             MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,1);
-        }
-        else if ( (ref_tags[j].Field() == "integrated_qv") && (solverChoice.moisture_type != MoistureType::None) )
-        {
-            // Create the volume-weighted sum of (rho qv) in each column
-            MultiFab mf_qv_int(ba2d[levc], dmap[levc], 1, 0); mf_qv_int.setVal(0.);
-
-            // Define the 2D MultiFab holding the column-integrated (rho qv)
-            volWgtColumnSum(levc, S_new, RhoQ1_comp, mf_qv_int, *detJ_cc[levc]);
-
-            // Find the max value in the domain
-            IntVect eye = mf_qv_int.maxIndex(0);
-
-            const auto dx      = geom[levc].CellSizeArray();
-            const auto prob_lo = geom[levc].ProbLoArray();
-
-            Real eye_x = prob_lo[0] + (eye[0] + 0.5) * dx[0];
-            Real eye_y = prob_lo[1] + (eye[1] + 0.5) * dx[1];
-
-            Real rad_tag = 1.0;
-
-            tag_on_distance_from_eye(geom[levc], &tags, eye_x, eye_y, rad_tag);
         }
         else if (ref_tags[j].Field() == "velmag")
         {
@@ -290,6 +270,48 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         ref_tags[j](tags,mf.get(),clearval,tagval,time,levc,geom[levc]);
     } // loop over j
+
+    // ********************************************************************************************
+    // Refinement based on 2d distance from the "eye" which is defined here as the (x,y) location of
+    //    the integrated qv
+    // ********************************************************************************************
+    ParmParse pp(pp_prefix);
+    Vector<std::string> refinement_indicators;
+    pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
+    for (int i=0; i<refinement_indicators.size(); ++i)
+    {
+        if ( (refinement_indicators[i]=="storm_tracker") && (solverChoice.moisture_type != MoistureType::None) )
+        {
+            std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
+            ParmParse ppr(ref_prefix);
+
+            Real ref_start_time = -1.0;
+            ppr.query("start_time",ref_start_time);
+
+            if (time >= ref_start_time) {
+
+                Real max_radius = -1.0;
+                ppr.get("max_radius", max_radius);
+
+                // Create the volume-weighted sum of (rho qv) in each column
+                MultiFab mf_qv_int(ba2d[levc], dmap[levc], 1, 0); mf_qv_int.setVal(0.);
+
+                // Define the 2D MultiFab holding the column-integrated (rho qv)
+                volWgtColumnSum(levc, S_new, RhoQ1_comp, mf_qv_int, *detJ_cc[levc]);
+
+                // Find the max value in the domain
+                IntVect eye = mf_qv_int.maxIndex(0);
+   
+                const auto dx      = geom[levc].CellSizeArray();
+                const auto prob_lo = geom[levc].ProbLoArray();
+   
+                Real eye_x = prob_lo[0] + (eye[0] + 0.5) * dx[0];
+                Real eye_y = prob_lo[1] + (eye[1] + 0.5) * dx[1];
+
+                tag_on_distance_from_eye(geom[levc], &tags, eye_x, eye_y, max_radius);
+            }
+        }
+    }
 }
 
 /**
@@ -308,6 +330,7 @@ ERF::refinement_criteria_setup ()
         for (int i=0; i<refinement_indicators.size(); ++i)
         {
             std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
+            amrex::Print() << "READING REF INDICATOR " << refinement_indicators[i] << std::endl;
 
             ParmParse ppr(ref_prefix);
             RealBox realbox;
@@ -517,7 +540,7 @@ ERF::refinement_criteria_setup ()
             else if (realbox.ok())
             {
                 ref_tags.push_back(AMRErrorTag(info));
-            } else {
+            } else if (refinement_indicators[i] != "storm_tracker") {
                 Abort(std::string("Unrecognized refinement indicator for " + refinement_indicators[i]).c_str());
             }
         } // loop over criteria
@@ -616,7 +639,10 @@ tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
             Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
 
             if (dist < rad_tag) {
+                if (j == 0  and k == 0) amrex::Print() << "TAGGING DIST " << IntVect(i,j,k) << " " << dist << " " << rad_tag << std::endl;
                 tag_arr(i,j,k) = TagBox::SET;
+            } else {
+                tag_arr(i,j,k) = TagBox::CLEAR;
             }
         });
     }

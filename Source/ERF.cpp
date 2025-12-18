@@ -1994,7 +1994,7 @@ ERF::init_only (int lev, Real time)
 
 #ifdef ERF_USE_NETCDF
     }
-    else if (solverChoice.init_type == InitType::WRFInput)
+    else if (solverChoice.init_type == InitType::WRFInput && !nc_init_file[lev].empty())
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
@@ -2017,6 +2017,10 @@ ERF::init_only (int lev, Real time)
         if (!solverChoice.use_real_bcs) {
             make_physbcs(lev);
         }
+    }
+    else if (solverChoice.init_type == InitType::WRFInput && nc_init_file[lev].empty())
+    {
+        amrex::Abort("This pathway is not quite implemented yet");
     }
     else if (solverChoice.init_type == InitType::NCFile)
     {
@@ -2515,17 +2519,16 @@ ERF::ReadParameters ()
         }
     }
 
-    // If init from WRFInput or Metgrid make sure a valid file name is present
+    // If init from WRFInput or Metgrid make sure a valid file name is present at level 0.
+    // We allow for the possibility that finer levels may use native refinement rather than reading from a file
     if ((solverChoice.init_type == InitType::WRFInput) ||
         (solverChoice.init_type == InitType::Metgrid)  ||
         (solverChoice.init_type == InitType::NCFile) ) {
-        for (int lev = 0; lev <= max_level; lev++) {
-            int num_files = nc_init_file[lev].size();
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_files>0, "A file name must be present for init type WRFInput, Metgrid or NCFile.");
-            for (int j = 0; j < num_files; j++) {
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!nc_init_file[lev][j].empty(), "Valid file name must be present for init type WRFInput, Metgrid or NCFile.");
-            } //j
-        } // lev
+        int num_files = nc_init_file[0].size();
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_files>0, "A file name must be present at level 0 for init type WRFInput, Metgrid or NCFile.");
+        for (int j = 0; j < num_files; j++) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!nc_init_file[0][j].empty(), "Valid file name must be present at level 0 for init type WRFInput, Metgrid or NCFile.");
+        } //j
     } // InitType
 
     // What type of land surface model to use
