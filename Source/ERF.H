@@ -555,9 +555,6 @@ public:
                              amrex::MultiFab& mf_C1H,
                              amrex::MultiFab& mf_C2H,
                              amrex::MultiFab& mf_MUB,
-                             amrex::MultiFab& mf_PH,
-                             amrex::MultiFab& mf_PHB,
-                             amrex::MultiFab& mf_RDNW,
                              amrex::MultiFab& mf_PSFC);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
@@ -1263,9 +1260,6 @@ private:
     std::unique_ptr<amrex::MultiFab> mf_C1H;
     std::unique_ptr<amrex::MultiFab> mf_C2H;
     std::unique_ptr<amrex::MultiFab> mf_MUB;
-    std::unique_ptr<amrex::MultiFab> mf_PH;
-    std::unique_ptr<amrex::MultiFab> mf_PHB;
-    std::unique_ptr<amrex::MultiFab> mf_RDNW;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_PSFC;
 

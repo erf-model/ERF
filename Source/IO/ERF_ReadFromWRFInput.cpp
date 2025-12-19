@@ -130,7 +130,7 @@ read_from_wrfinput (int lev,
         // Note: staggering is handled in `fill_fab_from_arrays`
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     }
-    else if (NC_name == "C1H" || NC_name == "C2H" || NC_name == "RDNW")
+    else if (NC_name == "C1H" || NC_name == "C2H")
     {
         NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);
     }

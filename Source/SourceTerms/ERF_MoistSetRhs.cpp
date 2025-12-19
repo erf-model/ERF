@@ -31,9 +31,6 @@ moist_set_rhs (const Geometry& geom,
     // NOTE: We pass the full width into this routine. For relaxation, the last cell is a halo
     //       cell for the Laplacian. We remove that cell here if it is present.
 
-    // The width to do RHS augmentation
-    if (width > set_width+1) width -= 1;
-
     // Relaxation constants
     Real F1 = 1./dt;
 
