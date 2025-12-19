@@ -124,7 +124,7 @@ ERF::FillCoarsePatch (int lev, Real time)
                              rU_new[which_lev],
                              rV_new[which_lev],
                              rW_new[which_lev],
-                           Geom(lev).Domain(),
+                           Geom(which_lev).Domain(),
                            domain_bcs_type);
     }
 
