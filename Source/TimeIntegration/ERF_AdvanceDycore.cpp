@@ -286,8 +286,8 @@ void ERF::advance_dycore (int level,
     IntVect ngw = (!solverChoice.use_num_diff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
 
     const MultiFab* c_vfrac = nullptr;
-    if (eb[lev] != nullptr) {
-        c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+    if (eb[level] != nullptr) {
+        c_vfrac = &((get_eb(level).get_const_factory())->getVolFrac());
     }
 
     VelocityToMomentum(xvel_old, ngu, yvel_old, ngv, zvel_old, ngw, density,
