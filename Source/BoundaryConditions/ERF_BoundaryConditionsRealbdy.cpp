@@ -151,7 +151,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                             jj = std::min(jj, dom_hi.y);
                         dest_arr(i,j,k,comp_idx) = oma   * bdatxlo_n  (ii,jj,k,0)
                                                  + alpha * bdatxlo_np1(ii,jj,k,0);
-                        if (var_idx  == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
