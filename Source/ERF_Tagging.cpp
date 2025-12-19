@@ -299,10 +299,10 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
                 // Find the max value in the domain
                 IntVect eye = mf_qv_int.maxIndex(0);
-   
+
                 const auto dx      = geom[levc].CellSizeArray();
                 const auto prob_lo = geom[levc].ProbLoArray();
-   
+
                 Real eye_x = prob_lo[0] + (eye[0] + 0.5) * dx[0];
                 Real eye_y = prob_lo[1] + (eye[1] + 0.5) * dx[1];
 
