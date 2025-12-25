@@ -331,6 +331,13 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             }
         }
 
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
+                int orig_index = index_map[mfi.index()];
+                dJ_sub.setFab(mfi, FArrayBox((*detJ_cc[lev])[orig_index], amrex::make_alias, 0, 1));
+            }
+        }
+
         // ****************************************************************************
         // Compute divergence which will form RHS
         // Note that we replace "rho0w" with the contravariant momentum, Omega
