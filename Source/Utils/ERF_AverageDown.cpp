@@ -214,7 +214,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         const MultiFab* c_vfrac = nullptr;
         if (SolverChoice::terrain_type == TerrainType::EB) {
             c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
-        }        
+        }
 
         MomentumToVelocity(vars_new[lev][Vars::xvel],
                         vars_new[lev][Vars::yvel],
