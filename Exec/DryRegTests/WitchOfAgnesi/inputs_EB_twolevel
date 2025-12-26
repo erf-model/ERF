@@ -13,7 +13,7 @@ eb2.small_volfrac = 1.e-4
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = 0.   0.   0. 
 geometry.prob_hi     = 595.0  20.0  600.
-amr.n_cell           = 60  4   81
+amr.n_cell           = 80  4   80
 
 geometry.is_periodic = 1 1 0
 
@@ -42,7 +42,7 @@ amr.ref_ratio = 2
 erf.refinement_indicators = box1
 erf.box1.max_level = 1
 erf.box1.in_box_lo_indices = 0 0 0
-erf.box1.in_box_hi_indices = 119 7 67
+erf.box1.in_box_hi_indices = 159 7 59
 erf.coupling_type  = "TwoWay"
 erf.cf_width = 0
 erf.cf_set_width = 0
@@ -74,7 +74,7 @@ erf.eb_diff_constraint_y = true
 
 erf.abl_driver_type = "PressureGradient"
 #erf.abl_driver_type = "None"
-erf.abl_pressure_grad = -0.005 0. 0.
+erf.abl_pressure_grad = -1.0 0. 0.
 
 erf.project_initial_velocity = 1
 
