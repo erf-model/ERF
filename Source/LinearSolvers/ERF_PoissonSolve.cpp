@@ -13,7 +13,7 @@ void ERF::project_velocity (int lev, Real l_dt)
     vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
 
     const MultiFab* c_vfrac = nullptr;
-    if (eb[lev] != nullptr) {
+    if (solverChoice.terrain_type == TerrainType::EB) {
         c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
     }
 
@@ -93,7 +93,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         domain_bc_type[1] == "Inflow" || domain_bc_type[4] == "Inflow") {
 
         const MultiFab* c_vfrac = nullptr;
-        if (eb[lev] != nullptr) {
+        if (solverChoice.terrain_type == TerrainType::EB) {
             c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
         }
 

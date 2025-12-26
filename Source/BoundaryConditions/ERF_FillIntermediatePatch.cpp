@@ -98,7 +98,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
             //    in order to impose the rest of the bc's
             // ***************************************************************************
             const MultiFab* c_vfrac = nullptr;
-            if (eb[lev] != nullptr) {
+            if (solverChoice.terrain_type == TerrainType::EB) {
                 c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
             }
 
@@ -249,7 +249,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
             //    in order to impose the rest of the bc's
             // ***************************************************************************
             const MultiFab* c_vfrac = nullptr;
-            if (eb[lev] != nullptr) {
+            if (solverChoice.terrain_type == TerrainType::EB) {
                 c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
             }
 
@@ -357,7 +357,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         IntVect ngw = (!solverChoice.use_num_diff) ? IntVect(1,1,0) : mfs_vel[Vars::zvel]->nGrowVect();
 
         const MultiFab* c_vfrac = nullptr;
-        if (eb[lev] != nullptr) {
+        if (solverChoice.terrain_type == TerrainType::EB) {
             c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
         }
 

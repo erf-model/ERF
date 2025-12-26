@@ -286,7 +286,7 @@ void ERF::advance_dycore (int level,
     IntVect ngw = (!solverChoice.use_num_diff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
 
     const MultiFab* c_vfrac = nullptr;
-    if (eb[level] != nullptr) {
+    if (solverChoice.terrain_type == TerrainType::EB) {
         c_vfrac = &((get_eb(level).get_const_factory())->getVolFrac());
     }
 

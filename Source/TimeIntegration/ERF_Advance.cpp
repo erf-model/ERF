@@ -55,7 +55,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // So we must convert the fillpatched to momenta, including the ghost values
     //
     const MultiFab* c_vfrac = nullptr;
-    if (eb[lev] != nullptr) {
+    if (solverChoice.terrain_type == TerrainType::EB) {
         c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
     }
 

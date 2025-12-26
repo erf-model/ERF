@@ -50,7 +50,7 @@ ERF::FillPatchFineLevel (int lev, Real time,
         if (cf_set_width >= 0 && !cons_only) {
 
             const MultiFab* c_vfrac = nullptr;
-            if (eb[lev] != nullptr) {
+            if (solverChoice.terrain_type == TerrainType::EB) {
                 c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
             }
 
