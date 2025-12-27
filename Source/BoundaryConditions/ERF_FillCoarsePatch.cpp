@@ -122,7 +122,7 @@ ERF::FillCoarsePatch (int lev, Real time)
     //
     for (int which_lev = lev-1; which_lev <= lev; which_lev++)
     {
-        const MultiFab* c_vfrac = nullptr;
+        c_vfrac = nullptr;
         if (solverChoice.terrain_type == TerrainType::EB) {
             c_vfrac = &((get_eb(which_lev).get_const_factory())->getVolFrac());
         }
