@@ -536,14 +536,25 @@ void erf_make_tau_terms (int level, int nrk,
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_strain_N");
-                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
-                                u, v, w,
-                                s11, s22, s33,
-                                s12, s13, s23,
-                                dxInv,
-                                mf_mx, mf_ux, mf_vx,
-                                mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                s13_corr, s23_corr);
+                if (solverChoice.terrain_type != TerrainType::EB) {
+                    ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                                    u, v, w,
+                                    s11, s22, s33,
+                                    s12, s13, s23,
+                                    dxInv,
+                                    mf_mx, mf_ux, mf_vx,
+                                    mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                    s13_corr, s23_corr);
+                } else {
+                    ComputeStrain_EB(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                                    u, v, w,
+                                    s11, s22, s33,
+                                    s12, s13, s23,
+                                    dxInv,
+                                    mf_mx, mf_ux, mf_vx,
+                                    mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                    s13_corr, s23_corr);
+                }
                 } // end profile
 
                 if (SmnSmn_a) {
