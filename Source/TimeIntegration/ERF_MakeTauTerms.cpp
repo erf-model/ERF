@@ -25,7 +25,8 @@ void erf_make_tau_terms (int level, int nrk,
                          std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
                          Gpu::DeviceVector<Real>& stretched_dz_d,
                          const MultiFab& detJ,
-                         Vector<std::unique_ptr<MultiFab>>& mapfac)
+                         Vector<std::unique_ptr<MultiFab>>& mapfac,
+                         const eb_& ebfact)
 {
     BL_PROFILE_REGION("erf_make_tau_terms()");
 
@@ -109,6 +110,18 @@ void erf_make_tau_terms (int level, int nrk,
             // Terrain metrics
             const Array4<const Real>& z_nd     = z_phys_nd.const_array(mfi);
             const Array4<const Real>& detJ_arr = detJ.const_array(mfi);
+
+            // EB
+            Array4<const Real> vfrac{};
+            Array4<const Real> apx{};
+            Array4<const Real> apy{};
+            Array4<const Real> apz{};
+            if (solverChoice.terrain_type == TerrainType::EB) {
+                vfrac = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
+                apx = (ebfact.get_const_factory())->getAreaFrac()[0]->const_array(mfi);
+                apy = (ebfact.get_const_factory())->getAreaFrac()[1]->const_array(mfi);
+                apz = (ebfact.get_const_factory())->getAreaFrac()[2]->const_array(mfi);
+            }
 
             //-------------------------------------------------------------------------------
             // NOTE: Tile boxes with terrain are not intuitive. The linear combination of
@@ -501,14 +514,22 @@ void erf_make_tau_terms (int level, int nrk,
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_er_N");
-                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    Real mfsq = mf_mx(i,j,0)*mf_my(i,j,0);
-                    er_arr(i,j,k) = (u(i+1, j  , k  )/mf_uy(i+1,j,0) - u(i, j, k)/mf_uy(i,j,0))*dxInv[0]*mfsq +
-                                    (v(i  , j+1, k  )/mf_vx(i,j+1,0) - v(i, j, k)/mf_vx(i,j,0))*dxInv[1]*mfsq +
-                                    (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
-                });
+                if (solverChoice.terrain_type != TerrainType::EB) {
+                    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        Real mfsq = mf_mx(i,j,0)*mf_my(i,j,0);
+                        er_arr(i,j,k) = (u(i+1, j  , k  )/mf_uy(i+1,j,0) - u(i, j, k)/mf_uy(i,j,0))*dxInv[0]*mfsq +
+                                        (v(i  , j+1, k  )/mf_vx(i,j+1,0) - v(i, j, k)/mf_vx(i,j,0))*dxInv[1]*mfsq +
+                                        (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
+                    });
+                } else {
+                    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        er_arr(i,j,k) = (Real(1.0)/vfrac(i,j,k)) * (
+                          dxinv[0] * ( apx(i+1,j,k)*u(i+1,j,k) - apx(i,j,k)*u(i,j,k) )
+                        + dxinv[1] * ( apy(i,j+1,k)*v(i,j+1,k) - apy(i,j,k)*v(i,j,k) )
+                        + dxinv[2] * ( apz(i,j,k+1)*w(i,j,k+1) - apz(i,j,k)*w(i,j,k) ) );
+                    });
+                }
                 } // end profile
-
 
                 // *****************************************************************************
                 // Strain tensor compute no terrain
