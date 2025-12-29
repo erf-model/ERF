@@ -562,9 +562,8 @@ void erf_make_tau_terms (int level, int nrk,
                                     s11, s22, s33,
                                     s12, s13, s23,
                                     dxInv,
-                                    mf_mx, mf_ux, mf_vx,
-                                    mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                    cflag, apx, apy, apz, vfrac,
+                                    bc_ptr_h,
+                                    cflag, apx, apy, apz, vfrac, ebfact,
                                     s13_corr, s23_corr);
                 }
                 } // end profile
