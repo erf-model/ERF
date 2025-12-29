@@ -26,6 +26,7 @@ void erf_make_tau_terms (int level, int nrk,
                          Gpu::DeviceVector<Real>& stretched_dz_d,
                          const MultiFab& detJ,
                          Vector<std::unique_ptr<MultiFab>>& mapfac,
+                         const MultiFab& ax, const MultiFab& ay, const MultiFab& az,
                          const eb_& ebfact)
 {
     BL_PROFILE_REGION("erf_make_tau_terms()");
@@ -112,15 +113,25 @@ void erf_make_tau_terms (int level, int nrk,
             const Array4<const Real>& detJ_arr = detJ.const_array(mfi);
 
             // EB
+            Array4<const EBCellFlag> cflag{};
             Array4<const Real> vfrac{};
             Array4<const Real> apx{};
             Array4<const Real> apy{};
             Array4<const Real> apz{};
             if (solverChoice.terrain_type == TerrainType::EB) {
-                vfrac = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
-                apx = (ebfact.get_const_factory())->getAreaFrac()[0]->const_array(mfi);
-                apy = (ebfact.get_const_factory())->getAreaFrac()[1]->const_array(mfi);
-                apz = (ebfact.get_const_factory())->getAreaFrac()[2]->const_array(mfi);
+                EBCellFlagFab const& cflag_fab = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi];
+                cflag  = cflag_fab.const_array();
+                if (cflag.getType(valid_bx) == FabType::singlevalued) {
+                    vfrac = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
+                    apx = (ebfact.get_const_factory())->getAreaFrac()[0]->const_array(mfi);
+                    apy = (ebfact.get_const_factory())->getAreaFrac()[1]->const_array(mfi);
+                    apz = (ebfact.get_const_factory())->getAreaFrac()[2]->const_array(mfi);
+                } else {
+                    vfrac = detJ.const_array(mfi);
+                    apx = ax.const_array(mfi);
+                    apy = ay.const_array(mfi);
+                    apz = az.const_array(mfi);
+                }
             }
 
             //-------------------------------------------------------------------------------

@@ -45,6 +45,11 @@ ComputeStrain_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& mf_my,
                  const Array4<const Real>& mf_uy,
                  const Array4<const Real>& mf_vy,
+                 const Array4<const EBCellFlag>& cflag,
+                 const Array4<const Real>& apx,
+                 const Array4<const Real>& apy,
+                 const Array4<const Real>& apz,
+                 const Array4<const Real>& vfrac,
                  const BCRec* bc_ptr,
                  Array4<Real>& tau13i, Array4<Real>& tau23i)
 {

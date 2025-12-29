@@ -35,6 +35,9 @@ void erf_make_tau_terms (int level, int nrk,
                          amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                          const amrex::MultiFab& detJ,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
+                         const amrex::MultiFab& ax,
+                         const amrex::MultiFab& ay,
+                         const amrex::MultiFab& az,
                          const eb_& ebfact);
 
 void copy_surface_tau_for_implicit (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
