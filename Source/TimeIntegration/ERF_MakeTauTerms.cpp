@@ -121,7 +121,7 @@ void erf_make_tau_terms (int level, int nrk,
             if (solverChoice.terrain_type == TerrainType::EB) {
                 EBCellFlagFab const& cflag_fab = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi];
                 cflag  = cflag_fab.const_array();
-                if (cflag.getType(valid_bx) == FabType::singlevalued) {
+                if (cflag_fab.getType(valid_bx) == FabType::singlevalued) {
                     vfrac = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
                     apx = (ebfact.get_const_factory())->getAreaFrac()[0]->const_array(mfi);
                     apy = (ebfact.get_const_factory())->getAreaFrac()[1]->const_array(mfi);
@@ -564,6 +564,7 @@ void erf_make_tau_terms (int level, int nrk,
                                     dxInv,
                                     mf_mx, mf_ux, mf_vx,
                                     mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                    cflag, apx, apy, apz, vfrac,
                                     s13_corr, s23_corr);
                 }
                 } // end profile

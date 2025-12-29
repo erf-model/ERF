@@ -45,12 +45,12 @@ ComputeStrain_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& mf_my,
                  const Array4<const Real>& mf_uy,
                  const Array4<const Real>& mf_vy,
-                 const Array4<const EBCellFlag>& cflag,
-                 const Array4<const Real>& apx,
-                 const Array4<const Real>& apy,
-                 const Array4<const Real>& apz,
-                 const Array4<const Real>& vfrac,
                  const BCRec* bc_ptr,
+                 Array4<const EBCellFlag>& cflag,
+                 Array4<const Real>& apx,
+                 Array4<const Real>& apy,
+                 Array4<const Real>& apz,
+                 Array4<const Real>& vfrac,
                  Array4<Real>& tau13i, Array4<Real>& tau23i)
 {
     // Convert domain to each index type to test if we are on Dirichlet boundary
