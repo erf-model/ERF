@@ -163,6 +163,23 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              const bool use_SurfLayer,
                              const amrex::Real implicit_fac);
 
+void ComputeStressConsVisc_EB (amrex::Box bxcc,
+                              amrex::Box tbxxy,
+                              amrex::Box tbxxz,
+                              amrex::Box tbxyz,
+                              amrex::Real mu_eff,
+                              const amrex::Array4<const amrex::Real>& cell_data,
+                              amrex::Array4<amrex::Real>& tau11,
+                              amrex::Array4<amrex::Real>& tau22,
+                              amrex::Array4<amrex::Real>& tau33,
+                              amrex::Array4<amrex::Real>& tau12,
+                              amrex::Array4<amrex::Real>& tau13,
+                              amrex::Array4<amrex::Real>& tau23,
+                              const amrex::Array4<const amrex::Real>& er_arr,
+                              amrex::Array4<const amrex::Real>& vfrac,
+                              amrex::Array4<amrex::Real>& tau13i,
+                              amrex::Array4<amrex::Real>& tau23i,
+                              amrex::Array4<amrex::Real>& tau33i);
 
 void ComputeStressConsVisc_N (amrex::Box bxcc,
                               amrex::Box tbxxy,

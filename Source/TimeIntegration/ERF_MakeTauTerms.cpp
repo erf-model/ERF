@@ -599,12 +599,22 @@ void erf_make_tau_terms (int level, int nrk,
                 }
 
                 if (!l_use_turb) {
-                    ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
-                                            cell_data,
-                                            s11, s22, s33,
-                                            s12, s13, s23,
-                                            er_arr,
-                                            s13_corr, s23_corr, s33_corr);
+                    if (solverChoice.terrain_type != TerrainType::EB) {
+                        ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
+                                                cell_data,
+                                                s11, s22, s33,
+                                                s12, s13, s23,
+                                                er_arr,
+                                                s13_corr, s23_corr, s33_corr);
+                    } else {
+                        ComputeStressConsVisc_EB(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
+                                                cell_data,
+                                                s11, s22, s33,
+                                                s12, s13, s23,
+                                                er_arr,
+                                                vfrac,
+                                                s13_corr, s23_corr, s33_corr);
+                    }
                 } else {
                     ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
