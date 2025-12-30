@@ -81,6 +81,13 @@ void ERF::solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& 
 
     mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
 
+    // Add the flux values (gradient phi) to the face-centered cell with zero area fraction
+    // (mlmg.getFluxes does not fill gradient phi at faces with zero area fraction)
+
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        FillZeroAreaFaceFluxes(lev, fluxes);
+    }
+
     ImposeBCsOnPhi(lev,phi[0], geom[lev].Domain());
 
     //

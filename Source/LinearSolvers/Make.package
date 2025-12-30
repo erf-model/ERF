@@ -3,6 +3,7 @@ CEXE_headers += ERF_TerrainPoisson.H
 CEXE_sources += ERF_TerrainPoisson.cpp
 
 CEXE_sources += ERF_ComputeDivergence.cpp
+CEXE_sources += ERF_FillZeroAreaFaceFluxes.cpp
 CEXE_sources += ERF_ImposeBCsOnPhi.cpp
 CEXE_sources += ERF_PoissonSolve.cpp
 CEXE_sources += ERF_PoissonSolve_tb.cpp
