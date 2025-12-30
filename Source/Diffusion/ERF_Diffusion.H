@@ -299,7 +299,8 @@ void ComputeStressVarVisc_T (amrex::Box bxcc,
                              amrex::Array4<amrex::Real>& tau23i,
                              amrex::Array4<amrex::Real>& tau33i);
 
-void ComputeStrain_EB (amrex::Box bxcc, amrex::Box tbxxy,
+void ComputeStrain_EB (const amrex::MFIter& mfi,
+                      amrex::Box bxcc, amrex::Box tbxxy,
                       amrex::Box tbxxz, amrex::Box tbxyz, amrex::Box domain,
                       const amrex::Array4<const amrex::Real>& u,
                       const amrex::Array4<const amrex::Real>& v,

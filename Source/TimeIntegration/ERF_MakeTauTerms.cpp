@@ -557,7 +557,7 @@ void erf_make_tau_terms (int level, int nrk,
                                     mf_my, mf_uy, mf_vy, bc_ptr_h,
                                     s13_corr, s23_corr);
                 } else {
-                    ComputeStrain_EB(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                    ComputeStrain_EB(mfi, bxcc, tbxxy, tbxxz, tbxyz, domain,
                                     u, v, w,
                                     s11, s22, s33,
                                     s12, s13, s23,
