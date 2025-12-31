@@ -28,7 +28,7 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.substepping_type   = None
-erf.fixed_dt           = 0.01 
+erf.fixed_dt           = 0.01   
 #erf.cfl              = 0.5
 
 # DIAGNOSTICS & VERBOSITY

@@ -47,6 +47,11 @@ ERF::FillCoarsePatch (int lev, Real time)
     // Convert velocity to momentum at the COARSE level
     // ************************************************
     //
+    const MultiFab* c_vfrac = nullptr;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+    }
+
     VelocityToMomentum(vars_new[lev-1][Vars::xvel], IntVect{0},
                        vars_new[lev-1][Vars::yvel], IntVect{0},
                        vars_new[lev-1][Vars::zvel], IntVect{0},
@@ -55,7 +60,7 @@ ERF::FillCoarsePatch (int lev, Real time)
                          rV_new[lev-1],
                          rW_new[lev-1],
                        Geom(lev).Domain(),
-                       domain_bcs_type);
+                       domain_bcs_type, c_vfrac);
     //
     // *****************************************************************
     // Interpolate all cell-centered variables from coarse to fine level
@@ -117,6 +122,11 @@ ERF::FillCoarsePatch (int lev, Real time)
     //
     for (int which_lev = lev-1; which_lev <= lev; which_lev++)
     {
+        c_vfrac = nullptr;
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            c_vfrac = &((get_eb(which_lev).get_const_factory())->getVolFrac());
+        }
+
         MomentumToVelocity(vars_new[which_lev][Vars::xvel],
                            vars_new[which_lev][Vars::yvel],
                            vars_new[which_lev][Vars::zvel],
@@ -125,7 +135,7 @@ ERF::FillCoarsePatch (int lev, Real time)
                              rV_new[which_lev],
                              rW_new[which_lev],
                            Geom(which_lev).Domain(),
-                           domain_bcs_type);
+                           domain_bcs_type, c_vfrac);
     }
 
     // ***************************************************************************
