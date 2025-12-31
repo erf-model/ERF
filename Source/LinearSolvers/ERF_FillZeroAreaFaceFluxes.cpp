@@ -7,19 +7,15 @@ using namespace amrex;
  * Compute phi gradients where the area of the face is zero
  */
 void
-FillZeroAreaFaceFluxes (int lev, Vector<MultiFab>& phi,
-                        Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
-                        const Geometry& geom,
-                        EBFArrayBoxFactory const& ebfact,
-                        eb_aux_ const& ebfact_u,
-                        eb_aux_ const& ebfact_v,
-                        eb_aux_ const& ebfact_w)
+FillZeroAreaFaceFluxes (MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes,
+                        const Geometry& geom, EBFArrayBoxFactory const& ebfact,
+                        eb_aux_ const& ebfact_u, eb_aux_ const& ebfact_v, eb_aux_ const& ebfact_w)
 {
     BL_PROFILE("ERF::FillZeroAreaFaceFluxes()");
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
-    for (MFIter mfi(phi[lev],TileNoZ()); mfi.isValid(); ++mfi)
+    for (MFIter mfi(phi,TileNoZ()); mfi.isValid(); ++mfi)
     {
         const Box& tbx = mfi.tilebox();
         const Box& xbx = mfi.nodaltilebox(0);
@@ -40,10 +36,10 @@ FillZeroAreaFaceFluxes (int lev, Vector<MultiFab>& phi,
             Array4<const EBCellFlag> v_cflag = ebfact_v.getMultiEBCellFlagFab()[mfi].const_array();
             Array4<const EBCellFlag> w_cflag = ebfact_w.getMultiEBCellFlagFab()[mfi].const_array();
 
-            Array4<Real const> const& p_arr = phi[lev].const_array(mfi);
-            Array4<Real> const& fx = fluxes[lev][0].array(mfi);
-            Array4<Real> const& fy = fluxes[lev][1].array(mfi);
-            Array4<Real> const& fz = fluxes[lev][2].array(mfi);
+            Array4<Real const> const& p_arr = phi.const_array(mfi);
+            Array4<Real> const& fx = fluxes[0].array(mfi);
+            Array4<Real> const& fy = fluxes[1].array(mfi);
+            Array4<Real> const& fz = fluxes[2].array(mfi);
 
             ParallelFor(xbx, ybx, zbx,
             // x-face

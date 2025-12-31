@@ -9,8 +9,8 @@
 using namespace amrex;
 
 void
-FillZeroAreaFaceFluxes (int lev, Vector<MultiFab>& phi,
-                        Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
+FillZeroAreaFaceFluxes (MultiFab& phi,
+                        Array<MultiFab,AMREX_SPACEDIM>& fluxes,
                         const Geometry& geom,
                         EBFArrayBoxFactory const& ebfact,
                         eb_aux_ const& ebfact_u,
@@ -64,7 +64,6 @@ solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
     // Multigrid solve
     // ****************************************************************************
 
-    // MLEBABecLap mleb (geom_tmp, ba_tmp, dm_tmp, info, {&EBFactory(lev)});
     MLEBABecLap mleb (geom_tmp, ba_tmp, dm_tmp, info, {&ebfact});
 
     mleb.setMaxOrder(2);
@@ -102,7 +101,7 @@ solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
 
     // Add the flux values (gradient phi) to the face-centered cell with zero area fraction
     // (mlmg.getFluxes does not fill gradient phi at faces with zero area fraction)
-    FillZeroAreaFaceFluxes(lev, phi, fluxes, geom, ebfact, ebfact_u, ebfact_v, ebfact_w);
+    FillZeroAreaFaceFluxes(phi[0], fluxes[0], geom, ebfact, ebfact_u, ebfact_v, ebfact_w);
 
     // ImposeBCsOnPhi(lev,phi[0], geom[lev].Domain());
 
