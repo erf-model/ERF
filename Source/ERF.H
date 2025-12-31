@@ -224,7 +224,8 @@ public:
     void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
                           amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
 
-    void FillZeroAreaFaceFluxes (int lev, amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
+    void FillZeroAreaFaceFluxes (int lev, amrex::Vector<amrex::MultiFab>& phi,
+                                 amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
 
     void ImposeBCsOnPhi (int lev, amrex::MultiFab& phi, const amrex::Box& subdomain);
 
