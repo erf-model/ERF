@@ -15,7 +15,11 @@ void
 solve_with_EB_mlmg (int lev,
                     Vector<amrex::MultiFab>& rhs, Vector<MultiFab>& p,
                     Vector<amrex::Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
-                    EBFArrayBoxFactory const& ebfact, const Geometry& geom,
+                    EBFArrayBoxFactory const& ebfact,
+                    eb_aux_ const& ebfact_u,
+                    eb_aux_ const& ebfact_v,
+                    eb_aux_ const& ebfact_w,
+                    const Geometry& geom,
                     const amrex::Vector<amrex::IntVect>& ref_ratio,
                     Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type,
                     int mg_verbose, Real reltol, Real abstol);
@@ -68,7 +72,7 @@ void ERF::project_velocity (int lev, Real time, Real l_dt)
         MultiFab& U_new_fine = vars_new[lev][Vars::xvel];
         MultiFab& V_new_fine = vars_new[lev][Vars::yvel];
         MultiFab& W_new_fine = vars_new[lev][Vars::zvel];
-    
+
         S_new_fine.FillBoundary(geom[levc].periodicity());
         VelocityToMomentum(U_new_crse, IntVect{0}, V_new_crse, IntVect{0}, W_new_crse, IntVect{0}, S_new_crse,
                            rU_new[levc], rV_new[levc], rW_new[levc],
@@ -606,12 +610,6 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         // ****************************************************************************
         // EB
         // ****************************************************************************
-#if 0
-        if (solverChoice.terrain_type == TerrainType::EB) {
-            solve_with_EB_mlmg(lev, rhs_sub, phi_sub, fluxes_sub, geom[lev], ref_ratio, domain_bc_type,
-                               mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
-        } else {
-#endif
         if (solverChoice.terrain_type != TerrainType::EB) {
 
         // ****************************************************************************
@@ -707,12 +705,16 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     } // loop over subdomains (i)
 
     // ****************************************************************************
-    // When using multigrid we can solve for all of the level at once, even if there 
+    // When using multigrid we can solve for all of the level at once, even if there
     //      are disjoint regions
     // ****************************************************************************
     if (solverChoice.terrain_type == TerrainType::EB) {
         Real start_step_eb = static_cast<Real>(ParallelDescriptor::second());
-        solve_with_EB_mlmg(lev, rhs_sub, phi_sub, fluxes_sub, EBFactory(lev),
+        solve_with_EB_mlmg(lev, rhs_sub, phi_sub, fluxes_sub,
+                           *(get_eb(lev).get_const_factory()),
+                           *(get_eb(lev).get_u_const_factory()),
+                           *(get_eb(lev).get_v_const_factory()),
+                           *(get_eb(lev).get_w_const_factory()),
                            geom[lev], ref_ratio, domain_bc_type,
                            mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
         Real end_step_eb = static_cast<Real>(ParallelDescriptor::second());

@@ -1,4 +1,5 @@
 #include "ERF.H"
+#include "ERF_EB.H"
 #include "ERF_Utils.H"
 #include "ERF_SolverUtils.H"
 
@@ -7,7 +8,14 @@
 
 using namespace amrex;
 
-using BCType = LinOpBCType;
+void
+FillZeroAreaFaceFluxes (int lev, Vector<MultiFab>& phi,
+                        Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
+                        const Geometry& geom,
+                        EBFArrayBoxFactory const& ebfact,
+                        eb_aux_ const& ebfact_u,
+                        eb_aux_ const& ebfact_v,
+                        eb_aux_ const& ebfact_w);
 
 /**
  * Solve the Poisson equation using EB_enabled MLMG
@@ -20,6 +28,9 @@ void
 solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
                     Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
                     EBFArrayBoxFactory const& ebfact,
+                    eb_aux_ const& ebfact_u,
+                    eb_aux_ const& ebfact_v,
+                    eb_aux_ const& ebfact_w,
                     const Geometry& geom, const Vector<amrex::IntVect>& ref_ratio,
                     Array<std::string,2*AMREX_SPACEDIM> domain_bc_type,
                     int mg_verbose, Real reltol, Real abstol)
@@ -91,7 +102,7 @@ solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
 
     // Add the flux values (gradient phi) to the face-centered cell with zero area fraction
     // (mlmg.getFluxes does not fill gradient phi at faces with zero area fraction)
-    FillZeroAreaFaceFluxes(lev, phi, fluxes);
+    FillZeroAreaFaceFluxes(lev, phi, fluxes, geom, ebfact, ebfact_u, ebfact_v, ebfact_w);
 
     // ImposeBCsOnPhi(lev,phi[0], geom[lev].Domain());
 

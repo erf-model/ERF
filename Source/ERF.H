@@ -218,9 +218,6 @@ public:
                            amrex::MultiFab& az_sub,
                            amrex::MultiFab& /*dJ_sub*/, amrex::MultiFab& znd_sub);
 
-    void FillZeroAreaFaceFluxes (int lev, amrex::Vector<amrex::MultiFab>& phi,
-                                 amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
-
     void ImposeBCsOnPhi (int lev, amrex::MultiFab& phi, const amrex::Box& subdomain);
 
     // Init (NOT restart or regrid)
@@ -606,6 +603,7 @@ private:
     void init1DArrays ();
 
     void init_bcs ();
+    void init_phys_bcs (bool& rho_read, bool& read_prim_theta);
 
     void init_custom (int lev);
 

@@ -716,8 +716,6 @@ struct SolverChoice {
                               " location of the eye in the initial condition");
             }
         }
-
-        check_params(max_level, geom_vect, phys_bc_type);
     }
 
     void check_params (int max_level, const amrex::Vector<amrex::Geometry>& geom_vect, amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type)

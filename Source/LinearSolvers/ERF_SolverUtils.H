@@ -1,9 +1,9 @@
 #ifndef ERF_SOLVER_UTILS_H_
 #define ERF_SOLVER_UTILS_H_
 
-using namespace amrex;
+#include "AMReX_LO_BCTYPES.H"
 
-using BCType = LinOpBCType;
+using namespace amrex;
 
 /**
  * Define the domain boundary conditions for the (optional) Poisson solve

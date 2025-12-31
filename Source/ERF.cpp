@@ -943,6 +943,8 @@ ERF::InitData_pre ()
         // For initialization this is done in init_only; it is done here for restart
         init_bcs();
     }
+
+    solverChoice.check_params(max_level,geom,phys_bc_type);
 }
 
 void

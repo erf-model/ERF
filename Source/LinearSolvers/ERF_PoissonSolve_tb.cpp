@@ -6,7 +6,7 @@
 
 using namespace amrex;
 
-bool 
+bool
 projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs)
 {
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
