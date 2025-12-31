@@ -13,7 +13,7 @@ void ERF::FillZeroAreaFaceFluxes (int lev, Vector<MultiFab>& phi, Vector<Array<M
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
 
     eb_ const& ebfact = get_eb(lev);
-    
+
     for (MFIter mfi(phi[lev],TileNoZ()); mfi.isValid(); ++mfi)
     {
         const Box& tbx = mfi.tilebox();
