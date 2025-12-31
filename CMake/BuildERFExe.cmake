@@ -293,8 +293,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonWallDist.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp 
-       ${SRC_DIR}/LinearSolvers/ERF_ImposeBCsOnPhi.cpp 
+       ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_FillZeroAreaFaceFluxes.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_ImposeBCsOnPhi.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithEBMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithGMRES.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
