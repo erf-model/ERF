@@ -87,8 +87,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
             eb[lev]->make_cc_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
         }
-    } else {
-        // m_factory[lev] = std::make_unique<FabFactory<FArrayBox>>();
     }
 
     auto& lev_new = vars_new[lev];
