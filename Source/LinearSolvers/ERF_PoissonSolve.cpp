@@ -12,13 +12,18 @@ void ERF::project_velocity (int lev, Real l_dt)
     // Impose FillBoundary on density since we use it in the conversion of velocity to momentum
     vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
 
+    const MultiFab* c_vfrac = nullptr;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+    }
+
     BL_PROFILE("ERF::project_velocity()");
     VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect{0},
                        vars_new[lev][Vars::yvel], IntVect{0},
                        vars_new[lev][Vars::zvel], IntVect{0},
                        vars_new[lev][Vars::cons],
                        rU_new[lev], rV_new[lev], rW_new[lev],
-                       Geom(lev).Domain(), domain_bcs_type);
+                       Geom(lev).Domain(), domain_bcs_type, c_vfrac);
 
     Vector<MultiFab> tmp_mom;
 
@@ -34,7 +39,7 @@ void ERF::project_velocity (int lev, Real l_dt)
                        vars_new[lev][Vars::zvel],
                        vars_new[lev][Vars::cons],
                        rU_new[lev], rV_new[lev], rW_new[lev],
-                       Geom(lev).Domain(), domain_bcs_type);
+                       Geom(lev).Domain(), domain_bcs_type, c_vfrac);
  }
 
 /**
@@ -86,15 +91,21 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
     if (domain_bc_type[0] == "Inflow" || domain_bc_type[3] == "Inflow" ||
         domain_bc_type[1] == "Inflow" || domain_bc_type[4] == "Inflow") {
-            VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect{0},
-                               vars_new[lev][Vars::yvel], IntVect{0},
-                               vars_new[lev][Vars::zvel], IntVect{0},
-                               vars_new[lev][Vars::cons],
-                               mom_mf[IntVars::xmom],
-                               mom_mf[IntVars::ymom],
-                               mom_mf[IntVars::zmom],
-                               Geom(lev).Domain(),
-                               domain_bcs_type);
+
+        const MultiFab* c_vfrac = nullptr;
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+        }
+
+        VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect{0},
+                            vars_new[lev][Vars::yvel], IntVect{0},
+                            vars_new[lev][Vars::zvel], IntVect{0},
+                            vars_new[lev][Vars::cons],
+                            mom_mf[IntVars::xmom],
+                            mom_mf[IntVars::ymom],
+                            mom_mf[IntVars::zmom],
+                            Geom(lev).Domain(),
+                            domain_bcs_type, c_vfrac);
     }
 
     // If !fixed_density, we must convert (rho u) which came in
@@ -316,6 +327,13 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                 ay_sub.setFab(mfi, FArrayBox((*ay[lev])[orig_index], amrex::make_alias, 0, 1));
                 az_sub.setFab(mfi, FArrayBox((*az[lev])[orig_index], amrex::make_alias, 0, 1));
                 znd_sub.setFab(mfi, FArrayBox((*z_phys_nd[lev])[orig_index], amrex::make_alias, 0, 1));
+                dJ_sub.setFab(mfi, FArrayBox((*detJ_cc[lev])[orig_index], amrex::make_alias, 0, 1));
+            }
+        }
+
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
+                int orig_index = index_map[mfi.index()];
                 dJ_sub.setFab(mfi, FArrayBox((*detJ_cc[lev])[orig_index], amrex::make_alias, 0, 1));
             }
         }
