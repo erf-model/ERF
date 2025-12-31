@@ -53,11 +53,11 @@ void ERF::FillZeroAreaFaceFluxes (int lev, Vector<MultiFab>& phi, Vector<Array<M
         {
             if (apx(i,j,k) == Real(0.0)) {
                 if (!u_cflag(i,j,k).isCovered()) {
-                    if (cflag(i,j,k).isCovered() && !cflag(i-1,j,k).isCovered() && !cflag(i-2,j,k).isCovered()) {
+                    if (cflag(i,j,k).isCovered() && !cflag(i-1,j,k).isCovered()) {
                         fx(i,j,k) = dxInv[0] * (p_arr(i-3,j,k) - 3.*p_arr(i-2,j,k) + 2.*p_arr(i-1,j,k));
-                    } else if (cflag(i-1,j,k).isCovered() && !cflag(i,j,k).isCovered() && !cflag(i+1,j,k).isCovered()) {
+                    } else if (cflag(i-1,j,k).isCovered() && !cflag(i,j,k).isCovered()) {
                         fx(i,j,k) = dxInv[0] * (3.*p_arr(i+1,j,k) - p_arr(i+2,j,k) - 2.*p_arr(i,j,k));
-                    }                    
+                    }
                 }
             }
         },
@@ -66,11 +66,11 @@ void ERF::FillZeroAreaFaceFluxes (int lev, Vector<MultiFab>& phi, Vector<Array<M
         {
             if (apy(i,j,k) == Real(0.0)) {
                 if (!v_cflag(i,j,k).isCovered()) {
-                    if (cflag(i,j,k).isCovered() && !cflag(i,j-1,k).isCovered() && !cflag(i,j-2,k).isCovered()) {
+                    if (cflag(i,j,k).isCovered() && !cflag(i,j-1,k).isCovered()) {
                         fy(i,j,k) = dxInv[1] * (p_arr(i,j-3,k) - 3.*p_arr(i,j-2,k) + 2.*p_arr(i,j-1,k));
-                    } else if (cflag(i,j-1,k).isCovered() && !cflag(i,j,k).isCovered() && !cflag(i,j+1,k).isCovered()) {
+                    } else if (cflag(i,j-1,k).isCovered() && !cflag(i,j,k).isCovered()) {
                         fy(i,j,k) = dxInv[1] * (3.*p_arr(i,j+1,k) - p_arr(i,j+2,k) - 2.*p_arr(i,j,k));
-                    }                    
+                    }
                 }
             }
         },
@@ -79,11 +79,11 @@ void ERF::FillZeroAreaFaceFluxes (int lev, Vector<MultiFab>& phi, Vector<Array<M
         {
             if (apz(i,j,k) == Real(0.0)) {
                 if (!w_cflag(i,j,k).isCovered()) {
-                    if (cflag(i,j,k).isCovered() && !cflag(i,j,k-1).isCovered() && !cflag(i,j,k-2).isCovered()) {
+                    if (cflag(i,j,k).isCovered() && !cflag(i,j,k-1).isCovered()) {
                         fz(i,j,k) = dxInv[2] * (p_arr(i,j,k-3) - 3.*p_arr(i,j,k-2) + 2.*p_arr(i,j,k-1));
-                    } else if (cflag(i,j,k-1).isCovered() && !cflag(i,j,k).isCovered() && !cflag(i,j,k+1).isCovered()) {
+                    } else if (cflag(i,j,k-1).isCovered() && !cflag(i,j,k).isCovered()) {
                         fz(i,j,k) = dxInv[2] * (3.*p_arr(i,j,k+1) - p_arr(i,j,k+2) - 2.*p_arr(i,j,k));
-                    }                    
+                    }
                 }
             }
         });
