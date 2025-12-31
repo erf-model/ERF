@@ -54,7 +54,7 @@ void ERF::project_velocity (int lev, Real time, Real l_dt)
     tmp_mom.push_back(MultiFab(rW_new[lev],make_alias,0,1));
 
     // If at lev > 0 we must first fill the velocities at the c/f interface -- this must
-    //    be done *after* the proejction at lev-1
+    //    be done *after* the projection at lev-1
     if (lev > 0) {
         int levc = lev-1;
 
