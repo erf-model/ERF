@@ -603,6 +603,10 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
         if (solverChoice.terrain_type != TerrainType::EB) {
 
+#ifdef ERF_USE_FFT
+        Box my_region(subdomains[lev][isub].minimalBox());
+#endif
+
         // ****************************************************************************
         // No terrain or grid stretching
         // ****************************************************************************
@@ -612,7 +616,6 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                                 mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
             } else {
 #ifdef ERF_USE_FFT
-                Box my_region(subdomains[lev][isub].minimalBox());
                 solve_with_fft(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
 #endif
             }
