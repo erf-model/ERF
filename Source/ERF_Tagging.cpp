@@ -123,7 +123,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         FillPatchFineLevel(levc, time, {&S_new, &U_new, &V_new, &W_new},
                            {&S_new, &rU_new[levc], &rV_new[levc], &rW_new[levc]},
                            base_state[levc], base_state[levc],
-                              false, true);
+                           false, true);
     }
 
     for (int j=0; j < ref_tags.size(); ++j)

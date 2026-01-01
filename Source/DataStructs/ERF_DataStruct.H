@@ -715,11 +715,9 @@ struct SolverChoice {
                               " location of the eye in the initial condition");
             }
         }
-
-        check_params(max_level);
     }
 
-    void check_params (int max_level)
+    void check_params (int max_level, const amrex::Vector<amrex::Geometry>& geom_vect, amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type)
     {
 #if 0
         // Warn for PBL models and moisture - these may not yet be compatible
@@ -763,6 +761,47 @@ struct SolverChoice {
                          " For this you should provide the inputs erf.windfarm_x_shift and"
                          " erf.windfarm_y_shift which are the values by which the bounding box of the"
                          " windfarm is shifted from the x and the y axes.");
+        }
+
+
+        if ( (const_massflux_u != 0) && !(geom_vect[0].isPeriodic(0)) ) {
+            amrex::Abort("Constant mass flux (in x) should be used with periodic boundaries");
+        }
+
+        if ( (const_massflux_v != 0) && !(geom_vect[0].isPeriodic(1)) ) {
+            amrex::Abort("Constant mass flux (in y) should be used with periodic boundaries");
+        }
+
+        // Mesoscale diffusion -- test if LES appropriate with this dx,dy
+        for (int lev = 0; lev <= max_level; lev++) {
+            if ((geom_vect[lev].CellSize(0) > 2000.) || (geom_vect[lev].CellSize(1) > 2000.))
+            {
+                if ( (turbChoice[lev].les_type == LESType::Smagorinsky) && !turbChoice[lev].smag2d ) {
+                    amrex::Warning("Should use 2-D Smagorinsky for mesoscale resolution");
+                } else if (turbChoice[lev].les_type == LESType::Deardorff) {
+                    amrex::Warning("Should not use Deardorff LES for mesoscale resolution");
+                }
+            }
+        }
+
+        // Turn off implicit solve if we have no diffusion
+        bool l_use_kturb = turbChoice[0].use_kturb;
+        for (int lev = 1; lev <= max_level; lev++) {
+            l_use_kturb = (l_use_kturb || turbChoice[lev].use_kturb);
+        }
+        bool l_use_diff    = ( (diffChoice.molec_diff_type != MolecDiffType::None) || l_use_kturb );
+        bool l_implicit_diff = (vert_implicit_fac[0] > 0 ||
+                                vert_implicit_fac[1] > 0 ||
+                                vert_implicit_fac[2] > 0);
+        if (l_implicit_diff && !l_use_diff) {
+            amrex:: Print() << "No molecular or turbulent diffusion, turning off implicit solve" << std::endl;
+            vert_implicit_fac[0] = 0;
+            vert_implicit_fac[1] = 0;
+            vert_implicit_fac[2] = 0;
+        }
+
+        for (int lev = 0; lev <= max_level; lev++) {
+            turbChoice[lev].check_params(phys_bc_type);
         }
     }
 
