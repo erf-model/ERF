@@ -136,34 +136,6 @@ ComputeStrain_EB (const MFIter& mfi,
                                        (v(i, j, k) - v(i-1, j, k))*dxInv[0] );
             }
         });
-
-        // ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-
-        //     Real du_dy{};
-        //     if (u_cflag(i,j,k).isCovered()) {
-        //         du_dy = ( 2.0*u(i, j-1, k) - 3.0*u(i, j-2, k) + u(i, j-3, k))*dxInv[1];
-        //     } else if (u_cflag(i,j-1,k).isCovered()) {
-        //         du_dy = (- 2.0*u(i, j, k) + 3.0*u(i, j+1, k) - u(i, j+2, k))*dxInv[1];
-        //     } else {
-        //         du_dy = (u(i, j, k) - u(i, j-1, k))*dxInv[1];
-        //     }
-
-        //     Real dv_dx{};
-        //     if (v_cflag(i,j,k).isCovered()) {
-        //         dv_dx = ( 2.0*v(i-1, j, k) - 3.0*v(i-2, j, k) + v(i-3, j, k))*dxInv[0];
-        //     } else if (v_cflag(i-1,j,k).isCovered()) {
-        //         dv_dx = (- 2.0*v(i, j, k) + 3.0*v(i+1, j, k) - v(i+2, j, k))*dxInv[0];
-        //     } else {
-        //         dv_dx = (v(i, j, k) - v(i-1, j, k))*dxInv[0];
-        //     }
-
-        //     if (!need_to_test || u(dom_lo.x,j,k) >= 0.) {
-        //         tau12(i,j,k) = 0.5 * ( du_dy
-        //                              + (-(8./3.) * v(i-1,j,k) + 3. * v(i,j,k) - (1./3.) * v(i+1,j,k))*dxInv[0] );
-        //     } else {
-        //         tau12(i,j,k) = 0.5 * ( du_dy + dv_dx );
-        //     }
-        // });
     }
     if (xh_v_dir) {
         // note: tilebox xy should be nodal, so i|i-1|i-2 at the bigEnd is analogous to i-1|i|i+1 at the smallEnd
