@@ -2466,7 +2466,7 @@ ERF::ReadParameters ()
     readTracersParams();
 #endif
 
-    solverChoice.init_params(max_level,geom,phys_bc_type,pp_prefix);
+    solverChoice.init_params(max_level,pp_prefix);
 
 #ifndef ERF_USE_NETCDF
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&

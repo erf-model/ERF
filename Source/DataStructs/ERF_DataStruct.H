@@ -128,8 +128,7 @@ struct MoistureComponentIndices {
 
 struct SolverChoice {
   public:
-    void init_params (int max_level, const amrex::Vector<amrex::Geometry>& geom_vect,
-                      amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type, std::string pp_prefix)
+    void init_params (int max_level, std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
