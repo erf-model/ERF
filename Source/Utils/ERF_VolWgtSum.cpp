@@ -39,18 +39,28 @@ ERF::volWgtSumMF (int lev,
         const auto  src_arr = mf_to_be_summed.array(mfi);
         const auto& mfx_arr = mfmx.const_array(mfi);
         const auto& mfy_arr = mfmy.const_array(mfi);
-        if (SolverChoice::mesh_type == MeshType::ConstantDz) {
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                dst_arr(i,j,k,0) = src_arr(i,j,k,comp) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
-            });
+
+        if (SolverChoice::terrain_type != TerrainType::EB) {
+            if (SolverChoice::mesh_type == MeshType::ConstantDz) {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    dst_arr(i,j,k,0) = src_arr(i,j,k,comp) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                });
+            } else {
+                const auto&  dJ_arr = dJ.const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    dst_arr(i,j,k,0) = src_arr(i,j,k,comp) * dJ_arr(i,j,k) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                });
+            }
         } else {
             const auto&  dJ_arr = dJ.const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                dst_arr(i,j,k,0) = src_arr(i,j,k,comp) * dJ_arr(i,j,k) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                dst_arr(i,j,k,0) = src_arr(i,j,k,comp) * dJ_arr(i,j,k);
             });
         }
+
     } // mfi
 
     if (lev < finest_level && finemask) {
