@@ -2311,6 +2311,15 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
         } // surf_pres
 
+        if (containerHasElement(plot_var_names, "integrated_qv")) {
+            MultiFab mf_qv_int(mf[lev],make_alias,mf_comp,1);
+            if (solverChoice.moisture_type != MoistureType::None) {
+                volWgtColumnSum(lev, vars_new[lev][Vars::cons], RhoQ1_comp, mf_qv_int, *detJ_cc[lev]);
+            } else {
+                mf_qv_int.setVal(0.);
+            }
+            mf_comp++;
+        }
     } // lev
 
     std::string plotfilename;

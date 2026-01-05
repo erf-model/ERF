@@ -143,20 +143,14 @@ public:
     // Refinement criteria for hurricanes
     void HurricaneTracker (int lev,
                            amrex::Real time,
-                           const amrex::MultiFab& U_new,
-                           const amrex::MultiFab& V_new,
-                           const amrex::MultiFab& W_new,
+                           const amrex::MultiFab& cc_vel,
                            const amrex::Real velmag_threshold,
                            amrex::TagBoxArray* tags = nullptr);
 
-    void HurricaneTrackerInitial (int lev,
-                                  const amrex::MultiFab& U_new,
-                                  const amrex::MultiFab& V_new,
-                                  const amrex::MultiFab& W_new,
-                                  const amrex::Real velmag_threshold,
-                                  amrex::TagBoxArray* tags = nullptr);
-
-    void HurricaneTrackerNotInitial (int lev, amrex::TagBoxArray* tags = nullptr);
+    bool FindInitialEye (int lev,
+                         const amrex::MultiFab& cc_vel,
+                         const amrex::Real velmag_threshold,
+                         amrex::Real& eye_x, amrex::Real& eye_y);
 
     // Hurricane track line output as VTKPolyline
     amrex::Vector<std::array<amrex::Real, 2>> hurricane_track_xy;
@@ -195,7 +189,7 @@ public:
                              amrex::Geometry const& geom_at_lev);
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
-    void project_velocity (int lev, amrex::Real dt);
+    void project_velocity (int lev, amrex::Real time, amrex::Real dt);
     void project_momenta (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars);
 
     // Project the velocities to be divergence-free with a thin body
@@ -211,9 +205,6 @@ public:
                          amrex::MultiFab& rhs, amrex::MultiFab& p,
                          amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 #endif
-    void solve_with_EB_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
-                             amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
-
     void solve_with_gmres (int lev, const amrex::Box& subdomain,
                            amrex::MultiFab& rhs, amrex::MultiFab& p,
                            amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
@@ -221,15 +212,7 @@ public:
                            amrex::MultiFab& az_sub,
                            amrex::MultiFab& /*dJ_sub*/, amrex::MultiFab& znd_sub);
 
-    void solve_with_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& p,
-                          amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes);
-
     void ImposeBCsOnPhi (int lev, amrex::MultiFab& phi, const amrex::Box& subdomain);
-
-    // Define the projection bc's based on the domain bc types
-    amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
-      get_projection_bc (amrex::Orientation::Side side) const noexcept;
-    bool projection_has_dirichlet (amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bcs) const;
 
     // Init (NOT restart or regrid)
     void init_only (int lev, amrex::Real time);
@@ -325,8 +308,12 @@ public:
     // Perform the volume-weighted sum
     amrex::Real
     volWgtSumMF (int lev, const amrex::MultiFab& mf, int comp,
-                const amrex::MultiFab& dJ, const amrex::MultiFab& mfx, const amrex::MultiFab& mfy,
-                bool finemask, bool local = true);
+                 const amrex::MultiFab& dJ, const amrex::MultiFab& mfx, const amrex::MultiFab& mfy,
+                 bool finemask, bool local = true);
+
+    void
+    volWgtColumnSum (int lev, const amrex::MultiFab& mf, int comp,
+                     amrex::MultiFab& mf_2d, const amrex::MultiFab& dJ);
 
     // Decide if it is time to take an action
     static bool is_it_time_for_action (int nstep, amrex::Real time, amrex::Real dt,
@@ -616,6 +603,7 @@ private:
     void init1DArrays ();
 
     void init_bcs ();
+    void init_phys_bcs (bool& rho_read, bool& read_prim_theta);
 
     void init_custom (int lev);
 
@@ -1158,7 +1146,7 @@ private:
         "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
         "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
         "t_surf", "q_surf", "z0", "OLR", "sens_flux", "laten_flux",
-        "surf_pres"
+        "surf_pres", "integrated_qv"
     };
 
     // **************************************************************************************

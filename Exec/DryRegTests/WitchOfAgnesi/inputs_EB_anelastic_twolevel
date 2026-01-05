@@ -28,8 +28,8 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.substepping_type   = None
-#erf.fixed_dt           = 0.005   
-erf.cfl              = 0.5
+erf.fixed_dt           = 0.01
+# erf.cfl              = 0.5
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass
@@ -60,6 +60,10 @@ erf.plot_vars_1     = density x_velocity z_velocity
 erf.use_gravity = true
 erf.use_coriolis = false
 erf.les_type = "None"
+
+erf.anelastic = 1
+erf.mg_v = 2
+erf.project_initial_velocity = 1
 
 # TERRRAIN GRID TYPE
 erf.terrain_type = "EB"
