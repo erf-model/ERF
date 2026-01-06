@@ -650,7 +650,7 @@ ERF::init_zphys (int lev, Real time)
             //       the domain
             //
             InterpFromCoarseLevel(*z_phys_nd[lev], z_phys_nd[lev]->nGrowVect(),
-                                  IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                  IntVect(0,0,0), // do NOT fill ghost cells outside the domain
                                   *z_phys_nd[lev-1], 0, 0, 1,
                                   geom[lev-1], geom[lev],
                                   refRatio(lev-1), &node_bilinear_interp,
@@ -700,9 +700,10 @@ ERF::init_zphys (int lev, Real time)
         } // lev == 0
 
     } else {
-        // NOTE: If a WRFInput file is not provided for a finer level,
+        // NOTE: If a WRFInput file is NOT provided for a finer level,
         //       we simply interpolate from the coarse. This is necessary
-        //       since average_down is called on the terrain (ERF_MakeNewLevel.cpp L351)
+        //       since we average_down the terrain (ERF_MakeNewLevel.cpp L351).
+        //       If a WRFInput file IS present, it overwrites the terrain data.
         if (lev > 0) {
             //
             // First interpolate from coarser level if there is one
@@ -711,7 +712,7 @@ ERF::init_zphys (int lev, Real time)
             //       the domain
             //
             InterpFromCoarseLevel(*z_phys_nd[lev], z_phys_nd[lev]->nGrowVect(),
-                                  IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                  z_phys_nd[lev]->nGrowVect(), // DO fill ghost cells outside the domain
                                   *z_phys_nd[lev-1], 0, 0, 1,
                                   geom[lev-1], geom[lev],
                                   refRatio(lev-1), &node_bilinear_interp,
