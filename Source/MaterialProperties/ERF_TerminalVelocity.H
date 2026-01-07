@@ -44,7 +44,7 @@ struct TerminalVelocity
         RT lb4l = 6.62E-6;    // base length[cm] for mean free path  of air molecules
         RT visb4l = 1.818E-4; // base dynamic viscosity[g/(cm*s)] for mean free path of air molecules
         RT pb4l = 1013.25;    // base pressure[hPa] for mean free path of air molecules
-        RT tb4l = 293.15;     // base temperarure[20C] for mean free path of air molecules
+        RT tb4l = 293.15;     // base temperature[20C] for mean free path of air molecules
 
         RT P_hPa = a_P / 100.0;           // [Pa] -> [hPa]
         RT T_degC = a_T - 273.15;         // [K] -> [deg Celsius]
