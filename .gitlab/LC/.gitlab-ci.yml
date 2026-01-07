@@ -26,7 +26,7 @@ variables:
   TEST_SCRIPT: .gitlab/LC/gitlab_test.sh
 
   # Git reference (branch name, tag, hash, etc.) to use in the gold file repo
-  CI_GOLD_FILES_GIT_REF: SDM_gold_files
+  CI_GOLD_FILES_GIT_REF: main
 
 # Common rules for all CI pipelines - conditions are checked in order and the
 # checks break on the first condition satisfied
