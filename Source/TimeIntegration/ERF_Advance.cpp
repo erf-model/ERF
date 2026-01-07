@@ -216,7 +216,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
         if (verbose > 1) {
             amrex::Print() << "Testing on low temperature before dycore" << std::endl;
         }
-        check_for_low_temp(S_new);
+        check_for_low_temp(S_old);
     } else {
         if (verbose > 1) {
             amrex::Print() << "Testing on negative temperature before dycore" << std::endl;
