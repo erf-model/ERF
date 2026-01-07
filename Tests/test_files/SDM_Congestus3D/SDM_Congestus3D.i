@@ -80,7 +80,7 @@ erf.plot_vars_1     = density \
                       super_droplets_moisture_aerosol_mass_density_NH42SO4 \
                       super_droplets_moisture_aerosol_mass_flux_x_NH42SO4 \
                       super_droplets_moisture_aerosol_mass_flux_y_NH42SO4 \
-                      super_droplets_moisture_aerosol_mass_flux_z_NH42SO4 
+                      super_droplets_moisture_aerosol_mass_flux_z_NH42SO4
 particles.disable_plt = true
 
 # SOLVER CHOICES

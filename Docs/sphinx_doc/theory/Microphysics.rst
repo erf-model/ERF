@@ -852,7 +852,7 @@ and one stationary bubble region with temporal control:
 .. code-block:: bash
 
    super_droplets_moisture.num_injections = 3
-   
+
    # Moving box injection from left
    super_droplets_moisture.injection.0.distribution_type = "uniform"
    super_droplets_moisture.injection.0.particle_box_lo = 1000.0 0.0 5000.0
@@ -862,7 +862,7 @@ and one stationary bubble region with temporal control:
    super_droplets_moisture.injection.0.particles_per_cell = 8
    super_droplets_moisture.injection.0.aerosol_distribution_type_NaCl = "mass_exponential"
    super_droplets_moisture.injection.0.aerosol_mean_mass_NaCl = 1.0e-19
-   
+
    # Time-limited box injection from right
    super_droplets_moisture.injection.1.distribution_type = "uniform"
    super_droplets_moisture.injection.1.particle_box_lo = 16000.0 0.0 4000.0
@@ -872,7 +872,7 @@ and one stationary bubble region with temporal control:
    super_droplets_moisture.injection.1.t_stop = 600.0
    super_droplets_moisture.injection.1.rate = 2.0e7
    super_droplets_moisture.injection.1.particles_per_cell = 32
-   
+
    # Stationary bubble injection (early times only)
    super_droplets_moisture.injection.2.distribution_type = "bubble"
    super_droplets_moisture.injection.2.particle_bubble_center = 10000.0 0.0 2000.0
@@ -956,7 +956,7 @@ Example Configuration
    # Enable recycling when 1% of particles become inactive
    super_droplets_moisture.recycle_particles = true
    super_droplets_moisture.inactive_threshold = 0.01
-   
+
    # Constrain recycled particles to upper portion of domain
    super_droplets_moisture.recycle_box_lo = 0.0 0.0 8000.0
    super_droplets_moisture.recycle_box_hi = 20000.0 400.0 10000.0
@@ -1044,7 +1044,7 @@ Species are specified as comma-separated lists in the input file:
    # Specify condensate and aerosol species
    super_droplets_moisture.species = H2O
    super_droplets_moisture.aerosols = NH4HSO4
-   
+
    # For multiple aerosol species
    super_droplets_moisture.aerosols = NH4HSO4, NaCl
 
@@ -1056,7 +1056,7 @@ Each species then requires its own distribution parameters for initialization an
    super_droplets_moisture.0.initial_aerosol_distribution_type_NH4HSO4 = "radius_log_normal"
    super_droplets_moisture.0.initial_aerosol_mean_radius_NH4HSO4 = 30.0e-9
    super_droplets_moisture.0.initial_aerosol_std_radius_NH4HSO4 = 0.247
-   
+
    # NaCl aerosol with exponential mass distribution
    super_droplets_moisture.0.initial_aerosol_distribution_type_NaCl = "mass_exponential"
    super_droplets_moisture.0.initial_aerosol_mean_mass_NaCl = 1.0e-19
@@ -1144,7 +1144,7 @@ Test cases are typically run using the CTest framework:
    cd Build
    cmake .. -DERF_ENABLE_PARTICLES=ON
    make -j
-   
+
    # Run a specific SDM test
    ctest -R SDM_RICO3D -V
 

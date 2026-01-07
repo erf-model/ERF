@@ -9,10 +9,10 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent = 20000.0 400.0  10000.0
-amr.n_cell           = 100     4      50 
+amr.n_cell           = 100     4      50
 geometry.is_periodic = 0 1 0
 xlo.type = "SlipWall"
-xhi.type = "SlipWall"    
+xhi.type = "SlipWall"
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
@@ -58,18 +58,18 @@ erf.plot_vars_1     = density \
                       super_droplets_moisture_aerosol_mass_density_NaCl \
                       super_droplets_moisture_aerosol_mass_flux_x_NaCl \
                       super_droplets_moisture_aerosol_mass_flux_y_NaCl \
-                      super_droplets_moisture_aerosol_mass_flux_z_NaCl 
+                      super_droplets_moisture_aerosol_mass_flux_z_NaCl
 
 # SOLVER CHOICES
 erf.use_gravity          = true
 erf.use_coriolis         = false
-    
+
 erf.dycore_horiz_adv_type    = "Upwind_3rd"
 erf.dycore_vert_adv_type     = "Upwind_3rd"
 erf.dryscal_horiz_adv_type   = "Upwind_3rd"
 erf.dryscal_vert_adv_type    = "Upwind_3rd"
 erf.moistscal_horiz_adv_type = "Upwind_3rd"
-erf.moistscal_vert_adv_type  = "Upwind_3rd"       
+erf.moistscal_vert_adv_type  = "Upwind_3rd"
 
 # PHYSICS OPTIONS
 erf.les_type        = "None"
