@@ -1,3 +1,12 @@
+#26.01
+    -- Fixes for MLMG solver (#2814)
+
+    -- EB fixes (#2807, 2810, 2812, 2813)
+
+    -- Surface layer zref MF (#2791)
+
+    -- Poisson solve set up fix (#2802)
+
 #25.12
     -- Corrections for projection (#2777)
 

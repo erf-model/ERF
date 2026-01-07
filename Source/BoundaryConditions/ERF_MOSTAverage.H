@@ -102,7 +102,7 @@ public:
     [[nodiscard]] const amrex::MultiFab* get_average (const int& lev, const int& comp) const { return m_averages[lev][comp].get(); }
 
     // Get z_ref (may be computed from specified k_indx)
-    [[nodiscard]] amrex::Real get_zref () const { return m_zref; }
+    [[nodiscard]] amrex::MultiFab* get_zref (const int& lev) const { return m_zref[lev].get(); }
 
     /**
      * Function to compute trilinear interpolation with terrain.
@@ -200,7 +200,7 @@ protected:
     int  m_maxlev{0};                                                // Total number of levels
     int  m_policy{0};                                                // Policy for type of averaging
     bool m_rotate{false};                                            // Do vector rotations for terrain?
-    amrex::Real m_zref{10.0};                                        // Height above surface for MOST BC
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_zref;          // Height above surface for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_x_pos;         // Ptr to 2D mf to hold x position (maxlev)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_y_pos;         // Ptr to 2D mf to hold y position (maxlev)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_z_pos;         // Ptr to 2D mf to hold z position (maxlev)
@@ -237,5 +237,9 @@ protected:
     //--------------------------------------------
     bool include_subgrid_vel = false;
     amrex::Vector<amrex::Real> m_Vsg;                                // Subgrid velocity scale (Mahrt & Sun 1995 MWR)
+
+    // Default values
+    //--------------------------------------------
+    const amrex::Real zref_default = 10.0;
 };
 #endif

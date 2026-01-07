@@ -87,8 +87,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
             eb[lev]->make_cc_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
         }
-    } else {
-        // m_factory[lev] = std::make_unique<FabFactory<FArrayBox>>();
     }
 
     auto& lev_new = vars_new[lev];
@@ -348,7 +346,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
     //     *and* if there is two-way coupling
     //
-    if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && (solverChoice.coupling_type == CouplingType::OneWay) ) {
+    if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && (solverChoice.coupling_type == CouplingType::TwoWay) ) {
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
             average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
@@ -396,11 +394,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Update the base state at this level by interpolation from coarser level
     // ********************************************************************************************
     InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
-                            IntVect(0,0,0), // do not fill ghost cells outside the domain
-                            base_state[lev-1], 0, 0, base_state[lev].nComp(),
-                            geom[lev-1], geom[lev],
-                            refRatio(lev-1), &cell_cons_interp,
-                            domain_bcs_type, BCVars::cons_bc);
+                          IntVect(0,0,0), // do not fill ghost cells outside the domain
+                          base_state[lev-1], 0, 0, base_state[lev].nComp(),
+                          geom[lev-1], geom[lev],
+                          refRatio(lev-1), &cell_cons_interp,
+                          domain_bcs_type, BCVars::cons_bc);
 
     // Impose bc's outside the domain
     (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
@@ -424,7 +422,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
 
 #ifdef ERF_USE_NETCDF
-    if ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) )
+    if ( ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) ) &&
+         !nc_init_file[lev].empty() )
     {
         // Just making sure that ghost cells aren't uninitialized...
         vars_new[lev][Vars::cons].setVal(0.0); vars_old[lev][Vars::cons].setVal(0.0);
@@ -577,7 +576,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Note that this shouldn't be necessary because the fine grid is created by interpolation
     // from the coarse ... but just in case ...
     // ********************************************************************************************
-    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+    if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && (solverChoice.coupling_type == CouplingType::TwoWay) ) {
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
             average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));

@@ -12,8 +12,8 @@ eb2.small_volfrac = 1.e-4
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = 0.   0.   0. 
-geometry.prob_hi     = 595.0  20.0  600.
-amr.n_cell           = 120  4   172
+geometry.prob_hi     = 600.0  24.0  600.
+amr.n_cell           = 200  8  200
 
 geometry.is_periodic = 1 1 0
 
@@ -28,8 +28,8 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.substepping_type   = None
-#erf.fixed_dt           = 0.005   
-erf.cfl              = 0.5
+erf.fixed_dt           = 0.01   
+#erf.cfl              = 0.5
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass
@@ -61,6 +61,10 @@ erf.use_gravity = true
 erf.use_coriolis = false
 erf.les_type = "None"
 
+erf.anelastic = 1
+erf.mg_v = 2
+erf.project_initial_velocity = 1
+
 # TERRRAIN GRID TYPE
 erf.terrain_type = "EB"
 erf.write_eb_surface = TRUE
@@ -76,7 +80,6 @@ erf.eb_diff_constraint_y = true
 erf.abl_driver_type = "PressureGradient"
 erf.abl_pressure_grad = -0.02 0. 0.
 
-erf.project_initial_velocity = 0
 
 # Rayleigh Damping
 erf.rayleigh_damp_W = true
