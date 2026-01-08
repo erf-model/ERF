@@ -14,7 +14,7 @@ void SuperDropletPC::add_superdroplet_attributes()
     for (int i = 0; i < SuperDropletsIntIdxSoA_RT::ncomps; i++) {
         AddIntComp(communicate_this_comp);
     }
-    Print() << "SuperDropletPC(" << m_name << "): added " << SuperDropletsIntIdxSoA_RT::ncomps << " int-type attibute(s).\n";
+    Print() << "SuperDropletPC(" << m_name << "): added " << SuperDropletsIntIdxSoA_RT::ncomps << " int-type attribute(s).\n";
     int count(0);
     for (int i = 0; i < SuperDropletsRealIdxSoA_RT::ncomps; i++) {
         AddRealComp(communicate_this_comp);
@@ -28,7 +28,7 @@ void SuperDropletPC::add_superdroplet_attributes()
         AddRealComp(communicate_this_comp);
         count++;
     }
-    Print() << "SuperDropletPC(" << m_name << "): added " << count << " real-type attibute(s).\n";
+    Print() << "SuperDropletPC(" << m_name << "): added " << count << " real-type attribute(s).\n";
     return;
 }
 
