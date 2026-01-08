@@ -357,7 +357,7 @@ void SuperDropletPC::InjectParticles (const Real a_t, const MFPtr& a_ptr, const 
     Given the condensate mass density, we compute the mass of condensate per super-droplet from
     the mass per cell and the number of super-droplets per cell. We vary the multiplicity by a
     random amount for each super-droplet. The mass per physical particle is then computed from the
-    mass per super-droplet and the multiplicity. The equivalent radius is then comptued from the
+    mass per super-droplet and the multiplicity. The equivalent radius is then computed from the
     particle mass and the density of condensate. */
 void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of condensate */)
 {
