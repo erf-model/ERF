@@ -249,7 +249,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             {
                 auto bin_start = offsets[i_bin];
                 auto bin_stop = offsets[i_bin+1];
-                auto np_bin = bin_stop - bin_start;
+                auto np_bin = static_cast<unsigned int>(bin_stop - bin_start);
                 if (np_bin <= 1) { return; }
                 AMREX_ALWAYS_ASSERT(np_bin <= max_np_bin);
 
