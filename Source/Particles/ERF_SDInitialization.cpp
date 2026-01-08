@@ -328,7 +328,7 @@ void SDInitialization::printParameters ( const MatVec& a_species_mat,
 {
     using namespace amrex;
     Print() << "    Initial number density: " << this->m_numdens << "\n"
-            << "    Inital super-droplets number density: " << m_numdens_sd_init << "\n";
+            << "    Initial super-droplets number density: " << m_numdens_sd_init << "\n";
     SDInitProperties::printParameters(a_species_mat, a_aerosol_mat);
 }
 
