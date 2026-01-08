@@ -39,7 +39,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                               return (ai == 0);
                           }, true);
 
-        char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
+        char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
         std::string fname = "deac_SD_" + std::string(iter_str);
         amrex::Print() << "Writing deactivated particles to " << fname << "\n";
         amrex::Vector<std::string> eu_vnames(1,"dummy_var");

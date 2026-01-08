@@ -110,7 +110,7 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
 
     if (pp.contains("recycle_threshold")) {
         char err_msg[100];
-        sprintf(err_msg, "Use \"inactive_threshold\" instead of \"recycle_threshold\"");
+        snprintf(err_msg, sizeof(err_msg), "Use \"inactive_threshold\" instead of \"recycle_threshold\"");
         amrex::Abort(err_msg);
     }
     pp.query("inactive_threshold", m_deac_threshold);
@@ -181,7 +181,7 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
         m_initializations[i] = std::make_unique<SDInitialization>();
         m_initializations[i]->setDefaults(Geom(0), m_species_mat,m_aerosol_mat);
 
-        char i_str[12]; sprintf(i_str, "%d", i);
+        char i_str[12]; snprintf(i_str, sizeof(i_str), "%d", i);
         std::string prefix = m_name + "." + std::string(i_str);
         m_initializations[i]->readInputs(m_name, Geom(0), m_species_mat, m_aerosol_mat);
         m_initializations[i]->readInputs(prefix, Geom(0), m_species_mat, m_aerosol_mat);
@@ -194,7 +194,7 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
         m_injections[i] = std::make_unique<SDInjection>();
         m_injections[i]->setDefaults(Geom(0), m_species_mat,m_aerosol_mat);
 
-        char i_str[12]; sprintf(i_str, "%d", i);
+        char i_str[12]; snprintf(i_str, sizeof(i_str), "%d", i);
         std::string str = m_name + ".injection";
         std::string prefix = str + "." + std::string(i_str);
         m_injections[i]->readInputs(str, Geom(0), m_species_mat, m_aerosol_mat, a_dt);
