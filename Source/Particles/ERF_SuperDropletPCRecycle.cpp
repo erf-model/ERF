@@ -29,9 +29,6 @@ void SuperDropletPC::Recycle ( const int             a_lev,
     if (m_save_inactive) {
 #ifndef ERF_USE_NETCDF
         const auto& geom = Geom(m_lev);
-        const auto plo = geom.ProbLoArray();
-        const auto dxi = geom.InvCellSizeArray();
-        const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
 
         using SrcData = SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
         std::string name = "deactivated_particles";
@@ -344,7 +341,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
             auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
 
-            ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine) noexcept
+            ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& /*rnd_engine*/) noexcept
             {
                 ParticleType& p = p_pbox[i];
                 if (p.id() <= 0) { return; }

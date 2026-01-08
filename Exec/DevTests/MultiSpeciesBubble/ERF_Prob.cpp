@@ -256,8 +256,8 @@ void
 Problem::init_custom_pert(
     const Box& bx,
     const Box& xbx,
-    const Box& ybx,
-    const Box& zbx,
+    const Box& /*ybx*/,
+    const Box& /*zbx*/,
     Array4<Real const> const& state,
     Array4<Real      > const& state_pert,
     Array4<Real      > const& x_vel_pert,
