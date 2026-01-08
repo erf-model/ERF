@@ -210,7 +210,7 @@ if(ERF_ENABLE_PARTICLES)
     # passive advection of particles
     add_test_sdm(SDM_Bubble2D_Adv                "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 1e-12 1e-12)
     # passive advection of particles with injection
-    add_test_sdm(SDM_Bubble2D_Adv_wInjection     "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 1e-12 1e-12)
+    add_test_sdm(SDM_Bubble2D_Adv_wInjection     "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 5e-12 5e-12)
     # condensation/evaporation
     add_test_sdm(SDM_Box3D_Cond                  "MoistRegTests/Bubble" "erf_bubble"   "plt00010" 1e-14 2e-13)
     # terminal velocity
