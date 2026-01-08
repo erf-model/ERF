@@ -736,28 +736,48 @@ ERF::init_zphys (int lev, Real time)
 void
 ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
-    if (lev > 0)
+    if (solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid)
     {
-        //
-        // First interpolate from coarser level
-        // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
-        //       have been pre-filled - this includes ghost cells both inside and outside
-        //       the domain
-        //
-        InterpFromCoarseLevel(*temp_zphys_nd, z_phys_nd[lev]->nGrowVect(),
-                              IntVect(0,0,0), // do not fill ghost cells outside the domain
-                              *z_phys_nd[lev-1], 0, 0, 1,
-                              geom[lev-1], geom[lev],
-                              refRatio(lev-1), &node_bilinear_interp,
-                              domain_bcs_type, BCVars::cons_bc);
+        if (lev > 0)
+        {
+            //
+            // First interpolate from coarser level
+            // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+            //       have been pre-filled - this includes ghost cells both inside and outside
+            //       the domain
+            //
+            InterpFromCoarseLevel(*temp_zphys_nd, z_phys_nd[lev]->nGrowVect(),
+                                  IntVect(0,0,0), // do NOT fill ghost cells outside the domain
+                                  *z_phys_nd[lev-1], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), &node_bilinear_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
 
-        // This recomputes the fine values using the bottom terrain at the fine resolution,
-        //    and also fills values of z_phys_nd outside the domain
-        make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type);
+            // This recomputes the fine values using the bottom terrain at the fine resolution,
+            //    and also fills values of z_phys_nd outside the domain
+            make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type);
 
-        std::swap(temp_zphys_nd, z_phys_nd[lev]);
+            std::swap(temp_zphys_nd, z_phys_nd[lev]);
+        } // lev > 0
+    } else {
+        if (lev > 0)
+        {
+            //
+            // First interpolate from coarser level
+            // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+            //       have been pre-filled - this includes ghost cells both inside and outside
+            //       the domain
+            //
+            InterpFromCoarseLevel(*temp_zphys_nd, z_phys_nd[lev]->nGrowVect(),
+                                  z_phys_nd[lev]->nGrowVect(), // DO fill ghost cells outside the domain
+                                  *z_phys_nd[lev-1], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), &node_bilinear_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
 
-    } // lev > 0
+            std::swap(temp_zphys_nd, z_phys_nd[lev]);
+        } // lev > 0
+    }
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
