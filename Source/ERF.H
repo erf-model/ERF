@@ -168,6 +168,10 @@ public:
     amrex::Vector<amrex::Vector<amrex::MultiFab>> forecast_state_1,
                                                   forecast_state_2,
                                                   forecast_state_interp;
+    amrex::Vector<amrex::MultiFab> surface_state_1,
+                                   surface_state_2,
+                                   surface_state_interp;
+
     std::string MakeVTKFilename(int nstep);
     std::string MakeVTKFilename_TrackerCircle(int nstep);
     std::string MakeVTKFilename_EyeTracker_xy(int nstep);
@@ -481,12 +485,23 @@ public:
     void FillForecastStateMultiFabs(const int lev,
                                     const std::string& filename,
                                     const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                                    amrex::Vector<amrex::Vector<amrex::MultiFab>>& weather_forecast_data);
+                                    amrex::Vector<amrex::Vector<amrex::MultiFab>>& forecast_state);
+
+    void FillSurfaceStateMultiFabs(const int lev,
+                                   const std::string& filename,
+                                   amrex::Vector<amrex::MultiFab>& surface_state);
+
 
     void WeatherDataInterpolation(const int nlevs,
                                   const amrex::Real time,
                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                                   bool regrid_forces_file_read);
+
+    void SurfaceDataInterpolation(const int nlevs,
+                                  const amrex::Real time,
+                                  amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                                  bool regrid_forces_file_read);
+
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver

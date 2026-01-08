@@ -523,9 +523,14 @@ ERF::ERF_shared ()
         auto gshop = EB2::makeShop(implicit_fun);
         amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
     }
+
     forecast_state_1.resize(nlevs_max);
     forecast_state_2.resize(nlevs_max);
     forecast_state_interp.resize(nlevs_max);
+
+    surface_state_1.resize(nlevs_max);
+    surface_state_2.resize(nlevs_max);
+    surface_state_interp.resize(nlevs_max);
 }
 
 ERF::~ERF () = default;
@@ -568,6 +573,13 @@ ERF::Evolve ()
           solverChoice.hindcast_lateral_forcing) {
             for(int lev=0;lev<finest_level+1;lev++){
                 WeatherDataInterpolation(lev,cur_time,z_phys_nd,false);
+            }
+        }
+
+        if(solverChoice.init_type == InitType::HindCast and
+          solverChoice.hindcast_surface_bcs) {
+            for(int lev=0;lev<finest_level+1;lev++){
+                SurfaceDataInterpolation(lev,cur_time,z_phys_nd,false);
             }
         }
 
@@ -2926,7 +2938,7 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
 
             if (temp < t_low) {
 #ifdef AMREX_USE_GPU
-                AMREX_DEVICE_PRINTF("Temperature too low going into microphysics in cell: %d %d %d %e \n", i,j,k,temp);
+                //AMREX_DEVICE_PRINTF("Temperature too low going into microphysics in cell: %d %d %d %e \n", i,j,k,temp);
 #else
                 printf("Temperature too low going into microphyics in cell: %d %d %d \n", i,j,k);
                 printf("Based on temp / rhotheta / rho %e %e %e \n", temp,rhotheta,rho);

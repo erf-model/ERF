@@ -1,0 +1,101 @@
+#include <AMReX_MultiFab.H>
+#include <ERF_SrcHeaders.H>
+#include <AMReX_ParmParse.H>
+
+using namespace amrex;
+
+void
+ApplySurfaceTreatment_BulkCoeff_Mom (
+  const SolverChoice& solverChoice,
+  const Geometry& geom,
+  const Box& tbx,
+  const Box& tby,
+  const Array4<Real>& rho_u_rhs,
+  const Array4<Real>& rho_v_rhs,
+  const Array4<const Real>& rho_u,
+  const Array4<const Real>& rho_v,
+  const Array4<const Real>& cons_state,
+  const Array4<const Real>& z_phys_nd,
+  const Array4<const Real>& surface_state_arr,
+  const Real& time)
+
+{
+
+    ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+    {
+        if(k==0) {
+            Real Cd = 0.0;
+            if(time < 59*3600.0){
+                Cd = 0.001;
+            }
+            else {
+                Cd = 0.01;
+            }
+                
+            Real rho = cons_state(i,j,k,0);
+            Real uvel = rho_u(i,j,k)/cons_state(i,j,k,0);
+            Real vvel = rho_v(i,j,k)/cons_state(i,j,k,0);
+            Real velmag = std::sqrt(uvel*uvel + vvel*vvel); 
+            rho_u_rhs(i, j, k) += -1.0*Cd*velmag*rho*uvel/195.3125;
+        }
+    });
+
+
+    ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+    {
+       if(k==0) {
+            Real Cd = 0.0;
+            if(time < 59*3600.0){
+                Cd = 0.001;
+            }
+            else {
+                Cd = 0.01;
+            }
+            Real rho = cons_state(i,j,k,0);
+            Real uvel = rho_u(i,j,k)/cons_state(i,j,k,0);
+            Real vvel = rho_v(i,j,k)/cons_state(i,j,k,0);
+            Real velmag = std::sqrt(uvel*uvel + vvel*vvel);
+            rho_v_rhs(i, j, k) += -1.0*Cd*velmag*rho*vvel/195.3125;
+        }         
+    });
+}
+
+
+void
+ApplySurfaceTreatment_BulkCoeff_CC (const SpongeChoice& spongeChoice,
+                         const Geometry& geom,
+                         const Box& bx,
+                         const Array4<Real>& cell_rhs,
+                         const Array4<const Real>& cons_state,
+                         const Array4<const Real>& z_phys_cc,
+                         const Array4<const Real>& surface_state_arr,
+                         const Real& time)
+{
+     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        if(k == 0) { 
+            Real Ch = 0.0;
+            Real Ce = 0.0;
+            if(time < 59*3600.0){
+                Ch = 0.0015;
+                Ce = 0.0015;
+            } else {
+                Ch = 0.0;
+                Ce = 0.0;
+            }
+            
+            Real rho = cons_state(i,j,k, Rho_comp);
+            Real rhotheta = cons_state(i,j,k, RhoTheta_comp);
+            Real rhoqv = cons_state(i,j,k, RhoQ1_comp);
+            Real theta = rhotheta/rho;
+            Real qv = rhoqv/rho;
+            Real temp = getTgivenRandRTh(rho, rhotheta, qv); 
+            Real uvel = cons_state(i,j,k,1)/cons_state(i,j,k,0);
+            Real vvel = cons_state(i,j,k,2)/cons_state(i,j,k,0);
+            Real velmag = std::sqrt(uvel*uvel + vvel*vvel);
+            Real dT = max(0.0, 301.0 - temp);
+            Real dq = max(0.0, 0.024 - qv);
+            cell_rhs(i, j, k, RhoTheta_comp) += (theta/(1005.0*temp))*rho*Ch*velmag*dT/195.3125;
+            cell_rhs(i, j, k, RhoQ1_comp) += rho*Ce*velmag*dq/195.3125;
+        }
+    });
+}
