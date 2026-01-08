@@ -12,7 +12,7 @@ geometry.prob_extent = 20000.0 400.0  10000.0
 amr.n_cell           = 100     4      50
 geometry.is_periodic = 0 1 0
 xlo.type = "SlipWall"
-xhi.type = "SlipWall"    
+xhi.type = "SlipWall"
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
@@ -100,13 +100,13 @@ particles.disable_plt = true
 # SOLVER CHOICES
 erf.use_gravity          = true
 erf.use_coriolis         = false
-    
+
 erf.dycore_horiz_adv_type    = "Upwind_3rd"
 erf.dycore_vert_adv_type     = "Upwind_3rd"
 erf.dryscal_horiz_adv_type   = "Upwind_3rd"
 erf.dryscal_vert_adv_type    = "Upwind_3rd"
 erf.moistscal_horiz_adv_type = "Upwind_3rd"
-erf.moistscal_vert_adv_type  = "Upwind_3rd"       
+erf.moistscal_vert_adv_type  = "Upwind_3rd"
 
 # PHYSICS OPTIONS
 erf.les_type        = "None"

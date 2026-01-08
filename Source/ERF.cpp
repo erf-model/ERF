@@ -12,17 +12,20 @@
 #include "ERF.H"
 #include "AMReX_buildInfo.H"
 #include "AMReX_Random.H"
+#include "AMReX_WriteEBSurface.H"
 #include "AMReX_EB2_IF_Box.H"
 #include "AMReX_EB2_IF_Sphere.H"
+
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_EBIFTerrain.H"
+#include "ERF_HurricaneDiagnostics.H"
+
 #ifdef ERF_USE_NETCDF
 #include "ERF_ReadFromWRFInput.H"
 #include "ERF_ReadFromWRFBdy.H"
 #endif
-#include "ERF_HurricaneDiagnostics.H"
 
 using namespace amrex;
 
@@ -489,8 +492,16 @@ ERF::ERF_shared ()
         ParmParse pp("eb2");
         pp.queryAdd("geometry", geometry);
 
-        int ngrow_for_eb = 4;  // This is the default in amrex but we need to explicitly pass it here since
+        constexpr int ngrow_for_eb = 4;  // This is the default in amrex but we need to explicitly pass it here since
                                // we want to also pass the build_coarse_level_by_coarsening argument
+        const bool build_eb_for_multigrid = (solverChoice.terrain_type == TerrainType::EB &&
+                                            ((solverChoice.project_initial_velocity[0] == 1) ||
+                                            solverChoice.anelastic[0] == 1));
+        // Note this just needs to be an integer > number of V-cycles one might use
+        const int max_coarsening_level = (build_eb_for_multigrid) ? 100 : 0;
+        const bool build_coarse_level_by_coarsening(false);
+
+        // Define GeometryShop using the implicit function
         if (geometry == "terrain") {
             Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
             FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
@@ -498,7 +509,12 @@ ERF::ERF_shared ()
             prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
             TerrainIF implicit_fun(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            if (build_eb_for_multigrid) {
+                EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
+                            ngrow_for_eb, build_coarse_level_by_coarsening);
+            } else {
+                EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            }
         } else if (geometry == "box") {
             RealArray box_lo{0.0, 0.0, 0.0};
             RealArray box_hi{0.0, 0.0, 0.0};
@@ -506,7 +522,12 @@ ERF::ERF_shared ()
             pp.query("box_hi", box_hi);
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            if (build_eb_for_multigrid) {
+                EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
+                            ngrow_for_eb, build_coarse_level_by_coarsening);
+            } else {
+                EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            }
         } else if (geometry == "sphere") {
             auto ProbLoArr = geom[max_level].ProbLoArray();
             auto ProbHiArr = geom[max_level].ProbHiArray();
@@ -515,19 +536,24 @@ ERF::ERF_shared ()
             RealArray sphere_center = {xcen, ycen, 0.0};
             EB2::SphereIF implicit_fun(0.5, sphere_center, false);
             auto gshop = EB2::makeShop(implicit_fun);
-            amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            if (build_eb_for_multigrid) {
+                EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
+                            ngrow_for_eb, build_coarse_level_by_coarsening);
+            } else {
+                EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            }
         }
     }
 
     if ( solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
-        int ngrow_for_eb = 4;
+        constexpr int ngrow_for_eb = 4;
         Box buildings_bx(surroundingNodes(geom[max_level].Domain())); buildings_bx.grow(3);
         FArrayBox buildings_fab(makeSlab(buildings_bx,2,0),1);
         Real dummy_time = 0.0;
         prob->init_buildings_surface(geom[max_level], buildings_fab, dummy_time);
         TerrainIF implicit_fun(buildings_fab, geom[max_level], stretched_dz_d[max_level]);
         auto gshop = EB2::makeShop(implicit_fun);
-        amrex::EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+        EB2::Build(gshop, this->Geom(), ngrow_for_eb);
     }
     forecast_state_1.resize(nlevs_max);
     forecast_state_2.resize(nlevs_max);
@@ -850,7 +876,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
       }
     }
 
-    if(solverChoice.io_hurricane_eye_tracker and (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0)) {
+    if ( solverChoice.io_hurricane_eye_tracker and (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0) )
+    {
         int levc=finest_level;
 
         HurricaneEyeTracker(geom[levc],
@@ -877,9 +904,9 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
                                hurricane_maxvel_vs_time);
 
         std::string filename_tracker = MakeVTKFilename_TrackerCircle(nstep);
-        std::string filename_xy = MakeVTKFilename_EyeTracker_xy(nstep);
-        std::string filename_latlon = MakeFilename_EyeTracker_latlon(nstep);
-        std::string filename_maxvel = MakeFilename_EyeTracker_maxvel(nstep);
+        std::string filename_xy      = MakeVTKFilename_EyeTracker_xy(nstep);
+        std::string filename_latlon  = MakeFilename_EyeTracker_latlon(nstep);
+        std::string filename_maxvel  = MakeFilename_EyeTracker_maxvel(nstep);
         if (ParallelDescriptor::IOProcessor()) {
             WriteVTKPolyline(filename_tracker, hurricane_tracker_circle);
             WriteVTKPolyline(filename_xy, hurricane_eye_track_xy);
@@ -887,7 +914,6 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
             WriteLinePlot(filename_maxvel, hurricane_maxvel_vs_time);
         }
     }
-
 } // post_timestep
 
 // This is called from main.cpp and handles all initialization, whether from start or restart
@@ -921,62 +947,7 @@ ERF::InitData_pre ()
         init_bcs();
     }
 
-    // Verify solver choices
-    for (int lev(0); lev <= max_level; ++lev) {
-        // BC compatibility
-        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25)   ||
-               (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF) ||
-               (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU) ||
-               (solverChoice.turbChoice[lev].pbl_type == PBLType::MRF)
-                   ) &&
-            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::surface_layer ) {
-            Abort("MYNN2.5/MYNNEDMF/YSU/MRF PBL Model requires MOST at lower boundary");
-        }
-        if ( (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) &&
-             (solverChoice.turbChoice[lev].Ce_wall > 0) &&
-             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::surface_layer) &&
-             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::slip_wall) &&
-             (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::no_slip_wall) )
-        {
-            Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
-        }
-
-        if ( (solverChoice.const_massflux_u != 0) &&
-             (phys_bc_type[Orientation(Direction::x,Orientation::low)] != ERF_BC::periodic ) )
-        {
-            Abort("Constant mass flux (in x) should be used with periodic boundaries");
-        }
-        if ( (solverChoice.const_massflux_v != 0) &&
-             (phys_bc_type[Orientation(Direction::y,Orientation::low)] != ERF_BC::periodic ) )
-        {
-            Abort("Constant mass flux (in y) should be used with periodic boundaries");
-        }
-
-        // mesoscale diffusion
-        if ((geom[lev].CellSize(0) > 2000.) || (geom[lev].CellSize(1) > 2000.))
-        {
-            if ( (solverChoice.turbChoice[lev].les_type == LESType::Smagorinsky) &&
-                 (!solverChoice.turbChoice[lev].smag2d)) {
-                Warning("Should use 2-D Smagorinsky for mesoscale resolution");
-            } else if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
-                Warning("Should not use Deardorff LES for mesoscale resolution");
-            }
-        }
-
-        // Turn off implicit solve if we have no diffusion
-        bool l_use_kturb   = solverChoice.turbChoice[lev].use_kturb;
-        bool l_use_diff    = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
-                               l_use_kturb );
-        bool l_implicit_diff = (solverChoice.vert_implicit_fac[0] > 0 ||
-                                solverChoice.vert_implicit_fac[1] > 0 ||
-                                solverChoice.vert_implicit_fac[2] > 0);
-        if (l_implicit_diff && !l_use_diff) {
-            Print() << "No molecular or turbulent diffusion, turning off implicit solve" << std::endl;
-            solverChoice.vert_implicit_fac[0] = 0;
-            solverChoice.vert_implicit_fac[1] = 0;
-            solverChoice.vert_implicit_fac[2] = 0;
-        }
-    }
+    solverChoice.check_params(max_level,geom,phys_bc_type);
 }
 
 void
@@ -994,14 +965,17 @@ ERF::InitData_post ()
     if (!restart_chkfile.empty()) {
         restart();
     }
-
     //
-    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one and if two way coupling
     //
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        if (solverChoice.coupling_type == CouplingType::TwoWay) {
+            for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
+                average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+                average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
+            }
+        }
         for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
-            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
               detJ_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
             z_phys_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
         }
@@ -1014,7 +988,7 @@ ERF::InitData_post ()
          solverChoice.vert_implicit_fac[2] > 0  )       &&
         solverChoice.implicit_momentum_diffusion)
     {
-        amrex::Warning("Doing implicit solve for u, v, and w with terrain -- this has not been tested");
+        Warning("Doing implicit solve for u, v, and w with terrain -- this has not been tested");
     }
 #endif
 
@@ -1355,7 +1329,9 @@ ERF::InitData_post ()
                 if (verbose > 0) {
                     amrex::Print() << "Projecting initial velocity field at level " << lev << std::endl;
                 }
-                project_velocity(lev, dummy_dt);
+
+                project_velocity(lev, t_new[lev], dummy_dt);
+
                 pp_inc[lev].setVal(0.);
                 gradp[lev][GpVars::gpx].setVal(0.);
                 gradp[lev][GpVars::gpy].setVal(0.);
@@ -1862,7 +1838,12 @@ ERF::InitData_post ()
     {
         bool write_eb_surface = false;
         pp.query("write_eb_surface", write_eb_surface);
-        if (write_eb_surface) WriteMyEBSurface();
+        if (write_eb_surface) {
+            if (verbose > 0) {
+                amrex::Print() << "Writing the geometry to a vtp file.\n" << std::endl;
+            }
+            WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
+        }
     }
 
 }
@@ -1877,7 +1858,6 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 
     } else if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
 #ifdef ERF_USE_PARTICLES
-
         micro = std::make_unique<LagrangianMicrophysics>(a_nlevsmax, solverChoice.moisture_type);
         /* Lagrangian microphysics models will have a particle container; it needs to be added
            to ERF::particleData */
@@ -2005,7 +1985,7 @@ ERF::init_only (int lev, Real time)
 
 #ifdef ERF_USE_NETCDF
     }
-    else if (solverChoice.init_type == InitType::WRFInput)
+    else if (solverChoice.init_type == InitType::WRFInput && !nc_init_file[lev].empty())
     {
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
@@ -2028,6 +2008,10 @@ ERF::init_only (int lev, Real time)
         if (!solverChoice.use_real_bcs) {
             make_physbcs(lev);
         }
+    }
+    else if (solverChoice.init_type == InitType::WRFInput && nc_init_file[lev].empty())
+    {
+        amrex::Abort("This pathway is not quite implemented yet");
     }
     else if (solverChoice.init_type == InitType::NCFile)
     {
@@ -2174,7 +2158,7 @@ ERF::ReadParameters ()
         pp.query("use_fft", use_fft);
 #ifndef ERF_USE_FFT
         if (use_fft) {
-            amrex::Abort("You must build with USE_FFT in order to set use_fft = true in your inputs file");
+            Abort("You must build with USE_FFT in order to set use_fft = true in your inputs file");
         }
 #endif
 
@@ -2328,12 +2312,12 @@ ERF::ReadParameters ()
             if (plotfile3d_type_1 == PlotFileType::None) {
                 plotfile3d_type_1  = plotfile3d_type_temp;
             } else {
-                amrex::Abort("You must set either plotfile_type or plotfile_type_1, not both");
+                Abort("You must set either plotfile_type or plotfile_type_1, not both");
             }
             if (plotfile3d_type_2 == PlotFileType::None) {
                 plotfile3d_type_2  = plotfile3d_type_temp;
             } else {
-                amrex::Abort("You must set either plotfile_type or plotfile_type_2, not both");
+                Abort("You must set either plotfile_type or plotfile_type_2, not both");
             }
         }
         if (plotfile2d_type_temp == PlotFileType::None) {
@@ -2347,12 +2331,12 @@ ERF::ReadParameters ()
             if (plotfile2d_type_1 == PlotFileType::None) {
                 plotfile2d_type_1  = plotfile2d_type_temp;
             } else {
-                amrex::Abort("You must set either plotfile2d_type or plotfile2d_type_1, not both");
+                Abort("You must set either plotfile2d_type or plotfile2d_type_1, not both");
             }
             if (plotfile2d_type_2 == PlotFileType::None) {
                 plotfile2d_type_2  = plotfile2d_type_temp;
             } else {
-                amrex::Abort("You must set either plotfile2d_type or plotfile2d_type_2, not both");
+                Abort("You must set either plotfile2d_type or plotfile2d_type_2, not both");
             }
         }
 #ifndef ERF_USE_NETCDF
@@ -2360,7 +2344,7 @@ ERF::ReadParameters ()
             plotfile3d_type_2 == PlotFileType::Netcdf ||
             plotfile2d_type_1 == PlotFileType::Netcdf ||
             plotfile2d_type_2 == PlotFileType::Netcdf) {
-            amrex::Abort("Plotfile type = Netcdf is not allowed without USE_NETCDF = TRUE");
+            Abort("Plotfile type = Netcdf is not allowed without USE_NETCDF = TRUE");
         }
 #endif
 
@@ -2381,6 +2365,12 @@ ERF::ReadParameters ()
 
         pp.query("subvol_file",   subvol_file);
 
+        // Should we use format like plt1970-01-01_00:00:00.000000 (if true) or plt00001 (if false)
+        pp.query("use_real_time_in_pltname", use_real_time_in_pltname);
+
+        // If use_real_time_in_pltname is false, how many digits should we use for the timestep?
+        pp.query("file_name_digits", file_name_digits);
+
         // Default if subvol_int not specified
         m_subvol_int.resize(1); m_subvol_int[0] = -1;
         m_subvol_per.resize(1); m_subvol_per[0] = -1.0;
@@ -2398,10 +2388,10 @@ ERF::ReadParameters ()
             ParmParse pp_sv("erf.subvol");
             int n1 = pp_sv.countval("origin"); int n2 = pp_sv.countval("nxnynz"); int n3 = pp_sv.countval("dxdydz");
             if (n1 != n2 || n1 != n3 || n2 != n3) {
-                amrex::Abort("WriteSubvolume: must have same number of entries in origin, nxnynz, and dxdydz.");
+                Abort("WriteSubvolume: must have same number of entries in origin, nxnynz, and dxdydz.");
             }
             if ( n1%AMREX_SPACEDIM != 0) {
-                amrex::Abort("WriteSubvolume: origin, nxnynz, and dxdydz must have multiples of AMReX_SPACEDIM");
+                Abort("WriteSubvolume: origin, nxnynz, and dxdydz must have multiples of AMReX_SPACEDIM");
             }
             nsub = n1/AMREX_SPACEDIM;
             m_subvol_int.resize(nsub);
@@ -2419,7 +2409,7 @@ ERF::ReadParameters ()
             } else if ( nsi == nsub) {
                 pp.getarr("subvol_int" , m_subvol_int);
             } else {
-                amrex::Abort("There must either be a single value of subvol_int or one for every subdomain");
+                Abort("There must either be a single value of subvol_int or one for every subdomain");
             }
         }
 
@@ -2431,7 +2421,7 @@ ERF::ReadParameters ()
             } else if ( nsr == nsub) {
                 pp.getarr("subvol_per" , m_subvol_per);
             } else {
-                amrex::Abort("There must either be a single value of subvol_per or one for every subdomain");
+                Abort("There must either be a single value of subvol_per or one for every subdomain");
             }
         }
 
@@ -2520,17 +2510,16 @@ ERF::ReadParameters ()
         }
     }
 
-    // If init from WRFInput or Metgrid make sure a valid file name is present
+    // If init from WRFInput or Metgrid make sure a valid file name is present at level 0.
+    // We allow for the possibility that finer levels may use native refinement rather than reading from a file
     if ((solverChoice.init_type == InitType::WRFInput) ||
         (solverChoice.init_type == InitType::Metgrid)  ||
         (solverChoice.init_type == InitType::NCFile) ) {
-        for (int lev = 0; lev <= max_level; lev++) {
-            int num_files = nc_init_file[lev].size();
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_files>0, "A file name must be present for init type WRFInput, Metgrid or NCFile.");
-            for (int j = 0; j < num_files; j++) {
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!nc_init_file[lev][j].empty(), "Valid file name must be present for init type WRFInput, Metgrid or NCFile.");
-            } //j
-        } // lev
+        int num_files = nc_init_file[0].size();
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(num_files>0, "A file name must be present at level 0 for init type WRFInput, Metgrid or NCFile.");
+        for (int j = 0; j < num_files; j++) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!nc_init_file[0][j].empty(), "Valid file name must be present at level 0 for init type WRFInput, Metgrid or NCFile.");
+        } //j
     } // InitType
 
     // What type of land surface model to use
@@ -2891,7 +2880,7 @@ ERF::check_state_for_nans(MultiFab const& S)
         for (int i = 0; i < ncomp; i++) {
             if (S.contains_nan(i,1,0))
             {
-                amrex::Print() << "Component " << i << "of conserved variables contains NaNs" << '\n';
+                amrex::Print() << "Component " << i << " of conserved variables contains NaNs" << '\n';
                 any_have_nans = true;
             }
         }
@@ -2952,11 +2941,11 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
 
             if (temp < t_low) {
 #ifdef AMREX_USE_GPU
-                AMREX_DEVICE_PRINTF("Temperature too low going into microphysics in cell: %d %d %d %e \n", i,j,k,temp);
+                AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
 #else
-                printf("Temperature too low going into microphyics in cell: %d %d %d \n", i,j,k);
+                printf("Temperature too in cell: %d %d %d \n", i,j,k);
                 printf("Based on temp / rhotheta / rho %e %e %e \n", temp,rhotheta,rho);
-                amrex::Abort();
+                Abort();
 #endif
             }
         });
@@ -2981,7 +2970,7 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
                 AMREX_DEVICE_PRINTF("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
 #else
                 printf("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
-                amrex::Abort("Bad theta in check_for_negative_theta");
+                Abort("Bad theta in check_for_negative_theta");
 #endif
             }
             });

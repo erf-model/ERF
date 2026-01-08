@@ -251,7 +251,7 @@ class SDInitProperties
         }
 
         /* return volume of particle domain */
-        [[nodiscard]] inline auto volume() const
+        [[nodiscard]] inline amrex::Real volume() const
         {
             amrex::Real vol = 0.0;
             if (m_type == SDInitShape::uniform) {
@@ -271,6 +271,8 @@ class SDInitProperties
 class SDInjection : public SDInitProperties
 {
     public:
+
+        virtual ~SDInjection() = default;
 
         /*!< Injection rate (number of physical particles per meter^3 second) */
         amrex::Real m_inj_rate = 0;
@@ -363,6 +365,8 @@ class SDInjection : public SDInitProperties
 class SDInitialization : public SDInitProperties
 {
     public:
+
+        virtual ~SDInitialization() = default;
 
         /*!< Initial number density of super-droplets */
         amrex::Real m_numdens_sd_init = -1;

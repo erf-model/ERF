@@ -76,7 +76,6 @@ void SuperDropletPC::MassChange_LV (  int                                       
         auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
         int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
         auto* condt_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::cond_tendency).data();
 #endif

@@ -1,11 +1,8 @@
 CEXE_sources += ERF_EB.cpp
 CEXE_sources += ERF_EBAdvectionSrcForState.cpp
 CEXE_sources += ERF_EBAux.cpp
-CEXE_sources += ERF_EBBox.cpp
 CEXE_sources += ERF_EBCutCell.cpp
 CEXE_sources += ERF_EBRedistribute.cpp
-CEXE_sources += ERF_EBToPVD.cpp
-CEXE_sources += ERF_EBWriteSurface.cpp
 
 CEXE_headers += ERF_EB.H
 CEXE_headers += ERF_EBAdvection.H
@@ -13,10 +10,7 @@ CEXE_headers += ERF_EBAdvectionSrcForMom.H
 CEXE_headers += ERF_EBAdvectionSrcForScalars.H
 CEXE_headers += ERF_EBAux.H
 CEXE_headers += ERF_EBCutCell.H
-CEXE_headers += ERF_EBIF.H
 CEXE_headers += ERF_EBIFTerrain.H
 CEXE_headers += ERF_EBPolygon.H
 CEXE_headers += ERF_EBRedistribute.H
 CEXE_headers += ERF_EBSlopes.H
-CEXE_headers += ERF_EBToPVD.H
-CEXE_headers += ERF_EBUtils.H

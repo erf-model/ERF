@@ -155,7 +155,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
-    if (solverChoice.anelastic[lev] == 1 || solverChoice.project_initial_velocity[lev]) {
+    if ( (solverChoice.anelastic[lev] == 1) || (solverChoice.project_initial_velocity[lev] == 1) ) {
         pp_inc[lev].define(ba, dm, 1, 1);
         pp_inc[lev].setVal(0.0);
     }
@@ -650,7 +650,7 @@ ERF::init_zphys (int lev, Real time)
             //       the domain
             //
             InterpFromCoarseLevel(*z_phys_nd[lev], z_phys_nd[lev]->nGrowVect(),
-                                  IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                  IntVect(0,0,0), // do NOT fill ghost cells outside the domain
                                   *z_phys_nd[lev-1], 0, 0, 1,
                                   geom[lev-1], geom[lev],
                                   refRatio(lev-1), &node_bilinear_interp,
@@ -699,6 +699,25 @@ ERF::init_zphys (int lev, Real time)
             }
         } // lev == 0
 
+    } else {
+        // NOTE: If a WRFInput file is NOT provided for a finer level,
+        //       we simply interpolate from the coarse. This is necessary
+        //       since we average_down the terrain (ERF_MakeNewLevel.cpp L351).
+        //       If a WRFInput file IS present, it overwrites the terrain data.
+        if (lev > 0) {
+            //
+            // First interpolate from coarser level if there is one
+            // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+            //       have been pre-filled - this includes ghost cells both inside and outside
+            //       the domain
+            //
+            InterpFromCoarseLevel(*z_phys_nd[lev], z_phys_nd[lev]->nGrowVect(),
+                                  z_phys_nd[lev]->nGrowVect(), // DO fill ghost cells outside the domain
+                                  *z_phys_nd[lev-1], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), &node_bilinear_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+        }
     } // init_type
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||

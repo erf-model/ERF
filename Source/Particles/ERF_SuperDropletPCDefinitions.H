@@ -204,7 +204,7 @@ static auto ice_rho(const amrex::ParticleReal a_a, /*!< polar radius */
 
 /*! \brief Compute total mass of a droplet from its components */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static auto SD_total_mass( const int a_idx, /*!< Particle index */
+static amrex::ParticleReal SD_total_mass( const int a_idx, /*!< Particle index */
                            const int a_num_sp,   /*!< number of species */
                            const int a_num_ae,   /*!< number of aerosols */
                            const SDSpeciesMassArr& a_sp_mass, /*!< species masses */
@@ -222,7 +222,7 @@ static auto SD_total_mass( const int a_idx, /*!< Particle index */
 
 /*! \brief Compute effective radius of a droplet from its components */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static auto SD_effective_radius( const int a_idx, /*!< Particle index */
+static amrex::ParticleReal SD_effective_radius( const int a_idx, /*!< Particle index */
                                  const int a_idx_w, /*!< Species index of water */
                                  amrex::ParticleReal a_rho_w,  /*!< density of water */
                                  const int a_num_sp,   /*!< number of species */
@@ -265,7 +265,7 @@ static auto SD_effective_radius( const int a_idx, /*!< Particle index */
 
 /*! \brief Compute "dry" radius of a droplet from its insoluble components */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static auto SD_dry_radius( const int a_idx, /*!< Particle index */
+static amrex::ParticleReal SD_dry_radius( const int a_idx, /*!< Particle index */
                            const int a_num_sp,   /*!< number of species */
                            const int a_num_ae,   /*!< number of aerosols */
                            const int* const a_sp_sol_arr, /*!< solubility of species */

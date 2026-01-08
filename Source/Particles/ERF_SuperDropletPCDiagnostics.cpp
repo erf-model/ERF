@@ -695,7 +695,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
     }
 
     // Write to file
-    char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
+    char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
     std::string output_filename =   m_name
                                     + "_g_lnR_"
                                     + std::string(iter_str) + ".txt";
@@ -783,7 +783,7 @@ void SuperDropletPC::ComputeBinnedDistributions( const int a_iter)
     ParallelDescriptor::ReduceRealSum(g_num_ln_R.dataPtr(), Nbin);
 
     // Write to file
-    char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
+    char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
     std::string output_filename =   m_name
                                     + "_binned_dsd_"
                                     + std::string(iter_str) + ".txt";
@@ -848,7 +848,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
         auto r_l = std::exp(ln_R[n]);
         auto r_r = std::exp(ln_R[n+1]);
 
-        char r_str[12]; sprintf(r_str, "%1.4e", r_l);
+        char r_str[12]; snprintf(r_str, sizeof(r_str), "%1.4e", r_l);
         varnames[n] = std::string(r_str);
 
         ParticleToMesh( *this, m_mass_ln_R_mf, m_lev,
@@ -886,7 +886,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
 
     // Write to file
     {
-        char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
+        char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
         std::string op_fname =   m_name
                                + "_binned_dsd_mass_"
                                + std::string(iter_str);
@@ -899,7 +899,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
                                    a_iter );
     }
     {
-        char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
+        char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
         std::string op_fname =   m_name
                                + "_binned_dsd_number_"
                                + std::string(iter_str);

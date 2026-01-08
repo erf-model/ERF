@@ -184,11 +184,9 @@ Problem::init_custom_terrain (
             {
                 // Clip indices for ghost-cells
                 int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-                // int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
 
                 // Location of nodes
                 Real x = (ProbLoArr[0] + ii * dx[0] - xcen) * mf_m;
-                // Real y = (ProbLoArr[1] + jj * dx[1] - ycen) * mf_y;
 
                 // WoA Hill in x-direction
                 if (hm==0) {
@@ -213,6 +211,26 @@ Problem::init_custom_terrain (
                 } else {
                     Real y_L = y / L;
                     z_arr(i,j,k0) = hm / (1.0 + y_L*y_L) + z_offset;
+                }
+            });
+        } else if (parms.dir == 2) {
+            ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
+                // Clip indices for ghost-cells
+                int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
+                int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
+
+                // Location of nodes
+                Real x = (ProbLoArr[0] + ii * dx[0] - xcen) * mf_m;
+                Real y = (ProbLoArr[1] + jj * dx[1] - ycen) * mf_m;
+                Real r = std::sqrt(x*x + y*y);
+
+                // WoA Hill in x-direction
+                if (hm==0) {
+                    z_arr(i,j,k0) = num / (r*r + 4.0 * a * a);
+                } else {
+                    Real r_L = r / L;
+                    z_arr(i,j,k0) = hm / (1.0 + r_L*r_L) + z_offset;
                 }
             });
         } else {

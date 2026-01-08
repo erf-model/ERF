@@ -41,8 +41,8 @@ Model overview and transported quantities in ERF
 | Predicted Particle | ``P3``                 | :math:`q_i` | :math:`q_r` | :math:      | --          |
 | Properties         |                        |             |             | `q_{rim}`   |             |
 +--------------------+------------------------+-------------+-------------+-------------+-------------+
-| Super-Droplet      | ``SuperDropletsMoist`` | :math:`q_i` | :math:`q_r` | :math:`q_s` | :math:`q_g` |
-| Method (particle)  |                        |             |             |             |             |
+| Super-Droplet      | ``SuperDroplets``      | :math:`q_i` | :math:`q_r` | :math:`q_s` | :math:`q_g` |
+| Method (SDM)       |                        |             |             |             |             |
 +--------------------+------------------------+-------------+-------------+-------------+-------------+
 
 
@@ -220,6 +220,24 @@ Saturation Adjustment (SatAdj) Microphysics Model
 The saturation adjustment microphysics model is the simplest possible moisture model and only transports the
 water vapor mixing ratio, :math:`q_v`, and the cloud water mixing ration, :math:`q_c`. Evaporation, :math:`q_v \longrightarrow q_c`, and condensation, :math:`q_c \longrightarrow q_v`, are the only relevant mechanisms. The final saturation state, :math:`q_v = q_{vs}(T)` is obtained from Newton-Raphson iterations on the thermal temperature :math:`T`.
 
+Predicted Particle Properties (P3) Microphysics Model
+------------------------------------------------------
+
+The P3 microphysics scheme uses a fundamentally different approach than traditional bulk schemes.
+Rather than using fixed hydrometeor categories (ice, snow, graupel), P3 predicts evolving ice particle
+properties, allowing continuous transitions from unrimed ice to heavily rimed particles.
+
+P3 transports water vapor (:math:`q_v`), cloud water (:math:`q_c`), rain (:math:`q_r`), total ice mass
+(:math:`q_i`), and rime mass (:math:`q_{rim}`). Additional prognostic variables include ice number
+concentration and rime volume.
+
+The scheme represents physical processes including vapor deposition/sublimation, riming, aggregation,
+melting, and sedimentation. Particle properties evolve continuously based on environmental conditions
+and microphysical processes.
+
+.. P3 requires ``USE_P3=TRUE`` at build time and interfaces with E3SM's P3 implementation.
+
+For details, see Morrison and Milbrandt (2015, *J. Atmos. Sci.*, 72, 287–311).
 
 Super-Droplet Method (SDM) Microphysics Model
 ----------------------------------------------
@@ -844,6 +862,416 @@ Diagnostic parameters use the prefix ``super_droplets_moisture``:
      - ``5.0e-3``
      - Maximum radius (m) for binned distributions
 
+Particle Injection
+~~~~~~~~~~~~~~~~~~
+
+The SDM implementation supports runtime injection of super-droplets from specified sources. This feature enables simulation
+of scenarios such as cloud seeding, aerosol injection, or particle sources at boundaries. Multiple injection sources can be
+configured, each with its own spatial distribution, timing, and particle properties.
+
+Overview
+^^^^^^^^
+
+Particle injection creates new super-droplets at regular intervals during the simulation. Each injection source is defined
+by a spatial region (uniform box or ellipsoidal bubble), temporal window (start and stop times), injection rate, and particle
+attribute distributions. The injection region can optionally move with a prescribed velocity to simulate moving sources.
+
+Injection Process
+^^^^^^^^^^^^^^^^^
+
+At each timestep, if the current simulation time falls within an injection source's active time window, new super-droplets
+are created within the injection region. The number of super-droplets created is determined by:
+
+.. math::
+   N_\text{inject} = \text{rate} \times V_\text{region} \times \Delta t / \text{multiplicity}
+
+where :math:`\text{rate}` is the injection rate (physical particles per unit volume per unit time), :math:`V_\text{region}`
+is the volume of the injection region, :math:`\Delta t` is the timestep, and :math:`\text{multiplicity}` is computed from
+the ``particles_per_cell`` parameter similar to initialization.
+
+Injection Parameters
+^^^^^^^^^^^^^^^^^^^^
+
+For each injection source (indexed by ``N``), parameters are specified with prefix ``super_droplets_moisture.injection.N``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 25 40
+
+   * - Parameter
+     - Default Value
+     - Description
+   * - **Spatial Distribution**
+     -
+     -
+   * - ``distribution_type``
+     - ``uniform``
+     - Spatial distribution (``uniform``, ``bubble``)
+   * - ``particle_box_lo``
+     - --
+     - Lower corner of injection box (for ``uniform``)
+   * - ``particle_box_hi``
+     - --
+     - Upper corner of injection box (for ``uniform``)
+   * - ``particle_bubble_center``
+     - --
+     - Center of injection bubble (for ``bubble``)
+   * - ``particle_bubble_radius``
+     - --
+     - Radius of injection bubble (for ``bubble``)
+   * - ``domain_velocity``
+     - ``[0, 0, 0]``
+     - Velocity (m/s) of moving injection region
+   * - **Temporal Control**
+     -
+     -
+   * - ``t_start``
+     - ``0.0``
+     - Injection start time (s)
+   * - ``t_stop``
+     - :math:`\infty`
+     - Injection stop time (s)
+   * - **Injection Rate**
+     -
+     -
+   * - ``rate``
+     - (required)
+     - Injection rate (physical particles m\ :sup:`-3` s\ :sup:`-1`)
+   * - ``particles_per_cell``
+     - (required)
+     - Number of super-droplets per cell for injection
+   * - **Particle Attributes**
+     -
+     -
+   * - ``species_distribution_type_<NAME>``
+     - ``mass_constant``
+     - Distribution type for species <NAME>
+   * - ``aerosol_distribution_type_<NAME>``
+     - ``mass_constant``
+     - Distribution type for aerosol <NAME>
+   * - (other species/aerosol parameters)
+     - --
+     - Same as initialization parameters
+
+Example Configuration
+^^^^^^^^^^^^^^^^^^^^^
+
+The following example demonstrates injection configuration with three sources: two uniform box regions with opposing velocities,
+and one stationary bubble region with temporal control:
+
+.. code-block:: bash
+
+   super_droplets_moisture.num_injections = 3
+
+   # Moving box injection from left
+   super_droplets_moisture.injection.0.distribution_type = "uniform"
+   super_droplets_moisture.injection.0.particle_box_lo = 1000.0 0.0 5000.0
+   super_droplets_moisture.injection.0.particle_box_hi = 1400.0 400.0 5400.0
+   super_droplets_moisture.injection.0.domain_velocity = 18.0 0.0 0.0
+   super_droplets_moisture.injection.0.rate = 2.0e6
+   super_droplets_moisture.injection.0.particles_per_cell = 8
+   super_droplets_moisture.injection.0.aerosol_distribution_type_NaCl = "mass_exponential"
+   super_droplets_moisture.injection.0.aerosol_mean_mass_NaCl = 1.0e-19
+
+   # Time-limited box injection from right
+   super_droplets_moisture.injection.1.distribution_type = "uniform"
+   super_droplets_moisture.injection.1.particle_box_lo = 16000.0 0.0 4000.0
+   super_droplets_moisture.injection.1.particle_box_hi = 16400.0 400.0 4400.0
+   super_droplets_moisture.injection.1.domain_velocity = -18.0 0.0 0.0
+   super_droplets_moisture.injection.1.t_start = 200.0
+   super_droplets_moisture.injection.1.t_stop = 600.0
+   super_droplets_moisture.injection.1.rate = 2.0e7
+   super_droplets_moisture.injection.1.particles_per_cell = 32
+
+   # Stationary bubble injection (early times only)
+   super_droplets_moisture.injection.2.distribution_type = "bubble"
+   super_droplets_moisture.injection.2.particle_bubble_center = 10000.0 0.0 2000.0
+   super_droplets_moisture.injection.2.particle_bubble_radius = 2000.0 400.0 2000.0
+   super_droplets_moisture.injection.2.t_start = 0.0
+   super_droplets_moisture.injection.2.t_stop = 200.0
+   super_droplets_moisture.injection.2.rate = 5.0e6
+   super_droplets_moisture.injection.2.particles_per_cell = 16
+
+Particle Recycling
+~~~~~~~~~~~~~~~~~~
+
+Particle recycling is a mechanism to maintain a relatively constant number of super-droplets in the simulation by reactivating
+deactivated particles. When super-droplets evaporate completely or fall below a multiplicity threshold, they are deactivated
+rather than removed from the simulation. Recycling allows these inactive particles to be reintroduced with new attributes,
+which is particularly useful for maintaining statistical convergence in long-running simulations or simulations with strong
+sedimentation.
+
+Recycling Mechanism
+^^^^^^^^^^^^^^^^^^^
+
+When ``recycle_particles`` is enabled, the model tracks the fraction of deactivated super-droplets. Once this fraction exceeds
+the ``inactive_threshold`` (default 1%), the recycling process is triggered:
+
+1. **Selection**: Inactive super-droplets are identified as candidates for recycling.
+
+2. **Repositioning**: Selected particles are repositioned within the domain. The new positions are sampled from the original
+   initialization distribution. If a recycling bounding box is specified (``recycle_box_lo`` and ``recycle_box_hi``), particles
+   are constrained to this region; otherwise, the entire domain is used.
+
+3. **Attribute Resampling**: Particle attributes (species masses, aerosol masses) are resampled from the original initialization
+   distributions to maintain the prescribed size and composition distributions.
+
+4. **Multiplicity Reset**: Multiplicities are reset based on the original initialization parameters to represent the appropriate
+   number of physical droplets.
+
+5. **Reactivation**: The recycled super-droplets are marked as active and reintroduced into the simulation.
+
+This approach maintains computational efficiency by reusing particle memory rather than deallocating and reallocating particles,
+while preserving the statistical properties of the particle population.
+
+Recycling Parameters
+^^^^^^^^^^^^^^^^^^^^
+
+Recycling behavior is controlled by parameters with prefix ``super_droplets_moisture``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 25 40
+
+   * - Parameter
+     - Default Value
+     - Description
+   * - ``recycle_particles``
+     - ``false``
+     - Enable particle recycling
+   * - ``inactive_threshold``
+     - ``0.01``
+     - Fraction of inactive particles (0.01 = 1%) that triggers recycling
+   * - ``recycle_box_lo``
+     - domain lower bounds
+     - Lower corner of recycling region
+   * - ``recycle_box_hi``
+     - domain upper bounds
+     - Upper corner of recycling region
+
+Use Cases
+^^^^^^^^^
+
+Particle recycling is particularly beneficial for:
+
+- **Sedimentation-dominated flows**: Where particles continuously fall out of the domain and need to be replenished at the top
+- **Long-time simulations**: To maintain statistical convergence without accumulating large numbers of inactive particles
+- **Boundary layer simulations**: Where particles entering from one boundary can be recycled to maintain a quasi-steady state
+
+Example Configuration
+^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   # Enable recycling when 1% of particles become inactive
+   super_droplets_moisture.recycle_particles = true
+   super_droplets_moisture.inactive_threshold = 0.01
+
+   # Constrain recycled particles to upper portion of domain
+   super_droplets_moisture.recycle_box_lo = 0.0 0.0 8000.0
+   super_droplets_moisture.recycle_box_hi = 20000.0 400.0 10000.0
+
+Material Properties and Aerosol Species
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The SDM implementation supports multiple aerosol and condensate species with different physical and chemical properties.
+Each species is characterized by its material properties including density, molecular weight, ionization state (for soluble
+species), and thermodynamic properties for phase change calculations.
+
+Available Species
+^^^^^^^^^^^^^^^^^
+
+The following species are currently implemented in ERF:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 20 20 20 20
+
+   * - Species Name
+     - Density (kg/m\ :sup:`3`)
+     - Molecular Weight (kg/mol)
+     - Ionization
+     - Type
+   * - ``H2O``
+     - 1000.0
+     - 0.01802
+     - 0
+     - Condensate (water)
+   * - ``water``
+     - 1000.0
+     - 0.01802
+     - 0
+     - Condensate (water)
+   * - ``agua``
+     - 1000.0
+     - 0.01802
+     - 0
+     - Condensate (water)
+   * - ``NaCl``
+     - 2170.0
+     - 0.05844
+     - 2
+     - Soluble aerosol (sodium chloride)
+   * - ``NH42SO4``
+     - 1770.0
+     - 0.13214
+     - 3
+     - Soluble aerosol (ammonium sulfate)
+   * - ``NH4HSO4``
+     - 1780.0
+     - 0.11511
+     - 2
+     - Soluble aerosol (ammonium bisulfate)
+   * - ``soil``
+     - 1220.0
+     - --
+     - 0
+     - Insoluble aerosol
+
+Species Classification
+^^^^^^^^^^^^^^^^^^^^^^
+
+**Water Species** (``H2O``, ``water``, ``agua``): These represent the condensate phase. The aliases ``water`` and ``agua``
+are provided to enable multi-component testing with identical water species. Water species have associated saturation vapor
+pressure and latent heat properties required for phase change calculations.
+
+**Soluble Aerosols** (``NaCl``, ``NH42SO4``, ``NH4HSO4``): These species dissolve in water droplets and affect the equilibrium
+vapor pressure through the Köhler effect (solution term). The ionization factor (van't Hoff factor) represents the number of
+ions produced when the species dissociates in solution, which directly affects the strength of the solution effect on droplet
+growth.
+
+**Insoluble Aerosols** (``soil``): These species do not dissolve in water but can serve as cloud condensation nuclei (CCN) or
+be incorporated into droplets. They affect droplet properties through their mass and volume but do not contribute to the
+solution term in Köhler theory.
+
+Multi-Species Configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Species are specified as comma-separated lists in the input file:
+
+.. code-block:: bash
+
+   # Specify condensate and aerosol species
+   super_droplets_moisture.species = H2O
+   super_droplets_moisture.aerosols = NH4HSO4
+
+   # For multiple aerosol species
+   super_droplets_moisture.aerosols = NH4HSO4, NaCl
+
+Each species then requires its own distribution parameters for initialization and injection:
+
+.. code-block:: bash
+
+   # NH4HSO4 aerosol with log-normal radius distribution
+   super_droplets_moisture.0.initial_aerosol_distribution_type_NH4HSO4 = "radius_log_normal"
+   super_droplets_moisture.0.initial_aerosol_mean_radius_NH4HSO4 = 30.0e-9
+   super_droplets_moisture.0.initial_aerosol_std_radius_NH4HSO4 = 0.247
+
+   # NaCl aerosol with exponential mass distribution
+   super_droplets_moisture.0.initial_aerosol_distribution_type_NaCl = "mass_exponential"
+   super_droplets_moisture.0.initial_aerosol_mean_mass_NaCl = 1.0e-19
+   super_droplets_moisture.0.initial_aerosol_max_mass_NaCl = 1.0e-18
+
+Impact on Microphysics
+^^^^^^^^^^^^^^^^^^^^^^
+
+The choice of aerosol species affects several microphysical processes:
+
+**Condensation/Evaporation**: Soluble aerosols reduce the equilibrium vapor pressure over a droplet (solution effect),
+promoting condensation and inhibiting evaporation. The strength of this effect scales with the ionization factor and
+aerosol mass.
+
+**Activation**: Droplets containing soluble aerosols can activate (begin growing by condensation) at lower supersaturations
+compared to pure water droplets of the same size.
+
+**Sedimentation**: Different aerosol densities affect the effective density of cloud droplets, slightly modifying terminal
+fall velocities for very small droplets where aerosol mass is comparable to water mass.
+
+Examples and Test Cases
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ERF repository includes several test cases and examples demonstrating SDM capabilities. These cases provide templates
+for configuring SDM simulations and serve as verification benchmarks.
+
+Idealized Test Cases
+^^^^^^^^^^^^^^^^^^^^^
+
+**SDM_Bubble2D_Adv**: 2D advection test of a moist bubble with super-droplets. Tests particle advection with the flow field
+and basic particle dynamics without coalescence or phase change. Located in ``Tests/test_files/SDM_Bubble2D_Adv/``.
+
+**SDM_Bubble2D_Adv_InitSampling**: Similar to SDM_Bubble2D_Adv but demonstrates sampling-based multiplicity assignment for
+improved representation of the size distribution. Located in ``Tests/test_files/SDM_Bubble2D_Adv_InitSampling/``.
+
+**SDM_Bubble2D_Adv_wInjection**: 2D moist bubble with runtime particle injection. Demonstrates injection configuration with
+moving injection domains. Located in ``Tests/test_files/SDM_Bubble2D_Adv_wInjection/``.
+
+**SDM_Box3D_Cond**: 3D box test for condensation/evaporation processes. Tests phase change physics with fixed environmental
+conditions. Located in ``Tests/test_files/SDM_Box3D_Cond/``.
+
+**SDM_Box3D_VTerm**: 3D box test for terminal velocity and sedimentation. Tests gravitational settling with various terminal
+velocity formulations. Located in ``Tests/test_files/SDM_Box3D_VTerm/``.
+
+**SDM_Box3D_Recycling**: 3D box test demonstrating particle recycling at domain boundaries. Shows how to maintain particle
+population during sedimentation. Located in ``Tests/test_files/SDM_Box3D_Recycling/``.
+
+**SDM_MultiSpecies_Bubble2D**: 2D moist bubble with multiple aerosol species. Demonstrates multi-component configuration.
+Located in ``Tests/test_files/SDM_MultiSpecies_Bubble2D/``.
+
+Realistic Test Cases
+^^^^^^^^^^^^^^^^^^^^^
+
+**SDM_RICO3D**: 3D simulation of the Rain In Cumulus Over the Ocean (RICO) case, a precipitating shallow cumulus benchmark.
+Tests full SDM microphysics including condensation, coalescence, and sedimentation in a realistic cloud environment. Located
+in ``Tests/test_files/SDM_RICO3D/``. Example input file with NH4HSO4 aerosol is in ``Exec/DevTests/RICO/input_sdm``.
+
+**SDM_RICO3D_InitSampling**: RICO case with sampling-based initialization for improved size distribution representation.
+Located in ``Tests/test_files/SDM_RICO3D_InitSampling/``.
+
+**SDM_Congestus3D**: 3D simulation of congestus clouds, testing SDM in a deeper convective environment. Located in
+``Tests/test_files/SDM_Congestus3D/``.
+
+Example Problem Directories
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Moist Bubble with Multi-Injection**: ``Exec/MoistRegTests/Bubble/inputs_BF02_moist_bubble_SDM_multi_injections_unimodal_NaCl``
+demonstrates a complex injection setup with three injection sources: two moving box regions with opposing velocities and one
+time-limited bubble injection. This example is useful for understanding injection configuration and moving source regions.
+
+**RICO DevTest**: ``Exec/DevTests/RICO/`` contains multiple input files for the RICO case with different microphysics models,
+including SDM configurations with various aerosol species (``input_sdm``).
+
+**Temperature Source Tests**: ``Exec/DevTests/TemperatureSourceSpatial/`` and ``Exec/DevTests/sinusoidal_mass_flux/`` include
+SDM configurations for testing particle behavior with prescribed temperature and mass flux forcing.
+
+Running Test Cases
+^^^^^^^^^^^^^^^^^^
+
+Test cases are typically run using the CTest framework:
+
+.. code-block:: bash
+
+   # Build ERF with SDM support
+   cd Build
+   cmake .. -DERF_ENABLE_PARTICLES=ON
+   make -j
+
+   # Run a specific SDM test
+   ctest -R SDM_RICO3D -V
+
+For manual execution:
+
+.. code-block:: bash
+
+   # Run from the test directory
+   cd Tests/test_files/SDM_RICO3D
+   ../../../Build/Exec/DevTests/RICO/erf SDM_RICO3D.i
+
+Verification
+^^^^^^^^^^^^
+
+Many test cases include gold files (reference solutions) in ``Tests/ERFGoldFiles/`` for automated verification. When running
+with CTest, results are automatically compared against these gold files to ensure numerical consistency.
+
 Output Files
 ~~~~~~~~~~~~
 
@@ -912,22 +1340,3 @@ References
 
 - Böhm, J. P., 1999: Revision and clarification of "A general hydrodynamic theory for mixed-phase microphysics".
   Atmos. Res., 52: 167-176.
-
-Predicted Particle Properties (P3) Microphysics Model
-------------------------------------------------------
-
-The P3 microphysics scheme uses a fundamentally different approach than traditional bulk schemes.
-Rather than using fixed hydrometeor categories (ice, snow, graupel), P3 predicts evolving ice particle
-properties, allowing continuous transitions from unrimed ice to heavily rimed particles.
-
-P3 transports water vapor (:math:`q_v`), cloud water (:math:`q_c`), rain (:math:`q_r`), total ice mass
-(:math:`q_i`), and rime mass (:math:`q_{rim}`). Additional prognostic variables include ice number
-concentration and rime volume.
-
-The scheme represents physical processes including vapor deposition/sublimation, riming, aggregation,
-melting, and sedimentation. Particle properties evolve continuously based on environmental conditions
-and microphysical processes.
-
-.. P3 requires ``USE_P3=TRUE`` at build time and interfaces with E3SM's P3 implementation.
-
-For details, see Morrison and Milbrandt (2015, *J. Atmos. Sci.*, 72, 287–311).
