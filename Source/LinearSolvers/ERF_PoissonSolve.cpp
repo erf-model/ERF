@@ -28,9 +28,9 @@ solve_with_EB_mlmg (int lev,
  * Project the single-level velocity field to enforce the anelastic constraint
  * Note that the level may or may not be level 0.
  */
-void ERF::project_velocity (int lev, Real time, Real l_dt)
+void ERF::project_initial_velocity (int lev, Real time, Real l_dt)
 {
-    BL_PROFILE("ERF::project_velocity()");
+    BL_PROFILE("ERF::project_initial_velocity()");
     // Impose FillBoundary on density since we use it in the conversion of velocity to momentum
     vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
 
@@ -68,12 +68,6 @@ void ERF::project_velocity (int lev, Real time, Real l_dt)
         MultiFab& V_new_crse = vars_new[levc][Vars::yvel];
         MultiFab& W_new_crse = vars_new[levc][Vars::zvel];
 
-        MultiFab& S_new_fine = vars_new[lev][Vars::cons];
-        MultiFab& U_new_fine = vars_new[lev][Vars::xvel];
-        MultiFab& V_new_fine = vars_new[lev][Vars::yvel];
-        MultiFab& W_new_fine = vars_new[lev][Vars::zvel];
-
-        S_new_fine.FillBoundary(geom[levc].periodicity());
         VelocityToMomentum(U_new_crse, IntVect{0}, V_new_crse, IntVect{0}, W_new_crse, IntVect{0}, S_new_crse,
                            rU_new[levc], rV_new[levc], rW_new[levc],
                            Geom(levc).Domain(), domain_bcs_type, c_vfrac_crse);
@@ -86,16 +80,10 @@ void ERF::project_velocity (int lev, Real time, Real l_dt)
 
         rW_new[levc].FillBoundary(geom[levc].periodicity());
         FPr_w[levc].RegisterCoarseData({&rW_new[levc], &rW_new[levc]}, {time, time+l_dt});
-
-        bool fillset = true;
-        bool cons_only = false;
-        FillPatchFineLevel(lev, time, {&S_new_fine, &U_new_fine, &V_new_fine, &W_new_fine},
-                           {&S_new_fine, &rU_new[lev], &rV_new[lev], &rW_new[lev]},
-                           base_state[levc], base_state[levc],
-                           fillset, cons_only);
     }
 
-    project_momenta(lev, l_dt, tmp_mom);
+    Real l_time = 0.0;
+    project_momenta(lev, l_time, l_dt, tmp_mom);
 
     MomentumToVelocity(vars_new[lev][Vars::xvel],
                        vars_new[lev][Vars::yvel],
@@ -109,9 +97,18 @@ void ERF::project_velocity (int lev, Real time, Real l_dt)
  * Project the single-level momenta to enforce the anelastic constraint
  * Note that the level may or may not be level 0.
  */
-void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
+void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mom_mf)
 {
     BL_PROFILE("ERF::project_momenta()");
+    //
+    // If at lev > 0 we must first fill the momenta at the c/f interface with interpolated coarse values
+    //
+    if (lev > 0) {
+        PhysBCFunctNoOp null_bc;
+        FPr_u[lev-1].FillSet(mom_mf[IntVars::xmom], l_time, null_bc, domain_bcs_type);
+        FPr_v[lev-1].FillSet(mom_mf[IntVars::ymom], l_time, null_bc, domain_bcs_type);
+        FPr_w[lev-1].FillSet(mom_mf[IntVars::zmom], l_time, null_bc, domain_bcs_type);
+    }
 
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(mom_mf[Vars::cons].boxArray());
