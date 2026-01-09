@@ -14,6 +14,7 @@
 #include <ERF_AdvStruct.H>
 #include <ERF_DampingStruct.H>
 #include <ERF_DiffStruct.H>
+#include <ERF_EBStruct.H>
 #include <ERF_SpongeStruct.H>
 #include <ERF_TurbStruct.H>
 #include <ERF_TurbPertStruct.H>
@@ -185,27 +186,33 @@ struct SolverChoice {
             );
         }
 
-        // TODO: should we set default for dry??
-        // Set a different default for moist vs dry
+        // Set a default for dry
+        buoyancy_type.resize(max_level+1);
+        for (int i = 0; i <= max_level; ++i) {
+            buoyancy_type[i] = 1; // uses Rhoprime
+        }
+
+        // Set a default for moist
         if (moisture_type != MoistureType::None) {
-            if (moisture_type == MoistureType::Kessler_NoRain     ||
-                moisture_type == MoistureType::SAM                ||
-                moisture_type == MoistureType::SAM_NoIce          ||
-                moisture_type == MoistureType::SAM_NoPrecip_NoIce ||
-                moisture_type == MoistureType::Morrison ||
-                moisture_type == MoistureType::Morrison_NoIce ||
-                moisture_type == MoistureType::SatAdj)
+            if ( !(moisture_type == MoistureType::Kessler_NoRain     ||
+                   moisture_type == MoistureType::SAM                ||
+                   moisture_type == MoistureType::SAM_NoIce          ||
+                   moisture_type == MoistureType::SAM_NoPrecip_NoIce ||
+                   moisture_type == MoistureType::Morrison ||
+                   moisture_type == MoistureType::Morrison_NoIce ||
+                   moisture_type == MoistureType::SatAdj) )
             {
-                buoyancy_type = 1; // uses Rhoprime
-            } else {
-                buoyancy_type = 2; // uses Tprime
+                for (int i = 0; i <= max_level; ++i) {
+                    buoyancy_type[i] = 2; // uses Tprime
+                }
             }
 
             pp.query("moisture_tight_coupling",moisture_tight_coupling);
         }
 
         // Which expression (1,2/3 or 4) to use for buoyancy
-        pp.query("buoyancy_type", buoyancy_type);
+        int default_buoyancy_type = buoyancy_type[0];
+        read_int_string(max_level, "buoyancy_type", buoyancy_type, default_buoyancy_type);
 
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
@@ -343,7 +350,23 @@ struct SolverChoice {
         pp.query("c_p", c_p);
         rdOcp = R_d / c_p;
 
+        // *******************************************************************************
+        // Read anelastic etc and over-ride if necessary
+        // *******************************************************************************
+
         read_int_string(max_level, "anelastic", anelastic, 0);
+        read_int_string(max_level, "fixed_density", fixed_density, 0);
+        read_int_string(max_level, "project_initial_velocity", project_initial_velocity, 0);
+
+        for (int i = 0; i <= max_level; ++i) {
+            if (anelastic[i] == 1) {
+                project_initial_velocity[i] = 1;
+                fixed_density[i]            = 1; // We default to true but are allowed to override below
+                buoyancy_type[i]            = 3; // (This isn't actually used when anelastic is set)
+            }
+        }
+
+        // *******************************************************************************
 
         if (!upwind_real_bcs && anelastic[0]) {
             amrex::Print() << "Setting upwind_real_bcs to true because we are doing anelastic at level 0" << std::endl;
@@ -386,22 +409,6 @@ struct SolverChoice {
         if (nvals_old > 0) {
             amrex::Abort("The no_substepping flag is deprecated -- set substepping_type instead");
         }
-        // *******************************************************************************
-
-        bool any_anelastic = false;
-        for (int i = 0; i <= max_level; ++i) {
-            if (anelastic[i] == 1) any_anelastic = true;
-        }
-
-        if (any_anelastic == 1) {
-            project_initial_velocity = true;
-            fixed_density            = true; // We default to true but are allowed to override below
-            buoyancy_type            = 3; // (This isn't actually used when anelastic is set)
-        } else {
-            pp.query("project_initial_velocity", project_initial_velocity);
-        }
-
-        pp.query("fixed_density", fixed_density);
 
         // *******************************************************************************
 
@@ -531,8 +538,7 @@ struct SolverChoice {
            diffChoice.init_params(pp_prefix);
         dampingChoice.init_params(pp_prefix);
          spongeChoice.init_params(pp_prefix);
-
-
+             ebChoice.init_params(pp_prefix);
 
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
@@ -620,6 +626,20 @@ struct SolverChoice {
         coupling_type = CouplingType::TwoWay; // Default
         pp.query_enum_case_insensitive("coupling_type",coupling_type);
 
+        // Test for hybrid (compressible + anelastic) -- in this case we must use one-way coupling
+        bool any_anelastic = false;
+        bool any_compress  = false;
+        for (int lev = 0; lev <= max_level; lev++) {
+            if (anelastic[lev] == 0) {
+                any_compress = true;
+            } else {
+                any_anelastic = true;
+            }
+        }
+        if (any_anelastic && any_compress) {
+            coupling_type = CouplingType::OneWay;
+        }
+
         // Which type of windfarm model
         windfarm_type = WindFarmType::None; // Default
         pp.query_enum_case_insensitive("windfarm_type",windfarm_type);
@@ -690,7 +710,7 @@ struct SolverChoice {
         }
 
         pp.query("io_hurricane_eye_tracker", io_hurricane_eye_tracker);
-        if(io_hurricane_eye_tracker) {
+        if (io_hurricane_eye_tracker) {
             pp.query("hurricane_eye_latitude", hurricane_eye_latitude);
             pp.query("hurricane_eye_longitude", hurricane_eye_longitude);
             if(hurricane_eye_latitude == -1e10 or hurricane_eye_longitude == -1e10) {
@@ -700,13 +720,9 @@ struct SolverChoice {
                               " location of the eye in the initial condition");
             }
         }
-
-        pp.query("file_name_digits", file_name_digits);
-
-        check_params(max_level);
     }
 
-    void check_params (int /*max_level*/)
+    void check_params (int max_level, const amrex::Vector<amrex::Geometry>& geom_vect, amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type)
     {
 #if 0
         // Warn for PBL models and moisture - these may not yet be compatible
@@ -719,8 +735,10 @@ struct SolverChoice {
         //
         // Buoyancy type check
         //
-        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3 && buoyancy_type != 4) {
-            amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
+        for (int lev = 0; lev <= max_level; lev++) {
+            if (buoyancy_type[lev] != 1 && buoyancy_type[lev] != 2 && buoyancy_type[lev] != 3 && buoyancy_type[lev] != 4) {
+                amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
+            }
         }
 
         if (!use_lagged_delta_rt && !(terrain_type == TerrainType::MovingFittedMesh)) {
@@ -749,21 +767,68 @@ struct SolverChoice {
                          " erf.windfarm_y_shift which are the values by which the bounding box of the"
                          " windfarm is shifted from the x and the y axes.");
         }
+
+
+        if ( (const_massflux_u != 0) && !(geom_vect[0].isPeriodic(0)) ) {
+            amrex::Abort("Constant mass flux (in x) should be used with periodic boundaries");
+        }
+
+        if ( (const_massflux_v != 0) && !(geom_vect[0].isPeriodic(1)) ) {
+            amrex::Abort("Constant mass flux (in y) should be used with periodic boundaries");
+        }
+
+        // Mesoscale diffusion -- test if LES appropriate with this dx,dy
+        for (int lev = 0; lev <= max_level; lev++) {
+            if ((geom_vect[lev].CellSize(0) > 2000.) || (geom_vect[lev].CellSize(1) > 2000.))
+            {
+                if ( (turbChoice[lev].les_type == LESType::Smagorinsky) && !turbChoice[lev].smag2d ) {
+                    amrex::Warning("Should use 2-D Smagorinsky for mesoscale resolution");
+                } else if (turbChoice[lev].les_type == LESType::Deardorff) {
+                    amrex::Warning("Should not use Deardorff LES for mesoscale resolution");
+                }
+            }
+        }
+
+        // Turn off implicit solve if we have no diffusion
+        bool l_use_kturb = turbChoice[0].use_kturb;
+        for (int lev = 1; lev <= max_level; lev++) {
+            l_use_kturb = (l_use_kturb || turbChoice[lev].use_kturb);
+        }
+        bool l_use_diff    = ( (diffChoice.molec_diff_type != MolecDiffType::None) || l_use_kturb );
+        bool l_implicit_diff = (vert_implicit_fac[0] > 0 ||
+                                vert_implicit_fac[1] > 0 ||
+                                vert_implicit_fac[2] > 0);
+        if (l_implicit_diff && !l_use_diff) {
+            amrex:: Print() << "No molecular or turbulent diffusion, turning off implicit solve" << std::endl;
+            vert_implicit_fac[0] = 0;
+            vert_implicit_fac[1] = 0;
+            vert_implicit_fac[2] = 0;
+        }
+
+        for (int lev = 0; lev <= max_level; lev++) {
+            turbChoice[lev].check_params(phys_bc_type);
+        }
     }
 
     void display (int max_level, std::string pp_prefix)
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
         for (int lev = 0; lev <= max_level; lev++) {
+            amrex::Print() << "At level " << lev << " : " << std::endl;
             if (anelastic[lev]) {
-                amrex::Print() << "Level " << lev << " is anelastic" << std::endl;
-            }
-            if (substepping_type[lev] == SubsteppingType::None) {
-                amrex::Print() << "No substepping at level " << lev << std::endl;
-            } else if (substepping_type[lev] == SubsteppingType::Implicit) {
-                amrex::Print() << "Implicit substepping at level " << lev << std::endl;
-            }
+                amrex::Print() << "   anelastic with no substepping" << std::endl;
+            } else {
+               if (substepping_type[lev] == SubsteppingType::None) {
+                   amrex::Print() << "   compressible with no substepping" << std::endl;
+               } else if (substepping_type[lev] == SubsteppingType::Implicit) {
+                   amrex::Print() << "   compressible with implicit substepping" << std::endl;
+               }
+           }
+           if (fixed_density[lev]) {
+               amrex::Print() << "   and fixed density" << std::endl;
+           }
         }
+
         amrex::Print() << "vert_implicit_fac           : " << vert_implicit_fac[0] << " "
                                                            << vert_implicit_fac[1] << " "
                                                            << vert_implicit_fac[2];
@@ -779,7 +844,6 @@ struct SolverChoice {
             amrex::Print() << ")";
         }
         amrex::Print() << std::endl;
-        amrex::Print() << "fixed_density               : " << fixed_density << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
 
@@ -809,6 +873,7 @@ struct SolverChoice {
             amrex::Print() << "Terrain Type: MovingFittedMesh" << std::endl;
         } else if (terrain_type == TerrainType::EB) {
             amrex::Print() << "Terrain Type: EB" << std::endl;
+            ebChoice.display();
         } else if (terrain_type == TerrainType::ImmersedForcing) {
             amrex::Print() << "Terrain Type: ImmersedForcing" << std::endl;
         } else {
@@ -861,7 +926,9 @@ struct SolverChoice {
 
         amrex::Print() << "Gradp_type                  : " << gradp_type << std::endl;
 
-        amrex::Print() << "Buoyancy_type               : " << buoyancy_type << std::endl;
+        for (int lev = 0; lev <= max_level; lev++) {
+            amrex::Print() << "Buoyancy_type at level " << lev << " : " << buoyancy_type[lev] << std::endl;
+        }
 
             advChoice.display(pp_prefix);
            diffChoice.display();
@@ -923,12 +990,17 @@ struct SolverChoice {
         AMREX_ALWAYS_ASSERT(nvals == 0 || nvals == 1 || nvals >= max_level+1);
         amrex::Vector<int> temp; temp.resize(nvals);
         pp.queryarr(string_to_read,temp);
+
+        if (vec_to_fill.size() < max_level+1) {
+            vec_to_fill.resize(max_level+1);
+        }
+
         if (nvals == 0) {
-            for (int i = 0; i <= max_level; ++i) vec_to_fill.push_back(default_int);
+            for (int i = 0; i <= max_level; ++i) vec_to_fill[i] = default_int;
         } else if (nvals == 1) {
-            for (int i = 0; i <= max_level; ++i) vec_to_fill.push_back(temp[0]);
+            for (int i = 0; i <= max_level; ++i) vec_to_fill[i] = temp[0];
         } else {
-            for (int i = 0; i <= max_level; ++i) vec_to_fill.push_back(temp[i]);
+            for (int i = 0; i <= max_level; ++i) vec_to_fill[i] = temp[i];
         }
     }
 
@@ -964,11 +1036,15 @@ struct SolverChoice {
     DampingChoice dampingChoice;
     SpongeChoice  spongeChoice;
     amrex::Vector<TurbChoice>  turbChoice;
+    EBChoice      ebChoice;
 
     int         force_stage1_single_substep = 1;
 
     amrex::Vector<SubsteppingType> substepping_type;
     amrex::Vector<int> anelastic;
+    amrex::Vector<int> fixed_density;
+    amrex::Vector<int> project_initial_velocity;
+    amrex::Vector<int> buoyancy_type;
 
     // do some extra CFL diagnostics for compressible with substepping
     bool substepping_diag = false;
@@ -987,7 +1063,6 @@ struct SolverChoice {
     bool implicit_momentum_diffusion = true;
     bool implicit_before_substep     = true;
 
-    bool        fixed_density       = false;
     int         ncorr               = 1;
     amrex::Real poisson_abstol      = 1e-8;
     amrex::Real poisson_reltol      = 1e-8;
@@ -995,8 +1070,6 @@ struct SolverChoice {
     bool        test_mapfactor         = false;
 
     int         gradp_type             = 0;
-
-    int         buoyancy_type          = 1; // uses rhoprime directly
 
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
@@ -1032,8 +1105,6 @@ struct SolverChoice {
     amrex::Real grid_stretching_ratio   = 0;
     amrex::Real zsurf                   = 0.0;
     amrex::Real dz0;
-
-    bool project_initial_velocity = false;
 
     // Coriolis forcing
     amrex::Real coriolis_factor = 0.0;
@@ -1123,7 +1194,5 @@ struct SolverChoice {
 
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
-
-    int file_name_digits = 5;
 };
 #endif

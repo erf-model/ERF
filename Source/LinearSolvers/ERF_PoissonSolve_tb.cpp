@@ -1,11 +1,13 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
+#include "ERF_SolverUtils.H"
 #include <AMReX_MLMG.H>
 #include <AMReX_MLPoisson.H>
 
 using namespace amrex;
 
-bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
+bool
+projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs)
 {
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         if (bcs[dir] == LinOpBCType::Dirichlet) return true;
@@ -42,8 +44,9 @@ void ERF::project_velocity_tb (int lev, Real l_dt, Vector<MultiFab>& vmf)
         p_mlpoisson = std::make_unique<MLPoisson>(geom_tmp, ba_tmp, dm_tmp, info);
     }
 
-    auto bclo = get_projection_bc(Orientation::low);
-    auto bchi = get_projection_bc(Orientation::high);
+    auto bclo = get_lo_projection_bc(geom[lev],domain_bc_type);
+    auto bchi = get_hi_projection_bc(geom[lev],domain_bc_type);
+
     bool need_adjust_rhs = (projection_has_dirichlet(bclo) || projection_has_dirichlet(bchi)) ? false : true;
     p_mlpoisson->setDomainBC(bclo, bchi);
 
@@ -132,7 +135,8 @@ void ERF::project_velocity_tb (int lev, Real l_dt, Vector<MultiFab>& vmf)
 
         // If all Neumann BCs, adjust RHS to make sure we can converge
         if (need_adjust_rhs) {
-            Real offset = volWgtSumMF(lev, rhs[0], 0, false);
+            bool local = false;
+            Real offset = volWgtSumMF(lev,rhs[0],0,*detJ_cc[lev],*mapfac[lev][MapFacType::m_x],*mapfac[lev][MapFacType::m_y],false,local);
             // amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
             rhs[0].plus(-offset, 0, 1);
         }

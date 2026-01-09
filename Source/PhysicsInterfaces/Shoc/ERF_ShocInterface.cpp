@@ -14,9 +14,9 @@ SHOCInterface::SHOCInterface (const int& lev,
     // Minimum value of stability correction
     Real def_lambda_low = 0.001;
     // Maximum value of stability correction
-    Real def_lambda_high = 0.08;
+    Real def_lambda_high = 0.04;
     // Slope of change from lambda_low to lambda_high
-    Real def_lambda_slope = 0.08;
+    Real def_lambda_slope = 2.65;
     // stability threshold for which to apply more stability correction
     Real def_lambda_thresh = 0.02;
     // Temperature variance tuning factor
@@ -102,10 +102,17 @@ ERF::compute_shoc_tendencies (int lev,
                                    tau13, tau23, hfx3, qfx3,
                                    eddyDiffs, z_phys_nd);
 
+    auto t0 = amrex::second();
     shoc_interface[lev]->initialize_impl();
+    auto t1 = amrex::second();
     shoc_interface[lev]->run_impl(dt_advance);
+    auto t2 = amrex::second();
     shoc_interface[lev]->finalize_impl(dt_advance);
+    auto t3 = amrex::second();
 
+    Print() << "Time in SHOC: initialize_impl() " << t1 - t0 << std::endl;
+    Print() << "Time in SHOC: run_impl()        " << t2 - t1 << std::endl;
+    Print() << "Time in SHOC: finalize_impl()   " << t3 - t2 << std::endl;
     Print() << "Done advancing SHOC\n";
 }
 
@@ -420,6 +427,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
             // map [i,j,k] 0-based to [icol, ilay] 0-based
             const int icol   = (j-jmin)*nx + (i-imin) + offset;
             const int ilay   = kmax - k;
+            const int ilayi  = kmax + 1 - k;
 
             // EOS input (at CC)
             Real r  = cons_arr(i,j,k,Rho_comp);
@@ -478,7 +486,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
             // Input data structures
             //=======================================================
             p_mid_d(icol,ilay)       = getPgivenRTh(rt, qv);
-            p_int_d(icol,ilay)       = getPgivenRTh(rt_avg, qv_avg);
+            p_int_d(icol,ilayi)      = getPgivenRTh(rt_avg, qv_avg);
             // eamxx_common_physics_functions_impl.hpp: calculate_density
             pseudo_dens_d(icol,ilay) = r * CONST_GRAV * delz;
             // Enforce the grid spacing
@@ -493,13 +501,13 @@ SHOCInterface::mf_to_kokkos_buffers ()
                 phis_d(icol) = CONST_GRAV * z;
             }
 
-            if (ilay==(nlay-1)) {
+            if (ilay==0) {
                 Real r_hi  = cons_arr(i,j,k+1,Rho_comp);
                 Real rt_hi = cons_arr(i,j,k+1,RhoTheta_comp);
                 Real qv_hi = (moist) ? std::max(cons_arr(i,j,k+1,RhoQ1_comp)/r_hi,0.0) : 0.0;
                 rt_avg = 0.5 * (rt + rt_hi);
                 qv_avg = 0.5 * (qv + qv_hi);
-                p_int_d(icol,ilay+1) = getPgivenRTh(rt_avg, qv_avg);
+                p_int_d(icol,0) = getPgivenRTh(rt_avg, qv_avg);
             }
         });
     }

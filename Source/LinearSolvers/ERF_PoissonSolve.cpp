@@ -3,22 +3,48 @@
 
 using namespace amrex;
 
+void
+solve_with_mlmg    (int lev,
+                    Vector<amrex::MultiFab>& rhs, Vector<MultiFab>& p,
+                    Vector<amrex::Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
+                    const Geometry& geom,
+                    const amrex::Vector<amrex::IntVect>& ref_ratio,
+                    Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type,
+                    int mg_verbose, Real reltol, Real abstol);
+void
+solve_with_EB_mlmg (int lev,
+                    Vector<amrex::MultiFab>& rhs, Vector<MultiFab>& p,
+                    Vector<amrex::Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
+                    EBFArrayBoxFactory const& ebfact,
+                    eb_aux_ const& ebfact_u,
+                    eb_aux_ const& ebfact_v,
+                    eb_aux_ const& ebfact_w,
+                    const Geometry& geom,
+                    const amrex::Vector<amrex::IntVect>& ref_ratio,
+                    Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type,
+                    int mg_verbose, Real reltol, Real abstol);
+
 /**
  * Project the single-level velocity field to enforce the anelastic constraint
  * Note that the level may or may not be level 0.
  */
-void ERF::project_velocity (int lev, Real l_dt)
+void ERF::project_initial_velocity (int lev, Real time, Real l_dt)
 {
+    BL_PROFILE("ERF::project_initial_velocity()");
     // Impose FillBoundary on density since we use it in the conversion of velocity to momentum
     vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
 
-    BL_PROFILE("ERF::project_velocity()");
+    const MultiFab* c_vfrac = nullptr;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+    }
+
     VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect{0},
                        vars_new[lev][Vars::yvel], IntVect{0},
                        vars_new[lev][Vars::zvel], IntVect{0},
                        vars_new[lev][Vars::cons],
                        rU_new[lev], rV_new[lev], rW_new[lev],
-                       Geom(lev).Domain(), domain_bcs_type);
+                       Geom(lev).Domain(), domain_bcs_type, c_vfrac);
 
     Vector<MultiFab> tmp_mom;
 
@@ -27,23 +53,62 @@ void ERF::project_velocity (int lev, Real l_dt)
     tmp_mom.push_back(MultiFab(rV_new[lev],make_alias,0,1));
     tmp_mom.push_back(MultiFab(rW_new[lev],make_alias,0,1));
 
-    project_momenta(lev, l_dt, tmp_mom);
+    // If at lev > 0 we must first fill the velocities at the c/f interface -- this must
+    //    be done *after* the projection at lev-1
+    if (lev > 0) {
+        int levc = lev-1;
+
+        const MultiFab* c_vfrac_crse = nullptr;
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            c_vfrac_crse = &((get_eb(levc).get_const_factory())->getVolFrac());
+        }
+
+        MultiFab& S_new_crse = vars_new[levc][Vars::cons];
+        MultiFab& U_new_crse = vars_new[levc][Vars::xvel];
+        MultiFab& V_new_crse = vars_new[levc][Vars::yvel];
+        MultiFab& W_new_crse = vars_new[levc][Vars::zvel];
+
+        VelocityToMomentum(U_new_crse, IntVect{0}, V_new_crse, IntVect{0}, W_new_crse, IntVect{0}, S_new_crse,
+                           rU_new[levc], rV_new[levc], rW_new[levc],
+                           Geom(levc).Domain(), domain_bcs_type, c_vfrac_crse);
+
+        rU_new[levc].FillBoundary(geom[levc].periodicity());
+        FPr_u[levc].RegisterCoarseData({&rU_new[levc], &rU_new[levc]}, {time, time+l_dt});
+
+        rV_new[levc].FillBoundary(geom[levc].periodicity());
+        FPr_v[levc].RegisterCoarseData({&rV_new[levc], &rV_new[levc]}, {time, time+l_dt});
+
+        rW_new[levc].FillBoundary(geom[levc].periodicity());
+        FPr_w[levc].RegisterCoarseData({&rW_new[levc], &rW_new[levc]}, {time, time+l_dt});
+    }
+
+    Real l_time = 0.0;
+    project_momenta(lev, l_time, l_dt, tmp_mom);
 
     MomentumToVelocity(vars_new[lev][Vars::xvel],
                        vars_new[lev][Vars::yvel],
                        vars_new[lev][Vars::zvel],
                        vars_new[lev][Vars::cons],
                        rU_new[lev], rV_new[lev], rW_new[lev],
-                       Geom(lev).Domain(), domain_bcs_type);
+                       Geom(lev).Domain(), domain_bcs_type, c_vfrac);
  }
 
 /**
  * Project the single-level momenta to enforce the anelastic constraint
  * Note that the level may or may not be level 0.
  */
-void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
+void ERF::project_momenta (int lev, Real l_time, Real l_dt, Vector<MultiFab>& mom_mf)
 {
     BL_PROFILE("ERF::project_momenta()");
+    //
+    // If at lev > 0 we must first fill the momenta at the c/f interface with interpolated coarse values
+    //
+    if (lev > 0) {
+        PhysBCFunctNoOp null_bc;
+        FPr_u[lev-1].FillSet(mom_mf[IntVars::xmom], l_time, null_bc, domain_bcs_type);
+        FPr_v[lev-1].FillSet(mom_mf[IntVars::ymom], l_time, null_bc, domain_bcs_type);
+        FPr_w[lev-1].FillSet(mom_mf[IntVars::zmom], l_time, null_bc, domain_bcs_type);
+    }
 
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(mom_mf[Vars::cons].boxArray());
@@ -69,6 +134,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     MultiFab rhs_lev(rhs[0], make_alias, 0, 1);
     MultiFab phi_lev(phi[0], make_alias, 0, 1);
 
+    auto dx    = geom[lev].CellSizeArray();
     auto dxInv = geom[lev].InvCellSizeArray();
 
     // Inflow on an x-face -- note only the normal velocity is used in the projection
@@ -85,20 +151,26 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
     if (domain_bc_type[0] == "Inflow" || domain_bc_type[3] == "Inflow" ||
         domain_bc_type[1] == "Inflow" || domain_bc_type[4] == "Inflow") {
-            VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect{0},
-                               vars_new[lev][Vars::yvel], IntVect{0},
-                               vars_new[lev][Vars::zvel], IntVect{0},
-                               vars_new[lev][Vars::cons],
-                               mom_mf[IntVars::xmom],
-                               mom_mf[IntVars::ymom],
-                               mom_mf[IntVars::zmom],
-                               Geom(lev).Domain(),
-                               domain_bcs_type);
+
+        const MultiFab* c_vfrac = nullptr;
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+        }
+
+        VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect{0},
+                            vars_new[lev][Vars::yvel], IntVect{0},
+                            vars_new[lev][Vars::zvel], IntVect{0},
+                            vars_new[lev][Vars::cons],
+                            mom_mf[IntVars::xmom],
+                            mom_mf[IntVars::ymom],
+                            mom_mf[IntVars::zmom],
+                            Geom(lev).Domain(),
+                            domain_bcs_type, c_vfrac);
     }
 
     // If !fixed_density, we must convert (rho u) which came in
     // to (rho0 u) which is what we will project
-    if (!solverChoice.fixed_density) {
+    if (!solverChoice.fixed_density[lev]) {
         ConvertForProjection(mom_mf[Vars::cons], r_hse,
                              mom_mf[IntVars::xmom],
                              mom_mf[IntVars::ymom],
@@ -154,11 +226,6 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         }
     }
 
-    Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
-    rho0_u_const[0] = &mom_mf[IntVars::xmom];
-    rho0_u_const[1] = &mom_mf[IntVars::ymom];
-    rho0_u_const[2] = &mom_mf[IntVars::zmom];
-
     // ****************************************************************************
     // Initialize phi to 0
     // (It is essential that we do this in order to fill the corners; these are never
@@ -176,9 +243,38 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
     Vector<MultiFab> rhs_sub; rhs_sub.resize(1);
     Vector<MultiFab> phi_sub; phi_sub.resize(1);
-    Vector<Array<MultiFab,AMREX_SPACEDIM> > fluxes_sub; fluxes_sub.resize(1);
+    Vector<Array<MultiFab,AMREX_SPACEDIM>> fluxes_sub; fluxes_sub.resize(1);
 
     MultiFab ax_sub, ay_sub, az_sub, dJ_sub, znd_sub;
+    MultiFab mfmx_sub, mfmy_sub;
+
+    Array<MultiFab,AMREX_SPACEDIM> rho0_u_sub;
+    Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
+
+    // If we are going to solve with MLMG then we do not need to break this into subdomains
+    bool will_solve_with_mlmg = false;
+    if (solverChoice.mesh_type == MeshType::ConstantDz) {
+        will_solve_with_mlmg = true;
+#ifdef ERF_USE_FFT
+        if (use_fft) {
+            bool all_boxes_ok = true;
+            for (int isub = 0; isub < subdomains[lev].size(); ++isub) {
+                Box my_region(subdomains[lev][isub].minimalBox());
+                bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
+                if (!boxes_make_rectangle) {
+                    all_boxes_ok = false;
+                }
+            } // isub
+            if (all_boxes_ok) {
+                will_solve_with_mlmg = false;
+            }
+        } // use_fft
+#else
+        if (use_fft) {
+            amrex::Warning("You set use_fft=true but didn't build with USE_FFT = TRUE; defaulting to MLMG");
+        }
+#endif
+    } // No terrain or grid stretching
 
     for (int isub = 0; isub < subdomains[lev].size(); ++isub)
     {
@@ -189,7 +285,6 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         {
             if (subdomains[lev][isub].intersects(ba[j]))
             {
-                // amrex::Print() <<" INTERSECTS I " << isub << " " << j << " " << grids[lev][j] << std::endl;
                 //
                 // Note that bl_sub.size() is effectively a counter which is
                 // incremented above
@@ -198,34 +293,83 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                 // }
                 index_map[bl_sub.size()] = j;
 
-                // amrex::Print() <<" PUSHING BACK " << j << " " << index_map[bl_sub.size()] << std::endl;
                 bl_sub.push_back(grids[lev][j]);
                 dm_sub.push_back(dmap[lev][j]);
             } // intersects
-
         } // loop over ba (j)
 
         BoxArray ba_sub(bl_sub);
 
-        // Define MultiFabs that hold only the data in this particular subdomain
-        rhs_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, rhs_lev.nGrowVect(), MFInfo{}.SetAlloc(false));
-        phi_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, phi_lev.nGrowVect(), MFInfo{}.SetAlloc(false));
+        BoxList bl2d_sub = ba_sub.boxList();
+        for (auto& b : bl2d_sub) {
+            b.setRange(2,0);
+        }
+        BoxArray ba2d_sub(std::move(bl2d_sub));
 
-        for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-            fluxes_sub[0][idim].define(convert(ba_sub, IntVect::TheDimensionVector(idim)), DistributionMapping(dm_sub), 1,
-                                               IntVect::TheZeroVector(), MFInfo{}.SetAlloc(false));
+        // Define MultiFabs that hold only the data in this particular subdomain
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            if (ba_sub != ba) {
+                amrex::Print() << "EB Solves with multiple regions is not yet supported" << std::endl;
+            }
+            rhs_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, rhs_lev.nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+            phi_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, phi_lev.nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+
+            mfmx_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_x]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+            mfmy_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_y]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+              dJ_sub.define(ba_sub, DistributionMapping(dm_sub), 1, detJ_cc[lev]->nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                fluxes_sub[0][idim].define(convert(ba_sub, IntVect::TheDimensionVector(idim)), DistributionMapping(dm_sub), 1,
+                                                   IntVect::TheZeroVector(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+            }
+            rho0_u_sub[0].define(convert(ba_sub, IntVect::TheDimensionVector(0)), DistributionMapping(dm_sub), 1,
+                                         mom_mf[IntVars::xmom].nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+            rho0_u_sub[1].define(convert(ba_sub, IntVect::TheDimensionVector(1)), DistributionMapping(dm_sub), 1,
+                                         mom_mf[IntVars::ymom].nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+            rho0_u_sub[2].define(convert(ba_sub, IntVect::TheDimensionVector(2)), DistributionMapping(dm_sub), 1,
+                                         mom_mf[IntVars::zmom].nGrowVect(), MFInfo{}.SetAlloc(false), EBFactory(lev));
+        } else {
+            rhs_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, rhs_lev.nGrowVect(), MFInfo{}.SetAlloc(false));
+            phi_sub[0].define(ba_sub, DistributionMapping(dm_sub), 1, phi_lev.nGrowVect(), MFInfo{}.SetAlloc(false));
+
+            mfmx_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_x]->nGrowVect(), MFInfo{}.SetAlloc(false));
+            mfmy_sub.define(ba2d_sub, DistributionMapping(dm_sub), 1, mapfac[lev][MapFacType::m_y]->nGrowVect(), MFInfo{}.SetAlloc(false));
+              dJ_sub.define(ba_sub, DistributionMapping(dm_sub), 1, detJ_cc[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
+
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                fluxes_sub[0][idim].define(convert(ba_sub, IntVect::TheDimensionVector(idim)), DistributionMapping(dm_sub), 1,
+                                                   IntVect::TheZeroVector(), MFInfo{}.SetAlloc(false));
+            }
+            rho0_u_sub[0].define(convert(ba_sub, IntVect::TheDimensionVector(0)), DistributionMapping(dm_sub), 1,
+                                         mom_mf[IntVars::xmom].nGrowVect(), MFInfo{}.SetAlloc(false));
+            rho0_u_sub[1].define(convert(ba_sub, IntVect::TheDimensionVector(1)), DistributionMapping(dm_sub), 1,
+                                         mom_mf[IntVars::ymom].nGrowVect(), MFInfo{}.SetAlloc(false));
+            rho0_u_sub[2].define(convert(ba_sub, IntVect::TheDimensionVector(2)), DistributionMapping(dm_sub), 1,
+                                         mom_mf[IntVars::zmom].nGrowVect(), MFInfo{}.SetAlloc(false));
         }
 
         // Link the new MultiFabs to the FABs in the original MultiFabs (no copy required)
-        for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
+        for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
+        {
             int orig_index = index_map[mfi.index()];
-            // amrex::Print() << " INDEX        " << orig_index << " TO " << mfi.index() << std::endl;
             rhs_sub[0].setFab(mfi, FArrayBox(rhs_lev[orig_index], amrex::make_alias, 0, 1));
             phi_sub[0].setFab(mfi, FArrayBox(phi_lev[orig_index], amrex::make_alias, 0, 1));
+
+            mfmx_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::m_x])[orig_index], amrex::make_alias, 0, 1));
+            mfmy_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::m_y])[orig_index], amrex::make_alias, 0, 1));
+
             fluxes_sub[0][0].setFab(mfi,FArrayBox(fluxes[0][0][orig_index], amrex::make_alias, 0, 1));
             fluxes_sub[0][1].setFab(mfi,FArrayBox(fluxes[0][1][orig_index], amrex::make_alias, 0, 1));
             fluxes_sub[0][2].setFab(mfi,FArrayBox(fluxes[0][2][orig_index], amrex::make_alias, 0, 1));
+
+            rho0_u_sub[0].setFab(mfi,FArrayBox(mom_mf[IntVars::xmom][orig_index], amrex::make_alias, 0, 1));
+            rho0_u_sub[1].setFab(mfi,FArrayBox(mom_mf[IntVars::ymom][orig_index], amrex::make_alias, 0, 1));
+            rho0_u_sub[2].setFab(mfi,FArrayBox(mom_mf[IntVars::zmom][orig_index], amrex::make_alias, 0, 1));
         }
+
+        rho0_u_const[0] = &rho0_u_sub[0];
+        rho0_u_const[1] = &rho0_u_sub[1];
+        rho0_u_const[2] = &rho0_u_sub[2];
 
         if (solverChoice.mesh_type != MeshType::ConstantDz) {
             ax_sub.define(convert(ba_sub,IntVect(1,0,0)), DistributionMapping(dm_sub), 1,
@@ -236,8 +380,6 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                           az[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
             znd_sub.define(convert(ba_sub,IntVect(1,1,1)), DistributionMapping(dm_sub), 1,
                            z_phys_nd[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
-             dJ_sub.define(ba_sub, DistributionMapping(dm_sub), 1,
-                           detJ_cc[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
 
             for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
                 int orig_index = index_map[mfi.index()];
@@ -249,23 +391,30 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             }
         }
 
-       // ****************************************************************************
-       // Compute divergence which will form RHS
-       // Note that we replace "rho0w" with the contravariant momentum, Omega
-       // ****************************************************************************
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
+                int orig_index = index_map[mfi.index()];
+                dJ_sub.setFab(mfi, FArrayBox((*detJ_cc[lev])[orig_index], amrex::make_alias, 0, 1));
+            }
+        }
 
-       compute_divergence(lev, rhs_sub[0], rho0_u_const, geom_tmp[0]);
+        // ****************************************************************************
+        // Compute divergence which will form RHS
+        // Note that we replace "rho0w" with the contravariant momentum, Omega
+        // ****************************************************************************
+
+        compute_divergence(lev, rhs_sub[0], rho0_u_const, geom_tmp[0]);
 
         Real rhsnorm;
 
         // Max norm over the entire MultiFab
-        rhsnorm = rhs_lev.norm0();
+        rhsnorm = rhs_sub[0].norm0();
 
         if (mg_verbose > 0) {
-            Real sum = volWgtSumMF(lev,rhs_lev,0,false);
-            ParallelDescriptor::ReduceRealSum(sum);
+            bool local = false;
+            Real sum = volWgtSumMF(lev,rhs_sub[0],0,dJ_sub,mfmx_sub,mfmy_sub,false,local);
             Print() << "Max/L2 norm of divergence before solve in subdomain " << isub << " at level " << lev << " : " << rhsnorm << " " <<
-                        rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
+                        rhs_sub[0].norm2() << " and volume-weighted sum " << sum << std::endl;
         }
 
         if (lev == 0 && solverChoice.use_real_bcs)
@@ -350,8 +499,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
             if (mg_verbose > 0)
             {
-                Real sum = volWgtSumMF(lev,rhs_lev,0,false);
-                ParallelDescriptor::ReduceRealSum(sum);
+                bool local = false;
+                Real sum = volWgtSumMF(lev,rhs_sub[0],0,dJ_sub,mfmx_sub,mfmy_sub,false,local);
                 Print() << "Max/L2 norm of divergence before solve at level " << lev << " : " << rhsnorm << " " <<
                             rhs_lev.norm2() << " and volume-weighted sum " << sum << std::endl;
             }
@@ -375,16 +524,17 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
         if (is_singular)
         {
-            Real sum = volWgtSumMF(lev,rhs_sub[0],0,false);
-            ParallelDescriptor::ReduceRealSum(sum);
+            bool local = false;
+            Real sum = volWgtSumMF(lev,rhs_sub[0],0,dJ_sub,mfmx_sub,mfmy_sub,false,local);
 
             Real vol;
             if (solverChoice.mesh_type == MeshType::ConstantDz) {
                 vol = rhs_sub[0].boxArray().numPts();
             } else {
-                vol = dJ_sub.sum() / (dxInv[0] * dxInv[1] * dxInv[2]);
+                vol = dJ_sub.sum();
             }
-            sum /= vol;
+
+            sum /= (vol * dx[0] * dx[1] * dx[2]);
 
             for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
             {
@@ -393,7 +543,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             if (mg_verbose > 0) {
                 amrex::Print() << " Subtracting " << sum << " from rhs in subdomain " << isub << std::endl;
 
-                sum = volWgtSumMF(lev,rhs_sub[0],0,false);
+                sum = volWgtSumMF(lev,rhs_sub[0],0,dJ_sub,mfmx_sub,mfmy_sub,false,local);
                 Print() << "Sum after subtraction " << sum << " in subdomain " << isub << std::endl;
             }
 
@@ -430,7 +580,8 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
                 const Array4<Real const>& mf_uy = mapfac[lev][MapFacType::u_y]->const_array(mfi);
                 const Array4<Real const>& mf_vx = mapfac[lev][MapFacType::v_x]->const_array(mfi);
                 const Array4<Real const>& mf_vy = mapfac[lev][MapFacType::v_y]->const_array(mfi);
-                const Array4<Real const>& mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi); const Array4<Real const>& mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+                const Array4<Real const>& mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+                const Array4<Real const>& mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
                 ParallelFor(xbx,ybx,zbx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
@@ -447,68 +598,49 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             } // mfi
         }
 
-        if (lev > 0) {
-           amrex::Print() << "RHSSUB BA " << rhs_sub[0].boxArray() << std::endl;
-        }
+        if (solverChoice.terrain_type != TerrainType::EB) {
 
-        // ****************************************************************************
-        // EB
-        // ****************************************************************************
-        if (solverChoice.terrain_type == TerrainType::EB) {
-            solve_with_EB_mlmg(lev, rhs_sub, phi_sub, fluxes_sub);
-        } else {
+#ifdef ERF_USE_FFT
+        Box my_region(subdomains[lev][isub].minimalBox());
+#endif
 
         // ****************************************************************************
         // No terrain or grid stretching
         // ****************************************************************************
         if (solverChoice.mesh_type == MeshType::ConstantDz) {
+            if (will_solve_with_mlmg) {
+                solve_with_mlmg(lev, rhs_sub, phi_sub, fluxes_sub, geom[lev], ref_ratio, domain_bc_type,
+                                mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
+            } else {
 #ifdef ERF_USE_FFT
-            if (use_fft) {
-                Box my_region(subdomains[lev][isub].minimalBox());
-                bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
-                if (boxes_make_rectangle) {
-                    solve_with_fft(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
-                } else {
-                    amrex::Warning("FFT won't work unless the union of boxes is rectangular: defaulting to MLMG");
-                    solve_with_mlmg(lev, rhs_sub, phi_sub, fluxes_sub);
-                }
-        } else {
-            solve_with_mlmg(lev, rhs, phi, fluxes);
-        }
-#else
-        if (use_fft) {
-            amrex::Warning("You set use_fft=true but didn't build with USE_FFT = TRUE; defaulting to MLMG");
-        }
-        solve_with_mlmg(lev, rhs_sub, phi_sub, fluxes_sub);
+                solve_with_fft(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
 #endif
-    } // No terrain or grid stretching
-
-    // ****************************************************************************
-    // Grid stretching (flat terrain)
-    // ****************************************************************************
-    else if (solverChoice.mesh_type == MeshType::StretchedDz) {
-#ifndef ERF_USE_FFT
-        amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT solver");
-#else
-        Box my_region(subdomains[lev][isub].minimalBox());
-        bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
-        if (!boxes_make_rectangle) {
-            amrex::Abort("FFT won't work unless the union of boxes is rectangular");
-        } else {
-            if (!use_fft) {
-                amrex::Warning("Using FFT even though you didn't set use_fft to true; it's the best choice");
             }
-            solve_with_fft(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
-        }
+        } // No terrain or grid stretching
+        // ****************************************************************************
+        // Grid stretching (flat terrain)
+        // ****************************************************************************
+        else if (solverChoice.mesh_type == MeshType::StretchedDz) {
+#ifndef ERF_USE_FFT
+            amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT solver");
+#else
+            bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
+            if (!boxes_make_rectangle) {
+                amrex::Abort("FFT won't work unless the union of boxes is rectangular");
+            } else {
+                if (!use_fft) {
+                    amrex::Warning("Using FFT even though you didn't set use_fft to true; it's the best choice");
+                }
+                solve_with_fft(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
+            }
 #endif
-    } // grid stretching
+        } // grid stretching
 
         // ****************************************************************************
         // General terrain
         // ****************************************************************************
         else if (solverChoice.mesh_type == MeshType::VariableDz) {
 #ifdef ERF_USE_FFT
-            Box my_region(subdomains[lev][isub].minimalBox());
             bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
             if (!boxes_make_rectangle) {
                 amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
@@ -553,8 +685,6 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
         } // MeshType::VariableDz
 
-        } // not EB
-
         // ****************************************************************************
         // Print time in solve
         // ****************************************************************************
@@ -562,7 +692,28 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
         if (mg_verbose > 0) {
             amrex::Print() << "Time in solve " << end_step - start_step << std::endl;
         }
+
+        } // not EB
     } // loop over subdomains (i)
+
+    // ****************************************************************************
+    // When using multigrid we can solve for all of the level at once, even if there
+    //      are disjoint regions
+    // ****************************************************************************
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        Real start_step_eb = static_cast<Real>(ParallelDescriptor::second());
+        solve_with_EB_mlmg(lev, rhs_sub, phi_sub, fluxes_sub,
+                           *(get_eb(lev).get_const_factory()),
+                           *(get_eb(lev).get_u_const_factory()),
+                           *(get_eb(lev).get_v_const_factory()),
+                           *(get_eb(lev).get_w_const_factory()),
+                           geom[lev], ref_ratio, domain_bc_type,
+                           mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
+        Real end_step_eb = static_cast<Real>(ParallelDescriptor::second());
+        if (mg_verbose > 0) {
+            amrex::Print() << "Time in solve " << end_step_eb - start_step_eb << std::endl;
+        }
+    }
 
     // ****************************************************************************
     // Subtract dt grad(phi) from the momenta (rho0u, rho0v, Omega)
@@ -593,9 +744,14 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
     //
     if (mg_verbose > 0)
     {
+        rho0_u_const[0] = &mom_mf[IntVars::xmom];
+        rho0_u_const[1] = &mom_mf[IntVars::ymom];
+        rho0_u_const[2] = &mom_mf[IntVars::zmom];
+
         compute_divergence(lev, rhs_lev, rho0_u_const, geom_tmp[0]);
 
-        Real sum = volWgtSumMF(lev,rhs_lev,0,false);
+        bool local = false;
+        Real sum = volWgtSumMF(lev,rhs_lev,0,*detJ_cc[lev],*mapfac[lev][MapFacType::m_x],*mapfac[lev][MapFacType::m_y],false,local);
 
         if (mg_verbose > 0) {
             Print() << "Max/L2 norm of divergence after  solve at level " << lev << " : " << rhs_lev.norm0() << " " <<
@@ -610,7 +766,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
             Box bx = mfi.validbox();
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 if (std::abs(rhs_arr(i,j,k)) > 1.e-10) {
-                    amrex::AllPrint() << "RHS AFTER SOLVE AT " <<
+                    amrex::AllPrint() << "RHS after solve at " <<
                                           IntVect(i,j,k) << " " << rhs_arr(i,j,k) << std::endl;
                 }
             });
@@ -646,7 +802,7 @@ void ERF::project_momenta (int lev, Real l_dt, Vector<MultiFab>& mom_mf)
 
     // If !fixed_density, we must convert (rho0 u) back
     // to (rho0 u) which is what we will pass back out
-    if (!solverChoice.fixed_density) {
+    if (!solverChoice.fixed_density[lev]) {
         ConvertForProjection(r_hse, mom_mf[Vars::cons],
                              mom_mf[IntVars::xmom],
                              mom_mf[IntVars::ymom],
