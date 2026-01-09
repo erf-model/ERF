@@ -113,7 +113,6 @@ Problem::init_custom_pert (
 
     const int khi = geomdata.Domain().bigEnd()[2];
 
-    Print() << "The values are " << bx.length()[2] << " " << khi+1 << "\n";
     if(bx.length()[2] != khi+1){
         Print() << "The unequal values are " << bx.length()[2] << " " << khi+1 << "\n";
     }
