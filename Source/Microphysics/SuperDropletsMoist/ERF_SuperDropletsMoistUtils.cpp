@@ -4,6 +4,8 @@
 
 #ifdef ERF_USE_PARTICLES
 
+using namespace amrex;
+
 /*! Copy moisture model variables from the conserved state vector to the
     member multifabs in this object, compute and save pressure and temperature */
 void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!< Conserved variables */)

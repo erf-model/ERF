@@ -3,6 +3,8 @@
 
 #ifdef ERF_USE_PARTICLES
 
+using namespace amrex;
+
 /*! Compute phase change for a timestep: shrink/grow the super-droplet particles
     for a timestep, depending on the ambient flow conditions (saturation ratio,
     saturation pressure, and temperature). Update the Eulerial vapour and condensate

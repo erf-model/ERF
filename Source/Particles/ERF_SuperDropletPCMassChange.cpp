@@ -8,6 +8,7 @@
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using namespace SDPCDefn;
 using namespace SDMassChangeUtils;
 
 /*! Compute mass change of particles due to evaporation and condensation */

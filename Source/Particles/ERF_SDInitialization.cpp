@@ -1,6 +1,8 @@
 #include <cmath>
 #include "ERF_SDInitialization.H"
 
+using MatVec = std::vector<std::unique_ptr<MaterialProperties>>;
+
 void SDInitProperties::setDefaults ( const amrex::Geometry& a_geom,
                                      const MatVec& a_species_mat,
                                      const MatVec& a_aerosol_mat )

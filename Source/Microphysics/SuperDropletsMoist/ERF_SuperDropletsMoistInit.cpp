@@ -6,6 +6,8 @@
 
 #ifdef ERF_USE_PARTICLES
 
+using namespace amrex;
+
 /*! Define the super-droplet moisture model parameters from provided inputs */
 void SuperDropletsMoist::Define (SolverChoice& a_sc /*!< Solver choices */)
 {

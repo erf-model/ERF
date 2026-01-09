@@ -5,6 +5,7 @@
 #include <AMReX_TracerParticle_mod_K.H>
 
 using namespace amrex;
+using namespace SDPCDefn;
 
 /*! Handle the boundaries for the particles */
 void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,

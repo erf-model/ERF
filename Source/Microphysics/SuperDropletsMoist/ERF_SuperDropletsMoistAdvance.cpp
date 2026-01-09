@@ -3,6 +3,8 @@
 
 #ifdef ERF_USE_PARTICLES
 
+using namespace amrex;
+
 /*! Advance the moisture model for a timestep: evolve the super-droplet particles
     for a timestep - this includes nucleation, advection, and coalescence */
 void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */

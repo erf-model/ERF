@@ -14,8 +14,6 @@
 #include "ERF_Constants.H"
 #include "ERF_MaterialProperties.H"
 
-using MatVec = std::vector<std::unique_ptr<MaterialProperties>>;
-
 AMREX_ENUM(SDInitShape,
     uniform,
     bubble,
@@ -45,6 +43,8 @@ AMREX_ENUM(SDMultiplicityType,
 class SDInitProperties
 {
     public:
+
+        using MatVec = std::vector<std::unique_ptr<MaterialProperties>>;
 
         /*!< Initial number of super-droplets per cell */
         int m_ppc = 1;
