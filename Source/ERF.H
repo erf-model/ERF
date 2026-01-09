@@ -189,8 +189,8 @@ public:
                              amrex::Geometry const& geom_at_lev);
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
-    void project_velocity (int lev, amrex::Real time, amrex::Real dt);
-    void project_momenta (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars);
+    void project_initial_velocity (int lev, amrex::Real time, amrex::Real dt);
+    void project_momenta (int lev, amrex::Real l_time, amrex::Real l_dt, amrex::Vector<amrex::MultiFab >& vars);
 
     // Project the velocities to be divergence-free with a thin body
     void project_velocity_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars);
