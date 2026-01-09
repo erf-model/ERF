@@ -61,6 +61,10 @@ public:
     void
     Set_dzmin (const amrex::Real /*dz_min*/) { }
 
+    virtual
+    void
+    Set_RealWidth (const int /*real_width*/) { }
+
 protected:
 
 private:

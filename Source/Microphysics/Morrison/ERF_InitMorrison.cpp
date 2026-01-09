@@ -20,7 +20,7 @@ using namespace amrex;
  */
 void
 Morrison::Init (const MultiFab& cons_in,
-                const BoxArray& grids,
+                const BoxArray& /*grids*/,
                 const Geometry& geom,
                 const Real& dt_advance,
                 std::unique_ptr<MultiFab>& z_phys_nd,
@@ -28,7 +28,6 @@ Morrison::Init (const MultiFab& cons_in,
 {
     [[maybe_unused]] amrex::Real dt     = dt_advance;
     m_geom = geom;
-    m_gtoe = grids;
 
     m_z_phys_nd = z_phys_nd.get();
     m_detJ_cc   = detJ_cc.get();

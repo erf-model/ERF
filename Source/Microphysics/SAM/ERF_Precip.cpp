@@ -46,6 +46,12 @@ SAM::Precip (const SolverChoice& sc)
         SAM_moisture_type = 2;
     }
 
+    auto domain = m_geom.Domain();
+    int i_lo = domain.smallEnd(0);
+    int i_hi = domain.bigEnd(0);
+    int j_lo = domain.smallEnd(1);
+    int j_hi = domain.bigEnd(1);
+
     // get the temperature, density, theta, qt and qp from input
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]),TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
@@ -65,9 +71,13 @@ SAM::Precip (const SolverChoice& sc)
         auto qpg_array   = mic_fab_vars[MicVar::qpg]->array(mfi);
         auto qp_array    = mic_fab_vars[MicVar::qp]->array(mfi);
 
-        const auto& box3d = mfi.tilebox();
+        auto tbx = mfi.tilebox();
+        if (tbx.smallEnd(0) == i_lo) { tbx.growLo(0,-m_real_width); }
+        if (tbx.bigEnd(0)   == i_hi) { tbx.growHi(0,-m_real_width); }
+        if (tbx.smallEnd(1) == j_lo) { tbx.growLo(1,-m_real_width); }
+        if (tbx.bigEnd(1)   == j_hi) { tbx.growHi(1,-m_real_width); }
 
-        ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             //------- Autoconversion/accretion
             Real omn, omp, omg;

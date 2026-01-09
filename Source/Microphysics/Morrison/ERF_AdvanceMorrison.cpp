@@ -500,29 +500,39 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
     // wrapper to do all the updating
     void
-    Morrison::Advance (const amrex::Real& dt_advance,
+    Morrison::Advance (const Real& dt_advance,
                        const SolverChoice& sc)
     {
         // Expose for GPU
         bool do_cond = m_do_cond;
 
         // Store timestep
-        amrex::Real dt = dt_advance;
+        Real dt = dt_advance;
+
+        auto domain = m_geom.Domain();
+        int i_lo = domain.smallEnd(0);
+        int i_hi = domain.bigEnd(0);
+        int j_lo = domain.smallEnd(1);
+        int j_hi = domain.bigEnd(1);
 
         // Loop through the grids
-        for (amrex::MFIter mfi(*mic_fab_vars[MicVar_Morr::qcl],TileNoZ()); mfi.isValid(); ++mfi)
+        for (MFIter mfi(*mic_fab_vars[MicVar_Morr::qcl],TileNoZ()); mfi.isValid(); ++mfi)
         {
-          const amrex::Box& box = mfi.tilebox();
+          auto box = mfi.tilebox();
+          if (box.smallEnd(0) == i_lo) { box.growLo(0,-m_real_width); }
+          if (box.bigEnd(0)   == i_hi) { box.growHi(0,-m_real_width); }
+          if (box.smallEnd(1) == j_lo) { box.growLo(1,-m_real_width); }
+          if (box.bigEnd(1)   == j_hi) { box.growHi(1,-m_real_width); }
 
           // Get array data from class member variables
           auto const& theta_arr = mic_fab_vars[MicVar_Morr::theta]->array(mfi);
-          auto const& qv_arr = mic_fab_vars[MicVar_Morr::qv]->array(mfi);
-          auto const& qcl_arr = mic_fab_vars[MicVar_Morr::qcl]->array(mfi);
-          auto const& qpr_arr = mic_fab_vars[MicVar_Morr::qpr]->array(mfi);
-          auto const& qci_arr = mic_fab_vars[MicVar_Morr::qci]->array(mfi);
-          auto const& qps_arr = mic_fab_vars[MicVar_Morr::qps]->array(mfi);
-          auto const& qpg_arr = mic_fab_vars[MicVar_Morr::qpg]->array(mfi);
-          auto const& ni_arr = mic_fab_vars[MicVar_Morr::ni]->array(mfi);
+          auto const& qv_arr    = mic_fab_vars[MicVar_Morr::qv]->array(mfi);
+          auto const& qcl_arr   = mic_fab_vars[MicVar_Morr::qcl]->array(mfi);
+          auto const& qpr_arr   = mic_fab_vars[MicVar_Morr::qpr]->array(mfi);
+          auto const& qci_arr   = mic_fab_vars[MicVar_Morr::qci]->array(mfi);
+          auto const& qps_arr   = mic_fab_vars[MicVar_Morr::qps]->array(mfi);
+          auto const& qpg_arr   = mic_fab_vars[MicVar_Morr::qpg]->array(mfi);
+          auto const& ni_arr    = mic_fab_vars[MicVar_Morr::ni]->array(mfi);
           [[maybe_unused]] auto const& nc_arr = mic_fab_vars[MicVar_Morr::nc]->array(mfi);
           auto const& ns_arr = mic_fab_vars[MicVar_Morr::ns]->array(mfi);
           auto const& nr_arr = mic_fab_vars[MicVar_Morr::nr]->array(mfi);
@@ -530,8 +540,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           [[maybe_unused]] auto const& rho_arr = mic_fab_vars[MicVar_Morr::rho]->array(mfi);
           auto const& pres_arr = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
           [[maybe_unused]] auto const& tabs_arr = mic_fab_vars[MicVar_Morr::tabs]->array(mfi);
-          auto const& rain_accum_arr = mic_fab_vars[MicVar_Morr::rain_accum]->array(mfi);
-          auto const& snow_accum_arr = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
+          auto const& rain_accum_arr  = mic_fab_vars[MicVar_Morr::rain_accum]->array(mfi);
+          auto const& snow_accum_arr  = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
           auto const& graup_accum_arr = mic_fab_vars[MicVar_Morr::graup_accum]->array(mfi);
           auto const& w_arr = mic_fab_vars[MicVar_Morr::omega]->array(mfi);
 
@@ -547,7 +557,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           const int klo = box.loVect()[2];
           const int khi = box.hiVect()[2];
 
-          amrex::Box grown_box(box); grown_box.grow(3);
+          Box grown_box(box); grown_box.grow(3);
 #ifdef ERF_USE_MORR_FORT
           const int ilom = grown_box.loVect()[0];
           const int ihim = grown_box.hiVect()[0];
@@ -561,9 +571,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           FArrayBox pii_fab(grown_box, 1);
           auto const& pii_arr = pii_fab.array();
 
-          const amrex::Real p0 = 100000.0; // Reference pressure (Pa)
+          const Real p0 = 100000.0; // Reference pressure (Pa)
 
-          const amrex::Real rdcp = m_rdOcp; // R/cp ratio
+          const Real rdcp = m_rdOcp; // R/cp ratio
 
           // Calculate Exner function
           ParallelFor(grown_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -603,9 +613,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           });
 
           // Create terrain height array (not actually used by Morrison scheme)
-          FArrayBox ht_fab(amrex::Box(amrex::IntVect(ilo, jlo, 0), amrex::IntVect(ihi, jhi, 0)), 1);
+          FArrayBox ht_fab(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), 1);
           [[maybe_unused]] auto const& ht_arr = ht_fab.array();
-          ParallelFor(amrex::Box(amrex::IntVect(ilo, jlo, 0), amrex::IntVect(ihi, jhi, 0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+          ParallelFor(Box(IntVect(ilo, jlo, 0), IntVect(ihi, jhi, 0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             ht_arr(i,j,k) = 0.0;  // Not used by Morrison scheme
           });
 
@@ -687,95 +697,96 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           [[maybe_unused]] bool m_do_radar_ref = false;  // Radar reflectivity calculation flag
 
           // Physical constants
-          amrex::Real m_pi;          // Pi constant
-          amrex::Real m_R;           // Gas constant for dry air (J/kg/K)
-          amrex::Real m_Rd;           // Gas constant for dry air (J/kg/K)
-          amrex::Real m_Rv;          // Gas constant for water vapor (J/kg/K)
-          [[maybe_unused]] amrex::Real m_cp;          // Specific heat at constant pressure (J/kg/K)
-          amrex::Real m_g;           // Gravitational acceleration (m/s^2)
-          amrex::Real m_ep_2;        // Molecular weight ratio (Rd/Rv)
+          Real m_pi;          // Pi constant
+          Real m_R;           // Gas constant for dry air (J/kg/K)
+          Real m_Rd;           // Gas constant for dry air (J/kg/K)
+          Real m_Rv;          // Gas constant for water vapor (J/kg/K)
+          [[maybe_unused]] Real m_cp;          // Specific heat at constant pressure (J/kg/K)
+          Real m_g;           // Gravitational acceleration (m/s^2)
+          Real m_ep_2;        // Molecular weight ratio (Rd/Rv)
 
           // Reference density and species densities
-          amrex::Real m_rhosu;       // Standard air density at 850 mb (kg/m^3)
-          amrex::Real m_rhow;        // Density of liquid water (kg/m^3)
-          amrex::Real m_rhoi;        // Bulk density of cloud ice (kg/m^3)
-          amrex::Real m_rhosn;       // Bulk density of snow (kg/m^3)
-          amrex::Real m_rhog;        // Bulk density of graupel/hail (kg/m^3)
+          Real m_rhosu;       // Standard air density at 850 mb (kg/m^3)
+          Real m_rhow;        // Density of liquid water (kg/m^3)
+          Real m_rhoi;        // Bulk density of cloud ice (kg/m^3)
+          Real m_rhosn;       // Bulk density of snow (kg/m^3)
+          Real m_rhog;        // Bulk density of graupel/hail (kg/m^3)
 
           // Fall speed parameters (V=AD^B)
-          amrex::Real m_ai, m_bi;    // Cloud ice fall speed parameters
-          [[maybe_unused]] amrex::Real m_ac, m_bc;    // Cloud droplet fall speed parameters
-          amrex::Real m_as, m_bs;    // Snow fall speed parameters
-          amrex::Real m_ar, m_br;    // Rain fall speed parameters
-          amrex::Real m_ag, m_bg;    // Graupel/hail fall speed parameters
+          Real m_ai, m_bi;    // Cloud ice fall speed parameters
+          [[maybe_unused]] Real m_ac, m_bc;    // Cloud droplet fall speed parameters
+          Real m_as, m_bs;    // Snow fall speed parameters
+          Real m_ar, m_br;    // Rain fall speed parameters
+          Real m_ag, m_bg;    // Graupel/hail fall speed parameters
 
           // Microphysical parameters
-          amrex::Real m_aimm;        // Parameter in Bigg immersion freezing
-          amrex::Real m_bimm;        // Parameter in Bigg immersion freezing
-          amrex::Real m_ecr;         // Collection efficiency between droplets/rain and snow/rain
-          amrex::Real m_dcs;         // Threshold size for cloud ice autoconversion (m)
-          amrex::Real m_mi0;         // Initial mass of nucleated ice crystal (kg)
-          amrex::Real m_mg0;         // Mass of embryo graupel (kg)
-          amrex::Real m_f1s;         // Ventilation parameter for snow
-          amrex::Real m_f2s;         // Ventilation parameter for snow
-          amrex::Real m_f1r;         // Ventilation parameter for rain
-          amrex::Real m_f2r;         // Ventilation parameter for rain
-          amrex::Real m_qsmall;      // Smallest allowed hydrometeor mixing ratio
-          amrex::Real m_eii;         // Collection efficiency, ice-ice collisions
-          amrex::Real m_eci;         // Collection efficiency, ice-droplet collisions
-          amrex::Real m_cpw;         // Specific heat of liquid water (J/kg/K)
-          amrex::Real m_rin;         // Radius of contact nuclei (m)
-          amrex::Real m_mmult;       // Mass of splintered ice particle (kg)
+          Real m_aimm;        // Parameter in Bigg immersion freezing
+          Real m_bimm;        // Parameter in Bigg immersion freezing
+          Real m_ecr;         // Collection efficiency between droplets/rain and snow/rain
+          Real m_dcs;         // Threshold size for cloud ice autoconversion (m)
+          Real m_mi0;         // Initial mass of nucleated ice crystal (kg)
+          Real m_mg0;         // Mass of embryo graupel (kg)
+          Real m_f1s;         // Ventilation parameter for snow
+          Real m_f2s;         // Ventilation parameter for snow
+          Real m_f1r;         // Ventilation parameter for rain
+          Real m_f2r;         // Ventilation parameter for rain
+          Real m_qsmall;      // Smallest allowed hydrometeor mixing ratio
+          Real m_eii;         // Collection efficiency, ice-ice collisions
+          Real m_eci;         // Collection efficiency, ice-droplet collisions
+          Real m_cpw;         // Specific heat of liquid water (J/kg/K)
+          Real m_rin;         // Radius of contact nuclei (m)
+          Real m_mmult;       // Mass of splintered ice particle (kg)
 
           // Size distribution parameters
-          amrex::Real m_ci, m_di;    // Cloud ice size distribution parameters
-          amrex::Real m_cs, m_ds;    // Snow size distribution parameters
-          amrex::Real m_cg, m_dg;    // Graupel size distribution parameters
+          Real m_ci, m_di;    // Cloud ice size distribution parameters
+          Real m_cs, m_ds;    // Snow size distribution parameters
+          Real m_cg, m_dg;    // Graupel size distribution parameters
 
           // Lambda limits for size distributions
-          amrex::Real m_lammaxi, m_lammini;    // Cloud ice lambda limits
-          amrex::Real m_lammaxr, m_lamminr;    // Rain lambda limits
-          amrex::Real m_lammaxs, m_lammins;    // Snow lambda limits
-          amrex::Real m_lammaxg, m_lamming;    // Graupel lambda limits
+          Real m_lammaxi, m_lammini;    // Cloud ice lambda limits
+          Real m_lammaxr, m_lamminr;    // Rain lambda limits
+          Real m_lammaxs, m_lammins;    // Snow lambda limits
+          Real m_lammaxg, m_lamming;    // Graupel lambda limits
 
           // Constant droplet concentration (if INUM = 1)
-          amrex::Real m_ndcnst = 250.0;  // Droplet number concentration (cm^-3)
+          Real m_ndcnst = 250.0;  // Droplet number concentration (cm^-3)
 
           // CCN spectra parameters (for IACT = 1)
-          [[maybe_unused]] amrex::Real m_k1;          // Exponent in CCN activation formula
-          [[maybe_unused]] amrex::Real m_c1;          // Coefficient in CCN activation formula (cm^-3)
+          [[maybe_unused]] Real m_k1;          // Exponent in CCN activation formula
+          [[maybe_unused]] Real m_c1;          // Coefficient in CCN activation formula (cm^-3)
 
           // Aerosol activation parameters (for IACT = 2)
-          [[maybe_unused]] amrex::Real m_mw;          // Molecular weight water (kg/mol)
-          [[maybe_unused]] amrex::Real m_osm;         // Osmotic coefficient
-          [[maybe_unused]] amrex::Real m_vi;          // Number of ions dissociated in solution
-          [[maybe_unused]] amrex::Real m_epsm;        // Aerosol soluble fraction
-          [[maybe_unused]] amrex::Real m_rhoa;        // Aerosol bulk density (kg/m^3)
-          [[maybe_unused]] amrex::Real m_map;         // Molecular weight aerosol (kg/mol)
-          [[maybe_unused]] amrex::Real m_ma;          // Molecular weight of air (kg/mol)
-          [[maybe_unused]] amrex::Real m_rr;          // Universal gas constant (J/mol/K)
-          [[maybe_unused]] amrex::Real m_bact;        // Activation parameter
-          [[maybe_unused]] amrex::Real m_rm1;         // Geometric mean radius, mode 1 (m)
-          [[maybe_unused]] amrex::Real m_rm2;         // Geometric mean radius, mode 2 (m)
-          amrex::Real m_nanew1;      // Total aerosol concentration, mode 1 (m^-3)
-          amrex::Real m_nanew2;      // Total aerosol concentration, mode 2 (m^-3)
-          [[maybe_unused]] amrex::Real m_sig1;        // Standard deviation of aerosol dist, mode 1
-          [[maybe_unused]] amrex::Real m_sig2;        // Standard deviation of aerosol dist, mode 2
-          [[maybe_unused]] amrex::Real m_f11;         // Correction factor for activation, mode 1
-          [[maybe_unused]] amrex::Real m_f12;         // Correction factor for activation, mode 1
-          [[maybe_unused]] amrex::Real m_f21;         // Correction factor for activation, mode 2
-          [[maybe_unused]] amrex::Real m_f22;         // Correction factor for activation, mode 2
+          [[maybe_unused]] Real m_mw;          // Molecular weight water (kg/mol)
+          [[maybe_unused]] Real m_osm;         // Osmotic coefficient
+          [[maybe_unused]] Real m_vi;          // Number of ions dissociated in solution
+          [[maybe_unused]] Real m_epsm;        // Aerosol soluble fraction
+          [[maybe_unused]] Real m_rhoa;        // Aerosol bulk density (kg/m^3)
+          [[maybe_unused]] Real m_map;         // Molecular weight aerosol (kg/mol)
+          [[maybe_unused]] Real m_ma;          // Molecular weight of air (kg/mol)
+          [[maybe_unused]] Real m_rr;          // Universal gas constant (J/mol/K)
+          [[maybe_unused]] Real m_bact;        // Activation parameter
+          [[maybe_unused]] Real m_rm1;         // Geometric mean radius, mode 1 (m)
+          [[maybe_unused]] Real m_rm2;         // Geometric mean radius, mode 2 (m)
+          Real m_nanew1;      // Total aerosol concentration, mode 1 (m^-3)
+          Real m_nanew2;      // Total aerosol concentration, mode 2 (m^-3)
+          [[maybe_unused]] Real m_sig1;        // Standard deviation of aerosol dist, mode 1
+          [[maybe_unused]] Real m_sig2;        // Standard deviation of aerosol dist, mode 2
+          [[maybe_unused]] Real m_f11;         // Correction factor for activation, mode 1
+          [[maybe_unused]] Real m_f12;         // Correction factor for activation, mode 1
+          [[maybe_unused]] Real m_f21;         // Correction factor for activation, mode 2
+          [[maybe_unused]] Real m_f22;         // Correction factor for activation, mode 2
 
           // Precomputed constants for efficiency
-          amrex::Real m_cons1, m_cons2, m_cons3, m_cons4, m_cons5;
-          amrex::Real m_cons6, m_cons7, m_cons8, m_cons9, m_cons10;
-          amrex::Real m_cons11, m_cons12, m_cons13, m_cons14, m_cons15;
-          amrex::Real m_cons16, m_cons17, m_cons18, m_cons19, m_cons20;
-          amrex::Real m_cons21, m_cons22, m_cons23, m_cons24, m_cons25;
-          amrex::Real m_cons26, m_cons27, m_cons28, m_cons29; [[maybe_unused]] amrex::Real m_cons30;
-          amrex::Real m_cons31, m_cons32, m_cons34, m_cons35; [[maybe_unused]] amrex::Real m_cons33;
-          amrex::Real m_cons36, m_cons37, m_cons38, m_cons39, m_cons40;
-          amrex::Real m_cons41;
+          Real m_cons1, m_cons2, m_cons3, m_cons4, m_cons5;
+          Real m_cons6, m_cons7, m_cons8, m_cons9, m_cons10;
+          Real m_cons11, m_cons12, m_cons13, m_cons14, m_cons15;
+          Real m_cons16, m_cons17, m_cons18, m_cons19, m_cons20;
+          Real m_cons21, m_cons22, m_cons23, m_cons24, m_cons25;
+          Real m_cons26, m_cons27, m_cons28, m_cons29; [[maybe_unused]] amrex::Real m_cons30;
+          Real m_cons31, m_cons32, m_cons34, m_cons35; [[maybe_unused]] amrex::Real m_cons33;
+          Real m_cons36, m_cons37, m_cons38, m_cons39, m_cons40;
+          Real m_cons41;
+
           // Set microphysics control parameters
           m_inum = 1;           // Use constant droplet number concentration
           m_ndcnst = 250.0;     // Droplet number concentration (cm^-3)
@@ -1013,7 +1024,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           m_ihail = 0;          // Use graupel (0) instead of hail (1)
           m_isub = 0;           // Sub-grid vertical velocity option
           m_do_radar_ref = false; // Disable radar reflectivity by default
-          amrex::Box boxD(box); boxD.makeSlab(2,0);
+          Box boxD(box); boxD.makeSlab(2,0);
 
           ParmParse pp("erf");
 
@@ -1082,126 +1093,126 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             //amrex::Real morr_arr(i,j,k,MORRInd::lami);               // LAMI: Slope parameter for cloud ice (m^-1)
 
             // Microphysical processes
-            [[maybe_unused]] amrex::Real nsubc;              // NSUBC: Loss of NC during evaporation
-            amrex::Real nsubi;              // NSUBI: Loss of NI during sublimation
-            amrex::Real nsubs;              // NSUBS: Loss of NS during sublimation
-            amrex::Real nsubr;              // NSUBR: Loss of NR during evaporation
-            amrex::Real prd;                // PRD: Deposition cloud ice
-            amrex::Real pre;                // PRE: Evaporation of rain
-            amrex::Real prds;               // PRDS: Deposition snow
-            amrex::Real nnuccc;             // NNUCCC: Change N due to contact freezing droplets
-            amrex::Real mnuccc;             // MNUCCC: Change Q due to contact freezing droplets
-            amrex::Real pra;                // PRA: Accretion droplets by rain
-            amrex::Real prc;                // PRC: Autoconversion droplets
-            amrex::Real pcc;                // PCC: Condensation/evaporation droplets
-            amrex::Real nnuccd;             // NNUCCD: Change N freezing aerosol (primary ice nucleation)
-            amrex::Real mnuccd;             // MNUCCD: Change Q freezing aerosol (primary ice nucleation)
-            amrex::Real mnuccr;             // MNUCCR: Change Q due to contact freezing rain
-            amrex::Real nnuccr;             // NNUCCR: Change N due to contact freezing rain
-            amrex::Real npra;               // NPRA: Change N due to droplet accretion by rain
-            amrex::Real nragg;              // NRAGG: Self-collection/breakup of rain
-            amrex::Real nsagg;              // NSAGG: Self-collection of snow
-            amrex::Real nprc;               // NPRC: Change NC autoconversion droplets
-            amrex::Real nprc1;              // NPRC1: Change NR autoconversion droplets
-            amrex::Real prai;               // PRAI: Change Q accretion cloud ice by snow
-            amrex::Real prci;               // PRCI: Change Q autoconversion cloud ice to snow
-            amrex::Real psacws;             // PSACWS: Change Q droplet accretion by snow
-            amrex::Real npsacws;            // NPSACWS: Change N droplet accretion by snow
-            amrex::Real psacwi;             // PSACWI: Change Q droplet accretion by cloud ice
-            amrex::Real npsacwi;            // NPSACWI: Change N droplet accretion by cloud ice
-            amrex::Real nprci;              // NPRCI: Change N autoconversion cloud ice by snow
-            amrex::Real nprai;              // NPRAI: Change N accretion cloud ice
-            amrex::Real nmults;             // NMULTS: Ice multiplication due to riming droplets by snow
-            amrex::Real nmultr;             // NMULTR: Ice multiplication due to riming rain by snow
-            amrex::Real qmults;             // QMULTS: Change Q due to ice multiplication droplets/snow
-            amrex::Real qmultr;             // QMULTR: Change Q due to ice multiplication rain/snow
-            amrex::Real pracs;              // PRACS: Change Q rain-snow collection
-            amrex::Real npracs;             // NPRACS: Change N rain-snow collection
-            [[maybe_unused]] amrex::Real pccn;               // PCCN: Change Q droplet activation
-            amrex::Real psmlt;              // PSMLT: Change Q melting snow to rain
-            amrex::Real evpms;              // EVPMS: Change Q melting snow evaporating
-            amrex::Real nsmlts;             // NSMLTS: Change N melting snow
-            amrex::Real nsmltr;             // NSMLTR: Change N melting snow to rain
-            amrex::Real piacr;              // PIACR: Change QR, ice-rain collection
-            amrex::Real niacr;              // NIACR: Change N, ice-rain collection
-            amrex::Real praci;              // PRACI: Change QI, ice-rain collection
-            amrex::Real piacrs;             // PIACRS: Change QR, ice rain collision, added to snow
-            amrex::Real niacrs;             // NIACRS: Change N, ice rain collision, added to snow
-            amrex::Real pracis;             // PRACIS: Change QI, ice rain collision, added to snow
-            amrex::Real eprd;               // EPRD: Sublimation cloud ice
-            amrex::Real eprds;              // EPRDS: Sublimation snow
+            [[maybe_unused]] Real nsubc;              // NSUBC: Loss of NC during evaporation
+            Real nsubi;              // NSUBI: Loss of NI during sublimation
+            Real nsubs;              // NSUBS: Loss of NS during sublimation
+            Real nsubr;              // NSUBR: Loss of NR during evaporation
+            Real prd;                // PRD: Deposition cloud ice
+            Real pre;                // PRE: Evaporation of rain
+            Real prds;               // PRDS: Deposition snow
+            Real nnuccc;             // NNUCCC: Change N due to contact freezing droplets
+            Real mnuccc;             // MNUCCC: Change Q due to contact freezing droplets
+            Real pra;                // PRA: Accretion droplets by rain
+            Real prc;                // PRC: Autoconversion droplets
+            Real pcc;                // PCC: Condensation/evaporation droplets
+            Real nnuccd;             // NNUCCD: Change N freezing aerosol (primary ice nucleation)
+            Real mnuccd;             // MNUCCD: Change Q freezing aerosol (primary ice nucleation)
+            Real mnuccr;             // MNUCCR: Change Q due to contact freezing rain
+            Real nnuccr;             // NNUCCR: Change N due to contact freezing rain
+            Real npra;               // NPRA: Change N due to droplet accretion by rain
+            Real nragg;              // NRAGG: Self-collection/breakup of rain
+            Real nsagg;              // NSAGG: Self-collection of snow
+            Real nprc;               // NPRC: Change NC autoconversion droplets
+            Real nprc1;              // NPRC1: Change NR autoconversion droplets
+            Real prai;               // PRAI: Change Q accretion cloud ice by snow
+            Real prci;               // PRCI: Change Q autoconversion cloud ice to snow
+            Real psacws;             // PSACWS: Change Q droplet accretion by snow
+            Real npsacws;            // NPSACWS: Change N droplet accretion by snow
+            Real psacwi;             // PSACWI: Change Q droplet accretion by cloud ice
+            Real npsacwi;            // NPSACWI: Change N droplet accretion by cloud ice
+            Real nprci;              // NPRCI: Change N autoconversion cloud ice by snow
+            Real nprai;              // NPRAI: Change N accretion cloud ice
+            Real nmults;             // NMULTS: Ice multiplication due to riming droplets by snow
+            Real nmultr;             // NMULTR: Ice multiplication due to riming rain by snow
+            Real qmults;             // QMULTS: Change Q due to ice multiplication droplets/snow
+            Real qmultr;             // QMULTR: Change Q due to ice multiplication rain/snow
+            Real pracs;              // PRACS: Change Q rain-snow collection
+            Real npracs;             // NPRACS: Change N rain-snow collection
+            [[maybe_unused]] Real pccn;               // PCCN: Change Q droplet activation
+            Real psmlt;              // PSMLT: Change Q melting snow to rain
+            Real evpms;              // EVPMS: Change Q melting snow evaporating
+            Real nsmlts;             // NSMLTS: Change N melting snow
+            Real nsmltr;             // NSMLTR: Change N melting snow to rain
+            Real piacr;              // PIACR: Change QR, ice-rain collection
+            Real niacr;              // NIACR: Change N, ice-rain collection
+            Real praci;              // PRACI: Change QI, ice-rain collection
+            Real piacrs;             // PIACRS: Change QR, ice rain collision, added to snow
+            Real niacrs;             // NIACRS: Change N, ice rain collision, added to snow
+            Real pracis;             // PRACIS: Change QI, ice rain collision, added to snow
+            Real eprd;               // EPRD: Sublimation cloud ice
+            Real eprds;              // EPRDS: Sublimation snow
 
             // Graupel processes
-            amrex::Real pracg;              // PRACG: Change in Q collection rain by graupel
-            amrex::Real psacwg;             // PSACWG: Change in Q collection droplets by graupel
-            amrex::Real pgsacw;             // PGSACW: Conversion Q to graupel due to collection droplets by snow
-            amrex::Real pgracs;             // PGRACS: Conversion Q to graupel due to collection rain by snow
-            amrex::Real prdg;               // PRDG: Deposition of graupel
-            amrex::Real eprdg;              // EPRDG: Sublimation of graupel
-            amrex::Real evpmg;              // EVPMG: Change Q melting of graupel and evaporation
-            amrex::Real pgmlt;              // PGMLT: Change Q melting of graupel
-            amrex::Real npracg;             // NPRACG: Change N collection rain by graupel
-            amrex::Real npsacwg;            // NPSACWG: Change N collection droplets by graupel
-            amrex::Real nscng;              // NSCNG: Change N conversion to graupel due to collection droplets by snow
-            amrex::Real ngracs;             // NGRACS: Change N conversion to graupel due to collection rain by snow
-            amrex::Real ngmltg;             // NGMLTG: Change N melting graupel
-            amrex::Real ngmltr;             // NGMLTR: Change N melting graupel to rain
-            amrex::Real nsubg;              // NSUBG: Change N sublimation/deposition of graupel
-            amrex::Real psacr;              // PSACR: Conversion due to collection of snow by rain
-            amrex::Real nmultg;             // NMULTG: Ice multiplication due to accretion droplets by graupel
-            amrex::Real nmultrg;            // NMULTRG: Ice multiplication due to accretion rain by graupel
-            amrex::Real qmultg;             // QMULTG: Change Q due to ice multiplication droplets/graupel
-            amrex::Real qmultrg;            // QMULTRG: Change Q due to ice multiplication rain/graupel
+            Real pracg;              // PRACG: Change in Q collection rain by graupel
+            Real psacwg;             // PSACWG: Change in Q collection droplets by graupel
+            Real pgsacw;             // PGSACW: Conversion Q to graupel due to collection droplets by snow
+            Real pgracs;             // PGRACS: Conversion Q to graupel due to collection rain by snow
+            Real prdg;               // PRDG: Deposition of graupel
+            Real eprdg;              // EPRDG: Sublimation of graupel
+            Real evpmg;              // EVPMG: Change Q melting of graupel and evaporation
+            Real pgmlt;              // PGMLT: Change Q melting of graupel
+            Real npracg;             // NPRACG: Change N collection rain by graupel
+            Real npsacwg;            // NPSACWG: Change N collection droplets by graupel
+            Real nscng;              // NSCNG: Change N conversion to graupel due to collection droplets by snow
+            Real ngracs;             // NGRACS: Change N conversion to graupel due to collection rain by snow
+            Real ngmltg;             // NGMLTG: Change N melting graupel
+            Real ngmltr;             // NGMLTR: Change N melting graupel to rain
+            Real nsubg;              // NSUBG: Change N sublimation/deposition of graupel
+            Real psacr;              // PSACR: Conversion due to collection of snow by rain
+            Real nmultg;             // NMULTG: Ice multiplication due to accretion droplets by graupel
+            Real nmultrg;            // NMULTRG: Ice multiplication due to accretion rain by graupel
+            Real qmultg;             // QMULTG: Change Q due to ice multiplication droplets/graupel
+            Real qmultrg;            // QMULTRG: Change Q due to ice multiplication rain/graupel
 
             // Time-varying atmospheric parameters
-            amrex::Real kap;                // KAP: Thermal conductivity of air
-            amrex::Real evs;                // EVS: Saturation vapor pressure
-            amrex::Real eis;                // EIS: Ice saturation vapor pressure
-            amrex::Real qvs;                // QVS: Saturation mixing ratio
-            amrex::Real qvi;                // QVI: Ice saturation mixing ratio
-            amrex::Real qvqvs;              // QVQVS: Saturation ratio
-            amrex::Real qvqvsi;             // QVQVSI: Ice saturation ratio
-            amrex::Real dv;                 // DV: Diffusivity of water vapor in air
-            amrex::Real sc_schmidt;         // SC: Schmidt number
-            amrex::Real ab;                 // AB: Correction to condensation rate due to latent heating
-            amrex::Real abi;                // ABI: Correction to deposition rate due to latent heating
+            Real kap;                // KAP: Thermal conductivity of air
+            Real evs;                // EVS: Saturation vapor pressure
+            Real eis;                // EIS: Ice saturation vapor pressure
+            Real qvs;                // QVS: Saturation mixing ratio
+            Real qvi;                // QVI: Ice saturation mixing ratio
+            Real qvqvs;              // QVQVS: Saturation ratio
+            Real qvqvsi;             // QVQVSI: Ice saturation ratio
+            Real dv;                 // DV: Diffusivity of water vapor in air
+            Real sc_schmidt;         // SC: Schmidt number
+            Real ab;                 // AB: Correction to condensation rate due to latent heating
+            Real abi;                // ABI: Correction to deposition rate due to latent heating
 
             // Dummy variables
-            amrex::Real dum;                // DUM: General dummy variable
-            amrex::Real dum1;               // DUM1: General dummy variable
-            [[maybe_unused]] amrex::Real dum2;               // DUM2: General dummy variable
-            amrex::Real dumt;               // DUMT: Dummy variable for temperature
-            amrex::Real dumqv;              // DUMQV: Dummy variable for water vapor
-            amrex::Real dumqss;             // DUMQSS: Dummy saturation mixing ratio
-            [[maybe_unused]] amrex::Real dumqsi;             // DUMQSI: Dummy ice saturation mixing ratio
-            amrex::Real dums;               // DUMS: General dummy variable
+            Real dum;                // DUM: General dummy variable
+            Real dum1;               // DUM1: General dummy variable
+            [[maybe_unused]] Real dum2;               // DUM2: General dummy variable
+            Real dumt;               // DUMT: Dummy variable for temperature
+            Real dumqv;              // DUMQV: Dummy variable for water vapor
+            Real dumqss;             // DUMQSS: Dummy saturation mixing ratio
+            [[maybe_unused]] Real dumqsi;             // DUMQSI: Dummy ice saturation mixing ratio
+            Real dums;               // DUMS: General dummy variable
 
             // Prognostic supersaturation
-            amrex::Real dqsdt;              // DQSDT: Change of saturation mixing ratio with temperature
-            amrex::Real dqsidt;             // DQSIDT: Change in ice saturation mixing ratio with temperature
+            Real dqsdt;              // DQSDT: Change of saturation mixing ratio with temperature
+            Real dqsidt;             // DQSIDT: Change in ice saturation mixing ratio with temperature
 
-            amrex::Real epsi;               // EPSI: 1/phase relaxation time (see M2005), ice
-            amrex::Real epss;               // EPSS: 1/phase relaxation time (see M2005), snow
-            amrex::Real epsr;               // EPSR: 1/phase relaxation time (see M2005), rain
-            amrex::Real epsg;               // EPSG: 1/phase relaxation time (see M2005), graupel
-            amrex::Real kc2;                // KC2: Total ice nucleation rate
-            amrex::Real di0;                // DC0: Characteristic diameter for ice
-            [[maybe_unused]] amrex::Real dc0;                // DC0: Characteristic diameter for cloud droplets
-            amrex::Real ds0;                // DS0: Characteristic diameter for snow
-            amrex::Real dg0;                // DG0: Characteristic diameter for graupel
-            amrex::Real dumqc;              // DUMQC: Dummy variable for cloud water mixing ratio
-            [[maybe_unused]] amrex::Real dumqr;              // DUMQR: Dummy variable for rain mixing ratio
-            amrex::Real ratio;              // RATIO: General ratio variable
-            amrex::Real sum_dep;            // SUM_DEP: Sum of deposition/sublimation
-            amrex::Real fudgef;             // FUDGEF: Adjustment factor
+            Real epsi;               // EPSI: 1/phase relaxation time (see M2005), ice
+            Real epss;               // EPSS: 1/phase relaxation time (see M2005), snow
+            Real epsr;               // EPSR: 1/phase relaxation time (see M2005), rain
+            Real epsg;               // EPSG: 1/phase relaxation time (see M2005), graupel
+            Real kc2;                // KC2: Total ice nucleation rate
+            Real di0;                // DC0: Characteristic diameter for ice
+            [[maybe_unused]] Real dc0;                // DC0: Characteristic diameter for cloud droplets
+            Real ds0;                // DS0: Characteristic diameter for snow
+            Real dg0;                // DG0: Characteristic diameter for graupel
+            Real dumqc;              // DUMQC: Dummy variable for cloud water mixing ratio
+            [[maybe_unused]] Real dumqr;              // DUMQR: Dummy variable for rain mixing ratio
+            Real ratio;              // RATIO: General ratio variable
+            Real sum_dep;            // SUM_DEP: Sum of deposition/sublimation
+            Real fudgef;             // FUDGEF: Adjustment factor
             // For WRF-CHEM
-            [[maybe_unused]] amrex::Real c2prec;             // C2PREC: Cloud to precipitation conversion
-            [[maybe_unused]] amrex::Real csed;               // CSED: Cloud sedimentation
-            [[maybe_unused]] amrex::Real ised;               // ISED: Ice sedimentation
-            [[maybe_unused]] amrex::Real ssed;               // SSED: Snow sedimentation
-            [[maybe_unused]] amrex::Real gsed;               // GSED: Graupel sedimentation
-            [[maybe_unused]] amrex::Real rsed;               // RSED: Rain sedimentation
-            [[maybe_unused]] amrex::Real tqimelt;            // tqimelt: Melting of cloud ice (tendency)
+            [[maybe_unused]] Real c2prec;             // C2PREC: Cloud to precipitation conversion
+            [[maybe_unused]] Real csed;               // CSED: Cloud sedimentation
+            [[maybe_unused]] Real ised;               // ISED: Ice sedimentation
+            [[maybe_unused]] Real ssed;               // SSED: Snow sedimentation
+            [[maybe_unused]] Real gsed;               // GSED: Graupel sedimentation
+            [[maybe_unused]] Real rsed;               // RSED: Rain sedimentation
+            [[maybe_unused]] Real tqimelt;            // tqimelt: Melting of cloud ice (tendency)
 
             // NC3DTEN LOCAL ARRAY INITIALIZED
             morr_arr(i,j,k,MORRInd::nc3dten) = 0.0;
@@ -1220,7 +1231,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             morr_arr(i,j,k,MORRInd::xxls) = 3.15E6 - 2370.0 * morr_arr(i,j,k,MORRInd::t3d) + 0.3337E6;
 
             // Assuming CP is a constant defined elsewhere (specific heat of dry air at constant pressure)
-            const amrex::Real CP = 1004.5; // J/kg/K
+            const Real CP = 1004.5; // J/kg/K
             morr_arr(i,j,k,MORRInd::cpm) = CP * (1.0 + 0.887 * morr_arr(i,j,k,MORRInd::qv3d));
 
             // SATURATION VAPOR PRESSURE AND MIXING RATIO
@@ -1301,7 +1312,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
             // IF MIXING RATIO < QSMALL SET MIXING RATIO AND NUMBER CONC TO ZERO
             // Note: QSMALL is not defined in the variable list, so I'll define it
-            const amrex::Real QSMALL = m_qsmall;
+            const Real QSMALL = m_qsmall;
 
             if (morr_arr(i,j,k,MORRInd::qc3d) < QSMALL) {
               morr_arr(i,j,k,MORRInd::qc3d) = 0.0;
@@ -1455,15 +1466,15 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   morr_arr(i,j,k,MORRInd::pgam) = amrex::min(morr_arr(i,j,k,MORRInd::pgam), 10.0);
 
                   // Calculate gamma function values
-                  amrex::Real gamma_pgam_plus_1 = gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 1.0);
-                  amrex::Real gamma_pgam_plus_4 = gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 4.0);
+                  Real gamma_pgam_plus_1 = gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 1.0);
+                  Real gamma_pgam_plus_4 = gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 4.0);
 
                   // Calculate lambda parameter
                   morr_arr(i,j,k,MORRInd::lamc) = pow((m_cons26 * morr_arr(i,j,k,MORRInd::nc3d) * gamma_pgam_plus_4) / (morr_arr(i,j,k,MORRInd::qc3d) * gamma_pgam_plus_1), 1.0/3.0);
 
                   // Lambda bounds from WRF - 60 micron max diameter, 1 micron min diameter
-                  amrex::Real lambda_min = (morr_arr(i,j,k,MORRInd::pgam) + 1.0)/60.0e-6;
-                  amrex::Real lambda_max = (morr_arr(i,j,k,MORRInd::pgam) + 1.0)/1.0e-6;
+                  Real lambda_min = (morr_arr(i,j,k,MORRInd::pgam) + 1.0)/60.0e-6;
+                  Real lambda_max = (morr_arr(i,j,k,MORRInd::pgam) + 1.0)/1.0e-6;
 
                   // Check bounds and update number concentration if needed
                   if (morr_arr(i,j,k,MORRInd::lamc) < lambda_min) {
@@ -1576,10 +1587,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // FORMULA FROM IKAWA AND SAITO (1991)
 
                 if (morr_arr(i,j,k,MORRInd::qr3d) >= 1.0e-8 && morr_arr(i,j,k,MORRInd::qni3d) >= 1.0e-8) {
-                  amrex::Real ums_local = morr_arr(i,j,k,MORRInd::asn) * m_cons3 / std::pow(morr_arr(i,j,k,MORRInd::lams), m_bs);
-                  amrex::Real umr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons4 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
-                  amrex::Real uns_local = morr_arr(i,j,k,MORRInd::asn) * m_cons5 / std::pow(morr_arr(i,j,k,MORRInd::lams), m_bs);
-                  amrex::Real unr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons6 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
+                  Real ums_local = morr_arr(i,j,k,MORRInd::asn) * m_cons3 / std::pow(morr_arr(i,j,k,MORRInd::lams), m_bs);
+                  Real umr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons4 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
+                  Real uns_local = morr_arr(i,j,k,MORRInd::asn) * m_cons5 / std::pow(morr_arr(i,j,k,MORRInd::lams), m_bs);
+                  Real unr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons6 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
 
                   // SET REALISTIC LIMITS ON FALLSPEEDS
                   // bug fix, 10/08/09
@@ -1607,10 +1618,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
                 if (morr_arr(i,j,k,MORRInd::qr3d) >= 1.0e-8 && morr_arr(i,j,k,MORRInd::qg3d) >= 1.0e-8) {
 
-                  amrex::Real umg_local = morr_arr(i,j,k,MORRInd::agn) * m_cons7 / std::pow(morr_arr(i,j,k,MORRInd::lamg), m_bg);
-                  amrex::Real umr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons4 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
-                  amrex::Real ung_local = morr_arr(i,j,k,MORRInd::agn) * m_cons8 / std::pow(morr_arr(i,j,k,MORRInd::lamg), m_bg);
-                  amrex::Real unr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons6 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
+                  Real umg_local = morr_arr(i,j,k,MORRInd::agn) * m_cons7 / std::pow(morr_arr(i,j,k,MORRInd::lamg), m_bg);
+                  Real umr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons4 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
+                  Real ung_local = morr_arr(i,j,k,MORRInd::agn) * m_cons8 / std::pow(morr_arr(i,j,k,MORRInd::lamg), m_bg);
+                  Real unr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons6 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
 
                   // SET REALISTIC LIMITS ON FALLSPEEDS
                   // bug fix, 10/08/09
@@ -1926,15 +1937,15 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 morr_arr(i,j,k,MORRInd::pgam) = amrex::min(morr_arr(i,j,k,MORRInd::pgam), 10.0);
 
                 // Calculate gamma function values
-                amrex::Real gamma_pgam_plus_1 = gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 1.0);
-                amrex::Real gamma_pgam_plus_4 = gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 4.0);
+                Real gamma_pgam_plus_1 = gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 1.0);
+                Real gamma_pgam_plus_4 = gamma_function(morr_arr(i,j,k,MORRInd::pgam) + 4.0);
 
                 // Calculate lambda parameter
                 morr_arr(i,j,k,MORRInd::lamc) = pow((m_cons26 * morr_arr(i,j,k,MORRInd::nc3d) * gamma_pgam_plus_4) / (morr_arr(i,j,k,MORRInd::qc3d) * gamma_pgam_plus_1), 1.0/3.0);
 
                 // Lambda bounds from WRF - 60 micron max diameter, 1 micron min diameter
-                amrex::Real lambda_min = (morr_arr(i,j,k,MORRInd::pgam) + 1.0)/60.0e-6;
-                amrex::Real lambda_max = (morr_arr(i,j,k,MORRInd::pgam) + 1.0)/1.0e-6;
+                Real lambda_min = (morr_arr(i,j,k,MORRInd::pgam) + 1.0)/60.0e-6;
+                Real lambda_max = (morr_arr(i,j,k,MORRInd::pgam) + 1.0)/1.0e-6;
 
                 // Check bounds and update number concentration if needed
                 if (morr_arr(i,j,k,MORRInd::lamc) < lambda_min) {
@@ -2085,14 +2096,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   // NUMBER OF CONTACT NUCLEI (M^-3) FROM MEYERS ET AL., 1992
                   // FACTOR OF 1000 IS TO CONVERT FROM L^-1 TO M^-3
                   // MEYERS CURVE
-                  amrex::Real nacnt = std::exp(-2.80 + 0.262 * (273.15 - morr_arr(i,j,k,MORRInd::t3d))) * 1000.0;
+                  Real nacnt = std::exp(-2.80 + 0.262 * (273.15 - morr_arr(i,j,k,MORRInd::t3d))) * 1000.0;
 
                   // MEAN FREE PATH
                   dum = 7.37 * morr_arr(i,j,k,MORRInd::t3d) / (288.0 * 10.0 * morr_arr(i,j,k,MORRInd::pres)) / 100.0;
 
                   // EFFECTIVE DIFFUSIVITY OF CONTACT NUCLEI
                   // BASED ON BROWNIAN DIFFUSION
-                  amrex::Real dap = m_cons37 * morr_arr(i,j,k,MORRInd::t3d) * (1.0 + dum / m_rin) / morr_arr(i,j,k,MORRInd::mu);
+                  Real dap = m_cons37 * morr_arr(i,j,k,MORRInd::t3d) * (1.0 + dum / m_rin) / morr_arr(i,j,k,MORRInd::mu);
 
                   // CONTACT FREEZING
                   mnuccc = m_cons38 * dap * nacnt * std::exp(std::log(morr_arr(i,j,k,MORRInd::cdist1)) +
@@ -2186,10 +2197,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // ACCRETION OF RAIN WATER BY SNOW
                 // FORMULA FROM IKAWA AND SAITO, 1991, USED BY REISNER ET AL, 1998
                 if (morr_arr(i,j,k,MORRInd::qr3d) >= 1.0e-8 && morr_arr(i,j,k,MORRInd::qni3d) >= 1.0e-8) {
-                  amrex::Real ums_local = morr_arr(i,j,k,MORRInd::asn) * m_cons3 / std::pow(morr_arr(i,j,k,MORRInd::lams), m_bs);
-                  amrex::Real umr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons4 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
-                  amrex::Real uns_local = morr_arr(i,j,k,MORRInd::asn) * m_cons5 / std::pow(morr_arr(i,j,k,MORRInd::lams), m_bs);
-                  amrex::Real unr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons6 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
+                  Real ums_local = morr_arr(i,j,k,MORRInd::asn) * m_cons3 / std::pow(morr_arr(i,j,k,MORRInd::lams), m_bs);
+                  Real umr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons4 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
+                  Real uns_local = morr_arr(i,j,k,MORRInd::asn) * m_cons5 / std::pow(morr_arr(i,j,k,MORRInd::lams), m_bs);
+                  Real unr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons6 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
 
                   // SET REASLISTIC LIMITS ON FALLSPEEDS
                   // bug fix, 10/08/09
@@ -2231,10 +2242,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // COLLECTION OF RAINWATER BY GRAUPEL, FROM IKAWA AND SAITO 1990,
                 // USED BY REISNER ET AL 1998
                 if (morr_arr(i,j,k,MORRInd::qr3d) >= 1.0e-8 && morr_arr(i,j,k,MORRInd::qg3d) >= 1.0e-8) {
-                  amrex::Real umg_local = morr_arr(i,j,k,MORRInd::agn) * m_cons7 / std::pow(morr_arr(i,j,k,MORRInd::lamg), m_bg);
-                  amrex::Real umr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons4 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
-                  amrex::Real ung_local = morr_arr(i,j,k,MORRInd::agn) * m_cons8 / std::pow(morr_arr(i,j,k,MORRInd::lamg), m_bg);
-                  amrex::Real unr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons6 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
+                  Real umg_local = morr_arr(i,j,k,MORRInd::agn) * m_cons7 / std::pow(morr_arr(i,j,k,MORRInd::lamg), m_bg);
+                  Real umr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons4 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
+                  Real ung_local = morr_arr(i,j,k,MORRInd::agn) * m_cons8 / std::pow(morr_arr(i,j,k,MORRInd::lamg), m_bg);
+                  Real unr_local = morr_arr(i,j,k,MORRInd::arn) * m_cons6 / std::pow(morr_arr(i,j,k,MORRInd::lamr), m_br);
 
                   // SET REASLISTIC LIMITS ON FALLSPEEDS
                   // bug fix, 10/08/09
@@ -2273,7 +2284,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   if (morr_arr(i,j,k,MORRInd::qc3d) >= 0.5e-3 || morr_arr(i,j,k,MORRInd::qr3d) >= 0.1e-3) {
                     if (psacws > 0.0 || pracs > 0.0) {
                       if (morr_arr(i,j,k,MORRInd::t3d) < 270.16 && morr_arr(i,j,k,MORRInd::t3d) > 265.16) {
-                        amrex::Real fmult = 0.0;
+                        Real fmult = 0.0;
 
                         if (morr_arr(i,j,k,MORRInd::t3d) > 270.16) {
                           fmult = 0.0;
@@ -2322,7 +2333,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                   if (morr_arr(i,j,k,MORRInd::qc3d) >= 0.5e-3 || morr_arr(i,j,k,MORRInd::qr3d) >= 0.1e-3) {
                     if (psacwg > 0.0 || pracg > 0.0) {
                       if (morr_arr(i,j,k,MORRInd::t3d) < 270.16 && morr_arr(i,j,k,MORRInd::t3d) > 265.16) {
-                        amrex::Real fmult = 0.0;
+                        Real fmult = 0.0;
 
                         if (morr_arr(i,j,k,MORRInd::t3d) > 270.16) {
                           fmult = 0.0;
@@ -2892,13 +2903,13 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
             // Loop from top to bottom (KTE to KTS)
             for(int k=khi; k>=klo; k--) {
 
-              amrex::Real dum;                // DUM: General dummy variable
+              Real dum;                // DUM: General dummy variable
 
-              amrex::Real di0;                // DI0: Characteristic diameter for ice
-              amrex::Real ds0;                // DS0: Characteristic diameter for snow
-              amrex::Real dg0;                // DG0: Characteristic diameter for graupel
-              amrex::Real lammax;             // LAMMAX: Maximum value for slope parameter
-              amrex::Real lammin;             // LAMMIN: Minimum value for slope parameter
+              Real di0;                // DI0: Characteristic diameter for ice
+              Real ds0;                // DS0: Characteristic diameter for snow
+              Real dg0;                // DG0: Characteristic diameter for graupel
+              Real lammax;             // LAMMAX: Maximum value for slope parameter
+              Real lammin;             // LAMMIN: Minimum value for slope parameter
 
               ds0 = 3.0;       // Size distribution parameter for snow
               di0 = 3.0;       // Size distribution parameter for cloud ice
@@ -3204,12 +3215,12 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
               morr_arr(i,j,klo,MORRInd::grplprt) += morr_arr(i,j,kts,MORRInd::faloutg) * dt / nstep;
             }
             for(int k=klo; k<=khi; k++) {
-              amrex::Real evs;                // EVS: Saturation vapor pressure
-              amrex::Real eis;                // EIS: Ice saturation vapor pressure
-              amrex::Real qvs;                // QVS: Saturation mixing ratio
-              amrex::Real qvi;                // QVI: Ice saturation mixing ratio
-              amrex::Real qvqvs;              // QVQVS: Saturation ratio
-              amrex::Real qvqvsi;             // QVQVSI: Ice saturation ratio
+              Real evs;                // EVS: Saturation vapor pressure
+              Real eis;                // EIS: Ice saturation vapor pressure
+              Real qvs;                // QVS: Saturation mixing ratio
+              Real qvi;                // QVI: Ice saturation mixing ratio
+              Real qvqvs;              // QVQVS: Saturation ratio
+              Real qvqvsi;             // QVQVSI: Ice saturation ratio
 
               // ADD ON SEDIMENTATION TENDENCIES FOR MIXING RATIO TO REST OF TENDENCIES
               morr_arr(i,j,k,MORRInd::qr3dten) = morr_arr(i,j,k,MORRInd::qr3dten) + morr_arr(i,j,k,MORRInd::qrsten);
@@ -3421,7 +3432,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
                 // CLOUD DROPLETS
                 // MARTIN ET AL. (1994) FORMULA FOR PGAM
                 if (morr_arr(i,j,k,MORRInd::qc3d) >= m_qsmall) {
-                  amrex::Real dum = morr_arr(i,j,k,MORRInd::pres) / (287.15 * morr_arr(i,j,k,MORRInd::t3d));
+                  Real dum = morr_arr(i,j,k,MORRInd::pres) / (287.15 * morr_arr(i,j,k,MORRInd::t3d));
                   morr_arr(i,j,k,MORRInd::pgam) = 0.0005714 * (morr_arr(i,j,k,MORRInd::nc3d) / 1.0e6 * dum) + 0.2714;
                   morr_arr(i,j,k,MORRInd::pgam) = 1.0/(std::pow(morr_arr(i,j,k,MORRInd::pgam), 2)) - 1.0;
                   morr_arr(i,j,k,MORRInd::pgam) = std::max(morr_arr(i,j,k,MORRInd::pgam), 2.0);
@@ -3433,8 +3444,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
                   // LAMMIN, 60 MICRON DIAMETER
                   // LAMMAX, 1 MICRON
-                  amrex::Real lammin = (morr_arr(i,j,k,MORRInd::pgam) + 1.0) / 60.0e-6;
-                  amrex::Real lammax = (morr_arr(i,j,k,MORRInd::pgam) + 1.0) / 1.0e-6;
+                  Real lammin = (morr_arr(i,j,k,MORRInd::pgam) + 1.0) / 60.0e-6;
+                  Real lammax = (morr_arr(i,j,k,MORRInd::pgam) + 1.0) / 1.0e-6;
 
                   if (morr_arr(i,j,k,MORRInd::lamc) < lammin) {
                     morr_arr(i,j,k,MORRInd::lamc) = lammin;
