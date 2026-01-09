@@ -705,7 +705,7 @@ struct SolverChoice {
         }
 
         pp.query("io_hurricane_eye_tracker", io_hurricane_eye_tracker);
-        if(io_hurricane_eye_tracker) {
+        if (io_hurricane_eye_tracker) {
             pp.query("hurricane_eye_latitude", hurricane_eye_latitude);
             pp.query("hurricane_eye_longitude", hurricane_eye_longitude);
             if(hurricane_eye_latitude == -1e10 or hurricane_eye_longitude == -1e10) {

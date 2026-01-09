@@ -394,11 +394,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Update the base state at this level by interpolation from coarser level
     // ********************************************************************************************
     InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
-                            IntVect(0,0,0), // do not fill ghost cells outside the domain
-                            base_state[lev-1], 0, 0, base_state[lev].nComp(),
-                            geom[lev-1], geom[lev],
-                            refRatio(lev-1), &cell_cons_interp,
-                            domain_bcs_type, BCVars::cons_bc);
+                          IntVect(0,0,0), // do not fill ghost cells outside the domain
+                          base_state[lev-1], 0, 0, base_state[lev].nComp(),
+                          geom[lev-1], geom[lev],
+                          refRatio(lev-1), &cell_cons_interp,
+                          domain_bcs_type, BCVars::cons_bc);
 
     // Impose bc's outside the domain
     (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
@@ -422,7 +422,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
 
 #ifdef ERF_USE_NETCDF
-    if ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) )
+    if ( ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) ) &&
+         !nc_init_file[lev].empty() )
     {
         // Just making sure that ghost cells aren't uninitialized...
         vars_new[lev][Vars::cons].setVal(0.0); vars_old[lev][Vars::cons].setVal(0.0);

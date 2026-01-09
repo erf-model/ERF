@@ -283,6 +283,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
+       ${SRC_DIR}/IO/ERF_TrackerOutput.cpp
        ${SRC_DIR}/IO/ERF_Write1DProfiles.cpp
        ${SRC_DIR}/IO/ERF_Write1DProfiles_stag.cpp
        ${SRC_DIR}/IO/ERF_WriteScalarProfiles.cpp

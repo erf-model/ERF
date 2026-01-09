@@ -17,6 +17,10 @@ Real read_start_time_from_wrfinput (int lev, const std::string& fname);
 #endif
 
 void
+tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
+                         const Real eye_x, const Real eye_y, const Real rad_tag);
+
+void
 ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 {
     const int clearval = TagBox::CLEAR;
@@ -101,9 +105,8 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     }
                 } // has file been read?
             } // isub
+            return;
         } // file not empty
-
-        return;
     }
 #endif
 
@@ -208,12 +211,13 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 }
             }
 
+            Vector<MultiFab> mf_cc_vel(1);
+            mf_cc_vel[0].define(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
+            average_face_to_cellcenter(mf_cc_vel[0],0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new});
+
             if (is_hurricane_tracker) {
-                HurricaneTracker(levc, time, U_new, V_new, W_new, velmag_threshold, &tags);
+                HurricaneTracker(levc, time, mf_cc_vel[0], velmag_threshold, &tags);
             } else {
-                Vector<MultiFab> mf_cc_vel(1);
-                mf_cc_vel[0].define(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
-                average_face_to_cellcenter(mf_cc_vel[0],0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new});
                 for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
@@ -264,6 +268,48 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         ref_tags[j](tags,mf.get(),clearval,tagval,time,levc,geom[levc]);
     } // loop over j
+
+    // ********************************************************************************************
+    // Refinement based on 2d distance from the "eye" which is defined here as the (x,y) location of
+    //    the integrated qv
+    // ********************************************************************************************
+    ParmParse pp(pp_prefix);
+    Vector<std::string> refinement_indicators;
+    pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
+    for (int i=0; i<refinement_indicators.size(); ++i)
+    {
+        if ( (refinement_indicators[i]=="storm_tracker") && (solverChoice.moisture_type != MoistureType::None) )
+        {
+            std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
+            ParmParse ppr(ref_prefix);
+
+            Real ref_start_time = -1.0;
+            ppr.query("start_time",ref_start_time);
+
+            if (time >= ref_start_time) {
+
+                Real max_radius = -1.0;
+                ppr.get("max_radius", max_radius);
+
+                // Create the volume-weighted sum of (rho qv) in each column
+                MultiFab mf_qv_int(ba2d[levc], dmap[levc], 1, 0); mf_qv_int.setVal(0.);
+
+                // Define the 2D MultiFab holding the column-integrated (rho qv)
+                volWgtColumnSum(levc, S_new, RhoQ1_comp, mf_qv_int, *detJ_cc[levc]);
+
+                // Find the max value in the domain
+                IntVect eye = mf_qv_int.maxIndex(0);
+
+                const auto dx      = geom[levc].CellSizeArray();
+                const auto prob_lo = geom[levc].ProbLoArray();
+
+                Real eye_x = prob_lo[0] + (eye[0] + 0.5) * dx[0];
+                Real eye_y = prob_lo[1] + (eye[1] + 0.5) * dx[1];
+
+                tag_on_distance_from_eye(geom[levc], &tags, eye_x, eye_y, max_radius);
+            }
+        }
+    }
 }
 
 /**
@@ -491,63 +537,54 @@ ERF::refinement_criteria_setup ()
             else if (realbox.ok())
             {
                 ref_tags.push_back(AMRErrorTag(info));
-            } else {
+            } else if (refinement_indicators[i] != "storm_tracker") {
                 Abort(std::string("Unrecognized refinement indicator for " + refinement_indicators[i]).c_str());
             }
         } // loop over criteria
     } // if max_level > 0
 }
 
-void
-ERF::HurricaneTrackerInitial(int levc,
-                      const MultiFab& U_new,
-                      const MultiFab& V_new,
-                      const MultiFab& W_new,
-                      const Real velmag_threshold,
-                      TagBoxArray* tags)
+bool
+ERF::FindInitialEye(int levc,
+                    const MultiFab& mf_cc_vel,
+                    const Real velmag_threshold,
+                    Real& eye_x, Real& eye_y)
 {
     const auto dx = geom[levc].CellSizeArray();
     const auto prob_lo = geom[levc].ProbLoArray();
 
-    const int ncomp = AMREX_SPACEDIM; // Number of components (3 for 3D)
+    Gpu::DeviceVector<Real> d_coords(2, 0.0);
+    Gpu::DeviceVector<int>  d_found(1,0);
 
-    Gpu::DeviceVector<Real> d_coords(3, 0.0); // Initialize to -1
-    Real* d_coords_ptr = d_coords.data(); // Get pointer to device vector
-    Gpu::DeviceVector<int> d_found(1,0);
-    int* d_found_ptr = d_found.data();
+    Real* d_coords_ptr = d_coords.data();
+    int*   d_found_ptr = d_found.data();
 
-    MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
-    average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
+    for (MFIter mfi(mf_cc_vel); mfi.isValid(); ++mfi)
+    {
+        const Box& box = mfi.validbox();
+        const Array4<const Real>& vel_arr = mf_cc_vel.const_array(mfi);
 
-    // Loop through MultiFab using MFIter
-    for (MFIter mfi(mf_cc_vel); mfi.isValid(); ++mfi) {
-        const Box& box = mfi.validbox(); // Get the valid box for the current MFIter
-        const Array4<const Real>& vel_arr = mf_cc_vel.const_array(mfi); // Get the array for this MFIter
+        ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+        {
+            Real magnitude = std::sqrt(vel_arr(i,j,k,0) * vel_arr(i,j,k,0) +
+                                       vel_arr(i,j,k,1) * vel_arr(i,j,k,1) +
+                                       vel_arr(i,j,k,2) * vel_arr(i,j,k,2));
 
-        // ParallelFor loop to check velocity magnitudes on the GPU
-        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-            // Access velocity components using ncomp
-            Real magnitude = 0.0; // Initialize magnitude
+            magnitude *= 3.6;
 
-            for (int comp = 0; comp < ncomp; ++comp) {
-                Real vel = vel_arr(i, j, k, comp); // Access the component for each (i, j, k)
-                magnitude += vel * vel; // Sum the square of the components
-            }
-
-            magnitude = std::sqrt(magnitude)*3.6; // Calculate magnitude
-            Real x = prob_lo[0] + (i + 0.5) * dx[0];
-            Real y = prob_lo[1] + (j + 0.5) * dx[1];
             Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
             // Check if magnitude exceeds threshold
-            if (z < 2.0e3 && magnitude > velmag_threshold) {
+            if (z < 2000. && magnitude > velmag_threshold) {
                 // Use atomic operations to set found flag and store coordinates
                 Gpu::Atomic::Add(&d_found_ptr[0], 1); // Mark as found
+
+                Real x = prob_lo[0] + (i + 0.5) * dx[0];
+                Real y = prob_lo[1] + (j + 0.5) * dx[1];
 
                 // Store coordinates
                 Gpu::Atomic::Add(&d_coords_ptr[0],x); // Store x index
                 Gpu::Atomic::Add(&d_coords_ptr[1],y); // Store x index
-                Gpu::Atomic::Add(&d_coords_ptr[2],z); // Store x index
             }
         });
     }
@@ -557,56 +594,33 @@ ERF::HurricaneTrackerInitial(int levc,
 
     Vector<int> h_found(1,0);
     Gpu::copy(Gpu::deviceToHost, d_found.begin(), d_found.end(), h_found.begin());
-    ParallelAllReduce::Sum(h_found.data(),
-                           h_found.size(),
-                           ParallelContext::CommunicatorAll());
+    ParallelAllReduce::Sum(h_found.data(), h_found.size(), ParallelContext::CommunicatorAll());
 
-    Real eye_x, eye_y;
     // Broadcast coordinates if found
     if (h_found[0] > 0) {
-        Vector<Real> h_coords(3,-1e10);
+        Vector<Real> h_coords(2,-1e10);
         Gpu::copy(Gpu::deviceToHost, d_coords.begin(), d_coords.end(), h_coords.begin());
 
-        ParallelAllReduce::Sum(h_coords.data(),
-                               h_coords.size(),
-                               ParallelContext::CommunicatorAll());
+        ParallelAllReduce::Sum(h_coords.data(), h_coords.size(), ParallelContext::CommunicatorAll());
 
         eye_x = h_coords[0]/h_found[0];
         eye_y = h_coords[1]/h_found[0];
 
-        Real rad_tag = 4e5*std::pow(2, max_level-1-levc);
-
-        for (MFIter mfi(*tags); mfi.isValid(); ++mfi) {
-            TagBox& tag = (*tags)[mfi];
-            auto tag_arr = tag.array();  // Get device-accessible array
-
-            const Box& tile_box = mfi.tilebox(); // The box for this tile
-
-            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                // Compute cell center coordinates
-                Real x = prob_lo[0] + (i + 0.5) * dx[0];
-                Real y = prob_lo[1] + (j + 0.5) * dx[1];
-
-                Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
-
-                if (dist < rad_tag) {
-                    tag_arr(i,j,k) = TagBox::SET;
-                }
-            });
-        }
+    } else {
+        // Random large negative numbers so we don't trigger refinement in this case
+        eye_x = -1.e20;
+        eye_y = -1.e20;
     }
+
+    return (h_found[0] > 0);
 }
 
 void
-ERF::HurricaneTrackerNotInitial(int levc, TagBoxArray* tags)
+tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
+                         const Real eye_x, const Real eye_y, const Real rad_tag)
 {
-    const auto dx = geom[levc].CellSizeArray();
-    const auto prob_lo = geom[levc].ProbLoArray();
-
-    Real rad_tag = 4e5*std::pow(2, max_level-1-levc);
-    const auto& last = hurricane_eye_track_xy.back();
-    Real eye_x = last[0];
-    Real eye_y = last[1];
+    const auto dx      = cgeom.CellSizeArray();
+    const auto prob_lo = cgeom.ProbLoArray();
 
     for (MFIter mfi(*tags); mfi.isValid(); ++mfi) {
         TagBox& tag = (*tags)[mfi];
@@ -623,6 +637,8 @@ ERF::HurricaneTrackerNotInitial(int levc, TagBoxArray* tags)
 
             if (dist < rad_tag) {
                 tag_arr(i,j,k) = TagBox::SET;
+            } else {
+                tag_arr(i,j,k) = TagBox::CLEAR;
             }
         });
     }
@@ -631,20 +647,25 @@ ERF::HurricaneTrackerNotInitial(int levc, TagBoxArray* tags)
 void
 ERF::HurricaneTracker(int levc,
                       Real time,
-                      const MultiFab& U_new,
-                      const MultiFab& V_new,
-                      const MultiFab& W_new,
+                      const MultiFab& mf_cc_vel,
                       const Real velmag_threshold,
                       TagBoxArray* tags)
 {
-    static Vector<char> is_start;
-    if(is_start.empty()){
-        is_start.resize(max_level+1,1);
-    }
-    if(time==0.0){
-        HurricaneTrackerInitial(levc, U_new, V_new, W_new, velmag_threshold, tags);
-        is_start[levc] = 0;
+    bool is_found;
+
+    Real eye_x, eye_y;
+
+    if (time==0.0) {
+        is_found = FindInitialEye(levc, mf_cc_vel, velmag_threshold, eye_x, eye_y);
     } else {
-        HurricaneTrackerNotInitial(levc, tags);
+        is_found = true;
+        const auto& last = hurricane_eye_track_xy.back();
+        eye_x = last[0];
+        eye_y = last[1];
+    }
+
+    if (is_found) {
+        Real rad_tag = 4.e5 * std::pow(2, max_level-1-levc);
+        tag_on_distance_from_eye(geom[levc], tags, eye_x, eye_y, rad_tag);
     }
 }
