@@ -76,7 +76,8 @@ Problem::init_custom_pert (
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc)
+    const SolverChoice& sc,
+    const int /*lev*/)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
@@ -114,7 +115,7 @@ Problem::init_custom_pert (
             Real Tpert    = (rand_double*2.0 - 1.0)*parms_d.T_0_Pert_Mag;
             Real Tnew     = Told + Tpert;
 
-            Real theta_new = getThgivenPandT(Tnew,P,rdOcp);
+            Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
             Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
             state_pert(i, j, k, Rho_comp) = rhonew - rho;
 
@@ -243,7 +244,6 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
     // varies in time and or space, then the the height needs to be
     // calculated at each time step. Here, we assume that only grid
     // stretching exists.
-    Print() << "Test write out" << std::endl;
     if (z_phys_cc && zlevels.empty()) {
         Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
@@ -268,7 +268,6 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
                 const Real z_cc = (use_zlevels) ? d_zlevels_arr[k] : prob_lo[2] + (k+0.5)* dx[2];
                 if (z_cc < parms_d.cutoff) {
                     src_arr(i, j, k) = parms_d.advection_heating_rate;
-//                    amrex::Print() << "src_arr values is "<< src_arr(i, j, k) << std::endl;
                 } else if (z_cc < parms_d.cutoff+parms_d.cutoff_transition) {
                     Real slope = -parms_d.advection_heating_rate / parms_d.cutoff_transition;
                     src_arr(i, j, k) = (z_cc-parms_d.cutoff) * slope + parms_d.advection_heating_rate;
@@ -398,7 +397,6 @@ Problem::update_w_subsidence (const Real& time,
             wbar[k] = 0.0;
         }
     }
-    amrex::Print() << "wbar values is "<< wbar[0] << std::endl;
 
     // Copy from host version to device version
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, wbar.begin(), wbar.end(), d_wbar.begin());

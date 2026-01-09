@@ -244,7 +244,6 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
     // varies in time and or space, then the the height needs to be
     // calculated at each time step. Here, we assume that only grid
     // stretching exists.
-    Print() << "Test write out" << std::endl;
     if (z_phys_cc && zlevels.empty()) {
         Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
@@ -269,7 +268,6 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
                 const Real z_cc = (use_zlevels) ? d_zlevels_arr[k] : prob_lo[2] + (k+0.5)* dx[2];
                 if (z_cc < parms_d.cutoff) {
                     src_arr(i, j, k) = parms_d.advection_heating_rate;
-//                    amrex::Print() << "src_arr values is "<< src_arr(i, j, k) << std::endl;
                 } else if (z_cc < parms_d.cutoff+parms_d.cutoff_transition) {
                     Real slope = -parms_d.advection_heating_rate / parms_d.cutoff_transition;
                     src_arr(i, j, k) = (z_cc-parms_d.cutoff) * slope + parms_d.advection_heating_rate;
@@ -349,9 +347,7 @@ Problem::update_w_subsidence (const Real& time,
 {
     if (wbar.empty()) return;
 
-    const int khi       = geom.Domain().bigEnd()[2] + 1; // lives on z-faces
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx       = geom.CellSize();
+    const int khi = geom.Domain().bigEnd()[2] + 1; // lives on z-faces
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
@@ -363,28 +359,10 @@ Problem::update_w_subsidence (const Real& time,
         reduce_to_max_per_height(zlevels, z_phys_cc);
     }
 
-    // Linearly increase wbar to the cutoff_max and then linearly decrease to cutoff_min
-    Real z_0    = 0.0; // (z_phys_cc) ? zlevels[0] : prob_lo[2] + 0.5 * dx[2];
-    Real slope1 =  parms.wbar_sub_max / (parms.wbar_cutoff_max - z_0);
-    Real slope2 = -parms.wbar_sub_max / (parms.wbar_cutoff_min - parms.wbar_cutoff_max);
-    //Real rho_s       = state(0,0,0,Rho_comp);
-    wbar[0]     = 2*sin(PI*time/600);
-//    wbar[0] = 2;
-    amrex::Print() << "wbar values is "<< wbar[0] << std::endl;
-//    wbar[0]     = 5;
+    wbar[0] = 2*sin(PI*time/600);
 
     for (int k = 1; k <= khi; k++) {
-        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + k*dx[2];
-//        Real rho_s       = state(0,0,k,Rho_comp);
         wbar[k] = 2*sin(PI*time/600);
-//        wbar[k] = 2;
-//        if (z_cc <= parms.wbar_cutoff_max) {
-//            wbar[k] = slope1 * (z_cc - z_0);
-//        } else if (z_cc <= parms.wbar_cutoff_min) {
-//            wbar[k] = slope2 * (z_cc - parms.wbar_cutoff_max) + parms.wbar_sub_max;
-//        } else {
-//            wbar[k] = 0.0;
-//        }
     }
 
     // Copy from host version to device version
