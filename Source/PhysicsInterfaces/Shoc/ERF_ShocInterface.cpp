@@ -14,9 +14,9 @@ SHOCInterface::SHOCInterface (const int& lev,
     // Minimum value of stability correction
     Real def_lambda_low = 0.001;
     // Maximum value of stability correction
-    Real def_lambda_high = 0.08;
+    Real def_lambda_high = 0.04;
     // Slope of change from lambda_low to lambda_high
-    Real def_lambda_slope = 0.08;
+    Real def_lambda_slope = 2.65;
     // stability threshold for which to apply more stability correction
     Real def_lambda_thresh = 0.02;
     // Temperature variance tuning factor
