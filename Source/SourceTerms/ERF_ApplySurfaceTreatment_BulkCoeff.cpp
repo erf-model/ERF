@@ -19,10 +19,10 @@ ApplySurfaceTreatment_BulkCoeff_Mom (
   const Array4<const Real>& surface_state_arr,
   const Real& time)
 {
-    int ndrag = 5;
+    int ndrag = 1;
     Real z_phys = 200.0;
     Real Cd_sea = 0.001;
-    Real Cd_land = 0.1; 
+    Real Cd_land = 0.01; 
 
     ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {
