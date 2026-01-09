@@ -169,8 +169,7 @@ void SuperDropletPC::MassChange ( int                                         a_
                                                                           m_newton_rtol,
                                                                           m_newton_atol,
                                                                           m_newton_stol,
-                                                                          m_newton_maxits,
-                                                                          false };
+                                                                          m_newton_maxits };
 
         Gpu::Buffer<Long> unconverged_particles({0});
         auto* unconverged_particles_ptr = unconverged_particles.data();
