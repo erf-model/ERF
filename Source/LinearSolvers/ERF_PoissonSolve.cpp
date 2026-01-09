@@ -68,12 +68,6 @@ void ERF::project_initial_velocity (int lev, Real time, Real l_dt)
         MultiFab& V_new_crse = vars_new[levc][Vars::yvel];
         MultiFab& W_new_crse = vars_new[levc][Vars::zvel];
 
-        MultiFab& S_new_fine = vars_new[lev][Vars::cons];
-        MultiFab& U_new_fine = vars_new[lev][Vars::xvel];
-        MultiFab& V_new_fine = vars_new[lev][Vars::yvel];
-        MultiFab& W_new_fine = vars_new[lev][Vars::zvel];
-
-        S_new_fine.FillBoundary(geom[levc].periodicity());
         VelocityToMomentum(U_new_crse, IntVect{0}, V_new_crse, IntVect{0}, W_new_crse, IntVect{0}, S_new_crse,
                            rU_new[levc], rV_new[levc], rW_new[levc],
                            Geom(levc).Domain(), domain_bcs_type, c_vfrac_crse);
