@@ -76,7 +76,8 @@ Problem::init_custom_pert (
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc)
+    const SolverChoice& sc,
+    const int /*lev*/)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
@@ -114,7 +115,7 @@ Problem::init_custom_pert (
             Real Tpert    = (rand_double*2.0 - 1.0)*parms_d.T_0_Pert_Mag;
             Real Tnew     = Told + Tpert;
 
-            Real theta_new = getThgivenPandT(Tnew,P,rdOcp);
+            Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
             Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
             state_pert(i, j, k, Rho_comp) = rhonew - rho;
 
