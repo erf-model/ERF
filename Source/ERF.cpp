@@ -1298,7 +1298,7 @@ ERF::InitData_post ()
 
     //
     // If we are starting from scratch, we have the option to project the initial velocity field
-    //    regardless of how we initialized.  Note that project_velocity operates on vars_new.
+    //    regardless of how we initialized.  Note that project_initial_velocity operates on vars_new.
     // pp_inc is used as scratch space here; we zero it out after the projection
     //
     if (restart_chkfile == "")
@@ -1311,7 +1311,7 @@ ERF::InitData_post ()
                     amrex::Print() << "Projecting initial velocity field at level " << lev << std::endl;
                 }
 
-                project_velocity(lev, t_new[lev], dummy_dt);
+                project_initial_velocity(lev, t_new[lev], dummy_dt);
 
                 pp_inc[lev].setVal(0.);
                 gradp[lev][GpVars::gpx].setVal(0.);
