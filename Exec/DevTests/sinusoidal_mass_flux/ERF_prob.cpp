@@ -347,9 +347,7 @@ Problem::update_w_subsidence (const Real& time,
 {
     if (wbar.empty()) return;
 
-    const int khi      = geom.Domain().bigEnd()[2] + 1; // lives on z-faces
-    const auto prob_lo = geom.ProbLo();
-    const auto dx      = geom.CellSize();
+    const int khi = geom.Domain().bigEnd()[2] + 1; // lives on z-faces
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
