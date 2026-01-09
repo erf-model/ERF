@@ -38,11 +38,6 @@ ComputeStrain_EB (const MFIter& mfi,
                  Array4<Real>& tau23,
                  const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                  const BCRec* bc_ptr,
-                 Array4<const EBCellFlag>& cflag,
-                 Array4<const Real>& apx,
-                 Array4<const Real>& apy,
-                 Array4<const Real>& apz,
-                 Array4<const Real>& vfrac,
                  const eb_& ebfact,
                  Array4<Real>& tau13i, Array4<Real>& tau23i)
 {
