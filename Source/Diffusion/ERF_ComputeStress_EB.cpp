@@ -56,9 +56,9 @@ ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff
             Real vol_sum = vfrac(i,j,k) + vfrac(i-1,j,k) + vfrac(i,j-1,k) + vfrac(i-1,j-1,k);
             Real rho_bar = 0.0;
             if (vol_sum > 1.e-16) {
-                rho_bar = ( vfrac(i-1,j,k) * cell_data(i-1, j  , k, Rho_comp) 
+                rho_bar = ( vfrac(i-1,j,k) * cell_data(i-1, j  , k, Rho_comp)
                             + vfrac(i,j,k) * cell_data(i, j  , k, Rho_comp)
-                            + vfrac(i-1,j-1,k) * cell_data(i-1, j-1, k, Rho_comp) 
+                            + vfrac(i-1,j-1,k) * cell_data(i-1, j-1, k, Rho_comp)
                             + vfrac(i,j-1,k) * cell_data(i, j-1, k, Rho_comp) ) / vol_sum;
             } else {
                 rho_bar = 0.25*( cell_data(i-1, j  , k, Rho_comp) + vfrac(i,j,k) * cell_data(i, j  , k, Rho_comp)
@@ -70,9 +70,9 @@ ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff
             Real vol_sum = vfrac(i,j,k) + vfrac(i-1,j,k) + vfrac(i,j,k-1) + vfrac(i-1,j,k-1);
             Real rho_bar = 0.0;
             if (vol_sum > 1.e-16) {
-                rho_bar = ( vfrac(i-1,j,k) * cell_data(i-1, j, k  , Rho_comp) 
+                rho_bar = ( vfrac(i-1,j,k) * cell_data(i-1, j, k  , Rho_comp)
                             + vfrac(i,j,k) * cell_data(i, j, k  , Rho_comp)
-                            + vfrac(i-1,j,k-1) * cell_data(i-1, j, k-1, Rho_comp) 
+                            + vfrac(i-1,j,k-1) * cell_data(i-1, j, k-1, Rho_comp)
                             + vfrac(i,j,k-1) * cell_data(i, j, k-1, Rho_comp) )/ vol_sum;
             } else {
                 rho_bar = 0.25*( cell_data(i-1, j, k  , Rho_comp) + cell_data(i, j, k  , Rho_comp)
@@ -86,9 +86,9 @@ ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff
             Real vol_sum = vfrac(i,j,k) + vfrac(i,j-1,k) + vfrac(i,j,k-1) + vfrac(i,j-1,k-1);
             Real rho_bar = 0.0;
             if (vol_sum > 1.e-16) {
-                rho_bar = ( vfrac(i,j-1,k) * cell_data(i, j-1, k  , Rho_comp) 
+                rho_bar = ( vfrac(i,j-1,k) * cell_data(i, j-1, k  , Rho_comp)
                             + vfrac(i,j,k) * cell_data(i, j, k  , Rho_comp)
-                            + vfrac(i,j-1,k-1) * cell_data(i, j-1, k-1, Rho_comp) 
+                            + vfrac(i,j-1,k-1) * cell_data(i, j-1, k-1, Rho_comp)
                             + vfrac(i,j,k-1) * cell_data(i, j, k-1, Rho_comp) ) / vol_sum;
             } else {
                 rho_bar = 0.25*( cell_data(i, j-1, k  , Rho_comp) + cell_data(i, j, k  , Rho_comp)
