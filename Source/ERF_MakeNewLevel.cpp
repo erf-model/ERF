@@ -445,15 +445,15 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
     } else {
 #endif
-	//
-	// Interpolate the solution data
-	//
-	FillCoarsePatch(lev, time);
-	//
-	// Interpolate the 2D arrays at the lower boundary
-	// Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
-	// so we must explicitly pass dm.
-	Interp2DArrays(lev,ba2d[lev],dm);
+    //
+    // Interpolate the solution data
+    //
+    FillCoarsePatch(lev, time);
+    //
+    // Interpolate the 2D arrays at the lower boundary
+    // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
+    // so we must explicitly pass dm.
+    Interp2DArrays(lev,ba2d[lev],dm);
 #ifdef ERF_USE_NETCDF
     }
 #endif
@@ -741,12 +741,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     if (sst_lev[lev][0]) {
         for (int n = 0; n < sst_lev[lev].size(); n++) {
             sst_lev[lev][n].reset();
-	}
+        }
     }
     if (tsk_lev[lev][0]) {
         for (int n = 0; n < tsk_lev[lev].size(); n++) {
             tsk_lev[lev][n].reset();
-	}
+        }
     }
     if (lat_m[lev]) {
         lat_m[lev].reset();
@@ -825,12 +825,12 @@ ERF::ClearLevel (int lev)
     if (sst_lev[lev][0]) {
         for (int n = 0; n < sst_lev[lev].size(); n++) {
             sst_lev[lev][n].reset();
-	}
+        }
     }
     if (tsk_lev[lev][0]) {
         for (int n = 0; n < tsk_lev[lev].size(); n++) {
             tsk_lev[lev][n].reset();
-	}
+        }
     }
     if (lat_m[lev]) {
         lat_m[lev].reset();
