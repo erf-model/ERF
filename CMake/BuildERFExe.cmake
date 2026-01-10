@@ -360,6 +360,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
        ${SRC_DIR}/Utils/ERF_VolWgtSum.cpp
        ${SRC_DIR}/Utils/ERF_WeatherDataInterpolation.cpp
+       ${SRC_DIR}/Utils/ERF_SurfaceDataInterpolation.cpp
        ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
        ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
        ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
