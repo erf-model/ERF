@@ -22,7 +22,7 @@ ApplySurfaceTreatment_BulkCoeff_Mom (
     int ndrag = 1;
     Real z_phys = 200.0;
     Real Cd_sea = 0.001;
-    Real Cd_land = 0.01; 
+    Real Cd_land = 0.01;
 
     ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {
@@ -35,7 +35,7 @@ ApplySurfaceTreatment_BulkCoeff_Mom (
             Real rho_for_v = (cons_state(i,j-1,k,0)+cons_state(i,j,k,0))/2.0;
             Real uvel = rho_u(i,j,k)/rho_for_u;
             Real vvel = rho_v(i,j,k)/rho_for_v;
-            Real velmag = std::sqrt(uvel*uvel + vvel*vvel); 
+            Real velmag = std::sqrt(uvel*uvel + vvel*vvel);
             rho_u_rhs(i, j, k) += -1.0*weight*Cd*velmag*rho_for_u*uvel/z_phys;
         }
     });
@@ -46,7 +46,7 @@ ApplySurfaceTreatment_BulkCoeff_Mom (
        if(k <= ndrag) {
             Real ls_mask = (surface_state_arr(i,j-1,0)+surface_state_arr(i,j,0))/2.0;
             Real fac = k==0? 1.0 : 0.0;
-            Real Cd = fac*Cd_sea*(1.0-ls_mask) + Cd_land*ls_mask; 
+            Real Cd = fac*Cd_sea*(1.0-ls_mask) + Cd_land*ls_mask;
             Real weight = 1.0 - Real(k)/ndrag;  // linear decrease
             Real rho_for_u = (cons_state(i-1,j,k,0)+cons_state(i,j,k,0))/2.0;
             Real rho_for_v = (cons_state(i,j-1,k,0)+cons_state(i,j,k,0))/2.0;
@@ -54,7 +54,7 @@ ApplySurfaceTreatment_BulkCoeff_Mom (
             Real vvel = rho_v(i,j,k)/rho_for_v;
             Real velmag = std::sqrt(uvel*uvel + vvel*vvel);
             rho_v_rhs(i, j, k) += -1.0*weight*Cd*velmag*rho_for_v*vvel/z_phys;
-        }         
+        }
     });
 }
 
@@ -69,17 +69,17 @@ ApplySurfaceTreatment_BulkCoeff_CC (const SpongeChoice& spongeChoice,
                          const Real& time)
 {
      ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        if(k == 0) { 
+        if(k == 0) {
             Real ls_mask = surface_state_arr(i,j,0);
             Real Ch = 0.0015*(1.0-ls_mask);
             Real Ce = 0.0015*(1.0-ls_mask);
-            
+
             Real rho = cons_state(i,j,k, Rho_comp);
             Real rhotheta = cons_state(i,j,k, RhoTheta_comp);
             Real rhoqv = cons_state(i,j,k, RhoQ1_comp);
             Real theta = rhotheta/rho;
             Real qv = rhoqv/rho;
-            Real temp = getTgivenRandRTh(rho, rhotheta, qv); 
+            Real temp = getTgivenRandRTh(rho, rhotheta, qv);
             Real uvel = cons_state(i,j,k,1)/cons_state(i,j,k,0);
             Real vvel = cons_state(i,j,k,2)/cons_state(i,j,k,0);
             Real velmag = std::sqrt(uvel*uvel + vvel*vvel);

@@ -119,7 +119,7 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
             }
             // First interpolate where the weather data is available from
             Real tmp_ls_mask, tmp_sst;
-                
+
             bilinear_interpolation_2d(xvec_d_ptr, yvec_d_ptr,
                                       dxvec, dyvec,
                                       nx, ny,
@@ -250,8 +250,8 @@ ERF::SurfaceDataInterpolation(const int lev,
 
     MultiFab plot_mf(src.boxArray(),
                      src.DistributionMap(),
-                     2, 0);    
-    
+                     2, 0);
+
     plot_mf.setVal(0.0);
 
     for (MFIter mfi(plot_mf); mfi.isValid(); ++mfi) {
