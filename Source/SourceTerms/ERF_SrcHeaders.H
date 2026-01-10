@@ -193,8 +193,7 @@ void ApplyBndryForcing_Forecast (const SolverChoice& solverChoice,
 
 
 void
-ApplySurfaceTreatment_BulkCoeff_Mom (const SolverChoice& solverChoice,
-                                     const amrex::Geometry& geom,
+ApplySurfaceTreatment_BulkCoeff_Mom (const amrex::Geometry& geom,
                                      const amrex::Box& tbx,
                                      const amrex::Box& tby,
                                      const amrex::Array4<amrex::Real>& rho_u_rhs,
@@ -202,19 +201,16 @@ ApplySurfaceTreatment_BulkCoeff_Mom (const SolverChoice& solverChoice,
                                      const amrex::Array4<const amrex::Real>& rho_u,
                                      const amrex::Array4<const amrex::Real>& rho_v,
                                      const amrex::Array4<const amrex::Real>& cons_state,
-                                     const amrex::Array4<const amrex::Real>& z_phys_nd,
-                                     const amrex::Array4<const amrex::Real>& surface_state_arr,
-                                     const amrex::Real& time);
+                                     //const amrex::Array4<const amrex::Real>& z_phys_nd,
+                                     const amrex::Array4<const amrex::Real>& surface_state_arr);
 
 void
-ApplySurfaceTreatment_BulkCoeff_CC (const SpongeChoice& spongeChoice,
-                                    const amrex::Geometry& geom,
+ApplySurfaceTreatment_BulkCoeff_CC (const amrex::Geometry& geom,
                                     const amrex::Box& bx,
                                     const amrex::Array4<amrex::Real>& cell_rhs,
                                     const amrex::Array4<const amrex::Real>& cons_state,
-                                    const amrex::Array4<const amrex::Real>& z_phys_cc,
-                                    const amrex::Array4<const amrex::Real>& surface_state_arr,
-                                    const amrex::Real& time);
+                                    //const amrex::Array4<const amrex::Real>& z_phys_cc,
+                                    const amrex::Array4<const amrex::Real>& surface_state_arr);
 
 
 

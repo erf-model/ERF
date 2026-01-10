@@ -7,7 +7,6 @@ using namespace amrex;
 void
 ApplySurfaceTreatment_BulkCoeff_Mom (
   const SolverChoice& solverChoice,
-  const Geometry& geom,
   const Box& tbx,
   const Box& tby,
   const Array4<Real>& rho_u_rhs,
@@ -15,9 +14,8 @@ ApplySurfaceTreatment_BulkCoeff_Mom (
   const Array4<const Real>& rho_u,
   const Array4<const Real>& rho_v,
   const Array4<const Real>& cons_state,
-  const Array4<const Real>& z_phys_nd,
-  const Array4<const Real>& surface_state_arr,
-  const Real& time)
+  //const Array4<const Real>& z_phys_nd,
+  const Array4<const Real>& surface_state_arr);
 {
     int ndrag = 1;
     Real z_phys = 200.0;
@@ -59,14 +57,12 @@ ApplySurfaceTreatment_BulkCoeff_Mom (
 }
 
 void
-ApplySurfaceTreatment_BulkCoeff_CC (const SpongeChoice& spongeChoice,
-                         const Geometry& geom,
+ApplySurfaceTreatment_BulkCoeff_CC (const Geometry& geom,
                          const Box& bx,
                          const Array4<Real>& cell_rhs,
                          const Array4<const Real>& cons_state,
-                         const Array4<const Real>& z_phys_cc,
-                         const Array4<const Real>& surface_state_arr,
-                         const Real& time)
+                         //const Array4<const Real>& z_phys_cc,
+                         const Array4<const Real>& surface_state_arr)
 {
      ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         if(k == 0) {

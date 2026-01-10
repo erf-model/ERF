@@ -109,7 +109,7 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
         const Box gbx = mfi.growntilebox();
         const Array4<Real>& surf_arr = surface_state[lev].array(mfi);
 
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j) noexcept {
 
             const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
             const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
