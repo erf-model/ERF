@@ -1,6 +1,12 @@
-# Hurricane Track and Intensity Plotter
+# Post-processing hurricane simulations 
 
 The script `PlotsForHurricaneTracking.py` visualizes hurricane simulation data by plotting storm tracks on a geographic map and generating intensity (maximum wind speed) time-series plots. It supports comparing multiple data sources, such as **ERF** (Energy Research and Forecasting), **WRF** (Weather Research and Forecasting), and **Observed (Actual)** data.
+
+## Required data
+When running the hurricane simulations
+1. The data for hurricane tracks are written in the `Output_StormTracker/xy` directory. 
+2. The data for the intensity (ie. max speed vs time) are written into the `Output_StormTracker/maxvel` directory.
+The data is written at the same times as the plot files. 
 
 ## Features
 - **Map Visualization**: Plots storm trajectories using Cartopy with coastlines and state borders.
@@ -40,10 +46,5 @@ python plot_hurricane.py \
     --outfile_track=map.png \
     --outfile_maxvel=intensity_comparison.png
 ```
-
-When running the hurricane simulations
-1. The data for hurricane tracks are written in the `Output_StormTracker/xy` directory. 
-2. The data for the intensity (ie. max speed vs time) are written into the `Output_StormTracker/maxvel` directory.
-The data is written at the same times the plot files. 
 
 
