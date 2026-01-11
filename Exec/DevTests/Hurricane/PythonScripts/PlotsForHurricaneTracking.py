@@ -79,7 +79,7 @@ if __name__ == "__main__":
                         help="Path to text file with Actual hurricane track (lon lat columns)")
     parser.add_argument("--outfile_track", default="map.png",
                         help="Output image filename for the map")
-    
+
     # Optional max velocity inputs
     parser.add_argument("--erf_maxvel", default=None, help="ERF maxvel vs time data")
     parser.add_argument("--actual_maxvel", default=None, help="Actual maxvel vs time data")
