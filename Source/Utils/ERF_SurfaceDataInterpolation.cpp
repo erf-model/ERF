@@ -109,32 +109,30 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
         const Box gbx = mfi.growntilebox();
         const Array4<Real>& surf_arr = surface_state[lev].array(mfi);
 
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j) noexcept {
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
-            const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
-            const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
+            if(k == 0) {
+                const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
+                const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
 
-            if(j<0) {
-                //printf("j is negative. value of y is %d %0.15g\n", j, y);
+                // First interpolate where the weather data is available from
+                Real tmp_ls_mask, tmp_sst;
+
+                bilinear_interpolation_2d(xvec_d_ptr, yvec_d_ptr,
+                                          dxvec, dyvec,
+                                          nx, ny,
+                                          x, y,
+                                          ls_mask_d_ptr, tmp_ls_mask);
+
+                bilinear_interpolation_2d(xvec_d_ptr, yvec_d_ptr,
+                                          dxvec, dyvec,
+                                          nx, ny,
+                                          x, y,
+                                          sst_d_ptr, tmp_sst);
+
+                surf_arr(i, j, 0) = std::min(tmp_ls_mask, 1.0);
+                surf_arr(i, j, 1) = tmp_sst;
             }
-            // First interpolate where the weather data is available from
-            Real tmp_ls_mask, tmp_sst;
-
-            bilinear_interpolation_2d(xvec_d_ptr, yvec_d_ptr,
-                                      dxvec, dyvec,
-                                      nx, ny,
-                                      x, y,
-                                      ls_mask_d_ptr, tmp_ls_mask);
-
-            bilinear_interpolation_2d(xvec_d_ptr, yvec_d_ptr,
-                                      dxvec, dyvec,
-                                      nx, ny,
-                                      x, y,
-                                      sst_d_ptr, tmp_sst);
-
-
-            surf_arr(i, j, 0) = std::min(tmp_ls_mask, 1.0);
-            surf_arr(i, j, 1) = tmp_sst;
         });
     }
 

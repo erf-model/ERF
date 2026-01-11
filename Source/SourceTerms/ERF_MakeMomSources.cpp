@@ -632,12 +632,11 @@ void make_mom_sources (Real time,
             }
             if(solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_surface_bcs) {
                 const Array4<const Real>& surface_state_arr = (*surface_state_at_lev).array(mfi);
-                ApplySurfaceTreatment_BulkCoeff_Mom(solverChoice, geom,
-                                                    tbx, tby,
+                ApplySurfaceTreatment_BulkCoeff_Mom(tbx, tby,
                                                     xmom_src_arr, ymom_src_arr,
                                                     rho_u, rho_v,
                                                     cell_data, z_nd_arr,
-                                                    surface_state_arr, time);
+                                                    surface_state_arr);
             }
         }
 

@@ -397,7 +397,7 @@ void make_sources (int level,
 
         if(solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_surface_bcs) {
             const Array4<const Real>& surface_state_arr = (*surface_state_at_lev).array(mfi);
-            ApplySurfaceTreatment_BulkCoeff_CC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, z_cc_arr, surface_state_arr, time);
+            ApplySurfaceTreatment_BulkCoeff_CC(bx, cell_src, cell_data, z_cc_arr, surface_state_arr);
         }
 
 

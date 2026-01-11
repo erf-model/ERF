@@ -14,9 +14,11 @@ ApplySurfaceTreatment_BulkCoeff_Mom (
   const Array4<const Real>& rho_u,
   const Array4<const Real>& rho_v,
   const Array4<const Real>& cons_state,
-  //const Array4<const Real>& z_phys_nd,
-  const Array4<const Real>& surface_state_arr);
+  const Array4<const Real>& z_phys_nd,
+  const Array4<const Real>& surface_state_arr)
 {
+    amrex::ignore_unused(z_phys_nd);
+
     int ndrag = 1;
     Real z_phys = 200.0;
     Real Cd_sea = 0.001;
@@ -57,13 +59,13 @@ ApplySurfaceTreatment_BulkCoeff_Mom (
 }
 
 void
-ApplySurfaceTreatment_BulkCoeff_CC (const Geometry& geom,
-                         const Box& bx,
+ApplySurfaceTreatment_BulkCoeff_CC (const Box& bx,
                          const Array4<Real>& cell_rhs,
                          const Array4<const Real>& cons_state,
-                         //const Array4<const Real>& z_phys_cc,
+                         const Array4<const Real>& z_phys_cc,
                          const Array4<const Real>& surface_state_arr)
 {
+     amrex::ignore_unused(z_phys_cc);
      ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         if(k == 0) {
             Real ls_mask = surface_state_arr(i,j,0);
