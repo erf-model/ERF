@@ -6,7 +6,6 @@ using namespace amrex;
 
 void
 ApplySurfaceTreatment_BulkCoeff_Mom (
-  const SolverChoice& solverChoice,
   const Box& tbx,
   const Box& tby,
   const Array4<Real>& rho_u_rhs,
