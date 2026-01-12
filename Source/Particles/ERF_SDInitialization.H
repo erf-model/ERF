@@ -14,8 +14,6 @@
 #include "ERF_Constants.H"
 #include "ERF_MaterialProperties.H"
 
-using MatVec = std::vector<std::unique_ptr<MaterialProperties>>;
-
 AMREX_ENUM(SDInitShape,
     uniform,
     bubble,
@@ -45,6 +43,8 @@ AMREX_ENUM(SDMultiplicityType,
 class SDInitProperties
 {
     public:
+
+        using MatVec = std::vector<std::unique_ptr<MaterialProperties>>;
 
         /*!< Initial number of super-droplets per cell */
         int m_ppc = 1;
@@ -298,8 +298,8 @@ class SDInjection : public SDInitProperties
             m_numdens_sd = (m_sd_inj_rate>0 ? std::max(m_sd_inj_rate*a_dt, 1.0) : -1);
 
             if (this->m_type == SDInitShape::uniform) {
-                amrex::Vector<amrex::Real> lo = {0.0, 0.0, 0.0};;
-                amrex::Vector<amrex::Real> hi = {0.0, 0.0, 0.0};;
+                amrex::Vector<amrex::Real> lo = {0.0, 0.0, 0.0};
+                amrex::Vector<amrex::Real> hi = {0.0, 0.0, 0.0};
                 for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
                     lo[dir] = this->m_particle_domain.lo(dir) + m_domain_vel[dir] * a_dt;
                     hi[dir] = this->m_particle_domain.hi(dir) + m_domain_vel[dir] * a_dt;
@@ -307,7 +307,7 @@ class SDInjection : public SDInitProperties
                 this->m_particle_domain.setLo(lo);
                 this->m_particle_domain.setHi(hi);
             } else if (m_type == SDInitShape::bubble) {
-                amrex::Vector<amrex::Real> center = {0.0, 0.0, 0.0};;
+                amrex::Vector<amrex::Real> center = {0.0, 0.0, 0.0};
                 for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
                     center[dir] = this->m_particle_domain.lo(dir) + m_domain_vel[dir] * a_dt;
                 }

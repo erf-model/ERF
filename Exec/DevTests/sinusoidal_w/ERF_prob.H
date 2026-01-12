@@ -5,7 +5,7 @@
 
 #include "AMReX_REAL.H"
 
-#include "ERF_prob_common.H"
+#include "ERF_ProbCommon.H"
 
 struct ProbParm : ProbParmDefaults {
     amrex::Real rho_0 = 0.0;
@@ -63,8 +63,8 @@ class Problem : public ProblemBase
 public:
     Problem (const amrex::Real* problo, const amrex::Real* probhi);
 
-#include "Prob/ERF_init_constant_density_hse.H"
-#include "Prob/ERF_init_rayleigh_damping.H"
+#include "Prob/ERF_InitConstantDensityHSE.H"
+#include "Prob/ERF_InitRayleighDamping.H"
 
     void init_custom_pert (
         const amrex::Box&  bx,
@@ -84,7 +84,8 @@ public:
         amrex::Array4<amrex::Real const> const& mf_m,
         amrex::Array4<amrex::Real const> const& mf_u,
         amrex::Array4<amrex::Real const> const& mf_v,
-        const SolverChoice& sc) override;
+        const SolverChoice& sc,
+        const int /*lev*/) override;
 
     void update_rhotheta_sources (
         const amrex::Real& /*time*/,
@@ -102,6 +103,7 @@ public:
         const amrex::Real& /*time*/,
         amrex::Vector<amrex::Real>& wbar,
         amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
+        const amrex::MultiFab& /*state*/,
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
@@ -115,7 +117,7 @@ public:
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
 protected:
-    std::string name () override { return "BOMEX"; }
+    std::string name () override { return "SinusoidalW"; }
 
 private:
     ProbParm parms;

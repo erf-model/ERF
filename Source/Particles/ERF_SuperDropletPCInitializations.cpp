@@ -5,6 +5,7 @@
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using namespace SDPCDefn;
 
 /*! Add super-droplet method-specific attributes to particles */
 void SuperDropletPC::add_superdroplet_attributes()

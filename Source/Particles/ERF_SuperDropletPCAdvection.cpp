@@ -7,6 +7,7 @@
 #include "ERF_TerminalVelocity.H"
 
 using namespace amrex;
+using namespace SDPCDefn;
 
 /*! Evolve particles for one time step */
 void SuperDropletPC::AdvectParticles ( int                   a_lev,

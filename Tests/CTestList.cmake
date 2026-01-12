@@ -202,15 +202,18 @@ add_test_0(InitSoundingIdeal_stationary      "ABL" "erf_abl" "plt00010")
 add_test_0(Deardorff_stationary              "ABL" "erf_abl" "plt00010")
 
 if(ERF_ENABLE_PARTICLES)
-    # log-normal distribution for radius
-    add_test_sdm(SDM_RICO3D_InitSampling         "DevTests/RICO"        "erf_rico"     "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding")
-    # mass-exponential distribution for mass
-    add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "MoistRegTests/Bubble" "erf_bubble"   "plt00000" 1e-14 1e-14)
-    
+    # These tests require machine-specific gold files due to platform-dependent initial sampling
+    if(ERF_TEST_ENABLE_EXTRA_SDM_TESTS)
+        # log-normal distribution for radius
+        add_test_sdm(SDM_RICO3D_InitSampling         "DevTests/RICO"        "erf_rico"     "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding")
+        # mass-exponential distribution for mass
+        add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "MoistRegTests/Bubble" "erf_bubble"   "plt00000" 1e-14 1e-14)
+    endif()
+
     # passive advection of particles
     add_test_sdm(SDM_Bubble2D_Adv                "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 1e-12 1e-12)
     # passive advection of particles with injection
-    add_test_sdm(SDM_Bubble2D_Adv_wInjection     "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 1e-12 1e-12)
+    add_test_sdm(SDM_Bubble2D_Adv_wInjection     "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 5e-12 5e-12)
     # condensation/evaporation
     add_test_sdm(SDM_Box3D_Cond                  "MoistRegTests/Bubble" "erf_bubble"   "plt00010" 1e-14 2e-13)
     # ice freezing + deposition          

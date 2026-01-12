@@ -8,6 +8,7 @@
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using namespace SDPCDefn;
 
 /*! Compute mass change of particles due to evaporation and condensation
  *  (liquid <--> vapour) */
@@ -171,8 +172,7 @@ void SuperDropletPC::MassChange_LV (  int                                       
                                                                           m_newton_rtol,
                                                                           m_newton_atol,
                                                                           m_newton_stol,
-                                                                          m_newton_maxits,
-                                                                          false };
+                                                                          m_newton_maxits };
 
         Gpu::Buffer<Long> unconverged_particles({0});
         auto* unconverged_particles_ptr = unconverged_particles.data();

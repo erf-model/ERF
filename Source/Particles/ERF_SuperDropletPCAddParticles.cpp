@@ -4,6 +4,7 @@
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using namespace SDPCDefn;
 
 /*! Sets the initial number of the super-droplets per cell as a box with a uniform distribution */
 void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */

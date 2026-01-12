@@ -8,11 +8,11 @@
 #include "ERF_MaterialProperties.H"
 #include "ERF_SuperDropletPCDefinitions.H"
 
-using MFPtr = std::unique_ptr<amrex::MultiFab>;
-using BCTypeArr = amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>;
-
 class SuperDropletPC : public ERFPC
 {
+    using MFPtr = std::unique_ptr<amrex::MultiFab>;
+    using BCTypeArr = amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>;
+
     public:
 
         /*! \brief Constructor */

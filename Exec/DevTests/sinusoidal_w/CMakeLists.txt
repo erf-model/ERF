@@ -1,4 +1,4 @@
-set(erf_exe_name erf_sinusoidal_mass_flux)
+set(erf_exe_name erf_sinusoidal_w)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}

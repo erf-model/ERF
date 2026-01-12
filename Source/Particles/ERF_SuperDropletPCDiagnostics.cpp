@@ -8,6 +8,7 @@
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using namespace SDPCDefn;
 using SDTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
 
 /*! Get real-type particle attribute names */
