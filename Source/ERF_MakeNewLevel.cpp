@@ -316,7 +316,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
-    //      terrain arrays, metric terms and base state.
+    //      terrain arrays, ba2d, metric terms and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev], base_state[lev], z_phys_nd[lev]);
 
@@ -361,22 +361,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     }
 
     //********************************************************************************************
-    // Microphysics
-    // *******************************************************************************************
-    int q_size  = micro->Get_Qmoist_Size(lev);
-    qmoist[lev].resize(q_size);
-    micro->Define(lev, solverChoice);
-    if (solverChoice.moisture_type != MoistureType::None)
-    {
-        micro->Init(lev, vars_new[lev][Vars::cons],
-                    grids[lev], Geom(lev), 0.0,
-                    z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
-    }
-    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
-    }
-
-    //********************************************************************************************
     // Radiation
     // *******************************************************************************************
     if (solverChoice.rad_type != RadiationType::None)
@@ -402,6 +386,22 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
     // Impose bc's outside the domain
     (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+
+    //********************************************************************************************
+    // Microphysics
+    // *******************************************************************************************
+    int q_size  = micro->Get_Qmoist_Size(lev);
+    qmoist[lev].resize(q_size);
+    micro->Define(lev, solverChoice);
+    if (solverChoice.moisture_type != MoistureType::None)
+    {
+        micro->Init(lev, vars_new[lev][Vars::cons],
+                    grids[lev], Geom(lev), 0.0,
+                    z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+    }
+    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
+        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
+    }
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -445,7 +445,15 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
     } else {
 #endif
-        FillCoarsePatch(lev, time);
+    //
+    // Interpolate the solution data
+    //
+    FillCoarsePatch(lev, time);
+    //
+    // Interpolate the 2D arrays at the lower boundary
+    // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
+    // so we must explicitly pass dm.
+    Interp2DArrays(lev,ba2d[lev],dm);
 #ifdef ERF_USE_NETCDF
     }
 #endif
@@ -729,6 +737,37 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         SetDistributionMap(lev, dm);
     }
 
+    // Clear the 2D arrays
+    if (sst_lev[lev][0]) {
+        for (int n = 0; n < sst_lev[lev].size(); n++) {
+            sst_lev[lev][n].reset();
+        }
+    }
+    if (tsk_lev[lev][0]) {
+        for (int n = 0; n < tsk_lev[lev].size(); n++) {
+            tsk_lev[lev][n].reset();
+        }
+    }
+    if (lat_m[lev]) {
+        lat_m[lev].reset();
+    }
+    if (lon_m[lev]) {
+        lon_m[lev].reset();
+    }
+    if (sinPhi_m[lev]) {
+        sinPhi_m[lev].reset();
+    }
+    if (cosPhi_m[lev]) {
+        cosPhi_m[lev].reset();
+    }
+
+    //
+    // Interpolate the 2D arrays at the lower boundary. We assume that since we created
+    //     them by interpolation it is ok just to recreate them by interpolation.
+    // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
+    //     so we must explicitly pass dm.
+    Interp2DArrays(lev,ba2d[lev],dm);
+
 #ifdef ERF_USE_PARTICLES
     particleData.Redistribute();
 #endif
@@ -736,6 +775,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
 //
 // Delete level data (overrides the pure virtual function in AmrCore)
+// NOTE: this is only called for levels that no longer exist
 //
 void
 ERF::ClearLevel (int lev)
@@ -780,6 +820,30 @@ ERF::ClearLevel (int lev)
 
     // Clears the flux register array
     advflux_reg[lev]->reset();
+
+    // Clears the 2D arrays
+    if (sst_lev[lev][0]) {
+        for (int n = 0; n < sst_lev[lev].size(); n++) {
+            sst_lev[lev][n].reset();
+        }
+    }
+    if (tsk_lev[lev][0]) {
+        for (int n = 0; n < tsk_lev[lev].size(); n++) {
+            tsk_lev[lev][n].reset();
+        }
+    }
+    if (lat_m[lev]) {
+        lat_m[lev].reset();
+    }
+    if (lon_m[lev]) {
+        lon_m[lev].reset();
+    }
+    if (sinPhi_m[lev]) {
+        sinPhi_m[lev].reset();
+    }
+    if (cosPhi_m[lev]) {
+        cosPhi_m[lev].reset();
+    }
 }
 
 void

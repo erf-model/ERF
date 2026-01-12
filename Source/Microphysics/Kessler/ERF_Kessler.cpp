@@ -180,7 +180,8 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                                        });
         wt_max = get<0>(max) + std::numeric_limits<Real>::epsilon();
         n_substep = int( std::ceil(wt_max * coef / CFL_MAX) );
-        AMREX_ALWAYS_ASSERT(n_substep >= 1);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(n_substep >= 1,
+                                         "Kessler: Number of precipitation substeps must be greater than 0!");
         coef /= Real(n_substep);
         dtn  /= Real(n_substep);
 
