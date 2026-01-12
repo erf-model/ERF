@@ -16,16 +16,14 @@ ApplySurfaceTreatment_BulkCoeff_Mom (
   const Array4<const Real>& z_phys_nd,
   const Array4<const Real>& surface_state_arr)
 {
-    amrex::ignore_unused(z_phys_nd);
-
     int ndrag = 1;
-    Real z_phys = 200.0;
     Real Cd_sea = 0.001;
     Real Cd_land = 0.01;
 
     ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {
         if(k <= ndrag) {
+            Real dz = z_phys_nd(i,j,1) - z_phys_nd(i,j,0);
             Real ls_mask = (surface_state_arr(i-1,j,0)+surface_state_arr(i,j,0))/2.0;
             Real weight = 1.0 - Real(k)/ndrag;  // linear decrease
             Real fac = k==0? 1.0 : 0.0;
@@ -35,7 +33,7 @@ ApplySurfaceTreatment_BulkCoeff_Mom (
             Real uvel = rho_u(i,j,k)/rho_for_u;
             Real vvel = rho_v(i,j,k)/rho_for_v;
             Real velmag = std::sqrt(uvel*uvel + vvel*vvel);
-            rho_u_rhs(i, j, k) += -1.0*weight*Cd*velmag*rho_for_u*uvel/z_phys;
+            rho_u_rhs(i, j, k) += -1.0*weight*Cd*velmag*rho_for_u*uvel/dz;
         }
     });
 
@@ -43,6 +41,7 @@ ApplySurfaceTreatment_BulkCoeff_Mom (
     ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {
        if(k <= ndrag) {
+            Real dz = z_phys_nd(i,j,1) - z_phys_nd(i,j,0);
             Real ls_mask = (surface_state_arr(i,j-1,0)+surface_state_arr(i,j,0))/2.0;
             Real fac = k==0? 1.0 : 0.0;
             Real Cd = fac*Cd_sea*(1.0-ls_mask) + Cd_land*ls_mask;
@@ -52,7 +51,7 @@ ApplySurfaceTreatment_BulkCoeff_Mom (
             Real uvel = rho_u(i,j,k)/rho_for_u;
             Real vvel = rho_v(i,j,k)/rho_for_v;
             Real velmag = std::sqrt(uvel*uvel + vvel*vvel);
-            rho_v_rhs(i, j, k) += -1.0*weight*Cd*velmag*rho_for_v*vvel/z_phys;
+            rho_v_rhs(i, j, k) += -1.0*weight*Cd*velmag*rho_for_v*vvel/dz;
         }
     });
 }
@@ -64,9 +63,9 @@ ApplySurfaceTreatment_BulkCoeff_CC (const Box& bx,
                          const Array4<const Real>& z_phys_cc,
                          const Array4<const Real>& surface_state_arr)
 {
-     amrex::ignore_unused(z_phys_cc);
      ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         if(k == 0) {
+            Real dz = z_phys_cc(i,j,1)-z_phys_cc(i,j,0);
             Real ls_mask = surface_state_arr(i,j,0);
             Real Ch = 0.0015*(1.0-ls_mask);
             Real Ce = 0.0015*(1.0-ls_mask);
@@ -82,8 +81,8 @@ ApplySurfaceTreatment_BulkCoeff_CC (const Box& bx,
             Real velmag = std::sqrt(uvel*uvel + vvel*vvel);
             Real dT = max(0.0, 301.0 - temp);
             Real dq = max(0.0, 0.024 - qv);
-            cell_rhs(i, j, k, RhoTheta_comp) += (theta/(1005.0*temp))*rho*Ch*velmag*dT/195.3125;
-            cell_rhs(i, j, k, RhoQ1_comp) += rho*Ce*velmag*dq/195.3125;
+            cell_rhs(i, j, k, RhoTheta_comp) += (theta/(1005.0*temp))*rho*Ch*velmag*dT/dz;
+            cell_rhs(i, j, k, RhoQ1_comp) += rho*Ce*velmag*dq/dz;
         }
     });
 }
