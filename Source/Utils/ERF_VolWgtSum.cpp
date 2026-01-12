@@ -98,13 +98,13 @@ ERF::volWgtColumnSum (int lev, const MultiFab& mf_to_be_summed, int comp,
         if (SolverChoice::mesh_type == MeshType::ConstantDz) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                dst_arr(i,j,0) += src_arr(i,j,k,comp);
+                amrex::HostDevice::Atomic::Add(&dst_arr(i,j,0),src_arr(i,j,k,comp));
             });
         } else {
             const auto& dJ_arr = dJ.const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                dst_arr(i,j,0) += src_arr(i,j,k,comp) * dJ_arr(i,j,k);
+                amrex::HostDevice::Atomic::Add(&dst_arr(i,j,0),src_arr(i,j,k,comp)*dJ_arr(i,j,k));
             });
         }
     } // mfi
