@@ -49,7 +49,7 @@ Problem::init_custom_pert(
     const int lev)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
-    const bool const_rho    =  sc.fixed_density[lev];
+    const bool const_rho    = (sc.fixed_density[lev] == 1);
 
     const Real l_x_r = parms.x_r;
     const Real l_x_c = parms.x_c;

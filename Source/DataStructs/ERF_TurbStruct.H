@@ -225,6 +225,26 @@ public:
     }
   }
 
+  void check_params (amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type)
+  {
+      // BC compatibility
+      if ( ( (pbl_type == PBLType::MYNN25)   ||
+             (pbl_type == PBLType::MYNNEDMF) ||
+             (pbl_type == PBLType::YSU) ||
+             (pbl_type == PBLType::MRF)
+                 ) &&
+          phys_bc_type[amrex::Orientation(amrex::Direction::z,amrex::Orientation::low)] != ERF_BC::surface_layer ) {
+          amrex::Abort("MYNN2.5/MYNNEDMF/YSU/MRF PBL Model requires MOST at lower boundary");
+      }
+      if ( (les_type == LESType::Deardorff) && (Ce_wall > 0) &&
+           (phys_bc_type[amrex::Orientation(amrex::Direction::z,amrex::Orientation::low)] != ERF_BC::surface_layer) &&
+           (phys_bc_type[amrex::Orientation(amrex::Direction::z,amrex::Orientation::low)] != ERF_BC::slip_wall) &&
+           (phys_bc_type[amrex::Orientation(amrex::Direction::z,amrex::Orientation::low)] != ERF_BC::no_slip_wall) )
+      {
+          amrex::Warning("Deardorff LES assumes wall at zlo when applying Ce_wall");
+      }
+  }
+
   void display (int lev)
   {
     amrex::Print() << "Turbulence Settings at level " << lev << std::endl;

@@ -55,10 +55,10 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     // For SYCL
     amrex::ignore_unused(has_zphys);
 
-    AMREX_ASSERT_WITH_MESSAGE(m_radius<=2, "Radius must be less than nGhost=3!");
-    if (m_interp) AMREX_ASSERT_WITH_MESSAGE(has_zphys, "Interpolation only implemented with terrain!");
-    if (m_rotate) AMREX_ASSERT_WITH_MESSAGE(has_zphys, "Stress rotations are only valid with terrain!");
-    if (m_norm_vec) AMREX_ASSERT_WITH_MESSAGE(has_zphys, "Normal vector is only valid with terrain!");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_radius<=2, "Radius must be less than nGhost=3!");
+    if (m_interp) AMREX_ALWAYS_ASSERT_WITH_MESSAGE(has_zphys, "Interpolation only implemented with terrain!");
+    if (m_rotate) AMREX_ALWAYS_ASSERT_WITH_MESSAGE(has_zphys, "Stress rotations are only valid with terrain!");
+    if (m_norm_vec) AMREX_ALWAYS_ASSERT_WITH_MESSAGE(has_zphys, "Normal vector is only valid with terrain!");
 
     // Set up fields and 2D MF/iMFs for averages
     //--------------------------------------------------------
@@ -68,6 +68,7 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     m_rot_fields.resize(m_maxlev);
     m_averages.resize(m_maxlev);
     m_z_phys_nd.resize(m_maxlev);
+    m_zref.resize(m_maxlev);
 
     m_k_in.resize(m_maxlev);
 
@@ -174,6 +175,10 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
             m_rot_fields[lev][3] = nullptr;
         }
 
+        // Default zref to 10 and fill will true values later
+        m_zref[lev] = std::make_unique<MultiFab>(ba,dm,1,ng);
+        m_zref[lev]->setVal(zref_default);
+
         if (use_terrain_fitted_coords && m_norm_vec && m_interp) {
             m_x_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
             m_y_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -203,7 +208,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         set_norm_indices_T(lev);
     } else if (use_terrain_fitted_coords) {                    // Terrain
         set_k_indices_T(lev);
-    } else {                                        // No Terrain
+    } else {                                                   // No Terrain
         set_k_indices_N(lev);
     }
 
@@ -217,7 +222,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         set_region_normalization(lev);
         break;
     default:
-        AMREX_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
     }
 
     // Set up the exponential time filtering
@@ -396,15 +401,17 @@ void
 MOSTAverage::set_k_indices_N (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    auto read_z = pp.query("most.zref",m_zref);
+    Real zref_tmp = zref_default;
+    auto read_z = pp.query("most.zref",zref_tmp);
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
     // Default behavior is to use the first cell center
     if (!read_z && !read_k) {
         Real m_zlo = m_geom[0].ProbLo(2);
         Real m_dz  = m_geom[0].CellSize(2);
-        m_zref = m_zlo + 0.5 * m_dz;
-        Print() << "Reference height for MOST set to " << m_zref << std::endl;
+        zref_tmp = m_zlo + 0.5 * m_dz;
+        m_zref[lev]->setVal( zref_tmp );
+        Print() << "Reference height for MOST set to " << zref_tmp << std::endl;
         read_z = true;
     }
 
@@ -416,29 +423,29 @@ MOSTAverage::set_k_indices_N (const int& lev)
 
         amrex::ignore_unused(m_zhi);
 
-        AMREX_ASSERT_WITH_MESSAGE(m_zref >= m_zlo + 0.5 * m_dz,
-                                  "Query point must be past first z-cell!");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= m_zlo + 0.5 * m_dz,
+                                         "Query point must be past first z-cell!");
 
-        AMREX_ASSERT_WITH_MESSAGE(m_zref <= m_zhi - 0.5 * m_dz,
-                                  "Query point must be below the last z-cell!");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp <= m_zhi - 0.5 * m_dz,
+                                         "Query point must be below the last z-cell!");
 
-        int lk = static_cast<int>(floor((m_zref - m_zlo) / m_dz - 0.5));
+        int lk = static_cast<int>(floor((zref_tmp - m_zlo) / m_dz - 0.5));
 
-        m_zref = (lk + 0.5) * m_dz + m_zlo;
+        m_zref[lev]->setVal( (lk + 0.5) * m_dz + m_zlo );
 
         AMREX_ALWAYS_ASSERT(lk >= m_radius);
 
         m_k_indx[lev]->setVal(lk);
     // Specified k_indx & compute z_ref
     } else if (read_k) {
-        AMREX_ASSERT_WITH_MESSAGE(m_k_in[lev] >= m_radius,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_k_in[lev] >= m_radius,
                                   "K index must be larger than averaging radius!");
         m_k_indx[lev]->setVal(m_k_in[lev]);
 
         // TODO: check that z_ref is constant across levels
         Real m_zlo = m_geom[0].ProbLo(2);
         Real m_dz  = m_geom[0].CellSize(2);
-        m_zref = ((Real)m_k_in[0] + 0.5) * m_dz + m_zlo;
+        m_zref[lev]->setVal( ((Real)m_k_in[0] + 0.5) * m_dz + m_zlo );
     }
 }
 
@@ -451,12 +458,13 @@ void
 MOSTAverage::set_k_indices_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    auto read_z = pp.query("most.zref",m_zref);
+    Real zref_tmp = zref_default;
+    auto read_z = pp.query("most.zref",zref_tmp);
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
     // Allow default zref
     if (!read_z) {
-        Print() << "most.zref not specified, query distance default is " << m_zref << std::endl;
+        Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
         read_z = true;
     }
 
@@ -466,7 +474,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
                                      "Need to specify zref or k_arr_in for MOST");
 
     // Capture for device
-    Real d_zref   = m_zref;
+    Real d_zref   = zref_tmp;
     Real d_radius = m_radius;
     amrex::ignore_unused(d_radius);
 
@@ -477,9 +485,11 @@ MOSTAverage::set_k_indices_T (const int& lev)
             Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
             const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
             auto k_arr = m_k_indx[lev]->array(mfi);
+            auto zref_arr = m_zref[lev]->array(mfi);
             ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 k_arr(i,j,k) = 0;
+                bool found = false;
                 Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
                                           + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
                 Real z_target    = z_bot_face + d_zref;
@@ -489,17 +499,21 @@ MOSTAverage::set_k_indices_T (const int& lev)
                     Real z_hi = 0.25 * ( z_phys_arr(i,j  ,lk+1) + z_phys_arr(i+1,j  ,lk+1)
                                        + z_phys_arr(i,j+1,lk+1) + z_phys_arr(i+1,j+1,lk+1) );
                     if (z_target > z_lo && z_target < z_hi){
-                        AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
-                                                  "K index must be larger than averaging radius!");
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= d_radius,
+                                                         "K index must be larger than averaging radius!");
                         k_arr(i,j,k) = lk;
+                        zref_arr(i,j,k) = 0.5 * (z_hi + z_lo) - z_bot_face;
+                        found = true;
                         break;
                     }
                 }
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found,
+                                                 "zref not found with terrain!");
             });
         }
     // Specified k_indx & compute z_ref
     } else if (read_k) {
-        AMREX_ASSERT_WITH_MESSAGE(false, "Specified k-indx with terrain not implemented!");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(false, "Specified k-indx with terrain not implemented!");
     }
 }
 
@@ -512,13 +526,14 @@ void
 MOSTAverage::set_norm_indices_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    auto read_zref = pp.query("most.zref",m_zref);
+    Real zref_tmp = zref_default;
+    auto read_zref = pp.query("most.zref",zref_tmp);
     if (!read_zref) {
-        Print() << "most.zref not specified, query distance default is " << m_zref << std::endl;
+        Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
     }
 
     // Capture for device
-    Real d_zref   = m_zref;
+    Real d_zref   = zref_tmp;
     Real d_radius = m_radius;
 
     int kmax = m_geom[lev].Domain().bigEnd(2);
@@ -531,6 +546,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
         auto i_arr = m_i_indx[lev]->array(mfi);
         auto j_arr = m_j_indx[lev]->array(mfi);
         auto k_arr = m_k_indx[lev]->array(mfi);
+        auto zref_arr = m_zref[lev]->array(mfi);
         ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Elements of normal vector
@@ -561,18 +577,19 @@ MOSTAverage::set_norm_indices_T (const int& lev)
                 Real z_hi = 0.25 * ( z_phys_arr(i_new,j_new  ,lk+1) + z_phys_arr(i_new+1,j_new  ,lk+1)
                                    + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
                 if (z_target > z_lo && z_target < z_hi){
-                    AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
-                                              "K index must be larger than averaging radius!");
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= d_radius,
+                                                     "K index must be larger than averaging radius!");
                     amrex::ignore_unused(d_radius);
                     k_arr(i,j,k) = lk;
+                    zref_arr(i,j,k) = 0.5 * (z_hi + z_lo) - z_bot_face;
                     break;
                 }
             }
 
             // Destination cell must be contained on the current process!
             amrex::ignore_unused(gpbx);
-            AMREX_ASSERT_WITH_MESSAGE(gpbx.contains(i_arr(i,j,k),j_arr(i,j,k),k_arr(i,j,k)),
-                                      "Query index outside of proc domain!");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(gpbx.contains(i_arr(i,j,k),j_arr(i,j,k),k_arr(i,j,k)),
+                                             "Query index outside of proc domain!");
         });
     }
 }
@@ -586,13 +603,16 @@ void
 MOSTAverage::set_z_positions_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    auto read_zref = pp.query("most.zref",m_zref);
+    Real zref_tmp = zref_default;
+    auto read_zref = pp.query("most.zref",zref_tmp);
     if (!read_zref) {
-        Print() << "most.zref not specified, query distance default is " << m_zref << std::endl;
+        Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
+    } else {
+        m_zref[lev]->setVal(zref_tmp);
     }
 
     // Capture for device
-    Real d_zref = m_zref;
+    Real d_zref = zref_tmp;
     const auto plo = m_geom[lev].ProbLoArray();
 
     RealVect base;
@@ -619,8 +639,8 @@ MOSTAverage::set_z_positions_T (const int& lev)
             // Destination position must be contained on the current process!
             Real pos[] = {x_pos_arr(i,j,k)-plo[0],y_pos_arr(i,j,k)-plo[1],0.5*dx[2]};
             amrex::ignore_unused(pos);
-            AMREX_ASSERT_WITH_MESSAGE( grb.contains(&pos[0]),
-                                       "Query point outside of proc domain!");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(grb.contains(&pos[0]),
+                                             "Query point outside of proc domain!");
         });
     }
 }
@@ -634,13 +654,14 @@ void
 MOSTAverage::set_norm_positions_T (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    auto read_zref = pp.query("most.zref",m_zref);
+    Real zref_tmp = zref_default;
+    auto read_zref = pp.query("most.zref",zref_tmp);
     if (!read_zref) {
-        Print() << "most.zref not specified, query distance default is " << m_zref << std::endl;
+        Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
     }
 
     // Capture for device
-    Real d_zref = m_zref;
+    Real d_zref = zref_tmp;
     const auto plo = m_geom[lev].ProbLoArray();
 
     RealVect base;
@@ -656,6 +677,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
         auto x_pos_arr   = m_x_pos[lev]->array(mfi);
         auto y_pos_arr   = m_y_pos[lev]->array(mfi);
         auto z_pos_arr   = m_z_pos[lev]->array(mfi);
+        auto zref_arr    = m_zref[lev]->array(mfi);
         ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Elements of normal vector
@@ -689,11 +711,13 @@ MOSTAverage::set_norm_positions_T (const int& lev)
                 z_pos_arr(i,j,k) = z_new_bot_face + delta_z;
             }
 
+            zref_arr(i,j,k) = delta_z;
+
             // Destination position must be contained on the current process!
             Real pos[] = {x_pos_arr(i,j,k)-plo[0],y_pos_arr(i,j,k)-plo[1],0.5*dx[2]};
             amrex::ignore_unused(pos);
-            AMREX_ASSERT_WITH_MESSAGE( grb.contains(&pos[0]),
-                                       "Query point outside of proc domain!");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(grb.contains(&pos[0]),
+                                              "Query point outside of proc domain!");
         });
     }
 }
@@ -717,7 +741,7 @@ MOSTAverage::compute_averages (const int& lev)
         compute_region_averages(lev);
         break;
     default:
-        AMREX_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
     }
 
     // We have initialized the averages

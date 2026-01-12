@@ -15,6 +15,22 @@ associated data structures and routines, which are implemented in C++
 and Fortran, and provides details on initialization and management of
 data structures necessary for these processes.
 
+Building and Running with Noah-MP
+---------------------------------
+To build ERF with Noah-MP support, the ``NetCDF``, ``NetCDF Fortran``, and ``HDF5`` libraries are
+required. Furthermore, ``ERF_ENABLE_NOAHMP=ON`` must be specified with CMake builds or ``USE_NOAHMP=TRUE``
+and ``USE_NETCDF=TRUE`` must be specified with GNU Make. Once an executable has been generated, the
+inputs file for the simulation must specify Noah-MP as the land surface model type:
+
+.. code-block:: bash
+
+    erf.land_surface_model = "NOAHMP"
+
+Currently, Noah-MP may only be utilized for simulations that are initialized from a WRF input file
+(``erf.init_type = "WRFInput"``). Additionally, two files are required to be in the run directory
+for Noah-MP initialization: ``namelist.erf`` and ``NoahmpTable.TBL``. Sample files are provided for
+the :download:`namelist.erf <namelist.erf>` and :download:`NoahmpTable.TBL <NoahmpTable.TBL>`.
+
 Files Overview
 --------------
 

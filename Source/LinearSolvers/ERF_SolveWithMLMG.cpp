@@ -1,5 +1,6 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
+#include "ERF_SolverUtils.H"
 
 #include <AMReX_MLMG.H>
 #include <AMReX_MLPoisson.H>
@@ -7,42 +8,23 @@
 using namespace amrex;
 
 /**
- * Define the domain boundary conditions for the (optional) Poisson solve
- * if we want to enforce that the initial conditions satisfy the constraint
- */
-
-using BCType = LinOpBCType;
-
-Array<LinOpBCType,AMREX_SPACEDIM>
-ERF::get_projection_bc (Orientation::Side side) const noexcept
-{
-    amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> r;
-    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        if (geom[0].isPeriodic(dir)) {
-            r[dir] = LinOpBCType::Periodic;
-        } else {
-            auto bc_type = domain_bc_type[Orientation(dir,side)];
-            if (bc_type == "Outflow") {
-                r[dir] = LinOpBCType::Dirichlet;
-            } else
-            {
-                r[dir] = LinOpBCType::Neumann;
-            }
-        }
-    }
-    return r;
-}
-
-/**
  * Solve the Poisson equation using MLMG
  * Note that the level may or may not be level 0.
+ *
+ * Important: we solve on the whole level even if there are disjoint regions
+ *
  */
-void ERF::solve_with_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi, Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes)
+void
+solve_with_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
+                 Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
+                 const Geometry& geom, const Vector<IntVect>& ref_ratio,
+                 Array<std::string,2*AMREX_SPACEDIM> domain_bc_type,
+                 int mg_verbose, Real reltol, Real abstol)
 {
     BL_PROFILE("ERF::solve_with_mlmg()");
 
-    auto const dom_lo = lbound(geom[lev].Domain());
-    auto const dom_hi = ubound(geom[lev].Domain());
+    auto const dom_lo = lbound(geom.Domain());
+    auto const dom_hi = ubound(geom.Domain());
 
     LPInfo info;
     // Allow a hidden direction if the domain is one cell wide in any lateral direction
@@ -55,16 +37,13 @@ void ERF::solve_with_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(rhs[0].boxArray());
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(rhs[0].DistributionMap());
-    Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
+    Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom);
 
-    auto bclo = get_projection_bc(Orientation::low);
-    auto bchi = get_projection_bc(Orientation::high);
+    auto bclo = get_lo_projection_bc(geom,domain_bc_type);
+    auto bchi = get_hi_projection_bc(geom,domain_bc_type);
 
     // amrex::Print() << "BCLO " << bclo[0] << " " << bclo[1] << " " << bclo[2] << std::endl;
     // amrex::Print() << "BCHI " << bchi[0] << " " << bchi[1] << " " << bchi[2] << std::endl;
-
-    Real reltol = solverChoice.poisson_reltol;
-    Real abstol = solverChoice.poisson_abstol;
 
     // ****************************************************************************
     // Multigrid solve
@@ -95,5 +74,5 @@ void ERF::solve_with_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi
     // ****************************************************************************
     // Impose bc's on pprime
     // ****************************************************************************
-    ImposeBCsOnPhi(lev, phi[0], geom[lev].Domain());
+    // ImposeBCsOnPhi(lev, phi[0], geom.Domain()));
 }

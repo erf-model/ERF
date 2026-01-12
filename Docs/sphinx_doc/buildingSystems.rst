@@ -614,6 +614,10 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - Requires ``ERF_ENABLE_MPI=ON``
      - Automatically enables ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
 
+   * ``ERF_ENABLE_NOAHMP`` - NOAHMP land surface model
+
+     - Requires the NetCDF Fortran library
+
    **GPU Acceleration**
 
    Enable exactly one GPU backend:

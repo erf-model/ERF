@@ -1,9 +1,57 @@
-#ifndef ERF_FFT_UTILS_H_
-#define ERF_FFT_UTILS_H_
+#ifndef ERF_SOLVER_UTILS_H_
+#define ERF_SOLVER_UTILS_H_
 
-#ifdef ERF_USE_FFT
+#include "AMReX_LO_BCTYPES.H"
 
 using namespace amrex;
+
+/**
+ * Define the domain boundary conditions for the (optional) Poisson solve
+ * if we want to enforce that the initial conditions satisfy the constraint
+ */
+inline Array<LinOpBCType,AMREX_SPACEDIM>
+get_lo_projection_bc (Geometry const& lev_geom,
+                      Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type)
+{
+    amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> r;
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if ( lev_geom.isPeriodic(dir) )
+        {
+            r[dir] = LinOpBCType::Periodic;
+        } else {
+            auto bc_type = l_domain_bc_type[Orientation(dir,Orientation::low)];
+            if (bc_type == "Outflow" || bc_type == "Open") {
+                r[dir] = LinOpBCType::Dirichlet;
+            } else {
+                r[dir] = LinOpBCType::Neumann;
+            }
+        }
+    }
+    return r;
+}
+
+inline Array<LinOpBCType,AMREX_SPACEDIM>
+get_hi_projection_bc (Geometry const& lev_geom,
+                      Array<std::string,2*AMREX_SPACEDIM> l_domain_bc_type)
+{
+    amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> r;
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if ( lev_geom.isPeriodic(dir) )
+        {
+            r[dir] = LinOpBCType::Periodic;
+        } else {
+            auto bc_type = l_domain_bc_type[Orientation(dir,Orientation::high)];
+            if (bc_type == "Outflow" || bc_type == "Open") {
+                r[dir] = LinOpBCType::Dirichlet;
+            } else {
+                r[dir] = LinOpBCType::Neumann;
+            }
+        }
+    }
+    return r;
+}
+
+#ifdef ERF_USE_FFT
 
 inline Array<std::pair<FFT::Boundary,FFT::Boundary>,AMREX_SPACEDIM>
 get_fft_bc (Geometry const& lev_geom,

@@ -1,4 +1,4 @@
 [codespell]
-skip = .git,*.ipynb,*.bib,*.ps,*.patch,*~,CHANGES,*/Submodules,*/tmp_build_dir,Cell_D_*,*.F90
+skip = .git,*.ipynb,*.bib,*.ps,*.patch,*~,CHANGES,*/Submodules,*/tmp_build_dir,Cell_D_*,*.F90,./Docs/sphinx_doc/NoahmpTable.TBL,./Docs/sphinx_doc/namelist.erf
 ignore-words = .codespell-ignore-words
 uri-ignore-words-list = *

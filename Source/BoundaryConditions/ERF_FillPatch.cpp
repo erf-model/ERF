@@ -48,6 +48,12 @@ ERF::FillPatchFineLevel (int lev, Real time,
             FPr_c[lev-1].FillSet(*mfs_vel[Vars::cons], time, null_bc, domain_bcs_type);
         }
         if (cf_set_width >= 0 && !cons_only) {
+
+            const MultiFab* c_vfrac = nullptr;
+            if (solverChoice.terrain_type == TerrainType::EB) {
+                c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+            }
+
             VelocityToMomentum(*mfs_vel[Vars::xvel], IntVect{0},
                                *mfs_vel[Vars::yvel], IntVect{0},
                                *mfs_vel[Vars::zvel], IntVect{0},
@@ -56,7 +62,7 @@ ERF::FillPatchFineLevel (int lev, Real time,
                                *mfs_mom[IntVars::ymom],
                                *mfs_mom[IntVars::zmom],
                                Geom(lev).Domain(),
-                               domain_bcs_type);
+                               domain_bcs_type, c_vfrac);
 
             FPr_u[lev-1].FillSet(*mfs_mom[IntVars::xmom], time, null_bc, domain_bcs_type);
             FPr_v[lev-1].FillSet(*mfs_mom[IntVars::ymom], time, null_bc, domain_bcs_type);
@@ -68,7 +74,7 @@ ERF::FillPatchFineLevel (int lev, Real time,
                                *mfs_mom[IntVars::ymom],
                                *mfs_mom[IntVars::zmom],
                                Geom(lev).Domain(),
-                               domain_bcs_type);
+                               domain_bcs_type, c_vfrac);
         }
     }
 
