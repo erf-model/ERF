@@ -912,15 +912,25 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
                                hurricane_eye_track_xy,
                                hurricane_maxvel_vs_time);
 
+        HurricaneMinPressureTracker(solverChoice.moisture_type,
+                                    geom[levc],
+                                    vars_new[levc][Vars::cons],
+                                    t_new[0],
+                                    hurricane_eye_track_xy,
+                                    hurricane_minpressure_vs_time);
+
         std::string filename_tracker = MakeVTKFilename_TrackerCircle(nstep);
         std::string filename_xy      = MakeVTKFilename_EyeTracker_xy(nstep);
         std::string filename_latlon  = MakeFilename_EyeTracker_latlon(nstep);
         std::string filename_maxvel  = MakeFilename_EyeTracker_maxvel(nstep);
+        std::string filename_minpressure  = MakeFilename_EyeTracker_minpressure(nstep);
+
         if (ParallelDescriptor::IOProcessor()) {
             WriteVTKPolyline(filename_tracker, hurricane_tracker_circle);
             WriteVTKPolyline(filename_xy, hurricane_eye_track_xy);
             WriteLinePlot(filename_latlon, hurricane_eye_track_latlon);
             WriteLinePlot(filename_maxvel, hurricane_maxvel_vs_time);
+            WriteLinePlot(filename_minpressure, hurricane_minpressure_vs_time);
         }
     }
 } // post_timestep
