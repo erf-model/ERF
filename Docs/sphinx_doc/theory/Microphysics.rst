@@ -492,6 +492,45 @@ temperature is determined by the ice nucleation active surface site (INAS) densi
 the singular hypothesis framework. Upon freezing, the resulting ice crystal is initially spherical with true ice density
 :math:`\rho^i_{true} \approx 916.8` kg m\ :sup:`-3`.
 
+**INAS-Based Freezing Temperature Initialization**
+
+The freezing temperature (:math:`T^{fz}`) of each droplet is initialized using the ice nucleation active site (INAS) density
+parameterization from Niemand et al. (2012). This approach assigns a freezing temperature based on the total surface area of
+ice-nucleating particles (INPs) contained within the droplet:
+
+1. The total surface area of INPs is computed for each superdroplet:
+
+.. math::
+   A_\text{INP} = \sum_{i=1}^{N_\text{sp}} \frac{m_{i}}{\rho_{i}} \cdot \frac{3}{r_{i}} \cdot \mathcal{I}_\text{INP,i} + \sum_{j=1}^{N_\text{ae}} \frac{m_{j}}{\rho_{j}} \cdot \frac{3}{r_{j}} \cdot \mathcal{I}_\text{INP,j}
+
+where :math:`m_i` is the mass of species :math:`i`, :math:`\rho_i` is its density, :math:`r_i` is the characteristic radius of the
+particle, and :math:`\mathcal{I}_\text{INP,i}` is an indicator function that is 1 if the species is an INP and 0 otherwise.
+
+2. The INAS density parameterization from Niemand et al. (2012) is used to calculate the freezing temperature. The INAS density
+:math:`n_s(T)` (m\ :sup:`-2`) is given by:
+
+.. math::
+   \log_{10} n_s(T) = a \cdot (T - 273.15) + b
+
+where :math:`a = -0.517` and :math:`b = 8.934` are fitted parameters for mineral dust.
+
+3. The probability of freezing is:
+
+.. math::
+   P_\text{freeze}(T) = 1 - \exp(-A_\text{INP} \cdot n_s(T))
+
+4. Using inverse transform sampling with a uniform random number :math:`u \in [0,1]`, the freezing temperature is calculated as:
+
+.. math::
+   T^{fz} = 273.15 + \frac{1}{a} \left[ \log_{10}\left(\frac{-\log(1-u)}{A_\text{INP}}\right) - b \right]
+
+During water-water coalescence events, the freezing temperature of the resulting droplet is set to:
+
+.. math::
+   T^{fz}_\text{new} = \max(T^{fz}_1, T^{fz}_2)
+
+This preserves the highest freezing temperature (most ice-active) property during droplet collisions.
+
 **Deposition and Sublimation**
 
 Ice particle growth and sublimation through vapor diffusion follows:
@@ -1144,6 +1183,11 @@ growth.
 be incorporated into droplets. They affect droplet properties through their mass and volume but do not contribute to the
 solution term in Köhler theory.
 
+**Ice Nucleating Properties**: Both soluble and insoluble aerosol species can be marked as ice nucleating particles (INPs)
+using the ``m_is_INP`` flag in the MaterialProperties class. INPs have the ability to catalyze ice formation, affecting the
+freezing temperature of droplets containing them. The INAS-based freezing temperature initialization uses the total surface
+area of all INP materials within a droplet to determine its freezing temperature following the Niemand et al. (2012) parameterization.
+
 Multi-Species Configuration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1204,6 +1248,10 @@ improved representation of the size distribution. Located in ``Tests/test_files/
 
 **SDM_Bubble2D_Adv_wInjection**: 2D moist bubble with runtime particle injection. Demonstrates injection configuration with
 moving injection domains. Located in ``Tests/test_files/SDM_Bubble2D_Adv_wInjection/``.
+
+**SDM_Bubble2D_Adv_TfzINAS**: Tests the INAS-based freezing temperature initialization for superdroplets. Demonstrates
+proper initialization of freezing temperatures based on the Niemand et al. (2012) parameterization, with INP surface area
+derived from aerosol masses. Located in ``Tests/test_files/SDM_Bubble2D_Adv_TfzINAS/``.
 
 **SDM_Box3D_Cond**: 3D box test for condensation/evaporation processes. Tests phase change physics with fixed environmental
 conditions. Located in ``Tests/test_files/SDM_Box3D_Cond/``.
@@ -1340,3 +1388,7 @@ References
 
 - Böhm, J. P., 1999: Revision and clarification of "A general hydrodynamic theory for mixed-phase microphysics".
   Atmos. Res., 52: 167-176.
+
+- Niemand, M., O. Möhler, B. Vogel, H. Vogel, C. Hoose, P. Connolly, H. Klein, H. Bingemer, P. DeMott, J. Skrotzki, and T. Leisner, 2012:
+  A particle-surface-area-based parameterization of immersion freezing on desert dust particles. J. Atmos. Sci., 69: 3077-3092,
+  https://doi.org/10.1175/JAS-D-11-0249.1.
