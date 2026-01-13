@@ -539,7 +539,17 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
            }
         });
 
-        /* Initialize ice attributes */
+        /* Initialize ice attributes
+         *
+         * Freezing temperature (Tfz) is assigned using the INAS (Ice Nucleation
+         * Active Site) density parameterization of Niemand et al. (2012).
+         *
+         * The following code is adapted from SCALE-SDM:
+         * https://github.com/Shima-Lab/SCALE-SDM_mixed-phase_Shima2019
+         * Copyright (c) 2012-2015, Team SCALE
+         * All rights reserved.
+         * BSD 2-Clause License
+         */
         if (m_idx_i >= 0) {
             auto* Tfz_ptr = soa.GetRealData(idx_ice_Tfz(num_ae,num_sp)).data() + size_old;
             auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data() + size_old;
@@ -549,10 +559,40 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
             const auto idx_i = m_idx_i;
             const Real rho_i = m_species_mat[m_idx_i]->m_density;
 
-            ParallelFor(np, [=] AMREX_GPU_DEVICE(int i)
+            // Prepare INP (Ice Nucleating Particle) flags for species and aerosols
+            Gpu::DeviceVector<int> sp_is_INP(num_sp);
+            Gpu::DeviceVector<int> ae_is_INP(num_ae);
             {
-                Tfz_ptr[i] = 235.15; // -38 degrees Celsius
+                Vector<int> sp_is_INP_h(num_sp), ae_is_INP_h(num_ae);
+                for (int i = 0; i < num_sp; i++) {
+                    sp_is_INP_h[i] = static_cast<int>(m_species_mat[i]->m_is_INP);
+                }
+                for (int i = 0; i < num_ae; i++) {
+                    ae_is_INP_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_INP);
+                }
+                Gpu::copy(Gpu::hostToDevice, sp_is_INP_h.begin(), sp_is_INP_h.end(), sp_is_INP.begin());
+                Gpu::copy(Gpu::hostToDevice, ae_is_INP_h.begin(), ae_is_INP_h.end(), ae_is_INP.begin());
+            }
 
+            auto* sp_INP_arr = sp_is_INP.data();
+            auto* ae_INP_arr = ae_is_INP.data();
+
+            // INAS parameterization for sampling freezing temperature
+            INAS_Niemand2012 inas_params;
+
+            ParallelForRNG(np, [=] AMREX_GPU_DEVICE(int i, const RandomEngine& rnd_engine)
+            {
+                // Compute INP surface area for this particle
+                auto A_INP = SD_INP_surface_area(i, num_sp, num_ae,
+                                                  sp_INP_arr, ae_INP_arr,
+                                                  sp_mass_ptrs, ae_mass_ptrs,
+                                                  sp_rho_arr, ae_rho_arr);
+
+                // Sample freezing temperature using INAS parameterization
+                auto u = Random(rnd_engine);  // uniform [0,1]
+                Tfz_ptr[i] = inas_params.sample_Tfz(u, A_INP);
+
+                // Initialize ice shape attributes
                 auto mass = sp_mass_ptrs[idx_i][i];
                 a_ptr[i] = c_ptr[i] = std::cbrt(mass/((4.0/3.0)*PI*rho_i));
                 mrime_ptr[i] = 0.0;

@@ -39,7 +39,14 @@ static ParticleReal coalescence_rate ( const RandomEngine& a_rnd_eng, /*!< rando
     return gamma;
 }
 
-/*! \brief Binary coalescence between two superdroplets */
+/*! \brief Binary coalescence between two superdroplets
+ *
+ *  The following Tfz update logic is adapted from SCALE-SDM:
+ *  https://github.com/Shima-Lab/SCALE-SDM_mixed-phase_Shima2019
+ *  Copyright (c) 2012-2015, Team SCALE
+ *  All rights reserved.
+ *  BSD 2-Clause License
+ */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 static void coal_update_attribs(const int a_i, /*!< index of particle */
                                 const int a_j, /*!< index of coalescence partner */
@@ -48,6 +55,7 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
                                 const ParticleReal* const a_rmndr, /*!< coalescence remainder*/
                                 ParticleReal* const a_mass, /*!< mass */
                                 ParticleReal* const a_radius, /*!< radius */
+                                ParticleReal* const a_Tfz, /*!< freezing temperature */
                                 ParticleReal* const a_mult, /*!< multiplicity */
                                 const int a_n_sp, /*!< number of species */
                                 const SDSpeciesMassArr& a_sp_m, /*!< species masses*/
@@ -69,6 +77,9 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
                             + a_radius[i]*a_radius[i]*a_radius[i];
             a_radius[i] = std::cbrt(r3);
             a_mass[i] += gamma*a_mass[j];
+            // Update Tfz: combined droplet inherits the warmest (least negative) Tfz
+            // from either parent since both INP surfaces are now present
+            a_Tfz[i] = std::max(a_Tfz[j], a_Tfz[i]);
             for (int n = 0; n < a_n_sp; n++) {
                 a_sp_m[n][i] += gamma*a_sp_m[n][j];
             }
@@ -88,6 +99,8 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
             a_radius[i] = a_radius[j] = std::cbrt(r3);
             a_mass[j] += gamma*a_mass[i];
             a_mass[i] = a_mass[j];
+            // Update Tfz: both particles get the warmest (least negative) Tfz
+            a_Tfz[i] = a_Tfz[j] = std::max(a_Tfz[j], a_Tfz[i]);
             for (int n = 0; n < a_n_sp; n++) {
                 a_sp_m[n][j] += gamma*a_sp_m[n][i];
                 a_sp_m[n][i] = a_sp_m[n][j];
@@ -1031,6 +1044,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                      coll_rmndr_ptr,
                                      mass_ptr,
                                      radius_ptr,
+                                     Tfz_ptr,
                                      mult_ptr,
                                      num_sp,
                                      sp_mass_ptrs,
