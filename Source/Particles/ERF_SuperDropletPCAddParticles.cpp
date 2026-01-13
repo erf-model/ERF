@@ -589,7 +589,11 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
                                                   sp_rho_arr, ae_rho_arr);
 
                 // Sample freezing temperature using INAS parameterization
-                auto u = Random(rnd_engine);  // uniform [0,1]
+                // Use multiple Random() calls to decorrelate from mass sampling sequence
+                // The mass was sampled on HOST; GPU random engines may have correlated seeds
+                (void)Random(rnd_engine);  // skip first value to decorrelate
+                (void)Random(rnd_engine);  // skip second value
+                auto u = Random(rnd_engine);  // use third value for Tfz sampling
                 Tfz_ptr[i] = inas_params.sample_Tfz(u, A_INP);
 
                 // Initialize ice shape attributes
