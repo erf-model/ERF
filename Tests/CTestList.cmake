@@ -208,6 +208,8 @@ if(ERF_ENABLE_PARTICLES)
         add_test_sdm(SDM_RICO3D_InitSampling         "DevTests/RICO"        "erf_rico"     "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding")
         # mass-exponential distribution for mass
         add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "MoistRegTests/Bubble" "erf_bubble"   "plt00000" 1e-14 1e-14)
+        # INAS sampled initialization for freezing temperature
+        add_test_sdm(SDM_Bubble2D_Adv_TfzINAS        "MoistRegTests/Bubble" "erf_bubble"   "plt00000" 1e-14 1e-14)
     endif()
 
     # passive advection of particles

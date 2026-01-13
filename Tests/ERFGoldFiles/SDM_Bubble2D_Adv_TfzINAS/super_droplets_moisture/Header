@@ -1,0 +1,32 @@
+Version_Two_Dot_Zero_double
+3
+17
+xvel
+yvel
+zvel
+particle_mass
+temperature
+radius
+multiplicity
+terminal_velocity
+uid
+aerosol_mass_soil
+species_mass_H2O
+species_mass_ice
+T_fz
+a
+c
+m_rime
+n_mono
+2
+int_comp0
+int_comp1
+1
+160000
+40001
+0
+4
+0 40000 0
+1 40000 0
+2 40000 0
+3 40000 0
