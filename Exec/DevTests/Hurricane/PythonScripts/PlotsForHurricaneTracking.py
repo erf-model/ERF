@@ -12,19 +12,14 @@ from scipy.signal import savgol_filter
 # Function 1: plot the base map
 # ------------------------------
 def plot_latlon_map(ax, lon_min, lon_max, lat_min, lat_max):
-    """
-    Draw a WRF-style map with coastlines, borders, and states on a Cartopy axis.
-    """
     ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
 
-    # Map features
     ax.add_feature(cfeature.LAND.with_scale("50m"), facecolor="lightgray")
     ax.add_feature(cfeature.OCEAN.with_scale("50m"), facecolor="white")
     ax.add_feature(cfeature.COASTLINE.with_scale("50m"), linewidth=0.8)
     ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.8, edgecolor="black")
     ax.add_feature(cfeature.STATES.with_scale("50m"), linewidth=0.5, edgecolor="black")
 
-    # Gridlines & labels
     gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                       x_inline=False, y_inline=False,
                       linewidth=0.33, color="k", alpha=0.5)
@@ -42,9 +37,6 @@ def plot_latlon_map(ax, lon_min, lon_max, lat_min, lat_max):
 # Function 2: plot hurricane track
 # --------------------------------
 def plot_hurricane_track(ax, track_file, color="red", label="ERF track"):
-    """
-    Plot a hurricane track from a text file containing lon/lat pairs on an existing Cartopy axis.
-    """
     track = np.loadtxt(track_file)
     if track.ndim != 2 or track.shape[1] < 2:
         raise ValueError("Track file must have at least two columns (lon, lat)")
@@ -54,10 +46,8 @@ def plot_hurricane_track(ax, track_file, color="red", label="ERF track"):
     return ax
 
 
-def plot_actual_hurricane_track(ax, actual_track_file, color="black", label="Actual track", marker="-o", linewidth=2):
-    """
-    Plot a hurricane track from a text file containing lon/lat pairs on an existing Cartopy axis.
-    """
+def plot_actual_hurricane_track(ax, actual_track_file, color="black",
+                                label="Actual track", marker="-o", linewidth=2):
     track = np.loadtxt(actual_track_file)
     if track.ndim != 2 or track.shape[1] < 2:
         raise ValueError("Track file must have at least two columns (lon, lat)")
@@ -66,36 +56,39 @@ def plot_actual_hurricane_track(ax, actual_track_file, color="black", label="Act
             transform=ccrs.Geodetic(), label=label)
     return ax
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Plot lat/lon map with optional hurricane track and max wind speed overlay."
+        description="Plot lat/lon map with optional hurricane track and diagnostics."
     )
-    parser.add_argument("--area", required=True,
-                        help="Comma-separated lon_min,lon_max,lat_min,lat_max "
-                             "(e.g. --area=-103.5,-80.5,29.8,46.18)")
-    parser.add_argument("--erf_track", default=None,
-                        help="Path to text file with ERF hurricane track (lon lat columns)")
-    parser.add_argument("--actual_track", default=None,
-                        help="Path to text file with Actual hurricane track (lon lat columns)")
-    parser.add_argument("--outfile_track", default="map.png",
-                        help="Output image filename for the map")
 
-    # Optional max velocity inputs
-    parser.add_argument("--erf_maxvel", default=None, help="ERF maxvel vs time data")
-    parser.add_argument("--actual_maxvel", default=None, help="Actual maxvel vs time data")
-    parser.add_argument("--wrf_maxvel", default=None, help="WRF maxvel vs time data")
-    parser.add_argument("--outfile_maxvel", default=None, help="Output image filename for maxvel plot")
+    parser.add_argument("--area", required=True,
+                        help="Comma-separated lon_min,lon_max,lat_min,lat_max")
+    parser.add_argument("--erf_track", default=None)
+    parser.add_argument("--actual_track", default=None)
+    parser.add_argument("--outfile_track", default="map.png")
+
+    # --- Max velocity ---
+    parser.add_argument("--erf_maxvel", default=None)
+    parser.add_argument("--actual_maxvel", default=None)
+    parser.add_argument("--wrf_maxvel", default=None)
+    parser.add_argument("--outfile_maxvel", default=None)
+
+    # --- Min pressure ---
+    parser.add_argument("--erf_minpressure", default=None)
+    parser.add_argument("--actual_minpressure", default=None)
+    parser.add_argument("--wrf_minpressure", default=None)
+    parser.add_argument("--outfile_minpressure", default=None)
 
     args = parser.parse_args()
 
-    # --- Parse map area ---
+    # ---------------- Map plot ----------------
     lon_min, lon_max, lat_min, lat_max = map(float, args.area.split(","))
 
-    # --- Plot lat/lon map ---
-    fig, ax = plt.subplots(figsize=(10, 8), subplot_kw={"projection": ccrs.PlateCarree()})
+    fig, ax = plt.subplots(figsize=(10, 8),
+                           subplot_kw={"projection": ccrs.PlateCarree()})
     plot_latlon_map(ax, lon_min, lon_max, lat_min, lat_max)
 
-    # Plot hurricane tracks if provided
     if args.erf_track:
         plot_hurricane_track(ax, args.erf_track)
     if args.actual_track:
@@ -105,37 +98,61 @@ if __name__ == "__main__":
     plt.title("Latitude/Longitude Map", fontsize=16)
     plt.savefig(args.outfile_track, dpi=150, bbox_inches="tight")
     plt.close()
-    print(f"Figure saved to {args.outfile_track}")
 
-    # --- Max velocity plots ---
+    # ---------------- Max velocity plot ----------------
     maxvel_files = [args.erf_maxvel, args.actual_maxvel, args.wrf_maxvel]
-    any_maxvel = any(f is not None for f in maxvel_files)
-
-    if any_maxvel:
+    if any(f is not None for f in maxvel_files):
         if args.outfile_maxvel is None:
-            raise ValueError("If any of --erf_maxvel, --actual_maxvel, or --wrf_maxvel is provided, "
-                             "--outfile_maxvel must also be provided.")
+            raise ValueError("--outfile_maxvel must be provided if any maxvel input is given")
 
         plt.figure(figsize=(8, 5))
 
         if args.erf_maxvel:
-            data_erf = np.loadtxt(args.erf_maxvel)
-            data_erf_smooth = savgol_filter(data_erf[:, 1], window_length=24, polyorder=3)
-            plt.plot(data_erf[:, 0], data_erf_smooth / 1.852, '-xr', linewidth=2, label="ERF")
+            data = np.loadtxt(args.erf_maxvel)
+            data_s = savgol_filter(data[:, 1], window_length=24, polyorder=3)
+            plt.plot(data[:, 0], data_s / 1.852, "-xr", linewidth=2, label="ERF")
 
         if args.wrf_maxvel:
-            data_wrf = np.loadtxt(args.wrf_maxvel)
-            plt.plot(data_wrf[:, 0], data_wrf[:, 1], '-ob', linewidth=2, label="WRF")
+            data = np.loadtxt(args.wrf_maxvel)
+            plt.plot(data[:, 0], data[:, 1], "-ob", linewidth=2, label="WRF")
 
         if args.actual_maxvel:
-            data_actual = np.loadtxt(args.actual_maxvel)
-            plt.plot(data_actual[:, 0], data_actual[:, 1], '-k', linewidth=2, label="Actual")
+            data = np.loadtxt(args.actual_maxvel)
+            plt.plot(data[:, 0], data[:, 1], "-k", linewidth=2, label="Actual")
 
         plt.xlabel("Time (hours)")
-        plt.ylabel("Max. wind speed (km/hr)")
+        plt.ylabel("Max wind speed (km/hr)")
         plt.legend()
         plt.savefig(args.outfile_maxvel, dpi=300, bbox_inches="tight")
         plt.close()
-        print(f"Figure saved to {args.outfile_maxvel}")
+
+    # ---------------- Min pressure plot ----------------
+    minp_files = [args.erf_minpressure,
+                  args.actual_minpressure,
+                  args.wrf_minpressure]
+
+    if any(f is not None for f in minp_files):
+        if args.outfile_minpressure is None:
+            raise ValueError("--outfile_minpressure must be provided if any minpressure input is given")
+
+        plt.figure(figsize=(8, 5))
+
+        if args.erf_minpressure:
+            data = np.loadtxt(args.erf_minpressure)
+            plt.plot(data[:, 0], data[:, 1], "-xr", linewidth=2, label="ERF")
+
+        if args.wrf_minpressure:
+            data = np.loadtxt(args.wrf_minpressure)
+            plt.plot(data[:, 0], data[:, 1], "-ob", linewidth=2, label="WRF")
+
+        if args.actual_minpressure:
+            data = np.loadtxt(args.actual_minpressure)
+            plt.plot(data[:, 0], data[:, 1], "-k", linewidth=2, label="Actual")
+
+        plt.xlabel("Time (hours)")
+        plt.ylabel("Minimum pressure")
+        plt.legend()
+        plt.savefig(args.outfile_minpressure, dpi=300, bbox_inches="tight")
+        plt.close()
 
 
