@@ -95,8 +95,8 @@ super_droplets_moisture.place_randomly_in_cells = false
 super_droplets_moisture.aerosols = soil
 super_droplets_moisture.multiplicity_type = "constant"
 super_droplets_moisture.initial_aerosol_distribution_type_soil = "mass_exponential"
-super_droplets_moisture.initial_aerosol_min_mass_soil = 1.0e-22 #kg
-super_droplets_moisture.initial_aerosol_mean_mass_soil = 1.0e-19 #kg
+super_droplets_moisture.initial_aerosol_min_mass_soil = 1.0e-18 #kg
+super_droplets_moisture.initial_aerosol_mean_mass_soil = 1.0e-15 #kg
 super_droplets_moisture.initial_particles_per_cell = 8
 
 # PROBLEM PARAMETERS (optional)
