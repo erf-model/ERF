@@ -237,6 +237,9 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
     add_superdroplet_attributes();
     readInputs(a_dt);
 
+    // Initialize device properties for efficient GPU access
+    initializeDeviceProperties();
+
 #ifdef AMREX_USE_GPU
     AMREX_ASSERT(!m_mass_change_logging);
 #endif
