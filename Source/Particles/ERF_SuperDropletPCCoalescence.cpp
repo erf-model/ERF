@@ -573,43 +573,11 @@ void SuperDropletPC::Coalescence( int   a_lev,
             ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
         }
 
-        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-        Gpu::DeviceVector<int> sp_solubility(num_sp);
-        {
-            Vector<ParticleReal> sp_density_h(num_sp);
-            Vector<int> sp_solubility_h(num_sp);
-            for (int i = 0; i < num_sp; i++) {
-                sp_density_h[i] = m_species_mat[i]->m_density;
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_density_h.begin(),
-                        sp_density_h.end(),
-                        sp_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_solubility_h.begin(),
-                        sp_solubility_h.end(),
-                        sp_solubility.begin() );
-        }
-
-        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-        Gpu::DeviceVector<int> ae_solubility(num_ae);
-        {
-            Vector<ParticleReal> ae_density_h(num_ae);
-            Vector<int> ae_solubility_h(num_ae);
-            for (int i = 0; i < num_ae; i++) {
-                ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_density_h.begin(),
-                        ae_density_h.end(),
-                        ae_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_solubility_h.begin(),
-                        ae_solubility_h.end(),
-                        ae_solubility.begin() );
-        }
+        // Get pointers to persistent device data
+        const ParticleReal* sp_rho_arr = getSpeciesDensitiesDevice();
+        const int* sp_sol_arr = getSpeciesSolubilitiesDevice();
+        const ParticleReal* ae_rho_arr = getAerosolDensitiesDevice();
+        const int* ae_sol_arr = getAerosolSolubilitiesDevice();
 
         int grid = pti.index();
         Box box = a_temperature[grid].box(); box.grow(-gvec);
@@ -778,10 +746,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
         gettimeofday(&coalescence_start, NULL);
 #endif
 
-        auto sp_rho_arr = sp_density.data();
-        auto sp_sol_arr = sp_solubility.data();
-        auto ae_rho_arr = ae_density.data();
-        auto ae_sol_arr = ae_solubility.data();
+        // We've already declared these pointers above, no need to redeclare
 
         // calculate collision efficiencies for each pair
         ParallelForRNG( np, [=] AMREX_GPU_DEVICE (int i, RandomEngine const& rnd_eng) noexcept

@@ -58,6 +58,7 @@ class SuperDropletPC : public ERFPC
             if (a_name == Species::Name::H2O) { m_idx_w = m_species_mat.size(); }
             if (a_name == Species::Name::ice) { m_idx_i = m_species_mat.size(); }
             m_species_mat.push_back(std::make_unique<MaterialProperties>(a_name));
+            m_device_props_initialized = false;  // Properties have changed, need to reinitialize
         }
 
         /*! \brief Set species material */
@@ -83,6 +84,7 @@ class SuperDropletPC : public ERFPC
         virtual void setAerosolMaterial ( const Species::Name& a_name )
         {
             m_aerosol_mat.push_back(std::make_unique<MaterialProperties>(a_name));
+            m_device_props_initialized = false;  // Properties have changed, need to reinitialize
         }
 
         /*! \brief Set aerosol material */
@@ -91,6 +93,39 @@ class SuperDropletPC : public ERFPC
         {
             for (auto& name : a_names) { setAerosolMaterial(name); }
         }
+
+        /*! \brief Get device pointer to species densities */
+        const amrex::ParticleReal* getSpeciesDensitiesDevice() const;
+
+        /*! \brief Get device pointer to species solubilities */
+        const int* getSpeciesSolubilitiesDevice() const;
+
+        /*! \brief Get device pointer to species ionization values */
+        const amrex::ParticleReal* getSpeciesIonizationDevice() const;
+
+        /*! \brief Get device pointer to species molecular weight values */
+        const amrex::ParticleReal* getSpeciesMolWeightDevice() const;
+
+        /*! \brief Get device pointer to aerosol densities */
+        const amrex::ParticleReal* getAerosolDensitiesDevice() const;
+
+        /*! \brief Get device pointer to aerosol solubilities */
+        const int* getAerosolSolubilitiesDevice() const;
+
+        /*! \brief Get device pointer to aerosol ionization values */
+        const amrex::ParticleReal* getAerosolIonizationDevice() const;
+
+        /*! \brief Get device pointer to aerosol molecular weight values */
+        const amrex::ParticleReal* getAerosolMolWeightDevice() const;
+
+        /*! \brief Get device pointer to species ice nucleating particle flags */
+        const int* getSpeciesINPFlagsDevice() const;
+
+        /*! \brief Get device pointer to aerosol ice nucleating particle flags */
+        const int* getAerosolINPFlagsDevice() const;
+
+        /*! \brief Update device properties if material properties change */
+        void updateDeviceProperties();
 
         /*! \brief Get real-type particle attribute names */
         [[nodiscard]] virtual amrex::Vector<std::string> varNames () const override;
@@ -358,6 +393,25 @@ class SuperDropletPC : public ERFPC
 
         /*! save inactive particles to file */
         bool m_save_inactive;
+
+        /*! Persistent device vectors for material properties */
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_density;    // Species densities
+        amrex::Gpu::DeviceVector<int> m_sp_solubility;                 // Species solubilities
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_ionization; // Species ionization
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_mol_weight; // Species molecular weight
+        amrex::Gpu::DeviceVector<int> m_sp_is_INP;                     // Species ice nucleating particle flags
+
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_ae_density;    // Aerosol densities
+        amrex::Gpu::DeviceVector<int> m_ae_solubility;                 // Aerosol solubilities
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_ae_ionization; // Aerosol ionization
+        amrex::Gpu::DeviceVector<amrex::ParticleReal> m_ae_mol_weight; // Aerosol molecular weight
+        amrex::Gpu::DeviceVector<int> m_ae_is_INP;                     // Aerosol ice nucleating particle flags
+
+        /*! Flag to track if device properties are initialized */
+        bool m_device_props_initialized = false;
+
+        /*! Method to initialize device properties */
+        void initializeDeviceProperties();
 
         /* recycled particle position bounds */
         amrex::Real m_recyc_xmin;

@@ -559,23 +559,9 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
             const auto idx_i = m_idx_i;
             const Real rho_i = m_species_mat[m_idx_i]->m_density;
 
-            // Prepare INP (Ice Nucleating Particle) flags for species and aerosols
-            Gpu::DeviceVector<int> sp_is_INP(num_sp);
-            Gpu::DeviceVector<int> ae_is_INP(num_ae);
-            {
-                Vector<int> sp_is_INP_h(num_sp), ae_is_INP_h(num_ae);
-                for (int i = 0; i < num_sp; i++) {
-                    sp_is_INP_h[i] = static_cast<int>(m_species_mat[i]->m_is_INP);
-                }
-                for (int i = 0; i < num_ae; i++) {
-                    ae_is_INP_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_INP);
-                }
-                Gpu::copy(Gpu::hostToDevice, sp_is_INP_h.begin(), sp_is_INP_h.end(), sp_is_INP.begin());
-                Gpu::copy(Gpu::hostToDevice, ae_is_INP_h.begin(), ae_is_INP_h.end(), ae_is_INP.begin());
-            }
-
-            auto* sp_INP_arr = sp_is_INP.data();
-            auto* ae_INP_arr = ae_is_INP.data();
+            // Get pointers to persistent device data for INP flags
+            const int* sp_INP_arr = getSpeciesINPFlagsDevice();
+            const int* ae_INP_arr = getAerosolINPFlagsDevice();
 
             // INAS parameterization for sampling freezing temperature
             INAS_Niemand2012 inas_params;

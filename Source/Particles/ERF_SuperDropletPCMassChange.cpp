@@ -82,74 +82,25 @@ void SuperDropletPC::MassChange_LV (  int                                       
 #endif
 
         SDSpeciesMassArr sp_mass_ptrs;
-        Gpu::DeviceVector<ParticleReal> sp_ionization(num_sp);
-        Gpu::DeviceVector<ParticleReal> sp_mol_weight(num_sp);
-        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-        Gpu::DeviceVector<int> sp_solubility(num_sp);
-        {
-            Vector<ParticleReal> sp_ionization_h(num_sp);
-            Vector<ParticleReal> sp_mol_weight_h(num_sp);
-            Vector<ParticleReal> sp_density_h(num_sp);
-            Vector<int> sp_solubility_h(num_sp);
-            for (int i = 0; i < num_sp; i++) {
-                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
-                sp_ionization_h[i] = m_species_mat[i]->m_ionization;
-                sp_mol_weight_h[i] = m_species_mat[i]->m_mol_weight;
-                sp_density_h[i] = m_species_mat[i]->m_density;
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_ionization_h.begin(),
-                        sp_ionization_h.end(),
-                        sp_ionization.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_mol_weight_h.begin(),
-                        sp_mol_weight_h.end(),
-                        sp_mol_weight.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_density_h.begin(),
-                        sp_density_h.end(),
-                        sp_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_solubility_h.begin(),
-                        sp_solubility_h.end(),
-                        sp_solubility.begin() );
+        for (int i = 0; i < num_sp; i++) {
+            sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
         }
 
         SDAerosolMassArr ae_mass_ptrs;
-        Gpu::DeviceVector<ParticleReal> ae_ionization(num_ae);
-        Gpu::DeviceVector<ParticleReal> ae_mol_weight(num_ae);
-        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-        Gpu::DeviceVector<int> ae_solubility(num_ae);
-        {
-            Vector<ParticleReal> ae_ionization_h(num_ae);
-            Vector<ParticleReal> ae_mol_weight_h(num_ae);
-            Vector<ParticleReal> ae_density_h(num_ae);
-            Vector<int> ae_solubility_h(num_ae);
-            for (int i = 0; i < num_ae; i++) {
-                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
-                ae_ionization_h[i] = m_aerosol_mat[i]->m_ionization;
-                ae_mol_weight_h[i] = m_aerosol_mat[i]->m_mol_weight;
-                ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_ionization_h.begin(),
-                        ae_ionization_h.end(),
-                        ae_ionization.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_mol_weight_h.begin(),
-                        ae_mol_weight_h.end(),
-                        ae_mol_weight.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_density_h.begin(),
-                        ae_density_h.end(),
-                        ae_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_solubility_h.begin(),
-                        ae_solubility_h.end(),
-                        ae_solubility.begin() );
+        for (int i = 0; i < num_ae; i++) {
+            ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
         }
+
+        // Get pointers to persistent device data
+        const ParticleReal* sp_rho_arr = getSpeciesDensitiesDevice();
+        const int* sp_sol_arr = getSpeciesSolubilitiesDevice();
+        const ParticleReal* sp_ion_arr = getSpeciesIonizationDevice();
+        const ParticleReal* sp_mw_arr = getSpeciesMolWeightDevice();
+
+        const ParticleReal* ae_rho_arr = getAerosolDensitiesDevice();
+        const int* ae_sol_arr = getAerosolSolubilitiesDevice();
+        const ParticleReal* ae_ion_arr = getAerosolIonizationDevice();
+        const ParticleReal* ae_mw_arr = getAerosolMolWeightDevice();
 
         const auto& sat_pressure_arr = a_sat_pressure[grid].array();
         const auto& sat_ratio_arr = a_sat_ratio[grid].array();
@@ -180,14 +131,15 @@ void SuperDropletPC::MassChange_LV (  int                                       
         auto cfl = m_mass_change_cfl;
         auto ti_choice = m_mass_change_ti;
 
-        auto sp_i_arr = sp_ionization.data();
-        auto sp_mw_arr = sp_mol_weight.data();
-        auto sp_rho_arr = sp_density.data();
-        auto sp_sol_arr = sp_solubility.data();
-        auto ae_i_arr = ae_ionization.data();
-        auto ae_mw_arr = ae_mol_weight.data();
-        auto ae_rho_arr = ae_density.data();
-        auto ae_sol_arr = ae_solubility.data();
+        // We already have these pointers from our accessors above
+        // sp_ion_arr contains species ionization values
+        // sp_mw_arr contains species molecular weights
+        // sp_rho_arr contains species densities
+        // sp_sol_arr contains species solubility flags
+        // ae_ion_arr contains aerosol ionization values
+        // ae_mw_arr contains aerosol molecular weights
+        // ae_rho_arr contains aerosol densities
+        // ae_sol_arr contains aerosol solubility flags
 
         ParallelFor(num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -216,11 +168,11 @@ void SuperDropletPC::MassChange_LV (  int                                       
             if (a_is_water) {
                 for (int j = 0; j < num_sp; j++) {
                     if (j != idx_vap) {
-                        solute_moles += (sp_mass_ptrs[j][i]*sp_i_arr[j]/sp_mw_arr[j]);
+                        solute_moles += (sp_mass_ptrs[j][i]*sp_ion_arr[j]/sp_mw_arr[j]);
                     }
                 }
                 for (int j = 0; j < num_ae; j++) {
-                    solute_moles += (ae_mass_ptrs[j][i]*ae_i_arr[j]/ae_mw_arr[j]);
+                    solute_moles += (ae_mass_ptrs[j][i]*ae_ion_arr[j]/ae_mw_arr[j]);
                 }
             }
 
