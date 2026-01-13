@@ -286,6 +286,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_Init1D.cpp
        ${SRC_DIR}/Initialization/ERF_InitTurbPert.cpp
        ${SRC_DIR}/Initialization/ERF_InitImmersedForcing.cpp
+       ${SRC_DIR}/Initialization/ERF_InitWindFarm.cpp
        ${SRC_DIR}/IO/ERF_Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
@@ -366,6 +367,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
        ${SRC_DIR}/Utils/ERF_VolWgtSum.cpp
        ${SRC_DIR}/Utils/ERF_WeatherDataInterpolation.cpp
+       ${SRC_DIR}/WindFarmParametrization/ERF_WindFarm.cpp
        ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
        ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
        ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
