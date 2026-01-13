@@ -219,6 +219,10 @@ function(build_erf_lib erf_lib_name)
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MORR_FORT)
   endif()
 
+  if(ERF_ENABLE_WINDFARM)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WINDFARM)
+  endif()
+
   target_sources(${erf_lib_name}
      PRIVATE
        ${SRC_DIR}/ERF_Derive.cpp
