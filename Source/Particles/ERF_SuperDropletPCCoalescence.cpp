@@ -7,6 +7,7 @@
 #include "ERF_SuperDropletPCCoalescence.H"
 #include "ERF_SuperDropletPCMassChange.H"
 #include <AMReX_TracerParticle_mod_K.H>
+#include "ERF_InterpolationUtils.H"
 
 #ifdef ERF_USE_PARTICLES
 
@@ -849,13 +850,24 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 // interpolate flow quantities at ice particle location
                 ParticleType& p_ice = pstruct_ptr[id_i];
                 ParticleReal temperature, moist_density;
-                if (is_periodic_z) {
-                    cic_interpolate( p_ice, plo, dxi, temperature_arr, &temperature, 1 );
-                    cic_interpolate( p_ice, plo, dxi, moist_density_arr, &moist_density, 1 );
-                } else {
-                    cic_interpolate_mapped_z( p_ice, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-                    cic_interpolate_mapped_z( p_ice, plo, dxi, moist_density_arr, zheight, &moist_density, 1 );
-                }
+                // Define field values array to store interpolated results
+                ParticleReal field_values[2]; // temperature, moist_density
+
+                // Define array of field arrays to interpolate from
+                const Array4<const Real> field_arrays[2] = {
+                    temperature_arr,
+                    moist_density_arr
+                };
+
+                // Use the interpolation helper function to interpolate all fields at once
+                ERF::Interpolation::interpolateFields(
+                    p_ice, plo, dxi, field_arrays, field_values, 2,
+                    is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+                );
+
+                // Extract interpolated values
+                temperature = field_values[0];
+                moist_density = field_values[1];
 
                 // dynamic viscosity
                 auto mu = viscCoeff(temperature);
@@ -1045,17 +1057,28 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                 ParticleType& p_ice = pstruct_ptr[i];
                 ParticleReal temperature, pressure, moist_density, qv;
-                if (is_periodic_z) {
-                    cic_interpolate( p_ice, plo, dxi, temperature_arr, &temperature, 1 );
-                    cic_interpolate( p_ice, plo, dxi, pressure_arr, &pressure, 1 );
-                    cic_interpolate( p_ice, plo, dxi, moist_density_arr, &moist_density, 1 );
-                    cic_interpolate( p_ice, plo, dxi, qv_arr, &qv, 1 );
-                } else {
-                    cic_interpolate_mapped_z( p_ice, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-                    cic_interpolate_mapped_z( p_ice, plo, dxi, pressure_arr, zheight, &pressure, 1 );
-                    cic_interpolate_mapped_z( p_ice, plo, dxi, moist_density_arr, zheight, &moist_density, 1 );
-                    cic_interpolate_mapped_z( p_ice, plo, dxi, qv_arr, zheight, &qv, 1 );
-                }
+                // Define field values array to store interpolated results
+                ParticleReal field_values[4]; // temperature, pressure, moist_density, qv
+
+                // Define array of field arrays to interpolate from
+                const Array4<const Real> field_arrays[4] = {
+                    temperature_arr,
+                    pressure_arr,
+                    moist_density_arr,
+                    qv_arr
+                };
+
+                // Use the interpolation helper function to interpolate all fields at once
+                ERF::Interpolation::interpolateFields(
+                    p_ice, plo, dxi, field_arrays, field_values, 4,
+                    is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+                );
+
+                // Extract interpolated values
+                temperature = field_values[0];
+                pressure = field_values[1];
+                moist_density = field_values[2];
+                qv = field_values[3];
                 auto coeff_moldiff = mat_prop.coeffMolecularDiffusion(temperature, pressure);
 
                 rime_update_attribs( i, j,

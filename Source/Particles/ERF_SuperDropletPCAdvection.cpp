@@ -5,6 +5,7 @@
 #include <AMReX_TracerParticle_mod_K.H>
 #include "ERF_IndexDefines.H"
 #include "ERF_TerminalVelocity.H"
+#include "ERF_InterpolationUtils.H"
 
 using namespace amrex;
 using namespace SDPCDefn;
@@ -132,16 +133,26 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
             }
 
-            ParticleReal density, pressure, temperature;
-            if (is_periodic_z) {
-                cic_interpolate( p, plo, dxi, density_arr, &density, 1 );
-                cic_interpolate( p, plo, dxi, pressure_arr, &pressure, 1 );
-                cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
-            } else {
-                cic_interpolate_mapped_z( p, plo, dxi, density_arr, zheight, &density, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, pressure_arr, zheight, &pressure, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-            }
+            // Define field values array to store interpolated results
+            ParticleReal field_values[3]; // density, pressure, temperature
+
+            // Define array of field arrays to interpolate from
+            const Array4<const Real> field_arrays[3] = {
+                density_arr,
+                pressure_arr,
+                temperature_arr
+            };
+
+            // Use the interpolation helper function to interpolate all fields at once
+            ERF::Interpolation::interpolateFields(
+                p, plo, dxi, field_arrays, field_values, 3,
+                is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+            );
+
+            // Extract interpolated values
+            ParticleReal density = field_values[0];
+            ParticleReal pressure = field_values[1];
+            ParticleReal temperature = field_values[2];
 
             if (prescribed_advection) {
                if (a_time < 600) {
