@@ -345,14 +345,14 @@ void SuperDropletPC::MassChange_SL (  int                                       
                         sp_solubility.begin() );
         }
 
-        SDAerosolMassArr ae_mass_ptrs;
+        // ae_mass_ptrs already defined above
         Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
         Gpu::DeviceVector<int> ae_solubility(num_ae);
         {
             Vector<ParticleReal> ae_density_h(num_ae);
             Vector<int> ae_solubility_h(num_ae);
             for (int i = 0; i < num_ae; i++) {
-                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
+                // ae_mass_ptrs already set up via setupMassPointers
                 ae_density_h[i] = m_aerosol_mat[i]->m_density;
                 ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
             }
@@ -515,14 +515,14 @@ void SuperDropletPC::MassChange_SV (  int                                      a
                         sp_solubility.begin() );
         }
 
-        SDAerosolMassArr ae_mass_ptrs;
+        // ae_mass_ptrs already defined above
         Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
         Gpu::DeviceVector<int> ae_solubility(num_ae);
         {
             Vector<ParticleReal> ae_density_h(num_ae);
             Vector<int> ae_solubility_h(num_ae);
             for (int i = 0; i < num_ae; i++) {
-                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
+                // ae_mass_ptrs already set up via setupMassPointers
                 ae_density_h[i] = m_aerosol_mat[i]->m_density;
                 ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
             }
