@@ -143,14 +143,8 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data();
 
             SDSpeciesMassArr sp_mass_ptrs;
-            for (int i = 0; i < num_sp; i++) {
-                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
-            }
-
             SDAerosolMassArr ae_mass_ptrs;
-            for (int i = 0; i < num_ae; i++) {
-                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
-            }
+            setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
 
             Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
             Gpu::DeviceVector<int> sp_solubility(num_sp);

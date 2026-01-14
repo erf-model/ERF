@@ -83,14 +83,8 @@ void SuperDropletPC::MassChange_LV (  int                                       
 #endif
 
         SDSpeciesMassArr sp_mass_ptrs;
-        for (int i = 0; i < num_sp; i++) {
-            sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
-        }
-
         SDAerosolMassArr ae_mass_ptrs;
-        for (int i = 0; i < num_ae; i++) {
-            ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
-        }
+        setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
 
         // Get pointers to persistent device data
         const ParticleReal* sp_rho_arr = getSpeciesDensitiesDevice();
@@ -329,13 +323,15 @@ void SuperDropletPC::MassChange_SL (  int                                       
         const auto& temperature_arr = a_temperature[grid].array();
 
         SDSpeciesMassArr sp_mass_ptrs;
+        SDAerosolMassArr ae_mass_ptrs;
+        setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
+
         Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
         Gpu::DeviceVector<int> sp_solubility(num_sp);
         {
             Vector<ParticleReal> sp_density_h(num_sp);
             Vector<int> sp_solubility_h(num_sp);
             for (int i = 0; i < num_sp; i++) {
-                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
                 sp_density_h[i] = m_species_mat[i]->m_density;
                 sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
             }
@@ -497,13 +493,15 @@ void SuperDropletPC::MassChange_SV (  int                                      a
         auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data();
 
         SDSpeciesMassArr sp_mass_ptrs;
+        SDAerosolMassArr ae_mass_ptrs;
+        setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
+
         Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
         Gpu::DeviceVector<int> sp_solubility(num_sp);
         {
             Vector<ParticleReal> sp_density_h(num_sp);
             Vector<int> sp_solubility_h(num_sp);
             for (int i = 0; i < num_sp; i++) {
-                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
                 sp_density_h[i] = m_species_mat[i]->m_density;
                 sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
             }

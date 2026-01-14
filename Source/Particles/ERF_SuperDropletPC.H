@@ -7,6 +7,7 @@
 #include "ERF_Constants.H"
 #include "ERF_MaterialProperties.H"
 #include "ERF_SuperDropletPCDefinitions.H"
+#include <AMReX_StructOfArrays.H>
 
 class SuperDropletPC : public ERFPC
 {
@@ -126,6 +127,33 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Update device properties if material properties change */
         void updateDeviceProperties();
+
+        /*! \brief Setup species and aerosol mass pointers from SOA
+         *
+         * This helper method sets up the species and aerosol mass pointers from the
+         * Structure of Arrays (SOA) data. It handles the common pattern of setting up
+         * these pointers that appears in multiple places in the code.
+         *
+         * @param soa The Structure of Arrays containing particle data
+         * @param sp_mass_ptrs Output array for species mass pointers
+         * @param ae_mass_ptrs Output array for aerosol mass pointers
+         */
+        template<typename SOAType>
+        void setupMassPointers(
+            SOAType& soa,
+            SDPCDefn::SDSpeciesMassArr& sp_mass_ptrs,
+            SDPCDefn::SDAerosolMassArr& ae_mass_ptrs) const
+        {
+            // Setup species mass pointers
+            for (int i = 0; i < m_num_species; i++) {
+                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i, m_num_aerosols, m_num_species)).data();
+            }
+
+            // Setup aerosol mass pointers
+            for (int i = 0; i < m_num_aerosols; i++) {
+                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i, m_num_aerosols, m_num_species)).data();
+            }
+        }
 
         /*! \brief Helper method to update common particle attributes (radius and mass)
          *

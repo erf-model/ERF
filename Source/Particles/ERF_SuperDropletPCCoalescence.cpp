@@ -562,17 +562,10 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data();
         auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data();
 
-        /* species masses */
+        /* species and aerosol masses */
         SDSpeciesMassArr sp_mass_ptrs;
-        for (int i = 0; i < num_sp; i++) {
-            sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
-        }
-
-        /* aerosol masses */
         SDAerosolMassArr ae_mass_ptrs;
-        for (int i = 0; i < num_ae; i++) {
-            ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
-        }
+        setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
 
         // Get pointers to persistent device data
         const ParticleReal* sp_rho_arr = getSpeciesDensitiesDevice();

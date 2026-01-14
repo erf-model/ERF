@@ -150,6 +150,8 @@ const int* SuperDropletPC::getAerosolINPFlagsDevice() const
 }
 
 
+// setupMassPointers is now implemented as a template function in the header file
+
 /*! Update device properties if material properties change */
 void SuperDropletPC::updateDeviceProperties()
 {
