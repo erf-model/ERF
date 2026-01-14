@@ -274,8 +274,79 @@ void ERF::poisson_wall_dist (int lev)
                GetVecOfConstPtrs(rhs),
                reltol, abstol);
 
-    // Now overwrite with periodic fill outside domain and fine-fine fill inside
+    // ****************************************************************************
+    // Apply BCs: dirichlet (odd) on zlo, neumann (even) / periodic elsewhere
+    // ****************************************************************************
+
+    // Overwrite with periodic fill outside domain and fine-fine fill inside
     phi[0].FillBoundary(geom[lev].periodicity());
+
+    if (!geom[lev].isPeriodic(0)) {
+        for (MFIter mfi(phi[0],true); mfi.isValid(); ++mfi)
+        {
+            Box bx = mfi.tilebox();
+            const Array4<Real>& phi_arr = phi[0].array(mfi);
+            if (bx.smallEnd(0) <= dom_lo.x) {
+                ParallelFor(makeSlab(bx,0,dom_lo.x),
+                [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    phi_arr(i-1,j,k) =  phi_arr(i,j,k); // even BC
+                });
+            } // lo x
+            if (bx.bigEnd(0) >= dom_hi.x) {
+                ParallelFor(makeSlab(bx,0,dom_hi.x),
+                [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    phi_arr(i+1,j,k) =  phi_arr(i,j,k); // even BC
+                });
+            } // hi x
+        } // mfi
+    } // not periodic in x
+
+    if (!geom[lev].isPeriodic(1)) {
+        for (MFIter mfi(phi[0],true); mfi.isValid(); ++mfi)
+        {
+            Box bx = mfi.tilebox();
+            Box bx2(bx); bx2.grow(0,1);
+            const Array4<Real>& phi_arr = phi[0].array(mfi);
+            if (bx.smallEnd(1) <= dom_lo.y) {
+                ParallelFor(makeSlab(bx2,1,dom_lo.y),
+                [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    phi_arr(i,j-1,k) =  phi_arr(i,j,k); // even BC
+                });
+            } // lo y
+            if (bx.bigEnd(1) >= dom_hi.y) {
+                ParallelFor(makeSlab(bx2,1,dom_hi.y),
+                [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    phi_arr(i,j+1,k) =  phi_arr(i,j,k); // even BC
+                });
+            } // hi y
+
+        } // mfi
+    } // not periodic in y
+
+    for (MFIter mfi(phi[0],true); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.tilebox();
+        Box bx3(bx); bx3.grow(0,1); bx3.grow(1,1);
+        const Array4<Real>& phi_arr = phi[0].array(mfi);
+        if (bx.smallEnd(2) <= dom_lo.z) {
+            ParallelFor(makeSlab(bx3,2,dom_lo.z),
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                phi_arr(i,j,k-1) = -phi_arr(i,j,k); // ODD BC
+            });
+        } // lo z
+        if (bx.bigEnd(2) >= dom_hi.z) {
+            ParallelFor(makeSlab(bx3,2,dom_hi.z),
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                phi_arr(i,j,k+1) =  phi_arr(i,j,k); // even BC
+            });
+        } // hi z
+    } // mfi
 
     // ****************************************************************************
     // Compute grad(phi) to get distances
