@@ -33,9 +33,10 @@ void ERF::poisson_wall_dist (int lev)
     auto const& geomdata = geom[lev];
 
     if (havewall) {
+#if 1
+        // Bypass wall dist calc in the trivial cases
+
         if (solverChoice.mesh_type == MeshType::ConstantDz) {
-// Comment this out to test the wall dist calc in the trivial case:
-//#if 0
             Print() << "Directly calculating direct wall distance for constant dz" << std::endl;
             const Real* prob_lo = geomdata.ProbLo();
             const Real* dx = geomdata.CellSize();
@@ -47,17 +48,31 @@ void ERF::poisson_wall_dist (int lev)
                 });
             }
             return;
-//#endif
-        } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
-            // TODO: Handle this trivial case
-            Error("Wall dist calc not implemented with grid stretching yet");
-        } else {
-            // TODO
-            Error("Wall dist calc not implemented over terrain yet");
         }
+
+        if (solverChoice.mesh_type == MeshType::StretchedDz) {
+            Print() << "Directly calculating direct wall distance for stretched dz" << std::endl;
+            const Real* prob_lo = geomdata.ProbLo();
+            const Real* dx = geomdata.CellSize();
+            for (MFIter mfi(*walldist[lev],TileNoZ()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto dist_arr = walldist[lev]->array(mfi);
+                const auto zcc_arr = z_phys_cc[lev]->const_array(mfi);
+                const auto znd_arr = z_phys_nd[lev]->const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    dist_arr(i, j, k) = zcc_arr(i, j, k) - znd_arr(i, j, 0);
+                });
+            }
+            return;
+        }
+#endif
+    }
+    else
+    {
+        Error("No solid boundaries in the computational domain");
     }
 
-    Print() << "Calculating Poisson wall distance" << std::endl;
+    Print() << "Calculating Poisson wall distance for general terrain" << std::endl;
 
     // Make sure the solver only sees the levels over which we are solving
     BoxArray nba = walldist[lev]->boxArray();
