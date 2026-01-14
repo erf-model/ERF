@@ -1,5 +1,6 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
+#include "ERF_TerrainPoisson_3D_K.H"
 
 #include "AMReX_MLMG.H"
 #include "AMReX_MLPoisson.H"
@@ -350,55 +351,32 @@ void ERF::poisson_wall_dist (int lev)
 
     // ****************************************************************************
     // Compute grad(phi) to get distances
-    // - Note that phi is nodal and walldist is cell-centered
-    // - TODO: include terrain metrics for dphi/dz
     // ****************************************************************************
-    for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.validbox();
+    auto const& dxinv = geomdata.InvCellSizeArray();
 
-        const auto invCellSize = geomdata.InvCellSizeArray();
+    auto const& phi_arr = phi[0].const_arrays();
+    auto const& zphys_arr = z_phys_nd[lev]->const_arrays();
+    auto dist_arr = walldist[lev]->arrays();
 
-        auto const& phi_arr = phi[0].const_array(mfi);
-        auto dist_arr = walldist[lev]->array(mfi);
+    ParallelFor(*walldist[lev], [=] AMREX_GPU_DEVICE(int b, int i, int j, int k) {
+        Real dpdx{0}, dpdy{0}, dpdz{0};
 
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-            Real dpdx{0}, dpdy{0}, dpdz{0};
+        // dphi/dx
+        dpdx = terrpoisson_flux_x(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0]);
+        dpdy = terrpoisson_flux_y(i, j, k, phi_arr[b], zphys_arr[b], dxinv[1]);
+        dpdz = terrpoisson_flux_z(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0], dxinv[1]);
 
-            // dphi/dx
-            if (dom_lo.x != dom_hi.x) {
-                dpdx = 0.25 * invCellSize[0] * (
-                        (phi_arr(i+1, j  , k  ) - phi_arr(i, j  , k  ))
-                      + (phi_arr(i+1, j  , k+1) - phi_arr(i, j  , k+1))
-                      + (phi_arr(i+1, j+1, k  ) - phi_arr(i, j+1, k  ))
-                      + (phi_arr(i+1, j+1, k+1) - phi_arr(i, j+1, k+1)) );
-            }
+        Real dp_dot_dp = dpdx*dpdx + dpdy*dpdy + dpdz*dpdz;
 
-            // dphi/dy
-            if (dom_lo.y != dom_hi.y) {
-                dpdy = 0.25 * invCellSize[1] * (
-                        (phi_arr(i  , j+1, k  ) - phi_arr(i  , j, k  ))
-                      + (phi_arr(i  , j+1, k+1) - phi_arr(i  , j, k+1))
-                      + (phi_arr(i+1, j+1, k  ) - phi_arr(i+1, j, k  ))
-                      + (phi_arr(i+1, j+1, k+1) - phi_arr(i+1, j, k+1)) );
-            }
+        Real phi_avg = 0.125 * (
+                phi_arr[b](i  , j  , k  ) + phi_arr[b](i  , j  , k+1)
+              + phi_arr[b](i  , j+1, k  ) + phi_arr[b](i  , j+1, k+1)
+              + phi_arr[b](i+1, j  , k  ) + phi_arr[b](i+1, j  , k+1)
+              + phi_arr[b](i+1, j+1, k  ) + phi_arr[b](i+1, j+1, k+1) );
 
-            // dphi/dz
-            if (dom_lo.z != dom_hi.z) {
-                dpdz = 0.25 * invCellSize[2] * (
-                        (phi_arr(i  , j  , k+1) - phi_arr(i  , j  , k))
-                      + (phi_arr(i  , j+1, k+1) - phi_arr(i  , j+1, k))
-                      + (phi_arr(i+1, j  , k+1) - phi_arr(i+1, j  , k))
-                      + (phi_arr(i+1, j+1, k+1) - phi_arr(i+1, j+1, k)) );
-            }
+        dist_arr[b](i, j, k) = -std::sqrt(dp_dot_dp) + std::sqrt(dp_dot_dp + 2*phi_avg);
 
-            Real dp_dot_dp = dpdx*dpdx + dpdy*dpdy + dpdz*dpdz;
-            Real phi_avg = 0.125 * (
-                    phi_arr(i  , j  , k  ) + phi_arr(i  , j  , k+1) + phi_arr(i  , j+1, k  ) + phi_arr(i  , j+1, k+1)
-                  + phi_arr(i+1, j  , k  ) + phi_arr(i+1, j  , k+1) + phi_arr(i+1, j+1, k  ) + phi_arr(i+1, j+1, k+1) );
-            dist_arr(i, j, k) = -std::sqrt(dp_dot_dp) + std::sqrt(dp_dot_dp + 2*phi_avg);
-
-            // DEBUG: output phi instead
-            //dist_arr(i, j, k) = phi_arr(i, j, k);
-        });
-    }
+        // DEBUG: output phi instead
+        //dist_arr(i, j, k) = phi_arr(i, j, k);
+    });
 }
