@@ -127,6 +127,51 @@ class SuperDropletPC : public ERFPC
         /*! \brief Update device properties if material properties change */
         void updateDeviceProperties();
 
+        /*! \brief Helper method to update common particle attributes (radius and mass)
+         *
+         * @param particle_idx Index of the particle to update
+         * @param radius_ptr Pointer to the radius array
+         * @param mass_ptr Pointer to the mass array
+         * @param idx_w Index of water species
+         * @param rho_w Density of water
+         * @param num_sp Number of species
+         * @param num_ae Number of aerosols
+         * @param sp_sol_arr Species solubility array
+         * @param ae_sol_arr Aerosol solubility array
+         * @param sp_mass_ptrs Species mass pointers
+         * @param ae_mass_ptrs Aerosol mass pointers
+         * @param sp_rho_arr Species density array
+         * @param ae_rho_arr Aerosol density array
+         */
+        AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+        static void updateParticleAttributes(
+            int particle_idx,
+            amrex::ParticleReal* radius_ptr,
+            amrex::ParticleReal* mass_ptr,
+            int idx_w,
+            amrex::ParticleReal rho_w,
+            int num_sp, int num_ae,
+            const int* sp_sol_arr,
+            const int* ae_sol_arr,
+            const SDPCDefn::SDSpeciesMassArr sp_mass_ptrs,
+            const SDPCDefn::SDAerosolMassArr ae_mass_ptrs,
+            const amrex::ParticleReal* sp_rho_arr,
+            const amrex::ParticleReal* ae_rho_arr)
+        {
+            // Update effective radius
+            radius_ptr[particle_idx] = SD_effective_radius(
+                particle_idx, idx_w, rho_w,
+                num_sp, num_ae,
+                sp_sol_arr, ae_sol_arr,
+                sp_mass_ptrs, ae_mass_ptrs,
+                sp_rho_arr, ae_rho_arr);
+
+            // Update total mass
+            mass_ptr[particle_idx] = SD_total_mass(
+                particle_idx, num_sp, num_ae,
+                sp_mass_ptrs, ae_mass_ptrs);
+        }
+
         /*! \brief Get real-type particle attribute names */
         [[nodiscard]] virtual amrex::Vector<std::string> varNames () const override;
 

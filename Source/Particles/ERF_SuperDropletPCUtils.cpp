@@ -149,6 +149,7 @@ const int* SuperDropletPC::getAerosolINPFlagsDevice() const
     return m_ae_is_INP.data();
 }
 
+
 /*! Update device properties if material properties change */
 void SuperDropletPC::updateDeviceProperties()
 {

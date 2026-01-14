@@ -3,6 +3,7 @@
 #ifdef ERF_USE_PARTICLES
 
 #include <AMReX_TracerParticle_mod_K.H>
+#include "ERF_InterpolationUtils.H"
 
 using namespace amrex;
 using namespace SDPCDefn;
@@ -210,13 +211,10 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                             mrime_ptr[i] = 0.0;
                             nmono_ptr[i] = 0.0;
 
-                            radius_ptr[i] = SD_effective_radius( i, idx_w,
-                                                                 rho_w,
-                                                                 n_sp, n_ae,
-                                                                 sp_sol_arr, ae_sol_arr,
-                                                                 sp_mass_ptrs, ae_mass_ptrs,
-                                                                 sp_rho_arr, ae_rho_arr );
-                            mass_ptr[i] = SD_total_mass( i, n_sp, n_ae, sp_mass_ptrs, ae_mass_ptrs);
+                            SuperDropletPC::updateParticleAttributes(
+                                i, radius_ptr, mass_ptr, idx_w, rho_w,
+                                n_sp, n_ae, sp_sol_arr, ae_sol_arr,
+                                sp_mass_ptrs, ae_mass_ptrs, sp_rho_arr, ae_rho_arr);
                         }
 
                     }
@@ -253,13 +251,10 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
                             mrime_ptr[i] = 0.0;
                             nmono_ptr[i] = 0.0;
 
-                            radius_ptr[i] = SD_effective_radius( i, idx_w,
-                                                                 rho_w,
-                                                                 n_sp, n_ae,
-                                                                 sp_sol_arr, ae_sol_arr,
-                                                                 sp_mass_ptrs, ae_mass_ptrs,
-                                                                 sp_rho_arr, ae_rho_arr );
-                            mass_ptr[i] = SD_total_mass( i, n_sp, n_ae, sp_mass_ptrs, ae_mass_ptrs);
+                            SuperDropletPC::updateParticleAttributes(
+                                i, radius_ptr, mass_ptr, idx_w, rho_w,
+                                n_sp, n_ae, sp_sol_arr, ae_sol_arr,
+                                sp_mass_ptrs, ae_mass_ptrs, sp_rho_arr, ae_rho_arr);
                         }
 
                     }

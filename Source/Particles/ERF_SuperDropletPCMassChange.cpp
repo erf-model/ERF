@@ -253,13 +253,11 @@ void SuperDropletPC::MassChange_LV (  int                                       
                 // don't let it go negative
                 sp_mass_ptrs[idx_vap][i] = std::max(sp_mass_ptrs[idx_vap][i],0.0);
 
-                radius_ptr[i] = SD_effective_radius( i, idx_w,
-                                                     rho_w,
-                                                     num_sp, num_ae,
-                                                     sp_sol_arr, ae_sol_arr,
-                                                     sp_mass_ptrs, ae_mass_ptrs,
-                                                     sp_rho_arr, ae_rho_arr );
-                mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+                // Update particle attributes (radius and mass)
+                SuperDropletPC::updateParticleAttributes(
+                    i, radius_ptr, mass_ptr, idx_w, rho_w,
+                    num_sp, num_ae, sp_sol_arr, ae_sol_arr,
+                    sp_mass_ptrs, ae_mass_ptrs, sp_rho_arr, ae_rho_arr);
             }
 
         });
@@ -427,13 +425,10 @@ void SuperDropletPC::MassChange_SL (  int                                       
             }
 
             // update particle attributes
-            radius_ptr[i] = SD_effective_radius( i, idx_w,
-                                                 rho_w,
-                                                 num_sp, num_ae,
-                                                 sp_sol_arr, ae_sol_arr,
-                                                 sp_mass_ptrs, ae_mass_ptrs,
-                                                 sp_rho_arr, ae_rho_arr );
-            mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+            SuperDropletPC::updateParticleAttributes(
+                i, radius_ptr, mass_ptr, idx_w, rho_w,
+                num_sp, num_ae, sp_sol_arr, ae_sol_arr,
+                sp_mass_ptrs, ae_mass_ptrs, sp_rho_arr, ae_rho_arr);
 
         });
         Gpu::synchronize();
@@ -662,15 +657,11 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             mrime_ptr[i] = mrime_new;
             sp_mass_ptrs[idx_i][i] = mass_new;
 
-            // update total mass
-            mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
-            // update effective radius
-            radius_ptr[i] = SD_effective_radius( i, idx_w,
-                                                 rho_w,
-                                                 num_sp, num_ae,
-                                                 sp_sol_arr, ae_sol_arr,
-                                                 sp_mass_ptrs, ae_mass_ptrs,
-                                                 sp_rho_arr, ae_rho_arr );
+            // update particle attributes
+            SuperDropletPC::updateParticleAttributes(
+                i, radius_ptr, mass_ptr, idx_w, rho_w,
+                num_sp, num_ae, sp_sol_arr, ae_sol_arr,
+                sp_mass_ptrs, ae_mass_ptrs, sp_rho_arr, ae_rho_arr);
 
         });
         Gpu::synchronize();

@@ -1115,13 +1115,10 @@ void SuperDropletPC::Coalescence( int   a_lev,
         // update particle radius and total mass
         ParallelFor( np, [=] AMREX_GPU_DEVICE (int i)
         {
-            radius_ptr[i] = SD_effective_radius( i, sp_idx_w,
-                                                 rho_water,
-                                                 num_sp, num_ae,
-                                                 sp_sol_arr, ae_sol_arr,
-                                                 sp_mass_ptrs, ae_mass_ptrs,
-                                                 sp_rho_arr, ae_rho_arr );
-            mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+            SuperDropletPC::updateParticleAttributes(
+                i, radius_ptr, mass_ptr, sp_idx_w, rho_water,
+                num_sp, num_ae, sp_sol_arr, ae_sol_arr,
+                sp_mass_ptrs, ae_mass_ptrs, sp_rho_arr, ae_rho_arr);
         } );
         Gpu::synchronize();
 

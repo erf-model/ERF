@@ -1,6 +1,7 @@
 #include <random>
 #include <AMReX_PlotFileUtil.H>
 #include "ERF_SuperDropletPC.H"
+#include "ERF_InterpolationUtils.H"
 
 #ifdef ERF_USE_PARTICLES
 
@@ -292,13 +293,10 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 else { mult_ptr[i] = mult_avg; }
 
                 // compute effective radius and total mass
-                radius_ptr[i] = SD_effective_radius( i, idx_w,
-                                                     rho_w,
-                                                     num_sp, num_ae,
-                                                     sp_sol_arr, ae_sol_arr,
-                                                     sp_mass_ptrs, ae_mass_ptrs,
-                                                     sp_rho_arr, ae_rho_arr );
-                mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+                SuperDropletPC::updateParticleAttributes(
+                    i, radius_ptr, mass_ptr, idx_w, rho_w,
+                    num_sp, num_ae, sp_sol_arr, ae_sol_arr,
+                    sp_mass_ptrs, ae_mass_ptrs, sp_rho_arr, ae_rho_arr);
 
                 // set as active
                 active_ptr[i] = 1;
