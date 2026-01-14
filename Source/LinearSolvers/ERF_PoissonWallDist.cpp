@@ -2,7 +2,7 @@
 #include "ERF_Utils.H"
 
 #include "AMReX_MLMG.H"
-#include "AMReX_MLNodeLaplacian.H"
+#include "AMReX_MLPoisson.H"
 
 using namespace amrex;
 
@@ -75,10 +75,8 @@ void ERF::poisson_wall_dist (int lev)
     Print() << "Calculating Poisson wall distance for general terrain" << std::endl;
 
     // Make sure the solver only sees the levels over which we are solving
-    BoxArray nba = walldist[lev]->boxArray();
-    nba.surroundingNodes();
     Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
-    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(nba);
+    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(walldist[lev]->boxArray());
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(walldist[lev]->DistributionMap());
 
     Vector<MultiFab> rhs;
@@ -93,10 +91,6 @@ void ERF::poisson_wall_dist (int lev)
 
     rhs[0].setVal(-1.0);
 
-    // Define an overset mask to set dirichlet nodes on walls
-    iMultiFab mask(ba_tmp[0], dm_tmp[0], 1, 0);
-    Vector<const iMultiFab*> overset_mask = {&mask};
-
     auto const dom_lo = lbound(geom[lev].Domain());
     auto const dom_hi = ubound(geom[lev].Domain());
 
@@ -110,12 +104,17 @@ void ERF::poisson_wall_dist (int lev)
     // ****************************************************************************
     // Interior boundaries are marked with phi=0
     // ****************************************************************************
-    // Overset mask is 0/1: 1 means the node is an unknown. 0 means it's known.
+#if 0
+    // Define an overset mask (0 or 1) to set dirichlet nodes on walls
+    // 1 means the node is an unknown. 0 means it's known.
+    iMultiFab mask(ba_tmp[0], dm_tmp[0], 1, 0);
+    Vector<const iMultiFab*> overset_mask = {&mask};
+
     mask.setVal(1);
     if (solverChoice.advChoice.have_zero_flux_faces) {
         Warning("Poisson distance is inaccurate for bodies in open domains that are small compared to the domain size, skipping");
         return;
-#if 0
+
         Gpu::DeviceVector<IntVect> xfacelist, yfacelist, zfacelist;
 
         xfacelist.resize(solverChoice.advChoice.zero_xflux.size());
@@ -198,8 +197,8 @@ void ERF::poisson_wall_dist (int lev)
                 });
             }
         }
-#endif
     }
+#endif
 
     // ****************************************************************************
     // Setup BCs, with solid domain boundaries being dirichlet
@@ -225,7 +224,8 @@ void ERF::poisson_wall_dist (int lev)
         Error("No solid boundaries in the computational domain");
     }
 
-    LPInfo info;
+    LPInfo info; // defaults
+
 /* Nodal solver cannot have hidden dimensions */
 #if 0
     // Allow a hidden direction if the domain is one cell wide
@@ -241,16 +241,19 @@ void ERF::poisson_wall_dist (int lev)
     }
 #endif
 
+#if 0
+    Vector<EBFArrayBoxFactory const*> factory_vec;
+    factory_vec.push_back(static_cast<FabFactory<FArrayBox> const*>(&EBFactory(lev));
+#endif
+
     // ****************************************************************************
-    // Solve nodal masked Poisson problem with MLMG
-    // TODO: different solver for terrain?
+    // Solve Poisson problem with MLMG
     // ****************************************************************************
     const Real reltol = solverChoice.poisson_reltol;
     const Real abstol = solverChoice.poisson_abstol;
+    constexpr int max_iter = 100;
 
-    Real sigma = 1.0;
-    Vector<EBFArrayBoxFactory const*> factory_vec = { &EBFactory(lev) };
-    MLNodeLaplacian mlpoisson(geom_tmp, ba_tmp, dm_tmp, info, factory_vec, sigma);
+    MLPoisson mlpoisson(geom_tmp, ba_tmp, dm_tmp, info);
 
     mlpoisson.setDomainBC(bc3d_lo, bc3d_hi);
 
@@ -258,15 +261,12 @@ void ERF::poisson_wall_dist (int lev)
         mlpoisson.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
     }
 
+    // If we have inhomogeneous BCs -- do this after setCoarseFineBC
     mlpoisson.setLevelBC(0, nullptr);
-
-    mlpoisson.setOversetMask(0, mask);
 
     // Solve
     MLMG mlmg(mlpoisson);
-    int max_iter = 100;
     mlmg.setMaxIter(max_iter);
-
     mlmg.setVerbose(mg_verbose);
     mlmg.setBottomVerbose(0);
 
