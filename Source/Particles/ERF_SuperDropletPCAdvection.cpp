@@ -10,6 +10,15 @@
 using namespace amrex;
 using namespace SDPCDefn;
 
+namespace {
+    /*! \brief Traits for particle advection process */
+    struct AdvectionTraits : SDProcess::DefaultTraits {
+        static constexpr bool needs_velocity  = true;
+        static constexpr bool needs_term_vel  = true;
+        static constexpr bool needs_ice_axes  = true;  // for IceBohm terminal velocity
+    };
+}
+
 /*! Evolve particles for one time step */
 void SuperDropletPC::AdvectParticles ( int                   a_lev,
                                        Real                  a_time,
@@ -35,45 +44,31 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                  AMREX_ASSERT(!a_flow_vel[1].contains_nan());,
                  AMREX_ASSERT(!a_flow_vel[2].contains_nan()););
 
-    const Geometry& geom = m_gdb->Geom(a_lev);
-    const auto plo = geom.ProbLoArray();
-    const auto dxi = geom.InvCellSizeArray();
+    // Build process context using helper method
+    const auto ctx = buildProcessContext(a_lev);
 
-    const auto is_periodic = geom.isPeriodic();
-    auto is_periodic_z = is_periodic[2];
+    const Geometry& geom = m_gdb->Geom(a_lev);
+    const auto is_periodic_z = geom.isPeriodic(2);
 
     const bool advect_w_flow = m_advect_w_flow;
     const bool advect_w_gravity = m_advect_w_gravity;
     const bool prescribed_advection = m_prescribed_advection;
 
-    const int num_sp = m_num_species;
-    const int num_ae = m_num_aerosols;
-
-    const int idx_w = m_idx_w;
-    const int idx_i = m_idx_i;
-
     const auto vterm_type_w = m_term_vel_type_w;
     const auto vterm_type_i = m_term_vel_type_i;
 
-    Real rho_w = m_species_mat[m_idx_w]->m_density;
     Real rho_i = DBL_MAX;
-    if (idx_i >= 0) { rho_i = m_species_mat[m_idx_i]->m_density; }
+    if (ctx.idx_ice >= 0) { rho_i = m_species_mat[m_idx_i]->m_density; }
 
-#ifdef AMREX_USE_OMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-    for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
-        int grid    = pti.index();
-        auto& ptile = ParticlesAt(a_lev, pti);
-        auto& aos  = ptile.GetArrayOfStructs();
-        auto& soa  = ptile.GetStructOfArrays();
-        const int n = aos.numParticles();
-        auto *p_pbox = aos().data();
+    // Terminal velocity calculator (shared across tiles)
+    TerminalVelocity<ParticleReal> term_vel { ctx.rho_water, rho_i };
 
-        Array<ParticleReal*,AMREX_SPACEDIM> v_ptr;
-        v_ptr[0] = soa.GetRealData(SuperDropletsRealIdxSoA::vx).data();
-        v_ptr[1] = soa.GetRealData(SuperDropletsRealIdxSoA::vy).data();
-        v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
+    forEachParticleTile<AdvectionTraits>(a_lev, ctx,
+        [&](ParIterType& pti, int grid, ParticleType* p_pbox,
+            const SDProcess::ParticlePointers& ptrs,
+            const SDProcess::ProcessContext& ctx)
+    {
+        auto zheight = (*z_height)[grid].array();
 
         const FArrayBox* fab[AMREX_SPACEDIM] = { AMREX_D_DECL(&(a_flow_vel[0][grid]),
                                                               &(a_flow_vel[1][grid]),
@@ -87,44 +82,19 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         const auto& temperature_arr = a_temperature[grid].array();
         const auto& pressure_arr = a_pressure[grid].array();
 
-        auto zheight = (*z_height)[grid].array();
-
-        int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
-        auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
-        int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
-        auto* vterm_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::term_vel).data();
-
-        const ParticleReal *a_ptr(nullptr), *c_ptr(nullptr);
-        if (idx_i >= 0) {
-            a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data();
-            c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data();
-        }
-
-        SDSpeciesMassArr sp_mass_ptrs;
-        SDAerosolMassArr ae_mass_ptrs;
-        setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
-
-        // Get pointers to persistent device data
-        const ParticleReal* sp_rho_arr = getSpeciesDensitiesDevice();
-        const int* sp_sol_arr = getSpeciesSolubilitiesDevice();
-        const ParticleReal* ae_rho_arr = getAerosolDensitiesDevice();
-        const int* ae_sol_arr = getAerosolSolubilitiesDevice();
-
-        TerminalVelocity<ParticleReal> term_vel { rho_w, rho_i };
-
-        ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
+        ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
-            if (active_ptr[i] == 0) { return; }
+            if (ptrs.active_ptr[i] == 0) { return; }
 
             ParticleReal v[AMREX_SPACEDIM];
             v[0] = v[1] = v[2] = 0.0;
 
             if (is_periodic_z) {
-                mac_interpolate(p, plo, dxi, umacarr, v);
+                mac_interpolate(p, ctx.plo, ctx.dxi, umacarr, v);
             } else {
-                mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
+                mac_interpolate_mapped_z(p, ctx.plo, ctx.dxi, umacarr, zheight, v);
             }
 
             // Define field values array to store interpolated results
@@ -139,7 +109,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
 
             // Use the interpolation helper function to interpolate all fields at once
             ERF::Interpolation::interpolateFields(
-                p, plo, dxi, field_arrays, field_values, 3,
+                p, ctx.plo, ctx.dxi, field_arrays, field_values, 3,
                 is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
             );
 
@@ -157,15 +127,15 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             }
 
             // compute effective radius
-            auto r_eff = SD_effective_radius( i, idx_w,
-                                              rho_w,
-                                              num_sp, num_ae,
-                                              sp_sol_arr, ae_sol_arr,
-                                              sp_mass_ptrs, ae_mass_ptrs,
-                                              sp_rho_arr, ae_rho_arr );
+            auto r_eff = SD_effective_radius( i, ctx.idx_water,
+                                              ctx.rho_water,
+                                              ctx.num_species, ctx.num_aerosols,
+                                              ptrs.sp_sol_arr, ptrs.ae_sol_arr,
+                                              ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs,
+                                              ptrs.sp_rho_arr, ptrs.ae_rho_arr );
 
             ParticleReal terminal_vel = 0.0;
-            auto par_phase = SD_phase(i, idx_w, idx_i, sp_mass_ptrs);
+            auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
             if (par_phase == SDPhase::water) {
                 if (vterm_type_w == SDTerminalVelocityType::AtlasUlbrich) {
                     terminal_vel = term_vel.AtlasUlbrich( r_eff );
@@ -181,16 +151,18 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 }
 
             } else if (par_phase == SDPhase::ice) {
-                AMREX_ALWAYS_ASSERT(idx_i >= 0);
+                AMREX_ALWAYS_ASSERT(ctx.idx_ice >= 0);
                 if (vterm_type_i == SDTerminalVelocityType::AtlasUlbrich) {
                     terminal_vel = term_vel.AtlasUlbrich( r_eff );
                 } else if (vterm_type_i == SDTerminalVelocityType::RogersYau) {
                     terminal_vel = term_vel.RogersYau( r_eff );
                 } else if (vterm_type_i == SDTerminalVelocityType::IceBohm) {
-                    auto m_total = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+                    auto m_total = SD_total_mass( i, ctx.num_species, ctx.num_aerosols,
+                                                  ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs);
                     terminal_vel = term_vel.IceBohm( m_total,
-                                                     a_ptr[i], c_ptr[i],
-                                                     ice_rho(a_ptr[i],c_ptr[i],sp_mass_ptrs[idx_i][i]),
+                                                     ptrs.a_ptr[i], ptrs.c_ptr[i],
+                                                     ice_rho(ptrs.a_ptr[i],ptrs.c_ptr[i],
+                                                             ptrs.sp_mass_ptrs[ctx.idx_ice][i]),
                                                      density, temperature );
                 } else {
                     amrex::Abort("Invalid option for ice particle terminal velocity model");
@@ -200,9 +172,9 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             }
 
             for (int dim=0; dim < AMREX_SPACEDIM; dim++) {
-                v_ptr[dim][i] = v[dim];
+                ptrs.v_ptr[dim][i] = v[dim];
             }
-            vterm_ptr[i] = terminal_vel;
+            ptrs.vterm_ptr[i] = terminal_vel;
 
             if (advect_w_flow) {
                 for (int dim=0; dim < AMREX_SPACEDIM; dim++) {
@@ -214,11 +186,11 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
             }
 
             // Update z-coordinate carried by the particle
-            update_location_idata(p,plo,dxi,zheight);
+            update_location_idata(p,ctx.plo,ctx.dxi,zheight);
 
         });
         Gpu::synchronize();
-    }
+    }); // end forEachParticleTile
 
     applyBoundaryTreatment(a_lev, a_z_phys_nd, a_bctypes, a_recycle);
     Redistribute();
