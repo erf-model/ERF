@@ -86,14 +86,16 @@ void SuperDropletPC::MassChange_LV (  int                                       
         SDAerosolMassArr ae_mass_ptrs;
         setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
 
-        // Get pointers to persistent device data
-        const ParticleReal* sp_rho_arr = getSpeciesDensitiesDevice();
-        const int* sp_sol_arr = getSpeciesSolubilitiesDevice();
+        // Get material properties from persistent device vectors
+        const ParticleReal* sp_rho_arr = nullptr;
+        const int* sp_sol_arr = nullptr;
+        const ParticleReal* ae_rho_arr = nullptr;
+        const int* ae_sol_arr = nullptr;
+        getMaterialPropertiesDevice(sp_rho_arr, sp_sol_arr, ae_rho_arr, ae_sol_arr);
+
+        // Get additional species properties
         const ParticleReal* sp_ion_arr = getSpeciesIonizationDevice();
         const ParticleReal* sp_mw_arr = getSpeciesMolWeightDevice();
-
-        const ParticleReal* ae_rho_arr = getAerosolDensitiesDevice();
-        const int* ae_sol_arr = getAerosolSolubilitiesDevice();
         const ParticleReal* ae_ion_arr = getAerosolIonizationDevice();
         const ParticleReal* ae_mw_arr = getAerosolMolWeightDevice();
 
@@ -326,50 +328,12 @@ void SuperDropletPC::MassChange_SL (  int                                       
         SDAerosolMassArr ae_mass_ptrs;
         setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
 
-        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-        Gpu::DeviceVector<int> sp_solubility(num_sp);
-        {
-            Vector<ParticleReal> sp_density_h(num_sp);
-            Vector<int> sp_solubility_h(num_sp);
-            for (int i = 0; i < num_sp; i++) {
-                sp_density_h[i] = m_species_mat[i]->m_density;
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_density_h.begin(),
-                        sp_density_h.end(),
-                        sp_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_solubility_h.begin(),
-                        sp_solubility_h.end(),
-                        sp_solubility.begin() );
-        }
-
-        // ae_mass_ptrs already defined above
-        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-        Gpu::DeviceVector<int> ae_solubility(num_ae);
-        {
-            Vector<ParticleReal> ae_density_h(num_ae);
-            Vector<int> ae_solubility_h(num_ae);
-            for (int i = 0; i < num_ae; i++) {
-                // ae_mass_ptrs already set up via setupMassPointers
-                ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_density_h.begin(),
-                        ae_density_h.end(),
-                        ae_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_solubility_h.begin(),
-                        ae_solubility_h.end(),
-                        ae_solubility.begin() );
-        }
-
-        auto sp_rho_arr = sp_density.data();
-        auto sp_sol_arr = sp_solubility.data();
-        auto ae_rho_arr = ae_density.data();
-        auto ae_sol_arr = ae_solubility.data();
+        // Get material properties from persistent device vectors instead of creating local copies
+        const ParticleReal* sp_rho_arr = nullptr;
+        const int* sp_sol_arr = nullptr;
+        const ParticleReal* ae_rho_arr = nullptr;
+        const int* ae_sol_arr = nullptr;
+        getMaterialPropertiesDevice(sp_rho_arr, sp_sol_arr, ae_rho_arr, ae_sol_arr);
 
         ParallelFor(num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -496,45 +460,12 @@ void SuperDropletPC::MassChange_SV (  int                                      a
         SDAerosolMassArr ae_mass_ptrs;
         setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
 
-        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-        Gpu::DeviceVector<int> sp_solubility(num_sp);
-        {
-            Vector<ParticleReal> sp_density_h(num_sp);
-            Vector<int> sp_solubility_h(num_sp);
-            for (int i = 0; i < num_sp; i++) {
-                sp_density_h[i] = m_species_mat[i]->m_density;
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_density_h.begin(),
-                        sp_density_h.end(),
-                        sp_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_solubility_h.begin(),
-                        sp_solubility_h.end(),
-                        sp_solubility.begin() );
-        }
-
-        // ae_mass_ptrs already defined above
-        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-        Gpu::DeviceVector<int> ae_solubility(num_ae);
-        {
-            Vector<ParticleReal> ae_density_h(num_ae);
-            Vector<int> ae_solubility_h(num_ae);
-            for (int i = 0; i < num_ae; i++) {
-                // ae_mass_ptrs already set up via setupMassPointers
-                ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_density_h.begin(),
-                        ae_density_h.end(),
-                        ae_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_solubility_h.begin(),
-                        ae_solubility_h.end(),
-                        ae_solubility.begin() );
-        }
+        // Get material properties from persistent device vectors instead of creating local copies
+        const ParticleReal* sp_rho_arr = nullptr;
+        const int* sp_sol_arr = nullptr;
+        const ParticleReal* ae_rho_arr = nullptr;
+        const int* ae_sol_arr = nullptr;
+        getMaterialPropertiesDevice(sp_rho_arr, sp_sol_arr, ae_rho_arr, ae_sol_arr);
 
         const auto& sat_pressure_arr = a_sat_pressure[grid].array();
         const auto& sat_pressure_wi_arr = a_sat_pressure_wi[grid].array();
@@ -548,11 +479,6 @@ void SuperDropletPC::MassChange_SV (  int                                      a
                                  therco, /* ERF_Constants.H */
                                  mat_prop.m_Rv,
                                  mat_prop.m_density };
-
-        auto sp_rho_arr = sp_density.data();
-        auto sp_sol_arr = sp_solubility.data();
-        auto ae_rho_arr = ae_density.data();
-        auto ae_sol_arr = ae_solubility.data();
 
         ParallelFor(num_particles, [=] AMREX_GPU_DEVICE (int i)
         {

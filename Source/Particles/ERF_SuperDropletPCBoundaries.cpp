@@ -86,48 +86,12 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
         SDAerosolMassArr ae_mass_ptrs;
         setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
 
-        Gpu::DeviceVector<ParticleReal> sp_density(n_sp);
-        Gpu::DeviceVector<int> sp_solubility(n_sp);
-        {
-            Vector<ParticleReal> sp_density_h(n_sp);
-            Vector<int> sp_solubility_h(n_sp);
-            for (int i = 0; i < n_sp; i++) {
-                sp_density_h[i] = m_species_mat[i]->m_density;
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_density_h.begin(),
-                        sp_density_h.end(),
-                        sp_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_solubility_h.begin(),
-                        sp_solubility_h.end(),
-                        sp_solubility.begin() );
-        }
-
-        Gpu::DeviceVector<ParticleReal> ae_density(n_ae);
-        Gpu::DeviceVector<int> ae_solubility(n_ae);
-        {
-            Vector<ParticleReal> ae_density_h(n_ae);
-            Vector<int> ae_solubility_h(n_ae);
-            for (int i = 0; i < n_ae; i++) {
-                ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_density_h.begin(),
-                        ae_density_h.end(),
-                        ae_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_solubility_h.begin(),
-                        ae_solubility_h.end(),
-                        ae_solubility.begin() );
-        }
-
-        auto sp_rho_arr = sp_density.data();
-        auto sp_sol_arr = sp_solubility.data();
-        auto ae_rho_arr = ae_density.data();
-        auto ae_sol_arr = ae_solubility.data();
+        // Get pointers to persistent device data
+        const ParticleReal* sp_rho_arr = nullptr;
+        const int* sp_sol_arr = nullptr;
+        const ParticleReal* ae_rho_arr = nullptr;
+        const int* ae_sol_arr = nullptr;
+        getMaterialPropertiesDevice(sp_rho_arr, sp_sol_arr, ae_rho_arr, ae_sol_arr);
 
         ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
         {

@@ -486,6 +486,36 @@ class SuperDropletPC : public ERFPC
         /*! Method to initialize device properties */
         void initializeDeviceProperties();
 
+        /*! \brief Helper method to get species and aerosol material properties
+         *
+         * This helper method provides pointers to species and aerosol material properties
+         * from the persistent device vectors, ensuring they are initialized first.
+         * It avoids redundant host-to-device transfers when accessing material properties.
+         *
+         * @param sp_density_ptr Output pointer for species densities
+         * @param sp_solubility_ptr Output pointer for species solubilities
+         * @param ae_density_ptr Output pointer for aerosol densities
+         * @param ae_solubility_ptr Output pointer for aerosol solubilities
+         */
+        AMREX_FORCE_INLINE
+        void getMaterialPropertiesDevice(
+            const amrex::ParticleReal*& sp_density_ptr,
+            const int*& sp_solubility_ptr,
+            const amrex::ParticleReal*& ae_density_ptr,
+            const int*& ae_solubility_ptr) const
+        {
+            // Ensure device properties are initialized
+            if (!m_device_props_initialized) {
+                const_cast<SuperDropletPC*>(this)->initializeDeviceProperties();
+            }
+
+            // Get pointers to persistent device data
+            sp_density_ptr = getSpeciesDensitiesDevice();
+            sp_solubility_ptr = getSpeciesSolubilitiesDevice();
+            ae_density_ptr = getAerosolDensitiesDevice();
+            ae_solubility_ptr = getAerosolSolubilitiesDevice();
+        }
+
         /* recycled particle position bounds */
         amrex::Real m_recyc_xmin;
         amrex::Real m_recyc_xmax;
