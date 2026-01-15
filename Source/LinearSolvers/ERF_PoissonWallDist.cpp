@@ -1,9 +1,10 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainPoisson_3D_K.H"
+#include "ERF_TerrainMetrics.H"
 
 #include "AMReX_MLMG.H"
-#include "AMReX_MLPoisson.H"
+#include "AMReX_MLABecLaplacian.H"
 
 using namespace amrex;
 
@@ -32,6 +33,9 @@ void ERF::poisson_wall_dist (int lev)
     }
 
     auto const& geomdata = geom[lev];
+    auto const& dxinv    = geomdata.InvCellSizeArray();
+
+    auto const& zphys_arr = z_phys_nd[lev]->const_arrays();
 
     if (havewall) {
 #if 1
@@ -248,25 +252,55 @@ void ERF::poisson_wall_dist (int lev)
 #endif
 
     // ****************************************************************************
+    // Setup Poisson problem
+    // (A \alpha - B \nabla \cdot \beta \nabla ) \phi = f
+    // ****************************************************************************
+    constexpr Real Acoef = 0.0;
+    constexpr Real Bcoef = -1.0;
+
+    MLABecLaplacian mlabec(geom_tmp, ba_tmp, dm_tmp, info);
+
+    mlabec.setScalars(Acoef, Bcoef);
+
+    mlabec.setDomainBC(bc3d_lo, bc3d_hi);
+
+    if (lev > 0) {
+        mlabec.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
+    }
+
+    // If we have inhomogeneous BCs -- do this after setCoarseFineBC
+    mlabec.setLevelBC(0, nullptr);
+
+    // Set metric coefficients (beta coefficients at faces)
+    Array<MultiFab, AMREX_SPACEDIM> beta;
+
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        BoxArray ba_face = ba_tmp[0];
+        ba_face.surroundingNodes(idim);  // Convert to face-centered in direction idim
+        beta[idim].define(ba_face, dm_tmp[0], 1, 0);
+
+        beta[idim].setVal(1.0);
+        if (idim == 2) {
+            auto beta_arr = beta[idim].arrays();
+            auto rhs_arr = rhs[0].arrays();
+
+            ParallelFor(beta[idim], [=] AMREX_GPU_DEVICE(int b, int i, int j, int k) {
+                Real invJ = 1.0 / Compute_h_zeta_AtKface(i, j, k, dxinv, zphys_arr[b]);
+                beta_arr[b](i, j, k) = invJ * invJ;
+            });
+        }
+    }
+
+    mlabec.setBCoeffs(lev, GetArrOfConstPtrs(beta));
+
+    // ****************************************************************************
     // Solve Poisson problem with MLMG
     // ****************************************************************************
     const Real reltol = solverChoice.poisson_reltol;
     const Real abstol = solverChoice.poisson_abstol;
     constexpr int max_iter = 100;
 
-    MLPoisson mlpoisson(geom_tmp, ba_tmp, dm_tmp, info);
-
-    mlpoisson.setDomainBC(bc3d_lo, bc3d_hi);
-
-    if (lev > 0) {
-        mlpoisson.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
-    }
-
-    // If we have inhomogeneous BCs -- do this after setCoarseFineBC
-    mlpoisson.setLevelBC(0, nullptr);
-
-    // Solve
-    MLMG mlmg(mlpoisson);
+    MLMG mlmg(mlabec);
     mlmg.setMaxIter(max_iter);
     mlmg.setVerbose(mg_verbose);
     mlmg.setBottomVerbose(0);
@@ -352,10 +386,7 @@ void ERF::poisson_wall_dist (int lev)
     // ****************************************************************************
     // Compute grad(phi) to get distances
     // ****************************************************************************
-    auto const& dxinv = geomdata.InvCellSizeArray();
-
     auto const& phi_arr = phi[0].const_arrays();
-    auto const& zphys_arr = z_phys_nd[lev]->const_arrays();
     auto dist_arr = walldist[lev]->arrays();
 
     ParallelFor(*walldist[lev], [=] AMREX_GPU_DEVICE(int b, int i, int j, int k) {
@@ -366,15 +397,10 @@ void ERF::poisson_wall_dist (int lev)
         dpdy = terrpoisson_flux_y(i, j, k, phi_arr[b], zphys_arr[b], dxinv[1]);
         dpdz = terrpoisson_flux_z(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0], dxinv[1]);
 
-        Real dp_dot_dp = dpdx*dpdx + dpdy*dpdy + dpdz*dpdz;
+        Real magsqr_dphi = dpdx*dpdx + dpdy*dpdy + dpdz*dpdz;
+        Real mag_dphi = std::sqrt(magsqr_dphi);
 
-        Real phi_avg = 0.125 * (
-                phi_arr[b](i  , j  , k  ) + phi_arr[b](i  , j  , k+1)
-              + phi_arr[b](i  , j+1, k  ) + phi_arr[b](i  , j+1, k+1)
-              + phi_arr[b](i+1, j  , k  ) + phi_arr[b](i+1, j  , k+1)
-              + phi_arr[b](i+1, j+1, k  ) + phi_arr[b](i+1, j+1, k+1) );
-
-        dist_arr[b](i, j, k) = -std::sqrt(dp_dot_dp) + std::sqrt(dp_dot_dp + 2*phi_avg);
+        dist_arr[b](i, j, k) = -mag_dphi + std::sqrt(magsqr_dphi + 2*phi_arr[b](i, j, k));
 
         // DEBUG: output phi instead
         //dist_arr(i, j, k) = phi_arr(i, j, k);
