@@ -1267,6 +1267,18 @@ void SLM::init_soil_tw()
                             sand_arr(i,j,k) = 0.001;
                             clay_arr(i,j,k) = 0.001;
                             break;
+                        case 14: // water
+                            sand_arr(i,j,k) = 0.001;
+                            clay_arr(i,j,k) = 0.001;
+                            break;
+                        case 15: // bedrock
+                            sand_arr(i,j,k) = 0.001;
+                            clay_arr(i,j,k) = 0.001;
+                            break;
+                        case 16: // other (urban/builtup, etc)
+                            sand_arr(i,j,k) = 0.001;
+                            clay_arr(i,j,k) = 0.001;
+                            break;
                         default:
                             sand_arr(i,j,k) = -1.0;
                             clay_arr(i,j,k) = -1.0;
