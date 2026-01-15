@@ -247,6 +247,11 @@ Unlike the bulk parametrization and spectral bin methods, SDM directly tracks co
 that represent multiple real droplets with identical attributes. This Lagrangian approach enables accurate simulation of
 detailed cloud microphysical processes with reasonable computational cost.
 
+.. note::
+
+   To use SDM, build ERF with particles enabled i.e., ``USE_PARTICLES=TRUE``
+   with GNU Make or ``-D ERF_ENABLE_PARTICLES=TRUE`` with CMake.
+
 Overview and Method
 ~~~~~~~~~~~~~~~~~~~
 
@@ -649,7 +654,7 @@ For each initialization region (indexed by ``N``), parameters are specified with
      - Physical droplet number density (m\ :sup:`-3`)
    * - ``multiplicity_type``
      - ``sampled``
-     - How to assign multiplicity (``sampled``, etc.)
+     - How to assign multiplicity (``sampled``, ``constant``)
    * - ``maximum_multiplicity``
      - --
      - Maximum multiplicity value
@@ -835,10 +840,10 @@ For each injection source (indexed by ``N``), parameters are specified with pref
      -
    * - ``species_distribution_type_<NAME>``
      - ``mass_constant``
-     - Distribution type for species <NAME>
+     - Distribution type for species <NAME>: ``mass_constant``, ``mass_exponential``, ``radius_log_normal``, ``radius_lognormal_autorange``
    * - ``aerosol_distribution_type_<NAME>``
      - ``mass_constant``
-     - Distribution type for aerosol <NAME>
+     - Distribution type for aerosol <NAME>:  ``mass_constant``, ``mass_exponential``, ``radius_log_normal``, ``radius_lognormal_autorange``
    * - (other species/aerosol parameters)
      - --
      - Same as initialization parameters
@@ -987,16 +992,6 @@ The following species are currently implemented in ERF:
      - 0.01802
      - 0
      - Condensate (water)
-   * - ``water``
-     - 1000.0
-     - 0.01802
-     - 0
-     - Condensate (water)
-   * - ``agua``
-     - 1000.0
-     - 0.01802
-     - 0
-     - Condensate (water)
    * - ``NaCl``
      - 2170.0
      - 0.05844
@@ -1021,9 +1016,10 @@ The following species are currently implemented in ERF:
 Species Classification
 ^^^^^^^^^^^^^^^^^^^^^^
 
-**Water Species** (``H2O``, ``water``, ``agua``): These represent the condensate phase. The aliases ``water`` and ``agua``
-are provided to enable multi-component testing with identical water species. Water species have associated saturation vapor
+**Water Species** (``H2O``): These represent the condensate phase. Water species have associated saturation vapor
 pressure and latent heat properties required for phase change calculations.
+
+.. The aliases ``water`` and ``agua`` are provided to enable multi-component testing with identical water species.
 
 **Soluble Aerosols** (``NaCl``, ``NH42SO4``, ``NH4HSO4``): These species dissolve in water droplets and affect the equilibrium
 vapor pressure through the Köhler effect (solution term). The ionization factor (van't Hoff factor) represents the number of
@@ -1087,74 +1083,52 @@ Idealized Test Cases
 ^^^^^^^^^^^^^^^^^^^^^
 
 **SDM_Bubble2D_Adv**: 2D advection test of a moist bubble with super-droplets. Tests particle advection with the flow field
-and basic particle dynamics without coalescence or phase change. Located in ``Tests/test_files/SDM_Bubble2D_Adv/``.
+and basic particle dynamics without coalescence or phase change. Source located in ``Exec/MoistRegTests/Bubble/``. Inputs located in ``Tests/test_files/SDM_Bubble2D_Adv/``.
 
 **SDM_Bubble2D_Adv_InitSampling**: Similar to SDM_Bubble2D_Adv but demonstrates sampling-based multiplicity assignment for
-improved representation of the size distribution. Located in ``Tests/test_files/SDM_Bubble2D_Adv_InitSampling/``.
+improved representation of the size distribution. Source located in ``Exec/MoistRegTests/Bubble/``. Inputs located in ``Tests/test_files/SDM_Bubble2D_Adv_InitSampling/``.
 
 **SDM_Bubble2D_Adv_wInjection**: 2D moist bubble with runtime particle injection. Demonstrates injection configuration with
-moving injection domains. Located in ``Tests/test_files/SDM_Bubble2D_Adv_wInjection/``.
+moving injection domains. Source located in ``Exec/MoistRegTests/Bubble/``. Inputs located in ``Tests/test_files/SDM_Bubble2D_Adv_wInjection/``.
 
 **SDM_Box3D_Cond**: 3D box test for condensation/evaporation processes. Tests phase change physics with fixed environmental
-conditions. Located in ``Tests/test_files/SDM_Box3D_Cond/``.
+conditions. Source located in ``Exec/MoistRegTests/Bubble/``. Inputs located in ``Tests/test_files/SDM_Box3D_Cond/``.
 
 **SDM_Box3D_VTerm**: 3D box test for terminal velocity and sedimentation. Tests gravitational settling with various terminal
-velocity formulations. Located in ``Tests/test_files/SDM_Box3D_VTerm/``.
+velocity formulations. Source located in ``Exec/MoistRegTests/Bubble/``. Inputs located in ``Tests/test_files/SDM_Box3D_VTerm/``.
 
 **SDM_Box3D_Recycling**: 3D box test demonstrating particle recycling at domain boundaries. Shows how to maintain particle
-population during sedimentation. Located in ``Tests/test_files/SDM_Box3D_Recycling/``.
+population during sedimentation. Source located in ``Exec/MoistRegTests/Bubble/``. Inputs located in ``Tests/test_files/SDM_Box3D_Recycling/``.
 
 **SDM_MultiSpecies_Bubble2D**: 2D moist bubble with multiple aerosol species. Demonstrates multi-component configuration.
-Located in ``Tests/test_files/SDM_MultiSpecies_Bubble2D/``.
+Source located in ``DevTests/MultiSpeciesBubble/``. Inputs located in ``Tests/test_files/SDM_MultiSpecies_Bubble2D/``.
 
 Realistic Test Cases
 ^^^^^^^^^^^^^^^^^^^^^
 
 **SDM_RICO3D**: 3D simulation of the Rain In Cumulus Over the Ocean (RICO) case, a precipitating shallow cumulus benchmark.
-Tests full SDM microphysics including condensation, coalescence, and sedimentation in a realistic cloud environment. Located
-in ``Tests/test_files/SDM_RICO3D/``. Example input file with NH4HSO4 aerosol is in ``Exec/DevTests/RICO/input_sdm``.
+Tests full SDM microphysics including condensation, coalescence, and sedimentation in a realistic cloud environment. Source
+located in ``Exec/DevTests/RICO``. Inputs with NH4HSO4 aerosol located in  ``Tests/test_files/SDM_RICO3D/``.
 
 **SDM_RICO3D_InitSampling**: RICO case with sampling-based initialization for improved size distribution representation.
-Located in ``Tests/test_files/SDM_RICO3D_InitSampling/``.
+Source located in ``Exec/DevTests/RICO``. Inputs located in ``Tests/test_files/SDM_RICO3D_InitSampling/``.
 
-**SDM_Congestus3D**: 3D simulation of congestus clouds, testing SDM in a deeper convective environment. Located in
-``Tests/test_files/SDM_Congestus3D/``.
+**SDM_Congestus3D**: 3D simulation of congestus clouds, testing SDM in a deeper convective environment.
+Source located in ``Exec/DevTests/TemperatureSourceSpatial``. Inputs located in ``Tests/test_files/SDM_Congestus3D/``.
 
-Example Problem Directories
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Example Problems
+^^^^^^^^^^^^^^^^^
 
-**Moist Bubble with Multi-Injection**: ``Exec/MoistRegTests/Bubble/inputs_BF02_moist_bubble_SDM_multi_injections_unimodal_NaCl``
-demonstrates a complex injection setup with three injection sources: two moving box regions with opposing velocities and one
-time-limited bubble injection. This example is useful for understanding injection configuration and moving source regions.
+**Moist Bubble with Multi-Injection**: ``Exec/MoistRegTests/Bubble/`` contains multiple inputs files for different microphysics models,
+the ``inputs_BF02_moist_bubble_SDM_multi_injections_unimodal_NaCl`` demonstrates SDM a complex injection setup with three injection sources:
+two moving box regions with opposing velocities and one time-limited bubble injection. This example is useful for understanding injection
+configuration and moving source regions.
 
 **RICO DevTest**: ``Exec/DevTests/RICO/`` contains multiple input files for the RICO case with different microphysics models,
 including SDM configurations with various aerosol species (``input_sdm``).
 
 **Temperature Source Tests**: ``Exec/DevTests/TemperatureSourceSpatial/`` and ``Exec/DevTests/sinusoidal_mass_flux/`` include
 SDM configurations for testing particle behavior with prescribed temperature and mass flux forcing.
-
-Running Test Cases
-^^^^^^^^^^^^^^^^^^
-
-Test cases are typically run using the CTest framework:
-
-.. code-block:: bash
-
-   # Build ERF with SDM support
-   cd Build
-   cmake .. -DERF_ENABLE_PARTICLES=ON
-   make -j
-
-   # Run a specific SDM test
-   ctest -R SDM_RICO3D -V
-
-For manual execution:
-
-.. code-block:: bash
-
-   # Run from the test directory
-   cd Tests/test_files/SDM_RICO3D
-   ../../../Build/Exec/DevTests/RICO/erf SDM_RICO3D.i
 
 Verification
 ^^^^^^^^^^^^
