@@ -47,7 +47,7 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
   endif()
 
-  if(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS)
+  if(ERF_ENABLE_PARTICLES AND ERF_ENABLE_ML_UPHYS_DIAGNOSTICS)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_ML_UPHYS_DIAGNOSTICS)
   endif()
 
