@@ -1,6 +1,7 @@
 #ifndef ERF_INTERPOLATE_BILINEAR_H_
 #define ERF_INTERPOLATE_BILINEAR_H_
 
+#include "AMReX_GpuPrint.H"
 #include "ERF_DataStruct.H"
 
 /**
@@ -50,9 +51,9 @@ void bilinear_interpolation(const amrex::Real* xvec, const amrex::Real* yvec, co
     if(iloc > nx-1 or iloc < 0 or
        jloc > ny-1 or iloc < 0 or
        kloc > nz-1 or kloc < 0){
-        printf("There is a problem inside here %d %d %d %d %d %d\n", iloc, jloc, kloc, nx-1, ny-1, nz-1);
+        AMREX_DEVICE_PRINTF("There is a problem inside here %d %d %d %d %d %d\n", iloc, jloc, kloc, nx-1, ny-1, nz-1);
         for(int k=0;k<nz;k++){
-            printf("Value of z is %d %0.15g %0.15g\n", k, zvec[k], z);
+            AMREX_DEVICE_PRINTF("Value of z is %d %0.15g %0.15g\n", k, zvec[k], z);
        }
     }
 
