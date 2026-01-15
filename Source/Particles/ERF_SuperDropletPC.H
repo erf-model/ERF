@@ -695,6 +695,42 @@ class SuperDropletPC : public ERFPC
             }
         }
 
+        /*! \brief Iterate over particle tiles WITHOUT OpenMP
+         *
+         * This is identical to forEachParticleTile but without the OMP pragma.
+         * Use this when the per-tile operations are not thread-safe (e.g.,
+         * building DenseBins for coalescence).
+         *
+         * @tparam Traits The traits struct defining what pointers are needed
+         * @tparam TileFunc Functor type called for each tile
+         * @param a_lev AMR level
+         * @param ctx Process context (geometry, species info)
+         * @param func Functor called as: func(pti, grid, p_pbox, ptrs, ctx)
+         */
+        template<typename Traits, typename TileFunc>
+        void forEachParticleTileSerial(
+            int a_lev,
+            const SDProcess::ProcessContext& ctx,
+            TileFunc&& func)
+        {
+            // Do NOT add OpenMP here - this method is intentionally serial
+            for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
+                int grid = pti.index();
+                auto& ptile = ParticlesAt(a_lev, pti);
+                auto& aos = ptile.GetArrayOfStructs();
+                auto& soa = ptile.GetStructOfArrays();
+
+                if (aos.numParticles() == 0) { continue; }
+
+                auto* p_pbox = aos().data();
+
+                SDProcess::ParticlePointers ptrs;
+                setupParticlePointers<Traits>(soa, aos, ptrs);
+
+                func(pti, grid, p_pbox, ptrs, ctx);
+            }
+        }
+
         /* recycled particle position bounds */
         amrex::Real m_recyc_xmin;
         amrex::Real m_recyc_xmax;

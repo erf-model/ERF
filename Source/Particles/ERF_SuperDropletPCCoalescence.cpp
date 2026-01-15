@@ -15,6 +15,18 @@ using namespace amrex;
 using namespace SDMassChangeUtils_SV;
 using namespace SDPCDefn;
 
+namespace {
+    /*! \brief Traits for the coalescence process */
+    struct CoalescenceTraits : SDProcess::DefaultTraits {
+        static constexpr bool needs_velocity     = true;
+        static constexpr bool needs_term_vel     = true;
+        static constexpr bool needs_multiplicity = true;
+        static constexpr bool needs_ice_Tfz      = true;
+        static constexpr bool needs_ice_axes     = true;
+        static constexpr bool needs_ice_rime     = true;
+    };
+}
+
 /*! \brief Compute dynamic viscosity */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static auto viscCoeff ( const ParticleReal a_T /*!< temperature */ )
@@ -349,7 +361,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
                                 const ParticleReal* const a_rmndr, /*!< coalescence remainder*/
                                 const SDPhase a_phase_i, /*!< phase of particle i */
                                 const SDPhase a_phase_j, /*!< phase of particle j (partner) */
-                                const Array<ParticleReal*,AMREX_SPACEDIM>& a_vel, /*!< velocity */
+                                const GpuArray<ParticleReal*,AMREX_SPACEDIM>& a_vel, /*!< velocity */
                                 ParticleReal* const a_vterm, /*!< terminal velocity */
                                 ParticleReal* const a_radius, /*!< radius */
                                 ParticleReal* const a_Tfz, /*!< freezing temperature */
@@ -533,47 +545,16 @@ void SuperDropletPC::Coalescence( int   a_lev,
     Real mcpairing_wtime_sec = 0.0;
     Real coalescence_wtime_sec = 0.0;
 
-// Do NOT add OpenMP here; building DenseBins is not thread-safe.
-    for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
+    // Build process context
+    const auto ctx = buildProcessContext(a_lev);
 
-        auto& ptile = ParticlesAt(a_lev, pti);
-        auto& aos = ptile.GetArrayOfStructs();
-        auto& soa = ptile.GetStructOfArrays();
-        const size_t np = aos.numParticles();
-        auto pstruct_ptr = aos().dataPtr();
-
-        /* SoA attributes */
-        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
-        Array<ParticleReal*,AMREX_SPACEDIM> v_ptr;
-        v_ptr[0] = soa.GetRealData(SuperDropletsRealIdxSoA::vx).data();
-        v_ptr[1] = soa.GetRealData(SuperDropletsRealIdxSoA::vy).data();
-        v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
-
-        /* Runtime-added SoA attributes */
-        int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
-        auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
-        int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
-        auto* vterm_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::term_vel).data();
-        auto* Tfz_ptr = soa.GetRealData(idx_ice_Tfz(num_ae,num_sp)).data();
-        auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data();
-        auto* c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data();
-        auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data();
-        auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data();
-
-        /* species and aerosol masses */
-        SDSpeciesMassArr sp_mass_ptrs;
-        SDAerosolMassArr ae_mass_ptrs;
-        setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
-
-        // Get pointers to persistent device data
-        const ParticleReal* sp_rho_arr = getSpeciesDensitiesDevice();
-        const int* sp_sol_arr = getSpeciesSolubilitiesDevice();
-        const ParticleReal* ae_rho_arr = getAerosolDensitiesDevice();
-        const int* ae_sol_arr = getAerosolSolubilitiesDevice();
-
-        int grid = pti.index();
+    // Use serial (non-OMP) iteration because DenseBins is not thread-safe
+    forEachParticleTileSerial<CoalescenceTraits>(a_lev, ctx,
+        [&](ParIterType& pti, int grid, ParticleType* pstruct_ptr,
+            const SDProcess::ParticlePointers& ptrs,
+            const SDProcess::ProcessContext& /*ctx*/)
+    {
+        const size_t np = static_cast<size_t>(ptrs.num_particles);
         Box box = a_temperature[grid].box(); box.grow(-gvec);
         int ntiles = numTilesInBox(box, true, m_coalescence_bin_size);
         auto binner = GetParticleBin{plo, dxi, domain, m_coalescence_bin_size, box};
@@ -631,8 +612,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                 unsigned int j = 0;
                 for (unsigned int i = 0; i < max_np_bin; i++) {
-                    if (stencil_vec_ptr[i] < np_bin) {
-                        inds_tmp_ptr[bin_start+j] = inds[bin_start+stencil_vec_ptr[i]];
+                    if (stencil_veptrs.c_ptr[i] < np_bin) {
+                        inds_tmp_ptr[bin_start+j] = inds[bin_start+stencil_veptrs.c_ptr[i]];
                         j++;
                     }
                 }
@@ -711,17 +692,17 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 auto pj = inds[bin_stop-1-p];
 
                 if (pi == pj) { continue; }
-                if (active_ptr[pi] == 0) { continue; }
-                if (active_ptr[pj] == 0) { continue; }
-                if (mult_ptr[pi] == 0) { continue; }
-                if (mult_ptr[pj] == 0) { continue; }
+                if (ptrs.active_ptr[pi] == 0) { continue; }
+                if (ptrs.active_ptr[pj] == 0) { continue; }
+                if (ptrs.mult_ptr[pi] == 0) { continue; }
+                if (ptrs.mult_ptr[pj] == 0) { continue; }
 
                 np_bin_ptr[pi] = np_bin_ptr[pj] = np_bin;
                 partner_idx_ptr[pi] = pj;
                 partner_idx_ptr[pj] = pi;
 
                 int i = -1, j = -1;
-                if (mult_ptr[pi] >= mult_ptr[pj]) { i = pi; j = pj; }
+                if (ptrs.mult_ptr[pi] >= ptrs.mult_ptr[pj]) { i = pi; j = pj; }
                 else                              { i = pj; j = pi; }
                 flag_prey_ptr[i] = 1;
                 flag_prey_ptr[j] = 0;
@@ -740,8 +721,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
         gettimeofday(&coalescence_start, NULL);
 #endif
 
-        // We've already declared these pointers above, no need to redeclare
-
         // calculate collision efficiencies for each pair
         ParallelForRNG( np, [=] AMREX_GPU_DEVICE (int i, RandomEngine const& rnd_eng) noexcept
         {
@@ -750,11 +729,11 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
             int pi = i; // prey - higher multiplicity
             int pj = partner_idx_ptr[i]; // predator - lower multiplicity
-            AMREX_ALWAYS_ASSERT(mult_ptr[pi] >= mult_ptr[pj]);
+            AMREX_ALWAYS_ASSERT(ptrs.mult_ptr[pi] >= ptrs.mult_ptr[pj]);
 
             // get phases for the two particles
-            auto phase_i = SD_phase(pi, sp_idx_w, sp_idx_i, sp_mass_ptrs);
-            auto phase_j = SD_phase(pj, sp_idx_w, sp_idx_i, sp_mass_ptrs);
+            auto phase_i = SD_phase(pi, sp_idx_w, sp_idx_i, ptrs.sp_mass_ptrs);
+            auto phase_j = SD_phase(pj, sp_idx_w, sp_idx_i, ptrs.sp_mass_ptrs);
 
             ParticleReal k_val = 0.0;
             if ((phase_i == SDPhase::water) && (phase_j == SDPhase::water)) {
@@ -763,24 +742,24 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                 if (kernel_choice == SDCoalescenceKernelType::golovin) {
 
-                    k_val = ckernel.golovin(radius_ptr[pi],radius_ptr[pj]);
+                    k_val = ckernel.golovin(ptrs.radius_ptr[pi],ptrs.radius_ptr[pj]);
 
                 } else {
 
                     ParticleReal v_i[AMREX_SPACEDIM], v_j[AMREX_SPACEDIM];
                     for (int d = 0; d < AMREX_SPACEDIM; d++) {
-                        v_i[d] = v_ptr[d][pi];
-                        v_j[d] = v_ptr[d][pj];
+                        v_i[d] = ptrs.v_ptr[d][pi];
+                        v_j[d] = ptrs.v_ptr[d][pj];
                     }
-                    v_i[AMREX_SPACEDIM-1] -= vterm_ptr[pi];
-                    v_j[AMREX_SPACEDIM-1] -= vterm_ptr[pj];
+                    v_i[AMREX_SPACEDIM-1] -= ptrs.vterm_ptr[pi];
+                    v_j[AMREX_SPACEDIM-1] -= ptrs.vterm_ptr[pj];
 
                     if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
-                        k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        k_val = ckernel.sedimentation(ptrs.radius_ptr[pi],ptrs.radius_ptr[pj],v_i,v_j);
                     } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
-                        k_val = ckernel.Longs(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        k_val = ckernel.Longs(ptrs.radius_ptr[pi],ptrs.radius_ptr[pj],v_i,v_j);
                     } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
-                        k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        k_val = ckernel.Halls(ptrs.radius_ptr[pi],ptrs.radius_ptr[pj],v_i,v_j);
                     }
 
                     if (k_val < 0.0) {
@@ -793,19 +772,19 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 // aggregation between two ice particles
 
                 // ice particle 1
-                auto vz_i = v_ptr[AMREX_SPACEDIM-1][pi] - vterm_ptr[pi];
-                auto a_i = a_ptr[pi];
-                auto c_i = c_ptr[pi];
-                auto rhoi_i = ice_rho(a_i, c_i, sp_mass_ptrs[sp_idx_i][pi]);
+                auto vz_i = ptrs.v_ptr[AMREX_SPACEDIM-1][pi] - ptrs.vterm_ptr[pi];
+                auto a_i = ptrs.a_ptr[pi];
+                auto c_i = ptrs.c_ptr[pi];
+                auto rhoi_i = ice_rho(a_i, c_i, ptrs.sp_mass_ptrs[sp_idx_i][pi]);
                 auto maxR_i = std::max(a_i, c_i);
                 auto k_i = std::exp(-ckernel.k_coeff * c_i/a_i);
                 auto area_i = PI * a_i * maxR_i * std::exp(k_i*std::log(rhoi_i/rho_ice));
 
                 // ice particle 2
-                auto vz_j = v_ptr[AMREX_SPACEDIM-1][pj] - vterm_ptr[pj];
-                auto a_j = a_ptr[pj];
-                auto c_j = c_ptr[pj];
-                auto rhoi_j = ice_rho(a_j, c_j, sp_mass_ptrs[sp_idx_i][pj]);
+                auto vz_j = ptrs.v_ptr[AMREX_SPACEDIM-1][pj] - ptrs.vterm_ptr[pj];
+                auto a_j = ptrs.a_ptr[pj];
+                auto c_j = ptrs.c_ptr[pj];
+                auto rhoi_j = ice_rho(a_j, c_j, ptrs.sp_mass_ptrs[sp_idx_i][pj]);
                 auto maxR_j = std::max(a_j, c_j);
                 auto k_j = std::exp(-ckernel.k_coeff * c_j/a_j);
                 auto area_j = PI * a_j * maxR_j * std::exp(k_j*std::log(rhoi_j/rho_ice));
@@ -829,14 +808,14 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 else { id_w = pj; id_i = pi; }
 
                 // water droplet
-                auto vz_w = v_ptr[AMREX_SPACEDIM-1][id_w] - vterm_ptr[id_w];
-                auto r_w = radius_ptr[id_w];
+                auto vz_w = ptrs.v_ptr[AMREX_SPACEDIM-1][id_w] - ptrs.vterm_ptr[id_w];
+                auto r_w = ptrs.radius_ptr[id_w];
 
                 // ice particle
-                auto vz_i = v_ptr[AMREX_SPACEDIM-1][id_i] - vterm_ptr[id_i];
-                auto a_i = a_ptr[id_i];
-                auto c_i = c_ptr[id_i];
-                auto rhoi_i = ice_rho(a_i, c_i, sp_mass_ptrs[sp_idx_i][id_i]);
+                auto vz_i = ptrs.v_ptr[AMREX_SPACEDIM-1][id_i] - ptrs.vterm_ptr[id_i];
+                auto a_i = ptrs.a_ptr[id_i];
+                auto c_i = ptrs.c_ptr[id_i];
+                auto rhoi_i = ice_rho(a_i, c_i, ptrs.sp_mass_ptrs[sp_idx_i][id_i]);
                 auto eqr_i = std::exp((1.0/3.0)*std::log(a_i*a_i*c_i));
                 auto maxR_i = std::max(a_i, c_i);
 
@@ -933,26 +912,26 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 ParticleReal sd_mass_1 = 0.0,
                              sd_mass_2 = 0.0;
                 for (int ia = 0; ia < num_ae; ia++) {
-                    sd_mass_1 += ae_mass_ptrs[ia][pi];
-                    sd_mass_2 += ae_mass_ptrs[ia][pj];
+                    sd_mass_1 += ptrs.ae_mass_ptrs[ia][pi];
+                    sd_mass_2 += ptrs.ae_mass_ptrs[ia][pj];
                 }
                 for (int ia = 0; ia < num_sp; ia++) {
-                    sd_mass_1 += sp_mass_ptrs[ia][pi];
-                    sd_mass_2 += sp_mass_ptrs[ia][pj];
+                    sd_mass_1 += ptrs.sp_mass_ptrs[ia][pi];
+                    sd_mass_2 += ptrs.sp_mass_ptrs[ia][pj];
                 }
 
                 auto r_eff_1 = SD_effective_radius( pi, sp_idx_w,
                                                     rho_water,
                                                     num_sp, num_ae,
-                                                    sp_sol_arr, ae_sol_arr,
-                                                    sp_mass_ptrs, ae_mass_ptrs,
-                                                    sp_rho_arr, ae_rho_arr );
+                                                    ptrs.sp_sol_arr, ptrs.ae_sol_arr,
+                                                    ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs,
+                                                    ptrs.sp_rho_arr, ptrs.ae_rho_arr );
                 auto r_eff_2 = SD_effective_radius( pj, sp_idx_w,
                                                     rho_water,
                                                     num_sp, num_ae,
-                                                    sp_sol_arr, ae_sol_arr,
-                                                    sp_mass_ptrs, ae_mass_ptrs,
-                                                    sp_rho_arr, ae_rho_arr );
+                                                    ptrs.sp_sol_arr, ptrs.ae_sol_arr,
+                                                    ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs,
+                                                    ptrs.sp_rho_arr, ptrs.ae_rho_arr );
 
                 auto k_brown = ckernel.Brownian_SeinfeldPandis( r_eff_1,
                                                                 r_eff_2,
@@ -969,7 +948,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
 
             auto prob_ij = k_val*inv_bin_volume;
-            auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
+            auto prob_sd_ij = std::max(ptrs.mult_ptr[pi],ptrs.mult_ptr[pj])*prob_ij;
 
             auto ns = static_cast<ParticleReal>(np_bin_ptr[i]);
             auto scaling_factor = 0.5*ns*(ns-1)/std::floor(0.5*ns);
@@ -978,9 +957,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto gamma = coalescence_rate ( rnd_eng, (scaled_prob*a_dt) );
             if (gamma > 0) {
                 amrex::Gpu::Atomic::Add(particle_collisions_ptr, gamma);
-                coll_rate_ptr[pi] = std::min(gamma,std::floor(mult_ptr[pi]/mult_ptr[pj]));
+                coll_rate_ptr[pi] = std::min(gamma,std::floor(ptrs.mult_ptr[pi]/ptrs.mult_ptr[pj]));
                 coll_rate_ptr[pj] = coll_rate_ptr[pi];
-                coll_rmndr_ptr[pi] = mult_ptr[pi] - coll_rate_ptr[pi]*mult_ptr[pj];
+                coll_rmndr_ptr[pi] = ptrs.mult_ptr[pi] - coll_rate_ptr[pi]*ptrs.mult_ptr[pj];
                 coll_rmndr_ptr[pj] = coll_rmndr_ptr[pi];
             } else {
                 partner_idx_ptr[pi] = -1;
@@ -1002,8 +981,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
             if (j < 0) { return; }
 
             // get phases for the two particles
-            auto phase_i = SD_phase(i, sp_idx_w, sp_idx_i, sp_mass_ptrs);
-            auto phase_j = SD_phase(j, sp_idx_w, sp_idx_i, sp_mass_ptrs);
+            auto phase_i = SD_phase(i, sp_idx_w, sp_idx_i, ptrs.sp_mass_ptrs);
+            auto phase_j = SD_phase(j, sp_idx_w, sp_idx_i, ptrs.sp_mass_ptrs);
 
             if ((phase_i == SDPhase::water) && (phase_j == SDPhase::water)) {
 
@@ -1012,14 +991,14 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                      flag_prey_ptr,
                                      coll_rate_ptr,
                                      coll_rmndr_ptr,
-                                     mass_ptr,
-                                     radius_ptr,
-                                     Tfz_ptr,
-                                     mult_ptr,
+                                     ptrs.mass_ptr,
+                                     ptrs.radius_ptr,
+                                     ptrs.Tfz_ptr,
+                                     ptrs.mult_ptr,
                                      num_sp,
-                                     sp_mass_ptrs,
+                                     ptrs.sp_mass_ptrs,
                                      num_ae,
-                                     ae_mass_ptrs );
+                                     ptrs.ae_mass_ptrs );
 
             } else if ((phase_i == SDPhase::ice) && (phase_j == SDPhase::ice)) {
 
@@ -1031,16 +1010,16 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                      flag_prey_ptr,
                                      coll_rate_ptr,
                                      coll_rmndr_ptr,
-                                     Tfz_ptr,
-                                     a_ptr,
-                                     c_ptr,
-                                     mrime_ptr,
-                                     nmono_ptr,
-                                     mult_ptr,
+                                     ptrs.Tfz_ptr,
+                                     ptrs.a_ptr,
+                                     ptrs.c_ptr,
+                                     ptrs.mrime_ptr,
+                                     ptrs.nmono_ptr,
+                                     ptrs.mult_ptr,
                                      num_sp,
-                                     sp_mass_ptrs,
+                                     ptrs.sp_mass_ptrs,
                                      num_ae,
-                                     ae_mass_ptrs );
+                                     ptrs.ae_mass_ptrs );
 
             } else {
 
@@ -1081,15 +1060,15 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                      coll_rate_ptr,
                                      coll_rmndr_ptr,
                                      phase_i, phase_j,
-                                     v_ptr,
-                                     vterm_ptr,
-                                     radius_ptr,
-                                     Tfz_ptr,
-                                     a_ptr,
-                                     c_ptr,
-                                     mrime_ptr,
-                                     nmono_ptr,
-                                     mult_ptr,
+                                     ptrs.v_ptr,
+                                     ptrs.vterm_ptr,
+                                     ptrs.radius_ptr,
+                                     ptrs.Tfz_ptr,
+                                     ptrs.a_ptr,
+                                     ptrs.c_ptr,
+                                     ptrs.mrime_ptr,
+                                     ptrs.nmono_ptr,
+                                     ptrs.mult_ptr,
                                      temperature,
                                      moist_density,
                                      pressure,
@@ -1097,9 +1076,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                      coeff_moldiff,
                                      dmdt,
                                      num_sp,
-                                     sp_mass_ptrs,
+                                     ptrs.sp_mass_ptrs,
                                      num_ae,
-                                     ae_mass_ptrs );
+                                     ptrs.ae_mass_ptrs );
             }
 
         } );
@@ -1109,9 +1088,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
         ParallelFor( np, [=] AMREX_GPU_DEVICE (int i)
         {
             SuperDropletPC::updateParticleAttributes(
-                i, radius_ptr, mass_ptr, sp_idx_w, rho_water,
-                num_sp, num_ae, sp_sol_arr, ae_sol_arr,
-                sp_mass_ptrs, ae_mass_ptrs, sp_rho_arr, ae_rho_arr);
+                i, ptrs.radius_ptr, ptrs.mass_ptr, sp_idx_w, rho_water,
+                num_sp, num_ae, ptrs.sp_sol_arr, ptrs.ae_sol_arr,
+                ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs, ptrs.sp_rho_arr, ptrs.ae_rho_arr);
         } );
         Gpu::synchronize();
 
@@ -1122,7 +1101,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                              - (coalescence_start.tv_sec * 1000000 + coalescence_start.tv_usec) );
         coalescence_wtime_sec += (double) coalescence_wtime / 1000000.0;
 #endif
-    }
+    }); // end forEachParticleTileSerial
 
     ParallelDescriptor::ReduceRealSum(  &num_collisions,
                                         1,
