@@ -1,5 +1,6 @@
 #include <ERF_EOS.H>
 #include <ERF.H>
+#include <ERF_EpochTime.H>
 #include <AMReX_ParmParse.H>
 
 using namespace amrex;
@@ -314,9 +315,17 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
 
     // *****************************************************************************************
 
-    std::string subvol_filename = Concatenate(subvol_file + "_" + std::to_string(isub) + "_", istep[0], 5);
-
     Real time = t_new[lev_for_sub];
+
+    std::string sf = subvol_file + "_" + std::to_string(isub);
+    std::string subvol_filename;
+
+    if (use_real_time_in_pltname) {
+        const std::string dt_format = "%Y-%m-%d_%H:%M:%S"; // ISO 8601 standard
+        subvol_filename = sf + getTimestamp(start_time+time, dt_format);
+    } else {
+       subvol_filename = Concatenate(sf + "_", istep[0], file_name_digits);
+    }
 
     amrex::Print() <<"Writing subvolume into " << subvol_filename << std::endl;
     WriteSingleLevelPlotfile(subvol_filename,mf,varnames,geom[lev_for_sub],time,istep[0]);

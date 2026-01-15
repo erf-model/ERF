@@ -1,7 +1,7 @@
 #ifdef ERF_USE_FFT
 
 #include "ERF_TerrainPoisson.H"
-#include "ERF_FFTUtils.H"
+#include "ERF_SolverUtils.H"
 
 using namespace amrex;
 

@@ -6,7 +6,7 @@
 #include <AMReX_Vector.H>
 
 /**
- * When terrain_type == TerreinType::EB,
+ * When terrain_type == TerrainType::EB,
  * Wrapper function for computing the advective tendency w/ spatial order > 2
  */
 template<typename InterpType_H, typename InterpType_V>
@@ -198,7 +198,7 @@ EBAdvectionSrcForScalarsWrapper (const amrex::Box& bx,
 
 
 /**
- * When terrain_type == TerreinType::EB,
+ * When terrain_type == TerrainType::EB,
  * Wrapper function for templating the vertical advective tendency w/ spatial order > 2.
  */
 template<typename InterpType_H>

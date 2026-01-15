@@ -11,7 +11,7 @@ eb2.small_volfrac = 1.e-4
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = 0.   0.  0. 
 geometry.prob_hi     = 10  10  10
-amr.n_cell           = 256 256  256
+amr.n_cell           = 120 120 120
 
 geometry.is_periodic = 0 1 0
 
@@ -48,7 +48,7 @@ erf.sponge_z_velocity = 0.0
 # TIME STEP CONTROL
 erf.substepping_type    = None
 #erf.fixed_dt           = 1E-5
-erf.cfl = 0.3
+erf.cfl = 0.1
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass
@@ -60,7 +60,7 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk     # root name of checkpoint file
-erf.check_int       = 10000  # number of timesteps between checkpoints
+erf.check_int       = 1000  # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
@@ -86,9 +86,12 @@ erf.terrain_type = "EB"
 erf.write_eb_surface = TRUE
 erf.terrain_smoothing = 0
 
+#EB
+erf.eb_boundary_type = "SlipWall"
+
 # Constant diffusion coefficient
-erf.molec_diff_type   = "None"
-erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 0.1 # [kg/(m-s)]
 erf.alpha_T           = 0.0 # [m^2/s]
 erf.theta_ref = 300.0
 

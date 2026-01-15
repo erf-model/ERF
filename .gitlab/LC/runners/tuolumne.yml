@@ -37,17 +37,20 @@ stages:
   variables:
     # Note: "flux" gets expanded to "flux run" inside build script
     MPIEXEC_EXECUTABLE: flux
-    MPIEXEC_PREFLAGS: "-c 1 -g 1 -o mpi-spectrum -o cpu-affinity=per-task -o gpu-affinity=per-task -vvv --setopt=mpibind=verbose:1"
+    MPIEXEC_PREFLAGS: "-c 1 -g 1 -o mpi-spectrum -o cpu-affinity=per-task -o gpu-affinity=per-task -o spindle.level=off -vvv --setopt=mpibind=verbose:1"
   script:
     # Allocation information
     - echo -e "### Allocation name is ${ALLOC_NAME}"
     - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
     - if [[ -z "${JOBID}" ]]; then echo "No JOBID found for ${ALLOC_NAME}"; exit 1; fi
     - echo -e "### Job ID is ${JOBID}"
-    - export AMD_LOG_LEVEL=2
     - export MPICH_GPU_SUPPORT_ENABLED=1
     - export HSA_XNACK=1
-    - flux proxy "${JOBID}" flux run -N 1 -x -n 1 -vv ${TEST_SCRIPT}
+    - export SPINDLE_FLUXOPT=off
+    - flux proxy "${JOBID}" flux batch -N 1 -x --flags waitable --output=none --error=none ${TEST_SCRIPT}
+    - flux proxy "${JOBID}" flux job attach -r $(flux proxy "${JOBID}" flux job last)
+    - flux proxy "${JOBID}" flux queue drain
+    - flux proxy "${JOBID}" flux job wait --all
 
 ##############################################################################
 # JOBS
@@ -79,7 +82,7 @@ allocate_resources:
   stage: allocate-resources
   script:
     - echo -e "Allocating resources for ${ALLOC_NAME} on the ${ALLOC_QUEUE} queue for ${ALLOC_TIME} minutes"
-    - flux alloc -N 1 -q ${ALLOC_QUEUE} -t=${ALLOC_TIME} --bg --exclusive --job-name=${ALLOC_NAME} --setattr=thp=always
+    - flux alloc -N 1 -q ${ALLOC_QUEUE} -t=${ALLOC_TIME} --bg --exclusive --job-name=${ALLOC_NAME} --setattr=thp=always --setattr=gpumode=CPX --conf=resource.rediscover=true
 
 # Deallocate resources for build and test
 # Note: in the rules above this is always run

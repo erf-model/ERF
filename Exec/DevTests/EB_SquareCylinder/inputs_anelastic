@@ -1,0 +1,102 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+#max_step = 10000000
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     = -6.06480 -7.98000 0.00000
+geometry.prob_hi     = 18.03480 7.98000 7.98000
+amr.n_cell           = 151 100 50
+
+geometry.is_periodic = 0 0 0
+
+xlo.type = "Inflow"
+xhi.type = "Outflow"
+xlo.velocity = 1. 0. 0.
+
+ylo.type = "SlipWall"
+yhi.type = "SlipWall"
+zlo.type = "NoSlipWall"
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.substepping_type   = None
+erf.cfl                = 0.1     # cfl number for hyperbolic system
+#erf.dixed_dt = 1.e-7
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level = 4
+amr.ref_ratio = 2 2 2 2
+erf.refinement_indicators = box1 box2 box3 box4
+
+erf.box1.max_level = 1
+erf.box1.in_box_lo_indices = 44	50	0
+erf.box1.in_box_hi_indices = 301 149 49
+
+erf.box2.max_level = 2
+erf.box2.in_box_lo_indices = 100	124	0
+erf.box2.in_box_hi_indices = 453	275	87
+
+erf.box3.max_level = 3
+erf.box3.in_box_lo_indices = 232	328	0
+erf.box3.in_box_hi_indices = 379	475	149
+
+erf.box4.max_level = 4
+erf.box4.in_box_lo_indices = 512	704	0
+erf.box4.in_box_hi_indices = 707	899	251
+
+erf.coupling_type  = "TwoWay"
+erf.cf_width = 0
+erf.cf_set_width = 0
+
+# TERRRAIN GRID TYPE
+erf.terrain_type = "EB"
+erf.write_eb_surface = TRUE
+erf.terrain_smoothing = 0
+
+# EB GEOMETRY
+eb2.geometry = "box"
+eb2.small_volfrac = 1.e-4
+eb2.box_lo = -0.5 -0.5 -1.0
+eb2.box_hi = 0.5 0.5 2.0
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 200       # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt        # prefix of plotfile name
+erf.plot_int_1      = 200        # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity volfrac theta
+
+# SOLVER CHOICE
+erf.anelastic = 1
+erf.mg_v = 2
+
+erf.use_gravity     = false
+
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
+
+erf.les_type          = "None"
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 0.004
+
+erf.use_coriolis = false
+erf.abl_driver_type = "None"
+erf.abl_pressure_grad = 0.0 0. 0.
+
+erf.init_type = "uniform"
+erf.project_initial_velocity = 1
+
+# PROBLEM PARAMETERS
+prob.T_0   = 300.0
+prob.U_0   = 1.0
+prob.rho_0 = 1.0

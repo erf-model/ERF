@@ -3,6 +3,9 @@
 #include <ERF_EBAux.H>
 #include <ERF_EBCutCell.H>
 #include <AMReX_MultiFabUtil.H>
+#if 0
+#include <AMReX_VisMF.H>
+#endif
 
 using namespace amrex;
 
@@ -844,6 +847,13 @@ define( [[maybe_unused]] int const& a_level,
 
     const Box& bx = mfi.validbox();
     const Box& bx_grown = mfi.growntilebox();
+    const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
+    const int dom_lo_i = domain.smallEnd(0);
+    const int dom_hi_i = domain.bigEnd(0);
+    const int dom_lo_j = domain.smallEnd(1);
+    const int dom_hi_j = domain.bigEnd(1);
+    const int dom_lo_k = domain.smallEnd(2);
+    const int dom_hi_k = domain.bigEnd(2);
 
     Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
     Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
@@ -862,30 +872,42 @@ define( [[maybe_unused]] int const& a_level,
     if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
 
       // Corrections for small cells
-      Box my_xbx(bx); if (a_idim == 0) my_xbx.growLo(0,1);
+      Box my_xbx(bx); my_xbx.growHi(0,1);
       ParallelFor(my_xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac) {
-          aux_afrac_x(i  ,j  ,k  ) = 0.0;
-          aux_afrac_x(i+1,j  ,k  ) = 0.0;
+        if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i-1,j,k) < small_volfrac) {
+          // At domain boundary, keep area fraction as is unless inside cell is small
+          if ((i == dom_lo_i && aux_vfrac(i,j,k) < small_volfrac) ||
+              (i == dom_hi_i+1 && aux_vfrac(i-1,j,k) < small_volfrac) ||
+              (i != dom_lo_i && i != dom_hi_i+1)) {
+              aux_afrac_x(i,j,k) = 0.0;
+          }
         }
       });
 
-      Box my_ybx(bx); if (a_idim == 1) my_ybx.growLo(1,1);
+      Box my_ybx(bx); my_ybx.growHi(1,1);
       ParallelFor(my_ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac) {
-          aux_afrac_y(i  ,j  ,k  ) = 0.0;
-          aux_afrac_y(i  ,j+1,k  ) = 0.0;
+        if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i,j-1,k) < small_volfrac) {
+          // At domain boundary, keep area fraction as is unless inside cell is small
+          if ((j == dom_lo_j && aux_vfrac(i,j,k) < small_volfrac) ||
+              (j == dom_hi_j+1 && aux_vfrac(i,j-1,k) < small_volfrac) ||
+              (j != dom_lo_j && j != dom_hi_j+1)) {
+              aux_afrac_y(i,j,k) = 0.0;
+          }
         }
       });
 
-      Box my_zbx(bx); if (a_idim == 2) my_zbx.growLo(2,1);
+      Box my_zbx(bx); my_zbx.growHi(2,1);
       ParallelFor(my_zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac) {
-          aux_afrac_z(i  ,j  ,k+1) = 0.0;
-          aux_afrac_z(i  ,j  ,k  ) = 0.0;
+        if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i,j,k-1) < small_volfrac) {
+          // At domain boundary, keep area fraction as is unless inside cell is small
+          if ((k == dom_lo_k && aux_vfrac(i,j,k) < small_volfrac) ||
+              (k == dom_hi_k+1 && aux_vfrac(i,j,k-1) < small_volfrac) ||
+              (k != dom_lo_k && k != dom_hi_k+1)) {
+              aux_afrac_z(i,j,k) = 0.0;
+          }
         }
       });
 
@@ -1103,6 +1125,26 @@ define( [[maybe_unused]] int const& a_level,
 
   m_cellflags->FillBoundary(a_geom.periodicity());
 
+#if 0
+  // We leave these here for debugging if necessary.
+  // If you uncomment these, make sure to uncomment AMReX_VisMF include above
+  if (a_idim == 0) {
+      amrex::VisMF::Write(*m_volfrac,"UVOL");
+      amrex::VisMF::Write(*m_areafrac[0],"UAREAX");
+      amrex::VisMF::Write(*m_areafrac[1],"UAREAY");
+      amrex::VisMF::Write(*m_areafrac[2],"UAREAZ");
+  } else if (a_idim == 1) {
+      amrex::VisMF::Write(*m_volfrac,"VVOL");
+      amrex::VisMF::Write(*m_areafrac[0],"VAREAX");
+      amrex::VisMF::Write(*m_areafrac[1],"VAREAY");
+      amrex::VisMF::Write(*m_areafrac[2],"VAREAZ");
+  } else {
+      amrex::VisMF::Write(*m_volfrac,"WVOL");
+      amrex::VisMF::Write(*m_areafrac[0],"WAREAX");
+      amrex::VisMF::Write(*m_areafrac[1],"WAREAY");
+      amrex::VisMF::Write(*m_areafrac[2],"WAREAZ");
+  }
+#endif
 }
 
 const FabArray<EBCellFlagFab>&

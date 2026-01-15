@@ -148,8 +148,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_use_SurfLayer = (SurfLayer != nullptr);
     const bool l_rotate        = (solverChoice.use_rotate_surface_flux);
 
-    const bool l_anelastic = solverChoice.anelastic[level];
-    const bool l_fixed_rho = solverChoice.fixed_density[level];
+    const bool l_anelastic = (solverChoice.anelastic[level]     == 1);
+    const bool l_fixed_rho = (solverChoice.fixed_density[level] == 1);
 
     const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
                             ( (l_anelastic && nrk == 1) || (!l_anelastic && nrk == 2) ) );
@@ -199,7 +199,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            S_data,xvel,yvel,zvel,
                            Tau_lev,Tau_corr_lev,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
-                           stretched_dz_d, detJ,mapfac);
+                           stretched_dz_d, detJ,mapfac, ax, ay, az, ebfact);
 
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);

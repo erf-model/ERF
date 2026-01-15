@@ -1,0 +1,96 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+#max_step = 16000
+
+amrex.fpe_trap_invalid=1
+amrex.fpe_trap_zero=1
+amrex.fpe_trap_overflow=1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+eb2.geometry = terrain
+eb2.small_volfrac = 1.e-4
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     = 0.   0.   0. 
+geometry.prob_hi     = 595.0  20.0  600.
+amr.n_cell           = 80  4   80
+
+geometry.is_periodic = 1 1 0
+
+#xlo.type = "Inflow"
+#xhi.type = "Outflow"
+#xlo.velocity = 10. 0. 0.
+#xlo.density  = 1.0
+#xlo.theta    = 1.0
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.substepping_type   = None
+erf.fixed_dt           = 0.01
+# erf.cfl              = 0.5
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1        # timesteps between computing mass
+erf.v              = 1        # verbosity in ERF.cpp
+amr.v              = 1        # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level = 1
+amr.ref_ratio = 2
+erf.refinement_indicators = box1
+erf.box1.max_level = 1
+erf.box1.in_box_lo_indices = 0 0 0
+erf.box1.in_box_hi_indices = 159 7 59
+erf.coupling_type  = "TwoWay"
+erf.cf_width = 0
+erf.cf_set_width = 0
+    
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = 10000  # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 100000       # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity z_velocity
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.use_coriolis = false
+erf.les_type = "None"
+
+erf.anelastic = 1
+erf.mg_v = 2
+erf.project_initial_velocity = 1
+
+# TERRRAIN GRID TYPE
+erf.terrain_type = "EB"
+erf.write_eb_surface = TRUE
+erf.terrain_smoothing = 0
+
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 60.0 # [kg/(m-s)]
+erf.alpha_T           = 0.0 # [m^2/s]
+erf.theta_ref = 300.0
+erf.eb_diff_constraint_y = true
+
+erf.abl_driver_type = "PressureGradient"
+#erf.abl_driver_type = "None"
+erf.abl_pressure_grad = -1.0 0. 0.
+
+erf.project_initial_velocity = 1
+
+# Rayleigh Damping
+erf.rayleigh_damp_W = true
+erf.rayleigh_zdamp = 50.0
+erf.rayleigh_dampcoef = 0.25
+
+# PROBLEM PARAMETERS (optional)
+prob.T_0   = 300.0
+prob.U_0   = 0.0
+prob.rho_0 = 1.16
+prob.hmax = 100.0
+prob.L = 100.0
+

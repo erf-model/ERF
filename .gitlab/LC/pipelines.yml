@@ -10,7 +10,7 @@ dane-build-and-test:
 matrix-build-and-test:
   variables:
     CI_MACHINE: "matrix"
-    ON_MATRIX: "ON"
+    ON_MATRIX: "OFF"
   extends: [.build-and-test]
   rules:
     # Runs except if we explicitly deactivate this system
