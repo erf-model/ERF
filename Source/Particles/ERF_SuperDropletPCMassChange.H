@@ -247,6 +247,77 @@ namespace SDMassChangeUtils_LV
         bool m_adapt_dt;  /*!< use error-based adaptive dt? */
         bool m_verbose;   /*!< verbosity */
 
+        //=====================================================================
+        // Helper methods to reduce code duplication in time integrators
+        //=====================================================================
+
+        /*! \brief Compute timestep from stiffness estimate */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT computeTimestep (const RT& a_u) const
+        {
+            RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+            return m_cfl / std::sqrt(tau*tau);
+        }
+
+        /*! \brief Compute stiffness estimate (tau) */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT computeTau (const RT& a_u) const
+        {
+            return m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+        }
+
+        /*! \brief Limit timestep to not exceed final time */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT limitTimestep (RT dt, RT cur_time) const
+        {
+            if ((cur_time + dt) > m_t_final) {
+                dt = m_t_final - cur_time;
+            }
+            return dt;
+        }
+
+        /*! \brief Check if timestep is too small to continue */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        bool isTimestepTooSmall (RT dt, RT tau) const
+        {
+            return (dt < (1.0e-12 * m_cfl / std::sqrt(tau*tau)))
+                && (dt < (1.0e-12 * m_t_final));
+        }
+
+        /*! \brief Evaluate ODE right-hand side */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        RT evalRHS (const RT& a_u) const
+        {
+            return m_ode.rhs_func(a_u, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+        }
+
+        /*! \brief Print verbose step information */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        void printStepInfo (RT cur_time, RT dt, RT tau, RT radius, RT snorm) const
+        {
+            if (m_verbose) {
+                printf("Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
+                       cur_time, dt, dt * std::sqrt(tau*tau), radius, snorm);
+            }
+        }
+
+        /*! \brief Print verbose step info with Newton solver details */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        void printStepInfoNewton (RT cur_time, RT dt, RT tau, RT radius, RT snorm,
+                                  RT res_norm_a, RT res_norm_r, bool converged) const
+        {
+            if (m_verbose) {
+                printf("Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
+                       cur_time, dt, dt * std::sqrt(tau*tau), radius, snorm);
+                printf("    norms = %1.3e (abs), %1.3e (rel), converged = %s\n",
+                       res_norm_a, res_norm_r, (converged ? "yes" : "no"));
+            }
+        }
+
+        //=====================================================================
+        // Time integrator methods
+        //=====================================================================
+
         /*! \brief 3rd-order, 4-stage Bogacki-Shampine explicit RK method
          *  with 2nd order embedded method */
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -375,11 +446,9 @@ namespace SDMassChangeUtils_LV
             int n_step = 0;
             while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
-                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                RT tau = computeTau(a_u);
                 RT dt = m_cfl / std::sqrt(tau*tau);
-                if ((cur_time + dt) > m_t_final) {
-                    dt = m_t_final - cur_time;
-                }
+                dt = limitTimestep(dt, cur_time);
                 if (!std::isfinite(dt)) {
                     a_success = false;
                     break;
@@ -389,69 +458,42 @@ namespace SDMassChangeUtils_LV
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
-                         && (dt < (1.0e-12*m_t_final)) ) {
-                        break;
-                    }
+                    if (isTimestepTooSmall(dt, tau)) { break; }
 
                     RT u1 = a_u;
-                    if (u1 <= 0) {
-                        dt *= 0.5;
-                        continue;
-                    }
-                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    if (u1 <= 0) { dt *= 0.5; continue; }
+                    RT f1 = evalRHS(u1);
 
                     RT u2 = a_u + 0.5*dt*f1;
-                    if (u2 <= 0) {
-                        dt *= 0.5;
-                        continue;
-                    }
-                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    if (u2 <= 0) { dt *= 0.5; continue; }
+                    RT f2 = evalRHS(u2);
 
                     RT u3 = a_u + 0.5*dt*f2;
-                    if (u3 <= 0) {
-                        dt *= 0.5;
-                        continue;
-                    }
-                    RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    if (u3 <= 0) { dt *= 0.5; continue; }
+                    RT f3 = evalRHS(u3);
 
-                    RT u4 = a_u + 1.0*dt*f3;
-                    if (u4 <= 0) {
-                        dt *= 0.5;
-                        continue;
-                    }
-                    RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT u4 = a_u + dt*f3;
+                    if (u4 <= 0) { dt *= 0.5; continue; }
+                    RT f4 = evalRHS(u4);
 
-                    u_new = a_u + dt*(f1+2.0*f2+2.0*f3+f4)/6.0;
+                    u_new = a_u + dt*(f1 + 2.0*f2 + 2.0*f3 + f4)/6.0;
 
-                    if (std::isfinite(u_new)) {
-                        if (u_new > 0) {
-                            step_success = true;
-                            break;
-                        }
+                    if (std::isfinite(u_new) && (u_new > 0)) {
+                        step_success = true;
+                        break;
                     }
                     dt *= 0.5;
                 }
 
                 if (step_success) {
-
                     RT snorm = std::sqrt((a_u-u_new)*(a_u-u_new)/(a_u*a_u));
                     a_u = u_new;
                     cur_time += dt;
-
-                    if (m_verbose) {
-                        printf( "Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
-                                cur_time, dt, dt * std::sqrt(tau*tau), std::sqrt(a_u), snorm);
-                    }
-                    if (snorm < m_stol) {
-                        break;
-                    }
-
+                    printStepInfo(cur_time, dt, tau, std::sqrt(a_u), snorm);
+                    if (snorm < m_stol) { break; }
                 } else {
-
                     a_success = false;
                     break;
-
                 }
 
                 n_step++;
@@ -471,11 +513,9 @@ namespace SDMassChangeUtils_LV
             int n_step = 0;
             while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
-                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                RT tau = computeTau(a_u);
                 RT dt = m_cfl / std::sqrt(tau*tau);
-                if ((cur_time + dt) > m_t_final) {
-                    dt = m_t_final - cur_time;
-                }
+                dt = limitTimestep(dt, cur_time);
                 if (!std::isfinite(dt)) {
                     a_success = false;
                     break;
@@ -489,51 +529,32 @@ namespace SDMassChangeUtils_LV
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
-                         && (dt < (1.0e-12*m_t_final)) ) {
-                        break;
-                    }
+                    if (isTimestepTooSmall(dt, tau)) { break; }
 
                     RT mu = 1.0 / dt;
                     RT rhs = mu * a_u;
                     u_new = a_u;
-                    m_newton( u_new, rhs, mu,
-                              m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s,
-                              res_norm_a, res_norm_r, converged );
+                    m_newton(u_new, rhs, mu,
+                             m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s,
+                             res_norm_a, res_norm_r, converged);
 
-                    if (converged) {
-                        if (std::isfinite(u_new)) {
-                            if (u_new > 0) {
-                                step_success = true;
-                                break;
-                            }
-                        }
+                    if (converged && std::isfinite(u_new) && (u_new > 0)) {
+                        step_success = true;
+                        break;
                     }
                     dt *= 0.5;
                 }
 
                 if (step_success) {
-
                     RT snorm = std::sqrt((a_u-u_new)*(a_u-u_new)/(a_u*a_u));
                     a_u = u_new;
                     cur_time += dt;
-
-                    if (m_verbose) {
-                        printf( "Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
-                                cur_time, dt, dt * std::sqrt(tau*tau), std::sqrt(a_u), snorm);
-                        printf( "    norms = %1.3e (abs), %1.3e (rel), converged = %s\n",
-                                res_norm_a, res_norm_r,
-                                (converged ? "yes" : "no") );
-                    }
-                    if (snorm < m_stol) {
-                        break;
-                    }
-
+                    printStepInfoNewton(cur_time, dt, tau, std::sqrt(a_u), snorm,
+                                        res_norm_a, res_norm_r, converged);
+                    if (snorm < m_stol) { break; }
                 } else {
-
                     a_success = false;
                     break;
-
                 }
 
                 n_step++;
@@ -553,11 +574,9 @@ namespace SDMassChangeUtils_LV
             int n_step = 0;
             while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
-                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                RT tau = computeTau(a_u);
                 RT dt = m_cfl / std::sqrt(tau*tau);
-                if ((cur_time + dt) > m_t_final) {
-                    dt = m_t_final - cur_time;
-                }
+                dt = limitTimestep(dt, cur_time);
                 if (!std::isfinite(dt)) {
                     a_success = false;
                     break;
@@ -571,61 +590,39 @@ namespace SDMassChangeUtils_LV
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
-                         && (dt < (1.0e-12*m_t_final)) ) {
-                        break;
-                    }
-                    RT mu = 1.0 / (0.5*dt);
+                    if (isTimestepTooSmall(dt, tau)) { break; }
 
+                    RT mu = 1.0 / (0.5*dt);
                     RT u1 = a_u;
-                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f1 = evalRHS(u1);
 
                     RT u2 = u1;
                     RT rhs = mu * (a_u + 0.5*dt*f1);
-                    m_newton( u2, rhs, mu,
-                              m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s,
-                              res_norm_a, res_norm_r, converged );
-                    if (u2 <= 0) {
-                        dt *= 0.5;
-                        continue;
-                    }
-                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    m_newton(u2, rhs, mu,
+                             m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s,
+                             res_norm_a, res_norm_r, converged);
+                    if (u2 <= 0) { dt *= 0.5; continue; }
+                    RT f2 = evalRHS(u2);
 
                     u_new = a_u + 0.5 * dt * (f1 + f2);
 
-                    if (converged) {
-                        if (std::isfinite(u_new)) {
-                            if (u_new > 0) {
-                                step_success = true;
-                                break;
-                            }
-                        }
+                    if (converged && std::isfinite(u_new) && (u_new > 0)) {
+                        step_success = true;
+                        break;
                     }
                     dt *= 0.5;
                 }
 
                 if (step_success) {
-
                     RT snorm = std::sqrt((a_u-u_new)*(a_u-u_new)/(a_u*a_u));
                     a_u = u_new;
                     cur_time += dt;
-
-                    if (m_verbose) {
-                        printf( "Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
-                                cur_time, dt, dt * std::sqrt(tau*tau), std::sqrt(a_u), snorm);
-                        printf( "    norms = %1.3e (abs), %1.3e (rel), converged = %s\n",
-                                res_norm_a, res_norm_r,
-                                (converged ? "yes" : "no") );
-                    }
-                    if (snorm < m_stol) {
-                        break;
-                    }
-
+                    printStepInfoNewton(cur_time, dt, tau, std::sqrt(a_u), snorm,
+                                        res_norm_a, res_norm_r, converged);
+                    if (snorm < m_stol) { break; }
                 } else {
-
                     a_success = false;
                     break;
-
                 }
 
                 n_step++;
@@ -645,11 +642,9 @@ namespace SDMassChangeUtils_LV
             int n_step = 0;
             while ((cur_time < m_t_final) && (n_step < m_max_steps)) {
 
-                RT tau = m_ode.rhs_jac(a_u, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                RT tau = computeTau(a_u);
                 RT dt = m_cfl / std::sqrt(tau*tau);
-                if ((cur_time + dt) > m_t_final) {
-                    dt = m_t_final - cur_time;
-                }
+                dt = limitTimestep(dt, cur_time);
                 if (!std::isfinite(dt)) {
                     a_success = false;
                     break;
@@ -663,8 +658,7 @@ namespace SDMassChangeUtils_LV
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
-                         && (dt < (1.0e-12*m_t_final)) ) {
+                    if (isTimestepTooSmall(dt, tau)) {
                         break;
                     }
                     RT mu = 1.0 / dt;
@@ -690,7 +684,7 @@ namespace SDMassChangeUtils_LV
                         dt *= 0.5;
                         continue;
                     }
-                    RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f1 = evalRHS(u1);
 
                     RT u2 = u1;
                     {
@@ -709,7 +703,7 @@ namespace SDMassChangeUtils_LV
                         dt *= 0.5;
                         continue;
                     }
-                    RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s);
+                    RT f2 = evalRHS(u2);
 
                     u_new = a_u + 0.5 * dt * (f1 + f2);
 
@@ -730,13 +724,8 @@ namespace SDMassChangeUtils_LV
                     a_u = u_new;
                     cur_time += dt;
 
-                    if (m_verbose) {
-                        printf( "Time %1.2e, dt = %1.2e, cfl = %1.1e, radius = %1.4e, snorm = %1.1e\n",
-                                cur_time, dt, dt * std::sqrt(tau*tau), std::sqrt(a_u), snorm);
-                        printf( "    norms = %1.3e (abs), %1.3e (rel), converged = %s\n",
-                                res_norm_a, res_norm_r,
-                                (converged ? "yes" : "no") );
-                    }
+                    printStepInfoNewton(cur_time, dt, tau, std::sqrt(a_u), snorm,
+                                        res_norm_a, res_norm_r, converged);
                     if (snorm < m_stol) {
                         break;
                     }

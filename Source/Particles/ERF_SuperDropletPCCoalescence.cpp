@@ -794,7 +794,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                 // collision efficiency
                 k_val = 0.1 * (std::sqrt(area_i)+std::sqrt(area_j))*(std::sqrt(area_i)+std::sqrt(area_j)) * dvz;
-                // if (std::min(rhoi_i, rhoi_j) < 10.0) { k_val = 0.0; }
 
             } else {
 
