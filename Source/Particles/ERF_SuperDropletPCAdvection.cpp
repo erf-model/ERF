@@ -17,6 +17,9 @@ namespace {
         static constexpr bool needs_term_vel  = true;
         static constexpr bool needs_ice_axes  = true;  // for IceBohm terminal velocity
     };
+
+    /*! \brief Field indices for advection interpolation */
+    AMREX_ENUM(InterpFieldsAdv, density, pressure, temperature, NUM_FIELDS);
 }
 
 /*! Evolve particles for one time step */
@@ -97,26 +100,19 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 mac_interpolate_mapped_z(p, ctx.plo, ctx.dxi, umacarr, zheight, v);
             }
 
-            // Define field values array to store interpolated results
-            ParticleReal field_values[3]; // density, pressure, temperature
-
-            // Define array of field arrays to interpolate from
-            const Array4<const Real> field_arrays[3] = {
-                density_arr,
-                pressure_arr,
-                temperature_arr
+            // Interpolate density, pressure, temperature at particle position
+            constexpr int nf = static_cast<int>(InterpFieldsAdv::NUM_FIELDS);
+            ParticleReal fv[nf];
+            const Array4<const Real> fa[nf] = {
+                density_arr, pressure_arr, temperature_arr
             };
-
-            // Use the interpolation helper function to interpolate all fields at once
             ERF::Interpolation::interpolateFields(
-                p, ctx.plo, ctx.dxi, field_arrays, field_values, 3,
+                p, ctx.plo, ctx.dxi, fa, fv, nf,
                 is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
             );
-
-            // Extract interpolated values
-            ParticleReal density = field_values[0];
-            ParticleReal pressure = field_values[1];
-            ParticleReal temperature = field_values[2];
+            const auto density     = fv[static_cast<int>(InterpFieldsAdv::density)];
+            const auto pressure    = fv[static_cast<int>(InterpFieldsAdv::pressure)];
+            const auto temperature = fv[static_cast<int>(InterpFieldsAdv::temperature)];
 
             if (prescribed_advection) {
                if (a_time < 600) {

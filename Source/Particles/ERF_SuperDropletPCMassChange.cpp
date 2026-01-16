@@ -33,6 +33,15 @@ namespace {
         static constexpr bool needs_ice_axes     = true;
         static constexpr bool needs_ice_rime     = true;
     };
+
+    /*! \brief Field indices for liquid-vapour interpolation */
+    AMREX_ENUM(InterpFieldsLV, e_sat, sat_ratio, temperature, pressure, NUM_FIELDS);
+
+    /*! \brief Field indices for solid-liquid interpolation */
+    AMREX_ENUM(InterpFieldsSL, temperature, sat_ratio, NUM_FIELDS);
+
+    /*! \brief Field indices for solid-vapour interpolation */
+    AMREX_ENUM(InterpFieldsSV, e_sat, e_sat_ratio_wi, sat_ratio, density, temperature, pressure, moist_density, NUM_FIELDS);
 }
 
 /*! Compute mass change of particles due to evaporation and condensation
@@ -128,28 +137,20 @@ void SuperDropletPC::MassChange_LV (  int                                       
             auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
             if (a_is_water && (par_phase == SDPhase::ice)) { return; }
 
-            // Define field values array to store interpolated results
-            ParticleReal field_values[4]; // e_sat, sat_ratio, temperature, pressure
-
-            // Define array of field arrays to interpolate from
-            const Array4<const Real> field_arrays[4] = {
-                sat_pressure_arr,
-                sat_ratio_arr,
-                temperature_arr,
-                pressure_arr
+            // Interpolate saturation pressure, saturation ratio, temperature, pressure
+            constexpr int nf = static_cast<int>(InterpFieldsLV::NUM_FIELDS);
+            ParticleReal fv[nf];
+            const Array4<const Real> fa[nf] = {
+                sat_pressure_arr, sat_ratio_arr, temperature_arr, pressure_arr
             };
-
-            // Use the interpolation helper function to interpolate all fields at once
             ERF::Interpolation::interpolateFields(
-                p, ctx.plo, ctx.dxi, field_arrays, field_values, 4,
+                p, ctx.plo, ctx.dxi, fa, fv, nf,
                 is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
             );
-
-            // Extract interpolated values
-            ParticleReal e_sat = field_values[0];
-            ParticleReal sat_ratio = field_values[1];
-            ParticleReal temperature = field_values[2];
-            ParticleReal pressure = field_values[3];
+            const auto e_sat       = fv[static_cast<int>(InterpFieldsLV::e_sat)];
+            const auto sat_ratio   = fv[static_cast<int>(InterpFieldsLV::sat_ratio)];
+            const auto temperature = fv[static_cast<int>(InterpFieldsLV::temperature)];
+            const auto pressure    = fv[static_cast<int>(InterpFieldsLV::pressure)];
 
             ParticleReal solute_moles = 0.0;
             if (a_is_water) {
@@ -283,24 +284,18 @@ void SuperDropletPC::MassChange_SL (  int                                       
             if (p.id() <= 0) { return; }
             if (ptrs.active_ptr[i] == 0) { return; }
 
-            // Define field values array to store interpolated results
-            ParticleReal field_values[2]; // temperature, sat_ratio
-
-            // Define array of field arrays to interpolate from
-            const Array4<const Real> field_arrays[2] = {
-                temperature_arr,
-                sat_ratio_arr
+            // Interpolate temperature, saturation ratio
+            constexpr int nf = static_cast<int>(InterpFieldsSL::NUM_FIELDS);
+            ParticleReal fv[nf];
+            const Array4<const Real> fa[nf] = {
+                temperature_arr, sat_ratio_arr
             };
-
-            // Use the interpolation helper function to interpolate all fields at once
             ERF::Interpolation::interpolateFields(
-                p, ctx.plo, ctx.dxi, field_arrays, field_values, 2,
+                p, ctx.plo, ctx.dxi, fa, fv, nf,
                 is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
             );
-
-            // Extract interpolated values
-            ParticleReal temperature = field_values[0];
-            ParticleReal sat_ratio = field_values[1];
+            const auto temperature = fv[static_cast<int>(InterpFieldsSL::temperature)];
+            const auto sat_ratio   = fv[static_cast<int>(InterpFieldsSL::sat_ratio)];
 
             auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
             if (par_phase == SDPhase::water) {
@@ -398,34 +393,24 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             auto par_phase = SD_phase(i, ctx.idx_water, ctx.idx_ice, ptrs.sp_mass_ptrs);
             if (par_phase == SDPhase::water) { return; }
 
-            // Define field values array to store interpolated results
-            ParticleReal field_values[7]; // e_sat, e_sat_ratio_wi, sat_ratio, density, temperature, pressure, moist_density
-
-            // Define array of field arrays to interpolate from
-            const Array4<const Real> field_arrays[7] = {
-                sat_pressure_arr,
-                sat_pressure_wi_arr,
-                sat_ratio_arr,
-                density_arr,
-                temperature_arr,
-                pressure_arr,
-                moist_density_arr
+            // Interpolate fields for solid-vapour mass change
+            constexpr int nf = static_cast<int>(InterpFieldsSV::NUM_FIELDS);
+            ParticleReal fv[nf];
+            const Array4<const Real> fa[nf] = {
+                sat_pressure_arr, sat_pressure_wi_arr, sat_ratio_arr,
+                density_arr, temperature_arr, pressure_arr, moist_density_arr
             };
-
-            // Use the interpolation helper function to interpolate all fields at once
             ERF::Interpolation::interpolateFields(
-                p, ctx.plo, ctx.dxi, field_arrays, field_values, 7,
+                p, ctx.plo, ctx.dxi, fa, fv, nf,
                 is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
             );
-
-            // Extract interpolated values
-            ParticleReal e_sat = field_values[0];
-            ParticleReal e_sat_ratio_wi = field_values[1];
-            ParticleReal sat_ratio = field_values[2];
-            // Note: density (field_values[3]) is unused in this function
-            ParticleReal temperature = field_values[4];
-            ParticleReal pressure = field_values[5];
-            ParticleReal moist_density = field_values[6];
+            const auto e_sat          = fv[static_cast<int>(InterpFieldsSV::e_sat)];
+            const auto e_sat_ratio_wi = fv[static_cast<int>(InterpFieldsSV::e_sat_ratio_wi)];
+            const auto sat_ratio      = fv[static_cast<int>(InterpFieldsSV::sat_ratio)];
+            // Note: density is interpolated but unused in this function
+            const auto temperature    = fv[static_cast<int>(InterpFieldsSV::temperature)];
+            const auto pressure       = fv[static_cast<int>(InterpFieldsSV::pressure)];
+            const auto moist_density  = fv[static_cast<int>(InterpFieldsSV::moist_density)];
 
             auto coeff_moldiff = mat_prop.coeffMolecularDiffusion(temperature, pressure);
 

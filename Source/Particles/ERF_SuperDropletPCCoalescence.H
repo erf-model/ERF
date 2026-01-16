@@ -6,6 +6,30 @@
 
 #ifdef ERF_USE_PARTICLES
 
+//===========================================================================
+// Interpolation field index enums for coalescence
+//===========================================================================
+
+/*! \brief Field indices for 2-field interpolation (ice-water collision efficiency) */
+AMREX_ENUM(InterpFieldsTR,
+    temperature,
+    moist_density,
+    NUM_FIELDS
+);
+
+/*! \brief Field indices for 4-field interpolation (riming) */
+AMREX_ENUM(InterpFieldsFull,
+    temperature,
+    pressure,
+    moist_density,
+    qv,
+    NUM_FIELDS
+);
+
+//===========================================================================
+// Collision kernels
+//===========================================================================
+
 /*! \brief Coalescence kernels
 
     Reference for Long's and Hall's kernels:
