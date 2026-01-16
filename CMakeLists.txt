@@ -131,6 +131,9 @@ set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUB
 
 option(ERF_ENABLE_RRTMGP "Enable RTE-RRTMGP Radiation" OFF)
 option(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS "Enable ML UPHYS diagnostics in SDM" OFF)
+if(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS AND NOT ERF_ENABLE_PARTICLES)
+  message(FATAL_ERROR "ERF_ENABLE_ML_UPHYS_DIAGNOSTICS requires particles be enabled")
+endif()
 option(ERF_ENABLE_SHOC "Enable SHOC" OFF)
 
 #Options for performance
