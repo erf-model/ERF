@@ -352,16 +352,27 @@ radius accounts for the water content, soluble species (which affect the droplet
 (which form cores within the droplet):
 
 .. math::
-   r_\text{eff} = \left(\frac{m_w + m_s + \frac{\rho_w}{\rho_p}m_p}{\frac{4}{3}\pi\rho_w}\right)^{1/3}
+   r_\text{eff} = \left(\frac{m_w + m_s + \frac{\rho_w}{\rho_{ins}}m_{ins}}{\frac{4}{3}\pi\rho_w}\right)^{1/3}
 
-where :math:`m_w` is the water mass, :math:`m_s` is the total mass of soluble species and aerosols, :math:`m_p` is the total
-mass of insoluble species and aerosols, :math:`\rho_w` is the water density, and :math:`\rho_p` is the weighted average density
-of insoluble components.
+where:
+- :math:`r_\text{eff}` is the effective radius of the droplet
+- :math:`m_w` is the water mass
+- :math:`m_s` is the total mass of soluble species and aerosols
+- :math:`m_{ins}` is the total mass of insoluble species and aerosols
+- :math:`\rho_w` is the water density
+- :math:`\rho_{ins}` is the weighted average density of insoluble components
 
 The total mass stored in the super-droplet includes all species and aerosol masses:
 
 .. math::
    m_\text{total} = m_w + \sum_{j=1}^{N_\text{sp}} m_{\text{sp},j} + \sum_{j=1}^{N_\text{ae}} m_{\text{ae},j}
+
+where:
+- :math:`m_\text{total}` is the total mass of the droplet
+- :math:`N_\text{sp}` is the number of species
+- :math:`m_{\text{sp},j}` is the mass of species j
+- :math:`N_\text{ae}` is the number of aerosol types
+- :math:`m_{\text{ae},j}` is the mass of aerosol type j
 
 Initialization from Condensate Density
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -395,11 +406,19 @@ Motion and Sedimentation
 Droplets are assumed to immediately reach their terminal velocity. The motion of each super-droplet is governed by:
 
 .. math::
-   \mathbf{v}_i(t) &= \mathbf{U}(\mathbf{x}_i) - \hat{z}v_\infty(R_i), \\
+   \mathbf{v}_i(t) &= \mathbf{U}(\mathbf{x}_i) - \hat{\mathbf{z}}v_\infty(R_i), \\
    \frac{d\mathbf{x}_i}{dt} &= \mathbf{v}_i,
 
-where :math:`\mathbf{U}(\mathbf{x}_i)` is the wind velocity at the droplet position and :math:`v_\infty(R_i)` is the terminal
-velocity. The terminal velocity can be computed using several empirical models, including the Rogers-Yau formula,
+where:
+
+- :math:`\mathbf{v}_i(t)` is the velocity vector of the super-droplet
+- :math:`\mathbf{U}(\mathbf{x}_i)` is the wind velocity at the droplet position
+- :math:`\hat{\mathbf{z}}` is the unit vector in the vertical direction
+- :math:`v_\infty(R_i)` is the terminal velocity of the droplet
+- :math:`R_i` is the radius of the droplet
+- :math:`\mathbf{x}_i` is the position of the super-droplet
+
+The terminal velocity can be computed using several empirical models, including the Rogers-Yau formula,
 Atlas-Ulbrich formula, or the cloud-rain formula from Shima et al.
 
 Condensation and Evaporation
@@ -409,21 +428,33 @@ The growth/shrinkage of droplets through condensation/evaporation is described b
 curvature and solution effects:
 
 .. math::
-   R_i \frac{dR_i}{dt} = \frac{(S-1) - \frac{a}{R_i} + \frac{b}{R_i^3}}{F_k + F_d},
+   R_i \frac{dR_i}{dt} = \frac{(S_v-1) - \frac{a_K}{R_i} + \frac{b_K}{R_i^3}}{F_k + F_d},
 
 where:
 
-- :math:`S` is the ambient saturation ratio
-- :math:`a/R_i` represents the curvature effect (increase in saturation ratio over a droplet compared to a plane surface)
-- :math:`b/R_i^3` represents the solution effect (reduction in vapor pressure due to dissolved solute), with :math:`b \propto M_i`
+- :math:`R_i` is the radius of the droplet
+- :math:`S_v` is the ambient saturation ratio (ratio of vapor pressure to saturation vapor pressure)
+- :math:`a_K` is the curvature coefficient, given by :math:`a_K = \frac{2\sigma}{R_v \rho_w T}`, where:
+  - :math:`\sigma` is the surface tension of water
+  - :math:`R_v` is the specific gas constant for water vapor
+  - :math:`\rho_w` is the density of liquid water
+  - :math:`T` is the temperature
+- :math:`b_K` is the solution coefficient, given by :math:`b_K = \frac{3 i M_i M_w}{4\pi \rho_w M_s}`, where:
+  - :math:`i` is the van't Hoff factor (degree of ionic dissociation)
+  - :math:`M_i` is the mass of solute in the droplet
+  - :math:`M_w` is the molecular weight of water
+  - :math:`M_s` is the molecular weight of the solute
 - :math:`F_k` and :math:`F_d` are thermodynamic and diffusion terms:
 
 .. math::
-   F_k &= \left(\frac{L}{R_v T} - 1\right) \frac{L\rho_{liq}}{KT}, \\
-   F_d &= \frac{\rho_{liq} R_v T}{D e_s(T)},
+   F_k &= \left(\frac{L_v}{R_v T} - 1\right) \frac{L_v\rho_{w}}{K_T T}, \\
+   F_d &= \frac{\rho_{w} R_v T}{D_v e_s(T)},
 
-where :math:`L` is the latent heat of vaporization, :math:`R_v` is the gas constant for water vapor, :math:`K` is the
-thermal conductivity, :math:`D` is the molecular diffusion coefficient, and :math:`e_s(T)` is the saturation vapor pressure.
+where:
+- :math:`L_v` is the latent heat of vaporization for water
+- :math:`K_T` is the thermal conductivity of air
+- :math:`D_v` is the molecular diffusion coefficient of water vapor in air
+- :math:`e_s(T)` is the saturation vapor pressure at temperature :math:`T`
 
 The implementation uses an implicit time integration scheme (backward Euler or higher-order methods like Runge-Kutta)
 with a Newton-Raphson solver to solve this nonlinear ordinary differential equation.
@@ -435,10 +466,24 @@ Coalescence (collision and merging) of droplets is treated probabilistically. Fo
 in a well-mixed volume :math:`\Delta V`, the coalescence probability during time interval :math:`\Delta t_c` is:
 
 .. math::
-   P_{jk}^{(s)} = \max(\xi_j, \xi_k) \frac{K(R_j, R_k) \Delta t_c}{\Delta V},
+   P_{jk}^{(s)} = \max(\xi_j, \xi_k) \frac{K_{coal}(R_j, R_k) \Delta t_c}{\Delta V},
 
-where :math:`K(R_j, R_k) = E(R_j, R_k) \pi(R_j + R_k)^2 |\mathbf{v}_j - \mathbf{v}_k|` is the coalescence kernel, and
-:math:`E(R_j, R_k)` is the collection efficiency accounting for flow deflection and droplet bounce effects.
+where:
+- :math:`P_{jk}^{(s)}` is the probability of collision between super-droplets j and k
+- :math:`\xi_j` and :math:`\xi_k` are the multiplicities of the super-droplets
+- :math:`K_{coal}(R_j, R_k)` is the coalescence kernel
+- :math:`\Delta t_c` is the coalescence time step
+- :math:`\Delta V` is the volume in which coalescence is considered
+
+The coalescence kernel is given by:
+
+.. math::
+   K_{coal}(R_j, R_k) = E_{coll}(R_j, R_k) \pi(R_j + R_k)^2 |\mathbf{v}_j - \mathbf{v}_k|
+
+where:
+- :math:`E_{coll}(R_j, R_k)` is the collection efficiency accounting for flow deflection and droplet bounce effects
+- :math:`R_j` and :math:`R_k` are the radii of the two droplets
+- :math:`\mathbf{v}_j` and :math:`\mathbf{v}_k` are the velocities of the two droplets
 
 When super-droplets :math:`j` and :math:`k` coalesce (assuming :math:`\xi_j > \xi_k` without loss of generality),
 :math:`\min(\xi_j, \xi_k)` pairs of physical droplets merge:
@@ -470,19 +515,34 @@ The super-droplets are coupled to the non-hydrostatic Eulerian dynamics through 
 **Momentum coupling** through the liquid water density:
 
 .. math::
-   \rho_w(\mathbf{x}, t) = \sum_{i=1}^{N_s} \xi_i m_i(t) \delta^3[\mathbf{x} - \mathbf{x}_i(t)],
+   \rho_{lw}(\mathbf{x}, t) = \sum_{i=1}^{N_s} \xi_i m_i(t) \delta^3[\mathbf{x} - \mathbf{x}_i(t)],
 
-where :math:`m_i = \frac{4\pi}{3} R_i^3 \rho_{liq}` is the mass of a physical droplet.
+where:
+- :math:`\rho_{lw}(\mathbf{x}, t)` is the liquid water density at position :math:`\mathbf{x}` and time :math:`t`
+- :math:`N_s` is the total number of super-droplets
+- :math:`\xi_i` is the multiplicity of the super-droplet (number of physical droplets it represents)
+- :math:`m_i(t) = \frac{4\pi}{3} R_i^3 \rho_{w}` is the mass of a physical droplet
+- :math:`\rho_{w}` is the density of liquid water
+- :math:`\delta^3` is the three-dimensional delta function
 
 **Vapor source** from condensation/evaporation:
 
 .. math::
-   S_v(\mathbf{x}, t) = -\frac{1}{\rho(\mathbf{x}, t)} \sum_{i=1}^{N_s} \xi_i \frac{dm_i(t)}{dt} \delta^3[\mathbf{x} - \mathbf{x}_i(t)].
+   S_{vap}(\mathbf{x}, t) = -\frac{1}{\rho_{air}(\mathbf{x}, t)} \sum_{i=1}^{N_s} \xi_i \frac{dm_i(t)}{dt} \delta^3[\mathbf{x} - \mathbf{x}_i(t)].
+
+where:
+- :math:`S_{vap}(\mathbf{x}, t)` is the vapor source/sink term
+- :math:`\rho_{air}(\mathbf{x}, t)` is the air density
+- :math:`\frac{dm_i(t)}{dt}` is the rate of mass change of a physical droplet
 
 **Latent heat release**:
 
 .. math::
-   \frac{L}{c_p} S_v
+   \frac{L_v}{c_p} S_{vap}
+
+where:
+- :math:`L_v` is the latent heat of vaporization
+- :math:`c_p` is the specific heat capacity at constant pressure
 
 In the numerical implementation, these delta functions are smoothed onto the Eulerian grid using appropriate
 interpolation functions to ensure conservation and numerical stability.
@@ -1167,7 +1227,15 @@ These text files contain kernel-smoothed mass distributions as a function of the
 The kernel-smoothed distribution is computed using:
 
 .. math::
-   g_m(\ln R) = \sum_{i=1}^{N_s} \gamma \xi_i m_i \exp\left(-\lambda (\ln R - \ln R_i)^2\right)
+   g_m(\ln R) = \sum_{i=1}^{N_s} \gamma_{ker} \xi_i m_i \exp\left(-\lambda_{ker} (\ln R - \ln R_i)^2\right)
+
+where:
+- :math:`g_m(\ln R)` is the mass-weighted size distribution
+- :math:`\gamma_{ker}` is a normalization factor for the kernel
+- :math:`\lambda_{ker}` is the kernel width parameter related to :math:`\sigma_0`
+- :math:`\xi_i` is the multiplicity of super-droplet i
+- :math:`m_i` is the mass of a single droplet represented by super-droplet i
+- :math:`R_i` is the radius of droplet i
 
 where the kernel width is controlled by ``sigma0``.
 
