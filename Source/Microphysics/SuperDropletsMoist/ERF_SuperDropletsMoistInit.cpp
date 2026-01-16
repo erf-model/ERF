@@ -1,6 +1,3 @@
-#ifndef _WIN32
-#include <sys/time.h>
-#endif
 #include "ERF_SuperDropletsMoist.H"
 #include "ERF_MaterialProperties.H"
 
@@ -218,31 +215,14 @@ void SuperDropletsMoist::RestartParticles ( ParGDBBase*, const std::string& a_fn
 
     amrex::Print() << "Reading in " << m_name << " particle data from restart file.\n";
 
-#ifndef _WIN32
-    struct timeval total_start, total_end;
-    gettimeofday(&total_start, NULL);
-#endif
     m_super_droplets->Restart(a_fname, m_name);
     m_super_droplets->Redistribute();
-#ifndef _WIN32
-    gettimeofday(&total_end,NULL);
-    long long total_wtime;
-    total_wtime = (   (total_end.tv_sec   * 1000000 + total_end.tv_usec  )
-                   -  (total_start.tv_sec * 1000000 + total_start.tv_usec) );
-    Real total_wtime_sec = (double) total_wtime / 1000000.0;
-    ParallelDescriptor::ReduceRealMax( &total_wtime_sec,
-                                       1,
-                                       ParallelDescriptor::IOProcessorNumber() );
-#else
-    Real total_wtime_sec = 0.0;
-#endif
 
     amrex::Print() << "Restarted "
                    << m_super_droplets->NumSuperDroplets()
                    << " super-droplets representing "
                    << m_super_droplets->TotalNumberOfParticles()
-                   << " particles in super-droplets moisture model "
-                   << "(" << total_wtime_sec << " seconds).\n";
+                   << " particles in super-droplets moisture model.\n";
 }
 
 /*! Finish any initializations that depend on the conserved state variables
