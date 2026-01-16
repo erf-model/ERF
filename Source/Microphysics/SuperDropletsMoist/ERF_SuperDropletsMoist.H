@@ -162,25 +162,40 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             amrex::Abort("Do not use this advance() for Lagrangian microphysics.");
         }
 
-        /*! \brief Advance for one timestep */
-        virtual void Advance (const amrex::Real&,
-                              const int&,
-                              const amrex::Real&,
-                              amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-                              const amrex::Vector<MFPtr>&,
-                              const BCTypeArr& ) override;
+        /*! \brief Advance for one timestep
+         * \param[in] dt Timestep
+         * \param[in] iteration Current iteration number
+         * \param[in] time Current simulation time
+         * \param[in,out] cons_vars Array of conserved variables
+         * \param[in] mf_array Array of additional multifabs
+         * \param[in] bc_arr Array of boundary conditions
+         */
+        virtual void Advance (const amrex::Real& dt,
+                              const int& iteration,
+                              const amrex::Real& time,
+                              amrex::Vector<amrex::Vector<amrex::MultiFab>>& cons_vars,
+                              const amrex::Vector<MFPtr>& mf_array,
+                              const BCTypeArr& bc_arr) override;
 
-        /*! \brief Update microphysics variables */
+        /*! \brief Update microphysics variables
+         * \param[in] a_cons_vars Conservative variables multifab
+         */
         virtual void Update_Micro_Vars (amrex::MultiFab& a_cons_vars) override;
 
-        /*! \brief Update state variables from microphysics variables */
+        /*! \brief Update state variables from microphysics variables
+         * \param[in,out] a_cons_vars Conservative variables multifab to update
+         */
         virtual void Update_State_Vars (amrex::MultiFab& a_cons_vars) override;
 
-        /*! \brief Copy moisture model vars from state to member multifabs */
-        virtual void Copy_State_to_Micro (const amrex::MultiFab&) override;
+        /*! \brief Copy moisture model vars from state to member multifabs
+         * \param[in] a_state State multifab to copy from
+         */
+        virtual void Copy_State_to_Micro (const amrex::MultiFab& a_state) override;
 
-        /*! \brief Copy moisture model vars to state from member multifabs */
-        virtual void Copy_Micro_to_State (amrex::MultiFab&) override;
+        /*! \brief Copy moisture model vars to state from member multifabs
+         * \param[out] a_state State multifab to copy to
+         */
+        virtual void Copy_Micro_to_State (amrex::MultiFab& a_state) override;
 
         /*! \brief returns the moisture variable asked for */
         inline virtual amrex::MultiFab* Qmoist_Ptr (const int& a_idx) override
@@ -271,10 +286,14 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Convert a multifab containing the mixing ratio of something to its density */
         void ratioToDensity ( amrex::MultiFab&, const int a_comp = 0 );
 
-        /*! \brief Compute phase changes (vapour <--> cloud water) */
-        virtual void phaseChange (  const amrex::Real&,
-                                    const amrex::Vector<MFPtr>&,
-                                    const bool );
+        /*! \brief Compute phase changes (vapour <--> cloud water)
+         * \param[in] dt Timestep for phase change calculation
+         * \param[in] mf_array Array of additional multifabs needed for phase change
+         * \param[in] verbose Flag to enable verbose output during phase change
+         */
+        virtual void phaseChange (  const amrex::Real& dt,
+                                    const amrex::Vector<MFPtr>& mf_array,
+                                    const bool verbose);
 
         virtual void GetPlotVarNames (amrex::Vector<std::string>& a_names) const override
         {
