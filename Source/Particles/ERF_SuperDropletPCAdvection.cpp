@@ -10,7 +10,18 @@
 using namespace amrex;
 using namespace SDPCDefn;
 
-/*! Evolve particles for one time step */
+/*! \brief Advect superdroplet particles for one time step
+ * \param[in] a_lev AMR level
+ * \param[in] a_time Current simulation time
+ * \param[in] a_dt Timestep size for advection
+ * \param[in] a_flow_vel Array of face-based velocities
+ * \param[in] a_density Density field
+ * \param[in] a_pressure Pressure field
+ * \param[in] a_temperature Temperature field
+ * \param[in] a_z_phys_nd Array of terrain heights
+ * \param[in] a_bctypes Array of boundary condition types
+ * \param[in] a_recycle Flag to enable particle recycling
+ */
 void SuperDropletPC::AdvectParticles ( int                   a_lev,
                                        Real                  a_time,
                                        Real                  a_dt,

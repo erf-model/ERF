@@ -107,52 +107,100 @@ class SDInitProperties
         /*! multiplicity type */
         SDMultiplicityType m_mult_type;
 
-        /*! set default values */
-        virtual void setDefaults ( const amrex::Geometry&,
-                                   const MatVec&,
-                                   const MatVec& );
+        /*! \brief Set default values for initialization parameters
+         * \param[in] a_geom Simulation geometry information
+         * \param[in] a_species_mat Vector of species material properties
+         * \param[in] a_aerosol_mat Vector of aerosol material properties
+         */
+        virtual void setDefaults ( const amrex::Geometry& a_geom,
+                                   const MatVec& a_species_mat,
+                                   const MatVec& a_aerosol_mat );
 
-        /*! read super-droplets initialization parameters */
-        virtual void readInputs ( const std::string&,
-                                  const std::string&,
-                                  const amrex::Geometry&,
-                                  const MatVec&,
-                                  const MatVec& );
+        /*! \brief Read super-droplets initialization parameters from input file
+         * \param[in] a_prefix Prefix for parameter parser
+         * \param[in] a_key Key identifier for initialization parameters
+         * \param[in] a_geom Simulation geometry information
+         * \param[in] a_species_mat Vector of species material properties
+         * \param[in] a_aerosol_mat Vector of aerosol material properties
+         */
+        virtual void readInputs ( const std::string& a_prefix,
+                                  const std::string& a_key,
+                                  const amrex::Geometry& a_geom,
+                                  const MatVec& a_species_mat,
+                                  const MatVec& a_aerosol_mat );
 
-        /*! print super-droplets initialization parameters to screen */
-        virtual void printParameters ( const MatVec&, const MatVec& ) const;
+        /*! \brief Print super-droplets initialization parameters to screen
+         * \param[in] a_species_mat Vector of species material properties
+         * \param[in] a_aerosol_mat Vector of aerosol material properties
+         */
+        virtual void printParameters ( const MatVec& a_species_mat,
+                                       const MatVec& a_aerosol_mat ) const;
 
-        /*! Get a distribution with constant multiplicity */
-        void getDistribution( amrex::Vector<amrex::Real>&,
-                              const int,
-                              const amrex::Real,
-                              const std::string&,
-                              const amrex::Real,
-                              const amrex::Real,
-                              const amrex::Real,
-                              const amrex::Real,
-                              const amrex::Real,
-                              const amrex::Real,
-                              const amrex::Real,
-                              std::mt19937& ) const;
+        /*! \brief Get a distribution with constant multiplicity
+         * \param[out] a_mass Output vector of particle masses
+         * \param[in] a_np Number of particles
+         * \param[in] a_density Density of the particle material
+         * \param[in] a_init_type Type of initialization distribution
+         * \param[in] a_mass_min Minimum mass value
+         * \param[in] a_mass_max Maximum mass value
+         * \param[in] a_mass_mean Mean mass value
+         * \param[in] a_radius_min Minimum radius value
+         * \param[in] a_radius_max Maximum radius value
+         * \param[in] a_radius_mean Mean radius value
+         * \param[in] a_radius_gstd Geometric standard deviation for radius
+         * \param[in,out] a_rng Random number generator
+         */
+        void getDistribution( amrex::Vector<amrex::Real>& a_mass,
+                              const int a_np,
+                              const amrex::Real a_density,
+                              const std::string& a_init_type,
+                              const amrex::Real a_mass_min,
+                              const amrex::Real a_mass_max,
+                              const amrex::Real a_mass_mean,
+                              const amrex::Real a_radius_min,
+                              const amrex::Real a_radius_max,
+                              const amrex::Real a_radius_mean,
+                              const amrex::Real a_radius_gstd,
+                              std::mt19937& a_rng ) const;
 
-        /*! Get a distribution with sampled multiplicity */
-        void getDistribution( amrex::Vector<amrex::Real>&,
-                              amrex::Vector<amrex::Real>&,
-                              const amrex::Real,
-                              const int,
-                              const amrex::Real,
-                              const std::string&,
-                              const amrex::Real,
-                              const amrex::Real,
-                              const amrex::Real,
-                              const amrex::Real,
-                              const amrex::Real,
-                              const amrex::Real,
-                              const amrex::Real,
-                              std::mt19937& ) const;
+        /*! \brief Get a distribution with sampled multiplicity
+         * \param[out] a_mass Output vector of particle masses
+         * \param[out] a_mult Output vector of particle multiplicities
+         * \param[in] a_dV Cell volume
+         * \param[in] a_np Number of particles
+         * \param[in] a_density Density of the particle material
+         * \param[in] a_init_type Type of initialization distribution
+         * \param[in] a_mass_min Minimum mass value
+         * \param[in] a_mass_max Maximum mass value
+         * \param[in] a_mass_mean Mean mass value
+         * \param[in] a_radius_min Minimum radius value
+         * \param[in] a_radius_max Maximum radius value
+         * \param[in] a_radius_mean Mean radius value
+         * \param[in] a_radius_gstd Geometric standard deviation for radius
+         * \param[in,out] a_rng Random number generator
+         */
+        void getDistribution( amrex::Vector<amrex::Real>& a_mass,
+                              amrex::Vector<amrex::Real>& a_mult,
+                              const amrex::Real a_dV,
+                              const int a_np,
+                              const amrex::Real a_density,
+                              const std::string& a_init_type,
+                              const amrex::Real a_mass_min,
+                              const amrex::Real a_mass_max,
+                              const amrex::Real a_mass_mean,
+                              const amrex::Real a_radius_min,
+                              const amrex::Real a_radius_max,
+                              const amrex::Real a_radius_mean,
+                              const amrex::Real a_radius_gstd,
+                              std::mt19937& a_rng ) const;
 
-        /*! Compute the mass distribution */
+        /*! \brief Compute the aerosol mass distribution
+         * \param[out] a_mass Output vector of aerosol masses
+         * \param[in] a_idx Aerosol species index
+         * \param[in] a_np Number of particles
+         * \param[in] a_density Density of the aerosol material
+         * \param[in,out] a_rng Random number generator
+         */
         void getAerosolDistribution ( amrex::Vector<amrex::Real>& a_mass,
                                       const int a_idx,
                                       const int a_np,
@@ -173,7 +221,15 @@ class SDInitProperties
                              a_rng);
         }
 
-        /*! Compute the mass distribution (sampled multiplicity) */
+        /*! \brief Compute the aerosol mass distribution with sampled multiplicity
+         * \param[out] a_mass Output vector of aerosol masses
+         * \param[out] a_mult Output vector of particle multiplicities
+         * \param[in] a_dV Cell volume for scaling multiplicity
+         * \param[in] a_idx Aerosol species index
+         * \param[in] a_np Number of particles to generate
+         * \param[in] a_density Density of the aerosol material
+         * \param[in,out] a_rng Random number generator
+         */
         void getAerosolDistribution ( amrex::Vector<amrex::Real>& a_mass,
                                       amrex::Vector<amrex::Real>& a_mult,
                                       amrex::Real a_dV,
@@ -198,7 +254,13 @@ class SDInitProperties
                              a_rng);
         }
 
-        /*! Compute the mass distribution */
+        /*! \brief Compute the species mass distribution with constant multiplicity
+         * \param[out] a_mass Output vector of species masses
+         * \param[in] a_idx Species index
+         * \param[in] a_np Number of particles to generate
+         * \param[in] a_density Density of the species material
+         * \param[in,out] a_rng Random number generator
+         */
         void getSpeciesDistribution ( amrex::Vector<amrex::Real>& a_mass,
                                       const int a_idx,
                                       const int a_np,
@@ -219,7 +281,15 @@ class SDInitProperties
                              a_rng);
         }
 
-        /*! Compute the mass distribution (sampled multiplicity) */
+        /*! \brief Compute the species mass distribution with sampled multiplicity
+         * \param[out] a_mass Output vector of species masses
+         * \param[out] a_mult Output vector of particle multiplicities
+         * \param[in] a_dV Cell volume for scaling multiplicity
+         * \param[in] a_idx Species index
+         * \param[in] a_np Number of particles to generate
+         * \param[in] a_density Density of the species material
+         * \param[in,out] a_rng Random number generator
+         */
         void getSpeciesDistribution ( amrex::Vector<amrex::Real>& a_mass,
                                       amrex::Vector<amrex::Real>& a_mult,
                                       amrex::Real a_dV,
@@ -244,13 +314,21 @@ class SDInitProperties
                              a_rng);
         }
 
-        /* return whether multiplicity is sampled or constant */
+        /*! \brief Determine whether multiplicity is sampled or constant
+         * \return True if multiplicity is sampled, false if constant
+         */
         [[nodiscard]] inline bool sampledMultiplicity() const
         {
             return (m_mult_type == SDMultiplicityType::sampled);
         }
 
-        /* return volume of particle domain */
+        /*! \brief Calculate the volume of the particle domain
+         *
+         * For uniform distribution type, returns the box volume.
+         * For bubble distribution type, returns the volume of the bubble.
+         *
+         * \return Volume of the particle domain in cubic meters
+         */
         [[nodiscard]] inline amrex::Real volume() const
         {
             amrex::Real vol = 0.0;
@@ -291,7 +369,15 @@ class SDInjection : public SDInitProperties
         /*!< Stop time for injection */
         amrex::Real m_tstop = 1.0e17;
 
-        /*! update dt-based quantities */
+        /*! \brief Update time-dependent quantities for particle injection
+         *
+         * This function updates:
+         * 1. Number density based on injection rate and timestep
+         * 2. Super-droplet number density based on SD injection rate
+         * 3. Position of the injection domain based on domain velocity
+         *
+         * \param[in] a_dt Timestep size in seconds
+         */
         inline void updateDt (const amrex::Real a_dt)
         {
             this->m_numdens = m_inj_rate * a_dt;
@@ -325,17 +411,35 @@ class SDInjection : public SDInitProperties
             amrex::Abort("SDInjection::readInputs(): Do not use this interface");
         }
 
-        /*! read super-droplets injection parameters */
-        void readInputs ( const std::string&,
-                          const amrex::Geometry&,
-                          const MatVec&,
-                          const MatVec&,
-                          const amrex::Real );
+        /*! \brief Read super-droplet injection parameters from input file
+         *
+         * This function reads injection-specific parameters like injection rate,
+         * timing parameters, and domain velocity.
+         *
+         * \param[in] a_prefix Prefix for parameter parser
+         * \param[in] a_geom Simulation geometry information
+         * \param[in] a_species_mat Vector of species material properties
+         * \param[in] a_aerosol_mat Vector of aerosol material properties
+         * \param[in] a_dt Current timestep size
+         */
+        void readInputs ( const std::string& a_prefix,
+                          const amrex::Geometry& a_geom,
+                          const MatVec& a_species_mat,
+                          const MatVec& a_aerosol_mat,
+                          const amrex::Real a_dt );
 
         /*! print super-droplets injection parameters to screen */
         void printParameters ( const MatVec&, const MatVec& ) const override;
 
-        /*! Compute number of super-droplets per grid cell */
+        /*! \brief Compute number of super-droplets to inject per grid cell
+         *
+         * Determines the number of super-droplets to inject based on either:
+         * 1. The super-droplet number density and cell volume, or
+         * 2. A constant number per cell (m_ppc) if number density is not set
+         *
+         * \param[in] a_dv Volume of the grid cell
+         * \return Number of super-droplets to inject in this cell
+         */
         [[nodiscard]] inline int numSDPerCell (const amrex::Real a_dv) const override
         {
             int num_sd_per_cell = 0;
@@ -381,11 +485,20 @@ class SDInitialization : public SDInitProperties
             amrex::Abort("SDInjection::readInputs(): Do not use this interface");
         }
 
-        /*! read super-droplets initialization parameters */
-        void readInputs ( const std::string&,
-                          const amrex::Geometry&,
-                          const MatVec&,
-                          const MatVec& );
+        /*! \brief Read super-droplet initialization parameters from input file
+         *
+         * This function reads initialization-specific parameters including
+         * distribution types, particle counts, and sizing parameters.
+         *
+         * \param[in] a_prefix Prefix for parameter parser
+         * \param[in] a_geom Simulation geometry information
+         * \param[in] a_species_mat Vector of species material properties
+         * \param[in] a_aerosol_mat Vector of aerosol material properties
+         */
+        void readInputs ( const std::string& a_prefix,
+                          const amrex::Geometry& a_geom,
+                          const MatVec& a_species_mat,
+                          const MatVec& a_aerosol_mat );
 
         /*! print super-droplets initialization parameters to screen */
         void printParameters ( const MatVec&, const MatVec& ) const override;
