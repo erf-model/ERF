@@ -182,6 +182,9 @@ public:
     // Initialize multilevel data after MultiBlock
     void InitData_post ();
 
+    // Interpolate 2D arrays lat_m, lon_m, sinPhi, cosPhi
+    void Interp2DArrays (int lev, const amrex::BoxArray& my_ba2d, const amrex::DistributionMapping& my_dm);
+
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain

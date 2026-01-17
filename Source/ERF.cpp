@@ -1440,57 +1440,7 @@ ERF::InitData_post ()
     // If lev > 0, we need to fill bc's by interpolation from coarser grid
     for (int lev = 1; lev <= finest_level; ++lev)
     {
-        Real time_for_fp = 0.; // This is not actually used
-        Vector<Real> ftime    = {time_for_fp, time_for_fp};
-        Vector<Real> ctime    = {time_for_fp, time_for_fp};
-        if (lat_m[lev]) {
-            // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-            Vector<MultiFab*> fmf = {lat_m[lev  ].get(), lat_m[lev  ].get()};
-            Vector<MultiFab*> cmf = {lat_m[lev-1].get(), lat_m[lev-1].get()};
-            IntVect ngv = lat_m[lev]->nGrowVect(); ngv[2] = 0;
-            Interpolater* mapper = &cell_cons_interp;
-            FillPatchTwoLevels(*lat_m[lev].get(), ngv, IntVect(0,0,0),
-                               time_for_fp, cmf, ctime, fmf, ftime,
-                               0, 0, 1, geom[lev-1], geom[lev],
-                               refRatio(lev-1), mapper, domain_bcs_type,
-                               BCVars::cons_bc);
-        }
-        if (lon_m[lev]) {
-            // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-            Vector<MultiFab*> fmf = {lon_m[lev  ].get(), lon_m[lev  ].get()};
-            Vector<MultiFab*> cmf = {lon_m[lev-1].get(), lon_m[lev-1].get()};
-            IntVect ngv = lon_m[lev]->nGrowVect(); ngv[2] = 0;
-            Interpolater* mapper = &cell_cons_interp;
-            FillPatchTwoLevels(*lon_m[lev].get(), ngv, IntVect(0,0,0),
-                               time_for_fp, cmf, ctime, fmf, ftime,
-                               0, 0, 1, geom[lev-1], geom[lev],
-                               refRatio(lev-1), mapper, domain_bcs_type,
-                               BCVars::cons_bc);
-        } // lon_m
-        if (sinPhi_m[lev]) {
-            // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-            Vector<MultiFab*> fmf = {sinPhi_m[lev  ].get(), sinPhi_m[lev  ].get()};
-            Vector<MultiFab*> cmf = {sinPhi_m[lev-1].get(), sinPhi_m[lev-1].get()};
-            IntVect ngv = sinPhi_m[lev]->nGrowVect(); ngv[2] = 0;
-            Interpolater* mapper = &cell_cons_interp;
-            FillPatchTwoLevels(*sinPhi_m[lev].get(), ngv, IntVect(0,0,0),
-                               time_for_fp, cmf, ctime, fmf, ftime,
-                               0, 0, 1, geom[lev-1], geom[lev],
-                               refRatio(lev-1), mapper, domain_bcs_type,
-                               BCVars::cons_bc);
-        } // sinPhi
-        if (cosPhi_m[lev]) {
-            // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-            Vector<MultiFab*> fmf = {cosPhi_m[lev  ].get(), cosPhi_m[lev  ].get()};
-            Vector<MultiFab*> cmf = {cosPhi_m[lev-1].get(), cosPhi_m[lev-1].get()};
-            IntVect ngv = cosPhi_m[lev]->nGrowVect(); ngv[2] = 0;
-            Interpolater* mapper = &cell_cons_interp;
-            FillPatchTwoLevels(*cosPhi_m[lev].get(), ngv, IntVect(0,0,0),
-                               time_for_fp, cmf, ctime, fmf, ftime,
-                               0, 0, 1, geom[lev-1], geom[lev],
-                               refRatio(lev-1), mapper, domain_bcs_type,
-                               BCVars::cons_bc);
-        } // cosPhi
+        Interp2DArrays(lev,grids[lev],dmap[lev]);
     } // lev
 
 #ifdef ERF_USE_WW3_COUPLING
@@ -1824,6 +1774,155 @@ ERF::InitData_post ()
         }
     }
 
+}
+
+void
+ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping& my_dm)
+{
+    if (lon_m[lev-1] && !lon_m[lev]) {
+        auto ngv = lon_m[lev-1]->nGrowVect(); ngv[2] = 0;
+        lon_m[lev] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+        InterpFromCoarseLevel(*lon_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              *lon_m[lev-1], 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+    }
+    if (lat_m[lev-1] && !lat_m[lev]) {
+        auto ngv = lat_m[lev-1]->nGrowVect(); ngv[2] = 0;
+        lat_m[lev] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+        InterpFromCoarseLevel(*lat_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              *lat_m[lev-1], 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+    }
+    if (sinPhi_m[lev-1] && !sinPhi_m[lev]) {
+        auto ngv = sinPhi_m[lev-1]->nGrowVect(); ngv[2] = 0;
+        sinPhi_m[lev] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+        InterpFromCoarseLevel(*sinPhi_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              *sinPhi_m[lev-1], 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+    }
+    if (cosPhi_m[lev-1] && !cosPhi_m[lev]) {
+        auto ngv = cosPhi_m[lev-1]->nGrowVect(); ngv[2] = 0;
+        cosPhi_m[lev] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+        InterpFromCoarseLevel(*cosPhi_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                              *cosPhi_m[lev-1], 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+    }
+    if (sst_lev[lev-1][0] && !sst_lev[lev][0]) {
+        int ntimes = sst_lev[lev-1].size();
+        sst_lev[lev].resize(ntimes);
+        auto ngv = sst_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
+        for (int n = 0; n < ntimes; n++) {
+            sst_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+            InterpFromCoarseLevel(*sst_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                  *sst_lev[lev-1][n], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), &cell_cons_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+        }
+    }
+    if (tsk_lev[lev-1][0] && !tsk_lev[lev][0]) {
+        int ntimes = tsk_lev[lev-1].size();
+        tsk_lev[lev].resize(ntimes);
+        auto ngv = tsk_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
+        for (int n = 0; n < ntimes; n++) {
+            tsk_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+            InterpFromCoarseLevel(*tsk_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                  *tsk_lev[lev-1][n], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), &cell_cons_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+        }
+    }
+
+    Real time_for_fp = 0.; // This is not actually used
+    Vector<Real> ftime    = {time_for_fp, time_for_fp};
+    Vector<Real> ctime    = {time_for_fp, time_for_fp};
+    if (lat_m[lev]) {
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+        Vector<MultiFab*> fmf = {lat_m[lev  ].get(), lat_m[lev  ].get()};
+        Vector<MultiFab*> cmf = {lat_m[lev-1].get(), lat_m[lev-1].get()};
+        IntVect ngv = lat_m[lev]->nGrowVect(); ngv[2] = 0;
+        Interpolater* mapper = &cell_cons_interp;
+        FillPatchTwoLevels(*lat_m[lev].get(), ngv, IntVect(0,0,0),
+                           time_for_fp, cmf, ctime, fmf, ftime,
+                           0, 0, 1, geom[lev-1], geom[lev],
+                           refRatio(lev-1), mapper, domain_bcs_type,
+                           BCVars::cons_bc);
+    }
+    if (lon_m[lev]) {
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+        Vector<MultiFab*> fmf = {lon_m[lev  ].get(), lon_m[lev  ].get()};
+        Vector<MultiFab*> cmf = {lon_m[lev-1].get(), lon_m[lev-1].get()};
+        IntVect ngv = lon_m[lev]->nGrowVect(); ngv[2] = 0;
+        Interpolater* mapper = &cell_cons_interp;
+        FillPatchTwoLevels(*lon_m[lev].get(), ngv, IntVect(0,0,0),
+                           time_for_fp, cmf, ctime, fmf, ftime,
+                           0, 0, 1, geom[lev-1], geom[lev],
+                           refRatio(lev-1), mapper, domain_bcs_type,
+                           BCVars::cons_bc);
+    } // lon_m
+    if (sinPhi_m[lev]) {
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+        Vector<MultiFab*> fmf = {sinPhi_m[lev  ].get(), sinPhi_m[lev  ].get()};
+        Vector<MultiFab*> cmf = {sinPhi_m[lev-1].get(), sinPhi_m[lev-1].get()};
+        IntVect ngv = sinPhi_m[lev]->nGrowVect(); ngv[2] = 0;
+        Interpolater* mapper = &cell_cons_interp;
+        FillPatchTwoLevels(*sinPhi_m[lev].get(), ngv, IntVect(0,0,0),
+                           time_for_fp, cmf, ctime, fmf, ftime,
+                           0, 0, 1, geom[lev-1], geom[lev],
+                           refRatio(lev-1), mapper, domain_bcs_type,
+                           BCVars::cons_bc);
+    } // sinPhi
+    if (cosPhi_m[lev]) {
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+        Vector<MultiFab*> fmf = {cosPhi_m[lev  ].get(), cosPhi_m[lev  ].get()};
+        Vector<MultiFab*> cmf = {cosPhi_m[lev-1].get(), cosPhi_m[lev-1].get()};
+        IntVect ngv = cosPhi_m[lev]->nGrowVect(); ngv[2] = 0;
+        Interpolater* mapper = &cell_cons_interp;
+        FillPatchTwoLevels(*cosPhi_m[lev].get(), ngv, IntVect(0,0,0),
+                           time_for_fp, cmf, ctime, fmf, ftime,
+                           0, 0, 1, geom[lev-1], geom[lev],
+                           refRatio(lev-1), mapper, domain_bcs_type,
+                           BCVars::cons_bc);
+    } // cosPhi
+    if (sst_lev[lev][0]) {
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+    int ntimes = sst_lev[lev].size();
+    for (int n = 0; n < ntimes; n++) {
+            Vector<MultiFab*> fmf = {sst_lev[lev  ][n].get(), sst_lev[lev  ][n].get()};
+            Vector<MultiFab*> cmf = {sst_lev[lev-1][n].get(), sst_lev[lev-1][n].get()};
+            IntVect ngv = sst_lev[lev][n]->nGrowVect(); ngv[2] = 0;
+            Interpolater* mapper = &cell_cons_interp;
+            FillPatchTwoLevels(*sst_lev[lev][n].get(), ngv, IntVect(0,0,0),
+                               time_for_fp, cmf, ctime, fmf, ftime,
+                               0, 0, 1, geom[lev-1], geom[lev],
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::cons_bc);
+        } // ntimes
+    } // sst_lev
+    if (tsk_lev[lev][0]) {
+        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
+    int ntimes = tsk_lev[lev].size();
+    for (int n = 0; n < ntimes; n++) {
+            Vector<MultiFab*> fmf = {tsk_lev[lev  ][n].get(), tsk_lev[lev  ][n].get()};
+            Vector<MultiFab*> cmf = {tsk_lev[lev-1][n].get(), tsk_lev[lev-1][n].get()};
+            IntVect ngv = tsk_lev[lev][n]->nGrowVect(); ngv[2] = 0;
+            Interpolater* mapper = &cell_cons_interp;
+            FillPatchTwoLevels(*tsk_lev[lev][n].get(), ngv, IntVect(0,0,0),
+                               time_for_fp, cmf, ctime, fmf, ftime,
+                               0, 0, 1, geom[lev-1], geom[lev],
+                               refRatio(lev-1), mapper, domain_bcs_type,
+                               BCVars::cons_bc);
+        } // ntimes
+    } // tsk_lev
 }
 
 // Initialize microphysics object
