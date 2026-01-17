@@ -645,8 +645,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                 unsigned int j = 0;
                 for (unsigned int i = 0; i < max_np_bin; i++) {
-                    if (stencil_veptrs.c_ptr[i] < np_bin) {
-                        inds_tmp_ptr[bin_start+j] = inds[bin_start+stencil_veptrs.c_ptr[i]];
+                    if (stencil_vec_ptr[i] < np_bin) {
+                        inds_tmp_ptr[bin_start+j] = inds[bin_start+stencil_vec_ptr[i]];
                         j++;
                     }
                 }
