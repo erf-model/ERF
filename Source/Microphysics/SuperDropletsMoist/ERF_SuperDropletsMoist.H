@@ -287,13 +287,13 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         void ratioToDensity ( amrex::MultiFab&, const int a_comp = 0 );
 
         /*! \brief Compute phase changes (vapour <--> cloud water)
-         * \param[in] dt Timestep for phase change calculation
-         * \param[in] mf_array Array of additional multifabs needed for phase change
-         * \param[in] verbose Flag to enable verbose output during phase change
+         * \param[in] a_dt Timestep for phase change calculation
+         * \param[in] a_z Array of terrain heights
+         * \param[in] a_update_qv Flag to enable updating vapour mixing ratio
          */
-        virtual void phaseChange (  const amrex::Real& dt,
-                                    const amrex::Vector<MFPtr>& mf_array,
-                                    const bool verbose);
+        virtual void phaseChange (  const amrex::Real& a_dt,
+                                    const amrex::Vector<MFPtr>& a_z,
+                                    const bool a_update_qv);
 
         virtual void GetPlotVarNames (amrex::Vector<std::string>& a_names) const override
         {
