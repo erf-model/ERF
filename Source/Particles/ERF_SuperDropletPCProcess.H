@@ -90,6 +90,38 @@ struct VelocityTraits : DefaultTraits {
 };
 
 //===========================================================================
+// Lightweight Traits - For initialization and utility routines
+//===========================================================================
+
+/*! \brief Minimal traits for multiplicity-only operations
+ *  Used by: DensityScaling
+ */
+struct MultiplicityOnlyTraits {
+    static constexpr bool needs_mass         = false;
+    static constexpr bool needs_radius       = false;
+    static constexpr bool needs_active       = false;
+    static constexpr bool needs_velocity     = false;
+    static constexpr bool needs_multiplicity = true;
+    static constexpr bool needs_term_vel     = false;
+    static constexpr bool needs_ice_axes     = false;
+    static constexpr bool needs_ice_rime     = false;
+    static constexpr bool needs_ice_Tfz      = false;
+    static constexpr bool needs_density      = false;
+    static constexpr bool needs_solubility   = false;
+    static constexpr bool needs_ionization   = false;
+    static constexpr bool needs_mol_weight   = false;
+    static constexpr bool needs_INP_flags    = false;
+};
+
+/*! \brief Traits for particle attribute initialization
+ *  Used by: SetAttributes
+ *  Needs mass, radius, multiplicity, and species/aerosol masses
+ */
+struct InitAttributesTraits : DefaultTraits {
+    static constexpr bool needs_multiplicity = true;
+};
+
+//===========================================================================
 // PART 2: Unified Pointer Bundle
 //===========================================================================
 

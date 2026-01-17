@@ -484,6 +484,14 @@ class SuperDropletPC : public ERFPC
         /*! Flag to track if device properties are initialized */
         bool m_device_props_initialized = false;
 
+        /* recycled particle position bounds */
+        amrex::Real m_recyc_xmin;
+        amrex::Real m_recyc_xmax;
+        amrex::Real m_recyc_ymin;
+        amrex::Real m_recyc_ymax;
+        amrex::Real m_recyc_zmin;
+        amrex::Real m_recyc_zmax;
+
         /*! Method to initialize device properties */
         void initializeDeviceProperties();
 
@@ -731,13 +739,55 @@ class SuperDropletPC : public ERFPC
             }
         }
 
-        /* recycled particle position bounds */
-        amrex::Real m_recyc_xmin;
-        amrex::Real m_recyc_xmax;
-        amrex::Real m_recyc_ymin;
-        amrex::Real m_recyc_ymax;
-        amrex::Real m_recyc_zmin;
-        amrex::Real m_recyc_zmax;
+        /*! \brief Lightweight iteration over particle tiles
+         *
+         * Simplified variant that doesn't require ProcessContext.
+         * Useful for initialization routines and simple operations that
+         * only need particle data and basic geometry.
+         *
+         * @tparam Traits The traits struct defining what pointers are needed
+         * @tparam TileFunc Functor type called for each tile
+         * @param a_lev AMR level
+         * @param func Functor called as: func(pti, grid, p_pbox, ptrs, num_particles)
+         *
+         * Example usage:
+         * @code
+         * forEachParticleTile<MultiplicityTraits>(a_lev,
+         *     [&](auto& pti, int grid, auto* p_pbox,
+         *         const SDProcess::ParticlePointers& ptrs, int np)
+         *     {
+         *         auto density = a_rho[grid].array();
+         *         ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
+         *             // kernel using ptrs
+         *         });
+         *     });
+         * @endcode
+         */
+        template<typename Traits, typename TileFunc>
+        void forEachParticleTile(
+            int a_lev,
+            TileFunc&& func)
+        {
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
+                int grid = pti.index();
+                auto& ptile = ParticlesAt(a_lev, pti);
+                auto& aos = ptile.GetArrayOfStructs();
+                auto& soa = ptile.GetStructOfArrays();
+
+                const int num_particles = aos.numParticles();
+                if (num_particles == 0) { continue; }
+
+                auto* p_pbox = aos().data();
+
+                SDProcess::ParticlePointers ptrs;
+                setupParticlePointers<Traits>(soa, aos, ptrs);
+
+                func(pti, grid, p_pbox, ptrs, num_particles);
+            }
+        }
 
         /*! \brief read inputs from file */
         virtual void readInputs () override
