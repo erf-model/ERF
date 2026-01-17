@@ -22,6 +22,54 @@ namespace {
         static constexpr bool needs_ice_axes     = true;
         static constexpr bool needs_ice_rime     = true;
     };
+
+    //===========================================================================
+    // Helper functions for coalescence update operations
+    //===========================================================================
+
+    /*! \brief Update common attributes for predator particle (remainder > 0 case)
+     *  Updates Tfz, species masses, and aerosol masses for particle i */
+    AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+    void update_common_positive_rmndr(
+        const int a_i, const int a_j,
+        const ParticleReal a_gamma,
+        ParticleReal* const a_Tfz,
+        const int a_n_sp, const SDSpeciesMassArr& a_sp_m,
+        const int a_n_ae, const SDAerosolMassArr& a_ae_m)
+    {
+        a_Tfz[a_i] = std::max(a_Tfz[a_j], a_Tfz[a_i]);
+        for (int n = 0; n < a_n_sp; n++) { a_sp_m[n][a_i] += a_gamma * a_sp_m[n][a_j]; }
+        for (int n = 0; n < a_n_ae; n++) { a_ae_m[n][a_i] += a_gamma * a_ae_m[n][a_j]; }
+    }
+
+    /*! \brief Update common attributes for both particles (remainder == 0 case)
+     *  Splits multiplicity and updates Tfz, species masses, aerosol masses for both */
+    AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+    void update_common_zero_rmndr(
+        const int a_i, const int a_j,
+        const ParticleReal a_gamma,
+        ParticleReal* const a_mult,
+        ParticleReal* const a_Tfz,
+        const int a_n_sp, const SDSpeciesMassArr& a_sp_m,
+        const int a_n_ae, const SDAerosolMassArr& a_ae_m)
+    {
+        // Split multiplicity
+        ParticleReal dm = std::floor(a_mult[a_j]/2);
+        a_mult[a_i] = dm;
+        a_mult[a_j] -= dm;
+        // Update Tfz
+        a_Tfz[a_i] = a_Tfz[a_j] = std::max(a_Tfz[a_j], a_Tfz[a_i]);
+        // Update species masses
+        for (int n = 0; n < a_n_sp; n++) {
+            a_sp_m[n][a_j] += a_gamma * a_sp_m[n][a_i];
+            a_sp_m[n][a_i] = a_sp_m[n][a_j];
+        }
+        // Update aerosol masses
+        for (int n = 0; n < a_n_ae; n++) {
+            a_ae_m[n][a_j] += a_gamma * a_ae_m[n][a_i];
+            a_ae_m[n][a_i] = a_ae_m[n][a_j];
+        }
+    }
 }
 
 /*! \brief Compute dynamic viscosity */
@@ -81,44 +129,24 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
     if ( a_rmndr[a_i] > 0 ) {
 
         if (a_prey[i]) {
-            a_mult[i] -= gamma*a_mult[j];
+            a_mult[i] -= gamma * a_mult[j];
         } else {
             auto r3 = gamma*a_radius[j]*a_radius[j]*a_radius[j]
-                            + a_radius[i]*a_radius[i]*a_radius[i];
+                          + a_radius[i]*a_radius[i]*a_radius[i];
             a_radius[i] = std::cbrt(r3);
-            a_mass[i] += gamma*a_mass[j];
-            // Update Tfz: combined droplet inherits the warmest (least negative) Tfz
-            // from either parent since both INP surfaces are now present
-            a_Tfz[i] = std::max(a_Tfz[j], a_Tfz[i]);
-            for (int n = 0; n < a_n_sp; n++) {
-                a_sp_m[n][i] += gamma*a_sp_m[n][j];
-            }
-            for (int n = 0; n < a_n_ae; n++) {
-                a_ae_m[n][i] += gamma*a_ae_m[n][j];
-            }
+            a_mass[i] += gamma * a_mass[j];
+            update_common_positive_rmndr(i, j, gamma, a_Tfz, a_n_sp, a_sp_m, a_n_ae, a_ae_m);
         }
 
     } else if ( a_rmndr[a_i] == 0 ) {
 
         if (a_prey[i]) {
-            ParticleReal dm = std::floor(a_mult[j]/2);
-            a_mult[i] = dm;
-            a_mult[j] -= dm;
-            ParticleReal r3 = gamma*a_radius[i]*a_radius[i]*a_radius[i]
-                                    + a_radius[j]*a_radius[j]*a_radius[j];
+            auto r3 = gamma*a_radius[i]*a_radius[i]*a_radius[i]
+                          + a_radius[j]*a_radius[j]*a_radius[j];
             a_radius[i] = a_radius[j] = std::cbrt(r3);
-            a_mass[j] += gamma*a_mass[i];
+            a_mass[j] += gamma * a_mass[i];
             a_mass[i] = a_mass[j];
-            // Update Tfz: both particles get the warmest (least negative) Tfz
-            a_Tfz[i] = a_Tfz[j] = std::max(a_Tfz[j], a_Tfz[i]);
-            for (int n = 0; n < a_n_sp; n++) {
-                a_sp_m[n][j] += gamma*a_sp_m[n][i];
-                a_sp_m[n][i] = a_sp_m[n][j];
-            }
-            for (int n = 0; n < a_n_ae; n++) {
-                a_ae_m[n][j] += gamma*a_ae_m[n][i];
-                a_ae_m[n][i] = a_ae_m[n][j];
-            }
+            update_common_zero_rmndr(i, j, gamma, a_mult, a_Tfz, a_n_sp, a_sp_m, a_n_ae, a_ae_m);
         }
 
     }
@@ -209,35 +237,22 @@ static void aggr_update_attribs(const int a_i, /*!< index of particle */
 
     if ( a_rmndr[a_i] > 0 ) {
         if (a_prey[a_i]) {
-            a_mult[a_i] -= gamma*a_mult[a_j];
+            a_mult[a_i] -= gamma * a_mult[a_j];
         } else {
             a_a[a_i] = a_new;
             a_c[a_i] = c_new;
             a_mrime[a_i] += gamma * a_mrime[a_j];
             a_nmono[a_i] += gamma * a_nmono[a_j];
-            a_Tfz[a_i] = std::max(a_Tfz[a_j], a_Tfz[a_i]);
-            for (int n = 0; n < a_n_sp; n++) { a_sp_m[n][a_i] += gamma*a_sp_m[n][a_j]; }
-            for (int n = 0; n < a_n_ae; n++) { a_ae_m[n][a_i] += gamma*a_ae_m[n][a_j]; }
+            update_common_positive_rmndr(a_i, a_j, gamma, a_Tfz, a_n_sp, a_sp_m, a_n_ae, a_ae_m);
             AMREX_ALWAYS_ASSERT(m_new == a_sp_m[a_sp_idx_i][a_i]);
         }
     } else {
         if (a_prey[a_i]) {
-            auto dm = std::floor(a_mult[a_j]/2);
-            a_mult[a_i] = dm;
-            a_mult[a_j] -= dm;
             a_a[a_i] = a_a[a_j] = a_new;
             a_c[a_i] = a_c[a_j] = c_new;
             a_mrime[a_j] += gamma * a_mrime[a_i]; a_mrime[a_i] = a_mrime[a_j];
             a_nmono[a_j] += gamma * a_nmono[a_i]; a_nmono[a_i] = a_nmono[a_j];
-            a_Tfz[a_i] = a_Tfz[a_j] = std::max(a_Tfz[a_j], a_Tfz[a_i]);
-            for (int n = 0; n < a_n_sp; n++) {
-                a_sp_m[n][a_j] += gamma*a_sp_m[n][a_i];
-                a_sp_m[n][a_i] = a_sp_m[n][a_j];
-            }
-            for (int n = 0; n < a_n_ae; n++) {
-                a_ae_m[n][a_j] += gamma*a_ae_m[n][a_i];
-                a_ae_m[n][a_i] = a_ae_m[n][a_j];
-            }
+            update_common_zero_rmndr(a_i, a_j, gamma, a_mult, a_Tfz, a_n_sp, a_sp_m, a_n_ae, a_ae_m);
             AMREX_ALWAYS_ASSERT(m_new == a_sp_m[a_sp_idx_i][a_i]);
         }
     }
@@ -446,24 +461,25 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
 
     if ( a_rmndr[a_i] > 0 ) {
         if (a_prey[a_i]) {
-            a_mult[a_i] -= gamma*a_mult[a_j];
+            a_mult[a_i] -= gamma * a_mult[a_j];
         } else {
             a_a[a_i] = a_new;
             a_c[a_i] = c_new;
             a_mrime[a_i] = mrime_new;
             a_nmono[a_i] = nmono_new;
             a_Tfz[a_i] = std::max(a_Tfz[a_j], a_Tfz[a_i]);
+            // Riming-specific species update: water->0, ice->mi_new
             for (int n = 0; n < a_n_sp; n++) {
                 if (n == a_sp_idx_w) { a_sp_m[n][a_i] = 0.0; }
                 else if (n == a_sp_idx_i) { a_sp_m[n][a_i] = mi_new; }
                 else { a_sp_m[n][a_i] += gamma*a_sp_m[n][a_j]; }
             }
-            for (int n = 0; n < a_n_ae; n++) { a_ae_m[n][a_i] += gamma*a_ae_m[n][a_j]; }
+            for (int n = 0; n < a_n_ae; n++) { a_ae_m[n][a_i] += gamma * a_ae_m[n][a_j]; }
             AMREX_ALWAYS_ASSERT(mi_new == a_sp_m[a_sp_idx_i][a_i]);
         }
     } else {
         if (a_prey[a_i]) {
-            auto dm = std::floor(a_mult[a_j]/2);
+            ParticleReal dm = std::floor(a_mult[a_j]/2);
             a_mult[a_i] = dm;
             a_mult[a_j] -= dm;
             a_a[a_i] = a_a[a_j] = a_new;
@@ -471,6 +487,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
             a_mrime[a_j] = a_mrime[a_i] = mrime_new;
             a_nmono[a_j] = a_nmono[a_i] = nmono_new;
             a_Tfz[a_i] = a_Tfz[a_j] = std::max(a_Tfz[a_j], a_Tfz[a_i]);
+            // Riming-specific species update: water->0, ice->mi_new
             for (int n = 0; n < a_n_sp; n++) {
                 if (n == a_sp_idx_w) {
                     a_sp_m[n][a_i] = a_sp_m[n][a_j] = 0.0;
@@ -482,7 +499,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
                 }
             }
             for (int n = 0; n < a_n_ae; n++) {
-                a_ae_m[n][a_j] += gamma*a_ae_m[n][a_i];
+                a_ae_m[n][a_j] += gamma * a_ae_m[n][a_i];
                 a_ae_m[n][a_i] = a_ae_m[n][a_j];
             }
             AMREX_ALWAYS_ASSERT(mi_new == a_sp_m[a_sp_idx_i][a_i]);
