@@ -130,18 +130,15 @@ void SuperDropletsMoist::readInputs ()
  * After initialization, it prints configuration summary to output.
  *
  * \param[in] a_cons_vars Conserved variables MultiFab
- * \param[in] a_grids Box array defining computational grid
  * \param[in] a_geom Geometry information for computational domain
  * \param[in] a_dt Timestep size
- * \param[in,out] a_unused1 Unused MultiFab pointer
- * \param[in,out] a_unused2 Unused MultiFab pointer
  */
 void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,
-                                const BoxArray&   a_grids,
+                                const BoxArray&,
                                 const Geometry&   a_geom,
                                 const Real&       a_dt,
-                                MFPtr&            a_unused1,
-                                MFPtr&            a_unused2 )
+                                MFPtr&,
+                                MFPtr& )
 {
     BL_PROFILE("SuperDropletsMoist::Init()");
     m_dt = a_dt;
