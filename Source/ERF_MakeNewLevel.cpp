@@ -449,6 +449,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Interpolate the solution data
     //
     FillCoarsePatch(lev, time);
+
     //
     // Interpolate the 2D arrays at the lower boundary
     // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
@@ -712,21 +713,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         }
     }
 
-    // ********************************************************************************************
-    // Update the SurfaceLayer arrays at this level
-    // ********************************************************************************************
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
-        int nlevs = finest_level+1;
-        Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
-                                     &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-        m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
-                                                   mfv_old, Theta_prim[lev], Qv_prim[lev],
-                                                   Qr_prim[lev], z_phys_nd[lev],
-                                                   Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                                   lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
-                                                   sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
-    }
-
     // These calls are done in AmrCore::regrid if this is a regrid at lev > 0
     // For a level 0 regrid we must explicitly do them here
     if (lev == 0) {
@@ -737,6 +723,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         SetDistributionMap(lev, dm);
     }
 
+    // ********************************************************************************************
+    // Initialize the 2D data structures
+    // ********************************************************************************************
+    // NOTE: 2D MFs must be filled before SurfaceLayer is defined since SL class uses sst/tsk
     // Clear the 2D arrays
     if (sst_lev[lev][0]) {
         for (int n = 0; n < sst_lev[lev].size(); n++) {
@@ -767,6 +757,21 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
     //     so we must explicitly pass dm.
     Interp2DArrays(lev,ba2d[lev],dm);
+
+    // ********************************************************************************************
+    // Update the SurfaceLayer arrays at this level
+    // ********************************************************************************************
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
+        int nlevs = finest_level+1;
+        Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
+                                     &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
+        m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
+                                                   mfv_old, Theta_prim[lev], Qv_prim[lev],
+                                                   Qr_prim[lev], z_phys_nd[lev],
+                                                   Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
+                                                   lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
+                                                   sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+    }
 
 #ifdef ERF_USE_PARTICLES
     particleData.Redistribute();
