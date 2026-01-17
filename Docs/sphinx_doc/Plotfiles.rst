@@ -178,11 +178,11 @@ List of Parameters for 2D Plotfiles
 |                             | include in       |                       |              |
 |                             | p2d lotfiles     |                       |              |
 |                             | at second freq.  |                       |              |
-+-----------------------------+------------------+-----------------------+------------+
-| **erf.file_name_digits**    | Number of digits | Integer               | 5          |
-|                             | to be appended   | :math:`> 0`           |            |
-|                             | to the plot file |                       |            |
-|                             | names            |                       |            |
++-----------------------------+------------------+-----------------------+--------------+
+| **erf.file_name_digits**    | Number of digits | Integer               | 5            |
+|                             | to be appended   | :math:`> 0`           |              |
+|                             | to the plot file |                       |              |
+|                             | names            |                       |              |
 +-----------------------------+------------------+-----------------------+--------------+
 
 List of Parameters for Subvolumes
