@@ -29,7 +29,7 @@ the temporal error.
 .. |bconv| image:: figures/conv_plot_spatial_WENO.png
            :width: 300
 
-.. _fig:convergence_spatial
+.. _fig:convergence_spatial:
 
 .. table:: Convergence studies of spatial error
 
@@ -48,7 +48,7 @@ accuracy of the RK3 scheme.
 .. |tconv| image:: figures/conv_plot_temporal.png
            :width: 300
 
-.. _fig:convergence_temporal
+.. _fig:convergence_temporal:
 
 .. table:: Convergence study of temporal error
 
@@ -74,7 +74,7 @@ of different codes can be found in the `Straka 1993 paper`_
 .. |bdc| image:: figures/density_current_900.png
          :width: 300
 
-.. _fig:density_currennt
+.. _fig:density_currennt:
 
 .. table:: Potential temperature perturbation at 600s and 900s
 
@@ -100,7 +100,7 @@ The steady solution is shown below, as well as a log-log plot showing the error 
 .. |bek| image:: figures/ekman_spiral_errors.png
          :width: 300
 
-.. _fig:ekman_spiral
+.. _fig:ekman_spiral:
 
 .. table:: Flow profile and Error
 

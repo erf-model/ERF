@@ -6,12 +6,23 @@
 using namespace amrex;
 using namespace SDPCDefn;
 
-/*! Sets the initial number of the super-droplets per cell as a box with a uniform distribution */
-void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */
-                                              const int a_n_per_cell, /*!< number of superdroplets per cell */
-                                              const MFPtr& a_height_ptr, /*!< terrain */
-                                              const RealBox& a_box, /*!< box within which to initialize particles */
-                                              const bool a_subgrid /*!< Is a_box smaller than grid cell */)
+/*! \brief Sets the initial number of super-droplets per cell in a box region with uniform distribution
+ *
+ * This function initializes the number of super-droplets to be placed in each grid cell
+ * based on whether the cell is inside the specified box region. It handles both flat
+ * and terrain-following grids and can initialize particles in subgrid regions.
+ *
+ * \param[out] a_num_sd Integer MultiFab that will contain the number of superdroplets in each grid cell
+ * \param[in] a_n_per_cell Number of superdroplets to place per cell
+ * \param[in] a_height_ptr Pointer to MultiFab containing terrain height information
+ * \param[in] a_box Box region within which to initialize particles
+ * \param[in] a_subgrid Flag indicating if the box is smaller than a grid cell
+ */
+void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
+                                              const int a_n_per_cell,
+                                              const MFPtr& a_height_ptr,
+                                              const RealBox& a_box,
+                                              const bool a_subgrid)
 {
     BL_PROFILE("SuperDropletPC::setNumSDBoxDistribution()");
     a_num_sd.setVal(0);

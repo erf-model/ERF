@@ -235,11 +235,15 @@ class SuperDropletPC : public ERFPC
                                       const amrex::RealBox&,
                                       const bool );
 
-        /*! \brief Set super-droplets attributes from a given condensate mass density */
-        virtual void SetAttributes (  amrex::MultiFab& );
+        /*! \brief Set super-droplets attributes from a given condensate mass density
+         * \param[in] a_mf Multifab containing the initial condensate mass density
+         */
+        virtual void SetAttributes (  amrex::MultiFab& a_mf );
 
-        /*! \brief Scale the SDM number density with air density  */
-        virtual void DensityScaling ( const amrex::MultiFab& );
+        /*! \brief Scale the SDM number density with air density
+         * \param[in] a_mf Multifab containing the air density field
+         */
+        virtual void DensityScaling ( const amrex::MultiFab& a_mf );
 
         /*! \brief Evolve particles for one time step */
         virtual void EvolveParticles ( int,
@@ -250,17 +254,28 @@ class SuperDropletPC : public ERFPC
             amrex::Abort("SuperDropletPC::EvolveParticles() is intentionally disabled.");
         }
 
-        /*! \brief Advect particles for one time step */
-        virtual void AdvectParticles (   int,
-                                         amrex::Real,
-                                         amrex::Real,
-                                         const amrex::MultiFab* const,
-                                         const amrex::MultiFab&,
-                                         const amrex::MultiFab&,
-                                         const amrex::MultiFab&,
-                                         const amrex::Vector<MFPtr>&,
-                                         const BCTypeArr&,
-                                         const bool );
+        /*! \brief Advect particles for one time step
+         * \param[in] iteration Current iteration number
+         * \param[in] dt Timestep for advection
+         * \param[in] time Current simulation time
+         * \param[in] moving_umac Array of face-based velocities for moving reference frame
+         * \param[in] umac_x X-direction face-based velocity
+         * \param[in] umac_y Y-direction face-based velocity
+         * \param[in] umac_z Z-direction face-based velocity
+         * \param[in] mf_array Array of additional multifabs
+         * \param[in] bc_arr Array of boundary conditions
+         * \param[in] verbose Flag to enable verbose output during advection
+         */
+        virtual void AdvectParticles (   int iteration,
+                                         amrex::Real dt,
+                                         amrex::Real time,
+                                         const amrex::MultiFab* const moving_umac,
+                                         const amrex::MultiFab& umac_x,
+                                         const amrex::MultiFab& umac_y,
+                                         const amrex::MultiFab& umac_z,
+                                         const amrex::Vector<MFPtr>& mf_array,
+                                         const BCTypeArr& bc_arr,
+                                         const bool verbose);
 
         /*! \brief Condensation and evaporation growth/shrinking for one time step */
         virtual void MassChange_LV (int,
@@ -301,8 +316,18 @@ class SuperDropletPC : public ERFPC
                                     const amrex::MultiFab&,
                                     const amrex::Vector<MFPtr>& );
 
-        /*! \brief Recycle super-droplets */
-        virtual void Recycle ( const int, const amrex::Vector<MFPtr>&, const int, const amrex::Real, const bool );
+        /*! \brief Recycle super-droplets
+         * \param[in] iteration Current iteration number
+         * \param[in] mf_array Array of additional multifabs
+         * \param[in] species_idx Index of the species to recycle
+         * \param[in] time Current simulation time
+         * \param[in] verbose Flag to enable verbose output during recycling
+         */
+        virtual void Recycle ( const int iteration,
+                               const amrex::Vector<MFPtr>& mf_array,
+                               const int species_idx,
+                               const amrex::Real time,
+                               const bool verbose);
 
         /*! \brief Return the number of super-droplets
             This returns the number of AMReX particles being used in the simulation. */

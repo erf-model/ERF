@@ -60,12 +60,23 @@ struct CollisionKernel
 
     /* The following code is adapted from SCALE-SDM:
      * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
-    /*! \brief Sedimentation kernel */
+    /*! \brief Calculate collision kernel for gravitational sedimentation
+     *
+     * This function computes the collision kernel for collisions driven by
+     * differential gravitational settling. It uses the terminal velocities
+     * of particles to determine collision probability.
+     *
+     * \param[in] a_r1 Radius of particle 1 (m)
+     * \param[in] a_r2 Radius of particle 2 (m)
+     * \param[in] a_v1 Pointer to velocity vector of particle 1 (m/s)
+     * \param[in] a_v2 Pointer to velocity vector of particle 2 (m/s)
+     * \return Collision kernel value (m³/s)
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    RT sedimentation (  const RT a_r1, /*!< radius of particle 1 */
-                        const RT a_r2, /*!< radius of particle 2 */
-                        const RT* const a_v1, /*!< velocity of particle 1 */
-                        const RT* const a_v2  /*!< velocity of particle 2 */) const noexcept
+    RT sedimentation (  const RT a_r1,
+                        const RT a_r2,
+                        const RT* const a_v1,
+                        const RT* const a_v2 ) const noexcept
     {
         auto p = std::min(a_r1,a_r2) / std::max(a_r1,a_r2);
         auto E = 0.5*p*p / ((1.0+p)*(1.0+p));
@@ -79,12 +90,26 @@ struct CollisionKernel
 
     /* The following code is adapted from SCALE-SDM:
      * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
-    /*! \brief Long's kernel */
+    /*! \brief Calculate collision kernel using Long's formulation
+     *
+     * Long's kernel is an empirical formulation for cloud droplet collision-coalescence
+     * that accounts for different collision rates based on droplet size. It is particularly
+     * effective for smaller cloud droplets where hydrodynamic effects are important.
+     *
+     * Reference: Long, A. B., 1974: Solutions to the droplet collection equation
+     * for polynomial kernels. J. Atmos. Sci., 31, 1040-1052.
+     *
+     * \param[in] a_r1 Radius of particle 1 (m)
+     * \param[in] a_r2 Radius of particle 2 (m)
+     * \param[in] a_v1 Pointer to velocity vector of particle 1 (m/s)
+     * \param[in] a_v2 Pointer to velocity vector of particle 2 (m/s)
+     * \return Collision kernel value (m³/s)
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    RT Longs ( const RT a_r1, /*!< radius of particle 1 */
-               const RT a_r2, /*!< radius of particle 2 */
-               const RT* const a_v1, /*!< velocity of particle 1 */
-               const RT* const a_v2  /*!< velocity of particle 2 */) const noexcept
+    RT Longs ( const RT a_r1,
+               const RT a_r2,
+               const RT* const a_v1,
+               const RT* const a_v2 ) const noexcept
     {
         auto r1 = std::max( a_r1, a_r2 );  // large
         auto r2 = std::min( a_r1, a_r2 );  // small

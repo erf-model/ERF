@@ -135,7 +135,7 @@ ERF::ERF ()
     // same seed for all MPI processes for the purpose of regression testing
     if (fix_random_seed) {
         Print() << "Fixing the random seed" << std::endl;
-        InitRandom(1024UL);
+        InitRandom(1024UL, ParallelDescriptor::NProcs(), 1024UL);
     }
 
     ERF_shared();

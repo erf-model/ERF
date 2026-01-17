@@ -6,9 +6,22 @@
 
 using namespace amrex;
 
-/*! Copy moisture model variables from the conserved state vector to the
-    member multifabs in this object, compute and save pressure and temperature */
-void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!< Conserved variables */)
+/*! \brief Copy moisture model variables from conserved state to member MultiFabs
+ *
+ * This function extracts moisture-related variables from the conserved state vector
+ * and copies them to the internal member MultiFabs. It also computes derived quantities
+ * such as pressure, temperature, and saturation ratios for all defined species.
+ *
+ * The function performs:
+ * 1. Copy of density and potential temperature from state variables
+ * 2. Copy and computation of water-related variables (vapor, total water)
+ * 3. Copy and computation of other species variables
+ * 4. Computation of pressure and temperature fields
+ * 5. Computation of saturation ratios for all species
+ *
+ * \param[in] a_cons_vars MultiFab containing the conserved state variables
+ */
+void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
 {
     BL_PROFILE("SuperDropletsMoist::Copy_State_to_Micro()");
     const auto& gvec = a_cons_vars.nGrowVect();
@@ -164,9 +177,20 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
     }
 }
 
-/*! Copy moisture model variables to the conserved state vector from the
-    member multifabs in this object */
-void SuperDropletsMoist::Copy_Micro_to_State (  MultiFab& a_cons_vars /*!< Conserved variables */)
+/*! \brief Copy moisture model variables to the conserved state vector
+ *
+ * This function copies moisture-related variables from the internal member MultiFabs
+ * to the conserved state vector. It updates:
+ * 1. Potential temperature field in conserved variables
+ * 2. Water-related fields (vapor, cloud, rain) in conserved variables
+ * 3. Other species fields in conserved variables
+ *
+ * All mixing ratios are converted to density-weighted variables (rho*q) when
+ * stored in the conserved state vector.
+ *
+ * \param[out] a_cons_vars MultiFab containing conserved state variables to be updated
+ */
+void SuperDropletsMoist::Copy_Micro_to_State (MultiFab& a_cons_vars)
 {
     BL_PROFILE("SuperDropletsMoist::Copy_Micro_to_state()");
     const auto& gvec = a_cons_vars.nGrowVect();
@@ -224,15 +248,33 @@ void SuperDropletsMoist::Copy_Micro_to_State (  MultiFab& a_cons_vars /*!< Conse
     a_cons_vars.FillBoundary(m_geom.periodicity());
 }
 
-/*! Update microphysics variables */
+/*! \brief Update microphysics variables from conserved state
+ *
+ * This function updates the microphysics variables by copying data
+ * from the conserved state variables. It's a convenience wrapper
+ * around Copy_State_to_Micro.
+ *
+ * \param[in] a_cons_vars MultiFab containing conserved state variables
+ */
 void SuperDropletsMoist::Update_Micro_Vars (MultiFab& a_cons_vars)
 {
     BL_PROFILE("SuperDropletsMoist::Update_Micro_Vars()");
     Copy_State_to_Micro(a_cons_vars);
 }
 
-/*! Compute qc, qt, and rain accumulation,and update state variables
- *  from microphysics variables */
+/*! \brief Compute derived quantities and update state variables
+ *
+ * This function computes various derived quantities such as cloud water,
+ * total water, and accumulation values, then updates the conserved state
+ * variables if not in kinematic mode. It performs:
+ * 1. Computation of cloud/rain water and total water for water
+ * 2. Calculation of rain accumulation at the ground surface
+ * 3. Computation of condensate and total for other species
+ * 4. Calculation of species and aerosol accumulation at the ground
+ * 5. Update of conserved state variables with computed values (if not in kinematic mode)
+ *
+ * \param[in,out] a_cons_vars MultiFab containing conserved state variables to be updated
+ */
 void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars)
 {
     BL_PROFILE("SuperDropletsMoist::Update_State_Vars()");
@@ -249,9 +291,17 @@ void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars)
     if (!m_kinematic_mode) { Copy_Micro_to_State(a_cons_vars); }
 }
 
-/*! Convert a multifab containing density of something to its mixing ratio */
-void SuperDropletsMoist::densityToRatio (  MultiFab& a_var, /*!< Multifab */
-                                           const int a_comp /*!< Component */ )
+/*! \brief Convert a density field to a mixing ratio field
+ *
+ * This function converts a field containing density values (kg/m^3)
+ * to mixing ratio values (kg/kg) by dividing by the air density.
+ * The operation is performed in-place on the provided MultiFab.
+ *
+ * \param[in,out] a_var MultiFab containing the field to convert
+ * \param[in] a_comp Component index within the MultiFab to convert
+ */
+void SuperDropletsMoist::densityToRatio (MultiFab& a_var,
+                                         const int a_comp)
 {
     BL_PROFILE("SuperDropletsMoist::densityToRatio()");
     const auto& gvec = a_var.nGrowVect();
@@ -271,9 +321,17 @@ void SuperDropletsMoist::densityToRatio (  MultiFab& a_var, /*!< Multifab */
     a_var.FillBoundary(m_geom.periodicity());
 }
 
-/*! Convert a multifab containing the mixing ratio of something to its density */
-void SuperDropletsMoist::ratioToDensity (  MultiFab& a_var, /*!< Multifab */
-                                           const int a_comp /*!< Component */ )
+/*! \brief Convert a mixing ratio field to a density field
+ *
+ * This function converts a field containing mixing ratio values (kg/kg)
+ * to density values (kg/m^3) by multiplying by the air density.
+ * The operation is performed in-place on the provided MultiFab.
+ *
+ * \param[in,out] a_var MultiFab containing the field to convert
+ * \param[in] a_comp Component index within the MultiFab to convert
+ */
+void SuperDropletsMoist::ratioToDensity (MultiFab& a_var,
+                                         const int a_comp)
 {
     BL_PROFILE("SuperDropletsMoist::ratioToDensity()");
     const auto& gvec = a_var.nGrowVect();
@@ -293,7 +351,18 @@ void SuperDropletsMoist::ratioToDensity (  MultiFab& a_var, /*!< Multifab */
     a_var.FillBoundary(m_geom.periodicity());
 }
 
-/*! compute cloud/rain mixing ratio for water */
+/*! \brief Compute cloud and rain water mixing ratios from superdroplets
+ *
+ * This function computes cloud and rain water mixing ratios based on the current
+ * superdroplet population. It:
+ * 1. Calculates cloud water density (droplets smaller than rain threshold)
+ * 2. Calculates rain water density (droplets larger than rain threshold)
+ * 3. Handles special dimensionality case for 1D simulations
+ * 4. Converts density values to mixing ratios
+ *
+ * The distinction between cloud and rain water is based on the configured rain threshold
+ * radius (m_r_rain).
+ */
 void SuperDropletsMoist::computeQcQrWater ()
 {
     BL_PROFILE("SuperDropletsMoist::computeQcQrWater()");
