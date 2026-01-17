@@ -38,7 +38,7 @@ jobs:
       run: ${ERF_DIR}/Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
 
     - name: Free up disk space
-      uses: ./.github/actions/free-space-ubuntu
+      uses: ./erf_clone/.github/actions/free-space-ubuntu
 
     - name: Set Up Cache
       uses: actions/cache@v4
