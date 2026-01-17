@@ -9,10 +9,9 @@ using namespace amrex;
 using namespace SDPCDefn;
 
 namespace {
-    /*! \brief Traits for the boundary treatment process */
-    struct BoundaryTraits : SDProcess::DefaultTraits {
-        static constexpr bool needs_velocity     = true;
-        static constexpr bool needs_term_vel     = true;
+    /*! \brief Traits for the boundary treatment process
+     *  Extends VelocityTraits with multiplicity and ice properties for boundary handling */
+    struct BoundaryTraits : SDProcess::VelocityTraits {
         static constexpr bool needs_multiplicity = true;
         static constexpr bool needs_ice_axes     = true;
         static constexpr bool needs_ice_rime     = true;

@@ -12,21 +12,21 @@ using namespace amrex;
 using namespace SDPCDefn;
 
 namespace {
-    /*! \brief Traits for liquid-vapour mass change process */
+    /*! \brief Traits for liquid-vapour mass change process
+     *  Requires ionization and molecular weight for Köhler equation */
     struct MassChangeLVTraits : SDProcess::DefaultTraits {
         static constexpr bool needs_ionization = true;
         static constexpr bool needs_mol_weight = true;
     };
 
-    /*! \brief Traits for solid-liquid mass change (freezing/melting) */
-    struct MassChangeSLTraits : SDProcess::DefaultTraits {
+    /*! \brief Traits for solid-liquid mass change (freezing/melting)
+     *  Extends IceFullTraits with multiplicity for particle splitting */
+    struct MassChangeSLTraits : SDProcess::IceFullTraits {
         static constexpr bool needs_multiplicity = true;
-        static constexpr bool needs_ice_Tfz      = true;
-        static constexpr bool needs_ice_axes     = true;
-        static constexpr bool needs_ice_rime     = true;
     };
 
-    /*! \brief Traits for solid-vapour mass change (deposition/sublimation) */
+    /*! \brief Traits for solid-vapour mass change (deposition/sublimation)
+     *  Requires ice axes/rime (not Tfz) plus terminal velocity and multiplicity */
     struct MassChangeSVTraits : SDProcess::DefaultTraits {
         static constexpr bool needs_term_vel     = true;
         static constexpr bool needs_multiplicity = true;

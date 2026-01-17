@@ -13,14 +13,12 @@ using namespace SDMassChangeUtils_SV;
 using namespace SDPCDefn;
 
 namespace {
-    /*! \brief Traits for the coalescence process */
-    struct CoalescenceTraits : SDProcess::DefaultTraits {
+    /*! \brief Traits for the coalescence process
+     *  Extends IceFullTraits with velocity and multiplicity for collision handling */
+    struct CoalescenceTraits : SDProcess::IceFullTraits {
         static constexpr bool needs_velocity     = true;
         static constexpr bool needs_term_vel     = true;
         static constexpr bool needs_multiplicity = true;
-        static constexpr bool needs_ice_Tfz      = true;
-        static constexpr bool needs_ice_axes     = true;
-        static constexpr bool needs_ice_rime     = true;
     };
 
     //===========================================================================
@@ -258,7 +256,25 @@ static void aggr_update_attribs(const int a_i, /*!< index of particle */
     }
 }
 
-/*! \brief Rasmussen and Heymsfield (1985) for impact velocity */
+/*! \brief Impact velocity ratio from Rasmussen and Heymsfield (1985)
+ *
+ *  Computes the ratio of impact velocity to relative velocity for ice-droplet
+ *  collisions as a function of Reynolds and Stokes numbers.
+ *
+ *  Reference: Rasmussen, R. M., and A. J. Heymsfield, 1985: A generalized
+ *  form for impact velocities used to determine graupel accretional densities.
+ *  J. Atmos. Sci., 42, 2275-2279.
+ *  https://doi.org/10.1175/1520-0469(1985)042<2275:AGFFIV>2.0.CO;2
+ *
+ *  Polynomial fit: v_impact/v_rel = A0 + A1*w + A2*w^2 + A3*w^3 + A4*w^4
+ *  where w = log10(St)
+ *
+ *  Coefficients from Table 1 for different Re ranges:
+ *  - Re < 20:    (0.1701, 0.7246, 0.2257, -1.13, 0.5756), asymptote 0.57
+ *  - 20 ≤ Re < 65:  (0.2927, 0.5085, -0.03453, -0.2184, 0.03595), asymptote 0.59
+ *  - 65 ≤ Re < 200: (0.3272, 0.4907, -0.09452, -0.1906, 0.07105), asymptote 0.61
+ *  - Re ≥ 200:   (0.356, 0.4738, -0.1233, -0.1618, 0.08087), asymptote 0.63
+ */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 static auto impactVelocity_RasmussenHeymsfield1985( const ParticleReal a_Re, /*!< Reynolds number */
                                                     const ParticleReal a_St  /*!< Stokes number */ )
@@ -320,20 +336,35 @@ static auto iceSurfaceTemperature( const ParticleReal a_T, /*!< temperature */
     return a_T + dT;
 }
 
-/*! \brief Heymsfield and Pflaum (1985) formula for rime density */
+/*! \brief Rime density parameterization from Heymsfield and Pflaum (1985)
+ *
+ *  Computes the density of rime accreted onto ice particles based on the
+ *  dimensionless impact parameter Y = -r[μm] * v_impact / T_surf[°C].
+ *
+ *  Reference: Heymsfield, A. J., and J. C. Pflaum, 1985: A quantitative
+ *  assessment of the accuracy of techniques for calculating graupel growth.
+ *  J. Atmos. Sci., 42, 2264-2274.
+ *  https://doi.org/10.1175/1520-0469(1985)042<2264:AQAOTA>2.0.CO;2
+ *
+ *  Two regimes based on surface temperature and Y parameter:
+ *  - Low-density (T_surf ≤ -5°C or Y < 1.6): ρ = (0.30*Y)^0.44  [Eq. 8]
+ *  - High-density (otherwise): ρ = exp(-0.03115 - 1.703*Y + 0.9116*Y² - 0.1224*Y³) [Eq. 9]
+ *
+ *  Output bounded to 0.1 ≤ ρ_rime ≤ 0.91 g/cm³ (100-910 kg/m³)
+ */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static auto rimeDensity_HeymsfieldPflaum1985( const ParticleReal a_radius,      /*!< droplet radius */
-                                              const ParticleReal a_a,           /*!< ice particle equatorial radius */
-                                              const ParticleReal a_c,           /*!< ice particle polar radius */
-                                              const ParticleReal a_vz_w,        /*!< vertical velocity of water droplet */
-                                              const ParticleReal a_vz_i,        /*!< vertical velocity of ice particle */
-                                              const ParticleReal a_rho_w,       /*!< water density */
-                                              const ParticleReal a_D, /*!< diffusivity coeff */
+static auto rimeDensity_HeymsfieldPflaum1985( const ParticleReal a_radius,      /*!< droplet radius [m] */
+                                              const ParticleReal a_a,           /*!< ice particle equatorial radius [m] */
+                                              const ParticleReal a_c,           /*!< ice particle polar radius [m] */
+                                              const ParticleReal a_vz_w,        /*!< vertical velocity of water droplet [m/s] */
+                                              const ParticleReal a_vz_i,        /*!< vertical velocity of ice particle [m/s] */
+                                              const ParticleReal a_rho_w,       /*!< water density [kg/m³] */
+                                              const ParticleReal a_D,           /*!< diffusivity coefficient [m²/s] */
                                               const dMdt<ParticleReal>& a_dmdt, /*!< mass change utilities */
-                                              const ParticleReal a_T,           /*!< temperature */
-                                              const ParticleReal a_rhom,        /*!< moist density */
-                                              const ParticleReal a_P,           /*!< pressure */
-                                              const ParticleReal a_qv           /*!< vapour fraction */)
+                                              const ParticleReal a_T,           /*!< temperature [K] */
+                                              const ParticleReal a_rhom,        /*!< moist air density [kg/m³] */
+                                              const ParticleReal a_P,           /*!< pressure [Pa] */
+                                              const ParticleReal a_qv           /*!< water vapor mixing ratio [kg/kg] */)
 {
     auto r_um = a_radius * 1.0e6;
     auto mu = viscCoeff(a_T);

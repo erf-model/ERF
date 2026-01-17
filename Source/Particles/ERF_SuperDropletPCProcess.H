@@ -54,6 +54,42 @@ struct DefaultTraits {
 };
 
 //===========================================================================
+// Intermediate Traits - Common combinations for ice processes
+//===========================================================================
+
+/*! \brief Traits for processes needing ice freezing temperature only
+ *  Used by: MassChangeLVTraits
+ */
+struct IceTfzTraits : DefaultTraits {
+    static constexpr bool needs_ice_Tfz = true;
+};
+
+/*! \brief Traits for processes needing ice axes (a, c) and Tfz
+ *  Used by: MassChangeSLTraits, AdvectionTraits (for IceBohm terminal velocity)
+ */
+struct IceAxesTraits : DefaultTraits {
+    static constexpr bool needs_ice_Tfz  = true;
+    static constexpr bool needs_ice_axes = true;
+};
+
+/*! \brief Traits for processes needing full ice properties (axes, rime, Tfz)
+ *  Used by: MassChangeSVTraits, CoalescenceTraits
+ */
+struct IceFullTraits : DefaultTraits {
+    static constexpr bool needs_ice_Tfz  = true;
+    static constexpr bool needs_ice_axes = true;
+    static constexpr bool needs_ice_rime = true;
+};
+
+/*! \brief Traits for processes needing velocity and terminal velocity
+ *  Used by: AdvectionTraits, CoalescenceTraits
+ */
+struct VelocityTraits : DefaultTraits {
+    static constexpr bool needs_velocity = true;
+    static constexpr bool needs_term_vel = true;
+};
+
+//===========================================================================
 // PART 2: Unified Pointer Bundle
 //===========================================================================
 

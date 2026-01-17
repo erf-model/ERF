@@ -283,7 +283,19 @@ struct CollisionKernel
 
     /* The following code is adapted from SCALE-SDM:
      * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
-    /*! \brief Brownian kernel */
+    /*! \brief Brownian coagulation kernel from Seinfeld and Pandis
+     *
+     *  Computes the Brownian coagulation coefficient K12 [m³/s] for two particles
+     *  using the interpolation formula that accounts for both continuum and
+     *  free-molecular regimes.
+     *
+     *  Reference: Seinfeld, J. H., and S. N. Pandis, 2016: Atmospheric Chemistry
+     *  and Physics: From Air Pollution to Climate Change, 3rd ed. Wiley, 1152 pp.
+     *  Chapter 13, Eq. 13.56 (Fuchs interpolation formula)
+     *
+     *  Dynamic viscosity from Pruppacher & Klett (1997), Eq. 3-11.
+     *  Slip correction coefficients: 1.257, 0.40, 0.55 (Table 13.1)
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT Brownian_SeinfeldPandis ( const RT a_r1, /*!< radius of particle 1 */
                                  const RT a_r2, /*!< radius of particle 2 */
@@ -357,10 +369,24 @@ struct CollisionKernel
 
     /* The following code is adapted from SCALE-SDM:
      * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
-    /*! \brief Beard & Grover, 1974 */
+    /*! \brief Collision efficiency for riming from Beard and Grover (1974)
+     *
+     *  Computes the collision efficiency between ice particles and cloud droplets
+     *  based on Reynolds number, Froude number, and size ratio.
+     *
+     *  Reference: Beard, K. V., and S. N. Grover, 1974: Numerical collision
+     *  efficiencies for small raindrops colliding with micron size particles.
+     *  J. Atmos. Sci., 31, 543-550.
+     *  https://doi.org/10.1175/1520-0469(1974)031<0543:NCEFSR>2.0.CO;2
+     *
+     *  Coefficients:
+     *  - K0 fit: A0=-0.1007, A1=-0.358, A2=0.0261 (Re ≤ 400), K0=0.21 (Re > 400)
+     *  - yc0 fit: B0=0.1465, B1=1.302, B2=-0.607, B3=0.293
+     *  - E = ((yc0+p)/(1+p))² where p = size ratio
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    RT BeardGrover1974 ( const RT a_sr, /*!< Size ratio */
-                         const RT a_Re, /*!< Reynolds number */
+    RT BeardGrover1974 ( const RT a_sr, /*!< Size ratio (r_droplet/r_ice) */
+                         const RT a_Re, /*!< Reynolds number of ice particle */
                          const RT a_Fr  /*!< Froude number */ ) const noexcept
     {
         // riming efficiency of Beard and Grover (1974)
@@ -391,9 +417,20 @@ struct CollisionKernel
 
     /* The following code is adapted from SCALE-SDM:
      * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
-    /*! \brief Erfani & Mitchell, 2017 (Plate) */
+    /*! \brief Collision efficiency for plate-like ice crystals from Erfani and Mitchell (2017)
+     *
+     *  Computes the collision efficiency between plate-like ice crystals and
+     *  cloud droplets based on Reynolds and Froude numbers.
+     *
+     *  Reference: Erfani, E., and D. L. Mitchell, 2017: Growth of ice particle
+     *  mass and projected area during riming. Atmos. Chem. Phys., 17, 1241-1257.
+     *  https://doi.org/10.5194/acp-17-1241-2017
+     *
+     *  Valid for Re ≥ 1, with polynomial fits for K_t (transition Froude number)
+     *  and K_c (critical Froude number). Three regimes based on Fr vs K_t.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    RT ErfaniMitchell2017_Plate ( const RT a_Re, /*!< Reynolds number */
+    RT ErfaniMitchell2017_Plate ( const RT a_Re, /*!< Reynolds number of ice crystal */
                                   const RT a_Fr  /*!< Froude number */ ) const noexcept
     {
         if (a_Re <1.0) {
@@ -432,9 +469,20 @@ struct CollisionKernel
 
     /* The following code is adapted from SCALE-SDM:
      * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
-    /*! \brief Erfani & Mitchell, 2017 (Column) */
+    /*! \brief Collision efficiency for columnar ice crystals from Erfani and Mitchell (2017)
+     *
+     *  Computes the collision efficiency between columnar ice crystals and
+     *  cloud droplets based on Reynolds and Froude numbers.
+     *
+     *  Reference: Erfani, E., and D. L. Mitchell, 2017: Growth of ice particle
+     *  mass and projected area during riming. Atmos. Chem. Phys., 17, 1241-1257.
+     *  https://doi.org/10.5194/acp-17-1241-2017
+     *
+     *  Valid for Re ≥ 0.2. Uses different polynomial fits than the plate version
+     *  for K_t (transition Froude) and K_c (critical Froude). Two regimes based on Fr vs K_t.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    RT ErfaniMitchell2017_Column ( const RT a_Re, /*!< Reynolds number */
+    RT ErfaniMitchell2017_Column ( const RT a_Re, /*!< Reynolds number of ice crystal */
                                    const RT a_Fr  /*!< Froude number */ ) const noexcept
     {
         if (a_Re < 0.2) {

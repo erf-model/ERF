@@ -9,10 +9,9 @@ using namespace amrex;
 using namespace SDPCDefn;
 
 namespace {
-    /*! \brief Traits for particle recycling process */
-    struct RecycleTraits : SDProcess::DefaultTraits {
-        static constexpr bool needs_velocity     = true;
-        static constexpr bool needs_term_vel     = true;
+    /*! \brief Traits for particle recycling process
+     *  Extends VelocityTraits with multiplicity and ice properties for resetting */
+    struct RecycleTraits : SDProcess::VelocityTraits {
         static constexpr bool needs_multiplicity = true;
         static constexpr bool needs_ice_axes     = true;
         static constexpr bool needs_ice_rime     = true;

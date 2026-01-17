@@ -11,11 +11,10 @@ using namespace amrex;
 using namespace SDPCDefn;
 
 namespace {
-    /*! \brief Traits for particle advection process */
-    struct AdvectionTraits : SDProcess::DefaultTraits {
-        static constexpr bool needs_velocity  = true;
-        static constexpr bool needs_term_vel  = true;
-        static constexpr bool needs_ice_axes  = true;  // for IceBohm terminal velocity
+    /*! \brief Traits for particle advection process
+     *  Extends VelocityTraits with ice axes for IceBohm terminal velocity */
+    struct AdvectionTraits : SDProcess::VelocityTraits {
+        static constexpr bool needs_ice_axes = true;  // for IceBohm terminal velocity
     };
 
     /*! \brief Field indices for advection interpolation */
