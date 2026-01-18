@@ -402,7 +402,6 @@ void ERF::poisson_wall_dist (int lev)
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     phi_arr(i,j,k-1) = -phi_arr(i,j,k); // ODD BC
-                    if (i<=0 && j<=0) AllPrint() << "phi"<<IntVect(i,j,k) << " = " << phi_arr(i,j,k) << std::endl;
                 });
             } // lo z
             if (bx.bigEnd(2) >= dom_hi.z) {
