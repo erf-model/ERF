@@ -57,8 +57,6 @@ void ERF::poisson_wall_dist (int lev)
 
         if (solverChoice.mesh_type == MeshType::StretchedDz) {
             Print() << "Directly calculating direct wall distance for stretched dz" << std::endl;
-            const Real* prob_lo = geomdata.ProbLo();
-            const Real* dx = geomdata.CellSize();
             for (MFIter mfi(*walldist[lev],TileNoZ()); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
                 auto dist_arr = walldist[lev]->array(mfi);
