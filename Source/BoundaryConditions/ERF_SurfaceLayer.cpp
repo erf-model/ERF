@@ -294,13 +294,14 @@ SurfaceLayer::compute_fluxes (const int& lev,
         auto lsm_qstar_arr = Array4<Real> {};
         auto lsm_ustar_arr = Array4<Real> {};
         auto lsm_olen_arr  = Array4<Real> {};
-        for (int n(0); n<m_lsm_data_lev[lev].size(); ++n) {
-            if (toLower(m_lsm_data_name[n]) == "tstar") { lsm_tstar_arr = m_lsm_data_lev[lev][n]->array(mfi); }
-            if (toLower(m_lsm_data_name[n]) == "qstar") { lsm_qstar_arr = m_lsm_data_lev[lev][n]->array(mfi); }
-            if (toLower(m_lsm_data_name[n]) == "ustar") { lsm_ustar_arr = m_lsm_data_lev[lev][n]->array(mfi); }
-        }
-        for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
-            if (toLower(m_lsm_flux_name[n]) == "olen")   { lsm_olen_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
+        if (use_surface_model) {
+            lsm_tstar_arr = m_surf_model->get_field("tstar", lev)->array(mfi);
+            lsm_qstar_arr = m_surf_model->get_field("qstar", lev)->array(mfi);
+            lsm_ustar_arr = m_surf_model->get_field("ustar", lev)->array(mfi);
+
+            for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
+                if (toLower(m_lsm_flux_name[n]) == "olen")   { lsm_olen_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
+            }
         }
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
