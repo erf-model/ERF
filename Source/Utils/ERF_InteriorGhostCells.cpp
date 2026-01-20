@@ -177,6 +177,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     const Real& stop_time_elapsed,
                                     int  width,
                                     int  set_width,
+                                    bool do_upwind,
                                     const Geometry& geom,
                                     Vector<MultiFab>& S_rhs,
                                     Vector<MultiFab>& S_old_data,
@@ -475,12 +476,16 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                     continue;
                 }
 
+                Array4<Real> mask_xlo = U_xlo.array(); Array4<Real> mask_xhi = U_xhi.array();
+                Array4<Real> mask_ylo = V_ylo.array(); Array4<Real> mask_yhi = V_yhi.array();
+
                 realbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
                                                width, set_width_x, set_width_y,
                                                dom_lo, dom_hi,
-                                               tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                               arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                               data_arr, rhs_arr);
+                                               tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
+                                               arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
+                                               mask_xlo, mask_xhi, mask_ylo, mask_yhi,
+                                               data_arr, rhs_arr, do_upwind);
 
             } // mfi
         } // ivar
@@ -536,11 +541,15 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                     continue;
                 }
 
+                Array4<Real> mask_xlo = U_xlo.array(); Array4<Real> mask_xhi = U_xhi.array();
+                Array4<Real> mask_ylo = V_ylo.array(); Array4<Real> mask_yhi = V_yhi.array();
+
                 realbdy_compute_relaxation(icomp, 1,
                                            width, dx, ProbLo, ProbHi, F1,
-                                           tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                           arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                           data_arr, rhs_arr);
+                                           tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
+                                           arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
+                                           mask_xlo, mask_xhi, mask_ylo, mask_yhi,
+                                           data_arr, rhs_arr, do_upwind);
 
                 /*
                 // UNIT TEST DEBUG

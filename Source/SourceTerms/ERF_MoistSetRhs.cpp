@@ -22,6 +22,7 @@ moist_set_rhs (const Geometry& geom,
                const Real & stop_time_elapsed,
                int  width,
                int  set_width,
+               bool do_upwind,
                const Box& domain,
                Vector<Vector<FArrayBox>>& bdy_data_xlo,
                Vector<Vector<FArrayBox>>& bdy_data_xhi,
@@ -84,6 +85,10 @@ moist_set_rhs (const Geometry& geom,
     QV_xlo.resize(bx_xlo,1,The_Async_Arena()); QV_xhi.resize(bx_xhi,1,The_Async_Arena());
     QV_ylo.resize(bx_ylo,1,The_Async_Arena()); QV_yhi.resize(bx_yhi,1,The_Async_Arena());
 
+    // Masks for upwinding
+    FArrayBox M_xlo, M_xhi, M_ylo, M_yhi;
+    M_xlo.resize(bx_xlo,1,The_Async_Arena()); M_xhi.resize(bx_xhi,1,The_Async_Arena());
+    M_ylo.resize(bx_ylo,1,The_Async_Arena()); M_yhi.resize(bx_yhi,1,The_Async_Arena());
 
     // NOTE: These operations use the BDY FABS and RHO. The
     //       use of RHO to go from PRIM -> CONS requires that
@@ -102,9 +107,21 @@ moist_set_rhs (const Geometry& geom,
     const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][WRFBdyVars::QV].const_array();
     const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][WRFBdyVars::QV].const_array();
 
+    const auto& bdatxlo_n_m   = bdy_data_xlo[n_time   ][WRFBdyVars::U].const_array();
+    const auto& bdatxlo_np1_m = bdy_data_xlo[n_time_p1][WRFBdyVars::U].const_array();
+    const auto& bdatxhi_n_m   = bdy_data_xhi[n_time   ][WRFBdyVars::U].const_array();
+    const auto& bdatxhi_np1_m = bdy_data_xhi[n_time_p1][WRFBdyVars::U].const_array();
+    const auto& bdatylo_n_m   = bdy_data_ylo[n_time   ][WRFBdyVars::V].const_array();
+    const auto& bdatylo_np1_m = bdy_data_ylo[n_time_p1][WRFBdyVars::V].const_array();
+    const auto& bdatyhi_n_m   = bdy_data_yhi[n_time   ][WRFBdyVars::V].const_array();
+    const auto& bdatyhi_np1_m = bdy_data_yhi[n_time_p1][WRFBdyVars::V].const_array();
+
     // Get Array4 of interpolated values
     Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();
     Array4<Real> arr_ylo = QV_ylo.array();  Array4<Real> arr_yhi = QV_yhi.array();
+
+    Array4<Real> mask_xlo = M_xlo.array();  Array4<Real> mask_xhi = M_xhi.array();
+    Array4<Real> mask_ylo = M_ylo.array();  Array4<Real> mask_yhi = M_yhi.array();
 
     // We need lateral ghost cells for the Laplacian
     // NOTE: We don't write into the ghost cells
@@ -133,6 +150,7 @@ moist_set_rhs (const Geometry& geom,
             jj = std::min(jj, dom_hi.y);
         arr_xlo(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxlo_n  (ii,jj,k)
                                                     + alpha * bdatxlo_np1(ii,jj,k) );
+        mask_xlo(i,j,k) = ( oma * bdatxlo_n_m(ii,jj,k) + alpha * bdatxlo_np1_m(ii,jj,k) );
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -142,6 +160,7 @@ moist_set_rhs (const Geometry& geom,
             jj = std::min(jj, dom_hi.y);
         arr_xhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
                                                     + alpha * bdatxhi_np1(ii,jj,k) );
+        mask_xhi(i,j,k) = ( oma * bdatxhi_n_m(ii,jj,k) + alpha * bdatxhi_np1_m(ii,jj,k) );
     });
 
     ParallelFor(tbx_ylo, tbx_yhi,
@@ -153,6 +172,7 @@ moist_set_rhs (const Geometry& geom,
             jj = std::min(jj, dom_lo.y+offset);
         arr_ylo(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatylo_n  (ii,jj,k)
                                                     + alpha * bdatylo_np1(ii,jj,k) );
+        mask_ylo(i,j,k) = ( oma * bdatylo_n_m(ii,jj,k) + alpha * bdatylo_np1_m(ii,jj,k) );
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -162,6 +182,7 @@ moist_set_rhs (const Geometry& geom,
             jj = std::min(jj, dom_hi.y);
         arr_yhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
                                                     + alpha * bdatyhi_np1(ii,jj,k) );
+        mask_yhi(i,j,k) = ( oma * bdatyhi_n_m(ii,jj,k) + alpha * bdatyhi_np1_m(ii,jj,k) );
     });
 
 
@@ -177,9 +198,10 @@ moist_set_rhs (const Geometry& geom,
         realbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
                                        width, set_width-1, set_width-1,
                                        dom_lo, dom_hi,
-                                       tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                       arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                       old_cons, cell_rhs);
+                                       tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
+                                       arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
+                                       mask_xlo, mask_xhi, mask_ylo, mask_yhi,
+                                       old_cons, cell_rhs, do_upwind);
     }
 
 
@@ -196,9 +218,10 @@ moist_set_rhs (const Geometry& geom,
                                 set_width, ng_vect);
         realbdy_compute_relaxation(RhoQ1_comp, 1,
                                    width, dx, ProbLo, ProbHi, F1,
-                                   tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                   arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                   new_cons, cell_rhs);
+                                   tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
+                                   arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
+                                   mask_xlo, mask_xhi, mask_ylo, mask_yhi,
+                                   new_cons, cell_rhs, do_upwind);
     }
 
     /*

@@ -128,6 +128,7 @@ void realbdy_compute_interior_ghost_rhs (const amrex::Real& bdy_time_interval,
                                          const amrex::Real& stop_time_elapsed,
                                          int width,
                                          int set_width,
+                                         bool do_upwind,
                                          const amrex::Geometry& geom,
                                          amrex::Vector<amrex::MultiFab>& S_rhs,
                                          amrex::Vector<amrex::MultiFab>& S_old_data,
@@ -195,8 +196,13 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
                                 const amrex::Array4<const amrex::Real>& arr_xhi,
                                 const amrex::Array4<const amrex::Real>& arr_ylo,
                                 const amrex::Array4<const amrex::Real>& arr_yhi,
+                                const amrex::Array4<const amrex::Real>& mask_xlo,
+                                const amrex::Array4<const amrex::Real>& mask_xhi,
+                                const amrex::Array4<const amrex::Real>& mask_ylo,
+                                const amrex::Array4<const amrex::Real>& mask_yhi,
                                 const amrex::Array4<const amrex::Real>& data_arr,
-                                const amrex::Array4<amrex::Real>& rhs_arr)
+                                const amrex::Array4<amrex::Real>& rhs_arr,
+                                const bool& do_upwind)
 {
     int Spec_z_x = set_width_x;
     int Spec_z_y = set_width_y;
@@ -209,7 +215,8 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
         int n_ind_y = jj + 1;
         int n_ind_x = i - dom_lo.x + 1;
         if ((n_ind_x <= Spec_z_x) || (n_ind_y <= Spec_z_y)) {
-            amrex::Real tend = ( arr_xlo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
+            amrex::Real tend = (mask_xlo(i,j,k) > 0. && do_upwind) ?
+                ( arr_xlo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt : 0.;
             rhs_arr(i,j,k,n+icomp) = tend;
         }
     },
@@ -222,7 +229,8 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
         int n_ind_y = jj + 1;
         int n_ind_x = dom_hi.x - i + 1;
         if ((n_ind_x <= Spec_z_x) || (n_ind_y <= Spec_z_y)) {
-            amrex::Real tend = ( arr_xhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
+            amrex::Real tend = (mask_xhi(i,j,k) < 0. && do_upwind) ?
+                ( arr_xhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt : 0.;
             rhs_arr(i,j,k,n+icomp) = tend;
         }
     });
@@ -232,7 +240,8 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
         // No corners for y boxes
         int n_ind = j - dom_lo.y + 1;
         if (n_ind <= Spec_z_y) {
-            amrex::Real tend = ( arr_ylo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
+            amrex::Real tend = (mask_ylo(i,j,k) > 0. && do_upwind) ?
+                ( arr_ylo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt : 0.;
             rhs_arr(i,j,k,n+icomp) = tend;
         }
     },
@@ -241,7 +250,8 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
         // No corners for y boxes
         int n_ind = dom_hi.y - j + 1;
         if (n_ind <= Spec_z_y) {
-            amrex::Real tend = ( arr_yhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
+            amrex::Real tend = (mask_yhi(i,j,k) < 0. && do_upwind) ?
+                ( arr_yhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt : 0.;
             rhs_arr(i,j,k,n+icomp) = tend;
         }
     });
@@ -288,8 +298,13 @@ realbdy_compute_relaxation (const int& icomp,
                             const amrex::Array4<const amrex::Real>& arr_xhi,
                             const amrex::Array4<const amrex::Real>& arr_ylo,
                             const amrex::Array4<const amrex::Real>& arr_yhi,
+                            const amrex::Array4<const amrex::Real>& mask_xlo,
+                            const amrex::Array4<const amrex::Real>& mask_xhi,
+                            const amrex::Array4<const amrex::Real>& mask_ylo,
+                            const amrex::Array4<const amrex::Real>& mask_yhi,
                             const amrex::Array4<const amrex::Real>& data_arr,
-                            const amrex::Array4<amrex::Real>& rhs_arr)
+                            const amrex::Array4<amrex::Real>& rhs_arr,
+                            const bool& do_upwind)
 {
     // RHS computation
     amrex::IntVect iv = bx_xlo.type();
@@ -311,7 +326,7 @@ realbdy_compute_relaxation (const int& icomp,
 
         amrex::Real delta = arr_xlo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real Temp  = Factor*F1*delta;
-        rhs_arr(i,j,k,n+icomp) += Temp;
+        rhs_arr(i,j,k,n+icomp) += (mask_xlo(i,j,k) > 0. && do_upwind) ? Temp : 0.;
     },
     bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -329,7 +344,7 @@ realbdy_compute_relaxation (const int& icomp,
 
         amrex::Real delta = arr_xhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real Temp  = Factor*F1*delta;
-        rhs_arr(i,j,k,n+icomp) += Temp;
+        rhs_arr(i,j,k,n+icomp) += (mask_xhi(i,j,k) < 0. && do_upwind) ? Temp : 0.;
     });
 
     amrex::ParallelFor(bx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -342,7 +357,7 @@ realbdy_compute_relaxation (const int& icomp,
 
         amrex::Real delta = arr_ylo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real Temp  = Factor*F1*delta;
-        rhs_arr(i,j,k,n+icomp) += Temp;
+        rhs_arr(i,j,k,n+icomp) += (mask_ylo(i,j,k) > 0. && do_upwind) ? Temp : 0.;
     },
     bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -354,7 +369,7 @@ realbdy_compute_relaxation (const int& icomp,
 
         amrex::Real delta = arr_yhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real Temp  = Factor*F1*delta;
-        rhs_arr(i,j,k,n+icomp) += Temp;
+        rhs_arr(i,j,k,n+icomp) += (mask_yhi(i,j,k) < 0. && do_upwind) ? Temp : 0.;
     });
 }
 
