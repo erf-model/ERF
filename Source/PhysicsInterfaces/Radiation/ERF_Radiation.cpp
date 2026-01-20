@@ -1068,8 +1068,8 @@ Radiation::run_impl ()
                                      181.0, 212.0, 243.0, 273.0, 304.0, 334.0};
     bool leap = (m_orbital_year % 4 == 0 && (!(m_orbital_year % 100 == 0) || (m_orbital_year % 400 == 0))) ? true : false;
     double calday = dpy[m_orbital_mon-1] + (m_orbital_day-1.0) + m_orbital_sec/86400.0;
-    // add extra day if leap year
-    if (leap) { calday += 1.0; }
+    // add extra day if leap year and past February
+    if (leap && m_orbital_mon>2) { calday += 1.0; }
     orbital_decl(calday, eccen, mvelpp, lambm0, obliqr, delta, eccf);
 
     // Overwrite eccf if using a fixed solar constant.
@@ -1144,7 +1144,7 @@ Radiation::run_impl ()
             double lon_col = h_lon(icol)*PI/180.0;
             double lcalday = calday;
             double ldelta  = delta;
-            h_mu0(icol)    = Real(orbital_cos_zenith(lcalday, lat_col, lon_col, ldelta, rad_freq_in_steps * dt));
+            h_mu0(icol)    = Real(orbital_cos_zenith(lcalday, lat_col, lon_col, ldelta));
         });
     }
     Kokkos::deep_copy(mu0, h_mu0);
