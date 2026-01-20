@@ -7,6 +7,7 @@
 #include <AMReX_RealVect.H>
 #include <AMReX_Algorithm.H>
 #include <AMReX_EBCellFlag.H>
+#include <AMReX_GpuPrint.H>
 
 #include "ERF_EBPolygon.H"
 
@@ -434,9 +435,9 @@ calc_edge_intersections ()
   const bool print_F7 = print_initial && false;
 // #endif
 
-  m_F1.add_vertex(v0); if(print_F1) printf("Initial: add v0 -> F1\n");
-  m_F4.add_vertex(v0); if(print_F4) printf("Initial: add v0 -> F4\n");
-  m_F5.add_vertex(v0); if(print_F5) printf("Initial: add v0 -> F5\n");
+  m_F1.add_vertex(v0); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Initial: add v0 -> F1");
+  m_F4.add_vertex(v0); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Initial: add v0 -> F4");
+  m_F5.add_vertex(v0); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Initial: add v0 -> F5");
 
   int add_v7(1);
 
@@ -489,95 +490,95 @@ calc_edge_intersections ()
 
     if (p1[0].intersected) {
       if (p1[0].intersected_start) {
-        m_F1.add_vertex(v0); if(print_F1) printf("Path 1: v0--v1: add v0 -> F1\n");
-        m_F4.add_vertex(v0); if(print_F4) printf("Path 1: v0--v1: add v0 -> F4\n");
-        m_F5.add_vertex(v0); if(print_F5) printf("Path 1: v0--v1: add v0 -> F5\n");
-        m_F7.add_vertex(v0); if(print_F7) printf("Path 1: v0--v1: add v0 -> F7\n");
+        m_F1.add_vertex(v0); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 1: v0--v1: add v0 -> F1");
+        m_F4.add_vertex(v0); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 1: v0--v1: add v0 -> F4");
+        m_F5.add_vertex(v0); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 1: v0--v1: add v0 -> F5");
+        m_F7.add_vertex(v0); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 1: v0--v1: add v0 -> F7");
         if (!vertex_intersected[0]) {
           vertex_intersected[0] = true;
           ++cuts;
         }
       } else if (p1[0].intersected_end) {
-        m_F1.add_vertex(v1); if(print_F1) printf("Path 1: v0--v1: add v1 -> F1\n");
-        m_F2.add_vertex(v1); if(print_F2) printf("Path 1: v0--v1: add v1 -> F2\n");
-        m_F5.add_vertex(v1); if(print_F5) printf("Path 1: v0--v1: add v1 -> F5\n");
-        m_F7.add_vertex(v1); if(print_F7) printf("Path 1: v0--v1: add v1 -> F7\n");
+        m_F1.add_vertex(v1); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 1: v0--v1: add v1 -> F1");
+        m_F2.add_vertex(v1); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 1: v0--v1: add v1 -> F2");
+        m_F5.add_vertex(v1); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 1: v0--v1: add v1 -> F5");
+        m_F7.add_vertex(v1); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 1: v0--v1: add v1 -> F7");
         if (!vertex_intersected[1]) {
           vertex_intersected[1] = true;
           ++cuts;
         }
       } else {
-        m_F1.add_vertex(p1[0].vIP); if(print_F1) printf("Path 1: v0--v1: add vIP -> F1\n");
-        m_F5.add_vertex(p1[0].vIP); if(print_F5) printf("Path 1: v0--v1: add vIP -> F5\n");
-        m_F7.add_vertex(p1[0].vIP); if(print_F7) printf("Path 1: v0--v1: add vIP -> F7\n");
+        m_F1.add_vertex(p1[0].vIP); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 1: v0--v1: add vIP -> F1");
+        m_F5.add_vertex(p1[0].vIP); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 1: v0--v1: add vIP -> F5");
+        m_F7.add_vertex(p1[0].vIP); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 1: v0--v1: add vIP -> F7");
         ++cuts;
       }
 
     } // Path 1: v0--v1
 
     if (cuts%2 == 0) {
-      m_F1.add_vertex(v1); if(print_F1) printf("Path 1: after v0--v1, cuts-mod-2==0: add v1 -> F1\n");
-      m_F2.add_vertex(v1); if(print_F2) printf("Path 1: after v0--v1, cuts-mod-2==0: add v1 -> F2\n");
-      m_F5.add_vertex(v1); if(print_F5) printf("Path 1: after v0--v1, cuts-mod-2==0: add v1 -> F5\n");
+      m_F1.add_vertex(v1); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 1: after v0--v1, cuts-mod-2==0: add v1 -> F1");
+      m_F2.add_vertex(v1); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 1: after v0--v1, cuts-mod-2==0: add v1 -> F2");
+      m_F5.add_vertex(v1); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 1: after v0--v1, cuts-mod-2==0: add v1 -> F5");
     }
 
     if (p1[1].intersected) {
       if (p1[1].intersected_start) {
-        m_F1.add_vertex(v1); if(print_F1) printf("Path 1: v1--v4: add v1 -> F1\n");
-        m_F2.add_vertex(v1); if(print_F2) printf("Path 1: v1--v4: add v1 -> F2\n");
-        m_F5.add_vertex(v1); if(print_F5) printf("Path 1: v1--v4: add v1 -> F5\n");
-        m_F7.add_vertex(v1); if(print_F7) printf("Path 1: v1--v4: add v1 -> F7\n");
+        m_F1.add_vertex(v1); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 1: v1--v4: add v1 -> F1");
+        m_F2.add_vertex(v1); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 1: v1--v4: add v1 -> F2");
+        m_F5.add_vertex(v1); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 1: v1--v4: add v1 -> F5");
+        m_F7.add_vertex(v1); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 1: v1--v4: add v1 -> F7");
         if (!vertex_intersected[1]) {
           vertex_intersected[1] = true;
           ++cuts;
         }
       } else if (p1[1].intersected_end) {
-        m_F2.add_vertex(v4); if(print_F2) printf("Path 1: v1--v4: add v4 -> F2\n");
-        m_F3.add_vertex(v4); if(print_F3) printf("Path 1: v1--v4: add v4 -> F3\n");
-        m_F5.add_vertex(v4); if(print_F5) printf("Path 1: v1--v4: add v4 -> F5\n");
-        m_F7.add_vertex(v4); if(print_F7) printf("Path 1: v1--v4: add v4 -> F7\n");
+        m_F2.add_vertex(v4); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 1: v1--v4: add v4 -> F2");
+        m_F3.add_vertex(v4); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 1: v1--v4: add v4 -> F3");
+        m_F5.add_vertex(v4); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 1: v1--v4: add v4 -> F5");
+        m_F7.add_vertex(v4); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 1: v1--v4: add v4 -> F7");
         if (!vertex_intersected[4]) {
           vertex_intersected[4] = true;
           ++cuts;
         }
       } else {
-        m_F2.add_vertex(p1[1].vIP); if(print_F2) printf("Path 1: v1--v4: add vIP -> F2\n");
-        m_F5.add_vertex(p1[1].vIP); if(print_F5) printf("Path 1: v1--v4: add vIP -> F5\n");
-        m_F7.add_vertex(p1[1].vIP); if(print_F7) printf("Path 1: v1--v4: add vIP -> F7\n");
+        m_F2.add_vertex(p1[1].vIP); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 1: v1--v4: add vIP -> F2");
+        m_F5.add_vertex(p1[1].vIP); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 1: v1--v4: add vIP -> F5");
+        m_F7.add_vertex(p1[1].vIP); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 1: v1--v4: add vIP -> F7");
         ++cuts;
       }
 
     } // P1: v1--v4
 
     if (cuts%2 == 0) {
-      m_F2.add_vertex(v4); if(print_F2) printf("Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F2\n");
-      m_F3.add_vertex(v4); if(print_F3) printf("Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F3\n");
-      m_F5.add_vertex(v4); if(print_F5) printf("Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F5\n");
+      m_F2.add_vertex(v4); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F2");
+      m_F3.add_vertex(v4); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F3");
+      m_F5.add_vertex(v4); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 1: after v1--v4, cuts-mod-2==0: add v4 -> F5");
     }
 
     if (p1[2].intersected) {
       if (p1[2].intersected_start) {
-        m_F2.add_vertex(v4); if(print_F2) printf("Path 1: v4--v7: add v4 -> F2\n");
-        m_F3.add_vertex(v4); if(print_F3) printf("Path 1: v4--v7: add v4 -> F3\n");
-        m_F5.add_vertex(v4); if(print_F5) printf("Path 1: v4--v7: add v4 -> F5\n");
-        m_F7.add_vertex(v4); if(print_F7) printf("Path 1: v4--v7: add v4 -> F7\n");
+        m_F2.add_vertex(v4); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 1: v4--v7: add v4 -> F2");
+        m_F3.add_vertex(v4); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 1: v4--v7: add v4 -> F3");
+        m_F5.add_vertex(v4); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 1: v4--v7: add v4 -> F5");
+        m_F7.add_vertex(v4); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 1: v4--v7: add v4 -> F7");
         if (!vertex_intersected[4]) {
           vertex_intersected[4] = true;
           ++cuts;
         }
       } else if (p1[2].intersected_end) {
-        m_F2.add_vertex(v7); if(print_F2) printf("Path 1: v4--v7: add v7 -> F2\n");
-        m_F3.add_vertex(v7); if(print_F3) printf("Path 1: v4--v7: add v7 -> F3\n");
-        m_F6.add_vertex(v7); if(print_F6) printf("Path 1: v4--v7: add v7 -> F6\n");
-        m_F7.add_vertex(v7); if(print_F7) printf("Path 1: v4--v7: add v7 -> F7\n");
+        m_F2.add_vertex(v7); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 1: v4--v7: add v7 -> F2");
+        m_F3.add_vertex(v7); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 1: v4--v7: add v7 -> F3");
+        m_F6.add_vertex(v7); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 1: v4--v7: add v7 -> F6");
+        m_F7.add_vertex(v7); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 1: v4--v7: add v7 -> F7");
         if (!vertex_intersected[7]) {
           vertex_intersected[7] = true;
           ++cuts;
         }
       } else {
-        m_F2.add_vertex(p1[2].vIP); if(print_F2) printf("Path 1: v4--v7: add vIP -> F2\n");
-        m_F3.add_vertex(p1[2].vIP); if(print_F3) printf("Path 1: v4--v7: add vIP -> F3\n");
-        m_F7.add_vertex(p1[2].vIP); if(print_F7) printf("Path 1: v4--v7: add vIP -> F7\n");
+        m_F2.add_vertex(p1[2].vIP); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 1: v4--v7: add vIP -> F2");
+        m_F3.add_vertex(p1[2].vIP); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 1: v4--v7: add vIP -> F3");
+        m_F7.add_vertex(p1[2].vIP); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 1: v4--v7: add vIP -> F7");
         ++cuts;
       }
 
@@ -585,9 +586,9 @@ calc_edge_intersections ()
 
     if (cuts == 2 && add_v7) {
       if (!intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
-        m_F2.add_vertex(v7); if(print_F2) printf("Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F2\n");
-        m_F3.add_vertex(v7); if(print_F3) printf("Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F3\n");
-        m_F6.add_vertex(v7); if(print_F6) printf("Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F6\n");
+        m_F2.add_vertex(v7); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F2");
+        m_F3.add_vertex(v7); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F3");
+        m_F6.add_vertex(v7); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 1: after v4--v7, cuts == 2 && add_v7: add v7 -> F6");
         add_v7 = 0;
       }
     }
@@ -596,19 +597,19 @@ calc_edge_intersections ()
   // Path 4
   if (p4.intersected) {
     if (p4.intersected_start) {
-      m_F1.add_vertex(v1); if(print_F1) printf("Path 4: v1--v5: add v1 -> F1\n");
-      m_F2.add_vertex(v1); if(print_F2) printf("Path 4: v1--v5: add v1 -> F2\n");
-      m_F5.add_vertex(v1); if(print_F5) printf("Path 4: v1--v5: add v1 -> F5\n");
-      m_F7.add_vertex(v1); if(print_F7) printf("Path 4: v1--v5: add v1 -> F7\n");
+      m_F1.add_vertex(v1); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 4: v1--v5: add v1 -> F1");
+      m_F2.add_vertex(v1); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 4: v1--v5: add v1 -> F2");
+      m_F5.add_vertex(v1); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 4: v1--v5: add v1 -> F5");
+      m_F7.add_vertex(v1); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 4: v1--v5: add v1 -> F7");
     } else if (p4.intersected_end) {
-      m_F1.add_vertex(v5); if(print_F1) printf("Path 4: v1--v5: add v5 -> F1\n");
-      m_F2.add_vertex(v5); if(print_F2) printf("Path 4: v1--v5: add v5 -> F2\n");
-      m_F6.add_vertex(v5); if(print_F6) printf("Path 4: v1--v5: add v5 -> F6\n");
-      m_F7.add_vertex(v5); if(print_F7) printf("Path 4: v1--v5: add v5 -> F7\n");
+      m_F1.add_vertex(v5); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 4: v1--v5: add v5 -> F1");
+      m_F2.add_vertex(v5); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 4: v1--v5: add v5 -> F2");
+      m_F6.add_vertex(v5); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 4: v1--v5: add v5 -> F6");
+      m_F7.add_vertex(v5); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 4: v1--v5: add v5 -> F7");
     } else {
-      m_F1.add_vertex(p4.vIP); if(print_F1) printf("Path 4: v1--v5: add vIP -> F1\n");
-      m_F2.add_vertex(p4.vIP); if(print_F2) printf("Path 4: v1--v5: add vIP -> F2\n");
-      m_F7.add_vertex(p4.vIP); if(print_F7) printf("Path 4: v1--v5: add vIP -> F7\n");
+      m_F1.add_vertex(p4.vIP); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 4: v1--v5: add vIP -> F1");
+      m_F2.add_vertex(p4.vIP); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 4: v1--v5: add vIP -> F2");
+      m_F7.add_vertex(p4.vIP); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 4: v1--v5: add vIP -> F7");
     }
   }
 
@@ -618,103 +619,103 @@ calc_edge_intersections ()
 
     if (p2[0].intersected) {
       if (p2[0].intersected_start) {
-        m_F1.add_vertex(v0); if(print_F1) printf("Path 2: v0--v2: add v0 -> F1\n");
-        m_F4.add_vertex(v0); if(print_F4) printf("Path 2: v0--v2: add v0 -> F4\n");
-        m_F5.add_vertex(v0); if(print_F5) printf("Path 2: v0--v2: add v0 -> F5\n");
-        m_F7.add_vertex(v0); if(print_F7) printf("Path 2: v0--v2: add v0 -> F7\n");
+        m_F1.add_vertex(v0); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 2: v0--v2: add v0 -> F1");
+        m_F4.add_vertex(v0); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 2: v0--v2: add v0 -> F4");
+        m_F5.add_vertex(v0); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 2: v0--v2: add v0 -> F5");
+        m_F7.add_vertex(v0); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 2: v0--v2: add v0 -> F7");
         if (!vertex_intersected[0]) {
           vertex_intersected[0] = true;
           ++cuts;
         }
       } else if (p2[0].intersected_end) {
-        m_F1.add_vertex(v2); if(print_F1) printf("Path 2: v0--v2: add v2 -> F1\n");
-        m_F4.add_vertex(v2); if(print_F4) printf("Path 2: v0--v2: add v2 -> F4\n");
-        m_F6.add_vertex(v2); if(print_F6) printf("Path 2: v0--v2: add v2 -> F6\n");
-        m_F7.add_vertex(v2); if(print_F7) printf("Path 2: v0--v2: add v2 -> F7\n");
+        m_F1.add_vertex(v2); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 2: v0--v2: add v2 -> F1");
+        m_F4.add_vertex(v2); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 2: v0--v2: add v2 -> F4");
+        m_F6.add_vertex(v2); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 2: v0--v2: add v2 -> F6");
+        m_F7.add_vertex(v2); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 2: v0--v2: add v2 -> F7");
         if (!vertex_intersected[2]) {
           vertex_intersected[2] = true;
           ++cuts;
         }
       } else {
-        m_F1.add_vertex(p2[0].vIP); if(print_F1) printf("Path 2: v0--v2: add vIP -> F1\n");
-        m_F4.add_vertex(p2[0].vIP); if(print_F4) printf("Path 2: v0--v2: add vIP -> F4\n");
-        m_F7.add_vertex(p2[0].vIP); if(print_F7) printf("Path 2: v0--v2: add vIP -> F7\n");
+        m_F1.add_vertex(p2[0].vIP); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 2: v0--v2: add vIP -> F1");
+        m_F4.add_vertex(p2[0].vIP); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 2: v0--v2: add vIP -> F4");
+        m_F7.add_vertex(p2[0].vIP); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 2: v0--v2: add vIP -> F7");
         ++cuts;
       }
 
     } // P2: v0--v2
 
     if (cuts%2 == 0) {
-      m_F1.add_vertex(v2); if(print_F1) printf("Path 2: after v0--v2, cuts-mod-2==0: add v2 -> F1\n");
-      m_F4.add_vertex(v2); if(print_F4) printf("Path 2: after v0--v2, cuts-mod-2==0: add v2 -> F4\n");
-      m_F6.add_vertex(v2); if(print_F6) printf("Path 2: after v0--v2, cuts-mod-2==0: add v2 -> F6\n");
+      m_F1.add_vertex(v2); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 2: after v0--v2, cuts-mod-2==0: add v2 -> F1");
+      m_F4.add_vertex(v2); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 2: after v0--v2, cuts-mod-2==0: add v2 -> F4");
+      m_F6.add_vertex(v2); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 2: after v0--v2, cuts-mod-2==0: add v2 -> F6");
     }
 
     if (p2[1].intersected) {
       if (p2[1].intersected_start) {
-        m_F1.add_vertex(v2); if(print_F1) printf("Path 2: v2--v5: add v2 -> F1\n");
-        m_F4.add_vertex(v2); if(print_F4) printf("Path 2: v2--v5: add v2 -> F4\n");
-        m_F6.add_vertex(v2); if(print_F6) printf("Path 2: v2--v5: add v2 -> F6\n");
-        m_F7.add_vertex(v2); if(print_F7) printf("Path 2: v2--v5: add v2 -> F7\n");
+        m_F1.add_vertex(v2); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 2: v2--v5: add v2 -> F1");
+        m_F4.add_vertex(v2); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 2: v2--v5: add v2 -> F4");
+        m_F6.add_vertex(v2); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 2: v2--v5: add v2 -> F6");
+        m_F7.add_vertex(v2); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 2: v2--v5: add v2 -> F7");
         if (!vertex_intersected[2]) {
           vertex_intersected[2] = true;
           ++cuts;
         }
       } else if (p2[1].intersected_end) {
-        m_F1.add_vertex(v5); if(print_F1) printf("Path 2: v2--v5: add v5 -> F1\n");
-        m_F2.add_vertex(v5); if(print_F2) printf("Path 2: v2--v5: add v5 -> F2\n");
-        m_F6.add_vertex(v5); if(print_F6) printf("Path 2: v2--v5: add v5 -> F6\n");
-        m_F7.add_vertex(v5); if(print_F7) printf("Path 2: v2--v5: add v5 -> F7\n");
+        m_F1.add_vertex(v5); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 2: v2--v5: add v5 -> F1");
+        m_F2.add_vertex(v5); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 2: v2--v5: add v5 -> F2");
+        m_F6.add_vertex(v5); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 2: v2--v5: add v5 -> F6");
+        m_F7.add_vertex(v5); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 2: v2--v5: add v5 -> F7");
         if (!vertex_intersected[5]) {
           vertex_intersected[5] = true;
           ++cuts;
         }
       } else {
-        m_F1.add_vertex(p2[1].vIP); if(print_F1) printf("Path 2: v2--v5: add vIP -> F1\n");
-        m_F6.add_vertex(p2[1].vIP); if(print_F6) printf("Path 2: v2--v5: add vIP -> F6\n");
-        m_F7.add_vertex(p2[1].vIP); if(print_F7) printf("Path 2: v2--v5: add vIP -> F7\n");
+        m_F1.add_vertex(p2[1].vIP); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 2: v2--v5: add vIP -> F1");
+        m_F6.add_vertex(p2[1].vIP); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 2: v2--v5: add vIP -> F6");
+        m_F7.add_vertex(p2[1].vIP); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 2: v2--v5: add vIP -> F7");
         ++cuts;
       }
     }
 
     if (cuts%2 == 0) {
-      m_F1.add_vertex(v5); if(print_F1) printf("Path 2: after v2--v5, cuts-mod-2==0: add v5 -> F1\n");
-      m_F2.add_vertex(v5); if(print_F2) printf("Path 2: after v2--v5, cuts-mod-2==0: add v5 -> F2\n");
-      m_F6.add_vertex(v5); if(print_F6) printf("Path 2: after v2--v5, cuts-mod-2==0: add v5 -> F6\n");
+      m_F1.add_vertex(v5); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 2: after v2--v5, cuts-mod-2==0: add v5 -> F1");
+      m_F2.add_vertex(v5); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 2: after v2--v5, cuts-mod-2==0: add v5 -> F2");
+      m_F6.add_vertex(v5); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 2: after v2--v5, cuts-mod-2==0: add v5 -> F6");
     }
 
     if (p2[2].intersected) {
       if (p2[2].intersected_start) {
-        m_F1.add_vertex(v5); if(print_F1) printf("Path 2: v5--v7: add v5 -> F1\n");
-        m_F2.add_vertex(v5); if(print_F2) printf("Path 2: v5--v7: add v5 -> F2\n");
-        m_F6.add_vertex(v5); if(print_F6) printf("Path 2: v5--v7: add v5 -> F6\n");
-        m_F7.add_vertex(v5); if(print_F7) printf("Path 2: v5--v7: add v5 -> F7\n");
+        m_F1.add_vertex(v5); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 2: v5--v7: add v5 -> F1");
+        m_F2.add_vertex(v5); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 2: v5--v7: add v5 -> F2");
+        m_F6.add_vertex(v5); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 2: v5--v7: add v5 -> F6");
+        m_F7.add_vertex(v5); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 2: v5--v7: add v5 -> F7");
         if (!vertex_intersected[5]) {
           vertex_intersected[5] = true;
           ++cuts;
         }
       } else if (p2[2].intersected_end) {
-        m_F2.add_vertex(v7); if(print_F2) printf("Path 2: v5--v7: add v7 -> F2\n");
-        m_F3.add_vertex(v7); if(print_F3) printf("Path 2: v5--v7: add v7 -> F3\n");
-        m_F6.add_vertex(v7); if(print_F6) printf("Path 2: v5--v7: add v7 -> F6\n");
-        m_F7.add_vertex(v7); if(print_F7) printf("Path 2: v5--v7: add v7 -> F7\n");
+        m_F2.add_vertex(v7); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 2: v5--v7: add v7 -> F2");
+        m_F3.add_vertex(v7); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 2: v5--v7: add v7 -> F3");
+        m_F6.add_vertex(v7); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 2: v5--v7: add v7 -> F6");
+        m_F7.add_vertex(v7); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 2: v5--v7: add v7 -> F7");
         if (!vertex_intersected[7]) {
           vertex_intersected[7] = true;
           ++cuts;
         }
       } else {
-        m_F2.add_vertex(p2[2].vIP); if(print_F2) printf("Path 2: v5--v7: add vIP -> F2\n");
-        m_F6.add_vertex(p2[2].vIP); if(print_F6) printf("Path 2: v5--v7: add vIP -> F6\n");
-        m_F7.add_vertex(p2[2].vIP); if(print_F7) printf("Path 2: v5--v7: add vIP -> F7\n");
+        m_F2.add_vertex(p2[2].vIP); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 2: v5--v7: add vIP -> F2");
+        m_F6.add_vertex(p2[2].vIP); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 2: v5--v7: add vIP -> F6");
+        m_F7.add_vertex(p2[2].vIP); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 2: v5--v7: add vIP -> F7");
         ++cuts;
       }
     } // Path 2: v5--v7
 
     if (cuts == 2 && add_v7) {
       if (!intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
-        m_F2.add_vertex(v7); if(print_F2) printf("Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F2\n");
-        m_F3.add_vertex(v7); if(print_F3) printf("Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F3\n");
-        m_F6.add_vertex(v7); if(print_F6) printf("Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F6\n");
+        m_F2.add_vertex(v7); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F2");
+        m_F3.add_vertex(v7); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F3");
+        m_F6.add_vertex(v7); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 2: after v5--v7, cuts == 2 && add_v7: add v7 -> F6");
         add_v7 = 0;
       }
     }
@@ -724,19 +725,19 @@ calc_edge_intersections ()
   // Path 5
   if (p5.intersected) {
     if (p5.intersected_start) {
-      m_F1.add_vertex(v2); if(print_F1) printf("Path 5: v2--v6: add v2 -> F1\n");
-      m_F4.add_vertex(v2); if(print_F4) printf("Path 5: v2--v6: add v2 -> F4\n");
-      m_F6.add_vertex(v2); if(print_F6) printf("Path 5: v2--v6: add v2 -> F6\n");
-      m_F7.add_vertex(v2); if(print_F7) printf("Path 5: v2--v6: add v2 -> F7\n");
+      m_F1.add_vertex(v2); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 5: v2--v6: add v2 -> F1");
+      m_F4.add_vertex(v2); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 5: v2--v6: add v2 -> F4");
+      m_F6.add_vertex(v2); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 5: v2--v6: add v2 -> F6");
+      m_F7.add_vertex(v2); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 5: v2--v6: add v2 -> F7");
     } else if (p5.intersected_end) {
-      m_F3.add_vertex(v6); if(print_F3) printf("Path 5: v2--v6: add v6 -> F3\n");
-      m_F4.add_vertex(v6); if(print_F4) printf("Path 5: v2--v6: add v6 -> F4\n");
-      m_F6.add_vertex(v6); if(print_F6) printf("Path 5: v2--v6: add v6 -> F6\n");
-      m_F7.add_vertex(v6); if(print_F7) printf("Path 5: v2--v6: add v6 -> F7\n");
+      m_F3.add_vertex(v6); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 5: v2--v6: add v6 -> F3");
+      m_F4.add_vertex(v6); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 5: v2--v6: add v6 -> F4");
+      m_F6.add_vertex(v6); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 5: v2--v6: add v6 -> F6");
+      m_F7.add_vertex(v6); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 5: v2--v6: add v6 -> F7");
     } else {
-      m_F4.add_vertex(p5.vIP); if(print_F4) printf("Path 5: v2--v6: add vIP -> F4\n");
-      m_F6.add_vertex(p5.vIP); if(print_F6) printf("Path 5: v2--v6: add vIP -> F6\n");
-      m_F7.add_vertex(p5.vIP); if(print_F7) printf("Path 5: v2--v6: add vIP -> F7\n");
+      m_F4.add_vertex(p5.vIP); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 5: v2--v6: add vIP -> F4");
+      m_F6.add_vertex(p5.vIP); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 5: v2--v6: add vIP -> F6");
+      m_F7.add_vertex(p5.vIP); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 5: v2--v6: add vIP -> F7");
     }
   } // end Path 5
 
@@ -747,104 +748,104 @@ calc_edge_intersections ()
 
     if (p3[0].intersected) {
       if (p3[0].intersected_start) {
-        m_F1.add_vertex(v0); if(print_F1) printf("Path 3: v0--v3: add v0 -> F1\n");
-        m_F4.add_vertex(v0); if(print_F4) printf("Path 3: v0--v3: add v0 -> F4\n");
-        m_F5.add_vertex(v0); if(print_F5) printf("Path 3: v0--v3: add v0 -> F5\n");
-        m_F7.add_vertex(v0); if(print_F7) printf("Path 3: v0--v3: add v0 -> F7\n");
+        m_F1.add_vertex(v0); if(print_F1) AMREX_DEVICE_PRINTF("%s \n","Path 3: v0--v3: add v0 -> F1");
+        m_F4.add_vertex(v0); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 3: v0--v3: add v0 -> F4");
+        m_F5.add_vertex(v0); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 3: v0--v3: add v0 -> F5");
+        m_F7.add_vertex(v0); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 3: v0--v3: add v0 -> F7");
         if (!vertex_intersected[0]) {
           vertex_intersected[0] = true;
           ++cuts;
         }
       } else if (p3[0].intersected_end) {
-        m_F3.add_vertex(v3); if(print_F3) printf("Path 3: v0--v3: add v3 -> F3\n");
-        m_F4.add_vertex(v3); if(print_F4) printf("Path 3: v0--v3: add v3 -> F4\n");
-        m_F5.add_vertex(v3); if(print_F5) printf("Path 3: v0--v3: add v3 -> F5\n");
-        m_F7.add_vertex(v3); if(print_F7) printf("Path 3: v0--v3: add v3 -> F7\n");
+        m_F3.add_vertex(v3); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 3: v0--v3: add v3 -> F3");
+        m_F4.add_vertex(v3); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 3: v0--v3: add v3 -> F4");
+        m_F5.add_vertex(v3); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 3: v0--v3: add v3 -> F5");
+        m_F7.add_vertex(v3); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 3: v0--v3: add v3 -> F7");
         if (!vertex_intersected[3]) {
           vertex_intersected[3] = true;
           ++cuts;
         }
       } else {
-        m_F4.add_vertex(p3[0].vIP); if(print_F4) printf("Path 3: v0--v3: add vIP -> F4\n");
-        m_F5.add_vertex(p3[0].vIP); if(print_F5) printf("Path 3: v0--v3: add vIP -> F5\n");
-        m_F7.add_vertex(p3[0].vIP); if(print_F7) printf("Path 3: v0--v3: add vIP -> F7\n");
+        m_F4.add_vertex(p3[0].vIP); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 3: v0--v3: add vIP -> F4");
+        m_F5.add_vertex(p3[0].vIP); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 3: v0--v3: add vIP -> F5");
+        m_F7.add_vertex(p3[0].vIP); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 3: v0--v3: add vIP -> F7");
         ++cuts;
       }
 
     } // P3: v0--v3
 
     if (cuts%2 == 0) {
-      m_F3.add_vertex(v3); if(print_F3) printf("Path 3: after v0--v3, cuts-mod-2 == 0: add v3 -> F3\n");
-      m_F4.add_vertex(v3); if(print_F4) printf("Path 3: after v0--v3, cuts-mod-2 == 0: add v3 -> F4\n");
-      m_F5.add_vertex(v3); if(print_F5) printf("Path 3: after v0--v3, cuts-mod-2 == 0: add v3 -> F5\n");
+      m_F3.add_vertex(v3); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 3: after v0--v3, cuts-mod-2 == 0: add v3 -> F3");
+      m_F4.add_vertex(v3); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 3: after v0--v3, cuts-mod-2 == 0: add v3 -> F4");
+      m_F5.add_vertex(v3); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 3: after v0--v3, cuts-mod-2 == 0: add v3 -> F5");
     }
 
     if (p3[1].intersected) {
       if (p3[1].intersected_start) {
-        m_F3.add_vertex(v3); if(print_F3) printf("Path 3: v3--v6: add v3 -> F3\n");
-        m_F4.add_vertex(v3); if(print_F4) printf("Path 3: v3--v6: add v3 -> F4\n");
-        m_F5.add_vertex(v3); if(print_F5) printf("Path 3: v3--v6: add v3 -> F5\n");
-        m_F7.add_vertex(v3); if(print_F7) printf("Path 3: v3--v6: add v3 -> F7\n");
+        m_F3.add_vertex(v3); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 3: v3--v6: add v3 -> F3");
+        m_F4.add_vertex(v3); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 3: v3--v6: add v3 -> F4");
+        m_F5.add_vertex(v3); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 3: v3--v6: add v3 -> F5");
+        m_F7.add_vertex(v3); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 3: v3--v6: add v3 -> F7");
         if (!vertex_intersected[3]) {
           vertex_intersected[3] = true;
           ++cuts;
         }
       } else if (p3[1].intersected_end) {
-        m_F3.add_vertex(v6); if(print_F3) printf("Path 3: v3--v6: add v6 -> F3\n");
-        m_F4.add_vertex(v6); if(print_F4) printf("Path 3: v3--v6: add v6 -> F4\n");
-        m_F6.add_vertex(v6); if(print_F6) printf("Path 3: v3--v6: add v6 -> F6\n");
-        m_F7.add_vertex(v6); if(print_F7) printf("Path 3: v3--v6: add v6 -> F7\n");
+        m_F3.add_vertex(v6); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 3: v3--v6: add v6 -> F3");
+        m_F4.add_vertex(v6); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 3: v3--v6: add v6 -> F4");
+        m_F6.add_vertex(v6); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 3: v3--v6: add v6 -> F6");
+        m_F7.add_vertex(v6); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 3: v3--v6: add v6 -> F7");
         if (!vertex_intersected[6]) {
           vertex_intersected[6] = true;
           ++cuts;
         }
       } else {
-        m_F3.add_vertex(p3[1].vIP); if(print_F3) printf("Path 3: v3--v6: add vIP -> F3\n");
-        m_F4.add_vertex(p3[1].vIP); if(print_F4) printf("Path 3: v3--v6: add vIP -> F4\n");
-        m_F7.add_vertex(p3[1].vIP); if(print_F7) printf("Path 3: v3--v6: add vIP -> F7\n");
+        m_F3.add_vertex(p3[1].vIP); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 3: v3--v6: add vIP -> F3");
+        m_F4.add_vertex(p3[1].vIP); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 3: v3--v6: add vIP -> F4");
+        m_F7.add_vertex(p3[1].vIP); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 3: v3--v6: add vIP -> F7");
         ++cuts;
       }
 
     } // P3: v3--v6
 
     if (cuts%2 == 0) {
-      m_F3.add_vertex(v6); if(print_F3) printf("Path 3: after v3--v6, cuts-mod-2 == 0: add v6 -> F3\n");
-      m_F4.add_vertex(v6); if(print_F4) printf("Path 3: after v3--v6, cuts-mod-2 == 0: add v6 -> F4\n");
-      m_F6.add_vertex(v6); if(print_F6) printf("Path 3: after v3--v6, cuts-mod-2 == 0: add v6 -> F6\n");
+      m_F3.add_vertex(v6); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 3: after v3--v6, cuts-mod-2 == 0: add v6 -> F3");
+      m_F4.add_vertex(v6); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 3: after v3--v6, cuts-mod-2 == 0: add v6 -> F4");
+      m_F6.add_vertex(v6); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 3: after v3--v6, cuts-mod-2 == 0: add v6 -> F6");
     }
 
     if (p3[2].intersected) {
       if (p3[2].intersected_start) {
-        m_F3.add_vertex(v6); if(print_F3) printf("Path 3: v6--v7: add v6 -> F3\n");
-        m_F4.add_vertex(v6); if(print_F4) printf("Path 3: v6--v7: add v6 -> F4\n");
-        m_F6.add_vertex(v6); if(print_F6) printf("Path 3: v6--v7: add v6 -> F6\n");
-        m_F7.add_vertex(v6); if(print_F7) printf("Path 3: v6--v7: add v6 -> F7\n");
+        m_F3.add_vertex(v6); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 3: v6--v7: add v6 -> F3");
+        m_F4.add_vertex(v6); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 3: v6--v7: add v6 -> F4");
+        m_F6.add_vertex(v6); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 3: v6--v7: add v6 -> F6");
+        m_F7.add_vertex(v6); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 3: v6--v7: add v6 -> F7");
         if (!vertex_intersected[6]) {
           vertex_intersected[6] = true;
           ++cuts;
         }
       } else if (p3[2].intersected_end) {
-        m_F2.add_vertex(v7); if(print_F2) printf("Path 3: v6--v7: add v7 -> F2\n");
-        m_F3.add_vertex(v7); if(print_F3) printf("Path 3: v6--v7: add v7 -> F3\n");
-        m_F6.add_vertex(v7); if(print_F6) printf("Path 3: v6--v7: add v7 -> F6\n");
-        m_F7.add_vertex(v7); if(print_F7) printf("Path 3: v6--v7: add v7 -> F7\n");
+        m_F2.add_vertex(v7); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 3: v6--v7: add v7 -> F2");
+        m_F3.add_vertex(v7); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 3: v6--v7: add v7 -> F3");
+        m_F6.add_vertex(v7); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 3: v6--v7: add v7 -> F6");
+        m_F7.add_vertex(v7); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 3: v6--v7: add v7 -> F7");
         if (!vertex_intersected[7]) {
           vertex_intersected[7] = true;
           ++cuts;
         }
       } else {
-        m_F3.add_vertex(p3[2].vIP); if(print_F3) printf("Path 3: v6--v7: add vIP -> F3\n");
-        m_F6.add_vertex(p3[2].vIP); if(print_F6) printf("Path 3: v6--v7: add vIP -> F6\n");
-        m_F7.add_vertex(p3[2].vIP); if(print_F7) printf("Path 3: v6--v7: add vIP -> F7\n");
+        m_F3.add_vertex(p3[2].vIP); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 3: v6--v7: add vIP -> F3");
+        m_F6.add_vertex(p3[2].vIP); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 3: v6--v7: add vIP -> F6");
+        m_F7.add_vertex(p3[2].vIP); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 3: v6--v7: add vIP -> F7");
         ++cuts;
       }
     } // P3: v6--v7
 
     if (cuts == 2 && add_v7) {
       if (!intersect_plane_edge(m_eb_point, m_eb_normal, v0, v7, vIP, distIP)) {
-        m_F2.add_vertex(v7); if(print_F2) printf("Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F2\n");
-        m_F3.add_vertex(v7); if(print_F3) printf("Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F3\n");
-        m_F6.add_vertex(v7); if(print_F6) printf("Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F6\n");
+        m_F2.add_vertex(v7); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F2");
+        m_F3.add_vertex(v7); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F3");
+        m_F6.add_vertex(v7); if(print_F6) AMREX_DEVICE_PRINTF("%s \n","Path 3: after v6--v7, cuts == 2 && add_v7: add v7 -> F6");
         add_v7 = 0;
       }
     }
@@ -854,24 +855,24 @@ calc_edge_intersections ()
   // Path 6
   if (p6.intersected) {
     if (p6.intersected_start) {
-      m_F3.add_vertex(v3); if(print_F3) printf("Path 6: v3--v4: add v3 -> F3\n");
-      m_F4.add_vertex(v3); if(print_F4) printf("Path 6: v3--v4: add v3 -> F4\n");
-      m_F5.add_vertex(v3); if(print_F5) printf("Path 6: v3--v4: add v3 -> F5\n");
-      m_F7.add_vertex(v3); if(print_F7) printf("Path 6: v3--v4: add v3 -> F7\n");
+      m_F3.add_vertex(v3); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 6: v3--v4: add v3 -> F3");
+      m_F4.add_vertex(v3); if(print_F4) AMREX_DEVICE_PRINTF("%s \n","Path 6: v3--v4: add v3 -> F4");
+      m_F5.add_vertex(v3); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 6: v3--v4: add v3 -> F5");
+      m_F7.add_vertex(v3); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 6: v3--v4: add v3 -> F7");
     } else if (p6.intersected_end) {
-      m_F2.add_vertex(v4); if(print_F2) printf("Path 6: v3--v4: add v4 -> F2\n");
-      m_F3.add_vertex(v4); if(print_F3) printf("Path 6: v3--v4: add v4 -> F3\n");
-      m_F5.add_vertex(v4); if(print_F5) printf("Path 6: v3--v4: add v4 -> F5\n");
-      m_F7.add_vertex(v4); if(print_F7) printf("Path 6: v3--v4: add v4 -> F7\n");
+      m_F2.add_vertex(v4); if(print_F2) AMREX_DEVICE_PRINTF("%s \n","Path 6: v3--v4: add v4 -> F2");
+      m_F3.add_vertex(v4); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 6: v3--v4: add v4 -> F3\n");
+      m_F5.add_vertex(v4); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 6: v3--v4: add v4 -> F5");
+      m_F7.add_vertex(v4); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 6: v3--v4: add v4 -> F7");
     } else {
-      m_F3.add_vertex(p6.vIP); if(print_F3) printf("Path 6: v3--v4: add vIP -> F3\n");
-      m_F5.add_vertex(p6.vIP); if(print_F5) printf("Path 6: v3--v4: add vIP -> F5\n");
-      m_F7.add_vertex(p6.vIP); if(print_F7) printf("Path 6: v3--v4: add vIP -> F7\n");
+      m_F3.add_vertex(p6.vIP); if(print_F3) AMREX_DEVICE_PRINTF("%s \n","Path 6: v3--v4: add vIP -> F3");
+      m_F5.add_vertex(p6.vIP); if(print_F5) AMREX_DEVICE_PRINTF("%s \n","Path 6: v3--v4: add vIP -> F5");
+      m_F7.add_vertex(p6.vIP); if(print_F7) AMREX_DEVICE_PRINTF("%s \n","Path 6: v3--v4: add vIP -> F7");
     }
   } // end Path 6
 
-  if (print_F1 || print_F2 || print_F3 || print_F4 || print_F5 || print_F6 || print_F7){
-    printf("\n");
+  if (print_F1 || print_F2 || print_F3 || print_F4 || print_F5 || print_F6 || print_F7) {
+      AMREX_DEVICE_PRINTF("%s \n"," ");
   }
 
 }
