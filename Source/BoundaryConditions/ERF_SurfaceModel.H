@@ -40,6 +40,8 @@ public:
         lsm_data_lev.resize(m_nlevs);
         urban_data_lev.resize(m_nlevs);
 
+        rad_fields.resize(m_nlevs);
+
         // set initial fields for each model to none
         lsm_fields = amrex::Vector<int>{4, -1};
         urban_fields = amrex::Vector<int>{4, -1};
@@ -67,6 +69,8 @@ public:
             urban_frac_lev.resize(m_nlevs);
             lsm_data_lev.resize(m_nlevs);
             urban_data_lev.resize(m_nlevs);
+
+            rad_fields.resize(m_nlevs);
         }
 
         m_ba[lev] = ba;
@@ -103,6 +107,15 @@ public:
         //  - default to land=1, urban=0 (i.e, 100% land, no urban fraction)
         wavg[lev]->setVal(1.0, SurfaceModelType::LAND, 1, 0);
         wavg[lev]->setVal(0.0, SurfaceModelType::URBAN, 1, 0);
+
+        // Create new level for all registered fields
+        for (int field=0; field < fields.size(); field++) {
+            if (fields[field].size() < m_nlevs) {
+                fields[field].resize(m_nlevs);
+                fields[field][lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, amrex::IntVect(1,1,0));
+                fields[field][lev]->setVal(0.0);
+            }
+        }
     }
 
     /**
@@ -214,12 +227,12 @@ public:
         return fields[field.mf_ind][lev].get();
     }
 
-    const amrex::Vector<const amrex::MultiFab*> get_radiation_fields() {
+    const amrex::Vector<const amrex::MultiFab*> get_radiation_fields(int lev = 0) {
         // check if we need to build the radiation list (for first time step,)
-        if (rad_fields.size() == 0) {
-            build_radiation_fieldlist();
+        if (rad_fields[lev].size() == 0) {
+            build_radiation_fieldlist(lev);
         }
-        return rad_fields;
+        return rad_fields[lev];
     }
 
 private:
@@ -227,19 +240,19 @@ private:
     // Internal function to update weights using urban fraction
     void calculate_simple_average(int lev, amrex::MultiFab* const urban_frac);
 
-    void build_radiation_fieldlist() {
+    void build_radiation_fieldlist(int lev) {
         amrex::Print() << "  --- building radiation field list" << std::endl;
 
         // loop over fields and check against names of radiation variables
         for (int i = 0; i < radnames.size(); i++) {
             amrex::Print() << "    - Checking for radiation variable '" << radnames[i] << "'" << std::endl;
 
-            auto mf = get_field(radnames[i]);
+            auto mf = get_field(radnames[i], lev);
             if (mf) {
-                rad_fields.push_back(mf);
+                rad_fields[lev].push_back(mf);
             }
         }
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rad_fields.size() == radnames.size(), "Did not find all radiation fields");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rad_fields[lev].size() == radnames.size(), "Did not find all radiation fields");
     }
 
     void weight_average_fields(int lev, amrex::MultiFab* const urban_frac);
@@ -295,7 +308,7 @@ private:
     amrex::Vector<std::string> m_lsm_names;
     amrex::Vector<std::string> m_urban_names;
 
-    amrex::Vector<const amrex::MultiFab*> rad_fields;
+    amrex::Vector<amrex::Vector<const amrex::MultiFab*>> rad_fields; // pointers to radiation MFs at each level
     
     // plotfile names for outputs
     inline static const std::vector<std::string> field_names = {
