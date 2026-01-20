@@ -68,10 +68,10 @@ SLM::Init (const int& /*lev*/,
     AMREX_ALWAYS_ASSERT(LsmDataMap.size() == m_lsm_data_size);
 
     LsmFluxMap.resize(m_lsm_flux_size);
-    LsmFluxMap = {LsmFlux_SLM::t_flux, LsmFlux_SLM::q_flux, LsmFlux_SLM::tau13, LsmFlux_SLM::tau23};
+    LsmFluxMap = {LsmFlux_SLM::t_flux, LsmFlux_SLM::q_flux, LsmFlux_SLM::tau13, LsmFlux_SLM::tau23, LsmFlux_SLM::olen};
 
     LsmFluxName.resize(m_lsm_flux_size);
-    LsmFluxName = {"t_flux", "q_flux", "tau13", "tau23"};
+    LsmFluxName = {"t_flux", "q_flux", "tau13", "tau23", "olen"};
 
     AMREX_ALWAYS_ASSERT(LsmFluxMap.size() == LsmFluxName.size());
     AMREX_ALWAYS_ASSERT(LsmFluxMap.size() == m_lsm_flux_size);
@@ -1755,6 +1755,7 @@ SLM::AdvanceSLM ()
         auto fluxt_arr = lsm_fab_flux[LsmFlux_SLM::t_flux]->array(mfi);
         auto tau13_arr = lsm_fab_flux[LsmFlux_SLM::tau13]->array(mfi);
         auto tau23_arr = lsm_fab_flux[LsmFlux_SLM::tau23]->array(mfi);
+        auto olen_arr  = lsm_fab_flux[LsmFlux_SLM::olen]->array(mfi);
 
         // Update LAI and SAI based on current month
         UpdateLAI(mfi);
@@ -1927,6 +1928,9 @@ SLM::AdvanceSLM ()
                 fluxt_arr(i,j,0) = rhow * flbt_arr(i, j, d_khi_lsm);
                 tau13_arr(i,j,0) = flbu_arr(i, j, d_khi_lsm);
                 tau23_arr(i,j,0) = flbv_arr(i, j, d_khi_lsm);
+
+                amrex::Real tvm = getThgivenRandT(rhow, tref_arr(i,j,0), R_d / Cp_d, qref_arr(i,j,0)) * (1.0 + 0.61 * qref_arr(i,j,0));
+                olen_arr(i,j,0) = -ustar_arr(i,j,0) * ustar_arr(i,j,0) * ustar_arr(i,j,0) * tvm / (KAPPA * CONST_GRAV * fluxt_arr(i,j,0));
             }
         });
     }
@@ -1943,6 +1947,7 @@ SLM::AdvanceSLM ()
     lsm_fab_flux[LsmFlux_SLM::t_flux]->FillBoundary(m_geom.periodicity());
     lsm_fab_flux[LsmFlux_SLM::tau13]->FillBoundary(m_geom.periodicity());
     lsm_fab_flux[LsmFlux_SLM::tau23]->FillBoundary(m_geom.periodicity());
+    lsm_fab_flux[LsmFlux_SLM::olen]->FillBoundary(m_geom.periodicity());
 }
 
 void SLM::radiative_fluxes(const amrex::MFIter &mfi)
@@ -3659,7 +3664,7 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     IntVect ng(0, 0, 0);
 
     // Total number of output MFs: net_rad components + mf_data size - 1
-    const int output_size = SLM_NetRad::NumVars + mf_data.size() - 1 + SLM_Diag::NumVars;
+    const int output_size = SLM_NetRad::NumVars + mf_data.size() - 1 + SLM_Diag::NumVars + 1;
     MultiFab fab(ba_lsm_2d, net_rad.DistributionMap(), output_size, ng);
     MultiFab::Copy(fab, *(mf_data[0]), 0, 0, SLM_NetRad::NumVars, 0);
     for (int i = 1; i < mf_data.size(); i++)
@@ -3667,6 +3672,7 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
         MultiFab::Copy(fab, *(mf_data[i]), 0, i + SLM_NetRad::NumVars - 1, 1, 0);
     }
     MultiFab::Copy(fab, slm_diag, 0, output_size - SLM_Diag::NumVars, SLM_Diag::NumVars, 0);
+    MultiFab::Copy(fab, *(lsm_fab_flux[LsmFlux_SLM::olen]), 0, output_size - 1, 1, 0);
 
 
     amrex::Vector<std::string> varnames;
@@ -3735,6 +3741,8 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     {
         varnames.push_back(diag_names[i]);
     }
+
+    varnames.push_back("olen");
 
     AMREX_ALWAYS_ASSERT(varnames.size() == output_size);
 
