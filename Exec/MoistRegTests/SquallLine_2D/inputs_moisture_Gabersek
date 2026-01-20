@@ -45,8 +45,6 @@ erf.use_gravity = true
 erf.buoyancy_type = 1
 erf.use_coriolis = false
 
-#erf.les_type = "Smagorinsky"
-#erf.Cs              = 0.25
 erf.les_type = "None"
 
 # Constant diffusion coefficient
