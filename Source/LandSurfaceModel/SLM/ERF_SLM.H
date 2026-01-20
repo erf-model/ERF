@@ -101,6 +101,7 @@ namespace LsmFlux_SLM {
       q_flux,
       tau13,
       tau23,
+      olen,         // Obukhov length for MOST/PBL
       NumVars
     };
 }

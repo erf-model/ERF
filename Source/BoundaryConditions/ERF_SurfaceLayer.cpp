@@ -290,6 +290,19 @@ SurfaceLayer::compute_fluxes (const int& lev,
         auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
                                                        Array4<int> {};
 
+        auto lsm_tstar_arr = Array4<Real> {};
+        auto lsm_qstar_arr = Array4<Real> {};
+        auto lsm_ustar_arr = Array4<Real> {};
+        auto lsm_olen_arr  = Array4<Real> {};
+        for (int n(0); n<m_lsm_data_lev[lev].size(); ++n) {
+            if (toLower(m_lsm_data_name[n]) == "tstar") { lsm_tstar_arr = m_lsm_data_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_data_name[n]) == "qstar") { lsm_qstar_arr = m_lsm_data_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_data_name[n]) == "ustar") { lsm_ustar_arr = m_lsm_data_lev[lev][n]->array(mfi); }
+        }
+        for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
+            if (toLower(m_lsm_flux_name[n]) == "olen")   { lsm_olen_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
+        }
+
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             if (( is_land && lmask_arr(i,j,k) == 1) ||
@@ -305,6 +318,14 @@ SurfaceLayer::compute_fluxes (const int& lev,
                                        t_surf_arr, q_surf_arr, olen_arr,    // updated
                                        pblh_arr,                            // updated if(m_include_wstar)
                                        Hwave_arr, Lwave_arr, eta_arr);
+            }
+
+            // Overwrite ustar, tstar, qstar, and olen computed above with LSM values
+            if ( is_land && lmask_arr(i,j,k) == 1) {
+                if (lsm_tstar_arr) t_star_arr(i,j,k) = lsm_tstar_arr(i,j,0);
+                if (lsm_qstar_arr) q_star_arr(i,j,k) = lsm_qstar_arr(i,j,0);
+                if (lsm_ustar_arr) u_star_arr(i,j,k) = lsm_ustar_arr(i,j,0);
+                if (lsm_olen_arr)  olen_arr(i,j,k)   = lsm_olen_arr(i,j,0);
             }
         });
     }
