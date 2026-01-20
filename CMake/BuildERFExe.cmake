@@ -219,6 +219,18 @@ function(build_erf_lib erf_lib_name)
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MORR_FORT)
   endif()
 
+  if(ERF_ENABLE_WINDFARM)
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/Initialization/ERF_InitWindFarm.cpp
+      ${SRC_DIR}/WindFarmParametrization/ERF_WindFarm.cpp
+      ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
+      ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
+      ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
+      ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
+    )
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WINDFARM)
+  endif()
+
   target_sources(${erf_lib_name}
      PRIVATE
        ${SRC_DIR}/ERF_Derive.cpp
@@ -362,10 +374,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
        ${SRC_DIR}/Utils/ERF_VolWgtSum.cpp
        ${SRC_DIR}/Utils/ERF_WeatherDataInterpolation.cpp
-       ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
-       ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
-       ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
-       ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/ERF_SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/ERF_MM5.cpp
   )
