@@ -247,10 +247,6 @@ namespace SDMassChangeUtils_LV
         bool m_adapt_dt;  /*!< use error-based adaptive dt? */
         bool m_verbose;   /*!< verbosity */
 
-        //=====================================================================
-        // Helper methods to reduce code duplication in time integrators
-        //=====================================================================
-
         /*! \brief Compute timestep from stiffness estimate */
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         RT computeTimestep (const RT& a_u) const
@@ -313,10 +309,6 @@ namespace SDMassChangeUtils_LV
                        res_norm_a, res_norm_r, (converged ? "yes" : "no"));
             }
         }
-
-        //=====================================================================
-        // Time integrator methods
-        //=====================================================================
 
         /*! \brief 3rd-order, 4-stage Bogacki-Shampine explicit RK method
          *  with 2nd order embedded method */

@@ -11,12 +11,6 @@ using namespace amrex;
 using namespace SDPCDefn;
 
 namespace {
-    /*! \brief Traits for particle advection process
-     *  Extends VelocityTraits with ice axes for IceBohm terminal velocity */
-    struct AdvectionTraits : SDProcess::VelocityTraits {
-        static constexpr bool needs_ice_axes = true;  // for IceBohm terminal velocity
-    };
-
     /*! \brief Field indices for advection interpolation */
     AMREX_ENUM(InterpFieldsAdv, density, pressure, temperature, NUM_FIELDS);
 }
@@ -76,8 +70,8 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
     // Terminal velocity calculator (shared across tiles)
     TerminalVelocity<ParticleReal> term_vel { ctx.rho_water, rho_i };
 
-    forEachParticleTile<AdvectionTraits>(a_lev, ctx,
-        [&](ParIterType& pti, int grid, ParticleType* p_pbox,
+    forEachParticleTile(a_lev, ctx,
+        [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& ctx)
     {

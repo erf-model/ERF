@@ -385,8 +385,8 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
     const Real rho_w = m_species_mat[m_idx_w]->m_density;
     const int idx_w = m_idx_w;
 
-    forEachParticleTile<SDProcess::InitAttributesTraits>(m_lev,
-        [&](ParIterType& pti, int grid, ParticleType* p_pbox,
+    forEachParticleTile(m_lev,
+        [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs, int np)
     {
         auto condensate_mass_density = a_rhoc[grid].array();
@@ -435,7 +435,7 @@ void SuperDropletPC::DensityScaling (const MultiFab& a_rho /*!< density of air *
     const auto dxi = Geom(m_lev).InvCellSizeArray();
     const auto domain = Geom(m_lev).Domain();
 
-    forEachParticleTile<SDProcess::MultiplicityOnlyTraits>(m_lev,
+    forEachParticleTile(m_lev,
         [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs, int np)
     {

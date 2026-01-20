@@ -1,11 +1,9 @@
 /*! \file ERF_SuperDropletPCProcess.H
- *  \brief Policy-based template infrastructure for SuperDroplet physical processes
+ *  \brief Common data structures for SuperDroplet physical processes
  *
- *  This file provides a framework to reduce code duplication across physical
- *  process implementations by:
- *  1. Defining compile-time traits for process requirements
- *  2. Bundling commonly-used pointers into a single struct
- *  3. Providing template-based pointer setup that only fetches needed data
+ *  This file provides shared infrastructure for physical process implementations:
+ *  1. ParticlePointers - Bundle of particle attribute pointers for GPU kernels
+ *  2. ProcessContext - Non-pointer data (geometry, species info) shared across processes
  */
 
 #ifndef ERF_SUPERDROPLET_PC_PROCESS_H_
@@ -22,114 +20,11 @@ namespace SDProcess {
 using namespace amrex;
 using namespace SDPCDefn;
 
-//===========================================================================
-// PART 1: Traits System - Compile-time feature requirements
-//===========================================================================
-
-/*! \brief Base traits with default values
- *
- * Process policies inherit from this and override what they need.
- * Using static constexpr bool allows if constexpr optimization.
- */
-struct DefaultTraits {
-    // Core pointer requirements
-    static constexpr bool needs_mass         = true;   // Almost always needed
-    static constexpr bool needs_radius       = true;
-    static constexpr bool needs_active       = true;
-    static constexpr bool needs_velocity     = false;
-    static constexpr bool needs_multiplicity = false;
-    static constexpr bool needs_term_vel     = false;
-
-    // Ice-related pointers
-    static constexpr bool needs_ice_axes     = false;  // a, c pointers
-    static constexpr bool needs_ice_rime     = false;  // mrime, nmono
-    static constexpr bool needs_ice_Tfz      = false;  // freezing temperature
-
-    // Material property requirements
-    static constexpr bool needs_density      = true;   // sp_rho, ae_rho
-    static constexpr bool needs_solubility   = true;   // sp_sol, ae_sol
-    static constexpr bool needs_ionization   = false;
-    static constexpr bool needs_mol_weight   = false;
-    static constexpr bool needs_INP_flags    = false;
-};
-
-//===========================================================================
-// Intermediate Traits - Common combinations for ice processes
-//===========================================================================
-
-/*! \brief Traits for processes needing ice freezing temperature only
- *  Used by: MassChangeLVTraits
- */
-struct IceTfzTraits : DefaultTraits {
-    static constexpr bool needs_ice_Tfz = true;
-};
-
-/*! \brief Traits for processes needing ice axes (a, c) and Tfz
- *  Used by: MassChangeSLTraits, AdvectionTraits (for IceBohm terminal velocity)
- */
-struct IceAxesTraits : DefaultTraits {
-    static constexpr bool needs_ice_Tfz  = true;
-    static constexpr bool needs_ice_axes = true;
-};
-
-/*! \brief Traits for processes needing full ice properties (axes, rime, Tfz)
- *  Used by: MassChangeSVTraits, CoalescenceTraits
- */
-struct IceFullTraits : DefaultTraits {
-    static constexpr bool needs_ice_Tfz  = true;
-    static constexpr bool needs_ice_axes = true;
-    static constexpr bool needs_ice_rime = true;
-};
-
-/*! \brief Traits for processes needing velocity and terminal velocity
- *  Used by: AdvectionTraits, CoalescenceTraits
- */
-struct VelocityTraits : DefaultTraits {
-    static constexpr bool needs_velocity = true;
-    static constexpr bool needs_term_vel = true;
-};
-
-//===========================================================================
-// Lightweight Traits - For initialization and utility routines
-//===========================================================================
-
-/*! \brief Minimal traits for multiplicity-only operations
- *  Used by: DensityScaling
- */
-struct MultiplicityOnlyTraits {
-    static constexpr bool needs_mass         = false;
-    static constexpr bool needs_radius       = false;
-    static constexpr bool needs_active       = false;
-    static constexpr bool needs_velocity     = false;
-    static constexpr bool needs_multiplicity = true;
-    static constexpr bool needs_term_vel     = false;
-    static constexpr bool needs_ice_axes     = false;
-    static constexpr bool needs_ice_rime     = false;
-    static constexpr bool needs_ice_Tfz      = false;
-    static constexpr bool needs_density      = false;
-    static constexpr bool needs_solubility   = false;
-    static constexpr bool needs_ionization   = false;
-    static constexpr bool needs_mol_weight   = false;
-    static constexpr bool needs_INP_flags    = false;
-};
-
-/*! \brief Traits for particle attribute initialization
- *  Used by: SetAttributes
- *  Needs mass, radius, multiplicity, and species/aerosol masses
- */
-struct InitAttributesTraits : DefaultTraits {
-    static constexpr bool needs_multiplicity = true;
-};
-
-//===========================================================================
-// PART 2: Unified Pointer Bundle
-//===========================================================================
-
 /*! \brief Bundle of all particle attribute pointers
  *
- * This struct holds all commonly-used pointers to particle data.
- * Pointers that aren't needed (based on traits) remain nullptr.
- * The struct is designed to be captured by GPU lambdas.
+ * This struct holds pointers to particle data for use in GPU kernels.
+ * All pointers are populated by setupParticlePointers(); processes use
+ * only the pointers they need.
  */
 struct ParticlePointers {
     // Number of particles in this tile
@@ -169,10 +64,6 @@ struct ParticlePointers {
     const ParticleReal* ae_mw_arr{nullptr};
     const int* ae_INP_arr{nullptr};
 };
-
-//===========================================================================
-// PART 3: Process Context - Non-pointer data needed across processes
-//===========================================================================
 
 /*! \brief Context data that doesn't change per-tile */
 struct ProcessContext {

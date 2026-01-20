@@ -8,15 +8,6 @@
 using namespace amrex;
 using namespace SDPCDefn;
 
-namespace {
-    /*! \brief Traits for the boundary treatment process
-     *  Extends VelocityTraits with multiplicity and ice properties for boundary handling */
-    struct BoundaryTraits : SDProcess::VelocityTraits {
-        static constexpr bool needs_multiplicity = true;
-        static constexpr bool needs_ice_axes     = true;
-        static constexpr bool needs_ice_rime     = true;
-    };
-}
 
 /*! Handle the boundaries for the particles */
 void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
@@ -43,8 +34,8 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
 
     Long num_deactivated_particles = 0;
 
-    forEachParticleTile<BoundaryTraits>(a_lev, ctx,
-        [&](ParIterType& pti, int grid, ParticleType* p_pbox,
+    forEachParticleTile(a_lev, ctx,
+        [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& ctx)
     {

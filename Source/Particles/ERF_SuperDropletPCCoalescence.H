@@ -6,10 +6,6 @@
 
 #ifdef ERF_USE_PARTICLES
 
-//===========================================================================
-// Interpolation field index enums for coalescence
-//===========================================================================
-
 /*! \brief Field indices for 2-field interpolation (ice-water collision efficiency) */
 AMREX_ENUM(InterpFieldsTR,
     temperature,
@@ -25,10 +21,6 @@ AMREX_ENUM(InterpFieldsFull,
     qv,
     NUM_FIELDS
 );
-
-//===========================================================================
-// Collision kernels
-//===========================================================================
 
 /*! \brief Coalescence kernels
 

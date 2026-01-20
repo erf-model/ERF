@@ -582,19 +582,18 @@ class SuperDropletPC : public ERFPC
             return ctx;
         }
 
-        /*! \brief Setup particle pointers based on process traits
+        /*! \brief Setup all particle pointers for a tile
          *
-         * This template method uses if constexpr to only fetch pointers that
-         * are needed by the process, based on its Traits struct.
+         * Populates the ParticlePointers struct with pointers to all particle
+         * attributes. Processes use only the pointers they need.
          *
-         * @tparam Traits The traits struct defining what pointers are needed
          * @tparam SOAType The Structure of Arrays type
          * @tparam AOSType The Array of Structures type
          * @param soa Reference to the SOA data
          * @param aos Reference to the AOS data
          * @param ptrs Output ParticlePointers struct to populate
          */
-        template<typename Traits, typename SOAType, typename AOSType>
+        template<typename SOAType, typename AOSType>
         void setupParticlePointers(
             SOAType& soa,
             AOSType& aos,
@@ -602,107 +601,57 @@ class SuperDropletPC : public ERFPC
         {
             using namespace SDPCDefn;
 
-            // Runtime-added attribute offsets
             constexpr int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
             constexpr int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
 
-            // Number of particles
             ptrs.num_particles = aos.numParticles();
 
             // Core attributes
-            if constexpr (Traits::needs_mass) {
-                ptrs.mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
-            }
-            if constexpr (Traits::needs_radius) {
-                ptrs.radius_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::radius).data();
-            }
-            if constexpr (Traits::needs_active) {
-                ptrs.active_ptr = soa.GetIntData(rtoff_i + SuperDropletsIntIdxSoA_RT::active).data();
-            }
+            ptrs.mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
+            ptrs.radius_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::radius).data();
+            ptrs.active_ptr = soa.GetIntData(rtoff_i + SuperDropletsIntIdxSoA_RT::active).data();
 
             // Velocity
-            if constexpr (Traits::needs_velocity) {
-                ptrs.v_ptr[0] = soa.GetRealData(SuperDropletsRealIdxSoA::vx).data();
-                ptrs.v_ptr[1] = soa.GetRealData(SuperDropletsRealIdxSoA::vy).data();
-                ptrs.v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
-            }
-            if constexpr (Traits::needs_term_vel) {
-                ptrs.vterm_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::term_vel).data();
-            }
-            if constexpr (Traits::needs_multiplicity) {
-                ptrs.mult_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::multiplicity).data();
-            }
+            ptrs.v_ptr[0] = soa.GetRealData(SuperDropletsRealIdxSoA::vx).data();
+            ptrs.v_ptr[1] = soa.GetRealData(SuperDropletsRealIdxSoA::vy).data();
+            ptrs.v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
+            ptrs.vterm_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::term_vel).data();
+            ptrs.mult_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
-            // Ice properties
-            if constexpr (Traits::needs_ice_Tfz) {
+            // Ice properties (only if ice species is defined)
+            if (m_idx_i >= 0) {
                 ptrs.Tfz_ptr = soa.GetRealData(idx_ice_Tfz(m_num_aerosols, m_num_species)).data();
-            }
-            if constexpr (Traits::needs_ice_axes) {
                 ptrs.a_ptr = soa.GetRealData(idx_ice_a(m_num_aerosols, m_num_species)).data();
                 ptrs.c_ptr = soa.GetRealData(idx_ice_c(m_num_aerosols, m_num_species)).data();
-            }
-            if constexpr (Traits::needs_ice_rime) {
                 ptrs.mrime_ptr = soa.GetRealData(idx_ice_mrime(m_num_aerosols, m_num_species)).data();
                 ptrs.nmono_ptr = soa.GetRealData(idx_ice_nmono(m_num_aerosols, m_num_species)).data();
             }
 
-            // Mass arrays (always needed for composition)
+            // Mass arrays
             setupMassPointers(soa, ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs);
 
             // Material properties
-            if constexpr (Traits::needs_density || Traits::needs_solubility) {
-                getMaterialPropertiesDevice(
-                    ptrs.sp_rho_arr, ptrs.sp_sol_arr,
-                    ptrs.ae_rho_arr, ptrs.ae_sol_arr);
-            }
-            if constexpr (Traits::needs_ionization) {
-                ptrs.sp_ion_arr = getSpeciesIonizationDevice();
-                ptrs.ae_ion_arr = getAerosolIonizationDevice();
-            }
-            if constexpr (Traits::needs_mol_weight) {
-                ptrs.sp_mw_arr = getSpeciesMolWeightDevice();
-                ptrs.ae_mw_arr = getAerosolMolWeightDevice();
-            }
-            if constexpr (Traits::needs_INP_flags) {
-                ptrs.sp_INP_arr = getSpeciesINPFlagsDevice();
-                ptrs.ae_INP_arr = getAerosolINPFlagsDevice();
-            }
+            getMaterialPropertiesDevice(
+                ptrs.sp_rho_arr, ptrs.sp_sol_arr,
+                ptrs.ae_rho_arr, ptrs.ae_sol_arr);
+            ptrs.sp_ion_arr = getSpeciesIonizationDevice();
+            ptrs.ae_ion_arr = getAerosolIonizationDevice();
+            ptrs.sp_mw_arr = getSpeciesMolWeightDevice();
+            ptrs.ae_mw_arr = getAerosolMolWeightDevice();
+            ptrs.sp_INP_arr = getSpeciesINPFlagsDevice();
+            ptrs.ae_INP_arr = getAerosolINPFlagsDevice();
         }
 
         /*! \brief Iterate over particle tiles with common setup
          *
-         * This template method handles the common particle iteration pattern:
-         * - OMP parallel region
-         * - ParIterType loop
-         * - Tile data extraction (aos, soa, p_pbox)
-         * - Pointer setup via setupParticlePointers
+         * Handles the common particle iteration pattern with OMP parallelism.
          *
-         * The functor receives all the data needed for per-tile processing.
-         *
-         * @tparam Traits The traits struct defining what pointers are needed
          * @tparam TileFunc Functor type called for each tile
          * @param a_lev AMR level
          * @param ctx Process context (geometry, species info)
-         * @param func Functor called as: func(pti, grid, p_pbox, ptrs, ctx)
-         *
-         * Example usage:
-         * @code
-         * forEachParticleTile<MyTraits>(a_lev, ctx,
-         *     [&](auto& pti, int grid, auto* p_pbox,
-         *         const SDProcess::ParticlePointers& ptrs,
-         *         const SDProcess::ProcessContext& ctx)
-         *     {
-         *         // Per-tile setup (e.g., get field arrays)
-         *         auto temp_arr = a_temperature[grid].array();
-         *
-         *         // Run kernel
-         *         ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i) {
-         *             // kernel code using ptrs and ctx
-         *         });
-         *     });
-         * @endcode
+         * @param func Functor: func(pti, grid, p_pbox, ptrs, ctx)
          */
-        template<typename Traits, typename TileFunc>
+        template<typename TileFunc>
         void forEachParticleTile(
             int a_lev,
             const SDProcess::ProcessContext& ctx,
@@ -722,31 +671,22 @@ class SuperDropletPC : public ERFPC
                 auto* p_pbox = aos().data();
 
                 SDProcess::ParticlePointers ptrs;
-                setupParticlePointers<Traits>(soa, aos, ptrs);
+                setupParticlePointers(soa, aos, ptrs);
 
                 func(pti, grid, p_pbox, ptrs, ctx);
             }
         }
 
-        /*! \brief Iterate over particle tiles WITHOUT OpenMP
+        /*! \brief Iterate over particle tiles WITHOUT OpenMP (serial)
          *
-         * This is identical to forEachParticleTile but without the OMP pragma.
-         * Use this when the per-tile operations are not thread-safe (e.g.,
-         * building DenseBins for coalescence).
-         *
-         * @tparam Traits The traits struct defining what pointers are needed
-         * @tparam TileFunc Functor type called for each tile
-         * @param a_lev AMR level
-         * @param ctx Process context (geometry, species info)
-         * @param func Functor called as: func(pti, grid, p_pbox, ptrs, ctx)
+         * Use when per-tile operations are not thread-safe (e.g., DenseBins).
          */
-        template<typename Traits, typename TileFunc>
+        template<typename TileFunc>
         void forEachParticleTileSerial(
             int a_lev,
             const SDProcess::ProcessContext& ctx,
             TileFunc&& func)
         {
-            // Do NOT add OpenMP here - this method is intentionally serial
             for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
                 int grid = pti.index();
                 auto& ptile = ParticlesAt(a_lev, pti);
@@ -758,40 +698,18 @@ class SuperDropletPC : public ERFPC
                 auto* p_pbox = aos().data();
 
                 SDProcess::ParticlePointers ptrs;
-                setupParticlePointers<Traits>(soa, aos, ptrs);
+                setupParticlePointers(soa, aos, ptrs);
 
                 func(pti, grid, p_pbox, ptrs, ctx);
             }
         }
 
-        /*! \brief Lightweight iteration over particle tiles
+        /*! \brief Lightweight iteration (no ProcessContext)
          *
-         * Simplified variant that doesn't require ProcessContext.
-         * Useful for initialization routines and simple operations that
-         * only need particle data and basic geometry.
-         *
-         * @tparam Traits The traits struct defining what pointers are needed
-         * @tparam TileFunc Functor type called for each tile
-         * @param a_lev AMR level
-         * @param func Functor called as: func(pti, grid, p_pbox, ptrs, num_particles)
-         *
-         * Example usage:
-         * @code
-         * forEachParticleTile<MultiplicityTraits>(a_lev,
-         *     [&](auto& pti, int grid, auto* p_pbox,
-         *         const SDProcess::ParticlePointers& ptrs, int np)
-         *     {
-         *         auto density = a_rho[grid].array();
-         *         ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
-         *             // kernel using ptrs
-         *         });
-         *     });
-         * @endcode
+         * For initialization routines and simple operations.
          */
-        template<typename Traits, typename TileFunc>
-        void forEachParticleTile(
-            int a_lev,
-            TileFunc&& func)
+        template<typename TileFunc>
+        void forEachParticleTile(int a_lev, TileFunc&& func)
         {
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -808,7 +726,7 @@ class SuperDropletPC : public ERFPC
                 auto* p_pbox = aos().data();
 
                 SDProcess::ParticlePointers ptrs;
-                setupParticlePointers<Traits>(soa, aos, ptrs);
+                setupParticlePointers(soa, aos, ptrs);
 
                 func(pti, grid, p_pbox, ptrs, num_particles);
             }

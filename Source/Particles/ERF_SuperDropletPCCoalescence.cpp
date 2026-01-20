@@ -13,18 +13,6 @@ using namespace SDMassChangeUtils_SV;
 using namespace SDPCDefn;
 
 namespace {
-    /*! \brief Traits for the coalescence process
-     *  Extends IceFullTraits with velocity and multiplicity for collision handling */
-    struct CoalescenceTraits : SDProcess::IceFullTraits {
-        static constexpr bool needs_velocity     = true;
-        static constexpr bool needs_term_vel     = true;
-        static constexpr bool needs_multiplicity = true;
-    };
-
-    //===========================================================================
-    // Helper functions for coalescence update operations
-    //===========================================================================
-
     /*! \brief Update common attributes for predator particle (remainder > 0 case)
      *  Updates Tfz, species masses, and aerosol masses for particle i */
     AMREX_GPU_DEVICE AMREX_FORCE_INLINE
@@ -585,8 +573,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const auto ctx = buildProcessContext(a_lev);
 
     // Use serial (non-OMP) iteration because DenseBins is not thread-safe
-    forEachParticleTileSerial<CoalescenceTraits>(a_lev, ctx,
-        [&](ParIterType& pti, int grid, ParticleType* pstruct_ptr,
+    forEachParticleTileSerial(a_lev, ctx,
+        [&](ParIterType& /*pti*/, int grid, ParticleType* pstruct_ptr,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& /*ctx*/)
     {

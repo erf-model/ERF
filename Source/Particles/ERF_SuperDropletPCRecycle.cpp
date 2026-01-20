@@ -8,15 +8,6 @@
 using namespace amrex;
 using namespace SDPCDefn;
 
-namespace {
-    /*! \brief Traits for particle recycling process
-     *  Extends VelocityTraits with multiplicity and ice properties for resetting */
-    struct RecycleTraits : SDProcess::VelocityTraits {
-        static constexpr bool needs_multiplicity = true;
-        static constexpr bool needs_ice_axes     = true;
-        static constexpr bool needs_ice_rime     = true;
-    };
-}
 
 /*! Recycle deactivated particles: particles that have zero multiplicity are
  *  recycled by resetting them to dry aerosol particles and placing them randomly
@@ -130,8 +121,8 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const auto z_min = m_recyc_zmin;
         const auto z_max = m_recyc_zmax;
 
-        forEachParticleTile<RecycleTraits>(a_lev, ctx,
-            [&](ParIterType& pti, int /*grid*/, ParticleType* p_pbox,
+        forEachParticleTile(a_lev, ctx,
+            [&](ParIterType& /*pti*/, int /*grid*/, ParticleType* p_pbox,
                 const SDProcess::ParticlePointers& ptrs,
                 const SDProcess::ProcessContext& ctx)
         {
@@ -250,8 +241,8 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         // Update location data for recycled particles
         const MFPtr& z_height = a_z_phys_nd[a_lev];
-        forEachParticleTile<SDProcess::DefaultTraits>(a_lev, ctx,
-            [&](ParIterType& pti, int grid, ParticleType* p_pbox,
+        forEachParticleTile(a_lev, ctx,
+            [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
                 const SDProcess::ParticlePointers& ptrs,
                 const SDProcess::ProcessContext& ctx)
         {
@@ -272,7 +263,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         const auto ctx = buildProcessContext(a_lev);
 
-        forEachParticleTile<SDProcess::DefaultTraits>(a_lev, ctx,
+        forEachParticleTile(a_lev, ctx,
             [&](ParIterType& /*pti*/, int /*grid*/, ParticleType* p_pbox,
                 const SDProcess::ParticlePointers& ptrs,
                 const SDProcess::ProcessContext& /*ctx*/)

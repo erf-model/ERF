@@ -12,28 +12,6 @@ using namespace amrex;
 using namespace SDPCDefn;
 
 namespace {
-    /*! \brief Traits for liquid-vapour mass change process
-     *  Requires ionization and molecular weight for Köhler equation */
-    struct MassChangeLVTraits : SDProcess::DefaultTraits {
-        static constexpr bool needs_ionization = true;
-        static constexpr bool needs_mol_weight = true;
-    };
-
-    /*! \brief Traits for solid-liquid mass change (freezing/melting)
-     *  Extends IceFullTraits with multiplicity for particle splitting */
-    struct MassChangeSLTraits : SDProcess::IceFullTraits {
-        static constexpr bool needs_multiplicity = true;
-    };
-
-    /*! \brief Traits for solid-vapour mass change (deposition/sublimation)
-     *  Requires ice axes/rime (not Tfz) plus terminal velocity and multiplicity */
-    struct MassChangeSVTraits : SDProcess::DefaultTraits {
-        static constexpr bool needs_term_vel     = true;
-        static constexpr bool needs_multiplicity = true;
-        static constexpr bool needs_ice_axes     = true;
-        static constexpr bool needs_ice_rime     = true;
-    };
-
     /*! \brief Field indices for liquid-vapour interpolation */
     AMREX_ENUM(InterpFieldsLV, e_sat, sat_ratio, temperature, pressure, NUM_FIELDS);
 
@@ -107,11 +85,12 @@ void SuperDropletPC::MassChange_LV (  int                                       
     constexpr int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
 #endif
 
-    forEachParticleTile<MassChangeLVTraits>(a_lev, ctx,
+    forEachParticleTile(a_lev, ctx,
         [&](ParIterType& pti, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& ctx)
     {
+        amrex::ignore_unused(pti);
         auto zheight = (*z_height)[grid].array();
 
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
@@ -268,8 +247,8 @@ void SuperDropletPC::MassChange_SL (  int                                       
 
     AMREX_ALWAYS_ASSERT((ctx.idx_water >= 0) && (ctx.idx_ice >= 0) && (ctx.idx_water != ctx.idx_ice));
 
-    forEachParticleTile<MassChangeSLTraits>(a_lev, ctx,
-        [&](ParIterType& pti, int grid, ParticleType* p_pbox,
+    forEachParticleTile(a_lev, ctx,
+        [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& ctx)
     {
@@ -368,8 +347,8 @@ void SuperDropletPC::MassChange_SV (  int                                      a
                              mat_prop.m_Rv,
                              mat_prop.m_density };
 
-    forEachParticleTile<MassChangeSVTraits>(a_lev, ctx,
-        [&](ParIterType& pti, int grid, ParticleType* p_pbox,
+    forEachParticleTile(a_lev, ctx,
+        [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
             const SDProcess::ParticlePointers& ptrs,
             const SDProcess::ProcessContext& ctx)
     {
