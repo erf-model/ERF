@@ -239,7 +239,7 @@ void SuperDropletsMoist::InitParticles ( MFPtr& a_z_phys_nd )
  * \param[in] a_gdb Unused particle grid database pointer
  * \param[in] a_fname File name for the checkpoint file to restart from
  */
-void SuperDropletsMoist::RestartParticles ( ParGDBBase* a_gdb, const std::string& a_fname )
+void SuperDropletsMoist::RestartParticles ( ParGDBBase* /* a_gdb */, const std::string& a_fname )
 {
     BL_PROFILE("SuperDropletsMoist::RestartParticles()");
 
