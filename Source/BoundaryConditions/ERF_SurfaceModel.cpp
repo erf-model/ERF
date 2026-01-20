@@ -195,7 +195,7 @@ void SurfaceModel::calculate_simple_average(int lev, amrex::MultiFab* const urba
     m_weights_updated = true;
 }
 
-void SurfaceModel::register_field_map(std::string name, const std::pair<int, int> &lsm_urb_map)
+void SurfaceModel::register_field_map(std::string name, const std::pair<int, int> &lsm_urb_map, bool fill_boundary)
 {
     amrex::Print() << " adding mapping between LSM<->Urban fields <"<<lsm_urb_map.first << "," << lsm_urb_map.second << "> to common surface name " << name << std::endl;
 
@@ -205,6 +205,7 @@ void SurfaceModel::register_field_map(std::string name, const std::pair<int, int
         Field field;
         field.map = lsm_urb_map;
         field.mf_ind = -1;
+        field.fill_bound = fill_boundary;
 
         // Create MF to hold output for this field
 
@@ -258,13 +259,24 @@ void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const urban_f
             auto lsm_data_arr = (valid_land) ? lsm_data_lev[lev][lsm_idx]->const_array(mfi) : Array4<const Real>{};
             auto urban_data_arr = (valid_urban) ? urban_data_lev[lev][urb_idx]->const_array(mfi) : Array4<const Real>{};
 
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real land = (lsm_data_arr) ? lsm_data_arr(i, j, k) * weights_arr(i, j, 0, SurfaceModelType::LAND) : 0.0;
-                Real urb  = (urban_data_arr) ? urban_data_arr(i, j, k) * weights_arr(i, j, 0, SurfaceModelType::URBAN) : 0.0;
+            if (valid_land && !valid_urban) {
+                // use solely land value
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    output_arr(i, j, k) = lsm_data_arr(i, j, k);
+                });
+            } else {
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real land = (lsm_data_arr) ? lsm_data_arr(i, j, k) * weights_arr(i, j, 0, SurfaceModelType::LAND) : 0.0;
+                    Real urb  = (urban_data_arr) ? urban_data_arr(i, j, k) * weights_arr(i, j, 0, SurfaceModelType::URBAN) : 0.0;
 
-                output_arr(i, j, k) = land + urb;
-            });
+                    output_arr(i, j, k) = land + urb;
+                });
+            }
+        }
+        if (field.second.fill_bound) {
+            fields[mf_idx][lev]->FillBoundary(m_geom[lev].periodicity());
         }
         //outputs[output_field]->FillBoundary(comp, 1, m_geom[lev].periodicity());
     }

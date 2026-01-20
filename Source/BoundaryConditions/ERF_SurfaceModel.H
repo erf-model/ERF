@@ -218,7 +218,7 @@ public:
 
     void write_output(int lev, const amrex::Real time, const std::string plot_prefix, const int level_step);
 
-    void register_field_map(std::string name, const std::pair<int, int> &lsm_urb_map);
+    void register_field_map(std::string name, const std::pair<int, int> &lsm_urb_map, bool fill_boundary=false);
 
     amrex::MultiFab* get_field(const std::string &name, int lev = 0) {
         auto &field = fieldmap.at(name);
@@ -301,6 +301,7 @@ private:
     struct Field {
         std::pair<int, int> map;
         int mf_ind;
+        bool fill_bound;
     };
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> fields; // NOTE: this is stored in inverse order: (field, nlev)
     std::unordered_map<std::string, Field> fieldmap;
