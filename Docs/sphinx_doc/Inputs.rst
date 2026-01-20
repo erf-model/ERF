@@ -1403,8 +1403,9 @@ function(s).
 Note that ``erf.add_custom_geostrophic_profile`` cannot be used in combination
 with an ``erf.abl_geo_wind_table``.
 
-- Wind farm parameterization requires ``USE_WINDFARM=TRUE`` at build time. See :ref:`sec:WindFarmModels` for theory and examples.
-
+- Wind farm parameterization requires ``USE_WINDFARM=TRUE`` (gmake)
+  or ``-DERF_ENABLE_WINDFARM`` (cmake) at build time.
+  See :ref:`sec:WindFarmModels` for theory and examples.
 
 Numerical Stability
 ===================
