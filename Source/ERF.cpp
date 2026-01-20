@@ -2055,8 +2055,8 @@ ERF::init_only (int lev, Real time)
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_gravity,
                 "Gravity should be on to be consistent with sounding initialization.");
         } else { // SoundingType::ConstantDensity
-            AMREX_ASSERT_WITH_MESSAGE(!solverChoice.use_gravity,
-                "Constant density probably doesn't make sense with gravity");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.use_gravity || (solverChoice.anelastic[lev] == 1),
+                "Constant density probably doesn't make sense for compressible flow with gravity");
             initHSE();
         }
 
