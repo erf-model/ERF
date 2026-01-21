@@ -143,6 +143,9 @@ option(ERF_ENABLE_NVHPC "Enable NVHPC" OFF)
 #Options for NOAH-MP
 option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 
+#Other parameterizations
+option(ERF_ENABLE_WINDFARM "Enable wind farm parameterizations" OFF)
+
 #Option to build tools
 option(ERF_ENABLE_TOOLS "Enable building of additional tools" OFF)
 
