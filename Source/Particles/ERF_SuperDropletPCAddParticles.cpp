@@ -366,20 +366,16 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
         }
         Gpu::synchronize();
 
-        // Get pointers to persistent device data
-        const ParticleReal* sp_rho_arr = nullptr;
-        const int* sp_sol_arr = nullptr;
-        const ParticleReal* sp_ion_arr = nullptr;
-        const ParticleReal* sp_mw_arr = nullptr;
-        const int* sp_INP_arr = nullptr;
-        const ParticleReal* ae_rho_arr = nullptr;
-        const int* ae_sol_arr = nullptr;
-        const ParticleReal* ae_ion_arr = nullptr;
-        const ParticleReal* ae_mw_arr = nullptr;
-        const int* ae_INP_arr = nullptr;
-        getMaterialPropertiesDevice(sp_rho_arr, sp_sol_arr, sp_ion_arr, sp_mw_arr, sp_INP_arr,
-                                    ae_rho_arr, ae_sol_arr, ae_ion_arr, ae_mw_arr, ae_INP_arr);
-        amrex::ignore_unused(sp_ion_arr, sp_mw_arr, ae_ion_arr, ae_mw_arr);
+        // Get pointers to persistent device data - ensure device properties are initialized
+        if (!m_device_props_initialized) {
+            initializeDeviceProperties();
+        }
+        const ParticleReal* sp_rho_arr = m_sp_density.data();
+        const int* sp_sol_arr = m_sp_solubility.data();
+        const ParticleReal* ae_rho_arr = m_ae_density.data();
+        const int* ae_sol_arr = m_ae_solubility.data();
+        const int* sp_INP_arr = m_sp_is_INP.data();
+        const int* ae_INP_arr = m_ae_is_INP.data();
 
         auto species_mass = species_mass_d.data();
         auto aerosol_mass = aerosol_mass_d.data();

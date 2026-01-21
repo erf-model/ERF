@@ -490,54 +490,6 @@ class SuperDropletPC : public ERFPC
         /*! Method to initialize device properties */
         void initializeDeviceProperties();
 
-        /*! \brief Helper method to get species and aerosol material properties
-         *
-         * This helper method provides pointers to species and aerosol material properties
-         * from the persistent device vectors, ensuring they are initialized first.
-         * It avoids redundant host-to-device transfers when accessing material properties.
-         *
-         * @param sp_density_ptr Output pointer for species densities
-         * @param sp_solubility_ptr Output pointer for species solubilities
-         * @param sp_ionization_ptr Output pointer for species ionization values
-         * @param sp_mol_weight_ptr Output pointer for species molecular weights
-         * @param sp_INP_ptr Output pointer for species INP flags
-         * @param ae_density_ptr Output pointer for aerosol densities
-         * @param ae_solubility_ptr Output pointer for aerosol solubilities
-         * @param ae_ionization_ptr Output pointer for aerosol ionization values
-         * @param ae_mol_weight_ptr Output pointer for aerosol molecular weights
-         * @param ae_INP_ptr Output pointer for aerosol INP flags
-         */
-        AMREX_FORCE_INLINE
-        void getMaterialPropertiesDevice(
-            const amrex::ParticleReal*& sp_density_ptr,
-            const int*& sp_solubility_ptr,
-            const amrex::ParticleReal*& sp_ionization_ptr,
-            const amrex::ParticleReal*& sp_mol_weight_ptr,
-            const int*& sp_INP_ptr,
-            const amrex::ParticleReal*& ae_density_ptr,
-            const int*& ae_solubility_ptr,
-            const amrex::ParticleReal*& ae_ionization_ptr,
-            const amrex::ParticleReal*& ae_mol_weight_ptr,
-            const int*& ae_INP_ptr) const
-        {
-            // Ensure device properties are initialized
-            if (!m_device_props_initialized) {
-                const_cast<SuperDropletPC*>(this)->initializeDeviceProperties();
-            }
-
-            // Get pointers to persistent device data
-            sp_density_ptr = m_sp_density.data();
-            sp_solubility_ptr = m_sp_solubility.data();
-            sp_ionization_ptr = m_sp_ionization.data();
-            sp_mol_weight_ptr = m_sp_mol_weight.data();
-            sp_INP_ptr = m_sp_is_INP.data();
-            ae_density_ptr = m_ae_density.data();
-            ae_solubility_ptr = m_ae_solubility.data();
-            ae_ionization_ptr = m_ae_ionization.data();
-            ae_mol_weight_ptr = m_ae_mol_weight.data();
-            ae_INP_ptr = m_ae_is_INP.data();
-        }
-
         /*! \brief Build a ProcessContext with geometry and species info
          *
          * This helper builds the context struct that is passed to process policies.
@@ -618,10 +570,20 @@ class SuperDropletPC : public ERFPC
             // Mass arrays
             setupMassPointers(soa, ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs);
 
-            // Material properties (getMaterialPropertiesDevice ensures initialization)
-            getMaterialPropertiesDevice(
-                ptrs.sp_rho_arr, ptrs.sp_sol_arr, ptrs.sp_ion_arr, ptrs.sp_mw_arr, ptrs.sp_INP_arr,
-                ptrs.ae_rho_arr, ptrs.ae_sol_arr, ptrs.ae_ion_arr, ptrs.ae_mw_arr, ptrs.ae_INP_arr);
+            // Material properties - ensure device properties are initialized
+            if (!m_device_props_initialized) {
+                const_cast<SuperDropletPC*>(this)->initializeDeviceProperties();
+            }
+            ptrs.sp_rho_arr = m_sp_density.data();
+            ptrs.sp_sol_arr = m_sp_solubility.data();
+            ptrs.sp_ion_arr = m_sp_ionization.data();
+            ptrs.sp_mw_arr = m_sp_mol_weight.data();
+            ptrs.sp_INP_arr = m_sp_is_INP.data();
+            ptrs.ae_rho_arr = m_ae_density.data();
+            ptrs.ae_sol_arr = m_ae_solubility.data();
+            ptrs.ae_ion_arr = m_ae_ionization.data();
+            ptrs.ae_mw_arr = m_ae_mol_weight.data();
+            ptrs.ae_INP_arr = m_ae_is_INP.data();
         }
 
         /*! \brief Iterate over particle tiles with common setup
