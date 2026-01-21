@@ -285,11 +285,16 @@ void ERF::advance_dycore (int level,
     IntVect ngv = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
     IntVect ngw = (!solverChoice.use_num_diff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
 
+    const MultiFab* c_vfrac = nullptr;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        c_vfrac = &((get_eb(level).get_const_factory())->getVolFrac());
+    }
+
     VelocityToMomentum(xvel_old, ngu, yvel_old, ngv, zvel_old, ngw, density,
                        state_old[IntVars::xmom],
                        state_old[IntVars::ymom],
                        state_old[IntVars::zmom],
-                       domain, domain_bcs_type);
+                       domain, domain_bcs_type, c_vfrac);
 
     MultiFab::Copy(xvel_new,xvel_old,0,0,1,xvel_old.nGrowVect());
     MultiFab::Copy(yvel_new,yvel_old,0,0,1,yvel_old.nGrowVect());

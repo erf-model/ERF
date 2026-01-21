@@ -4,10 +4,12 @@
 #include <AMReX_TracerParticle_mod_K.H>
 #include "ERF_Constants.H"
 #include "ERF_SuperDropletPCMassChange.H"
+#include "ERF_InterpolationUtils.H"
 
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using namespace SDPCDefn;
 
 /*! Compute mass change of particles due to evaporation and condensation
  *  (liquid <--> vapour) */
@@ -76,80 +78,26 @@ void SuperDropletPC::MassChange_LV (  int                                       
         auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
         int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
         auto* condt_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::cond_tendency).data();
 #endif
 
         SDSpeciesMassArr sp_mass_ptrs;
-        Gpu::DeviceVector<ParticleReal> sp_ionization(num_sp);
-        Gpu::DeviceVector<ParticleReal> sp_mol_weight(num_sp);
-        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-        Gpu::DeviceVector<int> sp_solubility(num_sp);
-        {
-            Vector<ParticleReal> sp_ionization_h(num_sp);
-            Vector<ParticleReal> sp_mol_weight_h(num_sp);
-            Vector<ParticleReal> sp_density_h(num_sp);
-            Vector<int> sp_solubility_h(num_sp);
-            for (int i = 0; i < num_sp; i++) {
-                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
-                sp_ionization_h[i] = m_species_mat[i]->m_ionization;
-                sp_mol_weight_h[i] = m_species_mat[i]->m_mol_weight;
-                sp_density_h[i] = m_species_mat[i]->m_density;
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_ionization_h.begin(),
-                        sp_ionization_h.end(),
-                        sp_ionization.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_mol_weight_h.begin(),
-                        sp_mol_weight_h.end(),
-                        sp_mol_weight.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_density_h.begin(),
-                        sp_density_h.end(),
-                        sp_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_solubility_h.begin(),
-                        sp_solubility_h.end(),
-                        sp_solubility.begin() );
-        }
-
         SDAerosolMassArr ae_mass_ptrs;
-        Gpu::DeviceVector<ParticleReal> ae_ionization(num_ae);
-        Gpu::DeviceVector<ParticleReal> ae_mol_weight(num_ae);
-        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-        Gpu::DeviceVector<int> ae_solubility(num_ae);
-        {
-            Vector<ParticleReal> ae_ionization_h(num_ae);
-            Vector<ParticleReal> ae_mol_weight_h(num_ae);
-            Vector<ParticleReal> ae_density_h(num_ae);
-            Vector<int> ae_solubility_h(num_ae);
-            for (int i = 0; i < num_ae; i++) {
-                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
-                ae_ionization_h[i] = m_aerosol_mat[i]->m_ionization;
-                ae_mol_weight_h[i] = m_aerosol_mat[i]->m_mol_weight;
-                ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_ionization_h.begin(),
-                        ae_ionization_h.end(),
-                        ae_ionization.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_mol_weight_h.begin(),
-                        ae_mol_weight_h.end(),
-                        ae_mol_weight.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_density_h.begin(),
-                        ae_density_h.end(),
-                        ae_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_solubility_h.begin(),
-                        ae_solubility_h.end(),
-                        ae_solubility.begin() );
-        }
+        setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
+
+        // Get material properties from persistent device vectors
+        const ParticleReal* sp_rho_arr = nullptr;
+        const int* sp_sol_arr = nullptr;
+        const ParticleReal* ae_rho_arr = nullptr;
+        const int* ae_sol_arr = nullptr;
+        getMaterialPropertiesDevice(sp_rho_arr, sp_sol_arr, ae_rho_arr, ae_sol_arr);
+
+        // Get additional species properties
+        const ParticleReal* sp_ion_arr = getSpeciesIonizationDevice();
+        const ParticleReal* sp_mw_arr = getSpeciesMolWeightDevice();
+        const ParticleReal* ae_ion_arr = getAerosolIonizationDevice();
+        const ParticleReal* ae_mw_arr = getAerosolMolWeightDevice();
 
         const auto& sat_pressure_arr = a_sat_pressure[grid].array();
         const auto& sat_ratio_arr = a_sat_ratio[grid].array();
@@ -172,8 +120,7 @@ void SuperDropletPC::MassChange_LV (  int                                       
                                                                           m_newton_rtol,
                                                                           m_newton_atol,
                                                                           m_newton_stol,
-                                                                          m_newton_maxits,
-                                                                          false };
+                                                                          m_newton_maxits };
 
         Gpu::Buffer<Long> unconverged_particles({0});
         auto* unconverged_particles_ptr = unconverged_particles.data();
@@ -181,14 +128,15 @@ void SuperDropletPC::MassChange_LV (  int                                       
         auto cfl = m_mass_change_cfl;
         auto ti_choice = m_mass_change_ti;
 
-        auto sp_i_arr = sp_ionization.data();
-        auto sp_mw_arr = sp_mol_weight.data();
-        auto sp_rho_arr = sp_density.data();
-        auto sp_sol_arr = sp_solubility.data();
-        auto ae_i_arr = ae_ionization.data();
-        auto ae_mw_arr = ae_mol_weight.data();
-        auto ae_rho_arr = ae_density.data();
-        auto ae_sol_arr = ae_solubility.data();
+        // We already have these pointers from our accessors above
+        // sp_ion_arr contains species ionization values
+        // sp_mw_arr contains species molecular weights
+        // sp_rho_arr contains species densities
+        // sp_sol_arr contains species solubility flags
+        // ae_ion_arr contains aerosol ionization values
+        // ae_mw_arr contains aerosol molecular weights
+        // ae_rho_arr contains aerosol densities
+        // ae_sol_arr contains aerosol solubility flags
 
         ParallelFor(num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -200,28 +148,38 @@ void SuperDropletPC::MassChange_LV (  int                                       
             auto par_phase = SD_phase(i, idx_w, idx_i, sp_mass_ptrs);
             if (a_is_water && (par_phase == SDPhase::ice)) { return; }
 
-            ParticleReal sat_ratio, e_sat, temperature, pressure;
-            if (is_periodic_z) {
-                cic_interpolate( p, plo, dxi, sat_pressure_arr, &e_sat, 1 );
-                cic_interpolate( p, plo, dxi, sat_ratio_arr, &sat_ratio, 1 );
-                cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
-                cic_interpolate( p, plo, dxi, pressure_arr, &pressure, 1 );
-            } else {
-                cic_interpolate_mapped_z( p, plo, dxi, sat_pressure_arr, zheight, &e_sat, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, sat_ratio_arr, zheight, &sat_ratio, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, pressure_arr, zheight, &pressure, 1 );
-            }
+            // Define field values array to store interpolated results
+            ParticleReal field_values[4]; // e_sat, sat_ratio, temperature, pressure
+
+            // Define array of field arrays to interpolate from
+            const Array4<const Real> field_arrays[4] = {
+                sat_pressure_arr,
+                sat_ratio_arr,
+                temperature_arr,
+                pressure_arr
+            };
+
+            // Use the interpolation helper function to interpolate all fields at once
+            ERF::Interpolation::interpolateFields(
+                p, plo, dxi, field_arrays, field_values, 4,
+                is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+            );
+
+            // Extract interpolated values
+            ParticleReal e_sat = field_values[0];
+            ParticleReal sat_ratio = field_values[1];
+            ParticleReal temperature = field_values[2];
+            ParticleReal pressure = field_values[3];
 
             ParticleReal solute_moles = 0.0;
             if (a_is_water) {
                 for (int j = 0; j < num_sp; j++) {
                     if (j != idx_vap) {
-                        solute_moles += (sp_mass_ptrs[j][i]*sp_i_arr[j]/sp_mw_arr[j]);
+                        solute_moles += (sp_mass_ptrs[j][i]*sp_ion_arr[j]/sp_mw_arr[j]);
                     }
                 }
                 for (int j = 0; j < num_ae; j++) {
-                    solute_moles += (ae_mass_ptrs[j][i]*ae_i_arr[j]/ae_mw_arr[j]);
+                    solute_moles += (ae_mass_ptrs[j][i]*ae_ion_arr[j]/ae_mw_arr[j]);
                 }
             }
 
@@ -291,13 +249,11 @@ void SuperDropletPC::MassChange_LV (  int                                       
                 // don't let it go negative
                 sp_mass_ptrs[idx_vap][i] = std::max(sp_mass_ptrs[idx_vap][i],0.0);
 
-                radius_ptr[i] = SD_effective_radius( i, idx_w,
-                                                     rho_w,
-                                                     num_sp, num_ae,
-                                                     sp_sol_arr, ae_sol_arr,
-                                                     sp_mass_ptrs, ae_mass_ptrs,
-                                                     sp_rho_arr, ae_rho_arr );
-                mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+                // Update particle attributes (radius and mass)
+                SuperDropletPC::updateParticleAttributes(
+                    i, radius_ptr, mass_ptr, idx_w, rho_w,
+                    num_sp, num_ae, sp_sol_arr, ae_sol_arr,
+                    sp_mass_ptrs, ae_mass_ptrs, sp_rho_arr, ae_rho_arr);
             }
 
         });
@@ -369,51 +325,15 @@ void SuperDropletPC::MassChange_SL (  int                                       
         const auto& temperature_arr = a_temperature[grid].array();
 
         SDSpeciesMassArr sp_mass_ptrs;
-        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-        Gpu::DeviceVector<int> sp_solubility(num_sp);
-        {
-            Vector<ParticleReal> sp_density_h(num_sp);
-            Vector<int> sp_solubility_h(num_sp);
-            for (int i = 0; i < num_sp; i++) {
-                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
-                sp_density_h[i] = m_species_mat[i]->m_density;
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_density_h.begin(),
-                        sp_density_h.end(),
-                        sp_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_solubility_h.begin(),
-                        sp_solubility_h.end(),
-                        sp_solubility.begin() );
-        }
-
         SDAerosolMassArr ae_mass_ptrs;
-        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-        Gpu::DeviceVector<int> ae_solubility(num_ae);
-        {
-            Vector<ParticleReal> ae_density_h(num_ae);
-            Vector<int> ae_solubility_h(num_ae);
-            for (int i = 0; i < num_ae; i++) {
-                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
-                ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_density_h.begin(),
-                        ae_density_h.end(),
-                        ae_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_solubility_h.begin(),
-                        ae_solubility_h.end(),
-                        ae_solubility.begin() );
-        }
+        setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
 
-        auto sp_rho_arr = sp_density.data();
-        auto sp_sol_arr = sp_solubility.data();
-        auto ae_rho_arr = ae_density.data();
-        auto ae_sol_arr = ae_solubility.data();
+        // Get material properties from persistent device vectors instead of creating local copies
+        const ParticleReal* sp_rho_arr = nullptr;
+        const int* sp_sol_arr = nullptr;
+        const ParticleReal* ae_rho_arr = nullptr;
+        const int* ae_sol_arr = nullptr;
+        getMaterialPropertiesDevice(sp_rho_arr, sp_sol_arr, ae_rho_arr, ae_sol_arr);
 
         ParallelFor(num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -421,22 +341,27 @@ void SuperDropletPC::MassChange_SL (  int                                       
             if (p.id() <= 0) { return; }
             if (active_ptr[i] == 0) { return; }
 
-            ParticleReal temperature;
-            if (is_periodic_z) {
-                cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
-            } else {
-                cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-            }
+            // Define field values array to store interpolated results
+            ParticleReal field_values[2]; // temperature, sat_ratio
+
+            // Define array of field arrays to interpolate from
+            const Array4<const Real> field_arrays[2] = {
+                temperature_arr,
+                sat_ratio_arr
+            };
+
+            // Use the interpolation helper function to interpolate all fields at once
+            ERF::Interpolation::interpolateFields(
+                p, plo, dxi, field_arrays, field_values, 2,
+                is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+            );
+
+            // Extract interpolated values
+            ParticleReal temperature = field_values[0];
+            ParticleReal sat_ratio = field_values[1];
 
             auto par_phase = SD_phase(i, idx_w, idx_i, sp_mass_ptrs);
             if (par_phase == SDPhase::water) {
-
-                ParticleReal sat_ratio;
-                if (is_periodic_z) {
-                    cic_interpolate( p, plo, dxi, sat_ratio_arr, &sat_ratio, 1 );
-                } else {
-                    cic_interpolate_mapped_z( p, plo, dxi, sat_ratio_arr, zheight, &sat_ratio, 1 );
-                }
                 // SD is water, check for freezing
                 if ((temperature <= Tfz_ptr[i]) && (sat_ratio > 1.0)) {
                     sp_mass_ptrs[idx_i][i] = sp_mass_ptrs[idx_w][i];
@@ -460,13 +385,10 @@ void SuperDropletPC::MassChange_SL (  int                                       
             }
 
             // update particle attributes
-            radius_ptr[i] = SD_effective_radius( i, idx_w,
-                                                 rho_w,
-                                                 num_sp, num_ae,
-                                                 sp_sol_arr, ae_sol_arr,
-                                                 sp_mass_ptrs, ae_mass_ptrs,
-                                                 sp_rho_arr, ae_rho_arr );
-            mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+            SuperDropletPC::updateParticleAttributes(
+                i, radius_ptr, mass_ptr, idx_w, rho_w,
+                num_sp, num_ae, sp_sol_arr, ae_sol_arr,
+                sp_mass_ptrs, ae_mass_ptrs, sp_rho_arr, ae_rho_arr);
 
         });
         Gpu::synchronize();
@@ -535,46 +457,15 @@ void SuperDropletPC::MassChange_SV (  int                                      a
         auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data();
 
         SDSpeciesMassArr sp_mass_ptrs;
-        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-        Gpu::DeviceVector<int> sp_solubility(num_sp);
-        {
-            Vector<ParticleReal> sp_density_h(num_sp);
-            Vector<int> sp_solubility_h(num_sp);
-            for (int i = 0; i < num_sp; i++) {
-                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
-                sp_density_h[i] = m_species_mat[i]->m_density;
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_density_h.begin(),
-                        sp_density_h.end(),
-                        sp_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_solubility_h.begin(),
-                        sp_solubility_h.end(),
-                        sp_solubility.begin() );
-        }
-
         SDAerosolMassArr ae_mass_ptrs;
-        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-        Gpu::DeviceVector<int> ae_solubility(num_ae);
-        {
-            Vector<ParticleReal> ae_density_h(num_ae);
-            Vector<int> ae_solubility_h(num_ae);
-            for (int i = 0; i < num_ae; i++) {
-                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
-                ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_density_h.begin(),
-                        ae_density_h.end(),
-                        ae_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_solubility_h.begin(),
-                        ae_solubility_h.end(),
-                        ae_solubility.begin() );
-        }
+        setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
+
+        // Get material properties from persistent device vectors instead of creating local copies
+        const ParticleReal* sp_rho_arr = nullptr;
+        const int* sp_sol_arr = nullptr;
+        const ParticleReal* ae_rho_arr = nullptr;
+        const int* ae_sol_arr = nullptr;
+        getMaterialPropertiesDevice(sp_rho_arr, sp_sol_arr, ae_rho_arr, ae_sol_arr);
 
         const auto& sat_pressure_arr = a_sat_pressure[grid].array();
         const auto& sat_pressure_wi_arr = a_sat_pressure_wi[grid].array();
@@ -589,11 +480,6 @@ void SuperDropletPC::MassChange_SV (  int                                      a
                                  mat_prop.m_Rv,
                                  mat_prop.m_density };
 
-        auto sp_rho_arr = sp_density.data();
-        auto sp_sol_arr = sp_solubility.data();
-        auto ae_rho_arr = ae_density.data();
-        auto ae_sol_arr = ae_solubility.data();
-
         ParallelFor(num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
             ParticleType& p = p_pbox[i];
@@ -604,24 +490,34 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             auto par_phase = SD_phase(i, idx_w, idx_i, sp_mass_ptrs);
             if (par_phase == SDPhase::water) { return; }
 
-            ParticleReal sat_ratio, e_sat, e_sat_ratio_wi, density, temperature, pressure, moist_density;
-            if (is_periodic_z) {
-                cic_interpolate( p, plo, dxi, sat_pressure_arr, &e_sat, 1 );
-                cic_interpolate( p, plo, dxi, sat_pressure_wi_arr, &e_sat_ratio_wi, 1 );
-                cic_interpolate( p, plo, dxi, sat_ratio_arr, &sat_ratio, 1 );
-                cic_interpolate( p, plo, dxi, density_arr, &density, 1 );
-                cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
-                cic_interpolate( p, plo, dxi, pressure_arr, &pressure, 1 );
-                cic_interpolate( p, plo, dxi, moist_density_arr, &moist_density, 1 );
-            } else {
-                cic_interpolate_mapped_z( p, plo, dxi, sat_pressure_arr, zheight, &e_sat, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, sat_pressure_wi_arr, zheight, &e_sat_ratio_wi, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, sat_ratio_arr, zheight, &sat_ratio, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, density_arr, zheight, &density, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, pressure_arr, zheight, &pressure, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, moist_density_arr, zheight, &moist_density, 1 );
-            }
+            // Define field values array to store interpolated results
+            ParticleReal field_values[7]; // e_sat, e_sat_ratio_wi, sat_ratio, density, temperature, pressure, moist_density
+
+            // Define array of field arrays to interpolate from
+            const Array4<const Real> field_arrays[7] = {
+                sat_pressure_arr,
+                sat_pressure_wi_arr,
+                sat_ratio_arr,
+                density_arr,
+                temperature_arr,
+                pressure_arr,
+                moist_density_arr
+            };
+
+            // Use the interpolation helper function to interpolate all fields at once
+            ERF::Interpolation::interpolateFields(
+                p, plo, dxi, field_arrays, field_values, 7,
+                is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+            );
+
+            // Extract interpolated values
+            ParticleReal e_sat = field_values[0];
+            ParticleReal e_sat_ratio_wi = field_values[1];
+            ParticleReal sat_ratio = field_values[2];
+            // Note: density (field_values[3]) is unused in this function
+            ParticleReal temperature = field_values[4];
+            ParticleReal pressure = field_values[5];
+            ParticleReal moist_density = field_values[6];
 
             auto coeff_moldiff = mat_prop.coeffMolecularDiffusion(temperature, pressure);
 
@@ -685,15 +581,11 @@ void SuperDropletPC::MassChange_SV (  int                                      a
             mrime_ptr[i] = mrime_new;
             sp_mass_ptrs[idx_i][i] = mass_new;
 
-            // update total mass
-            mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
-            // update effective radius
-            radius_ptr[i] = SD_effective_radius( i, idx_w,
-                                                 rho_w,
-                                                 num_sp, num_ae,
-                                                 sp_sol_arr, ae_sol_arr,
-                                                 sp_mass_ptrs, ae_mass_ptrs,
-                                                 sp_rho_arr, ae_rho_arr );
+            // update particle attributes
+            SuperDropletPC::updateParticleAttributes(
+                i, radius_ptr, mass_ptr, idx_w, rho_w,
+                num_sp, num_ae, sp_sol_arr, ae_sol_arr,
+                sp_mass_ptrs, ae_mass_ptrs, sp_rho_arr, ae_rho_arr);
 
         });
         Gpu::synchronize();

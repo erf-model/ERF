@@ -9,7 +9,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     =  0.   0.   0.
-geometry.prob_hi     =  8.   8.   4.  
+geometry.prob_hi     =  8.   8.   4.
 amr.n_cell           =  8    8    4
 geometry.is_periodic =  1 1 0
 zlo.type = "SlipWall"
@@ -53,18 +53,18 @@ erf.plot_vars_1     = density \
                       super_droplets_moisture_aerosol_mass_density_NaCl \
                       super_droplets_moisture_aerosol_mass_flux_x_NaCl \
                       super_droplets_moisture_aerosol_mass_flux_y_NaCl \
-                      super_droplets_moisture_aerosol_mass_flux_z_NaCl 
+                      super_droplets_moisture_aerosol_mass_flux_z_NaCl
 
 # SOLVER CHOICES
 erf.use_gravity  = true
 erf.use_coriolis = false
-    
+
 erf.dycore_horiz_adv_type    = "Upwind_3rd"
 erf.dycore_vert_adv_type     = "Upwind_3rd"
 erf.dryscal_horiz_adv_type   = "Upwind_3rd"
 erf.dryscal_vert_adv_type    = "Upwind_3rd"
 erf.moistscal_horiz_adv_type = "Upwind_3rd"
-erf.moistscal_vert_adv_type  = "Upwind_3rd"       
+erf.moistscal_vert_adv_type  = "Upwind_3rd"
 
 # PHYSICS OPTIONS
 erf.les_type        = "None"
@@ -93,7 +93,7 @@ super_droplets_moisture.multiplicity_type = "constant"
 super_droplets_moisture.initial_aerosol_distribution_type_NaCl = "mass_constant"
 super_droplets_moisture.initial_aerosol_mean_mass_NaCl = 1.0e-19 #kg
 super_droplets_moisture.initial_species_distribution_type_H2O = "mass_constant"
-super_droplets_moisture.initial_species_mean_mass_H2O = 4.1887902e-3 # kg
+super_droplets_moisture.initial_species_mean_mass_H2O = 0.0 # kg
 super_droplets_moisture.initial_number_density = 1.0e7 #m^{-3}
 super_droplets_moisture.initial_particles_per_cell = 1
 

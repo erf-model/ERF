@@ -305,7 +305,7 @@
             if (have_tb) {
                 project_velocity_tb(level, slow_dt, S_sum);
             } else {
-                project_momenta(level, slow_dt, S_sum);
+                project_momenta(level, time_for_fp, slow_dt, S_sum);
             }
         }
     };

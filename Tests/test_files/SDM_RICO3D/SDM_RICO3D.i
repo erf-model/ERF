@@ -19,7 +19,7 @@ geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.surface_layer.flux_type = "rico" # new MOST type
 erf.most.ustar  = 0.001229 # Cm
-erf.most.tstar  = 0.001094 # Ch 
+erf.most.tstar  = 0.001094 # Ch
 erf.most.qstar  = 0.001133 # Cq
 erf.most.z0     = 0.1 # from BOMEX
 erf.most.zref   =160.0 # from BOMEX
@@ -30,12 +30,12 @@ erf.most.rico.qsat_z0 = 0.022
 
 # NOTE: This should have a qv grad too (use hoextrapcc?!)
 zhi.type = "SlipWall"
-    
+
 # TIME STEP CONTROL
 erf.fixed_dt           = 2.5 # fixed time step depending on grid resolution
 erf.fixed_mri_dt_ratio = 4
 erf.use_mono_adv       = true
-    
+
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
@@ -84,18 +84,18 @@ erf.plot_vars_1     = density \
                       super_droplets_moisture_aerosol_mass_density_NH4HSO4 \
                       super_droplets_moisture_aerosol_mass_flux_x_NH4HSO4 \
                       super_droplets_moisture_aerosol_mass_flux_y_NH4HSO4 \
-                      super_droplets_moisture_aerosol_mass_flux_z_NH4HSO4 
+                      super_droplets_moisture_aerosol_mass_flux_z_NH4HSO4
 particles.disable_plt = true
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = true
-    
+
 erf.use_coriolis    = true
 erf.coriolis_3d     = false
 erf.latitude        = 14.982176712702886  # f = 0.376e-4 1/s
-    
+
 erf.dycore_horiz_adv_type    = Upwind_3rd
 erf.dycore_vert_adv_type     = Upwind_3rd
 erf.dryscal_horiz_adv_type   = Upwind_3rd
@@ -157,6 +157,6 @@ prob.moisture_source_cutoff_transition 	= 200.0
 
 prob.wbar_sub_max    = -0.005
 prob.wbar_cutoff_max = 2260.0
-prob.wbar_cutoff_min = 2500.0   
+prob.wbar_cutoff_min = 2500.0
 
 prob.custom_TKE      = true

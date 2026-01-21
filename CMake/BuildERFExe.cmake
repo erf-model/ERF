@@ -11,7 +11,7 @@ endfunction(target_link_libraries_system)
 function(target_link_libraries_includes_only target visibility lib)
   # Link the library (this target will use it)
   target_link_libraries(${target} PRIVATE ${lib})
-  
+
   # But propagate includes with specified visibility
   get_target_property(lib_include_dirs ${lib} INTERFACE_INCLUDE_DIRECTORIES)
   if(lib_include_dirs)
@@ -47,7 +47,7 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
   endif()
 
-  if(ERF_ENABLE_ML_UPHYS_DIAGNOSTICS)
+  if(ERF_ENABLE_PARTICLES AND ERF_ENABLE_ML_UPHYS_DIAGNOSTICS)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_ML_UPHYS_DIAGNOSTICS)
   endif()
 
@@ -220,7 +220,7 @@ function(build_erf_lib erf_lib_name)
                    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_update_prognostics_implicit.cpp>
                   )
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_SHOC)
-    target_compile_definitions(${erf_lib_name} PUBLIC SCREAM_SHOC_SMALL_KERNELS)              
+    target_compile_definitions(${erf_lib_name} PUBLIC SCREAM_SHOC_SMALL_KERNELS)
   endif()
 
   if(ERF_ENABLE_MORR_FORT)
@@ -231,6 +231,18 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Morrison/ERF_module_model_constants.F90
        )
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MORR_FORT)
+  endif()
+
+  if(ERF_ENABLE_WINDFARM)
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/Initialization/ERF_InitWindFarm.cpp
+      ${SRC_DIR}/WindFarmParametrization/ERF_WindFarm.cpp
+      ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
+      ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
+      ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
+      ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
+    )
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WINDFARM)
   endif()
 
   target_sources(${erf_lib_name}
@@ -271,21 +283,20 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_S.cpp
        ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_T.cpp
+       ${SRC_DIR}/Diffusion/ERF_ComputeStress_EB.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_S.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_T.cpp
+       ${SRC_DIR}/Diffusion/ERF_ComputeStrain_EB.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_S.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_T.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeTurbulentViscosity.cpp
        ${SRC_DIR}/EB/ERF_EBAdvectionSrcForState.cpp
        ${SRC_DIR}/EB/ERF_EBAux.cpp
-       ${SRC_DIR}/EB/ERF_EBBox.cpp
        ${SRC_DIR}/EB/ERF_EB.cpp
        ${SRC_DIR}/EB/ERF_EBCutCell.cpp
        ${SRC_DIR}/EB/ERF_EBRedistribute.cpp
-       ${SRC_DIR}/EB/ERF_EBToPVD.cpp
-       ${SRC_DIR}/EB/ERF_EBWriteSurface.cpp
        ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
        ${SRC_DIR}/Initialization/ERF_InitCustom.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromHSE.cpp
@@ -300,6 +311,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
+       ${SRC_DIR}/IO/ERF_TrackerOutput.cpp
        ${SRC_DIR}/IO/ERF_Write1DProfiles.cpp
        ${SRC_DIR}/IO/ERF_Write1DProfiles_stag.cpp
        ${SRC_DIR}/IO/ERF_WriteScalarProfiles.cpp
@@ -310,8 +322,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonWallDist.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp 
-       ${SRC_DIR}/LinearSolvers/ERF_ImposeBCsOnPhi.cpp 
+       ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_FillZeroAreaFaceFluxes.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_ImposeBCsOnPhi.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithEBMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithGMRES.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
@@ -380,10 +393,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
        ${SRC_DIR}/Utils/ERF_VolWgtSum.cpp
        ${SRC_DIR}/Utils/ERF_WeatherDataInterpolation.cpp
-       ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
-       ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
-       ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
-       ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/ERF_SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/ERF_MM5.cpp
   )
@@ -452,7 +461,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Kessler>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Morrison>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SatAdj>)
-  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>) 
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Fitch>)

@@ -1,15 +1,19 @@
+#ifndef _WIN32
 #include <sys/time.h>
+#endif
 #include "ERF_Constants.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_SuperDropletPC.H"
 #include "ERF_SuperDropletPCCoalescence.H"
 #include "ERF_SuperDropletPCMassChange.H"
 #include <AMReX_TracerParticle_mod_K.H>
+#include "ERF_InterpolationUtils.H"
 
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
 using namespace SDMassChangeUtils_SV;
+using namespace SDPCDefn;
 
 /*! \brief Compute dynamic viscosity */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -36,7 +40,14 @@ static ParticleReal coalescence_rate ( const RandomEngine& a_rnd_eng, /*!< rando
     return gamma;
 }
 
-/*! \brief Binary coalescence between two superdroplets */
+/*! \brief Binary coalescence between two superdroplets
+ *
+ *  The following Tfz update logic is adapted from SCALE-SDM:
+ *  https://github.com/Shima-Lab/SCALE-SDM_mixed-phase_Shima2019
+ *  Copyright (c) 2012-2015, Team SCALE
+ *  All rights reserved.
+ *  BSD 2-Clause License
+ */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 static void coal_update_attribs(const int a_i, /*!< index of particle */
                                 const int a_j, /*!< index of coalescence partner */
@@ -45,6 +56,7 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
                                 const ParticleReal* const a_rmndr, /*!< coalescence remainder*/
                                 ParticleReal* const a_mass, /*!< mass */
                                 ParticleReal* const a_radius, /*!< radius */
+                                ParticleReal* const a_Tfz, /*!< freezing temperature */
                                 ParticleReal* const a_mult, /*!< multiplicity */
                                 const int a_n_sp, /*!< number of species */
                                 const SDSpeciesMassArr& a_sp_m, /*!< species masses*/
@@ -66,6 +78,9 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
                             + a_radius[i]*a_radius[i]*a_radius[i];
             a_radius[i] = std::cbrt(r3);
             a_mass[i] += gamma*a_mass[j];
+            // Update Tfz: combined droplet inherits the warmest (least negative) Tfz
+            // from either parent since both INP surfaces are now present
+            a_Tfz[i] = std::max(a_Tfz[j], a_Tfz[i]);
             for (int n = 0; n < a_n_sp; n++) {
                 a_sp_m[n][i] += gamma*a_sp_m[n][j];
             }
@@ -85,6 +100,8 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
             a_radius[i] = a_radius[j] = std::cbrt(r3);
             a_mass[j] += gamma*a_mass[i];
             a_mass[i] = a_mass[j];
+            // Update Tfz: both particles get the warmest (least negative) Tfz
+            a_Tfz[i] = a_Tfz[j] = std::max(a_Tfz[j], a_Tfz[i]);
             for (int n = 0; n < a_n_sp; n++) {
                 a_sp_m[n][j] += gamma*a_sp_m[n][i];
                 a_sp_m[n][i] = a_sp_m[n][j];
@@ -473,8 +490,10 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                   const MultiFab& a_qv,
                                   const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd )
 {
+#ifndef _WIN32
     struct timeval total_start, total_end;
     gettimeofday(&total_start, NULL);
+#endif
 
     BL_PROFILE("SuperDropletPC::Coalescence()");
     AMREX_ASSERT( a_lev == m_lev );
@@ -543,55 +562,16 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data();
         auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data();
 
-        /* species masses */
+        /* species and aerosol masses */
         SDSpeciesMassArr sp_mass_ptrs;
-        for (int i = 0; i < num_sp; i++) {
-            sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
-        }
-
-        /* aerosol masses */
         SDAerosolMassArr ae_mass_ptrs;
-        for (int i = 0; i < num_ae; i++) {
-            ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
-        }
+        setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
 
-        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-        Gpu::DeviceVector<int> sp_solubility(num_sp);
-        {
-            Vector<ParticleReal> sp_density_h(num_sp);
-            Vector<int> sp_solubility_h(num_sp);
-            for (int i = 0; i < num_sp; i++) {
-                sp_density_h[i] = m_species_mat[i]->m_density;
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_density_h.begin(),
-                        sp_density_h.end(),
-                        sp_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_solubility_h.begin(),
-                        sp_solubility_h.end(),
-                        sp_solubility.begin() );
-        }
-
-        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-        Gpu::DeviceVector<int> ae_solubility(num_ae);
-        {
-            Vector<ParticleReal> ae_density_h(num_ae);
-            Vector<int> ae_solubility_h(num_ae);
-            for (int i = 0; i < num_ae; i++) {
-                ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_density_h.begin(),
-                        ae_density_h.end(),
-                        ae_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_solubility_h.begin(),
-                        ae_solubility_h.end(),
-                        ae_solubility.begin() );
-        }
+        // Get pointers to persistent device data
+        const ParticleReal* sp_rho_arr = getSpeciesDensitiesDevice();
+        const int* sp_sol_arr = getSpeciesSolubilitiesDevice();
+        const ParticleReal* ae_rho_arr = getAerosolDensitiesDevice();
+        const int* ae_sol_arr = getAerosolSolubilitiesDevice();
 
         int grid = pti.index();
         Box box = a_temperature[grid].box(); box.grow(-gvec);
@@ -604,8 +584,10 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto inds = bins.permutationPtr();
         auto offsets = bins.offsetsPtr();
 
+#ifndef _WIN32
         struct timeval mcshuffle_start, mcshuffle_end;
         gettimeofday(&mcshuffle_start, NULL);
+#endif
 
 #ifdef AMREX_USE_GPU
         {
@@ -643,7 +625,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             {
                 auto bin_start = offsets[i_bin];
                 auto bin_stop = offsets[i_bin+1];
-                auto np_bin = bin_stop - bin_start;
+                auto np_bin = static_cast<unsigned int>(bin_stop - bin_start);
                 if (np_bin <= 1) { return; }
                 AMREX_ALWAYS_ASSERT(np_bin <= max_np_bin);
 
@@ -669,11 +651,13 @@ void SuperDropletPC::Coalescence( int   a_lev,
         }
 #endif
 
+#ifndef _WIN32
         gettimeofday(&mcshuffle_end,NULL);
         long long mcshuffle_wtime;
         mcshuffle_wtime = (   (mcshuffle_end.tv_sec   * 1000000 + mcshuffle_end.tv_usec  )
                             - (mcshuffle_start.tv_sec * 1000000 + mcshuffle_start.tv_usec) );
         mcshuffle_wtime_sec += (double) mcshuffle_wtime / 1000000.0;
+#endif
 
         const auto& pressure_arr = a_pressure[grid].const_array();
         const auto& temperature_arr = a_temperature[grid].const_array();
@@ -709,8 +693,10 @@ void SuperDropletPC::Coalescence( int   a_lev,
         });
         Gpu::synchronize();
 
+#ifndef _WIN32
         struct timeval mcpairing_start, mcpairing_end;
         gettimeofday(&mcpairing_start, NULL);
+#endif
 
         // create pairs: note that the SD with larger multiplicity is the "prey"
         ParallelFor( bins.numBins(), [=] AMREX_GPU_DEVICE (int i_bin) noexcept
@@ -743,6 +729,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
         } );
         Gpu::synchronize();
 
+#ifndef _WIN32
         gettimeofday(&mcpairing_end,NULL);
         long long mcpairing_wtime;
         mcpairing_wtime = (   (mcpairing_end.tv_sec   * 1000000 + mcpairing_end.tv_usec  )
@@ -751,11 +738,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
         struct timeval coalescence_start, coalescence_end;
         gettimeofday(&coalescence_start, NULL);
+#endif
 
-        auto sp_rho_arr = sp_density.data();
-        auto sp_sol_arr = sp_solubility.data();
-        auto ae_rho_arr = ae_density.data();
-        auto ae_sol_arr = ae_solubility.data();
+        // We've already declared these pointers above, no need to redeclare
 
         // calculate collision efficiencies for each pair
         ParallelForRNG( np, [=] AMREX_GPU_DEVICE (int i, RandomEngine const& rnd_eng) noexcept
@@ -858,13 +843,24 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 // interpolate flow quantities at ice particle location
                 ParticleType& p_ice = pstruct_ptr[id_i];
                 ParticleReal temperature, moist_density;
-                if (is_periodic_z) {
-                    cic_interpolate( p_ice, plo, dxi, temperature_arr, &temperature, 1 );
-                    cic_interpolate( p_ice, plo, dxi, moist_density_arr, &moist_density, 1 );
-                } else {
-                    cic_interpolate_mapped_z( p_ice, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-                    cic_interpolate_mapped_z( p_ice, plo, dxi, moist_density_arr, zheight, &moist_density, 1 );
-                }
+                // Define field values array to store interpolated results
+                ParticleReal field_values[2]; // temperature, moist_density
+
+                // Define array of field arrays to interpolate from
+                const Array4<const Real> field_arrays[2] = {
+                    temperature_arr,
+                    moist_density_arr
+                };
+
+                // Use the interpolation helper function to interpolate all fields at once
+                ERF::Interpolation::interpolateFields(
+                    p_ice, plo, dxi, field_arrays, field_values, 2,
+                    is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+                );
+
+                // Extract interpolated values
+                temperature = field_values[0];
+                moist_density = field_values[1];
 
                 // dynamic viscosity
                 auto mu = viscCoeff(temperature);
@@ -1018,6 +1014,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                      coll_rmndr_ptr,
                                      mass_ptr,
                                      radius_ptr,
+                                     Tfz_ptr,
                                      mult_ptr,
                                      num_sp,
                                      sp_mass_ptrs,
@@ -1053,17 +1050,28 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                 ParticleType& p_ice = pstruct_ptr[i];
                 ParticleReal temperature, pressure, moist_density, qv;
-                if (is_periodic_z) {
-                    cic_interpolate( p_ice, plo, dxi, temperature_arr, &temperature, 1 );
-                    cic_interpolate( p_ice, plo, dxi, pressure_arr, &pressure, 1 );
-                    cic_interpolate( p_ice, plo, dxi, moist_density_arr, &moist_density, 1 );
-                    cic_interpolate( p_ice, plo, dxi, qv_arr, &qv, 1 );
-                } else {
-                    cic_interpolate_mapped_z( p_ice, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-                    cic_interpolate_mapped_z( p_ice, plo, dxi, pressure_arr, zheight, &pressure, 1 );
-                    cic_interpolate_mapped_z( p_ice, plo, dxi, moist_density_arr, zheight, &moist_density, 1 );
-                    cic_interpolate_mapped_z( p_ice, plo, dxi, qv_arr, zheight, &qv, 1 );
-                }
+                // Define field values array to store interpolated results
+                ParticleReal field_values[4]; // temperature, pressure, moist_density, qv
+
+                // Define array of field arrays to interpolate from
+                const Array4<const Real> field_arrays[4] = {
+                    temperature_arr,
+                    pressure_arr,
+                    moist_density_arr,
+                    qv_arr
+                };
+
+                // Use the interpolation helper function to interpolate all fields at once
+                ERF::Interpolation::interpolateFields(
+                    p_ice, plo, dxi, field_arrays, field_values, 4,
+                    is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+                );
+
+                // Extract interpolated values
+                temperature = field_values[0];
+                pressure = field_values[1];
+                moist_density = field_values[2];
+                qv = field_values[3];
                 auto coeff_moldiff = mat_prop.coeffMolecularDiffusion(temperature, pressure);
 
                 rime_update_attribs( i, j,
@@ -1100,27 +1108,27 @@ void SuperDropletPC::Coalescence( int   a_lev,
         // update particle radius and total mass
         ParallelFor( np, [=] AMREX_GPU_DEVICE (int i)
         {
-            radius_ptr[i] = SD_effective_radius( i, sp_idx_w,
-                                                 rho_water,
-                                                 num_sp, num_ae,
-                                                 sp_sol_arr, ae_sol_arr,
-                                                 sp_mass_ptrs, ae_mass_ptrs,
-                                                 sp_rho_arr, ae_rho_arr );
-            mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+            SuperDropletPC::updateParticleAttributes(
+                i, radius_ptr, mass_ptr, sp_idx_w, rho_water,
+                num_sp, num_ae, sp_sol_arr, ae_sol_arr,
+                sp_mass_ptrs, ae_mass_ptrs, sp_rho_arr, ae_rho_arr);
         } );
         Gpu::synchronize();
 
+#ifndef _WIN32
         gettimeofday(&coalescence_end,NULL);
         long long coalescence_wtime;
         coalescence_wtime = (  (coalescence_end.tv_sec   * 1000000 + coalescence_end.tv_usec  )
                              - (coalescence_start.tv_sec * 1000000 + coalescence_start.tv_usec) );
         coalescence_wtime_sec += (double) coalescence_wtime / 1000000.0;
+#endif
     }
 
     ParallelDescriptor::ReduceRealSum(  &num_collisions,
                                         1,
                                         ParallelDescriptor::IOProcessorNumber() );
 
+#ifndef _WIN32
     gettimeofday(&total_end,NULL);
     long long total_wtime;
     total_wtime = (   (total_end.tv_sec   * 1000000 + total_end.tv_usec  )
@@ -1139,6 +1147,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
     ParallelDescriptor::ReduceRealMax( &total_wtime_sec,
                                        1,
                                        ParallelDescriptor::IOProcessorNumber() );
+#else
+    Real total_wtime_sec = 0.0;
+#endif
 
     Print() << "SuperDropletPC(" << m_name << "): "
             << "number of collisions = " << num_collisions << "\n"

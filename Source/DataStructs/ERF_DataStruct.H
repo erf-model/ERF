@@ -14,6 +14,7 @@
 #include <ERF_AdvStruct.H>
 #include <ERF_DampingStruct.H>
 #include <ERF_DiffStruct.H>
+#include <ERF_EBStruct.H>
 #include <ERF_SpongeStruct.H>
 #include <ERF_TurbStruct.H>
 #include <ERF_TurbPertStruct.H>
@@ -368,8 +369,8 @@ struct SolverChoice {
 
         for (int i = 0; i <= max_level; ++i) {
             if (anelastic[i] == 1) {
-                project_initial_velocity[i] = true;
-                fixed_density[i]            = true; // We default to true but are allowed to override below
+                project_initial_velocity[i] = 1;
+                fixed_density[i]            = 1; // We default to true but are allowed to override below
                 buoyancy_type[i]            = 3; // (This isn't actually used when anelastic is set)
             }
         }
@@ -550,8 +551,7 @@ struct SolverChoice {
            diffChoice.init_params(pp_prefix);
         dampingChoice.init_params(pp_prefix);
          spongeChoice.init_params(pp_prefix);
-
-
+             ebChoice.init_params(pp_prefix);
 
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
@@ -718,7 +718,7 @@ struct SolverChoice {
         }
 
         pp.query("io_hurricane_eye_tracker", io_hurricane_eye_tracker);
-        if(io_hurricane_eye_tracker) {
+        if (io_hurricane_eye_tracker) {
             pp.query("hurricane_eye_latitude", hurricane_eye_latitude);
             pp.query("hurricane_eye_longitude", hurricane_eye_longitude);
             if(hurricane_eye_latitude == -1e10 or hurricane_eye_longitude == -1e10) {
@@ -728,13 +728,9 @@ struct SolverChoice {
                               " location of the eye in the initial condition");
             }
         }
-
-        pp.query("file_name_digits", file_name_digits);
-
-        check_params(max_level);
     }
 
-    void check_params (int max_level)
+    void check_params (int max_level, const amrex::Vector<amrex::Geometry>& geom_vect, amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type)
     {
 #if 0
         // Warn for PBL models and moisture - these may not yet be compatible
@@ -778,6 +774,47 @@ struct SolverChoice {
                          " For this you should provide the inputs erf.windfarm_x_shift and"
                          " erf.windfarm_y_shift which are the values by which the bounding box of the"
                          " windfarm is shifted from the x and the y axes.");
+        }
+
+
+        if ( (const_massflux_u != 0) && !(geom_vect[0].isPeriodic(0)) ) {
+            amrex::Abort("Constant mass flux (in x) should be used with periodic boundaries");
+        }
+
+        if ( (const_massflux_v != 0) && !(geom_vect[0].isPeriodic(1)) ) {
+            amrex::Abort("Constant mass flux (in y) should be used with periodic boundaries");
+        }
+
+        // Mesoscale diffusion -- test if LES appropriate with this dx,dy
+        for (int lev = 0; lev <= max_level; lev++) {
+            if ((geom_vect[lev].CellSize(0) > 2000.) || (geom_vect[lev].CellSize(1) > 2000.))
+            {
+                if ( (turbChoice[lev].les_type == LESType::Smagorinsky) && !turbChoice[lev].smag2d ) {
+                    amrex::Warning("Should use 2-D Smagorinsky for mesoscale resolution");
+                } else if (turbChoice[lev].les_type == LESType::Deardorff) {
+                    amrex::Warning("Should not use Deardorff LES for mesoscale resolution");
+                }
+            }
+        }
+
+        // Turn off implicit solve if we have no diffusion
+        bool l_use_kturb = turbChoice[0].use_kturb;
+        for (int lev = 1; lev <= max_level; lev++) {
+            l_use_kturb = (l_use_kturb || turbChoice[lev].use_kturb);
+        }
+        bool l_use_diff    = ( (diffChoice.molec_diff_type != MolecDiffType::None) || l_use_kturb );
+        bool l_implicit_diff = (vert_implicit_fac[0] > 0 ||
+                                vert_implicit_fac[1] > 0 ||
+                                vert_implicit_fac[2] > 0);
+        if (l_implicit_diff && !l_use_diff) {
+            amrex:: Print() << "No molecular or turbulent diffusion, turning off implicit solve" << std::endl;
+            vert_implicit_fac[0] = 0;
+            vert_implicit_fac[1] = 0;
+            vert_implicit_fac[2] = 0;
+        }
+
+        for (int lev = 0; lev <= max_level; lev++) {
+            turbChoice[lev].check_params(phys_bc_type);
         }
     }
 
@@ -844,6 +881,7 @@ struct SolverChoice {
             amrex::Print() << "Terrain Type: MovingFittedMesh" << std::endl;
         } else if (terrain_type == TerrainType::EB) {
             amrex::Print() << "Terrain Type: EB" << std::endl;
+            ebChoice.display();
         } else if (terrain_type == TerrainType::ImmersedForcing) {
             amrex::Print() << "Terrain Type: ImmersedForcing" << std::endl;
         } else {
@@ -1006,6 +1044,7 @@ struct SolverChoice {
     DampingChoice dampingChoice;
     SpongeChoice  spongeChoice;
     amrex::Vector<TurbChoice>  turbChoice;
+    EBChoice      ebChoice;
 
     int         force_stage1_single_substep = 1;
 
@@ -1166,7 +1205,5 @@ struct SolverChoice {
 
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
-
-    int file_name_digits = 5;
 };
 #endif

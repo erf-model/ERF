@@ -67,7 +67,7 @@ erf.plot_vars_1     = density \
                       super_droplets_moisture_aerosol_mass_density_NaCl \
                       super_droplets_moisture_aerosol_mass_flux_x_NaCl \
                       super_droplets_moisture_aerosol_mass_flux_y_NaCl \
-                      super_droplets_moisture_aerosol_mass_flux_z_NaCl 
+                      super_droplets_moisture_aerosol_mass_flux_z_NaCl
 
 
 # SOLVER CHOICES

@@ -3,14 +3,31 @@
 
 #ifdef ERF_USE_PARTICLES
 
-/*! Advance the moisture model for a timestep: evolve the super-droplet particles
-    for a timestep - this includes nucleation, advection, and coalescence */
-void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
-                                   const int& a_iter, /*!< Iteration number */
-                                   const Real&  a_time, /*!< Simulation time */
-                                   Vector<Vector<MultiFab>>& a_flow_vars, /*!< flow variables (*all*) */
-                                   const Vector<MFPtr>& a_z, /*!< terrain */
-                                   const BCTypeArr& a_bc /*! Boundary types */)
+using namespace amrex;
+
+/*! \brief Advance the moisture model for a timestep
+ *
+ * Evolve the super-droplet particles for a timestep - this includes:
+ * 1. Injection of new particles if configured
+ * 2. Phase change (condensation/evaporation) if enabled
+ * 3. Advection if enabled
+ * 4. Coalescence if enabled
+ * 5. Recycling of particles
+ * 6. Computing diagnostics at specified intervals
+ *
+ * \param[in] a_dt Timestep size
+ * \param[in] a_iter Current iteration number
+ * \param[in] a_time Current simulation time
+ * \param[in,out] a_flow_vars Flow variables for all components
+ * \param[in] a_z Terrain height information
+ * \param[in] a_bc Boundary condition types
+ */
+void SuperDropletsMoist::Advance ( const Real& a_dt,
+                                   const int& a_iter,
+                                   const Real&  a_time,
+                                   Vector<Vector<MultiFab>>& a_flow_vars,
+                                   const Vector<MFPtr>& a_z,
+                                   const BCTypeArr& a_bc )
 {
     BL_PROFILE("SuperDropletsMoist::Advance()");
 

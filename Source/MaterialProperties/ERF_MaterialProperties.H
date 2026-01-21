@@ -86,6 +86,7 @@ struct MaterialProperties {
                                         amrex::Real(DBL_MAX) };
     bool m_is_soluble = false; /*!< is soluble in water? */
     bool m_is_water = false; /*!< is this water? */
+    bool m_is_INP = false; /*!< can act as ice nucleating particle? */
     /*! pointer to function to compute saturation pressure */
     decltype(saturation_funcs::compute_saturation_pressure_null)* m_saturation_pressure_func = nullptr;
     /*! pointer to function to compute vapour fraction */

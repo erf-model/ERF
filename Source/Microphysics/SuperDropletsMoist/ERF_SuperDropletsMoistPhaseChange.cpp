@@ -3,6 +3,8 @@
 
 #ifdef ERF_USE_PARTICLES
 
+using namespace amrex;
+
 /*! \brief Compute saturation ratio */
 static void saturation_ratio (MultiFab& a_sr, /*!< Saturation ratio */
                               const MultiFab& a_qv, /*!< Vapour mixing ratio */

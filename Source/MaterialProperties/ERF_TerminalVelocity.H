@@ -32,7 +32,7 @@ struct TerminalVelocity
     {
         static const RT k1 = 1.233e8; // m^{-1} s^{-1}
         return (k1 * a_r * a_r);
-    };
+    }
 
     /*! \brief Terminal velocity - Atlas & Ulbrich, 1977 */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -42,7 +42,7 @@ struct TerminalVelocity
         static const RT b = 0.67;
         RT D = 2*a_r*1000; // meter -> mm
         return a*(std::exp(b*std::log(D)));
-    };
+    }
 
     /* The following code is adapted from SCALE-SDM:
      * Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
@@ -60,7 +60,7 @@ struct TerminalVelocity
         RT lb4l = 6.62E-6;    // base length[cm] for mean free path  of air molecules
         RT visb4l = 1.818E-4; // base dynamic viscosity[g/(cm*s)] for mean free path of air molecules
         RT pb4l = 1013.25;    // base pressure[hPa] for mean free path of air molecules
-        RT tb4l = 293.15;     // base temperarure[20C] for mean free path of air molecules
+        RT tb4l = 293.15;     // base temperature[20C] for mean free path of air molecules
 
         RT P_hPa = a_P / 100.0;           // [Pa] -> [hPa]
         RT diameter_cm = 2.0*a_r*100.0;   // [m] -> [cm]

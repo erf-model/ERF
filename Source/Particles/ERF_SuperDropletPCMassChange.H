@@ -130,34 +130,6 @@ namespace SDMassChangeUtils_LV
             return retval;
         }
 
-        /*! \brief Computes a convenient (?) initial guess based on Kohler curve */
-        //AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-        //void initial_guess ( RT&      a_R_sq, /*!< radius squared */
-        //                     const RT a_S,    /*!< saturation ratio */
-        //                     const RT a_T,    /*!< temperature */
-        //                     const RT a_a,    /*!< curvature coeff */
-        //                     const RT a_b,    /*!< solute coeff */
-        //                     const RT a_M_s   /*!< solute mass */
-        //                   ) const noexcept
-        //{
-        //    RT eq_a = a_a / a_T;
-        //    RT eq_b = a_b * a_M_s;
-        //    RT Rc = std::sqrt(3*eq_b/eq_a);
-        //    RT eq_c = a_S - 1.0;
-        //    RT a = eq_a / eq_c;
-        //    RT b = eq_b / eq_c;
-        //    RT a3 = a_a*a_a*a_a;
-
-        //    RT r_init = std::sqrt(a_R_sq);
-        //    if ( (a_S > 1.0) && (a3 < b*(27.0/4.0)) ) {
-        //        r_init = 1.0e-3;
-        //    }
-        //    if (r_init < Rc) {
-        //        r_init = Rc;
-        //    }
-        //    a_R_sq = r_init*r_init;
-        //}
-
     };
 
     /*! \brief Scalar Newton solver for phase change equation
@@ -180,8 +152,6 @@ namespace SDMassChangeUtils_LV
         RT  m_stol;     /*!< step size tolerance */
         int m_maxits;   /*!< max number of iterations */
 
-        bool m_init_guess;  /*!< compute initial guess from NE object? */
-
         /*! \brief solve the nonlinear equation */
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         void operator()  (  RT&             a_u,            /*!< solution variable */
@@ -201,10 +171,6 @@ namespace SDMassChangeUtils_LV
         {
             a_converged = false;
             RT res_norm0 = 0.0;
-
-            //if (m_init_guess) {
-            //    m_ne.initial_guess(a_u, a_S, a_T, a_M_s);
-            //}
 
             for (int k = 0; k < m_maxits; k++) {
                 RT residual = a_mu * a_u

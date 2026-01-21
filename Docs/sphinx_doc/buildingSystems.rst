@@ -87,7 +87,7 @@ Build Steps
 
 **1. Clone Repository and Populate Dependencies**
 
-See :ref:`sec:submodules` for more details. All dependencies except SHOC and P3 are provided as git submodules:
+See :ref:`Submodules` for more details. All dependencies except SHOC and P3 are provided as git submodules:
 
 .. code-block:: bash
 
@@ -428,7 +428,7 @@ ERF supports multiple CMake workflows. The main difference is directory structur
          rm -rf build/ install/  # complete cleanup
          mkdir build && cd build
 
-.. tab-item:: Script with Customizable Directories
+   .. tab-item:: Script with Customizable Directories
 
       Uses environment variables for directory control. Defaults: build in current dir (`.`), source from parent (`..`), install to ``install/``.
 
@@ -614,6 +614,10 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - Requires ``ERF_ENABLE_MPI=ON``
      - Automatically enables ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
 
+   * ``ERF_ENABLE_NOAHMP`` - NOAHMP land surface model
+
+     - Requires the NetCDF Fortran library
+
    **GPU Acceleration**
 
    Enable exactly one GPU backend:
@@ -718,7 +722,7 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
 
    For systematic testing of multiple build configurations:
 
-   .. literalinclude:: ../Build/setup_cmake_validation.sh
+   .. literalinclude:: ../../Build/setup_cmake_validation.sh
       :language: bash
 
    **Usage:**

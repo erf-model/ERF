@@ -122,12 +122,10 @@ AMREX_ENUM(SDMSimulationDim,
     one_d_z, two_d_xz, two_d_yz, three_d
 );
 
-using namespace amrex;
-
 class SuperDropletsMoist : public NullMoistLagrangian {
 
-    using FabPtr = std::shared_ptr<MultiFab>;
-    using MFPtr = std::unique_ptr<MultiFab>;
+    using FabPtr = std::shared_ptr<amrex::MultiFab>;
+    using MFPtr = std::unique_ptr<amrex::MultiFab>;
     using BCTypeArr = amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>;
 
     public:
@@ -152,10 +150,10 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         virtual void Define (SolverChoice&) override;
 
         /*! \brief Initialize super-droplet moisture model data structures */
-        virtual void Init ( const MultiFab&,
-                            const BoxArray&,
-                            const Geometry&,
-                            const Real&,
+        virtual void Init ( const amrex::MultiFab&,
+                            const amrex::BoxArray&,
+                            const amrex::Geometry&,
+                            const amrex::Real&,
                             MFPtr&,
                             MFPtr& ) override;
 
@@ -163,40 +161,55 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         virtual void InitParticles ( MFPtr& ) override;
 
         /*! \brief Restart particles */
-        virtual void RestartParticles ( ParGDBBase*, const std::string& ) override;
+        virtual void RestartParticles ( amrex::ParGDBBase*, const std::string& ) override;
 
         /*! \brief finish initializations */
         virtual void FinishInit(const int&,
-                                MultiFab&,
-                                const Vector<MFPtr>&) override;
+                                amrex::MultiFab&,
+                                const amrex::Vector<MFPtr>&) override;
 
         void Advance ( const amrex::Real&, const SolverChoice& ) override
         {
             amrex::Abort("Do not use this advance() for Lagrangian microphysics.");
         }
 
-        /*! \brief Advance for one timestep */
-        virtual void Advance (const Real&,
-                              const int&,
-                              const Real&,
-                              Vector<Vector<MultiFab>>&,
-                              const Vector<MFPtr>&,
-                              const BCTypeArr& ) override;
+        /*! \brief Advance for one timestep
+         * \param[in] dt Timestep
+         * \param[in] iteration Current iteration number
+         * \param[in] time Current simulation time
+         * \param[in,out] cons_vars Array of conserved variables
+         * \param[in] mf_array Array of additional multifabs
+         * \param[in] bc_arr Array of boundary conditions
+         */
+        virtual void Advance (const amrex::Real& dt,
+                              const int& iteration,
+                              const amrex::Real& time,
+                              amrex::Vector<amrex::Vector<amrex::MultiFab>>& cons_vars,
+                              const amrex::Vector<MFPtr>& mf_array,
+                              const BCTypeArr& bc_arr) override;
 
-        /*! \brief Update microphysics variables */
-        virtual void Update_Micro_Vars (MultiFab& a_cons_vars) override;
+        /*! \brief Update microphysics variables
+         * \param[in] a_cons_vars Conservative variables multifab
+         */
+        virtual void Update_Micro_Vars (amrex::MultiFab& a_cons_vars) override;
 
-        /*! \brief Update state variables from microphysics variables */
-        virtual void Update_State_Vars (MultiFab& a_cons_vars) override;
+        /*! \brief Update state variables from microphysics variables
+         * \param[in,out] a_cons_vars Conservative variables multifab to update
+         */
+        virtual void Update_State_Vars (amrex::MultiFab& a_cons_vars) override;
 
-        /*! \brief Copy moisture model vars from state to member multifabs */
-        virtual void Copy_State_to_Micro (const MultiFab&) override;
+        /*! \brief Copy moisture model vars from state to member multifabs
+         * \param[in] a_state State multifab to copy from
+         */
+        virtual void Copy_State_to_Micro (const amrex::MultiFab& a_state) override;
 
-        /*! \brief Copy moisture model vars to state from member multifabs */
-        virtual void Copy_Micro_to_State (MultiFab&) override;
+        /*! \brief Copy moisture model vars to state from member multifabs
+         * \param[out] a_state State multifab to copy to
+         */
+        virtual void Copy_Micro_to_State (amrex::MultiFab& a_state) override;
 
         /*! \brief returns the moisture variable asked for */
-        inline virtual MultiFab* Qmoist_Ptr (const int& a_idx) override
+        inline virtual amrex::MultiFab* Qmoist_Ptr (const int& a_idx) override
         {
             AMREX_ALWAYS_ASSERT( a_idx < m_qmoist_size );
             return m_mic_fab_vars[m_mic_var_map[a_idx]].get();
@@ -272,97 +285,97 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         virtual void aerosolAccumulation ();
 
         /*! \brief Convert a multifab containing density of something to its mixing ratio */
-        void densityToRatio ( MultiFab&, const int a_comp = 0 );
+        void densityToRatio ( amrex::MultiFab&, const int a_comp = 0 );
         /*! \brief Convert a multifab containing the mixing ratio of something to its density */
-        void ratioToDensity ( MultiFab&, const int a_comp = 0 );
+        void ratioToDensity ( amrex::MultiFab&, const int a_comp = 0 );
 
         /*! \brief Compute phase changes */
-        virtual void phaseChange (  const Real&, const Vector<MFPtr>& );
+        virtual void phaseChange (  const amrex::Real&, const amrex::Vector<MFPtr>& );
 
         /*! \brief Evaporation/condensation for water */
-        virtual void phaseChange_LV_w (const Real&, const Vector<MFPtr>&);
+        virtual void phaseChange_LV_w (const amrex::Real&, const amrex::Vector<MFPtr>&);
 
         /*! \brief Evaporation/condensation for other species */
-        virtual void phaseChange_LV_s (const int, const Real&, const Vector<MFPtr>&);
+        virtual void phaseChange_LV_s (const int, const amrex::Real&, const amrex::Vector<MFPtr>&);
 
         /*! \brief Freezing/melting for water */
-        virtual void phaseChange_SL_w (const Real&, const Vector<MFPtr>&);
+        virtual void phaseChange_SL_w (const amrex::Real&, const amrex::Vector<MFPtr>&);
 
         /*! \brief Deposition/sublimation for ice */
-        virtual void phaseChange_SV_i (const Real&, const Vector<MFPtr>&);
+        virtual void phaseChange_SV_i (const amrex::Real&, const amrex::Vector<MFPtr>&);
 
-        virtual void GetPlotVarNames (Vector<std::string>& a_names) const override
+        virtual void GetPlotVarNames (amrex::Vector<std::string>& a_names) const override
         {
             for (int v = m_istart_sp; v < m_num_species; v++) {
-                a_names.push_back("qv_"+getEnumNameString(m_species[v]));
-                a_names.push_back("qc_"+getEnumNameString(m_species[v]));
-                a_names.push_back("qt_"+getEnumNameString(m_species[v]));
-                a_names.push_back("sat_ratio_"+getEnumNameString(m_species[v]));
-                a_names.push_back("accum_"+getEnumNameString(m_species[v]));
+                a_names.push_back("qv_"+amrex::getEnumNameString(m_species[v]));
+                a_names.push_back("qc_"+amrex::getEnumNameString(m_species[v]));
+                a_names.push_back("qt_"+amrex::getEnumNameString(m_species[v]));
+                a_names.push_back("sat_ratio_"+amrex::getEnumNameString(m_species[v]));
+                a_names.push_back("accum_"+amrex::getEnumNameString(m_species[v]));
             }
             for (int v = 0; v < m_num_aerosols; v++) {
-                a_names.push_back("accum_"+getEnumNameString(m_aerosols[v]));
+                a_names.push_back("accum_"+amrex::getEnumNameString(m_aerosols[v]));
             }
         }
 
         virtual void GetPlotVar (const std::string& a_name,
-                                 MultiFab& a_mf )  const override
+                                 amrex::MultiFab& a_mf )  const override
         {
             AMREX_ASSERT(a_mf.nComp() >= 1);
             for (int v = m_istart_sp; v < m_num_species; v++) {
                 {
-                    std::string varname = "qv_" + getEnumNameString(m_species[v]);
+                    std::string varname = "qv_" + amrex::getEnumNameString(m_species[v]);
                     if (a_name == varname) {
-                        MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_qv_idx(v,m_istart_sp)],
-                                        0, 0, 1, IntVect::TheZeroVector() );
+                        amrex::MultiFab::Copy( a_mf,
+                                               *m_mic_fab_vars[s_qv_idx(v,m_istart_sp)],
+                                               0, 0, 1, amrex::IntVect::TheZeroVector() );
                         return;
                     }
                 }
                 {
-                    std::string varname = "qc_" + getEnumNameString(m_species[v]);
+                    std::string varname = "qc_" + amrex::getEnumNameString(m_species[v]);
                     if (a_name == varname) {
-                        MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_qc_idx(v,m_istart_sp)],
-                                        0, 0, 1, IntVect::TheZeroVector() );
+                        amrex::MultiFab::Copy( a_mf,
+                                               *m_mic_fab_vars[s_qc_idx(v,m_istart_sp)],
+                                               0, 0, 1, amrex::IntVect::TheZeroVector() );
                         return;
                     }
                 }
                 {
-                    std::string varname = "qt_" + getEnumNameString(m_species[v]);
+                    std::string varname = "qt_" + amrex::getEnumNameString(m_species[v]);
                     if (a_name == varname) {
-                        MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_qt_idx(v,m_istart_sp)],
-                                        0, 0, 1, IntVect::TheZeroVector() );
+                        amrex::MultiFab::Copy( a_mf,
+                                               *m_mic_fab_vars[s_qt_idx(v,m_istart_sp)],
+                                               0, 0, 1, amrex::IntVect::TheZeroVector() );
                         return;
                     }
                 }
                 {
-                    std::string varname = "sat_ratio_" + getEnumNameString(m_species[v]);
+                    std::string varname = "sat_ratio_" + amrex::getEnumNameString(m_species[v]);
                     if (a_name == varname) {
-                        MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_sr_idx(v,m_istart_sp)],
-                                        0, 0, 1, IntVect::TheZeroVector() );
+                        amrex::MultiFab::Copy( a_mf,
+                                               *m_mic_fab_vars[s_sr_idx(v,m_istart_sp)],
+                                               0, 0, 1, amrex::IntVect::TheZeroVector() );
                         return;
                     }
                 }
                 {
-                    std::string varname = "accum_" + getEnumNameString(m_species[v]);
+                    std::string varname = "accum_" + amrex::getEnumNameString(m_species[v]);
                     if (a_name == varname) {
-                        MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[s_accum_idx(v,m_istart_sp)],
-                                        0, 0, 1, IntVect::TheZeroVector() );
+                        amrex::MultiFab::Copy( a_mf,
+                                               *m_mic_fab_vars[s_accum_idx(v,m_istart_sp)],
+                                               0, 0, 1, amrex::IntVect::TheZeroVector() );
                         return;
                     }
                 }
             }
             for (int v = 0; v < m_num_aerosols; v++) {
                 {
-                    std::string varname = "accum_" + getEnumNameString(m_aerosols[v]);
+                    std::string varname = "accum_" + amrex::getEnumNameString(m_aerosols[v]);
                     if (a_name == varname) {
-                        MultiFab::Copy( a_mf,
-                                        *m_mic_fab_vars[a_accum_idx(m_num_nonmoist_sp,v)],
-                                        0, 0, 1, IntVect::TheZeroVector() );
+                        amrex::MultiFab::Copy( a_mf,
+                                               *m_mic_fab_vars[a_accum_idx(m_num_nonmoist_sp,v)],
+                                               0, 0, 1, amrex::IntVect::TheZeroVector() );
                         return;
                     }
                 }
@@ -422,11 +435,11 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! number of non-water-related state variables for this moisture model */
         int m_qstate_nonmoist_size;
 
-        Real m_dt; /*!< timestep */
-        Vector<int> m_mic_var_map; /*!< moisture model variables map */
+        amrex::Real m_dt; /*!< timestep */
+        amrex::Vector<int> m_mic_var_map; /*!< moisture model variables map */
 
         /*! moisture model variables */
-        Vector<FabPtr> m_mic_fab_vars;
+        amrex::Vector<FabPtr> m_mic_fab_vars;
 
         /*! names of vapour/condensate species */
         std::vector<Species::Name> m_species;

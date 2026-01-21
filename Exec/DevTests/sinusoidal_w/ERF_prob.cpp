@@ -76,7 +76,8 @@ Problem::init_custom_pert (
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc)
+    const SolverChoice& sc,
+    const int /*lev*/)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
@@ -114,7 +115,7 @@ Problem::init_custom_pert (
             Real Tpert    = (rand_double*2.0 - 1.0)*parms_d.T_0_Pert_Mag;
             Real Tnew     = Told + Tpert;
 
-            Real theta_new = getThgivenPandT(Tnew,P,rdOcp);
+            Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
             Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
             state_pert(i, j, k, Rho_comp) = rhonew - rho;
 
@@ -179,49 +180,49 @@ Problem::init_custom_pert (
         }
     });
 
-  // Set the y-velocity
-  ParallelForRNG(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const RandomEngine& engine) noexcept
-  {
-      const Real* prob_lo = geomdata.ProbLo();
-      const Real* dx = geomdata.CellSize();
-      const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-      const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+    // Set the y-velocity
+    ParallelForRNG(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const RandomEngine& engine) noexcept
+    {
+        const Real* prob_lo = geomdata.ProbLo();
+        const Real* dx = geomdata.CellSize();
+        const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+        const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-      // Set the y-velocity
-      y_vel_pert(i, j, k) = parms_d.V_0;
-      if ((z <= parms_d.pert_ref_height) && (parms_d.V_0_Pert_Mag != 0.0))
-      {
-          Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-          Real y_vel_prime = (rand_double*2.0 - 1.0)*parms_d.V_0_Pert_Mag;
-          y_vel_pert(i, j, k) += y_vel_prime;
-      }
-      if (parms_d.pert_deltaV != 0.0)
-      {
-          const amrex::Real xl = x - prob_lo[0];
-          const amrex::Real zl = z / parms_d.pert_ref_height;
-          const amrex::Real damp = std::exp(-0.5 * zl * zl);
-          y_vel_pert(i, j, k) += parms_d.vfac * damp * z * std::cos(parms_d.bval * xl);
-      }
-  });
+        // Set the y-velocity
+        y_vel_pert(i, j, k) = parms_d.V_0;
+        if ((z <= parms_d.pert_ref_height) && (parms_d.V_0_Pert_Mag != 0.0))
+        {
+            Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
+            Real y_vel_prime = (rand_double*2.0 - 1.0)*parms_d.V_0_Pert_Mag;
+            y_vel_pert(i, j, k) += y_vel_prime;
+        }
+        if (parms_d.pert_deltaV != 0.0)
+        {
+            const amrex::Real xl = x - prob_lo[0];
+            const amrex::Real zl = z / parms_d.pert_ref_height;
+            const amrex::Real damp = std::exp(-0.5 * zl * zl);
+            y_vel_pert(i, j, k) += parms_d.vfac * damp * z * std::cos(parms_d.bval * xl);
+        }
+    });
 
-  // Set the z-velocity
-  ParallelForRNG(zbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const RandomEngine& engine) noexcept
-  {
-      const int dom_lo_z = geomdata.Domain().smallEnd()[2];
-      const int dom_hi_z = geomdata.Domain().bigEnd()[2];
+    // Set the z-velocity
+    ParallelForRNG(zbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const RandomEngine& engine) noexcept
+    {
+        const int dom_lo_z = geomdata.Domain().smallEnd()[2];
+        const int dom_hi_z = geomdata.Domain().bigEnd()[2];
 
-      // Set the z-velocity
-      if (k == dom_lo_z || k == dom_hi_z+1)
-      {
-          z_vel_pert(i, j, k) = 0.0;
-      }
-      else if (parms_d.W_0_Pert_Mag != 0.0)
-      {
-          Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-          Real z_vel_prime = (rand_double*2.0 - 1.0)*parms_d.W_0_Pert_Mag;
-          z_vel_pert(i, j, k) = parms_d.W_0 + z_vel_prime;
-      }
-  });
+        // Set the z-velocity
+        if (k == dom_lo_z || k == dom_hi_z+1)
+        {
+            z_vel_pert(i, j, k) = 0.0;
+        }
+        else if (parms_d.W_0_Pert_Mag != 0.0)
+        {
+            Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
+            Real z_vel_prime = (rand_double*2.0 - 1.0)*parms_d.W_0_Pert_Mag;
+            z_vel_pert(i, j, k) = parms_d.W_0 + z_vel_prime;
+        }
+    });
 }
 
 //=============================================================================
@@ -243,7 +244,6 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
     // varies in time and or space, then the the height needs to be
     // calculated at each time step. Here, we assume that only grid
     // stretching exists.
-    Print() << "Test write out" << std::endl;
     if (z_phys_cc && zlevels.empty()) {
         Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
@@ -268,7 +268,6 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
                 const Real z_cc = (use_zlevels) ? d_zlevels_arr[k] : prob_lo[2] + (k+0.5)* dx[2];
                 if (z_cc < parms_d.cutoff) {
                     src_arr(i, j, k) = parms_d.advection_heating_rate;
-//                    amrex::Print() << "src_arr values is "<< src_arr(i, j, k) << std::endl;
                 } else if (z_cc < parms_d.cutoff+parms_d.cutoff_transition) {
                     Real slope = -parms_d.advection_heating_rate / parms_d.cutoff_transition;
                     src_arr(i, j, k) = (z_cc-parms_d.cutoff) * slope + parms_d.advection_heating_rate;
@@ -342,14 +341,13 @@ void
 Problem::update_w_subsidence (const Real& time,
                               Vector<Real>& wbar,
                               Gpu::DeviceVector<Real>& d_wbar,
+                              const MultiFab& /*state*/,
                               const Geometry& geom,
                               std::unique_ptr<MultiFab>& z_phys_cc)
 {
     if (wbar.empty()) return;
 
-    const int khi       = geom.Domain().bigEnd()[2] + 1; // lives on z-faces
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx       = geom.CellSize();
+    const int khi = geom.Domain().bigEnd()[2] + 1; // lives on z-faces
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
@@ -361,28 +359,10 @@ Problem::update_w_subsidence (const Real& time,
         reduce_to_max_per_height(zlevels, z_phys_cc);
     }
 
-    // Linearly increase wbar to the cutoff_max and then linearly decrease to cutoff_min
-    Real z_0    = 0.0; // (z_phys_cc) ? zlevels[0] : prob_lo[2] + 0.5 * dx[2];
-    Real slope1 =  parms.wbar_sub_max / (parms.wbar_cutoff_max - z_0);
-    Real slope2 = -parms.wbar_sub_max / (parms.wbar_cutoff_min - parms.wbar_cutoff_max);
-    //Real rho_s       = state(0,0,0,Rho_comp);
-    wbar[0]     = 2*sin(PI*time/600);
-//    wbar[0] = 2;
-    amrex::Print() << "wbar values is "<< wbar[0] << std::endl;
-//    wbar[0]     = 5;
+    wbar[0] = 2*sin(PI*time/600);
 
     for (int k = 1; k <= khi; k++) {
-        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + k*dx[2];
-//        Real rho_s       = state(0,0,k,Rho_comp);
         wbar[k] = 2*sin(PI*time/600);
-//        wbar[k] = 2;
-//        if (z_cc <= parms.wbar_cutoff_max) {
-//            wbar[k] = slope1 * (z_cc - z_0);
-//        } else if (z_cc <= parms.wbar_cutoff_min) {
-//            wbar[k] = slope2 * (z_cc - parms.wbar_cutoff_max) + parms.wbar_sub_max;
-//        } else {
-//            wbar[k] = 0.0;
-//        }
     }
 
     // Copy from host version to device version
@@ -417,15 +397,13 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
         reduce_to_max_per_height(zlevels, z_phys_cc);
     }
 
-    // const Real coriolis = 2.0 * 2.0 * PI / 86400.0; // 0.376E-4;
-
-    // Only apply temperature source below nominal inversion height
+    // Only apply geostrophic wind profile
     for (int k = 0; k <= khi; k++) {
         const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
         const Real u_geo_wind = -10.0 + z_cc * 0.0018;
 
-        u_geos[k] =  u_geo_wind; // 0; // -coriolis_factor * v_geo_wind
-        v_geos[k] =  0 ; // coriolis *  u_geo_wind;
+        u_geos[k] = u_geo_wind;
+        v_geos[k] = 0.0;
     }
 
     // Copy from host version to device version

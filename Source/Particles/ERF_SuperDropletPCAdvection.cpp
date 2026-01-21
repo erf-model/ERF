@@ -5,10 +5,23 @@
 #include <AMReX_TracerParticle_mod_K.H>
 #include "ERF_IndexDefines.H"
 #include "ERF_TerminalVelocity.H"
+#include "ERF_InterpolationUtils.H"
 
 using namespace amrex;
+using namespace SDPCDefn;
 
-/*! Evolve particles for one time step */
+/*! \brief Advect superdroplet particles for one time step
+ * \param[in] a_lev AMR level
+ * \param[in] a_time Current simulation time
+ * \param[in] a_dt Timestep size for advection
+ * \param[in] a_flow_vel Array of face-based velocities
+ * \param[in] a_density Density field
+ * \param[in] a_pressure Pressure field
+ * \param[in] a_temperature Temperature field
+ * \param[in] a_z_phys_nd Array of terrain heights
+ * \param[in] a_bctypes Array of boundary condition types
+ * \param[in] a_recycle Flag to enable particle recycling
+ */
 void SuperDropletPC::AdvectParticles ( int                   a_lev,
                                        Real                  a_time,
                                        Real                  a_dt,
@@ -99,53 +112,16 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
         }
 
         SDSpeciesMassArr sp_mass_ptrs;
-        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-        Gpu::DeviceVector<int> sp_solubility(num_sp);
-        {
-            Vector<ParticleReal> sp_density_h(num_sp);
-            Vector<int> sp_solubility_h(num_sp);
-            for (int i = 0; i < num_sp; i++) {
-                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
-                sp_density_h[i] = m_species_mat[i]->m_density;
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_density_h.begin(),
-                        sp_density_h.end(),
-                        sp_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_solubility_h.begin(),
-                        sp_solubility_h.end(),
-                        sp_solubility.begin() );
-        }
-
         SDAerosolMassArr ae_mass_ptrs;
-        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-        Gpu::DeviceVector<int> ae_solubility(num_ae);
-        {
-            Vector<ParticleReal> ae_density_h(num_ae);
-            Vector<int> ae_solubility_h(num_ae);
-            for (int i = 0; i < num_ae; i++) {
-                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
-                ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_density_h.begin(),
-                        ae_density_h.end(),
-                        ae_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_solubility_h.begin(),
-                        ae_solubility_h.end(),
-                        ae_solubility.begin() );
-        }
+        setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
+
+        // Get pointers to persistent device data
+        const ParticleReal* sp_rho_arr = getSpeciesDensitiesDevice();
+        const int* sp_sol_arr = getSpeciesSolubilitiesDevice();
+        const ParticleReal* ae_rho_arr = getAerosolDensitiesDevice();
+        const int* ae_sol_arr = getAerosolSolubilitiesDevice();
 
         TerminalVelocity<ParticleReal> term_vel { rho_w, rho_i };
-
-        auto sp_rho_arr = sp_density.data();
-        auto sp_sol_arr = sp_solubility.data();
-        auto ae_rho_arr = ae_density.data();
-        auto ae_sol_arr = ae_solubility.data();
 
         ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -162,16 +138,26 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
             }
 
-            ParticleReal density, pressure, temperature;
-            if (is_periodic_z) {
-                cic_interpolate( p, plo, dxi, density_arr, &density, 1 );
-                cic_interpolate( p, plo, dxi, pressure_arr, &pressure, 1 );
-                cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
-            } else {
-                cic_interpolate_mapped_z( p, plo, dxi, density_arr, zheight, &density, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, pressure_arr, zheight, &pressure, 1 );
-                cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-            }
+            // Define field values array to store interpolated results
+            ParticleReal field_values[3]; // density, pressure, temperature
+
+            // Define array of field arrays to interpolate from
+            const Array4<const Real> field_arrays[3] = {
+                density_arr,
+                pressure_arr,
+                temperature_arr
+            };
+
+            // Use the interpolation helper function to interpolate all fields at once
+            ERF::Interpolation::interpolateFields(
+                p, plo, dxi, field_arrays, field_values, 3,
+                is_periodic_z ? 1 : 0, is_periodic_z ? nullptr : &zheight
+            );
+
+            // Extract interpolated values
+            ParticleReal density = field_values[0];
+            ParticleReal pressure = field_values[1];
+            ParticleReal temperature = field_values[2];
 
             if (prescribed_advection) {
                if (a_time < 600) {

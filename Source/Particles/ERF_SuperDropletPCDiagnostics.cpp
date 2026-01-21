@@ -2,12 +2,14 @@
 #include <limits>
 #include <fstream>
 #include <AMReX_PlotFileUtil.H>
+#include <AMReX_Reduce.H>
 #include "ERF_Constants.H"
 #include "ERF_SuperDropletPC.H"
 
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using namespace SDPCDefn;
 using SDTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
 
 /*! Get real-type particle attribute names */
@@ -81,163 +83,155 @@ void SuperDropletPC::Diagnostics( const int a_iter,
     auto num_total_particles = TotalNumberOfParticles();
     auto num_superdroplets = static_cast<Real>(NumSuperDroplets());
 
-    auto min_par_radius = ReduceMin( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i]; } );
-
-    auto max_par_radius = ReduceMax( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i]; } );
-
-    auto avg_par_radius = ReduceSum( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                     {
-                                         auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                         auto r = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
-                                         return n*r;
-                                     } );
-
-    auto min_multiplic  = ReduceMin( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]; } );
-
-    auto max_multiplic  = ReduceMax( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]; } );
-
-    auto avg_multiplic  = ReduceSum( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]; } );
-
-    auto min_par_mass   = ReduceMin( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                     { return ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i]; } );
-
-    auto max_par_mass   = ReduceMax( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                     { return ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i]; } );
-
-    auto avg_par_mass   = ReduceSum( *this,
-                                     [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                     {
-                                         auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                         auto m = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
-                                         return n*m;
-                                     } );
-
-    auto min_par_vx = ReduceMin( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 { return ptd.m_rdata[SuperDropletsRealIdxSoA::vx][i]; } );
-
-    auto max_par_vx = ReduceMax( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 { return ptd.m_rdata[SuperDropletsRealIdxSoA::vx][i]; } );
-
-    auto avg_par_vx = ReduceSum( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 {
-                                     auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                     auto m = ptd.m_rdata[SuperDropletsRealIdxSoA::vx][i];
-                                     return n*m;
-                                 } );
-
-    auto min_par_vy = ReduceMin( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 { return ptd.m_rdata[SuperDropletsRealIdxSoA::vy][i]; } );
-
-    auto max_par_vy = ReduceMax( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 { return ptd.m_rdata[SuperDropletsRealIdxSoA::vy][i]; } );
-
-    auto avg_par_vy = ReduceSum( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 {
-                                     auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                     auto m = ptd.m_rdata[SuperDropletsRealIdxSoA::vy][i];
-                                     return n*m;
-                                 } );
-
-    auto min_par_vz = ReduceMin( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 { return ptd.m_rdata[SuperDropletsRealIdxSoA::vz][i]; } );
-
-    auto max_par_vz = ReduceMax( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 { return ptd.m_rdata[SuperDropletsRealIdxSoA::vz][i]; } );
-
-    auto avg_par_vz = ReduceSum( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 {
-                                     auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                     auto m = ptd.m_rdata[SuperDropletsRealIdxSoA::vz][i];
-                                     return n*m;
-                                 } );
-
-    auto min_term_v = ReduceMin( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i]; } );
-
-    auto max_term_v = ReduceMax( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i]; } );
-
-    auto avg_term_v = ReduceSum( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 {
-                                     auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                     auto m = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
-                                     return n*m;
-                                 } );
-
+    // Number of base attributes to reduce (radius, multiplicity, mass, vx, vy, vz, term_vel)
+    constexpr int NUM_BASE_ATTRS = 7;
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-    auto min_cond_t = ReduceMin( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::cond_tendency][i]; } );
-
-    auto max_cond_t = ReduceMax( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::cond_tendency][i]; } );
-
-    auto avg_cond_t = ReduceSum( *this,
-                                 [=] AMREX_GPU_HOST_DEVICE (const SDTDType& ptd, const int i) -> Real
-                                 {
-                                     auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                     auto m = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::cond_tendency][i];
-                                     return n*m;
-                                 } );
+    constexpr int NUM_ATTRS = NUM_BASE_ATTRS + 1;  // + cond_tendency
+#else
+    constexpr int NUM_ATTRS = NUM_BASE_ATTRS;
 #endif
 
-    ParallelDescriptor::ReduceRealMin(&min_par_mass,1);
-    ParallelDescriptor::ReduceRealMin(&min_par_radius,1);
-    ParallelDescriptor::ReduceRealMin(&min_multiplic,1);
-    ParallelDescriptor::ReduceRealMin(&min_par_vx,1);
-    ParallelDescriptor::ReduceRealMin(&min_par_vy,1);
-    ParallelDescriptor::ReduceRealMin(&min_par_vz,1);
-    ParallelDescriptor::ReduceRealMin(&min_term_v,1);
+    // Fused reduction: compute min, max, and weighted sum for all attributes in a single pass
+    // Use ReduceData with array-based approach for fused reduction
+    using ReduceTuple = GpuTuple<Real, Real, Real, Real, Real, Real, Real,  // min values (7)
+                                 Real, Real, Real, Real, Real, Real, Real,  // max values (7)
+                                 Real, Real, Real, Real, Real, Real, Real,  // sum values (7)
+                                 Real                                        // multiplicity sum
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-    ParallelDescriptor::ReduceRealMin(&min_cond_t,1);
+                                 , Real, Real, Real  // min, max, sum for cond_tendency
+#endif
+                                 >;
+
+    ReduceOps<ReduceOpMin, ReduceOpMin, ReduceOpMin, ReduceOpMin, ReduceOpMin, ReduceOpMin, ReduceOpMin,
+              ReduceOpMax, ReduceOpMax, ReduceOpMax, ReduceOpMax, ReduceOpMax, ReduceOpMax, ReduceOpMax,
+              ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpSum,
+              ReduceOpSum
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+              , ReduceOpMin, ReduceOpMax, ReduceOpSum
+#endif
+              > reduce_ops;
+
+    auto r = ReduceData<Real, Real, Real, Real, Real, Real, Real,
+                        Real, Real, Real, Real, Real, Real, Real,
+                        Real, Real, Real, Real, Real, Real, Real,
+                        Real
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+                        , Real, Real, Real
+#endif
+                        >(reduce_ops);
+
+    for (int lev = 0; lev <= finestLevel(); ++lev) {
+        for (ParConstIterType pti(*this, lev); pti.isValid(); ++pti) {
+            const auto& ptd = pti.GetParticleTile().getConstParticleTileData();
+            const int np = pti.numParticles();
+
+            reduce_ops.eval(np, r,
+                [=] AMREX_GPU_DEVICE (int i) -> ReduceTuple
+                {
+                    const Real n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                    const Real radius = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
+                    const Real mass = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
+                    const Real vx = ptd.m_rdata[SuperDropletsRealIdxSoA::vx][i];
+                    const Real vy = ptd.m_rdata[SuperDropletsRealIdxSoA::vy][i];
+                    const Real vz = ptd.m_rdata[SuperDropletsRealIdxSoA::vz][i];
+                    const Real term_vel = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+                    const Real cond_t = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::cond_tendency][i];
 #endif
 
-    ParallelDescriptor::ReduceRealMax(&max_par_mass,1);
-    ParallelDescriptor::ReduceRealMax(&max_par_radius,1);
-    ParallelDescriptor::ReduceRealMax(&max_multiplic,1);
-    ParallelDescriptor::ReduceRealMax(&max_par_vx,1);
-    ParallelDescriptor::ReduceRealMax(&max_par_vy,1);
-    ParallelDescriptor::ReduceRealMax(&max_par_vz,1);
-    ParallelDescriptor::ReduceRealMax(&max_term_v,1);
+                    return {
+                        // Min values
+                        radius, n, mass, vx, vy, vz, term_vel,
+                        // Max values
+                        radius, n, mass, vx, vy, vz, term_vel,
+                        // Weighted sums (n * value)
+                        n * radius, n, n * mass, n * vx, n * vy, n * vz, n * term_vel,
+                        // Multiplicity sum
+                        n
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-    ParallelDescriptor::ReduceRealMax(&max_cond_t,1);
+                        , cond_t, cond_t, n * cond_t  // min, max, sum for cond_tendency
+#endif
+                    };
+                });
+        }
+    }
+
+    auto hv = r.value(reduce_ops);
+
+    // Extract results from tuple
+    Real min_par_radius = amrex::get<0>(hv);
+    Real min_multiplic  = amrex::get<1>(hv);
+    Real min_par_mass   = amrex::get<2>(hv);
+    Real min_par_vx     = amrex::get<3>(hv);
+    Real min_par_vy     = amrex::get<4>(hv);
+    Real min_par_vz     = amrex::get<5>(hv);
+    Real min_term_v     = amrex::get<6>(hv);
+
+    Real max_par_radius = amrex::get<7>(hv);
+    Real max_multiplic  = amrex::get<8>(hv);
+    Real max_par_mass   = amrex::get<9>(hv);
+    Real max_par_vx     = amrex::get<10>(hv);
+    Real max_par_vy     = amrex::get<11>(hv);
+    Real max_par_vz     = amrex::get<12>(hv);
+    Real max_term_v     = amrex::get<13>(hv);
+
+    Real avg_par_radius = amrex::get<14>(hv);
+    Real avg_multiplic  = amrex::get<15>(hv);
+    Real avg_par_mass   = amrex::get<16>(hv);
+    Real avg_par_vx     = amrex::get<17>(hv);
+    Real avg_par_vy     = amrex::get<18>(hv);
+    Real avg_par_vz     = amrex::get<19>(hv);
+    Real avg_term_v     = amrex::get<20>(hv);
+
+    // Note: amrex::get<21>(hv) is the multiplicity sum, used for avg_multiplic normalization
+
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+    Real min_cond_t = amrex::get<22>(hv);
+    Real max_cond_t = amrex::get<23>(hv);
+    Real avg_cond_t = amrex::get<24>(hv);
 #endif
 
-    ParallelDescriptor::ReduceRealSum(&avg_par_mass,1);
-    ParallelDescriptor::ReduceRealSum(&avg_par_radius,1);
-    ParallelDescriptor::ReduceRealSum(&avg_multiplic,1);
-    ParallelDescriptor::ReduceRealSum(&avg_par_vx,1);
-    ParallelDescriptor::ReduceRealSum(&avg_par_vy,1);
-    ParallelDescriptor::ReduceRealSum(&avg_par_vz,1);
-    ParallelDescriptor::ReduceRealSum(&avg_term_v,1);
+    // MPI reductions - batch into arrays for efficiency
+    Real min_vals[NUM_ATTRS] = {min_par_radius, min_multiplic, min_par_mass,
+                                min_par_vx, min_par_vy, min_par_vz, min_term_v
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-    ParallelDescriptor::ReduceRealSum(&avg_cond_t,1);
+                                , min_cond_t
+#endif
+                               };
+    Real max_vals[NUM_ATTRS] = {max_par_radius, max_multiplic, max_par_mass,
+                                max_par_vx, max_par_vy, max_par_vz, max_term_v
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+                                , max_cond_t
+#endif
+                               };
+    Real sum_vals[NUM_ATTRS] = {avg_par_radius, avg_multiplic, avg_par_mass,
+                                avg_par_vx, avg_par_vy, avg_par_vz, avg_term_v
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+                                , avg_cond_t
+#endif
+                               };
+
+    ParallelDescriptor::ReduceRealMin(min_vals, NUM_ATTRS);
+    ParallelDescriptor::ReduceRealMax(max_vals, NUM_ATTRS);
+    ParallelDescriptor::ReduceRealSum(sum_vals, NUM_ATTRS);
+
+    // Unpack back to named variables
+    min_par_radius = min_vals[0]; min_multiplic = min_vals[1]; min_par_mass = min_vals[2];
+    min_par_vx = min_vals[3]; min_par_vy = min_vals[4]; min_par_vz = min_vals[5];
+    min_term_v = min_vals[6];
+
+    max_par_radius = max_vals[0]; max_multiplic = max_vals[1]; max_par_mass = max_vals[2];
+    max_par_vx = max_vals[3]; max_par_vy = max_vals[4]; max_par_vz = max_vals[5];
+    max_term_v = max_vals[6];
+
+    avg_par_radius = sum_vals[0]; avg_multiplic = sum_vals[1]; avg_par_mass = sum_vals[2];
+    avg_par_vx = sum_vals[3]; avg_par_vy = sum_vals[4]; avg_par_vz = sum_vals[5];
+    avg_term_v = sum_vals[6];
+
+#ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
+    min_cond_t = min_vals[7];
+    max_cond_t = max_vals[7];
+    avg_cond_t = sum_vals[7];
 #endif
 
     if (num_total_particles > 0) {
@@ -695,7 +689,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
     }
 
     // Write to file
-    char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
+    char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
     std::string output_filename =   m_name
                                     + "_g_lnR_"
                                     + std::string(iter_str) + ".txt";
@@ -783,7 +777,7 @@ void SuperDropletPC::ComputeBinnedDistributions( const int a_iter)
     ParallelDescriptor::ReduceRealSum(g_num_ln_R.dataPtr(), Nbin);
 
     // Write to file
-    char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
+    char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
     std::string output_filename =   m_name
                                     + "_binned_dsd_"
                                     + std::string(iter_str) + ".txt";
@@ -848,7 +842,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
         auto r_l = std::exp(ln_R[n]);
         auto r_r = std::exp(ln_R[n+1]);
 
-        char r_str[12]; sprintf(r_str, "%1.4e", r_l);
+        char r_str[12]; snprintf(r_str, sizeof(r_str), "%1.4e", r_l);
         varnames[n] = std::string(r_str);
 
         ParticleToMesh( *this, m_mass_ln_R_mf, m_lev,
@@ -886,7 +880,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
 
     // Write to file
     {
-        char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
+        char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
         std::string op_fname =   m_name
                                + "_binned_dsd_mass_"
                                + std::string(iter_str);
@@ -899,7 +893,7 @@ void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
                                    a_iter );
     }
     {
-        char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
+        char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
         std::string op_fname =   m_name
                                + "_binned_dsd_number_"
                                + std::string(iter_str);

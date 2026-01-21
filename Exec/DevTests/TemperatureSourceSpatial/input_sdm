@@ -47,7 +47,7 @@ erf.check_int       = 1800   # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt # prefix of plotfile name
 erf.plot_int_1      = 120 # number of timesteps between plotfiles (DEBUG)
-erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure theta temp rhoQ1 qt qv qc qp qsat qrain rain_accum rel_humidity super_droplets_moisture_number_density 
+erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure theta temp rhoQ1 qt qv qc qp qsat qrain rain_accum rel_humidity super_droplets_moisture_number_density
 
 # SOLVER CHOICES
 erf.use_gravity = true

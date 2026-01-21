@@ -1,10 +1,12 @@
 #include <random>
 #include <AMReX_PlotFileUtil.H>
 #include "ERF_SuperDropletPC.H"
+#include "ERF_InterpolationUtils.H"
 
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using namespace SDPCDefn;
 
 /*! Recycle deactivated particles: particles that have zero multiplicity are
  *  recycled by resetting them to dry aerosol particles and placing them randomly
@@ -29,9 +31,6 @@ void SuperDropletPC::Recycle ( const int             a_lev,
     if (m_save_inactive) {
 #ifndef ERF_USE_NETCDF
         const auto& geom = Geom(m_lev);
-        const auto plo = geom.ProbLoArray();
-        const auto dxi = geom.InvCellSizeArray();
-        const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
 
         using SrcData = SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
         std::string name = "deactivated_particles";
@@ -42,7 +41,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                               return (ai == 0);
                           }, true);
 
-        char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
+        char iter_str[12]; snprintf(iter_str, sizeof(iter_str), "%05d", a_iter+1);
         std::string fname = "deac_SD_" + std::string(iter_str);
         amrex::Print() << "Writing deactivated particles to " << fname << "\n";
         amrex::Vector<std::string> eu_vnames(1,"dummy_var");
@@ -144,57 +143,15 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data();
 
             SDSpeciesMassArr sp_mass_ptrs;
-            for (int i = 0; i < num_sp; i++) {
-                sp_mass_ptrs[i] = soa.GetRealData(idx_s(i,num_ae,num_sp)).data();
-            }
-
             SDAerosolMassArr ae_mass_ptrs;
-            for (int i = 0; i < num_ae; i++) {
-                ae_mass_ptrs[i] = soa.GetRealData(idx_a(i,num_ae,num_sp)).data();
-            }
+            setupMassPointers(soa, sp_mass_ptrs, ae_mass_ptrs);
 
-            Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-            Gpu::DeviceVector<int> sp_solubility(num_sp);
-            {
-                Vector<ParticleReal> sp_density_h(num_sp);
-                Vector<int> sp_solubility_h(num_sp);
-                for (int i = 0; i < num_sp; i++) {
-                    sp_density_h[i] = m_species_mat[i]->m_density;
-                    sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-                }
-                Gpu::copy(  Gpu::hostToDevice,
-                            sp_density_h.begin(),
-                            sp_density_h.end(),
-                            sp_density.begin() );
-                Gpu::copy(  Gpu::hostToDevice,
-                            sp_solubility_h.begin(),
-                            sp_solubility_h.end(),
-                            sp_solubility.begin() );
-            }
-
-            Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-            Gpu::DeviceVector<int> ae_solubility(num_ae);
-            {
-                Vector<ParticleReal> ae_density_h(num_ae);
-                Vector<int> ae_solubility_h(num_ae);
-                for (int i = 0; i < num_ae; i++) {
-                    ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                    ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-                }
-                Gpu::copy(  Gpu::hostToDevice,
-                            ae_density_h.begin(),
-                            ae_density_h.end(),
-                            ae_density.begin() );
-                Gpu::copy(  Gpu::hostToDevice,
-                            ae_solubility_h.begin(),
-                            ae_solubility_h.end(),
-                            ae_solubility.begin() );
-            }
-
-            auto sp_rho_arr = sp_density.data();
-            auto sp_sol_arr = sp_solubility.data();
-            auto ae_rho_arr = ae_density.data();
-            auto ae_sol_arr = ae_solubility.data();
+            // Get pointers to persistent device data
+            const ParticleReal* sp_rho_arr = nullptr;
+            const int* sp_sol_arr = nullptr;
+            const ParticleReal* ae_rho_arr = nullptr;
+            const int* ae_sol_arr = nullptr;
+            getMaterialPropertiesDevice(sp_rho_arr, sp_sol_arr, ae_rho_arr, ae_sol_arr);
 
             // get sampled aerosol mass values based on initialization
             Gpu::DeviceVector<Real> aerosol_mass_d(num_ae*np);
@@ -294,13 +251,10 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 else { mult_ptr[i] = mult_avg; }
 
                 // compute effective radius and total mass
-                radius_ptr[i] = SD_effective_radius( i, idx_w,
-                                                     rho_w,
-                                                     num_sp, num_ae,
-                                                     sp_sol_arr, ae_sol_arr,
-                                                     sp_mass_ptrs, ae_mass_ptrs,
-                                                     sp_rho_arr, ae_rho_arr );
-                mass_ptr[i] = SD_total_mass( i, num_sp, num_ae, sp_mass_ptrs, ae_mass_ptrs);
+                SuperDropletPC::updateParticleAttributes(
+                    i, radius_ptr, mass_ptr, idx_w, rho_w,
+                    num_sp, num_ae, sp_sol_arr, ae_sol_arr,
+                    sp_mass_ptrs, ae_mass_ptrs, sp_rho_arr, ae_rho_arr);
 
                 // set as active
                 active_ptr[i] = 1;
@@ -355,7 +309,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
             int rtoff_i = SuperDropletsIntIdxSoA::ncomps;
             auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
 
-            ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& rnd_engine) noexcept
+            ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int i, const RandomEngine& /*rnd_engine*/) noexcept
             {
                 ParticleType& p = p_pbox[i];
                 if (p.id() <= 0) { return; }

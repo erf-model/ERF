@@ -4,13 +4,25 @@
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using namespace SDPCDefn;
 
-/*! Sets the initial number of the super-droplets per cell as a box with a uniform distribution */
-void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */
-                                              const int a_n_per_cell, /*!< number of superdroplets per cell */
-                                              const MFPtr& a_height_ptr, /*!< terrain */
-                                              const RealBox& a_box, /*!< box within which to initialize particles */
-                                              const bool a_subgrid /*!< Is a_box smaller than grid cell */)
+/*! \brief Sets the initial number of super-droplets per cell in a box region with uniform distribution
+ *
+ * This function initializes the number of super-droplets to be placed in each grid cell
+ * based on whether the cell is inside the specified box region. It handles both flat
+ * and terrain-following grids and can initialize particles in subgrid regions.
+ *
+ * \param[out] a_num_sd Integer MultiFab that will contain the number of superdroplets in each grid cell
+ * \param[in] a_n_per_cell Number of superdroplets to place per cell
+ * \param[in] a_height_ptr Pointer to MultiFab containing terrain height information
+ * \param[in] a_box Box region within which to initialize particles
+ * \param[in] a_subgrid Flag indicating if the box is smaller than a grid cell
+ */
+void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
+                                              const int a_n_per_cell,
+                                              const MFPtr& a_height_ptr,
+                                              const RealBox& a_box,
+                                              const bool a_subgrid)
 {
     BL_PROFILE("SuperDropletPC::setNumSDBoxDistribution()");
     a_num_sd.setVal(0);
@@ -354,51 +366,16 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
         }
         Gpu::synchronize();
 
-        Gpu::DeviceVector<ParticleReal> sp_density(num_sp);
-        Gpu::DeviceVector<int> sp_solubility(num_sp);
-        {
-            Vector<ParticleReal> sp_density_h(num_sp);
-            Vector<int> sp_solubility_h(num_sp);
-            for (int i = 0; i < num_sp; i++) {
-                sp_density_h[i] = m_species_mat[i]->m_density;
-                sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_density_h.begin(),
-                        sp_density_h.end(),
-                        sp_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        sp_solubility_h.begin(),
-                        sp_solubility_h.end(),
-                        sp_solubility.begin() );
-        }
-
-        Gpu::DeviceVector<ParticleReal> ae_density(num_ae);
-        Gpu::DeviceVector<int> ae_solubility(num_ae);
-        {
-            Vector<ParticleReal> ae_density_h(num_ae);
-            Vector<int> ae_solubility_h(num_ae);
-            for (int i = 0; i < num_ae; i++) {
-                ae_density_h[i] = m_aerosol_mat[i]->m_density;
-                ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
-            }
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_density_h.begin(),
-                        ae_density_h.end(),
-                        ae_density.begin() );
-            Gpu::copy(  Gpu::hostToDevice,
-                        ae_solubility_h.begin(),
-                        ae_solubility_h.end(),
-                        ae_solubility.begin() );
-        }
+        // Get pointers to persistent device data
+        const ParticleReal* sp_rho_arr = nullptr;
+        const int* sp_sol_arr = nullptr;
+        const ParticleReal* ae_rho_arr = nullptr;
+        const int* ae_sol_arr = nullptr;
+        getMaterialPropertiesDevice(sp_rho_arr, sp_sol_arr, ae_rho_arr, ae_sol_arr);
 
         auto species_mass = species_mass_d.data();
         auto aerosol_mass = aerosol_mass_d.data();
         auto mult_arr = multiplicity_d.data();
-        auto sp_rho_arr = sp_density.data();
-        auto sp_sol_arr = sp_solubility.data();
-        auto ae_rho_arr = ae_density.data();
-        auto ae_sol_arr = ae_solubility.data();
 
         auto num_superdroplets_arr = num_superdroplets[mfi].array();
         auto random_place = m_place_randomly_in_cells;
@@ -538,7 +515,17 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
            }
         });
 
-        /* Initialize ice attributes */
+        /* Initialize ice attributes
+         *
+         * Freezing temperature (Tfz) is assigned using the INAS (Ice Nucleation
+         * Active Site) density parameterization of Niemand et al. (2012).
+         *
+         * The following code is adapted from SCALE-SDM:
+         * https://github.com/Shima-Lab/SCALE-SDM_mixed-phase_Shima2019
+         * Copyright (c) 2012-2015, Team SCALE
+         * All rights reserved.
+         * BSD 2-Clause License
+         */
         if (m_idx_i >= 0) {
             auto* Tfz_ptr = soa.GetRealData(idx_ice_Tfz(num_ae,num_sp)).data() + size_old;
             auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data() + size_old;
@@ -548,10 +535,30 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
             const auto idx_i = m_idx_i;
             const Real rho_i = m_species_mat[m_idx_i]->m_density;
 
-            ParallelFor(np, [=] AMREX_GPU_DEVICE(int i)
-            {
-                Tfz_ptr[i] = 235.15; // -38 degrees Celsius
+            // Get pointers to persistent device data for INP flags
+            const int* sp_INP_arr = getSpeciesINPFlagsDevice();
+            const int* ae_INP_arr = getAerosolINPFlagsDevice();
 
+            // INAS parameterization for sampling freezing temperature
+            INAS_Niemand2012 inas_params;
+
+            ParallelForRNG(np, [=] AMREX_GPU_DEVICE(int i, const RandomEngine& rnd_engine)
+            {
+                // Compute INP surface area for this particle
+                auto A_INP = SD_INP_surface_area(i, num_sp, num_ae,
+                                                  sp_INP_arr, ae_INP_arr,
+                                                  sp_mass_ptrs, ae_mass_ptrs,
+                                                  sp_rho_arr, ae_rho_arr);
+
+                // Sample freezing temperature using INAS parameterization
+                // Use multiple Random() calls to decorrelate from mass sampling sequence
+                // The mass was sampled on HOST; GPU random engines may have correlated seeds
+                (void)Random(rnd_engine);  // skip first value to decorrelate
+                (void)Random(rnd_engine);  // skip second value
+                auto u = Random(rnd_engine);  // use third value for Tfz sampling
+                Tfz_ptr[i] = inas_params.sample_Tfz(u, A_INP);
+
+                // Initialize ice shape attributes
                 auto mass = sp_mass_ptrs[idx_i][i];
                 a_ptr[i] = c_ptr[i] = std::cbrt(mass/((4.0/3.0)*PI*rho_i));
                 mrime_ptr[i] = 0.0;

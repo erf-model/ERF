@@ -135,6 +135,7 @@ MaterialProperties::MaterialProperties ( const MaterialProperties& a_matprop )
     for (auto i = 0; i < 7; i++) { m_mol_Cp_coeffs[i] = a_matprop.m_mol_Cp_coeffs[i]; }
     m_is_soluble = a_matprop.m_is_soluble;
     m_is_water = a_matprop.m_is_water;
+    m_is_INP = a_matprop.m_is_INP;
     AMREX_IF_ON_HOST((
         m_saturation_pressure_func = a_matprop.m_saturation_pressure_func;
         m_saturation_vapfrac_func = a_matprop.m_saturation_vapfrac_func;
@@ -236,6 +237,7 @@ void MaterialProperties::setProperties_soil()
     m_density = 1220.0; // loose dry dirt
 
     m_ionization = 0;
+    m_is_INP = true; // soil/mineral dust can act as ice nucleating particle
 
     m_saturation_pressure_func = nullptr;
     m_saturation_vapfrac_func = nullptr;
