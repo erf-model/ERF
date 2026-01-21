@@ -208,6 +208,63 @@ class SuperDropletPC : public ERFPC
                                       const amrex::RealBox&,
                                       const bool );
 
+        /*! \brief Template helper for setNumSD*Distribution functions */
+        template<typename PointCheck, typename SubgridCheck>
+        void setNumSDDistributionImpl( amrex::iMultiFab& a_num_sd,
+                                       const int a_n_per_cell,
+                                       const MFPtr& a_height_ptr,
+                                       const amrex::RealBox& a_region,
+                                       const bool a_subgrid,
+                                       PointCheck&& point_check,
+                                       SubgridCheck&& subgrid_check)
+        {
+            a_num_sd.setVal(0);
+            const auto dx = Geom(m_lev).CellSizeArray();
+            const auto plo = Geom(m_lev).ProbLoArray();
+
+            for(amrex::MFIter mfi = MakeMFIter(m_lev); mfi.isValid(); ++mfi) {
+                const amrex::Box& tile_box = mfi.tilebox();
+                auto num_sd_arr = a_num_sd[mfi].array();
+                if (a_height_ptr) {
+                    const auto height_arr = (*a_height_ptr)[mfi].array();
+                    amrex::ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        bool flag = false;
+                        if (a_subgrid) {
+                            amrex::RealBox gridcell(plo[0]+i*dx[0], plo[1]+j*dx[1], height_arr(i,j,k),
+                                                    plo[0]+(i+1)*dx[0], plo[1]+(j+1)*dx[1], height_arr(i+1,j+1,k+1));
+                            flag = subgrid_check(gridcell, a_region);
+                        } else {
+                            amrex::Real x = plo[0] + (i + 0.5)*dx[0];
+                            amrex::Real y = plo[1] + (j + 0.5)*dx[1];
+                            amrex::Real z = 0.125 * (height_arr(i,j,k) + height_arr(i+1,j,k) +
+                                                     height_arr(i,j+1,k) + height_arr(i+1,j+1,k) +
+                                                     height_arr(i,j,k+1) + height_arr(i+1,j,k+1) +
+                                                     height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k));
+                            flag = point_check(a_region, x, y, z);
+                        }
+                        if (flag) { num_sd_arr(i,j,k) = a_n_per_cell; }
+                    });
+                } else {
+                    amrex::ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        bool flag = false;
+                        if (a_subgrid) {
+                            amrex::RealBox gridcell(plo[0]+i*dx[0], plo[1]+j*dx[1], plo[2]+k*dx[2],
+                                                    plo[0]+(i+1)*dx[0], plo[1]+(j+1)*dx[1], plo[2]+(k+1)*dx[2]);
+                            flag = subgrid_check(gridcell, a_region);
+                        } else {
+                            amrex::Real x = plo[0] + (i + 0.5)*dx[0];
+                            amrex::Real y = plo[1] + (j + 0.5)*dx[1];
+                            amrex::Real z = plo[2] + (k + 0.5)*dx[2];
+                            flag = point_check(a_region, x, y, z);
+                        }
+                        if (flag) { num_sd_arr(i,j,k) = a_n_per_cell; }
+                    });
+                }
+            }
+        }
+
         /*! \brief Set super-droplets attributes from a given condensate mass density
          * \param[in] a_mf Multifab containing the initial condensate mass density
          */
@@ -592,13 +649,31 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Iterate over particle tiles with common setup
          *
-         * Handles the common particle iteration pattern with OMP parallelism.
-         *
+         * @tparam Serial If true, skip OpenMP parallelism (for non-thread-safe operations)
          * @tparam TileFunc Functor type called for each tile
          * @param a_lev AMR level
          * @param ctx Process context (geometry, species info)
          * @param func Functor: func(pti, grid, p_pbox, ptrs, ctx)
          */
+        /*! \brief Common body for forEachParticleTile iterations */
+        template<typename TileFunc>
+        void forEachParticleTileBody(
+            ParIterType& pti, int a_lev,
+            const SDProcess::ProcessContext& ctx,
+            TileFunc&& func)
+        {
+            int grid = pti.index();
+            auto& ptile = ParticlesAt(a_lev, pti);
+            auto& aos = ptile.GetArrayOfStructs();
+            auto& soa = ptile.GetStructOfArrays();
+            if (aos.numParticles() == 0) { return; }
+            auto* p_pbox = aos().data();
+            SDProcess::ParticlePointers ptrs;
+            setupParticlePointers(soa, aos, ptrs);
+            func(pti, grid, p_pbox, ptrs, ctx);
+        }
+
+        /*! \brief Iterate over particle tiles with common setup (parallel) */
         template<typename TileFunc>
         void forEachParticleTile(
             int a_lev,
@@ -609,53 +684,22 @@ class SuperDropletPC : public ERFPC
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
             for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
-                int grid = pti.index();
-                auto& ptile = ParticlesAt(a_lev, pti);
-                auto& aos = ptile.GetArrayOfStructs();
-                auto& soa = ptile.GetStructOfArrays();
-
-                if (aos.numParticles() == 0) { continue; }
-
-                auto* p_pbox = aos().data();
-
-                SDProcess::ParticlePointers ptrs;
-                setupParticlePointers(soa, aos, ptrs);
-
-                func(pti, grid, p_pbox, ptrs, ctx);
+                forEachParticleTileBody(pti, a_lev, ctx, std::forward<TileFunc>(func));
             }
         }
 
         /*! \brief Iterate over particle tiles WITHOUT OpenMP (serial)
-         *
-         * Use when per-tile operations are not thread-safe (e.g., DenseBins).
+         *  Use when per-tile operations are not thread-safe (e.g., DenseBins).
          */
         template<typename TileFunc>
-        void forEachParticleTileSerial(
-            int a_lev,
-            const SDProcess::ProcessContext& ctx,
-            TileFunc&& func)
+        void forEachParticleTileSerial(int a_lev, const SDProcess::ProcessContext& ctx, TileFunc&& func)
         {
             for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
-                int grid = pti.index();
-                auto& ptile = ParticlesAt(a_lev, pti);
-                auto& aos = ptile.GetArrayOfStructs();
-                auto& soa = ptile.GetStructOfArrays();
-
-                if (aos.numParticles() == 0) { continue; }
-
-                auto* p_pbox = aos().data();
-
-                SDProcess::ParticlePointers ptrs;
-                setupParticlePointers(soa, aos, ptrs);
-
-                func(pti, grid, p_pbox, ptrs, ctx);
+                forEachParticleTileBody(pti, a_lev, ctx, std::forward<TileFunc>(func));
             }
         }
 
-        /*! \brief Lightweight iteration (no ProcessContext)
-         *
-         * For initialization routines and simple operations.
-         */
+        /*! \brief Lightweight iteration (no ProcessContext) */
         template<typename TileFunc>
         void forEachParticleTile(int a_lev, TileFunc&& func)
         {
@@ -667,15 +711,11 @@ class SuperDropletPC : public ERFPC
                 auto& ptile = ParticlesAt(a_lev, pti);
                 auto& aos = ptile.GetArrayOfStructs();
                 auto& soa = ptile.GetStructOfArrays();
-
                 const int num_particles = aos.numParticles();
                 if (num_particles == 0) { continue; }
-
                 auto* p_pbox = aos().data();
-
                 SDProcess::ParticlePointers ptrs;
                 setupParticlePointers(soa, aos, ptrs);
-
                 func(pti, grid, p_pbox, ptrs, num_particles);
             }
         }

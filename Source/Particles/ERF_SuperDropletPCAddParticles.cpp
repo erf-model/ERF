@@ -6,18 +6,41 @@
 using namespace amrex;
 using namespace SDPCDefn;
 
-/*! \brief Sets the initial number of super-droplets per cell in a box region with uniform distribution
- *
- * This function initializes the number of super-droplets to be placed in each grid cell
- * based on whether the cell is inside the specified box region. It handles both flat
- * and terrain-following grids and can initialize particles in subgrid regions.
- *
- * \param[out] a_num_sd Integer MultiFab that will contain the number of superdroplets in each grid cell
- * \param[in] a_n_per_cell Number of superdroplets to place per cell
- * \param[in] a_height_ptr Pointer to MultiFab containing terrain height information
- * \param[in] a_box Box region within which to initialize particles
- * \param[in] a_subgrid Flag indicating if the box is smaller than a grid cell
- */
+namespace {
+
+// Helper: check if point is inside a box
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool boxContainsPoint(const RealBox& box, Real x, Real y, Real z) {
+    return box.contains(RealVect(x, y, z));
+}
+
+// Helper: check if point is inside an ellipsoid (bubble)
+// a_bubble.lo() = center, a_bubble.hi() = radii
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool ellipsoidContainsPoint(const RealBox& bubble, Real x, Real y, Real z) {
+    const auto& x_c = bubble.lo();
+    const auto& x_r = bubble.hi();
+    Real rad = 0.0;
+    if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
+    if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
+    if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
+    return std::sqrt(rad) <= 1.0;
+}
+
+// Helper: check if gridcell contains geometry for subgrid case
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool boxSubgridCheck(const RealBox& gridcell, const RealBox& box) {
+    return gridcell.contains(box);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool ellipsoidSubgridCheck(const RealBox& gridcell, const RealBox& bubble) {
+    return gridcell.contains(bubble.lo());
+}
+
+} // anonymous namespace
+
+/*! \brief Sets the initial number of super-droplets per cell in a box region */
 void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
                                               const int a_n_per_cell,
                                               const MFPtr& a_height_ptr,
@@ -25,150 +48,20 @@ void SuperDropletPC::setNumSDBoxDistribution (iMultiFab& a_num_sd,
                                               const bool a_subgrid)
 {
     BL_PROFILE("SuperDropletPC::setNumSDBoxDistribution()");
-    a_num_sd.setVal(0);
-
-    const auto dx = Geom(m_lev).CellSizeArray();
-    const auto plo = Geom(m_lev).ProbLoArray();
-
-    for(MFIter mfi = MakeMFIter(m_lev); mfi.isValid(); ++mfi) {
-        const Box& tile_box  = mfi.tilebox();
-        auto num_superdroplets_arr = a_num_sd[mfi].array();
-        if (a_height_ptr) {
-            const auto height_arr = (*a_height_ptr)[mfi].array();
-            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                bool flag = false;
-                if (a_subgrid) {
-                    RealBox gridcell( plo[0]+i*dx[0],
-                                      plo[1]+j*dx[1],
-                                      height_arr(i,j,k),
-                                      plo[0]+(i+1)*dx[0],
-                                      plo[1]+(j+1)*dx[1],
-                                      height_arr(i+1,j+1,k+1) );
-                    if (gridcell.contains(a_box)) { flag = true; }
-                } else {
-                    Real x = plo[0] + (i + 0.5)*dx[0];
-                    Real y = plo[1] + (j + 0.5)*dx[1];
-                    Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
-                                      height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
-                                      height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
-                                      height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
-                    if (a_box.contains(RealVect(x,y,z))) { flag = true; }
-                }
-                if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
-            });
-        } else {
-            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                bool flag = false;
-                if (a_subgrid) {
-                    RealBox gridcell( plo[0]+i*dx[0],
-                                      plo[1]+j*dx[1],
-                                      plo[2]+j*dx[2],
-                                      plo[0]+(i+1)*dx[0],
-                                      plo[1]+(j+1)*dx[1],
-                                      plo[2]+(k+1)*dx[2] );
-                    if (gridcell.contains(a_box)) { flag = true; }
-                } else {
-                    Real x = plo[0] + (i + 0.5)*dx[0];
-                    Real y = plo[1] + (j + 0.5)*dx[1];
-                    Real z = plo[2] + (k + 0.5)*dx[2];
-                    if (a_box.contains(RealVect(x,y,z))) { flag = true; }
-                }
-                if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
-            });
-        }
-    }
-
-    return;
+    setNumSDDistributionImpl(a_num_sd, a_n_per_cell, a_height_ptr, a_box, a_subgrid,
+                             boxContainsPoint, boxSubgridCheck);
 }
 
-/*! Sets the initial number of the super-droplets per cell as a bubble with a uniform distribution */
-void SuperDropletPC::setNumSDBubbleDistribution ( iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */
-                                                  const int a_n_per_cell, /*!< number of superdroplets per cell */
-                                                  const MFPtr& a_height_ptr, /*!< terrain */
-                                                  const RealBox& a_bubble, /*!< bubble within which to initialize particles */
-                                                  const bool a_subgrid /*!< Is a_box smaller than grid cell */)
+/*! \brief Sets the initial number of super-droplets per cell in an ellipsoid (bubble) region */
+void SuperDropletPC::setNumSDBubbleDistribution (iMultiFab& a_num_sd,
+                                                 const int a_n_per_cell,
+                                                 const MFPtr& a_height_ptr,
+                                                 const RealBox& a_bubble,
+                                                 const bool a_subgrid)
 {
     BL_PROFILE("SuperDropletPC::setNumSDBubbleDistribution()");
-    a_num_sd.setVal(0);
-
-    const auto dx = Geom(m_lev).CellSizeArray();
-    const auto plo = Geom(m_lev).ProbLoArray();
-
-    for(MFIter mfi = MakeMFIter(m_lev); mfi.isValid(); ++mfi) {
-        const Box& tile_box  = mfi.tilebox();
-        auto num_superdroplets_arr = a_num_sd[mfi].array();
-        if (a_height_ptr) {
-            const auto height_arr = (*a_height_ptr)[mfi].array();
-            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                bool flag = false;
-                if (a_subgrid) {
-                    RealBox gridcell( plo[0]+i*dx[0],
-                                      plo[1]+j*dx[1],
-                                      height_arr(i,j,k),
-                                      plo[0]+(i+1)*dx[0],
-                                      plo[1]+(j+1)*dx[1],
-                                      height_arr(i+1,j+1,k+1) );
-                    if (gridcell.contains(a_bubble.lo())) { flag = true; }
-                } else {
-                    Real x = plo[0] + (i + 0.5)*dx[0];
-                    Real y = plo[1] + (j + 0.5)*dx[1];
-                    Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
-                                      height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
-                                      height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
-                                      height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
-
-                    // Extract bubble params
-                    const auto& x_c = a_bubble.lo(); // center
-                    const auto& x_r = a_bubble.hi(); // radius
-
-                    Real rad = 0.0;
-                    if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
-                    if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
-                    if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
-                    rad = std::sqrt(rad);
-
-                    if(rad <= 1.0) { flag = true; }
-                }
-                if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
-            });
-        } else {
-            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                bool flag = false;
-                if (a_subgrid) {
-                    RealBox gridcell( plo[0]+i*dx[0],
-                                      plo[1]+j*dx[1],
-                                      plo[2]+j*dx[2],
-                                      plo[0]+(i+1)*dx[0],
-                                      plo[1]+(j+1)*dx[1],
-                                      plo[2]+(k+1)*dx[2] );
-                    if (gridcell.contains(a_bubble.lo())) { flag = true; }
-                } else {
-                    Real x = plo[0] + (i + 0.5)*dx[0];
-                    Real y = plo[1] + (j + 0.5)*dx[1];
-                    Real z = plo[2] + (k + 0.5)*dx[2];
-
-                    // Extract bubble params
-                    const auto& x_c = a_bubble.lo();       // center
-                    const auto& x_r = a_bubble.hi();       // radius
-
-                    Real rad = 0.0;
-                    if (x_r[0] > 0) rad += std::pow((x - x_c[0])/x_r[0], 2);
-                    if (x_r[1] > 0) rad += std::pow((y - x_c[1])/x_r[1], 2);
-                    if (x_r[2] > 0) rad += std::pow((z - x_c[2])/x_r[2], 2);
-                    rad = std::sqrt(rad);
-
-                    if(rad <= 1.0) { flag = true; }
-                }
-                if (flag) { num_superdroplets_arr(i,j,k) = a_n_per_cell; }
-            });
-        }
-    }
-
-    return;
+    setNumSDDistributionImpl(a_num_sd, a_n_per_cell, a_height_ptr, a_bubble, a_subgrid,
+                             ellipsoidContainsPoint, ellipsoidSubgridCheck);
 }
 
 /*! Add super-droplets in domain given an initialization type
