@@ -1,6 +1,7 @@
 #include "ERF_Prob.H"
 #include "ERF_EOS.H"
 #include "ERF_Constants.H"
+#include "AMReX_Random.H"
 
 using namespace amrex;
 
@@ -137,9 +138,19 @@ Problem::init_custom_pert(
     }
   });
 
+
+    // --------------------------------------------------------
+    // Per-ensemble perturbation controls
+    // --------------------------------------------------------
+    Real ens_pert_ampitude = 0.0;
+    ParmParse pp_pert("ensemble_pert");
+    pp_pert.query("amplitude", ens_pert_ampitude);
+
+
   // Set the x-velocity
-  ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
   {
+        
       const Real* prob_lo = geomdata.ProbLo();
       const Real* dx = geomdata.CellSize();
 
@@ -147,8 +158,14 @@ Problem::init_custom_pert(
       const Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
       const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
 
-      x_vel_pert(i, j, k) = (parms_d.M_inf * std::cos(parms_d.alpha)
+      const Real u = (parms_d.M_inf * std::cos(parms_d.alpha)
                           - (y - parms_d.yc)/parms_d.R * Omg) * parms_d.a_inf;
+
+       Real rand_double = amrex::Random(engine);  
+
+      // Gaussian random number (mean 0, variance 1)
+       x_vel_pert(i, j, k) = u + ens_pert_ampitude*rand_double; 
+
   });
 
   // Set the y-velocity

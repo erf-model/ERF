@@ -1,14 +1,14 @@
 #include <iostream>
-
 #include <AMReX.H>
 #include <AMReX_BLProfiler.H>
 #include <AMReX_ParallelDescriptor.H>
-
 #include "ERF.H"
+#include <filesystem>
 
 std::string inputs_name;
 
 using namespace amrex;
+namespace fs = std::filesystem;
 
 /**
  * Function to set the refine_grid_layout flags to (1,1,0) by default
@@ -97,19 +97,6 @@ int main (int argc, char* argv[])
     for (int ie = 0; ie < n_ens; ++ie)
     {
         // --------------------------------------------------------
-        // Per-ensemble perturbation controls
-        // --------------------------------------------------------
-        {
-            ParmParse pp_pert("perturbation");
-            pp_pert.add("member_id", ie);
-            pp_pert.add("seed", 1000 + ie);
-        }
-
-        amrex::Print() << "\n=====================================\n"
-                       << " Running ensemble member " << ie << "\n"
-                       << "=====================================\n";
-
-        // --------------------------------------------------------
         // Fresh ERF instance per ensemble
         // --------------------------------------------------------
         ERF erf;
@@ -126,7 +113,43 @@ int main (int argc, char* argv[])
                            << " wallclock time: "
                            << end_total << '\n';
         }
+
+        // --------------------------------------------------------
+    // MPI barrier to ensure all ranks finish Evolve
+    // --------------------------------------------------------
+    ParallelDescriptor::Barrier();
+
+    if (ParallelDescriptor::IOProcessor())
+    {
+        // Create zero-padded member directory
+        std::stringstream ss;
+        ss << "member_" << std::setw(2) << std::setfill('0') << (ie);
+        std::string member_dir = ss.str();
+
+        fs::create_directory(member_dir);
+        fs::create_directory(member_dir + "/plotfiles");
+        fs::create_directory(member_dir + "/chkfiles");
+
+        // Move plotfiles (plt*) from current directory into member_dir/plotfiles
+        for (auto &p : fs::directory_iterator(".")) {
+            std::string fname = p.path().filename().string();
+            if (fname.find("plt") == 0) {  // starts with "plt"
+                fs::rename(p.path(), fs::path(member_dir) / "plotfiles" / fname);
+            }
+        }
+
+        // Move checkpoint files (chk*) from current directory into member_dir/chkfiles
+        for (auto &c : fs::directory_iterator(".")) {
+            std::string fname = c.path().filename().string();
+            if (fname.find("chk") == 0) {  // starts with "chk"
+                fs::rename(c.path(), fs::path(member_dir) / "chkfiles" / fname);
+            }
+        }
     }
+    // Optional: barrier after move to ensure rank 0 is done
+    ParallelDescriptor::Barrier();
+
+   }
 
     BL_PROFILE_VAR_STOP(pmain);
 
