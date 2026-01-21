@@ -1,6 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-stop_time = 17000
-max_step = 50000
+stop_time              = 17000
+max_step               = 50000
 
 amrex.fpe_trap_invalid = 1
 
@@ -10,27 +10,26 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_extent    =   6400.  200.  15000.
 amr.n_cell              =   128    4    300
 
-#amrex.async_out = 1
 
-geometry.is_periodic = 1 1 0
-zhi.type = "SlipWall"
+geometry.is_periodic     = 1 1 0
+zhi.type                = "SlipWall"
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-zlo.type = "surface_layer"
+zlo.type                = "surface_layer"
 erf.surface_layer.flux_type = "custom"
-erf.most.ustar  = 0.28   # ustar
-erf.most.tstar  = 0.0 # theta flux
-erf.most.qstar  = 0.0 # qv    flux
-erf.most.z0     = 0.1
-erf.most.zref   = 25.0
+erf.most.ustar          = 0.28   # ustar
+erf.most.tstar          = 0.0    # theta flux
+erf.most.qstar          = 0.0    # qv flux
+erf.most.z0             = 0.1
+erf.most.zref           = 25.0
 
 # INITIALIZATION
-erf.init_type = input_sounding
+erf.init_type           = input_sounding
 erf.init_sounding_ideal = true
 
 # TIME STEP CONTROL
-erf.fixed_dt = 0.25
-erf.fixed_fast_dt = 0.05
+erf.fixed_dt            = 0.25
+erf.fixed_fast_dt       = 0.05
 
 # DIAGNOSTICS & VERBOSITY
 amr.v               = 1     # verbosity in Amr.cpp
@@ -44,13 +43,9 @@ amr.max_level       = 0       # maximum level number allowed
 erf.check_file      = chk  # root name of checkpoint file
 erf.check_int       = -1   # number of timesteps between checkpoints
 
-#RESTART
-#erf.restart = 'chk17000'
-
 # PLOTFILES
 erf.plot_file_1     = plt # prefix of plotfile name
 erf.plot_int_1      = 100 # number of timesteps between plotfiles (DEBUG)
-#erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure theta temp rhoQ1 qt qv qc qp qsat qrain rain_accum rel_humidity super_droplets_moisture_number_density
 erf.plot_vars_1     = density \
                       rhotheta \
                       rhoQ1 \
@@ -123,7 +118,6 @@ erf.add_custom_moisture_forcing = true
 erf.spatial_rhotheta_forcing = true
 erf.spatial_moisture_forcing = true
 erf.custom_forcing_uses_primitive_vars = true
-#prob.advection_heating_rate   = 3e-3 #trapp has max of 3e-3 K.kg/(m3s)
 prob.advection_heating_rate   = 9e-3 #trapp has max of 3e-3 K.kg/(m3s)
 
 prob.advection_moisture_rate  = 1e-6 #trapp has 1e-6 kg/(m3s)
