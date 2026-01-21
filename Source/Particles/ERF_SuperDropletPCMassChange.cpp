@@ -39,7 +39,6 @@ void SuperDropletPC::MassChange_LV (  int                                       
     BL_PROFILE("SuperDropletPC::MassChange_LV()");
     AMREX_ASSERT( a_lev == m_lev );
 
-    // Build process context using helper method
     const auto ctx = buildProcessContext(a_lev);
 
     const Geometry& geom = m_gdb->Geom(a_lev);
@@ -237,7 +236,6 @@ void SuperDropletPC::MassChange_SL (  int                                       
 
     if (m_idx_i < 0) { return; } // ice not being modeled
 
-    // Build process context using helper method
     const auto ctx = buildProcessContext(a_lev);
 
     const Geometry& geom = m_gdb->Geom(a_lev);
@@ -330,7 +328,6 @@ void SuperDropletPC::MassChange_SV (  int                                      a
     BL_PROFILE("SuperDropletPC::MassChange_SV()");
     AMREX_ASSERT( a_lev == m_lev );
 
-    // Build process context using helper method
     const auto ctx = buildProcessContext(a_lev);
 
     const Geometry& geom = m_gdb->Geom(a_lev);

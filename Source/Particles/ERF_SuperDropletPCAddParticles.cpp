@@ -259,10 +259,7 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
         }
         Gpu::synchronize();
 
-        // Get pointers to persistent device data - ensure device properties are initialized
-        if (!m_device_props_initialized) {
-            initializeDeviceProperties();
-        }
+        if (!m_device_props_initialized) { initializeDeviceProperties(); }
         const ParticleReal* sp_rho_arr = m_sp_density.data();
         const int* sp_sol_arr = m_sp_solubility.data();
         const ParticleReal* ae_rho_arr = m_ae_density.data();

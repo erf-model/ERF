@@ -51,9 +51,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                  AMREX_ASSERT(!a_flow_vel[1].contains_nan());,
                  AMREX_ASSERT(!a_flow_vel[2].contains_nan()););
 
-    // Build process context using helper method
     const auto ctx = buildProcessContext(a_lev);
-
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto is_periodic_z = geom.isPeriodic(2);
 

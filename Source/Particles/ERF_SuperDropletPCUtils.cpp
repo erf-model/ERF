@@ -16,35 +16,22 @@ void SuperDropletPC::initializeDeviceProperties()
     const int num_sp = m_species_mat.size();
     const int num_ae = m_aerosol_mat.size();
 
-    // Resize device vectors for species properties
     m_sp_density.resize(num_sp);
     m_sp_solubility.resize(num_sp);
     m_sp_ionization.resize(num_sp);
     m_sp_mol_weight.resize(num_sp);
     m_sp_is_INP.resize(num_sp);
-
-    // Resize device vectors for aerosol properties
     m_ae_density.resize(num_ae);
     m_ae_solubility.resize(num_ae);
     m_ae_ionization.resize(num_ae);
     m_ae_mol_weight.resize(num_ae);
     m_ae_is_INP.resize(num_ae);
 
-    // Create host vectors for species properties
-    amrex::Vector<ParticleReal> sp_density_h(num_sp);
-    amrex::Vector<int> sp_solubility_h(num_sp);
-    amrex::Vector<ParticleReal> sp_ionization_h(num_sp);
-    amrex::Vector<ParticleReal> sp_mol_weight_h(num_sp);
-    amrex::Vector<int> sp_is_INP_h(num_sp);
+    amrex::Vector<ParticleReal> sp_density_h(num_sp), sp_ionization_h(num_sp), sp_mol_weight_h(num_sp);
+    amrex::Vector<int> sp_solubility_h(num_sp), sp_is_INP_h(num_sp);
+    amrex::Vector<ParticleReal> ae_density_h(num_ae), ae_ionization_h(num_ae), ae_mol_weight_h(num_ae);
+    amrex::Vector<int> ae_solubility_h(num_ae), ae_is_INP_h(num_ae);
 
-    // Create host vectors for aerosol properties
-    amrex::Vector<ParticleReal> ae_density_h(num_ae);
-    amrex::Vector<int> ae_solubility_h(num_ae);
-    amrex::Vector<ParticleReal> ae_ionization_h(num_ae);
-    amrex::Vector<ParticleReal> ae_mol_weight_h(num_ae);
-    amrex::Vector<int> ae_is_INP_h(num_ae);
-
-    // Fill host vectors with species material properties
     for (int i = 0; i < num_sp; i++) {
         sp_density_h[i] = m_species_mat[i]->m_density;
         sp_solubility_h[i] = static_cast<int>(m_species_mat[i]->m_is_soluble);
@@ -52,8 +39,6 @@ void SuperDropletPC::initializeDeviceProperties()
         sp_mol_weight_h[i] = m_species_mat[i]->m_mol_weight;
         sp_is_INP_h[i] = static_cast<int>(m_species_mat[i]->m_is_INP);
     }
-
-    // Fill host vectors with aerosol material properties
     for (int i = 0; i < num_ae; i++) {
         ae_density_h[i] = m_aerosol_mat[i]->m_density;
         ae_solubility_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_soluble);
@@ -62,14 +47,11 @@ void SuperDropletPC::initializeDeviceProperties()
         ae_is_INP_h[i] = static_cast<int>(m_aerosol_mat[i]->m_is_INP);
     }
 
-    // Transfer species data to device
     Gpu::copy(Gpu::hostToDevice, sp_density_h.begin(), sp_density_h.end(), m_sp_density.begin());
     Gpu::copy(Gpu::hostToDevice, sp_solubility_h.begin(), sp_solubility_h.end(), m_sp_solubility.begin());
     Gpu::copy(Gpu::hostToDevice, sp_ionization_h.begin(), sp_ionization_h.end(), m_sp_ionization.begin());
     Gpu::copy(Gpu::hostToDevice, sp_mol_weight_h.begin(), sp_mol_weight_h.end(), m_sp_mol_weight.begin());
     Gpu::copy(Gpu::hostToDevice, sp_is_INP_h.begin(), sp_is_INP_h.end(), m_sp_is_INP.begin());
-
-    // Transfer aerosol data to device
     Gpu::copy(Gpu::hostToDevice, ae_density_h.begin(), ae_density_h.end(), m_ae_density.begin());
     Gpu::copy(Gpu::hostToDevice, ae_solubility_h.begin(), ae_solubility_h.end(), m_ae_solubility.begin());
     Gpu::copy(Gpu::hostToDevice, ae_ionization_h.begin(), ae_ionization_h.end(), m_ae_ionization.begin());

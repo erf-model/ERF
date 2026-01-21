@@ -102,49 +102,20 @@ class SuperDropletPC : public ERFPC
         /*! \brief Update device properties if material properties change */
         void updateDeviceProperties();
 
-        /*! \brief Setup species and aerosol mass pointers from SOA
-         *
-         * This helper method sets up the species and aerosol mass pointers from the
-         * Structure of Arrays (SOA) data. It handles the common pattern of setting up
-         * these pointers that appears in multiple places in the code.
-         *
-         * @param soa The Structure of Arrays containing particle data
-         * @param sp_mass_ptrs Output array for species mass pointers
-         * @param ae_mass_ptrs Output array for aerosol mass pointers
-         */
+        /*! \brief Setup species and aerosol mass pointers from SOA */
         template<typename SOAType>
-        void setupMassPointers(
-            SOAType& soa,
-            SDPCDefn::SDSpeciesMassArr& sp_mass_ptrs,
-            SDPCDefn::SDAerosolMassArr& ae_mass_ptrs) const
+        void setupMassPointers(SOAType& soa, SDPCDefn::SDSpeciesMassArr& sp_mass_ptrs,
+                               SDPCDefn::SDAerosolMassArr& ae_mass_ptrs) const
         {
-            // Setup species mass pointers
             for (int i = 0; i < m_num_species; i++) {
                 sp_mass_ptrs[i] = soa.GetRealData(idx_s(i, m_num_aerosols, m_num_species)).data();
             }
-
-            // Setup aerosol mass pointers
             for (int i = 0; i < m_num_aerosols; i++) {
                 ae_mass_ptrs[i] = soa.GetRealData(idx_a(i, m_num_aerosols, m_num_species)).data();
             }
         }
 
-        /*! \brief Helper method to update common particle attributes (radius and mass)
-         *
-         * @param particle_idx Index of the particle to update
-         * @param radius_ptr Pointer to the radius array
-         * @param mass_ptr Pointer to the mass array
-         * @param idx_w Index of water species
-         * @param rho_w Density of water
-         * @param num_sp Number of species
-         * @param num_ae Number of aerosols
-         * @param sp_sol_arr Species solubility array
-         * @param ae_sol_arr Aerosol solubility array
-         * @param sp_mass_ptrs Species mass pointers
-         * @param ae_mass_ptrs Aerosol mass pointers
-         * @param sp_rho_arr Species density array
-         * @param ae_rho_arr Aerosol density array
-         */
+        /*! \brief Update particle radius and total mass from species/aerosol masses */
         AMREX_GPU_DEVICE AMREX_FORCE_INLINE
         static void updateParticleAttributes(
             int particle_idx,
@@ -551,13 +522,7 @@ class SuperDropletPC : public ERFPC
         /*! Method to initialize device properties */
         void initializeDeviceProperties();
 
-        /*! \brief Build a ProcessContext with geometry and species info
-         *
-         * This helper builds the context struct that is passed to process policies.
-         *
-         * @param a_lev AMR level
-         * @return ProcessContext with geometry and species information
-         */
+        /*! \brief Build ProcessContext with geometry and species info */
         SDProcess::ProcessContext buildProcessContext(int a_lev) const
         {
             SDProcess::ProcessContext ctx;
@@ -583,17 +548,7 @@ class SuperDropletPC : public ERFPC
             return ctx;
         }
 
-        /*! \brief Setup all particle pointers for a tile
-         *
-         * Populates the ParticlePointers struct with pointers to all particle
-         * attributes. Processes use only the pointers they need.
-         *
-         * @tparam SOAType The Structure of Arrays type
-         * @tparam AOSType The Array of Structures type
-         * @param soa Reference to the SOA data
-         * @param aos Reference to the AOS data
-         * @param ptrs Output ParticlePointers struct to populate
-         */
+        /*! \brief Setup particle attribute pointers for a tile */
         template<typename SOAType, typename AOSType>
         void setupParticlePointers(
             SOAType& soa,
@@ -606,20 +561,14 @@ class SuperDropletPC : public ERFPC
             constexpr int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
 
             ptrs.num_particles = aos.numParticles();
-
-            // Core attributes
             ptrs.mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
             ptrs.radius_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::radius).data();
             ptrs.active_ptr = soa.GetIntData(rtoff_i + SuperDropletsIntIdxSoA_RT::active).data();
-
-            // Velocity
             ptrs.v_ptr[0] = soa.GetRealData(SuperDropletsRealIdxSoA::vx).data();
             ptrs.v_ptr[1] = soa.GetRealData(SuperDropletsRealIdxSoA::vy).data();
             ptrs.v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
             ptrs.vterm_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::term_vel).data();
             ptrs.mult_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::multiplicity).data();
-
-            // Ice properties (only if ice species is defined)
             if (m_idx_i >= 0) {
                 ptrs.Tfz_ptr = soa.GetRealData(idx_ice_Tfz(m_num_aerosols, m_num_species)).data();
                 ptrs.a_ptr = soa.GetRealData(idx_ice_a(m_num_aerosols, m_num_species)).data();
@@ -627,11 +576,7 @@ class SuperDropletPC : public ERFPC
                 ptrs.mrime_ptr = soa.GetRealData(idx_ice_mrime(m_num_aerosols, m_num_species)).data();
                 ptrs.nmono_ptr = soa.GetRealData(idx_ice_nmono(m_num_aerosols, m_num_species)).data();
             }
-
-            // Mass arrays
             setupMassPointers(soa, ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs);
-
-            // Material properties - ensure device properties are initialized
             if (!m_device_props_initialized) {
                 const_cast<SuperDropletPC*>(this)->initializeDeviceProperties();
             }
@@ -647,14 +592,6 @@ class SuperDropletPC : public ERFPC
             ptrs.ae_INP_arr = m_ae_is_INP.data();
         }
 
-        /*! \brief Iterate over particle tiles with common setup
-         *
-         * @tparam Serial If true, skip OpenMP parallelism (for non-thread-safe operations)
-         * @tparam TileFunc Functor type called for each tile
-         * @param a_lev AMR level
-         * @param ctx Process context (geometry, species info)
-         * @param func Functor: func(pti, grid, p_pbox, ptrs, ctx)
-         */
         /*! \brief Common body for forEachParticleTile iterations */
         template<typename TileFunc>
         void forEachParticleTileBody(

@@ -96,9 +96,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         const auto init_r = *(m_initializations[init_idx]);
         const auto sampled_multiplicity = init_r.sampledMultiplicity();
 
-        // Build process context using helper method
         const auto ctx = buildProcessContext(a_lev);
-
         const auto dx_h = Geom(m_lev).CellSize();
         const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];
 

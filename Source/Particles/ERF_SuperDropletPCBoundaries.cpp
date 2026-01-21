@@ -18,9 +18,7 @@ void SuperDropletPC::applyBoundaryTreatment ( int                   a_lev,
     BL_PROFILE("SuperDropletPC::applyBoundaryTreatment()");
     const MFPtr& z_height = a_z_phys_nd[a_lev];
 
-    // Build process context using helper method
     const auto ctx = buildProcessContext(a_lev);
-
     const auto save_inac = m_save_inactive;
 
     // number of super-droplets per cell
