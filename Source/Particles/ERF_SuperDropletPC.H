@@ -364,6 +364,10 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute the frozen water mass density on a mesh */
         virtual void totalIceDensity ( amrex::MultiFab&, const int a_comp = 0) const;
 
+        /*! \brief Helper for ParticleToMesh operations */
+        template<typename ValueFunc>
+        void particleToMeshHelper(amrex::MultiFab& a_mf, int a_comp, ValueFunc&& value_func) const;
+
         /*! \brief Compute the species mass flux component on a mesh */
         virtual void speciesMassFlux ( amrex::MultiFab&, const int, const int, const int a_comp=0 ) const;
 
@@ -699,10 +703,6 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief add super-droplet method-specific particle attributes */
         void add_superdroplet_attributes();
-
-        /*! \brief Helper for ParticleToMesh operations */
-        template<typename ValueFunc>
-        void particleToMeshHelper(amrex::MultiFab& a_mf, int a_comp, ValueFunc&& value_func) const;
 
         /* do not use */
         using ERFPC::massDensity;
