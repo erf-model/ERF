@@ -365,11 +365,13 @@ struct CollisionKernel
         RT lambda_2 = dtmp * (diff_term_2/vel_term_2);
 
         //length term [m]
+        RT d1l1_sq = diameter_1*diameter_1+lambda_1*lambda_1;
         dtmp = (diameter_1+lambda_1)*(diameter_1+lambda_1)*(diameter_1+lambda_1)
-               - std::exp(1.5*std::log(diameter_1*diameter_1+lambda_1*lambda_1));
+               - d1l1_sq*std::sqrt(d1l1_sq);  // x^1.5 = x*sqrt(x)
         RT length_term_1 = dtmp/(3.0*diameter_1*lambda_1) - diameter_1;
+        RT d2l2_sq = diameter_2*diameter_2+lambda_2*lambda_2;
         dtmp = (diameter_2+lambda_2)*(diameter_2+lambda_2)*(diameter_2+lambda_2)
-               - std::exp(1.5*std::log(diameter_2*diameter_2+lambda_2*lambda_2));
+               - d2l2_sq*std::sqrt(d2l2_sq);  // x^1.5 = x*sqrt(x)
         RT length_term_2 = dtmp/(3.0*diameter_2*lambda_2) - diameter_2;
 
         // Brownian Coagulation Coefficient K12 [m3/s]
@@ -456,21 +458,25 @@ struct CollisionKernel
 
             auto Re_l = std::min(a_Re,120.0);
             auto Fr_l = std::min(a_Fr,35.0);
-            auto K_t = -5.07e-10*std::exp(5*std::log(Re_l))
-                       +1.73e-7 *std::exp(4*std::log(Re_l))
-                       -2.17e-5 *std::exp(3*std::log(Re_l))
-                       +0.0013  *Re_l*Re_l
+            auto Re_l_2 = Re_l*Re_l;
+            auto Re_l_3 = Re_l_2*Re_l;
+            auto Re_l_4 = Re_l_2*Re_l_2;
+            auto Re_l_5 = Re_l_4*Re_l;
+            auto K_t = -5.07e-10*Re_l_5
+                       +1.73e-7 *Re_l_4
+                       -2.17e-5 *Re_l_3
+                       +0.0013  *Re_l_2
                        -0.037   *Re_l
                        +0.8355;
 
             RT K_c = 0.0;
-            if      (Re_l <=  10.0) { K_c = 1.250 * std::exp(-0.350*std::log(Re_l)); }
-            else if (Re_l <=  40.0) { K_c = 1.072 * std::exp(-0.301*std::log(Re_l)); }
-            else if (Re_l <= 120.0) { K_c = 0.356 * std::exp(-0.003*std::log(Re_l)); }
+            if      (Re_l <=  10.0) { K_c = 1.250 * std::pow(Re_l, -0.350); }
+            else if (Re_l <=  40.0) { K_c = 1.072 * std::pow(Re_l, -0.301); }
+            else if (Re_l <= 120.0) { K_c = 0.356 * std::pow(Re_l, -0.003); }
 
             auto retval = 0.0;
             if (Fr_l <= 0.35) {
-                retval = 0.787 * std::exp(std::log(Fr_l)*0.988) * std::max(0.263*std::log(Re_l)-0.264, 0.0);
+                retval = 0.787 * std::pow(Fr_l, 0.988) * std::max(0.263*std::log(Re_l)-0.264, 0.0);
             } else if(Fr_l <= K_t) {
                 retval = (0.7475*std::log10(Fr_l)+0.620) * std::max(0.263*std::log(Re_l)-0.264, 0.0);
             } else {
@@ -523,19 +529,19 @@ struct CollisionKernel
 
             auto para_r = 0.0, K_c = 0.0;
             if (Re_l <= 1.7) {
-                para_r = 0.7422 * std::exp(std::log(Re_l)*0.2111);
-                K_c = 0.7797 * std::exp(std::log(Re_l)*(-0.009));
+                para_r = 0.7422 * std::pow(Re_l, 0.2111);
+                K_c = 0.7797 * std::pow(Re_l, -0.009);
             } else {
-                para_r = 0.8025 * std::exp(std::log(Re_l)*0.0604);
-                K_c = 1.0916 * std::exp(std::log(Re_l)*(-0.635));
+                para_r = 0.8025 * std::pow(Re_l, 0.0604);
+                K_c = 1.0916 * std::pow(Re_l, -0.635);
             }
 
             auto retval = 0.0;
             if (Fr_l <= K_t) {
                 if (Re_l <= 3.0) {
-                    retval= 0.787 * std::exp(std::log(Fr_l)*0.988) * (-0.0121*Re_l*Re_l + 0.1297*Re_l + 0.0598);
+                    retval= 0.787 * std::pow(Fr_l, 0.988) * (-0.0121*Re_l*Re_l + 0.1297*Re_l + 0.0598);
                 } else {
-                    retval = 0.787 * std::exp(std::log(Fr_l)*0.988) * (-0.0005*Re_l*Re_l + 0.1028*Re_l + 0.0359);
+                    retval = 0.787 * std::pow(Fr_l, 0.988) * (-0.0005*Re_l*Re_l + 0.1028*Re_l + 0.0359);
                 }
             } else {
                 auto tmp = std::log10(Fr_l/K_c)-std::sqrt(3.5);

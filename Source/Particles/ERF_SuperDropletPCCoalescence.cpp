@@ -370,7 +370,7 @@ static auto rimeDensity_HeymsfieldPflaum1985( const ParticleReal a_radius,      
 
     ParticleReal rho_rime = 0.0;
     if ((T_surf <= -5.0) || (var_Y < 1.6)) {
-        rho_rime = std::exp(std::log(0.30*var_Y)*0.44);
+        rho_rime = std::pow(0.30*var_Y, 0.44);
     } else {
         var_Y = std::min(var_Y,3.5);
         rho_rime = std::exp(-0.03115 - 1.7030*var_Y + 0.9116*var_Y*var_Y - 0.1224*var_Y*var_Y*var_Y);
@@ -783,7 +783,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 auto rhoi_i = ice_rho(a_i, c_i, ptrs.sp_mass_ptrs[sp_idx_i][pi]);
                 auto maxR_i = std::max(a_i, c_i);
                 auto k_i = std::exp(-ckernel.k_coeff * c_i/a_i);
-                auto area_i = PI * a_i * maxR_i * std::exp(k_i*std::log(rhoi_i/rho_ice));
+                auto area_i = PI * a_i * maxR_i * std::pow(rhoi_i/rho_ice, k_i);
 
                 // ice particle 2
                 auto vz_j = ptrs.v_ptr[AMREX_SPACEDIM-1][pj] - ptrs.vterm_ptr[pj];
@@ -792,7 +792,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 auto rhoi_j = ice_rho(a_j, c_j, ptrs.sp_mass_ptrs[sp_idx_i][pj]);
                 auto maxR_j = std::max(a_j, c_j);
                 auto k_j = std::exp(-ckernel.k_coeff * c_j/a_j);
-                auto area_j = PI * a_j * maxR_j * std::exp(k_j*std::log(rhoi_j/rho_ice));
+                auto area_j = PI * a_j * maxR_j * std::pow(rhoi_j/rho_ice, k_j);
 
                 // velocity difference
                 auto dvz = std::sqrt((vz_i-vz_j)*(vz_i-vz_j));
@@ -820,7 +820,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 auto a_i = ptrs.a_ptr[id_i];
                 auto c_i = ptrs.c_ptr[id_i];
                 auto rhoi_i = ice_rho(a_i, c_i, ptrs.sp_mass_ptrs[sp_idx_i][id_i]);
-                auto eqr_i = std::exp((1.0/3.0)*std::log(a_i*a_i*c_i));
+                auto eqr_i = std::cbrt(a_i*a_i*c_i);
                 auto maxR_i = std::max(a_i, c_i);
 
                 // interpolate flow quantities at ice particle location
@@ -886,7 +886,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     auto area_i_ce = PI * a_i * maxR_i;
                     // area of the particle projected to the flow direction
                     auto k_i = std::exp(-ckernel.k_coeff * phi_i);
-                    auto area_i = area_i_ce * std::exp(k_i*std::log(rhoi_i/rho_ice));
+                    auto area_i = area_i_ce * std::pow(rhoi_i/rho_ice, k_i);
 
                     // collision-riming kernel: E_rime*A_g*|vj-vk|
                     k_val *= ( (PI*(r_w+a_i)*(r_w+maxR_i) - (area_i_ce-area_i)) * dvz);

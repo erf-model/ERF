@@ -83,7 +83,7 @@ namespace SDMassChangeUtils_LV
             RT F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
             RT F_d = (rho_l*Rv*a_T) / (dcf*a_D*a_e_s);
 
-            RT R_inv = std::exp(-0.5*std::log(a_R_sq));
+            RT R_inv = 1.0/std::sqrt(a_R_sq);
             RT R_inv_cubed = R_inv*R_inv*R_inv;
 
             RT alpha = 2.0 * (a_S-1.0) / (F_k + F_d);
@@ -387,7 +387,7 @@ namespace SDMassChangeUtils_LV
                         RT err = std::sqrt((u_new-u_embed)*(u_new-u_embed));
                         RT tol = m_atol + m_rtol * std::max(a_u, a_u_old);
                         RT E = err / tol;
-                        dt_new = dt * std::exp((1.0/3)*std::log(1.0/E));
+                        dt_new = dt / std::cbrt(E);
                     }
 
                     if (std::isfinite(u_new)) {
