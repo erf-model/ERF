@@ -373,12 +373,12 @@ orbital_params (int& iyear_AD,
         if (std::fabs(cossum) <= 1.0e-8) {
             if (sinsum == 0.0) {
                 fvelp = 0.0;
-            } else if (sinsum <= 0.0) {
+            } else if (sinsum < 0.0) {
                 fvelp = 1.5*PI;
             } else if (sinsum > 0.0) {
                 fvelp = 0.5*PI;
             }
-        } else if (cossum <= 0.0) {
+        } else if (cossum < 0.0) {
             fvelp = std::atan(sinsum/cossum) + PI;
         } else {
             if (sinsum < 0.0) {
@@ -405,13 +405,16 @@ orbital_params (int& iyear_AD,
         mvelp = fvelp/degrad + real(50.439273)*psecdeg*years + real(3.392506) + mvsum;
 
         // Cases to make sure mvelp is between 0 and 360.
-        do {
-            mvelp += 360.0;
-        } while (mvelp < 0.0);
-
-        do {
-            mvelp -= 360.0;
-        } while (mvelp >= 360.0);
+        if (mvelp < 0.0) {
+            do {
+                mvelp += 360.0;
+            } while (mvelp < 0.0);
+        }
+        if (mvelp >= 360.0) {
+            do {
+                mvelp -= 360.0;
+            } while (mvelp >= 360.0);
+        }
 
     }  // end of test on whether to calculate or use input orbital params
 
@@ -461,9 +464,9 @@ orbital_avg_cos_zenith (real& jday,
 {
     // adjust latitude so that its tangent will be defined
     real del;
-    if (lat ==  PIoTwo) {
+    if (lat == PIoTwo) {
         del = lat - real(1.0e-05);
-    } else if (lat ==  -PIoTwo) {
+    } else if (lat == -PIoTwo) {
         del = lat + real(1.0e-05);
     } else {
         del = lat;
@@ -494,7 +497,7 @@ orbital_avg_cos_zenith (real& jday,
     // Define Local Time t and t + dt
     // adjust t to be between -pi and pi
     real t1 = (jday - int(jday)) * 2.0*PI + lon - PI;
-    if (t1 >=  PI) {
+    if (t1 >= PI) {
         t1 = t1 - 2.0*PI;
     } else if (t1 < -PI) {
         t1 = t1 + 2.0*PI;
@@ -512,12 +515,12 @@ orbital_avg_cos_zenith (real& jday,
     // force it to be between -h and h
     // consider the situation when the night period is too short
     real tt1,tt2,tt3,tt4;
-    if ( (t2 >= PI) && (t1 <= PI) && (PI - h <= dt) ) {
+    if ( (t2 >= PI) && (t1 <= PI) && ((PI - h) <= dt) ) {
         tt2 = h;
         tt1 = std::min(std::max(t1,         -h),          h);
         tt4 = std::min(std::max(t2, 2.0*PI - h), 2.0*PI + h);
         tt3 = 2.0*PI - h;
-    } else if ( (t2 >= -PI) && (t1 <= -PI) && (PI - h <= dt) ) {
+    } else if ( (t2 >= -PI) && (t1 <= -PI) && ((PI - h) <= dt) ) {
         tt2 = - 2.0*PI + h;
         tt1 = std::min(std::max(t1, -2.0*PI - h), -2.0*PI + h);
         tt4 = std::min(std::max(t2,          -h),           h);
@@ -525,7 +528,7 @@ orbital_avg_cos_zenith (real& jday,
     } else {
         if (t2 > PI) {
             tt2 = std::min(std::max(t2 - 2.0*PI, -h), h);
-        } else if (t2 < - PI) {
+        } else if (t2 < -PI) {
             tt2 = std::min(std::max(t2 + 2.0*PI, -h), h);
         } else {
             tt2 = std::min(std::max(t2         , -h), h);
