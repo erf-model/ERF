@@ -675,6 +675,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Iterate over particle tiles with common setup (parallel) */
         template<typename TileFunc>
+        AMREX_FORCE_INLINE
         void forEachParticleTile(
             int a_lev,
             const SDProcess::ProcessContext& ctx,
@@ -692,6 +693,7 @@ class SuperDropletPC : public ERFPC
          *  Use when per-tile operations are not thread-safe (e.g., DenseBins).
          */
         template<typename TileFunc>
+        AMREX_FORCE_INLINE
         void forEachParticleTileSerial(int a_lev, const SDProcess::ProcessContext& ctx, TileFunc&& func)
         {
             for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
