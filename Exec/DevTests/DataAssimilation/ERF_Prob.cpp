@@ -150,7 +150,7 @@ Problem::init_custom_pert(
   // Set the x-velocity
   ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
   {
-        
+
       const Real* prob_lo = geomdata.ProbLo();
       const Real* dx = geomdata.CellSize();
 
@@ -161,10 +161,10 @@ Problem::init_custom_pert(
       const Real u = (parms_d.M_inf * std::cos(parms_d.alpha)
                           - (y - parms_d.yc)/parms_d.R * Omg) * parms_d.a_inf;
 
-       Real rand_double = amrex::Random(engine);  
+       Real rand_double = amrex::Random(engine);
 
       // Gaussian random number (mean 0, variance 1)
-       x_vel_pert(i, j, k) = u + ens_pert_ampitude*rand_double; 
+       x_vel_pert(i, j, k) = u + ens_pert_ampitude*rand_double;
 
   });
 
