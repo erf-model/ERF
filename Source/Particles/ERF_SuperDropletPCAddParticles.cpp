@@ -369,9 +369,17 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
         // Get pointers to persistent device data
         const ParticleReal* sp_rho_arr = nullptr;
         const int* sp_sol_arr = nullptr;
+        const ParticleReal* sp_ion_arr = nullptr;
+        const ParticleReal* sp_mw_arr = nullptr;
+        const int* sp_INP_arr = nullptr;
         const ParticleReal* ae_rho_arr = nullptr;
         const int* ae_sol_arr = nullptr;
-        getMaterialPropertiesDevice(sp_rho_arr, sp_sol_arr, ae_rho_arr, ae_sol_arr);
+        const ParticleReal* ae_ion_arr = nullptr;
+        const ParticleReal* ae_mw_arr = nullptr;
+        const int* ae_INP_arr = nullptr;
+        getMaterialPropertiesDevice(sp_rho_arr, sp_sol_arr, sp_ion_arr, sp_mw_arr, sp_INP_arr,
+                                    ae_rho_arr, ae_sol_arr, ae_ion_arr, ae_mw_arr, ae_INP_arr);
+        amrex::ignore_unused(sp_ion_arr, sp_mw_arr, ae_ion_arr, ae_mw_arr);
 
         auto species_mass = species_mass_d.data();
         auto aerosol_mass = aerosol_mass_d.data();
@@ -534,10 +542,6 @@ void SuperDropletPC::addParticles ( const MFPtr& a_height_ptr, /*!< terrain */
             auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data() + size_old;
             const auto idx_i = m_idx_i;
             const Real rho_i = m_species_mat[m_idx_i]->m_density;
-
-            // Get pointers to persistent device data for INP flags
-            const int* sp_INP_arr = getSpeciesINPFlagsDevice();
-            const int* ae_INP_arr = getAerosolINPFlagsDevice();
 
             // INAS parameterization for sampling freezing temperature
             INAS_Niemand2012 inas_params;

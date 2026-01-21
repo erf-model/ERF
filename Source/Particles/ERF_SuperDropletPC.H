@@ -10,6 +10,9 @@
 #include "ERF_SuperDropletPCProcess.H"
 #include <AMReX_StructOfArrays.H>
 
+/*! \brief Ice category for density calculations */
+enum class IceCategory { Ice, Snow, Graupel, Total };
+
 class SuperDropletPC : public ERFPC
 {
     using MFPtr = std::unique_ptr<amrex::MultiFab>;
@@ -95,36 +98,6 @@ class SuperDropletPC : public ERFPC
         {
             for (auto& name : a_names) { setAerosolMaterial(name); }
         }
-
-        /*! \brief Get device pointer to species densities */
-        const amrex::ParticleReal* getSpeciesDensitiesDevice() const;
-
-        /*! \brief Get device pointer to species solubilities */
-        const int* getSpeciesSolubilitiesDevice() const;
-
-        /*! \brief Get device pointer to species ionization values */
-        const amrex::ParticleReal* getSpeciesIonizationDevice() const;
-
-        /*! \brief Get device pointer to species molecular weight values */
-        const amrex::ParticleReal* getSpeciesMolWeightDevice() const;
-
-        /*! \brief Get device pointer to aerosol densities */
-        const amrex::ParticleReal* getAerosolDensitiesDevice() const;
-
-        /*! \brief Get device pointer to aerosol solubilities */
-        const int* getAerosolSolubilitiesDevice() const;
-
-        /*! \brief Get device pointer to aerosol ionization values */
-        const amrex::ParticleReal* getAerosolIonizationDevice() const;
-
-        /*! \brief Get device pointer to aerosol molecular weight values */
-        const amrex::ParticleReal* getAerosolMolWeightDevice() const;
-
-        /*! \brief Get device pointer to species ice nucleating particle flags */
-        const int* getSpeciesINPFlagsDevice() const;
-
-        /*! \brief Get device pointer to aerosol ice nucleating particle flags */
-        const int* getAerosolINPFlagsDevice() const;
 
         /*! \brief Update device properties if material properties change */
         void updateDeviceProperties();
@@ -375,24 +348,21 @@ class SuperDropletPC : public ERFPC
                                         amrex::Real,
                                         const int a_comp = 0) const;
 
+        /*! \brief Compute ice category mass density on a mesh (ice, snow, graupel, or total) */
+        virtual void iceCategoryDensity ( amrex::MultiFab&, IceCategory, amrex::Real,
+                                          const int a_comp = 0) const;
+
         /*! \brief Compute the ice mass density on a mesh */
-        virtual void iceDensity ( amrex::MultiFab&,
-                                  amrex::Real,
-                                  const int a_comp = 0) const;
+        virtual void iceDensity ( amrex::MultiFab&, amrex::Real, const int a_comp = 0) const;
 
         /*! \brief Compute the snow mass density on a mesh */
-        virtual void snowDensity ( amrex::MultiFab&,
-                                   amrex::Real,
-                                   const int a_comp = 0) const;
+        virtual void snowDensity ( amrex::MultiFab&, amrex::Real, const int a_comp = 0) const;
 
         /*! \brief Compute the graupel mass density on a mesh */
-        virtual void graupelDensity ( amrex::MultiFab&,
-                                      amrex::Real,
-                                      const int a_comp = 0) const;
+        virtual void graupelDensity ( amrex::MultiFab&, amrex::Real, const int a_comp = 0) const;
 
         /*! \brief Compute the frozen water mass density on a mesh */
-        virtual void totalIceDensity ( amrex::MultiFab&,
-                                       const int a_comp = 0) const;
+        virtual void totalIceDensity ( amrex::MultiFab&, const int a_comp = 0) const;
 
         /*! \brief Compute the species mass flux component on a mesh */
         virtual void speciesMassFlux ( amrex::MultiFab&, const int, const int, const int a_comp=0 ) const;
@@ -528,15 +498,27 @@ class SuperDropletPC : public ERFPC
          *
          * @param sp_density_ptr Output pointer for species densities
          * @param sp_solubility_ptr Output pointer for species solubilities
+         * @param sp_ionization_ptr Output pointer for species ionization values
+         * @param sp_mol_weight_ptr Output pointer for species molecular weights
+         * @param sp_INP_ptr Output pointer for species INP flags
          * @param ae_density_ptr Output pointer for aerosol densities
          * @param ae_solubility_ptr Output pointer for aerosol solubilities
+         * @param ae_ionization_ptr Output pointer for aerosol ionization values
+         * @param ae_mol_weight_ptr Output pointer for aerosol molecular weights
+         * @param ae_INP_ptr Output pointer for aerosol INP flags
          */
         AMREX_FORCE_INLINE
         void getMaterialPropertiesDevice(
             const amrex::ParticleReal*& sp_density_ptr,
             const int*& sp_solubility_ptr,
+            const amrex::ParticleReal*& sp_ionization_ptr,
+            const amrex::ParticleReal*& sp_mol_weight_ptr,
+            const int*& sp_INP_ptr,
             const amrex::ParticleReal*& ae_density_ptr,
-            const int*& ae_solubility_ptr) const
+            const int*& ae_solubility_ptr,
+            const amrex::ParticleReal*& ae_ionization_ptr,
+            const amrex::ParticleReal*& ae_mol_weight_ptr,
+            const int*& ae_INP_ptr) const
         {
             // Ensure device properties are initialized
             if (!m_device_props_initialized) {
@@ -544,10 +526,16 @@ class SuperDropletPC : public ERFPC
             }
 
             // Get pointers to persistent device data
-            sp_density_ptr = getSpeciesDensitiesDevice();
-            sp_solubility_ptr = getSpeciesSolubilitiesDevice();
-            ae_density_ptr = getAerosolDensitiesDevice();
-            ae_solubility_ptr = getAerosolSolubilitiesDevice();
+            sp_density_ptr = m_sp_density.data();
+            sp_solubility_ptr = m_sp_solubility.data();
+            sp_ionization_ptr = m_sp_ionization.data();
+            sp_mol_weight_ptr = m_sp_mol_weight.data();
+            sp_INP_ptr = m_sp_is_INP.data();
+            ae_density_ptr = m_ae_density.data();
+            ae_solubility_ptr = m_ae_solubility.data();
+            ae_ionization_ptr = m_ae_ionization.data();
+            ae_mol_weight_ptr = m_ae_mol_weight.data();
+            ae_INP_ptr = m_ae_is_INP.data();
         }
 
         /*! \brief Build a ProcessContext with geometry and species info
@@ -630,16 +618,10 @@ class SuperDropletPC : public ERFPC
             // Mass arrays
             setupMassPointers(soa, ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs);
 
-            // Material properties
+            // Material properties (getMaterialPropertiesDevice ensures initialization)
             getMaterialPropertiesDevice(
-                ptrs.sp_rho_arr, ptrs.sp_sol_arr,
-                ptrs.ae_rho_arr, ptrs.ae_sol_arr);
-            ptrs.sp_ion_arr = getSpeciesIonizationDevice();
-            ptrs.ae_ion_arr = getAerosolIonizationDevice();
-            ptrs.sp_mw_arr = getSpeciesMolWeightDevice();
-            ptrs.ae_mw_arr = getAerosolMolWeightDevice();
-            ptrs.sp_INP_arr = getSpeciesINPFlagsDevice();
-            ptrs.ae_INP_arr = getAerosolINPFlagsDevice();
+                ptrs.sp_rho_arr, ptrs.sp_sol_arr, ptrs.sp_ion_arr, ptrs.sp_mw_arr, ptrs.sp_INP_arr,
+                ptrs.ae_rho_arr, ptrs.ae_sol_arr, ptrs.ae_ion_arr, ptrs.ae_mw_arr, ptrs.ae_INP_arr);
         }
 
         /*! \brief Iterate over particle tiles with common setup
@@ -755,6 +737,10 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief add super-droplet method-specific particle attributes */
         void add_superdroplet_attributes();
+
+        /*! \brief Helper for ParticleToMesh operations */
+        template<typename ValueFunc>
+        void particleToMeshHelper(amrex::MultiFab& a_mf, int a_comp, ValueFunc&& value_func) const;
 
         /* do not use */
         using ERFPC::massDensity;
