@@ -125,6 +125,9 @@ SLM::Init (const int& /*lev*/,
         lsm_fab_flux[ivar]->setVal(0.0);
     }
 
+    // Initial olen to neutral condition
+    lsm_fab_flux[LsmFlux_SLM::olen]->setVal(1.0E34);
+
     // packed temporary 1D arrays in soil water and soil temperature
     soilt_vars.define(ba_lsm, dm, SLM_DST::NumVars, 0);
     soilw_vars.define(ba_lsm, dm, SLM_DSW::NumVars, 0);
@@ -3671,7 +3674,7 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     {
         MultiFab::Copy(fab, *(mf_data[i]), 0, i + SLM_NetRad::NumVars - 1, 1, 0);
     }
-    MultiFab::Copy(fab, slm_diag, 0, output_size - SLM_Diag::NumVars, SLM_Diag::NumVars, 0);
+    MultiFab::Copy(fab, slm_diag, 0, output_size - SLM_Diag::NumVars - 1, SLM_Diag::NumVars, 0);
     MultiFab::Copy(fab, *(lsm_fab_flux[LsmFlux_SLM::olen]), 0, output_size - 1, 1, 0);
 
 

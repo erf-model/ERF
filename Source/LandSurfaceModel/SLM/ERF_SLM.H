@@ -578,7 +578,7 @@ private:
     int m_lsm_data_size = 42;
 
     // number of flux variables (qflux, tflux, uflux, vflux)
-    int m_lsm_flux_size = 4;
+    int m_lsm_flux_size = 5;
 
     // LsmVar map (state indices -> LsmVar enum)
     amrex::Vector<int> LsmDataMap;
