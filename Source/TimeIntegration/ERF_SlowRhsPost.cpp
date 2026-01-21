@@ -136,6 +136,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.pbl_type  == PBLType::MRF );
     const bool l_rotate         = (solverChoice.use_rotate_surface_flux);
     const bool do_upwind        = solverChoice.upwind_real_bcs;
+    amrex::ignore_unused(do_upwind);
 
     const Box& domain = geom.Domain();
 
