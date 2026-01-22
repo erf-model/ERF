@@ -1015,7 +1015,7 @@ struct SolverChoice {
     bool use_real_bcs = false;
 
     inline static
-    bool upwind_real_bcs = false;
+    bool upwind_real_bcs = true;
 
     inline static
     MeshType mesh_type = MeshType::ConstantDz;

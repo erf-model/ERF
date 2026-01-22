@@ -46,6 +46,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         n_time_p1 = n_time;
     }
 
+    // Data structure for WfromOmega
+    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
+
     // Flags for read vars and index mapping
     Vector<int> cons_read = {0, 1, 0, 0,
                              1, 0, 0,
@@ -65,7 +68,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     ind_map.push_back( cons_map );
     ind_map.push_back( {RealBdyVars::U} ); // xvel
     ind_map.push_back( {RealBdyVars::V} ); // yvel
-    ind_map.push_back( {0} );              // zvel
+    ind_map.push_back( {0} );              // zvel NOTE: Loop is forward (need u/v filled first)
 
     // Nvars to loop over
     Vector<int> comp_var = {ncomp_cons, 1, 1, 1};
@@ -80,6 +83,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
 
         mfs[Vars::zvel]->setVal(0.0);
     }
+
+    MultiFab& mf_u = *mfs[Vars::xvel];
+    MultiFab& mf_v = *mfs[Vars::yvel];
 
     // Loop over all variable types
     for (int var_idx = Vars::cons; var_idx < var_idx_end; ++var_idx)
@@ -207,30 +213,45 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                     // Destination array
                     const Array4<Real>& dest_arr = mf.array(mfi);
 
+                    // Compute w from Omega
+                    const Array4<const Real>& z_nd_arr = z_phys_nd[lev]->const_array(mfi);
+                    const Array4<const Real>& u_arr    = mf_u.const_array(mfi);
+                    const Array4<const Real>& v_arr    = mf_v.const_array(mfi);
+                    const Array4<const Real>& mf_ux    = mapfac[lev][MapFacType::u_x]->const_array(mfi);
+                    const Array4<const Real>& mf_vy    = mapfac[lev][MapFacType::v_y]->const_array(mfi);
+
                     // x-faces (includes y ghost cells)
                     ParallelFor(bx_xlo, bx_xhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         int jj = std::max(j , dom_lo.y+width);
                             jj = std::min(jj, dom_hi.y-width);
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i_xlo,jj,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i_xlo,jj,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         int jj = std::max(j , dom_lo.y+width);
                             jj = std::min(jj, dom_hi.y-width);
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i_xhi,jj,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i_xhi,jj,k,comp_idx);
                     });
 
                     // y-faces (does not include x ghost cells)
                     ParallelFor(bx_ylo, bx_yhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i,j_ylo,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,u_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i,j_ylo,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i,j_yhi,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i,j_yhi,k,comp_idx);
                     });
                 } // mfi
             } // is_read
@@ -273,6 +294,9 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
         n_time_p1 = n_time;
     }
 
+    // Data structure for WfromOmega
+    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
+
     // Include rho_theta as well as q_v
     Vector<int> cons_read = {0, 1, 0, 0,
                              1, 0, 0,
@@ -290,9 +314,9 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
 
     Vector<Vector<int>> ind_map;
     ind_map.push_back( cons_map );
+    ind_map.push_back( {0} );              // zvel NOTE: Loop is backwards (need u/v filled first)
     ind_map.push_back( {RealBdyVars::U} ); // xvel
     ind_map.push_back( {RealBdyVars::V} ); // yvel
-    ind_map.push_back( {0} );              // zvel
 
     // Nvars to loop over
     Vector<int> comp_var = {ncomp_cons, 1, 1, 1};
@@ -372,9 +396,11 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                                       bx_ylo, bx_yhi,
                                       ng_vect);
 
-                    const Array4<Real>& u_arr = mf_u.array(mfi);
-                    const Array4<Real>& v_arr = mf_v.array(mfi);
+                    // Mask arrays
+                    const Array4<const Real>& u_arr = mf_u.const_array(mfi);
+                    const Array4<const Real>& v_arr = mf_v.const_array(mfi);
 
+                    // Bounding
                     auto lb_u = lbound(u_arr); lb_u.x += ngvect_vels[0]; lb_u.y += ngvect_vels[1];
                     auto ub_u = ubound(u_arr); ub_u.x -= ngvect_vels[0]; ub_u.y -= ngvect_vels[1];
                     auto lb_v = lbound(v_arr); lb_v.x += ngvect_vels[0]; lb_v.y += ngvect_vels[1];
@@ -499,30 +525,45 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                     // Destination array
                     const Array4<Real>& dest_arr = mf.array(mfi);
 
+                    // Compute w from Omega
+                    const Array4<const Real>& z_nd_arr = z_phys_nd[lev]->const_array(mfi);
+                    const Array4<const Real>& u_arr    = mf_u.const_array(mfi);
+                    const Array4<const Real>& v_arr    = mf_v.const_array(mfi);
+                    const Array4<const Real>& mf_ux    = mapfac[lev][MapFacType::u_x]->const_array(mfi);
+                    const Array4<const Real>& mf_vy    = mapfac[lev][MapFacType::v_y]->const_array(mfi);
+
                     // x-faces (includes y ghost cells)
                     ParallelFor(bx_xlo, bx_xhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         int jj = std::max(j , dom_lo.y+width);
                             jj = std::min(jj, dom_hi.y-width);
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i_xlo,jj,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i_xlo,jj,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         int jj = std::max(j , dom_lo.y+width);
                             jj = std::min(jj, dom_hi.y-width);
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i_xhi,jj,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i_xhi,jj,k,comp_idx);
                     });
 
                     // y-faces (does not include x ghost cells)
                     ParallelFor(bx_ylo, bx_yhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i,j_ylo,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i,j_ylo,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i,j_yhi,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i,j_yhi,k,comp_idx);
                     });
                 } // mfi
             } // is_read
