@@ -379,7 +379,7 @@ static auto rimeDensity_HeymsfieldPflaum1985( const ParticleReal a_radius,      
     return rho_rime;
 }
 
-/*! \brief Binary aggregation between two superdroplets */
+/*! \brief Binary riming between a water droplet and an ice particle */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 static void rime_update_attribs(const int a_i, /*!< index of particle */
                                 const int a_j, /*!< index of coalescence partner */
@@ -416,66 +416,70 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
     AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= 0.0);
     auto gamma = a_gamma[a_i];
 
-    ParticleReal mi_new = 0.0;
-    ParticleReal a_new = 0.0;
-    ParticleReal c_new = 0.0;
-    ParticleReal mrime_new = 0.0;
-    ParticleReal nmono_new = 0.0;
-
+    // Identify ice and water particle indices
+    int id_ice, id_water;
     if (a_phase_i == SDPhase::ice) {
         AMREX_ALWAYS_ASSERT(a_phase_j == SDPhase::water);
-        mi_new = gamma*a_sp_m[a_sp_idx_i][a_i] + a_sp_m[a_sp_idx_w][a_j];
-        if (a_radius[a_j] > std::max(a_a[a_i], a_c[a_i])) {
-            a_new = c_new = std::cbrt(mi_new / ((4.0*PI/3.0)*a_rho_ice));
-        } else {
-            auto vz_w = a_vel[AMREX_SPACEDIM-1][a_j] - a_vterm[a_j];
-            auto vz_i = a_vel[AMREX_SPACEDIM-1][a_i] - a_vterm[a_i];
-            auto rho_rime = rimeDensity_HeymsfieldPflaum1985( a_radius[a_j],
-                                                              a_a[a_i], a_c[a_i],
-                                                              vz_w, vz_i,
-                                                              a_rho_water,
-                                                              a_D, a_dmdt,
-                                                              a_T, a_rhom, a_P, a_qv );
-            auto V_new = (4.0*PI/3.0) * (   a_a[a_i]*a_a[a_i]*a_c[a_i] * gamma
-                                          + a_radius[a_j]*a_radius[a_j]*a_radius[a_j]*(a_rho_water/rho_rime) );
-            auto phi = a_c[a_i] / a_a[a_i];
-            if ((phi < 0.8) || ((phi < 1.25) && (phi >= 1.0))) {
-                a_new = std::max(a_a[a_i], a_radius[a_j]*std::cbrt(a_rho_water/rho_rime));
-                c_new = V_new / ((4.0*PI/3.0)*a_new*a_new);
-            } else {
-                c_new = std::max(a_c[a_i], a_radius[a_j]*std::cbrt(a_rho_water/rho_rime));
-                a_new = std::sqrt(V_new / ((4.0*PI/3.0)*c_new));
-            }
-        }
-        mrime_new = gamma*a_mrime[a_i] + a_sp_m[a_sp_idx_w][a_j];
-        nmono_new = gamma*a_nmono[a_i];
+        id_ice = a_i;
+        id_water = a_j;
     } else {
         AMREX_ALWAYS_ASSERT(a_phase_j == SDPhase::ice);
-        mi_new = a_sp_m[a_sp_idx_i][a_j] + gamma*a_sp_m[a_sp_idx_w][a_i];
-        if (a_radius[a_i] > std::max(a_a[a_j], a_c[a_j])) {
-            a_new = c_new = std::cbrt(mi_new / ((4.0*PI/3.0)*a_rho_ice));
+        id_ice = a_j;
+        id_water = a_i;
+    }
+
+    // Determine gamma multipliers based on prey/predator status
+    // gamma copies of prey merge with 1 predator
+    ParticleReal gamma_ice, gamma_water;
+    if (a_prey[id_ice]) {
+        // ice is prey (higher multiplicity)
+        gamma_ice = gamma;
+        gamma_water = 1.0;
+    } else {
+        // water is prey (higher multiplicity)
+        gamma_ice = 1.0;
+        gamma_water = gamma;
+    }
+
+    // Compute new ice mass
+    ParticleReal mi_new = gamma_ice * a_sp_m[a_sp_idx_i][id_ice]
+                        + gamma_water * a_sp_m[a_sp_idx_w][id_water];
+
+    // Compute new rime mass
+    ParticleReal mrime_new = gamma_ice * a_mrime[id_ice]
+                           + gamma_water * a_sp_m[a_sp_idx_w][id_water];
+
+    // Compute new number of monomers
+    ParticleReal nmono_new = gamma_ice * a_nmono[id_ice];
+
+    // Compute new dimensions
+    ParticleReal a_new = 0.0;
+    ParticleReal c_new = 0.0;
+
+    if (a_radius[id_water] > std::max(a_a[id_ice], a_c[id_ice])) {
+        // Water droplet is larger than ice particle - form spherical ice
+        a_new = c_new = std::cbrt(mi_new / ((4.0*PI/3.0)*a_rho_ice));
+    } else {
+        // Normal riming - ice particle collects water droplet
+        auto vz_w = a_vel[AMREX_SPACEDIM-1][id_water] - a_vterm[id_water];
+        auto vz_i = a_vel[AMREX_SPACEDIM-1][id_ice] - a_vterm[id_ice];
+        auto rho_rime = rimeDensity_HeymsfieldPflaum1985( a_radius[id_water],
+                                                          a_a[id_ice], a_c[id_ice],
+                                                          vz_w, vz_i,
+                                                          a_rho_water,
+                                                          a_D, a_dmdt,
+                                                          a_T, a_rhom, a_P, a_qv );
+        auto V_new = (4.0*PI/3.0) * ( gamma_ice * a_a[id_ice]*a_a[id_ice]*a_c[id_ice]
+                                    + gamma_water * a_radius[id_water]*a_radius[id_water]*a_radius[id_water]
+                                                  * (a_rho_water/rho_rime) );
+        auto phi = a_c[id_ice] / a_a[id_ice];
+        if ((phi < 0.8) || ((phi < 1.25) && (phi >= 1.0))) {
+            a_new = std::max(a_a[id_ice], a_radius[id_water]*std::cbrt(a_rho_water/rho_rime));
+            c_new = V_new / ((4.0*PI/3.0)*a_new*a_new);
         } else {
-            auto vz_w = a_vel[AMREX_SPACEDIM-1][a_i] - a_vterm[a_i];
-            auto vz_i = a_vel[AMREX_SPACEDIM-1][a_j] - a_vterm[a_j];
-            auto rho_rime = rimeDensity_HeymsfieldPflaum1985( a_radius[a_i],
-                                                              a_a[a_j], a_c[a_j],
-                                                              vz_w, vz_i,
-                                                              a_rho_water,
-                                                              a_D, a_dmdt,
-                                                              a_T, a_rhom, a_P, a_qv );
-            auto V_new = (4.0*PI/3.0) * (   a_a[a_j]*a_a[a_j]*a_c[a_j]
-                                          + a_radius[a_i]*a_radius[a_i]*a_radius[a_i]*(a_rho_water/rho_rime)*gamma );
-            auto phi = a_c[a_j] / a_a[a_j];
-            if ((phi < 0.8) || ((phi < 1.25) && (phi >= 1.0))) {
-                a_new = std::max(a_a[a_j], a_radius[a_i]*std::cbrt(a_rho_water/rho_rime));
-                c_new = V_new / ((4.0*PI/3.0)*a_new*a_new);
-            } else {
-                c_new = std::max(a_c[a_j], a_radius[a_i]*std::cbrt(a_rho_water/rho_rime));
-                a_new = std::sqrt(V_new / ((4.0*PI/3.0)*c_new));
-            }
+            c_new = std::max(a_c[id_ice], a_radius[id_water]*std::cbrt(a_rho_water/rho_rime));
+            a_new = std::sqrt(V_new / ((4.0*PI/3.0)*c_new));
         }
-        mrime_new = a_mrime[a_j] + gamma*a_sp_m[a_sp_idx_w][a_i];
-        nmono_new = a_nmono[a_j];
     }
 
     if ( a_rmndr[a_i] > 0 ) {
