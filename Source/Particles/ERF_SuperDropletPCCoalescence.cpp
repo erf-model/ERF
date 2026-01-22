@@ -451,7 +451,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
         nmono_new = gamma*a_nmono[a_i];
     } else {
         AMREX_ALWAYS_ASSERT(a_phase_j == SDPhase::ice);
-        mi_new = a_sp_m[a_sp_idx_i][a_i] + gamma*a_sp_m[a_sp_idx_w][a_j];
+        mi_new = a_sp_m[a_sp_idx_i][a_j] + gamma*a_sp_m[a_sp_idx_w][a_i];
         if (a_radius[a_i] > std::max(a_a[a_j], a_c[a_j])) {
             a_new = c_new = std::cbrt(mi_new / ((4.0*PI/3.0)*a_rho_ice));
         } else {
