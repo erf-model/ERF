@@ -179,63 +179,6 @@ class SuperDropletPC : public ERFPC
                                       const amrex::RealBox&,
                                       const bool );
 
-        /*! \brief Template helper for setNumSD*Distribution functions */
-        template<typename PointCheck, typename SubgridCheck>
-        void setNumSDDistributionImpl( amrex::iMultiFab& a_num_sd,
-                                       const int a_n_per_cell,
-                                       const MFPtr& a_height_ptr,
-                                       const amrex::RealBox& a_region,
-                                       const bool a_subgrid,
-                                       PointCheck&& point_check,
-                                       SubgridCheck&& subgrid_check)
-        {
-            a_num_sd.setVal(0);
-            const auto dx = Geom(m_lev).CellSizeArray();
-            const auto plo = Geom(m_lev).ProbLoArray();
-
-            for(amrex::MFIter mfi = MakeMFIter(m_lev); mfi.isValid(); ++mfi) {
-                const amrex::Box& tile_box = mfi.tilebox();
-                auto num_sd_arr = a_num_sd[mfi].array();
-                if (a_height_ptr) {
-                    const auto height_arr = (*a_height_ptr)[mfi].array();
-                    amrex::ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        bool flag = false;
-                        if (a_subgrid) {
-                            amrex::RealBox gridcell(plo[0]+i*dx[0], plo[1]+j*dx[1], height_arr(i,j,k),
-                                                    plo[0]+(i+1)*dx[0], plo[1]+(j+1)*dx[1], height_arr(i+1,j+1,k+1));
-                            flag = subgrid_check(gridcell, a_region);
-                        } else {
-                            amrex::Real x = plo[0] + (i + 0.5)*dx[0];
-                            amrex::Real y = plo[1] + (j + 0.5)*dx[1];
-                            amrex::Real z = 0.125 * (height_arr(i,j,k) + height_arr(i+1,j,k) +
-                                                     height_arr(i,j+1,k) + height_arr(i+1,j+1,k) +
-                                                     height_arr(i,j,k+1) + height_arr(i+1,j,k+1) +
-                                                     height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k));
-                            flag = point_check(a_region, x, y, z);
-                        }
-                        if (flag) { num_sd_arr(i,j,k) = a_n_per_cell; }
-                    });
-                } else {
-                    amrex::ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        bool flag = false;
-                        if (a_subgrid) {
-                            amrex::RealBox gridcell(plo[0]+i*dx[0], plo[1]+j*dx[1], plo[2]+k*dx[2],
-                                                    plo[0]+(i+1)*dx[0], plo[1]+(j+1)*dx[1], plo[2]+(k+1)*dx[2]);
-                            flag = subgrid_check(gridcell, a_region);
-                        } else {
-                            amrex::Real x = plo[0] + (i + 0.5)*dx[0];
-                            amrex::Real y = plo[1] + (j + 0.5)*dx[1];
-                            amrex::Real z = plo[2] + (k + 0.5)*dx[2];
-                            flag = point_check(a_region, x, y, z);
-                        }
-                        if (flag) { num_sd_arr(i,j,k) = a_n_per_cell; }
-                    });
-                }
-            }
-        }
-
         /*! \brief Set super-droplets attributes from a given condensate mass density
          * \param[in] a_mf Multifab containing the initial condensate mass density
          */
