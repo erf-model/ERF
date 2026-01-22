@@ -370,7 +370,7 @@ static auto rimeDensity_HeymsfieldPflaum1985( const ParticleReal a_radius,      
 
     ParticleReal rho_rime = 0.0;
     if ((T_surf <= -5.0) || (var_Y < 1.6)) {
-        rho_rime = std::pow(0.30*var_Y, 0.44);
+        rho_rime = 0.30 * std::pow(var_Y, 0.44);
     } else {
         var_Y = std::min(var_Y,3.5);
         rho_rime = std::exp(-0.03115 - 1.7030*var_Y + 0.9116*var_Y*var_Y - 0.1224*var_Y*var_Y*var_Y);
@@ -461,11 +461,10 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
         a_new = c_new = std::cbrt(mi_new / ((4.0*PI/3.0)*a_rho_ice));
     } else {
         // Normal riming - ice particle collects water droplet
-        auto vz_w = a_vel[AMREX_SPACEDIM-1][id_water] - a_vterm[id_water];
-        auto vz_i = a_vel[AMREX_SPACEDIM-1][id_ice] - a_vterm[id_ice];
+        // Pass terminal velocities for Re/St calculation (velocity relative to air)
         auto rho_rime = rimeDensity_HeymsfieldPflaum1985( a_radius[id_water],
                                                           a_a[id_ice], a_c[id_ice],
-                                                          vz_w, vz_i,
+                                                          a_vterm[id_water], a_vterm[id_ice],
                                                           a_rho_water,
                                                           a_D, a_dmdt,
                                                           a_T, a_rhom, a_P, a_qv );
