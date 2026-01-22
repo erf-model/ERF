@@ -473,11 +473,26 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
                                     + gamma_water * a_radius[id_water]*a_radius[id_water]*a_radius[id_water]
                                                   * (a_rho_water/rho_rime) );
         auto phi = a_c[id_ice] / a_a[id_ice];
+        // Following Shima et al. (2019) sdm_outcome_riming:
+        // - When ice is prey: rime dimension doesn't include gamma
+        // - When water is prey: rime dimension scales with gamma^(1/3)
         if ((phi < 0.8) || ((phi < 1.25) && (phi >= 1.0))) {
-            a_new = std::max(a_a[id_ice], a_radius[id_water]*std::cbrt(a_rho_water/rho_rime));
+            // Oblate or quasi-spherical prolate: constrain equatorial radius
+            if (a_prey[id_ice]) {
+                a_new = std::max(a_a[id_ice], a_radius[id_water]*std::cbrt(a_rho_water/rho_rime));
+            } else {
+                // Water is prey - include gamma inside cube root (Fortran line 1445)
+                a_new = std::max(a_a[id_ice], a_radius[id_water]*std::cbrt((a_rho_water/rho_rime)*gamma));
+            }
             c_new = V_new / ((4.0*PI/3.0)*a_new*a_new);
         } else {
-            c_new = std::max(a_c[id_ice], a_radius[id_water]*std::cbrt(a_rho_water/rho_rime));
+            // Prolate or quasi-spherical oblate: constrain polar radius
+            if (a_prey[id_ice]) {
+                c_new = std::max(a_c[id_ice], a_radius[id_water]*std::cbrt(a_rho_water/rho_rime));
+            } else {
+                // Water is prey - include gamma inside cube root (Fortran line 1460)
+                c_new = std::max(a_c[id_ice], a_radius[id_water]*std::cbrt((a_rho_water/rho_rime)*gamma));
+            }
             a_new = std::sqrt(V_new / ((4.0*PI/3.0)*c_new));
         }
     }
