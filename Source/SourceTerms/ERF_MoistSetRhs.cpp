@@ -29,9 +29,6 @@ moist_set_rhs (const Geometry& geom,
                Vector<Vector<FArrayBox>>& bdy_data_ylo,
                Vector<Vector<FArrayBox>>& bdy_data_yhi)
 {
-    // NOTE: We pass the full width into this routine. For relaxation, the last cell is a halo
-    //       cell for the Laplacian. We remove that cell here if it is present.
-
     // Relaxation constants
     Real F1 = 1./dt;
 
@@ -45,9 +42,7 @@ moist_set_rhs (const Geometry& geom,
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    //
-    // Note this is because we define "time" to be time since start_bdy_time
-    //
+    // NOTE: This is because we define "time" to be time since start_bdy_time
     Real time_since_start = new_stage_time;
 
     int n_time = static_cast<int>( time_since_start /  dT);
@@ -67,11 +62,12 @@ moist_set_rhs (const Geometry& geom,
     oma = 1.0; alpha = 0.0;
     */
 
-    // NOTE: These sizing of the temporary BDY FABS is
+    // NOTE: The sizing of the temporary BDY FABS is
     //       GLOBAL and occurs over the entire BDY region.
 
     // Size the FABs
     //==========================================================
+    // NOTE: No ghost cells needed since mask is idx type (0,0,0)
     IntVect ng_vect(0);
     Box gdom(domain); gdom.grow(ng_vect);
     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
@@ -89,12 +85,6 @@ moist_set_rhs (const Geometry& geom,
     FArrayBox M_xlo, M_xhi, M_ylo, M_yhi;
     M_xlo.resize(bx_xlo,1,The_Async_Arena()); M_xhi.resize(bx_xhi,1,The_Async_Arena());
     M_ylo.resize(bx_ylo,1,The_Async_Arena()); M_yhi.resize(bx_yhi,1,The_Async_Arena());
-
-    // NOTE: These operations use the BDY FABS and RHO. The
-    //       use of RHO to go from PRIM -> CONS requires that
-    //       these operations be LOCAL. So we have allocated
-    //       enough space to do global operations (1 rank) but
-    //       will fill a subset of that data that the rank owns.
 
     // Populate FABs from bdy interpolation (primitive vars)
     //==========================================================
@@ -123,22 +113,16 @@ moist_set_rhs (const Geometry& geom,
     Array4<Real> mask_xlo = M_xlo.array();  Array4<Real> mask_xhi = M_xhi.array();
     Array4<Real> mask_ylo = M_ylo.array();  Array4<Real> mask_yhi = M_yhi.array();
 
-    // We need lateral ghost cells for the Laplacian
-    // NOTE: We don't write into the ghost cells
     Box gtbx = grow(tbx,ng_vect);
-
     Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
     realbdy_interior_bxs_xy(gtbx, domain, width,
                             tbx_xlo, tbx_xhi,
                             tbx_ylo, tbx_yhi,
                             0, ng_vect, true);
 
-    // NOTE: width is now one less than the total bndy width
-    //       if we have a relaxation zone; so we can access
-    //       dom_lo/hi +- width. If we do not have a relax
-    //       zone, this offset is set_width - 1.
+    // Limiting offset
     int offset = set_width - 1;
-    if (width > set_width) offset = width;
+    if (width > set_width) offset = width - 1;
 
     // Populate with interpolation (protect from ghost cells)
     ParallelFor(tbx_xlo, tbx_xhi,
@@ -160,7 +144,8 @@ moist_set_rhs (const Geometry& geom,
             jj = std::min(jj, dom_hi.y);
         arr_xhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
                                                     + alpha * bdatxhi_np1(ii,jj,k) );
-        mask_xhi(i,j,k) = ( oma * bdatxhi_n_m(ii,jj,k) + alpha * bdatxhi_np1_m(ii,jj,k) );
+        // NOTE: correct for idx type mismatch with u bdy data
+        mask_xhi(i,j,k) = ( oma * bdatxhi_n_m(ii+1,jj,k) + alpha * bdatxhi_np1_m(ii+1,jj,k) );
     });
 
     ParallelFor(tbx_ylo, tbx_yhi,
@@ -182,7 +167,8 @@ moist_set_rhs (const Geometry& geom,
             jj = std::min(jj, dom_hi.y);
         arr_yhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
                                                     + alpha * bdatyhi_np1(ii,jj,k) );
-        mask_yhi(i,j,k) = ( oma * bdatyhi_n_m(ii,jj,k) + alpha * bdatyhi_np1_m(ii,jj,k) );
+        // NOTE: correct for idx type mismatch with v bdy data
+        mask_yhi(i,j,k) = ( oma * bdatyhi_n_m(ii,jj+1,k) + alpha * bdatyhi_np1_m(ii,jj+1,k) );
     });
 
 

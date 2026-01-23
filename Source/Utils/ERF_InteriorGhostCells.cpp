@@ -189,20 +189,13 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 {
     BL_PROFILE_REGION("realbdy_compute_interior_ghost_RHS()");
 
-    // NOTE: We pass the full width into this routine.
-    //       For relaxation, the last cell is a halo
-    //       cell for the Laplacian. We remove that
-    //       cell here if it is present.
-
     // Relaxation constants
     Real F1 = 1./delta_t;
 
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    //
-    // Note this is because we define "time" to be time since start_bdy_time
-    //
+    // NOTE: this is because we define "time" to be time since start_bdy_time
     Real time_since_start = time;
 
     int n_time = static_cast<int>( time_since_start /  dT);
@@ -252,10 +245,8 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
         auto ixtype  = S_cur_data[ivar_idx].boxArray().ixType();
         domain.convert(ixtype);
 
-        // Grown domain to get the 4 halo boxes w/ ghost cells
-        // NOTE: 2 ghost cells needed here for Laplacian
-        //       halo cell.
-        IntVect ng_vect(0);
+        // NOTE: 1 ghost cell need for idx type mismatch with mask arrays
+        IntVect ng_vect(1,1,0);
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         realbdy_interior_bxs_xy(gdom, domain, width,
@@ -299,9 +290,8 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            // We need lateral ghost cells for the Laplacian
-            // NOTE: We don't write into the ghost cells
-            IntVect ng_vect(0);
+            // NOTE: 1 ghost cell need for idx type mismatch with mask arrays
+            IntVect ng_vect(1,1,0);
             Box gtbx = grow(mfi.tilebox(ixtype.toIntVect()),ng_vect);
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
             realbdy_interior_bxs_xy(gtbx, domain, width,
@@ -337,12 +327,9 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             // Current density to convert to conserved vars
             Array4<Real> r_arr = S_cur_data[IntVars::cons].array(mfi);
 
-            // NOTE: width is now one less than the total bndy width
-            //       if we have a relaxation zone; so we can access
-            //       dom_lo/hi +- width. If we do not have a relax
-            //       zone, this offset is set_width - 1.
+            // Limiting offset
             int offset = set_width - 1;
-            if (width > set_width) offset = width;
+            if (width > set_width) offset = width - 1;
 
             // Populate with interpolation (protect from ghost cells)
             ParallelFor(tbx_xlo, tbx_xhi,

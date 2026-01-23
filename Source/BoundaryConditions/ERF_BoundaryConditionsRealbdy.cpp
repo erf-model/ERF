@@ -308,9 +308,9 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
 
     Vector<Vector<int>> is_read;
     is_read.push_back( cons_read );
+    is_read.push_back( {0} ); // zvel NOTE: Loop is backwards (need u/v filled first)
     is_read.push_back( {1} ); // xvel
     is_read.push_back( {1} ); // yvel
-    is_read.push_back( {0} ); // zvel
 
     Vector<Vector<int>> ind_map;
     ind_map.push_back( cons_map );
@@ -320,6 +320,9 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
 
     // Nvars to loop over
     Vector<int> comp_var = {ncomp_cons, 1, 1, 1};
+
+    // Var index map
+    Vector<int> var_idx_map = {Vars::cons, Vars::zvel, Vars::xvel, Vars::yvel};
 
     // End of vars loop
     int var_idx_end = (cons_only) ? Vars::cons + 1 : Vars::NumTypes;
@@ -339,7 +342,7 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
     //      the normal velocity on each face for upwinding
     for (int var_idx = var_idx_end-1; var_idx >= Vars::cons; --var_idx)
     {
-        MultiFab& mf = *mfs[var_idx];
+        MultiFab& mf = *mfs[var_idx_map[var_idx]];
 
         mf.FillBoundary(geom[lev].periodicity());
 
