@@ -65,7 +65,6 @@ public:
         const SolverChoice& sc) override;
 
 protected:
-    std::string name() override { return "ABL with input sounding"; }
 
 private:
     ProbParm parms;

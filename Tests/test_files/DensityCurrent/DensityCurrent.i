@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "Density Current Compressible"
+
 max_step = 10
 stop_time = 900.0
 

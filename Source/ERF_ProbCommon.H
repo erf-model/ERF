@@ -37,6 +37,11 @@ T erf_get_single_value (std::istream& is, int n)
   return r;
 }
 
+void
+init_my_custom_terrain (const amrex::Geometry& geom,
+                        amrex::FArrayBox& terrain_fab,
+                        const amrex::Real& time);
+
 /**
  * Class to hold problem-specific routines
 */
@@ -289,7 +294,7 @@ public:
         if (valid_fname) {
             read_custom_terrain(fname,false,geom,buildings_fab,time);
         } else {
-            init_custom_terrain(geom, buildings_fab, time);
+            init_my_custom_terrain(geom, buildings_fab, time);
         }
     }
 
@@ -323,7 +328,7 @@ public:
             read_custom_terrain(fname_usgs,is_usgs,geom,terrain_fab,time);
 
         } else {
-            init_custom_terrain (geom, terrain_fab, time);
+            init_my_custom_terrain (geom, terrain_fab, time);
         }
     }
 
@@ -592,18 +597,27 @@ public:
      * @param[in] time current time
     */
     virtual void
-    init_custom_terrain (const amrex::Geometry& /*geom*/,
+    init_custom_terrain (const amrex::Geometry& geom,
                          amrex::FArrayBox& terrain_fab,
-                         const amrex::Real& /*time*/)
+                         const amrex::Real& time)
     {
-        amrex::Print() << "Initializing flat terrain" << std::endl;
+        std::string custom_terrain_type = "None";
+        amrex::ParmParse pp_prob("prob"); pp_prob.query("custom_terrain_type",custom_terrain_type);
 
-        if (SolverChoice::mesh_type == MeshType::VariableDz) {
-            SolverChoice::set_mesh_type(MeshType::StretchedDz);
-            amrex::Print() << "Resetting mesh type to StretchedDz" << std::endl;
+        if (custom_terrain_type != "None")
+        {
+            amrex::Print() << "Calling custom terrain initialization" << std::endl;
+            init_my_custom_terrain(geom,terrain_fab,time);
+
+        } else {
+            amrex::Print() << "Initializing flat terrain" << std::endl;
+            terrain_fab.template setVal<amrex::RunOn::Device>(0.0);
+
+            if (SolverChoice::mesh_type == MeshType::VariableDz) {
+                SolverChoice::set_mesh_type(MeshType::StretchedDz);
+                amrex::Print() << "Resetting mesh type to StretchedDz" << std::endl;
+            }
         }
-
-        terrain_fab.template setVal<amrex::RunOn::Device>(0.0);
     }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY
@@ -661,8 +675,7 @@ protected:
         base_parms.T_0 = T_0;
     }
 
-    // descriptor for problem definition
-    virtual std::string name () = 0;
+    std::string name() { std::string prob_name; amrex::ParmParse pp("erf"); pp.query("prob_name",prob_name); return prob_name; }
 };
 
 
