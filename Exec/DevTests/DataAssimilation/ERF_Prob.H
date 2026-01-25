@@ -8,31 +8,26 @@
 #include "ERF_ProbCommon.H"
 
 struct ProbParm : ProbParmDefaults {
-  amrex::Real rho_0 = 0.0;
-  amrex::Real T_0   = 1.0;
-  amrex::Real A_0   = 1.0;
-  amrex::Real B_0   = 0.0;
-  amrex::Real u_0   = 0.0;
-  amrex::Real v_0   = 0.0;
-  amrex::Real rad_0 = 0.0;
-  amrex::Real z0    = 0.1;  // Surface Roughness
-  amrex::Real zRef  = 80.0; // Reference Height
-  amrex::Real uRef  = 0.0;  // Reference Wind Speed
-
-  amrex::Real xc_frac = 0.5; // Location of "center" of scalar (multiplies domain length)
-  amrex::Real yc_frac = 0.5; // Location of "center" of scalar (multiplies domain length)
-  amrex::Real zc_frac = 0.5; // Location of "center" of scalar (multiplies domain length)
-
-  amrex::Real xradius = 10.0; // x-radius of scalar bubble
-  amrex::Real zradius = 10.0; // z-radius of scalar bubble
-
-  int prob_type = -1;
+  amrex::Real p_inf = p_0; //freestream pressure [Pa]
+  amrex::Real T_inf = 300.0; //freestream temperature [K]
+  amrex::Real M_inf = 0.2; //freestream Mach number [-]
+  amrex::Real alpha = 0.0; //inflow angle, 0 --> x-aligned [rad]
+  amrex::Real gamma = Gamma; //specific heat ratio [-]
+  amrex::Real beta = 0.01; //non-dimensional max perturbation strength [-]
+  amrex::Real sigma = 1.0; //Gaussian standard deviation, i.e., spreading parameter [-]
+  amrex::Real R = 2.0; //characteristic length scale for grid [m]
+  amrex::Real xc = 0.5; //normalized x-location of vortex center [-]
+  amrex::Real yc = 0.5; //normalized y-location of vortex center [-]
+  // calculated quantiites
+  amrex::Real rho_0; //characteristic density [m/s]
+  amrex::Real a_inf; //speed of sound [m/s]
+  amrex::Real inv_gm1; //1/(gamma - 1) [-]
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
 {
 public:
-    Problem();
+    Problem(const amrex_real* problo, const amrex_real* probhi);
 
 #include "Prob/ERF_InitConstantDensityHSE.H"
 
@@ -57,19 +52,8 @@ public:
         const SolverChoice& sc,
         const int lev) override;
 
-    void init_custom_terrain (
-        const amrex::Geometry& geom,
-        amrex::FArrayBox& terrain_fab,
-        const amrex::Real& time) override;
-
-    void erf_init_rayleigh (
-        amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
-        amrex::Geometry const& geom,
-        std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-        amrex::Real zdamp) override;
-
 protected:
-    std::string name() override { return "Scalar Advection/Diffusion"; }
+    std::string name() override { return "Isentropic Vortex"; }
 
 private:
     ProbParm parms;

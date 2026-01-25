@@ -240,10 +240,9 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
     const Real* prob_lo = geom.ProbLo();
     const auto dx       = geom.CellSize();
 
-    // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
-    // varies in time and or space, then the the height needs to be
-    // calculated at each time step. Here, we assume that only grid
-    // stretching exists.
+    // If the z coordinate varies in time and or space, then the the height
+    // needs to be calculated at each time step. Here, we assume that only
+    // grid stretching exists.
     if (z_phys_cc) {
         zlevels.resize(khi+1);
         reduce_to_max_per_height(zlevels, z_phys_cc);
@@ -293,10 +292,9 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
     const Real* prob_lo = geom.ProbLo();
     const auto dx       = geom.CellSize();
 
-    // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
-    // varies in time and or space, then the the height needs to be
-    // calculated at each time step. Here, we assume that only grid
-    // stretching exists.
+    // If the z coordinate varies in time and or space, then the the height
+    // needs to be calculated at each time step. Here, we assume that only
+    // grid stretching exists.
     if (z_phys_cc) {
         zlevels.resize(khi+1);
         reduce_to_max_per_height(zlevels, z_phys_cc);
@@ -349,10 +347,9 @@ Problem::update_w_subsidence (const Real& /*time*/,
     const Real* prob_lo = geom.ProbLo();
     const auto dx       = geom.CellSize();
 
-    // Note: If z_phys_nd, then use_terrain=1 was set. If the z coordinate
-    // varies in time and or space, then the the height needs to be
-    // calculated at each time step. Here, we assume that only grid
-    // stretching exists.
+    // If the z coordinate varies in time and or space, then the the height
+    // needs to be calculated at each time step. Here, we assume that only
+    // grid stretching exists.
     if (z_phys_nd) {
         zlevels.resize(khi+1);
         reduce_to_max_per_height(zlevels, z_phys_nd);
@@ -396,10 +393,9 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
     const Real* prob_lo = geom.ProbLo();
     const auto dx       = geom.CellSize();
 
-    // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
-    // varies in time and or space, then the the height needs to be
-    // calculated at each time step. Here, we assume that only grid
-    // stretching exists.
+    // If the z coordinate varies in time and or space, then the the height
+    // needs to be calculated at each time step. Here, we assume that only
+    // grid stretching exists.
     if (z_phys_cc) {
         zlevels.resize(khi+1);
         reduce_to_max_per_height(zlevels, z_phys_cc);

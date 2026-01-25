@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Particles Over Flat Ground"
+
 max_step =  80
 
 amrex.fpe_trap_invalid = 1
@@ -79,6 +81,8 @@ erf.alpha_T           = 0.0 # [m^2/s]
 #erf.abl_pressure_grad = -0.2 0. 0.
 
 # PROBLEM PARAMETERS (optional)
+prob.custom_terrain_type = "FlatRaised"
+
 prob.T_0   = 300.0
 prob.U_0   = 10.0
 prob.rho_0 = 1.16

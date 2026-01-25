@@ -57,11 +57,6 @@ public:
         const SolverChoice& sc,
         const int lev) override;
 
-    void init_custom_terrain (
-        const amrex::Geometry& geom,
-        amrex::FArrayBox& terrain_fab,
-        const amrex::Real& time) override;
-
     void erf_init_rayleigh (
         amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
         amrex::Geometry const& geom,
@@ -69,7 +64,6 @@ public:
         amrex::Real zdamp) override;
 
 protected:
-    std::string name() override { return "Scalar Advection/Diffusion"; }
 
 private:
     ProbParm parms;
