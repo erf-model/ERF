@@ -52,7 +52,6 @@ public:
         amrex::Real zdamp) override;
 
 protected:
-    std::string name() override { return "MovingTerrain"; }
 
 private:
     ProbParm parms;

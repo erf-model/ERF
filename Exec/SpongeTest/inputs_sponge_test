@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Sponge Test"
+
 max_step = 6000
 
 amrex.fpe_trap_invalid = 1

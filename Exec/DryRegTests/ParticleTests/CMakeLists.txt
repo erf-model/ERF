@@ -1,5 +1,5 @@
 if(ERF_ENABLE_PARTICLES)
-  set(erf_exe_name erf_particles_advect)
+  set(erf_exe_name erf_particles)
 
   add_executable(${erf_exe_name} "")
   target_sources(${erf_exe_name}

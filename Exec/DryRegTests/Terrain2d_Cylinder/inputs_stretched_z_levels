@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Terrain - 2D Cylinder"
+
 max_step = 18000
 
 amrex.fpe_trap_invalid = 1

@@ -60,7 +60,6 @@ public:
                        amrex::Geometry const& geom) override;
 
 protected:
-    std::string name () override { return "ML Init HSE Test"; }
 
 private:
     ProbParm parms;

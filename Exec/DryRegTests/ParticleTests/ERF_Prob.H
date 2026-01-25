@@ -16,6 +16,9 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real x_r = 4000.0;
   amrex::Real z_r = 2000.0;
   amrex::Real T_pert = -15.0; // perturbation temperature
+
+  amrex::Real hill_ampl = 0.0; // height of the hill
+
   // overridden physical constants
   amrex::Real C_p = 1004.0;
 }; // namespace ProbParm
@@ -48,8 +51,12 @@ public:
         const SolverChoice& sc,
         const int lev) override;
 
+    void init_custom_terrain (
+        const amrex::Geometry& geom,
+        amrex::FArrayBox& terrain_fab,
+        const amrex::Real& time) override;
+
 protected:
-    std::string name() override { return "Particles over Witch of Agnesi"; }
 
 private:
     ProbParm parms;

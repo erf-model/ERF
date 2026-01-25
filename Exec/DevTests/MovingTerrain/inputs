@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Moving Terrain"
+
 stop_time = 120.
 max_step = 24000
 

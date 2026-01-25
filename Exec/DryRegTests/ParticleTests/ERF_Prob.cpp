@@ -24,6 +24,8 @@ Problem::Problem()
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
 
+  pp.query("hill_ampl", parms.hill_ampl);
+
   init_base_parms(parms.rho_0, parms.T_0);
 }
 
@@ -140,7 +142,7 @@ Problem::init_custom_terrain(
     int domlo_z = domain.smallEnd(2);
 
     // User function parameters
-    Real a    = 0.5;
+    Real a    = parms.hill_ampl;
     Real num  = 8 * a * a * a;
     Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
     // Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);

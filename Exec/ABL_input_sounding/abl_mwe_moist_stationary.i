@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "ABL with input sounding"
+
 stop_time = 2.
 
 amrex.fpe_trap_invalid = 1

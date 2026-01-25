@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "SHOC Test"
+
 stop_time = 3600.0
 max_step  = 1
 

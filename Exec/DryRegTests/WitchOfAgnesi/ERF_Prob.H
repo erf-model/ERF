@@ -58,7 +58,6 @@ public:
         const amrex::Real& time) override;
 
 protected:
-    std::string name() override { return "Witch of Agnesi Hill"; }
 
 private:
     ProbParm parms;

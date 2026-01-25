@@ -109,7 +109,6 @@ public:
                                         const int& khi);
 
 protected:
-    std::string name () override { return "SquallLine"; }
 
 private:
     ProbParm parms;

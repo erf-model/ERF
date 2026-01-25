@@ -71,7 +71,6 @@ public:
         const amrex::Real& time) override;
 
 protected:
-    std::string name() override { return "ABL"; }
 
 private:
     ProbParm parms;

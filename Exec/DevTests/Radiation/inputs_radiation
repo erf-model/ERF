@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Radiation Test"
+
 max_step  = 100
 stop_time = 100.0
 

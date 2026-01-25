@@ -33,7 +33,9 @@ jobs:
       uses: ./.github/actions/free-space-ubuntu
 
     - name: Dependencies
-      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_dpcpp.sh
+      run:
+        Submodules/AMReX/.github/workflows/dependencies/dependencies_dpcpp.sh
+        Submodules/AMReX/.github/workflows/dependencies/ubuntu_free_disk_space.sh
 
     - name: Install CCache
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh

@@ -661,8 +661,7 @@ protected:
         base_parms.T_0 = T_0;
     }
 
-    // descriptor for problem definition
-    virtual std::string name () = 0;
+    std::string name() { std::string prob_name; amrex::ParmParse pp("erf"); pp.query("prob_name",prob_name); return prob_name; }
 };
 
 

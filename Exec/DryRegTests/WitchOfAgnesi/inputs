@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "Flow over Witch of Agnesi hill" 
+
 max_step = 3000000
 
 amrex.fpe_trap_invalid = 0

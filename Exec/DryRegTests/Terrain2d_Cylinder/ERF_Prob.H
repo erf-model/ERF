@@ -48,7 +48,6 @@ public:
         const amrex::Real& time) override;
 
 protected:
-    std::string name() override { return "2D Terrain - Cylinder"; }
 
 private:
     ProbParm parms;

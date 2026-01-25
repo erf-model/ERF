@@ -66,7 +66,6 @@ public:
         const amrex::Real& time) override;
 
 protected:
-    std::string name() override { return "3D Terrain - Hemisphere"; }
 
 private:
     ProbParm parms;
