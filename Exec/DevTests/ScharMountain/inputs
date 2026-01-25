@@ -81,3 +81,5 @@ erf.moistscal_vert_adv_type  = Centered_4th
 # TERRRAIN GRID TYPE
 erf.terrain_type = StaticFittedMesh
 erf.terrain_smoothing = 0
+
+prob.custom_terrain_type = "ScharMountain"

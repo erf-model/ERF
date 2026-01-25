@@ -89,4 +89,5 @@ prob.T_0   = 300.0
 prob.U_0   = 10.0
 prob.rho_0 = 1.16
 
-prob.hill_ampl = 0.5
+prob.custom_terrain_type = "WoA"
+prob.hmax = 100.0

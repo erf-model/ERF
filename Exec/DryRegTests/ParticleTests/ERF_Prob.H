@@ -17,10 +17,13 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real z_r = 2000.0;
   amrex::Real T_pert = -15.0; // perturbation temperature
 
-  amrex::Real hill_ampl = 0.0; // height of the hill
+  // Default to the x-direction
+  int dir = 0;
 
   // overridden physical constants
   amrex::Real C_p = 1004.0;
+
+  std::string custom_terrain_type;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
@@ -50,11 +53,6 @@ public:
         amrex::Array4<amrex::Real const> const& mf_v,
         const SolverChoice& sc,
         const int lev) override;
-
-    void init_custom_terrain (
-        const amrex::Geometry& geom,
-        amrex::FArrayBox& terrain_fab,
-        const amrex::Real& time) override;
 
 protected:
 

@@ -284,7 +284,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/EB/ERF_EBCutCell.cpp
        ${SRC_DIR}/EB/ERF_EBRedistribute.cpp
        ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
-       ${SRC_DIR}/Initialization/ERF_InitCustom.cpp
+       ${SRC_DIR}/Initialization/ERF_InitCustomPertState.cpp
+       ${SRC_DIR}/Initialization/ERF_InitCustomTerrain.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromHSE.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromInputSounding.cpp
        ${SRC_DIR}/Initialization/ERF_InitGeowind.cpp

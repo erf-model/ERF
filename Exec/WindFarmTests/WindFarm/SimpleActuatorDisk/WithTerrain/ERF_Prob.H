@@ -65,11 +65,6 @@ public:
         amrex::Array4<amrex::Real const> const& mf_v,
         const SolverChoice& sc) override;
 
-     void init_custom_terrain (
-        const amrex::Geometry& geom,
-        amrex::FArrayBox& terrain_fab,
-        const amrex::Real& time) override;
-
 protected:
 
 private:

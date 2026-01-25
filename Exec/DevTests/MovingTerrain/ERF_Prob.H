@@ -9,6 +9,7 @@
 
 struct ProbParm : ProbParmDefaults {
   amrex::Real Ampl = 0.16;
+  amrex::Real wavelength = 100.0;
   amrex::Real T_0  = 300.;
 }; // namespace ProbParm
 
@@ -39,11 +40,6 @@ public:
         amrex::Array4<amrex::Real const> const& mf_v,
         const SolverChoice& sc,
         const int lev) override;
-
-    void init_custom_terrain (
-        const amrex::Geometry& geom,
-        amrex::FArrayBox& terrain_fab,
-        const amrex::Real& time) override;
 
     void erf_init_rayleigh (
         amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
