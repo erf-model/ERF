@@ -48,7 +48,7 @@ init_my_custom_terrain ( const Geometry& geom,
     int k0 = domlo_z;
 
     std::string custom_terrain_type = "None";
-    ParmParse pp_prob("prob"); int do_custom_terrain = pp_prob.query("custom_terrain_type", custom_terrain_type);
+    ParmParse pp_prob("prob"); pp_prob.query("custom_terrain_type", custom_terrain_type);
     amrex::Print() << "IN CUSTOM TERRAIN WITH TYPE = " << custom_terrain_type << std::endl;
 
     amrex::Box zbx = terrain_fab.box();
