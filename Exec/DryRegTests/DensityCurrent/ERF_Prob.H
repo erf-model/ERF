@@ -47,7 +47,6 @@ public:
         const int lev) override;
 
 protected:
-    std::string name() override { return "Density Current"; }
 
 private:
     ProbParm parms;

@@ -21,6 +21,8 @@ struct ProbParm : ProbParmDefaults {
 
   // Default to the x-direction
   int dir = 0;
+
+  std::string custom_terrain_type;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
@@ -52,13 +54,7 @@ public:
         const SolverChoice& sc,
         const int lev) override;
 
-    void init_custom_terrain (
-        const amrex::Geometry& geom,
-        amrex::FArrayBox& terrain_fab,
-        const amrex::Real& time) override;
-
 protected:
-    std::string name() override { return "Witch of Agnesi Hill"; }
 
 private:
     ProbParm parms;

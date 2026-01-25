@@ -24,6 +24,10 @@ Problem::Problem()
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
 
+  pp.query("custom_terrain_type", parms.custom_terrain_type);
+
+  pp.query("dir", parms.dir);
+
   init_base_parms(parms.rho_0, parms.T_0);
 }
 
@@ -119,55 +123,5 @@ Problem::init_custom_pert(
   });
 
   amrex::Gpu::streamSynchronize();
-
 }
 
-void
-Problem::init_custom_terrain(
-    const Geometry& geom,
-    FArrayBox& terrain_fab,
-    const Real& /*time*/)
-{
-    // Domain cell size and real bounds
-    auto dx = geom.CellSizeArray();
-    auto ProbLoArr = geom.ProbLoArray();
-    auto ProbHiArr = geom.ProbHiArray();
-
-    // Domain valid box (z_nd is nodal)
-    const amrex::Box& domain = geom.Domain();
-    int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-    // int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
-    int domlo_z = domain.smallEnd(2);
-
-    // User function parameters
-    Real a    = 0.5;
-    Real num  = 8 * a * a * a;
-    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
-    // Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
-
-    // Populate bottom plane
-    int k0 = domlo_z;
-
-    amrex::Array4<Real> const& z_arr = terrain_fab.array();
-
-    Box zbx = terrain_fab.box();
-
-    if (zbx.smallEnd(2) <= k0) {
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
-            // Clip indices for ghost-cells
-            int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-            // int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
-
-            // Location of nodes
-            Real x = (ii  * dx[0] - xcen);
-            // Real y = (jj  * dx[1] - ycen);
-
-            // WoA Hill in x-direction
-            Real height = num / (x*x + 4 * a * a);
-
-            // Populate terrain height
-            z_arr(i,j,k0) = height;
-        });
-    }
-}

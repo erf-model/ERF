@@ -45,7 +45,6 @@ public:
                            const int lev) override;
 
 protected:
-    std::string name() override { return "Tornado"; }
 
 private:
     ProbParm parms;

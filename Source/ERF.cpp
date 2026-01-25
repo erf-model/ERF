@@ -2166,6 +2166,10 @@ ERF::init_only (int lev, Real time)
 void
 ERF::ReadParameters ()
 {
+    std::string prob_name = "Unknown";
+    ParmParse pp_pn("erf"); pp_pn.queryAdd("prob_name", prob_name);
+    Print() << "Problem name (from inputs file) is " << prob_name << std::endl;
+
     {
         ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
         pp.query("max_step", max_step);

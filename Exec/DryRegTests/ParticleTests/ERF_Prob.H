@@ -16,8 +16,14 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real x_r = 4000.0;
   amrex::Real z_r = 2000.0;
   amrex::Real T_pert = -15.0; // perturbation temperature
+
+  // Default to the x-direction
+  int dir = 0;
+
   // overridden physical constants
   amrex::Real C_p = 1004.0;
+
+  std::string custom_terrain_type;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
@@ -49,7 +55,6 @@ public:
         const int lev) override;
 
 protected:
-    std::string name() override { return "Particles over Witch of Agnesi"; }
 
 private:
     ProbParm parms;

@@ -15,7 +15,6 @@ public:
     Problem(const amrex::Real* /*problo*/, const amrex::Real* /*probhi*/);
 
 protected:
-    std::string name() override { return "LandSurfaceModel"; }
 
 private:
     ProbParm parms;

@@ -1,6 +1,6 @@
 
 /**
- * \file ERF_InitCustom.cpp
+ * \file ERF_InitCustomPertState.cpp
  */
 
 #include <ERF.H>
