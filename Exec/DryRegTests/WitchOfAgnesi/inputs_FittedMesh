@@ -78,7 +78,8 @@ erf.terrain_type = StaticFittedMesh
 #erf.terrain_gamma_m = 0.5
 erf.terrain_smoothing = 2 # Sullivan TF
 
-# PROBLEM PARAMETERS (optional)
+# PROBLEM PARAMETERS
+prob.custom_terrain_type = "WoA"
 prob.T_0   = 300.0
 prob.U_0   = 0.0
 prob.rho_0 = 1.16

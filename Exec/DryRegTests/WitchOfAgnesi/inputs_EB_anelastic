@@ -88,7 +88,8 @@ erf.rayleigh_damp_W = true
 erf.rayleigh_zdamp = 50.0
 erf.rayleigh_dampcoef = 0.25
 
-# PROBLEM PARAMETERS (optional)
+# PROBLEM PARAMETERS
+prob.custom_terrain_type = "WoA"
 prob.dir   = 0
 prob.T_0   = 300.0
 prob.U_0   = 0.0
