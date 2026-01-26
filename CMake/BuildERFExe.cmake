@@ -219,6 +219,18 @@ function(build_erf_lib erf_lib_name)
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MORR_FORT)
   endif()
 
+  if(ERF_ENABLE_WINDFARM)
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/Initialization/ERF_InitWindFarm.cpp
+      ${SRC_DIR}/WindFarmParametrization/ERF_WindFarm.cpp
+      ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
+      ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
+      ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
+      ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
+    )
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WINDFARM)
+  endif()
+
   target_sources(${erf_lib_name}
      PRIVATE
        ${SRC_DIR}/ERF_Derive.cpp
@@ -257,9 +269,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_S.cpp
        ${SRC_DIR}/Diffusion/ERF_ImplicitDiff_T.cpp
+       ${SRC_DIR}/Diffusion/ERF_ComputeStress_EB.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_S.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStress_T.cpp
+       ${SRC_DIR}/Diffusion/ERF_ComputeStrain_EB.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_N.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_S.cpp
        ${SRC_DIR}/Diffusion/ERF_ComputeStrain_T.cpp
@@ -270,7 +284,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/EB/ERF_EBCutCell.cpp
        ${SRC_DIR}/EB/ERF_EBRedistribute.cpp
        ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
-       ${SRC_DIR}/Initialization/ERF_InitCustom.cpp
+       ${SRC_DIR}/Initialization/ERF_InitCustomPertState.cpp
+       ${SRC_DIR}/Initialization/ERF_InitCustomTerrain.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromHSE.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromInputSounding.cpp
        ${SRC_DIR}/Initialization/ERF_InitGeowind.cpp
@@ -283,6 +298,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
+       ${SRC_DIR}/IO/ERF_TrackerOutput.cpp
        ${SRC_DIR}/IO/ERF_Write1DProfiles.cpp
        ${SRC_DIR}/IO/ERF_Write1DProfiles_stag.cpp
        ${SRC_DIR}/IO/ERF_WriteScalarProfiles.cpp
@@ -293,8 +309,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonWallDist.cpp
-       ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp 
-       ${SRC_DIR}/LinearSolvers/ERF_ImposeBCsOnPhi.cpp 
+       ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_FillZeroAreaFaceFluxes.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_ImposeBCsOnPhi.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithEBMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithGMRES.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
@@ -331,6 +348,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_MoistSetRhs.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
        ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
+       ${SRC_DIR}/SourceTerms/ERF_ApplySurfaceTreatment_BulkCoeff.cpp 
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStep.cpp
@@ -358,6 +376,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
        ${SRC_DIR}/Utils/ERF_VolWgtSum.cpp
        ${SRC_DIR}/Utils/ERF_WeatherDataInterpolation.cpp
+       ${SRC_DIR}/Utils/ERF_SurfaceDataInterpolation.cpp
        ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
        ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
        ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp

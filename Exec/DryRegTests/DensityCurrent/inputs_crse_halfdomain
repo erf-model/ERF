@@ -1,4 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Density Current"
 stop_time = 900.0
 
 #erf.anelastic   = 1

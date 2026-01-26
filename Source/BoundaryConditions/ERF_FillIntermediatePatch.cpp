@@ -97,11 +97,16 @@ ERF::FillIntermediatePatch (int lev, Real time,
             // We always come in to this call with updated momenta but we need to create updated velocity
             //    in order to impose the rest of the bc's
             // ***************************************************************************
+            const MultiFab* c_vfrac = nullptr;
+            if (solverChoice.terrain_type == TerrainType::EB) {
+                c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+            }
+
             // This only fills VALID region of velocity
             MomentumToVelocity(*mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel], *mfs_vel[Vars::zvel],
                                *mfs_vel[Vars::cons],
                                *mfs_mom[IntVars::xmom], *mfs_mom[IntVars::ymom], *mfs_mom[IntVars::zmom],
-                                Geom(lev).Domain(), domain_bcs_type);
+                                Geom(lev).Domain(), domain_bcs_type, c_vfrac);
         }
     }
     else
@@ -243,11 +248,16 @@ ERF::FillIntermediatePatch (int lev, Real time,
             // We always come in to this call with updated momenta but we need to create updated velocity
             //    in order to impose the rest of the bc's
             // ***************************************************************************
+            const MultiFab* c_vfrac = nullptr;
+            if (solverChoice.terrain_type == TerrainType::EB) {
+                c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+            }
+
             // This only fills VALID region of velocity
             MomentumToVelocity(*mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel], *mfs_vel[Vars::zvel],
                                *mfs_vel[Vars::cons],
                                *mfs_mom[IntVars::xmom], *mfs_mom[IntVars::ymom], *mfs_mom[IntVars::zmom],
-                                Geom(lev).Domain(), domain_bcs_type);
+                                Geom(lev).Domain(), domain_bcs_type, c_vfrac);
 
             mapper = &face_cons_linear_interp;
 
@@ -346,13 +356,18 @@ ERF::FillIntermediatePatch (int lev, Real time,
         IntVect ngv = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : mfs_vel[Vars::yvel]->nGrowVect();
         IntVect ngw = (!solverChoice.use_num_diff) ? IntVect(1,1,0) : mfs_vel[Vars::zvel]->nGrowVect();
 
+        const MultiFab* c_vfrac = nullptr;
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+        }
+
         VelocityToMomentum(*mfs_vel[Vars::xvel], ngu,
                            *mfs_vel[Vars::yvel], ngv,
                            *mfs_vel[Vars::zvel], ngw,
                            *mfs_vel[Vars::cons],
                            *mfs_mom[IntVars::xmom], *mfs_mom[IntVars::ymom], *mfs_mom[IntVars::zmom],
                            Geom(lev).Domain(),
-                           domain_bcs_type);
+                           domain_bcs_type, c_vfrac);
     }
 
     // NOTE: There are not FillBoundary calls here for the following reasons:

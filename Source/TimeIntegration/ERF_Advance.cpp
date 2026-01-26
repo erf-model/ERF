@@ -54,12 +54,17 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     //
     // So we must convert the fillpatched to momenta, including the ghost values
     //
+    const MultiFab* c_vfrac = nullptr;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+    }
+
     VelocityToMomentum(U_old, rU_old[lev].nGrowVect(),
                        V_old, rV_old[lev].nGrowVect(),
                        W_old, rW_old[lev].nGrowVect(),
                        S_old, rU_old[lev], rV_old[lev], rW_old[lev],
                        Geom(lev).Domain(),
-                       domain_bcs_type);
+                       domain_bcs_type, c_vfrac);
 
     // Update the inflow perturbation update time and amplitude
     if (solverChoice.pert_type == PerturbationType::Source ||
@@ -211,7 +216,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
         if (verbose > 1) {
             amrex::Print() << "Testing on low temperature before dycore" << std::endl;
         }
-        check_for_low_temp(S_new);
+        check_for_low_temp(S_old);
     } else {
         if (verbose > 1) {
             amrex::Print() << "Testing on negative temperature before dycore" << std::endl;

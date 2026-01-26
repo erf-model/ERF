@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Taylor-Green Vortex"
+
 max_step = 160
 
 amrex.fpe_trap_invalid = 1

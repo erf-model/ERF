@@ -3578,9 +3578,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
           //          amrex::Print()<<FArrayBox(qv_arr)<<std::endl;
           }
 
-          amrex::Print()<<"fortran should run "<<run_morr_fort<<std::endl;
+          // amrex::Print()<<"fortran should run "<<run_morr_fort<<std::endl;
 
-          if(run_morr_fort) {
+          if (run_morr_fort) {
 #ifdef ERF_USE_MORR_FORT
           mp_morr_two_moment_c
           (

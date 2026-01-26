@@ -73,6 +73,7 @@ void make_sources (int level, int nrk,
                    const amrex::Real* dptr_wbar_sub,
                    const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                    const amrex::Real* sinesq_at_lev_d,
+                   const amrex::MultiFab* surface_state_at_lev,
                    InputSoundingData& input_sounding_data,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step);
@@ -105,6 +106,7 @@ void make_mom_sources (amrex::Real time,
                        const amrex::Real* sinesq_stag_at_lev_d,
                        const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev,
                        const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
+                       const amrex::MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
                              bool is_slow_step);
 
@@ -188,5 +190,23 @@ void ApplyBndryForcing_Forecast (const SolverChoice& solverChoice,
                                  const amrex::Array4<const amrex::Real>& rho_v_initial_state,
                                  const amrex::Array4<const amrex::Real>& rho_w_initial_state,
                                  const amrex::Array4<const amrex::Real>& cons_initial_state);
+
+void
+ApplySurfaceTreatment_BulkCoeff_Mom (const amrex::Box& tbx,
+                                     const amrex::Box& tby,
+                                     const amrex::Array4<amrex::Real>& rho_u_rhs,
+                                     const amrex::Array4<amrex::Real>& rho_v_rhs,
+                                     const amrex::Array4<const amrex::Real>& rho_u,
+                                     const amrex::Array4<const amrex::Real>& rho_v,
+                                     const amrex::Array4<const amrex::Real>& cons_state,
+                                     const amrex::Array4<const amrex::Real>& z_phys_nd,
+                                     const amrex::Array4<const amrex::Real>& surface_state_arr);
+
+void
+ApplySurfaceTreatment_BulkCoeff_CC (const amrex::Box& bx,
+                                    const amrex::Array4<amrex::Real>& cell_rhs,
+                                    const amrex::Array4<const amrex::Real>& cons_state,
+                                    const amrex::Array4<const amrex::Real>& z_phys_cc,
+                                    const amrex::Array4<const amrex::Real>& surface_state_arr);
 
 #endif

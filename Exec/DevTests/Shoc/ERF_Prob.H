@@ -79,7 +79,6 @@ public:
         std::unique_ptr<amrex::MultiFab>& z_phys_nd) override;
 
 protected:
-    std::string name() override { return "SHOC"; }
 
 private:
     ProbParm parms;

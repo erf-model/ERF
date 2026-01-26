@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "Couette Flow"
+
 max_step = 50
 
 amrex.fpe_trap_invalid = 1

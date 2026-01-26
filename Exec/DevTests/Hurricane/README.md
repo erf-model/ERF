@@ -23,4 +23,5 @@ condition, lateral forcing and surface boundary fluxes for ERF. And then the ERF
 
 5. Run ERF.
   
+6. See the `PythonScripts` directory for details on post-processing.
    
