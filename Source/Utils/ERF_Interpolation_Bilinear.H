@@ -125,5 +125,53 @@ amrex::Real interpolate_from_coarse(const amrex::Array4<const amrex::Real>& crse
     return v;
 }
 
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+void bilinear_interpolation_2d(const amrex::Real* xvec, const amrex::Real* yvec,
+                            const amrex::Real dxvec, const amrex::Real dyvec,
+                            const int nx, const int ny,
+                            amrex::Real x, amrex::Real y,
+                            const amrex::Real* varvec,
+                            amrex::Real& tmp_var)
+{
+        if(x<xvec[0]) {
+            x = xvec[0];
+        }
+        if(x>xvec[nx-1]) {
+            x = xvec[nx-1];
+        }
+
+        if(y<yvec[0]) {
+            y = yvec[0];
+        }
+        if(y>yvec[ny-1]) {
+            y = yvec[ny-1];
+        }
+
+        int iloc=-1, jloc=-1;
+        iloc = static_cast<int>(std::floor((x-xvec[0])/dxvec));
+        jloc = static_cast<int>(std::floor((y-yvec[0])/dyvec));
+
+        if(iloc < 0 or jloc < 0) {
+            printf("Interpolation of surface data for MOST has gone wrong with iloc, jloc=%d %d\n", iloc, jloc);
+        }
+
+        amrex::Real xlo = xvec[0] + iloc*dxvec;
+        amrex::Real ylo = yvec[0] + jloc*dyvec;
+
+        amrex::Real w_x = (x - xlo)/dxvec;
+        amrex::Real w_y = (y - ylo)/dyvec;
+
+        int ind0 = get_single_index(iloc,jloc,0,nx,ny);
+        int ind1 = get_single_index(iloc+1,jloc,0,nx,ny);
+        int ind2 = get_single_index(iloc+1,jloc+1,0,nx,ny);
+        int ind3 = get_single_index(iloc,jloc+1,0,nx,ny);
+
+        tmp_var = (1-w_x)*(1-w_y)*varvec[ind0] + w_x*(1-w_y)*varvec[ind1] +
+                  w_x*w_y*varvec[ind2] + (1-w_x)*w_y*varvec[ind3];
+
+        //std::cout << "Variable value is " << tmp_var << "\n";
+}
+
 
 #endif
