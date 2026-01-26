@@ -192,6 +192,27 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
 
     applyBoundaryTreatment(a_lev, a_z_phys_nd, a_bctypes, a_recycle);
     Redistribute();
+
+    // After redistribution, update k-index for particles that moved to new tiles.
+    // This is needed because update_location_idata skips particles outside the
+    // local tile bounds (to avoid out-of-bounds array access). After Redistribute,
+    // those particles are now on the correct tile and can update their k-index.
+    forEachParticleTile(a_lev, ctx,
+        [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
+            const SDProcess::ParticlePointers& ptrs,
+            const SDProcess::ProcessContext& ctx)
+    {
+        auto zheight = (*z_height)[grid].array();
+
+        ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i)
+        {
+            ParticleType& p = p_pbox[i];
+            if (p.id() > 0) {
+                update_location_idata(p, ctx.plo, ctx.dxi, zheight);
+            }
+        });
+        Gpu::synchronize();
+    });
 }
 
 #endif

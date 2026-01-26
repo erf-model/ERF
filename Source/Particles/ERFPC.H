@@ -78,20 +78,41 @@ void update_location_idata (  P& a_p,
                               const amrex::Array4<amrex::Real const>&  a_height_arr )
 {
     if (a_height_arr) {
+        // Compute horizontal indices from particle position
+        int ix = int(amrex::Math::floor((a_p.pos(0)-a_plo[0])*a_dxi[0]));
+        int iy = int(amrex::Math::floor((a_p.pos(1)-a_plo[1])*a_dxi[1]));
+
+        // Check if horizontal indices are within the valid array bounds.
+        // We need ix, ix+1, iy, iy+1 to be valid for bilinear interpolation.
+        // If particle has moved outside the local tile region (after advection
+        // but before redistribution), skip the k-index update. The particle
+        // will be redistributed to the correct tile and can update then.
+        if (ix   < a_height_arr.begin.x || ix+1 >= a_height_arr.end.x ||
+            iy   < a_height_arr.begin.y || iy+1 >= a_height_arr.end.y) {
+            return;
+        }
+
+        amrex::Real lx = (a_p.pos(0)-a_plo[0])*a_dxi[0] - static_cast<amrex::Real>(ix);
+        amrex::Real ly = (a_p.pos(1)-a_plo[1])*a_dxi[1] - static_cast<amrex::Real>(iy);
+
         while (1) {
-            amrex::IntVect iv( int(amrex::Math::floor((a_p.pos(0)-a_plo[0])*a_dxi[0])),
-                               int(amrex::Math::floor((a_p.pos(1)-a_plo[1])*a_dxi[1])),
-                               a_p.idata(ERFParticlesIntIdxAoS::k) );
-            amrex::Real lx = (a_p.pos(0)-a_plo[0])*a_dxi[0] - static_cast<amrex::Real>(iv[0]);
-            amrex::Real ly = (a_p.pos(1)-a_plo[1])*a_dxi[1] - static_cast<amrex::Real>(iv[1]);
-            auto zlo = a_height_arr(iv[0]  ,iv[1]  ,iv[2]  ) * (1.0-lx) * (1.0-ly) +
-                       a_height_arr(iv[0]+1,iv[1]  ,iv[2]  ) *      lx  * (1.0-ly) +
-                       a_height_arr(iv[0]  ,iv[1]+1,iv[2]  ) * (1.0-lx) * ly +
-                       a_height_arr(iv[0]+1,iv[1]+1,iv[2]  ) *      lx  * ly;
-            auto zhi = a_height_arr(iv[0]  ,iv[1]  ,iv[2]+1) * (1.0-lx) * (1.0-ly) +
-                       a_height_arr(iv[0]+1,iv[1]  ,iv[2]+1) *      lx  * (1.0-ly) +
-                       a_height_arr(iv[0]  ,iv[1]+1,iv[2]+1) * (1.0-lx) * ly +
-                       a_height_arr(iv[0]+1,iv[1]+1,iv[2]+1) *      lx  * ly;
+            int iz = a_p.idata(ERFParticlesIntIdxAoS::k);
+
+            // Check if vertical indices are within valid array bounds.
+            // We need iz and iz+1 to be valid for interpolation.
+            // (Typically z is not decomposed, so this check will pass.)
+            if (iz < a_height_arr.begin.z || iz+1 >= a_height_arr.end.z) {
+                break;
+            }
+
+            auto zlo = a_height_arr(ix  ,iy  ,iz  ) * (1.0-lx) * (1.0-ly) +
+                       a_height_arr(ix+1,iy  ,iz  ) *      lx  * (1.0-ly) +
+                       a_height_arr(ix  ,iy+1,iz  ) * (1.0-lx) * ly +
+                       a_height_arr(ix+1,iy+1,iz  ) *      lx  * ly;
+            auto zhi = a_height_arr(ix  ,iy  ,iz+1) * (1.0-lx) * (1.0-ly) +
+                       a_height_arr(ix+1,iy  ,iz+1) *      lx  * (1.0-ly) +
+                       a_height_arr(ix  ,iy+1,iz+1) * (1.0-lx) * ly +
+                       a_height_arr(ix+1,iy+1,iz+1) *      lx  * ly;
 
             if (a_p.pos(2) > zhi) {
                 a_p.idata(ERFParticlesIntIdxAoS::k) += 1;
