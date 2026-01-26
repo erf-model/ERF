@@ -11,6 +11,7 @@
 #include <string>
 
 #include "ERF_NullMoistLagrangian.H"
+#include "ERF_SuperDropletsMoist.H"
 #include "ERF_Microphysics.H"
 
 /* forward declaration */
@@ -38,8 +39,12 @@ public:
                             const MoistureType& a_model_type /*!< moisture model */ )
     {
         AMREX_ASSERT( Microphysics::modelType(a_model_type) == MoistureModelType::Lagrangian );
-        amrex::ignore_unused(a_model_type);
-        amrex::Abort("No Lagrangian moisture model implemented yet!") ;
+        if (a_model_type == MoistureType::SuperDroplets) {
+            SetModel<SuperDropletsMoist>();
+            amrex::Print() << "Super-Droplets moisture model!\n";
+        } else {
+            amrex::Abort("Unknown Lagrangian moisture model!") ;
+        }
     }
 
     /*! \brief Define the moisture model */
@@ -62,6 +67,15 @@ public:
         if (lev > 0) return;
         m_moist_model->Init(cons_in, grids, geom, dt_advance,
                             z_phys_nd, detJ_cc);
+    }
+
+    /*! \brief finish initializations steps that require flow variables */
+    void FinishInit (const int& lev, /*!< AMR level */
+                     amrex::MultiFab& cons_in, /*!< Conserved state variable */
+                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd /*!< terrain */) override
+    {
+        if (lev > 0) return;
+        m_moist_model->FinishInit( lev, cons_in, z_phys_nd );
     }
 
     /*! \brief Advance the moisture model for one time step */

@@ -529,8 +529,9 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             iwp_tab(icol,ilay) = 0.0;
 
             // NOTE: These would be populated from P3 (we use the constants in p3_main_impl.hpp)
-            eff_radius_qc_tab(icol,ilay) = (qc>0.0) ? 10.0e-6 : 0.0;
-            eff_radius_qi_tab(icol,ilay) = (qi>0.0) ? 25.0e-6 : 0.0;
+            // NOTE: These are in units of micron!
+            eff_radius_qc_tab(icol,ilay) = (qc>0.0) ? 10.0 : 0.0;
+            eff_radius_qi_tab(icol,ilay) = (qi>0.0) ? 25.0 : 0.0;
 
             // Buffers on z-faces (nlay+1)
             p_lev_tab(icol,ilay) = getPgivenRTh(rt_avg, qv_avg);

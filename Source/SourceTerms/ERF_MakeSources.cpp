@@ -46,11 +46,12 @@ void make_sources (int level,
                    const Geometry geom,
                    const SolverChoice& solverChoice,
                    Vector<std::unique_ptr<MultiFab>>& mapfac,
-                   const Real* dptr_rhotheta_src,
-                   const Real* dptr_rhoqt_src,
+                   const MultiFab* rhotheta_src,
+                   const MultiFab* rhoqt_src,
                    const Real* dptr_wbar_sub,
                    const Vector<Real*> d_rayleigh_ptrs_at_lev,
                    const Real* d_sinesq_at_lev,
+                   const MultiFab* surface_state_at_lev,
                    InputSoundingData& input_sounding_data,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step)
@@ -266,17 +267,34 @@ void make_sources (int level,
         // *************************************************************************************
         if (solverChoice.custom_rhotheta_forcing && is_slow_step) {
             const int n = RhoTheta_comp;
-            if (solverChoice.custom_forcing_prim_vars) {
-                const int nr = Rho_comp;
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_src(i, j, k, n) += cell_data(i,j,k,nr) * dptr_rhotheta_src[k];
-                });
+            auto const& rhotheta_src_arr = rhotheta_src->const_array(mfi);
+            if (solverChoice.spatial_rhotheta_forcing)
+            {
+                if (solverChoice.custom_forcing_prim_vars) {
+                    const int nr = Rho_comp;
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) += cell_data(i,j,k,nr) * rhotheta_src_arr(i, j, k);
+                    });
+                } else {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) += rhotheta_src_arr(i, j, k);
+                    });
+                }
             } else {
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_src(i, j, k, n) += dptr_rhotheta_src[k];
-                });
+                if (solverChoice.custom_forcing_prim_vars) {
+                    const int nr = Rho_comp;
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) += cell_data(i,j,k,nr) * rhotheta_src_arr(0, 0, k);
+                    });
+                } else {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) += rhotheta_src_arr(0, 0, k);
+                    });
+                }
             }
         }
 
@@ -285,24 +303,41 @@ void make_sources (int level,
         // *************************************************************************************
         if (solverChoice.custom_moisture_forcing && is_slow_step) {
             const int n = RhoQ1_comp;
-            if (solverChoice.custom_forcing_prim_vars) {
-                const int nr = Rho_comp;
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_src(i, j, k, n) += cell_data(i,j,k,nr) * dptr_rhoqt_src[k];
-                });
+            auto const& rhoqt_src_arr = rhoqt_src->const_array(mfi);
+            if (solverChoice.spatial_moisture_forcing)
+            {
+                if (solverChoice.custom_forcing_prim_vars) {
+                    const int nr = Rho_comp;
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) += cell_data(i,j,k,nr) * rhoqt_src_arr(i, j, k);
+                    });
+                } else {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) += rhoqt_src_arr(i, j, k);
+                    });
+                }
             } else {
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_src(i, j, k, n) += dptr_rhoqt_src[k];
-                });
+                if (solverChoice.custom_forcing_prim_vars) {
+                    const int nr = Rho_comp;
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) += cell_data(i,j,k,nr) * rhoqt_src_arr(0, 0, k);
+                    });
+                } else {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) += rhoqt_src_arr(0, 0, k);
+                    });
+                }
             }
         }
 
         // *************************************************************************************
         // 5. Add custom subsidence for (rho theta)
         // *************************************************************************************
-        if (solverChoice.custom_w_subsidence && is_slow_step) {
+        if (solverChoice.custom_w_subsidence && is_slow_step && solverChoice.do_theta_advection) {
             const int n = RhoTheta_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
@@ -393,6 +428,12 @@ void make_sources (int level,
         if(!(solverChoice.spongeChoice.sponge_type == "input_sponge") && is_slow_step){
             ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data, r0, z_cc_arr);
         }
+
+        if(solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_surface_bcs) {
+            const Array4<const Real>& surface_state_arr = (*surface_state_at_lev).array(mfi);
+            ApplySurfaceTreatment_BulkCoeff_CC(bx, cell_src, cell_data, z_cc_arr, surface_state_arr);
+        }
+
 
         // *************************************************************************************
         // 8. Add perturbation

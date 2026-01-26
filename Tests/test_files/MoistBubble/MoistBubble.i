@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "Moist Bubble"
+
 max_step  = 10
 stop_time = 3600.0
 

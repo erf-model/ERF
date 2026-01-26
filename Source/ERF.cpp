@@ -135,7 +135,7 @@ ERF::ERF ()
     // same seed for all MPI processes for the purpose of regression testing
     if (fix_random_seed) {
         Print() << "Fixing the random seed" << std::endl;
-        InitRandom(1024UL);
+        InitRandom(1024UL, ParallelDescriptor::NProcs(), 1024UL);
     }
 
     ERF_shared();
@@ -181,6 +181,9 @@ ERF::ERF_shared ()
     lsm.ReSize(nlevs_max);
     lsm_data.resize(nlevs_max);
     lsm_flux.resize(nlevs_max);
+
+    rhotheta_src.resize(nlevs_max);
+    rhoqt_src.resize(nlevs_max);
 
     // NOTE: size canopy model before readparams (if file exists, we construct)
     m_forest_drag.resize(nlevs_max);
@@ -552,9 +555,14 @@ ERF::ERF_shared ()
         auto gshop = EB2::makeShop(implicit_fun);
         EB2::Build(gshop, this->Geom(), ngrow_for_eb);
     }
+
     forecast_state_1.resize(nlevs_max);
     forecast_state_2.resize(nlevs_max);
     forecast_state_interp.resize(nlevs_max);
+
+    surface_state_1.resize(nlevs_max);
+    surface_state_2.resize(nlevs_max);
+    surface_state_interp.resize(nlevs_max);
 }
 
 ERF::~ERF () = default;
@@ -597,6 +605,13 @@ ERF::Evolve ()
           solverChoice.hindcast_lateral_forcing) {
             for(int lev=0;lev<finest_level+1;lev++){
                 WeatherDataInterpolation(lev,cur_time,z_phys_nd,false);
+            }
+        }
+
+        if(solverChoice.init_type == InitType::HindCast and
+          solverChoice.hindcast_surface_bcs) {
+            for(int lev=0;lev<finest_level+1;lev++){
+                SurfaceDataInterpolation(lev,cur_time,z_phys_nd,false);
             }
         }
 
@@ -900,15 +915,25 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
                                hurricane_eye_track_xy,
                                hurricane_maxvel_vs_time);
 
+        HurricaneMinPressureTracker(solverChoice.moisture_type,
+                                    geom[levc],
+                                    vars_new[levc][Vars::cons],
+                                    t_new[0],
+                                    hurricane_eye_track_xy,
+                                    hurricane_minpressure_vs_time);
+
         std::string filename_tracker = MakeVTKFilename_TrackerCircle(nstep);
         std::string filename_xy      = MakeVTKFilename_EyeTracker_xy(nstep);
         std::string filename_latlon  = MakeFilename_EyeTracker_latlon(nstep);
         std::string filename_maxvel  = MakeFilename_EyeTracker_maxvel(nstep);
+        std::string filename_minpressure  = MakeFilename_EyeTracker_minpressure(nstep);
+
         if (ParallelDescriptor::IOProcessor()) {
             WriteVTKPolyline(filename_tracker, hurricane_tracker_circle);
             WriteVTKPolyline(filename_xy, hurricane_eye_track_xy);
             WriteLinePlot(filename_latlon, hurricane_eye_track_latlon);
             WriteLinePlot(filename_maxvel, hurricane_maxvel_vs_time);
+            WriteLinePlot(filename_minpressure, hurricane_minpressure_vs_time);
         }
     }
 } // post_timestep
@@ -1141,14 +1166,22 @@ ERF::InitData_post ()
 
     if (solverChoice.custom_rhotheta_forcing)
     {
-        h_rhotheta_src.resize(max_level+1, Vector<Real>(0));
-        d_rhotheta_src.resize(max_level+1, Gpu::DeviceVector<Real>(0));
+        rhotheta_src.resize(max_level+1);
         for (int lev = 0; lev <= finest_level; lev++) {
-            const int domlen = geom[lev].Domain().length(2);
-            h_rhotheta_src[lev].resize(domlen, 0.0_rt);
-            d_rhotheta_src[lev].resize(domlen, 0.0_rt);
+            BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
+            for (auto& b : bl_src) {
+                if (!solverChoice.spatial_rhotheta_forcing)
+                {
+                    // source is only defined in Z
+                    b.setRange(0, 0, 1);
+                    b.setRange(1, 0, 1);
+                }
+            }
+            BoxArray ba_src(std::move(bl_src));
+            rhotheta_src[lev] = std::make_unique<MultiFab>(ba_src, vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
+            rhotheta_src[lev]->setVal(0.);
             prob->update_rhotheta_sources(t_new[0],
-                                          h_rhotheta_src[lev], d_rhotheta_src[lev],
+                                          rhotheta_src[lev].get(),
                                           geom[lev], z_phys_cc[lev]);
         }
     }
@@ -1185,14 +1218,22 @@ ERF::InitData_post ()
 
     if (solverChoice.custom_moisture_forcing)
     {
-        h_rhoqt_src.resize(max_level+1, Vector<Real>(0));
-        d_rhoqt_src.resize(max_level+1, Gpu::DeviceVector<Real>(0));
+        rhoqt_src.resize(max_level+1);
         for (int lev = 0; lev <= finest_level; lev++) {
-            const int domlen = geom[lev].Domain().length(2);
-            h_rhoqt_src[lev].resize(domlen, 0.0_rt);
-            d_rhoqt_src[lev].resize(domlen, 0.0_rt);
+            BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
+            for (auto& b : bl_src) {
+                if (!solverChoice.spatial_moisture_forcing)
+                {
+                    // source is only defined in Z
+                    b.setRange(0, 0, 1);
+                    b.setRange(1, 0, 1);
+                }
+            }
+            BoxArray ba_src(std::move(bl_src));
+            rhoqt_src[lev] = std::make_unique<MultiFab>(ba_src, vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
+            rhoqt_src[lev]->setVal(0.);
             prob->update_rhoqt_sources(t_new[0],
-                                       h_rhoqt_src[lev], d_rhoqt_src[lev],
+                                       rhoqt_src[lev].get(),
                                        geom[lev], z_phys_cc[lev]);
         }
     }
@@ -1206,7 +1247,7 @@ ERF::InitData_post ()
             h_w_subsid[lev].resize(domlen, 0.0_rt);
             d_w_subsid[lev].resize(domlen, 0.0_rt);
             prob->update_w_subsidence(t_new[0],
-                                      h_w_subsid[lev], d_w_subsid[lev],
+                                      h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
                                       geom[lev], z_phys_nd[lev]);
         }
     }
@@ -1561,9 +1602,12 @@ ERF::InitData_post ()
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
 
-    // Update micro vars before first plot file
+    // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
-        for (int lev = 0; lev <= finest_level; ++lev) micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+            micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
+        }
     }
 
     // Fill time averaged velocities before first plot file
@@ -2166,6 +2210,10 @@ ERF::init_only (int lev, Real time)
 void
 ERF::ReadParameters ()
 {
+    std::string prob_name = "Unknown";
+    ParmParse pp_pn("erf"); pp_pn.queryAdd("prob_name", prob_name);
+    Print() << "Problem name (from inputs file) is " << prob_name << std::endl;
+
     {
         ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
         pp.query("max_step", max_step);
@@ -3018,7 +3066,7 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
 
             if (temp < t_low) {
 #ifdef AMREX_USE_GPU
-                AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
+                //AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
 #else
                 printf("Temperature too low in cell: %d %d %d \n", i,j,k);
                 printf("Based on temp / rhotheta / rho %e %e %e \n", temp,rhotheta,rho);

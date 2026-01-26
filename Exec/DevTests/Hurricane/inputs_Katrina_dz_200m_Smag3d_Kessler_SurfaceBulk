@@ -1,0 +1,121 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 115200
+stop_time = 1000000.0
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 2048 1024 2048
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo  = -2361129.0 -1561976.0 0.0
+geometry.prob_hi  = 2361129.0 1782337.0 25000.0
+
+#amr.n_cell  =  600    600    125    # dx=dy=dz=250 m
+amr.n_cell   =  600    400    128    # dx=dy=dz=250 m
+
+# REFINEMENT / REGRIDDING
+amr.max_level  = 0      # maximum level number allowed
+erf.regrid_int = 1000
+amr.ref_ratio_vect = 2 2 1 2 2 1 2 2 1
+erf.coupling_type  = "TwoWay"
+#amr.max_grid_size = 8 8 8      # last number >= full nz
+#amr.blocking_factor = 64 64 128       # last number >= full nz
+#amr.n_error_buf = 4 4 4 4
+#amr.blocking_factor = 64
+#amr.grid_eff        = 0.7
+erf.refinement_indicators = "hurricane_tracker"
+erf.hurricane_tracker.field_name = "velmag"
+erf.hurricane_tracker.value_greater = 80.0
+
+# TERRRAIN GRID TYPE
+#erf.terrain_type = StaticFittedMesh
+#erf.terrain_smoothing = 0
+
+#erf.terrain_z_levels = 0.0 19.999999999999993 40.8027216843177 62.44038315807681 84.94649563498155 108.35591533763153 132.70489748091208 158.03115242206644 184.37390406441196 211.77395060515283 240.27372772137207 269.9173742920619 300.7508007579788 332.82176022519616 366.17992242247396 400.8769506269889 436.9665816775612 474.5047091992995 513.5494701685569 554.1613349522656 596.4032009610975 640.3404900614959 686.0412498974456 733.576259278901 783.0191378000934 834.4464598574882 887.9378732439761 943.5762225029708 1001.4476772334574 1061.6418655447026 1124.2520128673148 1189.3750863356363 1257.1119449650798 1327.5674958569944 1400.8508566729834 1477.075524630306 1556.3595522800917 1638.8257303406037 1724.6017778687146 1813.8205400641198 1906.6201940126366 2003.1444626872362 2103.542837538236 2207.9708100173943 2316.59011239447 2429.5689682392226 2547.0823529567747 2669.312264779844 2796.4480066375445 2928.6864793372947 3066.2324865139026 3209.2990518181095 3358.1077488358437 3512.889044249138 3673.8826547701838 3841.337918401322 4015.514180595953 4196.681195918435 4385.119545825041 4581.121073213002 4784.989334410649 4997.040069308669 5217.601690360598 5447.015791209858 5685.637675731117 5933.836908305275 6191.9978861803465 6460.520434804667 6739.820427054438 7030.330427314642 7332.500361410847 7646.798213429446 7973.7107505055355 8313.74427670094 8667.425417139946 9035.301933617184 9417.943572940798 9815.94294932481 10229.916462197241 10660.505250845466 11108.376187377293 11574.222909535609 12058.766894966164 12562.758578602261 13086.978514896882 13632.238586702271 14199.383262669202 14789.290905113332 15402.875130374194 16041.086223773666 16704.91261136533 17395.3823907541 18113.564923356942 18860.57249057071 19637.562016412074 20445.736859297467 21286.34867573807 22160.699358836202 23070.143054585376 24016.08825909675 25000.0
+
+
+# if using era5 or gfs data to initialize
+# and for boundary forcing
+erf.init_type = "hindcast"
+erf.hindcast_IC_filename = "ERF_IC_2005_08_27_00_00.bin"
+
+# periodic in x to match WRF setup
+# - as an alternative, could use symmetry at x=0 and outflow at x=25600
+geometry.is_periodic = 0 0 0
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+# Lateral forcing with reanalysis/forecast data
+erf.hindcast_boundary_data_dir = "ERA5Data_3D_Katrina"
+erf.hindcast_data_interval_in_hrs = 3.0
+erf.hindcast_lateral_forcing = true
+erf.hindcast_lateral_sponge_strength = 0.3
+erf.hindcast_lateral_sponge_length = 144000
+
+
+erf.hindcast_surface_data_dir = "ERA5Data_Surface_Katrina"
+erf.hindcast_surface_bcs = true
+
+# Sponge damping for top of domain
+erf.hindcast_zhi_sponge_damping = true
+erf.hindcast_zhi_sponge_strength = 0.3
+erf.hindcast_zhi_sponge_length = 5000.0
+
+erf.use_coriolis = true
+erf.coriolis_3d = true
+erf.rotational_time_period = 86165.734375
+
+#erf.rayleigh_damp_T = true
+#erf.rayleigh_zdamp = 5000.0
+#erf.rayleigh_dampcoef = 0.005
+
+# TIME STEP CONTROL
+erf.fixed_dt       = 3.0      # fixed time step [s]
+erf.fixed_fast_dt  = 1.5    # fixed time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+
+# CHECKPOINT FILES
+amr.check_file      = chk        # root name of checkpoint file
+amr.check_int       = 10000       # number of timesteps between checkpoints
+#amr.restart         = chk00010
+
+# PLOTFILES
+erf.plot_file_1         = plt        # root name of plotfile
+erf.plot_int_1          = 1000         # number of timesteps between plotfiles
+erf.plot_vars_1         = density x_velocity y_velocity z_velocity pressure theta temp vorticity_x vorticity_y vorticity_z qv qc qrain rain_accum 
+erf.profile_int    = 1000
+erf.file_name_digits = 6
+
+erf.io_hurricane_eye_tracker = true
+erf.hurricane_eye_latitude = 25.0; # deg N
+erf.hurricane_eye_longitude = -82.0; # deg W
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.buoyancy_type = 1
+
+erf.les_type = "Smagorinsky"
+erf.Cs       = 0.01
+
+#erf.les_type = "Smagorinsky2D"
+#erf.Cs = 0.01
+#erf.use_moist_Ri_correction = false
+#erf.mix_isotropic = false
+
+# Constant diffusion coefficient
+erf.molec_diff_type   = "ConstantAlpha"
+erf.dynamic_viscosity = 20.0 # [kg/(m-s)]
+erf.alpha_T           = 20.0 # [m^2/s]
+erf.alpha_C           = 20.0
+
+erf.moisture_model = "Kessler"
+erf.use_moist_background = true

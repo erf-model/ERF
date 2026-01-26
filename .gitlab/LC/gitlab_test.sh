@@ -86,6 +86,7 @@ echo "========================"
 
 # Default gold files directory
 ERF_TEST_GOLD_FILES_DIRECTORY="${src_dir}/Tests/ERFGoldFiles"
+ERF_TEST_ENABLE_EXTRA_SDM_TESTS="OFF"
 
 # Clone LC gold files repo -- note that we need to grant this repo job
 # token permissions to the gold file repo
@@ -98,6 +99,7 @@ git log -1
 if [[ -d ${CI_MACHINE} ]]
 then
     ERF_TEST_GOLD_FILES_DIRECTORY="$(pwd)/${CI_MACHINE}"
+    ERF_TEST_ENABLE_EXTRA_SDM_TESTS="ON"
     if [[ "${ERF_ENABLE_CUDA}" == "ON" || "${ERF_ENABLE_HIP}" == "ON" ]]
     then
         if [[ -d "${CI_MACHINE}/gpu" ]]; then
@@ -112,6 +114,7 @@ fi
 cd -
 
 echo "Gold files directory: ${ERF_TEST_GOLD_FILES_DIRECTORY}"
+echo "Extra SDM tests enabled: ${ERF_TEST_ENABLE_EXTRA_SDM_TESTS}"
 
 echo "============="
 echo "Configure ERF"
@@ -129,6 +132,7 @@ time cmake \
      -D MPIEXEC_PREFLAGS:STRING="${mpiexec_preflags}" \
      -D CMAKE_BUILD_TYPE:STRING="${build_type}" \
      -D ERF_DIM:STRING=3 \
+     -D ERF_ENABLE_PARTICLES:BOOL=ON \
      -D ERF_ENABLE_MPI:BOOL=ON \
      -D ERF_ENABLE_CUDA:BOOL="${ERF_ENABLE_CUDA}" \
      -D AMReX_CUDA_ARCH:STRING="${CUDA_ARCH:-""}" \
@@ -140,6 +144,7 @@ time cmake \
      -D ERF_ENABLE_TESTS:BOOL=ON \
      -D ERF_TEST_NRANKS:STRING=${ERF_TEST_NRANKS:-"4"} \
      -D ERF_TEST_GOLD_FILES_DIRECTORY="${ERF_TEST_GOLD_FILES_DIRECTORY}" \
+     -D ERF_TEST_ENABLE_EXTRA_SDM_TESTS="${ERF_TEST_ENABLE_EXTRA_SDM_TESTS}" \
      -D ERF_TEST_FCOMPARE_RTOL="${ERF_TEST_FCOMPARE_RTOL:-"5.0e-9"}" \
      -D ERF_TEST_FCOMPARE_ATOL="${ERF_TEST_FCOMPARE_ATOL:-"2.0e-10"}" \
      -D CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \

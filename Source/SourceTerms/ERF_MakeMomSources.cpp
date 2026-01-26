@@ -62,6 +62,7 @@ void make_mom_sources (Real time,
                        const amrex::Real* d_sinesq_stag_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
                        const Vector<MultiFab>* forecast_state_at_lev,
+                       const MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
                              bool is_slow_step)
 {
@@ -466,7 +467,7 @@ void make_mom_sources (Real time,
         // *****************************************************************************
         // 4. Add custom SUBSIDENCE terms
         // *****************************************************************************
-        if (solverChoice.custom_w_subsidence && is_slow_step) {
+        if (solverChoice.custom_w_subsidence && is_slow_step && solverChoice.do_mom_advection) {
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
                 ParallelFor(tbx, tby,
@@ -628,6 +629,14 @@ void make_mom_sources (Real time,
                                            rho_u, rho_v, rho_w,
                                            rho_u_forecast_state, rho_v_forecast_state, rho_w_forecast_state,
                                            cons_forecast_state);
+            }
+            if(solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_surface_bcs) {
+                const Array4<const Real>& surface_state_arr = (*surface_state_at_lev).array(mfi);
+                ApplySurfaceTreatment_BulkCoeff_Mom(tbx, tby,
+                                                    xmom_src_arr, ymom_src_arr,
+                                                    rho_u, rho_v,
+                                                    cell_data, z_nd_arr,
+                                                    surface_state_arr);
             }
         }
 

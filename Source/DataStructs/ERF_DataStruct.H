@@ -69,7 +69,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, SuperDroplets, None
 );
 
 AMREX_ENUM(WindFarmType,
@@ -182,6 +182,12 @@ struct SolverChoice {
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp,  // cloud water
                 -1,          // cloud ice
+                RhoQ3_comp   // rain
+            );
+        } else if (moisture_type == MoistureType::SuperDroplets) {
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor
+                RhoQ2_comp,  // cloud water
                 RhoQ3_comp   // rain
             );
         }
@@ -510,8 +516,12 @@ struct SolverChoice {
         pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
         pp.query("add_custom_moisture_forcing", custom_moisture_forcing);
         pp.query("add_custom_w_subsidence", custom_w_subsidence);
+        pp.query("add_do_theta_advection", do_theta_advection);
+        pp.query("add_do_mom_advection", do_mom_advection);
         pp.query("add_custom_geostrophic_profile", custom_geostrophic_profile);
         pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
+        pp.query("spatial_rhotheta_forcing", spatial_rhotheta_forcing);
+        pp.query("spatial_moisture_forcing", spatial_moisture_forcing);
 
         pp.query("nudging_from_input_sounding", nudging_from_input_sounding);
 
@@ -702,6 +712,11 @@ struct SolverChoice {
             if (hindcast_zhi_sponge_damping and hindcast_zhi_sponge_strength < 0.0) {
                 amrex::Abort("ERROR: Missing input parameter 'erf.hindcast_zhi_sponge_strength' or it is specified to be less than zero");
             }
+        }
+
+        pp.query("hindcast_surface_bcs", hindcast_surface_bcs);
+        if(hindcast_surface_bcs) {
+            pp.query("hindcast_surface_data_dir", hindcast_surface_data_dir);
         }
 
         pp.query("io_hurricane_eye_tracker", io_hurricane_eye_tracker);
@@ -1110,8 +1125,12 @@ struct SolverChoice {
     bool custom_rhotheta_forcing  = false;
     bool custom_moisture_forcing  = false;
     bool custom_w_subsidence      = false;
+    bool do_theta_advection       = true;
+    bool do_mom_advection       = true;
     bool custom_geostrophic_profile = false;
     bool custom_forcing_prim_vars = false;
+    bool spatial_rhotheta_forcing = false;
+    bool spatial_moisture_forcing = false;
 
     // Do we use source terms to nudge the solution towards
     //    the time-varying data provided in input sounding files?
@@ -1179,9 +1198,10 @@ struct SolverChoice {
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
 
-    std::string hindcast_boundary_data_dir;
+    std::string hindcast_boundary_data_dir, hindcast_surface_data_dir;
     amrex::Real hindcast_data_interval_in_hrs = -1.0;
     bool hindcast_lateral_forcing = false;
+    bool hindcast_surface_bcs = false;
     amrex::Real hindcast_lateral_sponge_strength = -1.0, hindcast_lateral_sponge_length = -1.0;
     amrex::Real hindcast_zhi_sponge_strength = -1.0, hindcast_zhi_sponge_length = -1.0;
     bool hindcast_zhi_sponge_damping = false;

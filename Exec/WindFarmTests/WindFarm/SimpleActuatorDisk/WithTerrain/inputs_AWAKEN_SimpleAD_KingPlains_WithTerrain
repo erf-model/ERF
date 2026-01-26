@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Wind Farm Test"
+
 max_step = 1
 
 amrex.fpe_trap_invalid = 1
@@ -22,10 +24,9 @@ erf.windfarm_loc_type = "lat_lon"
 erf.windfarm_loc_table = "windturbines_KingPlains.txt"
 #erf.windfarm_loc_table = "dummy.txt"
 erf.windfarm_spec_table = "windturbines_spec_KingPlains.tbl"
-erf.use_terrain = 1
-erf.terrain_file_name_USGS = "ERF_terrain_file.txt"
-erf.terrain_type = StaticFittedMesh
 
+erf.terrain_type           = StaticFittedMesh
+erf.terrain_file_name_USGS = "ERF_terrain_file.txt"
 
 #erf.grid_stretching_ratio = 1.025
 #erf.initial_dz = 16.0
@@ -88,7 +89,6 @@ erf.init_type = "uniform"
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
-
 prob.U_0 = 7.07
 prob.V_0 = 7.07
 prob.W_0 = 0.0
