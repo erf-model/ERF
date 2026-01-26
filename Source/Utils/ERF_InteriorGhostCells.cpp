@@ -425,8 +425,6 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             auto ix_type = S_old_data[ivar_idx].boxArray().ixType();
             auto iv_type = ix_type.toIntVect();
             domain.convert(ix_type);
-            const auto& dom_hi = ubound(domain);
-            const auto& dom_lo = lbound(domain);
 
             int set_width_x = (iv_type[0]) ? set_width : set_width-1;
             int set_width_y = (iv_type[1]) ? set_width : set_width-1;
