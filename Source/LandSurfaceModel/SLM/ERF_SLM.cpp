@@ -276,7 +276,7 @@ SLM::Init (const int& /*lev*/,
 			auto zrefxy_arr = zrefxy.array(mfi);
 
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
-                Real znd = (z_nd_arr) ? z_nd_arr(i,j,0) : zlo + 0.5*dz;
+                amrex::Real znd = (z_nd_arr) ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr) : zlo + 0.5*dz;
 			    zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + znd;
 		    });	
 	    }		

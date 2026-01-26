@@ -17,6 +17,7 @@
 #include <ERF_Constants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
+#include <ERF_TerrainMetrics.H>
 
 #include <ERF_NCInterface.H>
 
@@ -363,7 +364,7 @@ public:
 
                     ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
                         if (landmask_arr(i,j,0) == 1) {
-                            amrex::Real znd = (z_nd_arr) ? z_nd_arr(i,j,0) : zlo + 0.5*dz;
+                            amrex::Real znd = (z_nd_arr) ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr) : zlo + 0.5*dz;
                             zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + znd;
                             //amrex::Print() << " i = " << i << " j = " << j << ": zrefxy = " << zrefxy_arr(i,j,0) << std::endl;
                         }
