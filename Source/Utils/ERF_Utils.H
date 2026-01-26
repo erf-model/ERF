@@ -226,9 +226,11 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
             if (!do_upwind) {
                 rhs_arr(i,j,k,n+icomp) = tend;
             } else {
-                if ( (u_xlo(dom_cc_lo.x,j,k) >= 0.0) ||
-                     ((j == dom_cc_lo.y      ) && (v_xlo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
-                     ((j == dom_cc_hi.y+iv[1]) && (v_xlo(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
+                int jju = std::min(std::max(j,dom_cc_lo.y),dom_cc_hi.y);
+                int iiv = std::min(std::max(i,dom_cc_lo.x),dom_cc_hi.x);
+                if ( (u_xlo(dom_cc_lo.x,jju,k) >= 0.0) ||
+                     ((j == dom_cc_lo.y      ) && (v_xlo(iiv,dom_cc_lo.y  ,k) >= 0.0)) ||
+                     ((j == dom_cc_hi.y+iv[1]) && (v_xlo(iiv,dom_cc_hi.y+1,k) <= 0.0)) ) {
                     rhs_arr(i,j,k,n+icomp) = tend;
                 }
             }
@@ -247,9 +249,11 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
             if (!do_upwind) {
                 rhs_arr(i,j,k,n+icomp) = tend;
             } else {
-                if ( (u_xhi(dom_cc_hi.x+1,j,k) <= 0.0) ||
-                     ((j == dom_cc_lo.y      ) && (v_xhi(i,dom_cc_lo.y  ,k) >= 0.0)) ||
-                     ((j == dom_cc_hi.y+iv[1]) && (v_xhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
+                int jju = std::min(std::max(j,dom_cc_lo.y),dom_cc_hi.y);
+                int iiv = std::min(std::max(i,dom_cc_lo.x),dom_cc_hi.x);
+                if ( (u_xhi(dom_cc_hi.x+1,jju,k) <= 0.0) ||
+                     ((j == dom_cc_lo.y      ) && (v_xhi(iiv,dom_cc_lo.y  ,k) >= 0.0)) ||
+                     ((j == dom_cc_hi.y+iv[1]) && (v_xhi(iiv,dom_cc_hi.y+1,k) <= 0.0)) ) {
                     rhs_arr(i,j,k,n+icomp) = tend;
                 }
             }
@@ -265,7 +269,8 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
             if (!do_upwind) {
                 rhs_arr(i,j,k,n+icomp) = tend;
             } else {
-                if (v_ylo(i,dom_cc_lo.y,k) >= 0.0) {
+                int iiv = std::min(std::max(i,dom_cc_lo.x+width),dom_cc_hi.x-width);
+                if (v_ylo(iiv,dom_cc_lo.y,k) >= 0.0) {
                     rhs_arr(i,j,k,n+icomp) = tend;
                 }
             }
@@ -280,7 +285,8 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
             if (!do_upwind) {
                 rhs_arr(i,j,k,n+icomp) = tend;
             } else {
-                if (v_yhi(i,dom_cc_hi.y+1,k) >= 0.0) {
+                int iiv = std::min(std::max(i,dom_cc_lo.x+width),dom_cc_hi.x-width);
+                if (v_yhi(iiv,dom_cc_hi.y+1,k) >= 0.0) {
                     rhs_arr(i,j,k,n+icomp) = tend;
                 }
             }
@@ -364,9 +370,11 @@ realbdy_compute_relaxation (const int& icomp,
         if (!do_upwind) {
             rhs_arr(i,j,k,n+icomp) += Temp;
         } else {
-            if ( (u_xlo(dom_cc_lo.x,j,k) >= 0.0) ||
-                 ((j == dom_cc_lo.y      ) && (v_xlo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
-                 ((j == dom_cc_hi.y+iv[1]) && (v_xlo(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
+            int jju = std::min(std::max(j,dom_cc_lo.y),dom_cc_hi.y);
+            int iiv = std::min(std::max(i,dom_cc_lo.x),dom_cc_hi.x);
+            if ( (u_xlo(dom_cc_lo.x,jju,k) >= 0.0) ||
+                 ((j == dom_cc_lo.y      ) && (v_xlo(iiv,dom_cc_lo.y  ,k) >= 0.0)) ||
+                 ((j == dom_cc_hi.y+iv[1]) && (v_xlo(iiv,dom_cc_hi.y+1,k) <= 0.0)) ) {
                 rhs_arr(i,j,k,n+icomp) += Temp;
             }
         }
@@ -390,9 +398,11 @@ realbdy_compute_relaxation (const int& icomp,
         if (!do_upwind) {
             rhs_arr(i,j,k,n+icomp) += Temp;
         } else {
-            if ( (u_xhi(dom_cc_hi.x+1,j,k) <= 0.0) ||
-                 ((j == dom_cc_lo.y      ) && (v_xhi(i,dom_cc_lo.y  ,k) >= 0.0)) ||
-                 ((j == dom_cc_hi.y+iv[1]) && (v_xhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
+            int jju = std::min(std::max(j,dom_cc_lo.y),dom_cc_hi.y);
+            int iiv = std::min(std::max(i,dom_cc_lo.x),dom_cc_hi.x);
+            if ( (u_xhi(dom_cc_hi.x+1,jju,k) <= 0.0) ||
+                 ((j == dom_cc_lo.y      ) && (v_xhi(iiv,dom_cc_lo.y  ,k) >= 0.0)) ||
+                 ((j == dom_cc_hi.y+iv[1]) && (v_xhi(iiv,dom_cc_hi.y+1,k) <= 0.0)) ) {
                 rhs_arr(i,j,k,n+icomp) += Temp;
             }
         }
@@ -411,7 +421,8 @@ realbdy_compute_relaxation (const int& icomp,
         if (!do_upwind) {
             rhs_arr(i,j,k,n+icomp) += Temp;
         } else {
-            if (v_ylo(i,dom_cc_lo.y,k) >= 0.0) {
+            int iiv = std::min(std::max(i,dom_cc_lo.x+width),dom_cc_hi.x-width);
+            if (v_ylo(iiv,dom_cc_lo.y,k) >= 0.0) {
                 rhs_arr(i,j,k,n+icomp) += Temp;
             }
         }
@@ -429,7 +440,8 @@ realbdy_compute_relaxation (const int& icomp,
         if (!do_upwind) {
             rhs_arr(i,j,k,n+icomp) += Temp;
         } else {
-            if (v_yhi(i,dom_cc_hi.y+1,k) >= 0.0) {
+            int iiv = std::min(std::max(i,dom_cc_lo.x+width),dom_cc_hi.x-width);
+            if (v_yhi(iiv,dom_cc_hi.y+1,k) >= 0.0) {
                 rhs_arr(i,j,k,n+icomp) += Temp;
             }
         }

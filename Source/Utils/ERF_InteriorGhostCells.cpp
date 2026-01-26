@@ -245,7 +245,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
         auto ixtype  = S_cur_data[ivar_idx].boxArray().ixType();
         domain.convert(ixtype);
 
-        // NOTE: 1 ghost cell need for idx type mismatch with mask arrays
+        // NOTE: Ghost cells needed for idx type mismatch between mask and data (do_upwind)
         IntVect ng_vect(1,1,0);
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
@@ -290,7 +290,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            // NOTE: 1 ghost cell need for idx type mismatch with mask arrays
+            // NOTE: Ghost cells needed for idx type mismatch between mask and data (do_upwind)
             IntVect ng_vect(1,1,0);
             Box gtbx = grow(mfi.tilebox(ixtype.toIntVect()),ng_vect);
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
@@ -386,7 +386,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-                arr_ylo(i,j,k) = rho_interp * ( oma   * bdatylo_n  (ii,jj,k,0)
+                arr_ylo(i,j,k) = rho_interp * ( oma  * bdatylo_n  (ii,jj,k,0)
                                              + alpha * bdatylo_np1(ii,jj,k,0) );
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -462,7 +462,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 }
 
                 Array4<Real> u_xlo = U_xlo.array(); Array4<Real> u_xhi = U_xhi.array();
-                Array4<Real> v_xlo = U_xlo.array(); Array4<Real> v_xhi = U_xhi.array();
+                Array4<Real> v_xlo = V_xlo.array(); Array4<Real> v_xhi = V_xhi.array();
                 Array4<Real> v_ylo = V_ylo.array(); Array4<Real> v_yhi = V_yhi.array();
 
                 realbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
@@ -528,7 +528,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 }
 
                 Array4<Real> u_xlo = U_xlo.array(); Array4<Real> u_xhi = U_xhi.array();
-                Array4<Real> v_xlo = U_xlo.array(); Array4<Real> v_xhi = U_xhi.array();
+                Array4<Real> v_xlo = V_xlo.array(); Array4<Real> v_xhi = V_xhi.array();
                 Array4<Real> v_ylo = V_ylo.array(); Array4<Real> v_yhi = V_yhi.array();
 
                 realbdy_compute_relaxation(icomp, 1,
