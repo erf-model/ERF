@@ -1,1 +1,5 @@
-This is the Barbados Oceanographic and Meteorological Experiment (BOMEX) simulation as described in Siebesma et. al (2003) https://doi.org/10.1175/1520-0469(2003)60<1201:ALESIS>2.0.CO;2
+This case simulates a column with prescribed Eulerian-transported water vapour that condenses and forms cloud/rain.
+
+Reference:
++ Shipway, B.J. and Hill, A.A. (2012), Diagnosis of systematic differences between multiple parametrizations of warm rain microphysics using a kinematic framework. Q.J.R. Meteorol. Soc., 138: 2196-2211. https://doi.org/10.1002/qj.1913
++ PySDM (https://github.com/open-atmos/PySDM): examples/PySDM_examples/Shipway_and_Hill_2012
