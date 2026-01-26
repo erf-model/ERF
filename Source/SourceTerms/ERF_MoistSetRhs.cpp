@@ -120,8 +120,9 @@ moist_set_rhs (const Geometry& geom,
     Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();
     Array4<Real> arr_ylo = QV_ylo.array();  Array4<Real> arr_yhi = QV_yhi.array();
 
-    Array4<Real> mask_xlo = M_xlo.array();  Array4<Real> mask_xhi = M_xhi.array();
-    Array4<Real> mask_ylo = M_ylo.array();  Array4<Real> mask_yhi = M_yhi.array();
+    Array4<Real> u_xlo = U_xlo.array();  Array4<Real> u_xhi = U_xhi.array();
+    Array4<Real> v_xlo = V_xlo.array();  Array4<Real> v_xhi = V_xhi.array();
+    Array4<Real> v_ylo = V_ylo.array();  Array4<Real> v_yhi = V_yhi.array();
 
     Box gtbx = grow(tbx,ng_vect);
     Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
