@@ -3083,6 +3083,10 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
     // This value is defined in erf_dtesati in Source/Utils/ERF_MicrophysicsUtils.H
     Real t_low = 273.16 - 85.;
     //
+
+    Gpu::DeviceVector<int> d_quit(1, 0);
+    int *quit = d_quit.data();
+
     for (MFIter mfi(S); mfi.isValid(); ++mfi)
     {
         Box bx = mfi.tilebox();
@@ -3101,11 +3105,32 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
 #else
                 printf("Temperature too low in cell: %d %d %d \n", i,j,k);
                 printf("Based on temp / rhotheta / rho %e %e %e \n", temp,rhotheta,rho);
-                Abort();
+                //Abort();
+                amrex::Gpu::Atomic::LogicalOr(&(quit[0]), 1);
+                return;
 #endif
             }
         });
     }
+
+    Vector<int> h_quit(1,0);
+    Gpu::copy(Gpu::deviceToHost, d_quit.begin(), d_quit.end(), h_quit.begin());
+
+    bool quit_all = static_cast<bool>(h_quit[0]);
+    ParallelAllReduce::Or(quit_all, ParallelContext::CommunicatorAll());
+
+    if (quit_all) {
+        amrex::Print() << " Writing plotfiles before crash! .. step = " << istep[0] << std::endl;
+        if ( (m_plot3d_int_1 > 0 || m_plot3d_per_1 > 0.) ) {
+            Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        }
+        if ( (m_plot2d_int_2 > 0 || m_plot2d_per_2 > 0.) ) {
+            Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+        }
+
+        Abort();
+    }
+
 }
 
 void
@@ -3114,6 +3139,8 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
     // *****************************************************************************
     // Test for negative (rho theta)
     // *****************************************************************************
+    Gpu::DeviceVector<int> d_quit(1, 0); // Initialize to -1
+    int *quit = d_quit.data();
     for (MFIter mfi(S); mfi.isValid(); ++mfi)
     {
         Box bx = mfi.tilebox();
@@ -3126,9 +3153,29 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
                 AMREX_DEVICE_PRINTF("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
 #else
                 printf("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
-                Abort("Bad theta in check_for_negative_theta");
+                //Abort("Bad theta in check_for_negative_theta");
+                amrex::Gpu::Atomic::LogicalOr(&(quit[0]), 1);
+                return;
 #endif
             }
             });
     } // mfi
+
+    Vector<int> h_quit(1,0);
+    Gpu::copy(Gpu::deviceToHost, d_quit.begin(), d_quit.end(), h_quit.begin());
+
+    bool quit_all = static_cast<bool>(h_quit[0]);
+    ParallelAllReduce::Or(quit_all, ParallelContext::CommunicatorAll());
+
+    if (quit_all) {
+        amrex::Print() << " Writing plotfiles before crash! .. step = " << istep[0] << std::endl;
+        if ( (m_plot3d_int_1 > 0 || m_plot3d_per_1 > 0.) ) {
+            Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        }
+        if ( (m_plot2d_int_2 > 0 || m_plot2d_per_2 > 0.) ) {
+            Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
+        }
+
+        Abort("Bad theta in check_for_negative_theta");
+    }
 }
