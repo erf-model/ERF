@@ -219,6 +219,18 @@ function(build_erf_lib erf_lib_name)
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MORR_FORT)
   endif()
 
+  if(ERF_ENABLE_WINDFARM)
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/Initialization/ERF_InitWindFarm.cpp
+      ${SRC_DIR}/WindFarmParametrization/ERF_WindFarm.cpp
+      ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
+      ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
+      ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
+      ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
+    )
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WINDFARM)
+  endif()
+
   target_sources(${erf_lib_name}
      PRIVATE
        ${SRC_DIR}/ERF_Derive.cpp
@@ -272,7 +284,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/EB/ERF_EBCutCell.cpp
        ${SRC_DIR}/EB/ERF_EBRedistribute.cpp
        ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
-       ${SRC_DIR}/Initialization/ERF_InitCustom.cpp
+       ${SRC_DIR}/Initialization/ERF_InitCustomPertState.cpp
+       ${SRC_DIR}/Initialization/ERF_InitCustomTerrain.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromHSE.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromInputSounding.cpp
        ${SRC_DIR}/Initialization/ERF_InitGeowind.cpp

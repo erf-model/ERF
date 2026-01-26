@@ -21,7 +21,6 @@ public:
 #include "Prob/ERF_InitConstantDensityHSE.H"
 
 protected:
-    std::string name() override { return "WPS Test"; }
 
 private:
     ProbParm parms;

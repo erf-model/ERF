@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "Supercell"
+
 max_step = 28800
 stop_time = 14400.0
 

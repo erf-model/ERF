@@ -93,50 +93,6 @@ Problem::init_custom_pert (const Box& bx,
 }
 
 void
-Problem::init_custom_terrain (const Geometry& geom,
-                              FArrayBox& terrain_fab,
-                              const Real& /*time*/)
-{
-    // Domain cell size and real bounds
-    auto dx = geom.CellSizeArray();
-    auto ProbLoArr = geom.ProbLoArray();
-    auto ProbHiArr = geom.ProbHiArray();
-
-    const amrex::Box& domain = geom.Domain();
-    int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-    int domlo_z = domain.smallEnd(2);
-
-    // User function parameters
-    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
-
-    Real asq    = 5000.0 * 5000.0;
-    Real Hm     =  250.0;
-    Real lambda = 4000.0;
-
-    // Populate bottom plane
-    int k0 = domlo_z;
-
-    amrex::Box zbx = terrain_fab.box();
-    if (zbx.smallEnd(2) <= k0)
-    {
-        amrex::Array4<Real> const& z_arr = terrain_fab.array();
-
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
-            // Clip indices for ghost-cells
-            int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-
-            // Location of nodes
-            Real x = (ProbLoArr[0] + ii * dx[0] - xcen);
-
-            Real cosx = cos(PI * x / lambda);
-
-            z_arr(i,j,k0) = Hm * std::exp(-x*x/asq) * cosx * cosx;
-        });
-    }
-}
-
-void
 Problem::erf_init_dens_hse (amrex::MultiFab& rho_hse,
                             std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
                             std::unique_ptr<amrex::MultiFab>& z_phys_cc,

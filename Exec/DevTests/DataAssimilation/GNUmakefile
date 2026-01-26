@@ -11,25 +11,23 @@ MEM_PROFILE   = FALSE
 USE_GPROF     = FALSE
 
 # Performance
-USE_MPI   = TRUE
-USE_OMP   = FALSE
+USE_MPI = TRUE
+USE_OMP = FALSE
 
-USE_CUDA  = FALSE
-USE_HIP   = FALSE
-USE_SYCL  = FALSE
+USE_CUDA = TRUE
+USE_HIP  = FALSE
+USE_SYCL = FALSE
 
 # Debugging
 DEBUG = FALSE
 
-TEST = TRUE
+TEST = FALSE
 USE_ASSERTION = TRUE
-
-USE_PARTICLES = TRUE
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
 
 ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DryRegTests/ParticlesOverWoA
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DevTests/DataAssimilation
 include $(ERF_HOME)/Exec/Make.ERF

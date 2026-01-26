@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Scalar Advection/Diffusion"
+
 max_step = 200
 max_step = 10
 

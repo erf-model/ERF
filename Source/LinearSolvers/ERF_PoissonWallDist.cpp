@@ -1,8 +1,10 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
+#include "ERF_TerrainPoisson_3D_K.H"
+#include "ERF_TerrainMetrics.H"
 
 #include "AMReX_MLMG.H"
-#include "AMReX_MLNodeLaplacian.H"
+#include "AMReX_MLABecLaplacian.H"
 
 using namespace amrex;
 
@@ -31,11 +33,15 @@ void ERF::poisson_wall_dist (int lev)
     }
 
     auto const& geomdata = geom[lev];
+    auto const& dxinv    = geomdata.InvCellSizeArray();
+
+    auto const& zphys_arr = z_phys_nd[lev]->const_arrays();
 
     if (havewall) {
+#if 1
+        // Bypass wall dist calc in the trivial cases
+
         if (solverChoice.mesh_type == MeshType::ConstantDz) {
-// Comment this out to test the wall dist calc in the trivial case:
-//#if 0
             Print() << "Directly calculating direct wall distance for constant dz" << std::endl;
             const Real* prob_lo = geomdata.ProbLo();
             const Real* dx = geomdata.CellSize();
@@ -47,23 +53,33 @@ void ERF::poisson_wall_dist (int lev)
                 });
             }
             return;
-//#endif
-        } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
-            // TODO: Handle this trivial case
-            Error("Wall dist calc not implemented with grid stretching yet");
-        } else {
-            // TODO
-            Error("Wall dist calc not implemented over terrain yet");
         }
+
+        if (solverChoice.mesh_type == MeshType::StretchedDz) {
+            Print() << "Directly calculating direct wall distance for stretched dz" << std::endl;
+            for (MFIter mfi(*walldist[lev],TileNoZ()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
+                auto dist_arr = walldist[lev]->array(mfi);
+                const auto zcc_arr = z_phys_cc[lev]->const_array(mfi);
+                const auto znd_arr = z_phys_nd[lev]->const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    dist_arr(i, j, k) = zcc_arr(i, j, k) - znd_arr(i, j, 0);
+                });
+            }
+            return;
+        }
+#endif
+    }
+    else
+    {
+        Error("No solid boundaries in the computational domain");
     }
 
-    Print() << "Calculating Poisson wall distance" << std::endl;
+    Print() << "Calculating Poisson wall distance for general terrain" << std::endl;
 
     // Make sure the solver only sees the levels over which we are solving
-    BoxArray nba = walldist[lev]->boxArray();
-    nba.surroundingNodes();
     Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
-    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(nba);
+    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(walldist[lev]->boxArray());
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(walldist[lev]->DistributionMap());
 
     Vector<MultiFab> rhs;
@@ -78,10 +94,6 @@ void ERF::poisson_wall_dist (int lev)
 
     rhs[0].setVal(-1.0);
 
-    // Define an overset mask to set dirichlet nodes on walls
-    iMultiFab mask(ba_tmp[0], dm_tmp[0], 1, 0);
-    Vector<const iMultiFab*> overset_mask = {&mask};
-
     auto const dom_lo = lbound(geom[lev].Domain());
     auto const dom_hi = ubound(geom[lev].Domain());
 
@@ -95,12 +107,17 @@ void ERF::poisson_wall_dist (int lev)
     // ****************************************************************************
     // Interior boundaries are marked with phi=0
     // ****************************************************************************
-    // Overset mask is 0/1: 1 means the node is an unknown. 0 means it's known.
+#if 0
+    // Define an overset mask (0 or 1) to set dirichlet nodes on walls
+    // 1 means the node is an unknown. 0 means it's known.
+    iMultiFab mask(ba_tmp[0], dm_tmp[0], 1, 0);
+    Vector<const iMultiFab*> overset_mask = {&mask};
+
     mask.setVal(1);
     if (solverChoice.advChoice.have_zero_flux_faces) {
         Warning("Poisson distance is inaccurate for bodies in open domains that are small compared to the domain size, skipping");
         return;
-#if 0
+
         Gpu::DeviceVector<IntVect> xfacelist, yfacelist, zfacelist;
 
         xfacelist.resize(solverChoice.advChoice.zero_xflux.size());
@@ -183,8 +200,8 @@ void ERF::poisson_wall_dist (int lev)
                 });
             }
         }
-#endif
     }
+#endif
 
     // ****************************************************************************
     // Setup BCs, with solid domain boundaries being dirichlet
@@ -210,7 +227,8 @@ void ERF::poisson_wall_dist (int lev)
         Error("No solid boundaries in the computational domain");
     }
 
-    LPInfo info;
+    LPInfo info; // defaults
+
 /* Nodal solver cannot have hidden dimensions */
 #if 0
     // Allow a hidden direction if the domain is one cell wide
@@ -226,93 +244,266 @@ void ERF::poisson_wall_dist (int lev)
     }
 #endif
 
+#if 0
+    Vector<EBFArrayBoxFactory const*> factory_vec;
+    factory_vec.push_back(static_cast<FabFactory<FArrayBox> const*>(&EBFactory(lev));
+#endif
+
     // ****************************************************************************
-    // Solve nodal masked Poisson problem with MLMG
-    // TODO: different solver for terrain?
+    // Setup Poisson problem
+    // (A \alpha - B \nabla \cdot \beta \nabla ) \phi = f
+    //
+    // In physical space:
+    //   \nabla \cdot \nabla \phi = -1
+    //
+    // In computational space:
+    //   grad(phi) = T^T \nabla \phi
+    // and
+    //   \nabla \cdot (h_zeta T (T^T \nabla \phi)) = -h_zeta
+    // where T = inv(J), T^T is the transpose of inv(J)
+    // ****************************************************************************
+    constexpr Real constA = 0.0;
+    constexpr Real constB = -1.0;
+
+    MLABecLaplacian mlabec(geom_tmp, ba_tmp, dm_tmp, info);
+
+    mlabec.setScalars(constA, constB);
+    mlabec.setACoeffs(lev, 0.0);
+#if 1
+    // Set beta coefficients at faces
+    Array<MultiFab, AMREX_SPACEDIM> beta;
+
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        BoxArray ba_face = ba_tmp[0];
+        ba_face.surroundingNodes(idim);  // Convert to face-centered in direction idim
+        beta[idim].define(ba_face, dm_tmp[0], 1, 0);
+    }
+
+    auto beta0_arr = beta[0].arrays();
+    auto beta1_arr = beta[1].arrays();
+    auto beta2_arr = beta[2].arrays();
+
+    // Note: This ignores the off-diagonal components of (h_zeta T T^T), which
+    //       is equivalent to assuming that h_xi and h_eta are small.
+
+    ParallelFor(beta[0], [=] AMREX_GPU_DEVICE(int b, int i, int j, int k) {
+        beta0_arr[b](i, j, k) = Compute_h_zeta_AtIface(i, j, k, dxinv, zphys_arr[b]);;
+    });
+    ParallelFor(beta[1], [=] AMREX_GPU_DEVICE(int b, int i, int j, int k) {
+        beta1_arr[b](i, j, k) = Compute_h_zeta_AtJface(i, j, k, dxinv, zphys_arr[b]);;
+    });
+    ParallelFor(beta[2], [=] AMREX_GPU_DEVICE(int b, int i, int j, int k) {
+        Real inv_h_zeta = 1.0 / Compute_h_zeta_AtKface(i, j, k, dxinv, zphys_arr[b]);
+        Real h_xi = Compute_h_xi_AtKface(i, j, k, dxinv, zphys_arr[b]);
+        Real h_eta = Compute_h_eta_AtKface(i, j, k, dxinv, zphys_arr[b]);
+        beta2_arr[b](i, j, k) = inv_h_zeta * (1 + h_xi*h_xi + h_eta*h_eta);
+    });
+
+    mlabec.setBCoeffs(lev, GetArrOfConstPtrs(beta));
+
+    // Set RHS := -h_zeta
+    auto rhs_arr = rhs[0].arrays();
+    ParallelFor(rhs[0], [=] AMREX_GPU_DEVICE(int b, int i, int j, int k) {
+        rhs_arr[b](i, j, k) = -Compute_h_zeta_AtCellCenter(i, j, k, dxinv, zphys_arr[b]);
+    });
+#else
+    mlabec.setBCoeffs(lev, 1.0);
+#endif
+
+    mlabec.setDomainBC(bc3d_lo, bc3d_hi);
+
+    if (lev > 0) {
+        mlabec.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
+    }
+
+    // If we have inhomogeneous BCs -- do this after setCoarseFineBC
+    mlabec.setLevelBC(0, nullptr);
+
+    // ****************************************************************************
+    // Solve Poisson problem with MLMG
     // ****************************************************************************
     const Real reltol = solverChoice.poisson_reltol;
     const Real abstol = solverChoice.poisson_abstol;
+    const int n_corr = solverChoice.ncorr;
+    constexpr int max_iter = 100;
 
-    Real sigma = 1.0;
-    Vector<EBFArrayBoxFactory const*> factory_vec = { &EBFactory(lev) };
-    MLNodeLaplacian mlpoisson(geom_tmp, ba_tmp, dm_tmp, info, factory_vec, sigma);
-
-    mlpoisson.setDomainBC(bc3d_lo, bc3d_hi);
-
-    if (lev > 0) {
-        mlpoisson.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
-    }
-
-    mlpoisson.setLevelBC(0, nullptr);
-
-    mlpoisson.setOversetMask(0, mask);
-
-    // Solve
-    MLMG mlmg(mlpoisson);
-    int max_iter = 100;
+    MLMG mlmg(mlabec);
     mlmg.setMaxIter(max_iter);
-
     mlmg.setVerbose(mg_verbose);
     mlmg.setBottomVerbose(0);
 
-    mlmg.solve(GetVecOfPtrs(phi),
-               GetVecOfConstPtrs(rhs),
-               reltol, abstol);
+    for (int icorr=0; icorr <= n_corr; ++icorr) {
+        Print()<< "Solving wall distance poisson, icorr=" << icorr << std::endl;
 
-    // Now overwrite with periodic fill outside domain and fine-fine fill inside
-    phi[0].FillBoundary(geom[lev].periodicity());
+        mlmg.solve(GetVecOfPtrs(phi),
+                   GetVecOfConstPtrs(rhs),
+                   reltol, abstol);
 
-    // ****************************************************************************
-    // Compute grad(phi) to get distances
-    // - Note that phi is nodal and walldist is cell-centered
-    // - TODO: include terrain metrics for dphi/dz
-    // ****************************************************************************
-    for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.validbox();
+        // ****************************************************************************
+        // Apply BCs: dirichlet (odd) on zlo, neumann (even) / periodic elsewhere
+        // ****************************************************************************
 
-        const auto invCellSize = geomdata.InvCellSizeArray();
+        // Overwrite with periodic fill outside domain and fine-fine fill inside
+        phi[0].FillBoundary(geom[lev].periodicity());
 
-        auto const& phi_arr = phi[0].const_array(mfi);
-        auto dist_arr = walldist[lev]->array(mfi);
+        if (!geom[lev].isPeriodic(0)) {
+            for (MFIter mfi(phi[0],true); mfi.isValid(); ++mfi)
+            {
+                Box bx = mfi.tilebox();
+                const Array4<Real>& phi_arr = phi[0].array(mfi);
+                if (bx.smallEnd(0) <= dom_lo.x) {
+                    ParallelFor(makeSlab(bx,0,dom_lo.x),
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        phi_arr(i-1,j,k) =  phi_arr(i,j,k); // even BC
+                    });
+                } // lo x
+                if (bx.bigEnd(0) >= dom_hi.x) {
+                    ParallelFor(makeSlab(bx,0,dom_hi.x),
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        phi_arr(i+1,j,k) =  phi_arr(i,j,k); // even BC
+                    });
+                } // hi x
+            } // mfi
+        } // not periodic in x
 
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+        if (!geom[lev].isPeriodic(1)) {
+            for (MFIter mfi(phi[0],true); mfi.isValid(); ++mfi)
+            {
+                Box bx = mfi.tilebox();
+                Box bx2(bx); bx2.grow(0,1);
+                const Array4<Real>& phi_arr = phi[0].array(mfi);
+                if (bx.smallEnd(1) <= dom_lo.y) {
+                    ParallelFor(makeSlab(bx2,1,dom_lo.y),
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        phi_arr(i,j-1,k) =  phi_arr(i,j,k); // even BC
+                    });
+                } // lo y
+                if (bx.bigEnd(1) >= dom_hi.y) {
+                    ParallelFor(makeSlab(bx2,1,dom_hi.y),
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        phi_arr(i,j+1,k) =  phi_arr(i,j,k); // even BC
+                    });
+                } // hi y
+
+            } // mfi
+        } // not periodic in y
+
+        for (MFIter mfi(phi[0],true); mfi.isValid(); ++mfi)
+        {
+            Box bx = mfi.tilebox();
+            Box bx3(bx); bx3.grow(0,1); bx3.grow(1,1);
+            const Array4<Real>& phi_arr = phi[0].array(mfi);
+            if (bx.smallEnd(2) <= dom_lo.z) {
+                ParallelFor(makeSlab(bx3,2,dom_lo.z),
+                [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    phi_arr(i,j,k-1) = -phi_arr(i,j,k); // ODD BC
+                });
+            } // lo z
+            if (bx.bigEnd(2) >= dom_hi.z) {
+                ParallelFor(makeSlab(bx3,2,dom_hi.z),
+                [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    phi_arr(i,j,k+1) =  phi_arr(i,j,k); // even BC
+                });
+            } // hi z
+        } // mfi
+
+        // ****************************************************************************
+        // Compute grad(phi) to get distances
+        // ****************************************************************************
+        auto const& phi_arr = phi[0].const_arrays();
+        //auto rhs_arr = rhs[0].arrays();
+        auto dist_arr = walldist[lev]->arrays();
+
+        ParallelFor(*walldist[lev], [=] AMREX_GPU_DEVICE(int b, int i, int j, int k) {
             Real dpdx{0}, dpdy{0}, dpdz{0};
 
-            // dphi/dx
-            if (dom_lo.x != dom_hi.x) {
-                dpdx = 0.25 * invCellSize[0] * (
-                        (phi_arr(i+1, j  , k  ) - phi_arr(i, j  , k  ))
-                      + (phi_arr(i+1, j  , k+1) - phi_arr(i, j  , k+1))
-                      + (phi_arr(i+1, j+1, k  ) - phi_arr(i, j+1, k  ))
-                      + (phi_arr(i+1, j+1, k+1) - phi_arr(i, j+1, k+1)) );
+            dpdx = terrpoisson_flux_x(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0]);
+            dpdy = terrpoisson_flux_y(i, j, k, phi_arr[b], zphys_arr[b], dxinv[1]);
+            if (k == dom_lo.z) {
+                // Simplified gradient calc
+                // - assuming dirichlet (phi_klo==0)
+                Real phi_khi = 0.5 * (phi_arr[b](i,j,k) + phi_arr[b](i,j,k+1));
+                Real dz = 0.25 * ( zphys_arr[b](i  ,j  ,k+1) - zphys_arr[b](i  ,j  ,k)
+                                 + zphys_arr[b](i+1,j  ,k+1) - zphys_arr[b](i+1,j  ,k)
+                                 + zphys_arr[b](i  ,j+1,k+1) - zphys_arr[b](i  ,j+1,k)
+                                 + zphys_arr[b](i+1,j+1,k+1) - zphys_arr[b](i+1,j+1,k) );
+                Real pz = phi_khi / dz;
+                // - central diff in horizontal
+                Real px = 0.5 * (phi_arr[b](i+1,j,k) - phi_arr[b](i-1,j,k)); // * dxinv[0];
+                Real py = 0.5 * (phi_arr[b](i,j+1,k) - phi_arr[b](i,j-1,k)); // * dxinv[1];
+                // - account for skew
+                Real h_xi = 0.25 * ( zphys_arr[b](i+1,j  ,k  ) - zphys_arr[b](i,j  ,k  )
+                                   + zphys_arr[b](i+1,j+1,k  ) - zphys_arr[b](i,j+1,k  )
+                                   + zphys_arr[b](i+1,j  ,k+1) - zphys_arr[b](i,j  ,k+1)
+                                   + zphys_arr[b](i+1,j+1,k+1) - zphys_arr[b](i,j+1,k+1) ); // * dxinv[0];
+                Real h_eta = 0.25 * ( zphys_arr[b](i  ,j+1,k  ) - zphys_arr[b](i  ,j,k  )
+                                    + zphys_arr[b](i+1,j+1,k  ) - zphys_arr[b](i+1,j,k  )
+                                    + zphys_arr[b](i  ,j+1,k+1) - zphys_arr[b](i  ,j,k+1)
+                                    + zphys_arr[b](i+1,j+1,k+1) - zphys_arr[b](i+1,j,k+1) ); // * dxinv[1];
+                dpdz = pz - h_xi * px - h_eta * py;
+            } else {
+                // This returns 0 at the wall, hence the need for the separate calc above
+                dpdz = terrpoisson_flux_z(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0], dxinv[1]);
             }
 
-            // dphi/dy
-            if (dom_lo.y != dom_hi.y) {
-                dpdy = 0.25 * invCellSize[1] * (
-                        (phi_arr(i  , j+1, k  ) - phi_arr(i  , j, k  ))
-                      + (phi_arr(i  , j+1, k+1) - phi_arr(i  , j, k+1))
-                      + (phi_arr(i+1, j+1, k  ) - phi_arr(i+1, j, k  ))
-                      + (phi_arr(i+1, j+1, k+1) - phi_arr(i+1, j, k+1)) );
-            }
-
-            // dphi/dz
-            if (dom_lo.z != dom_hi.z) {
-                dpdz = 0.25 * invCellSize[2] * (
-                        (phi_arr(i  , j  , k+1) - phi_arr(i  , j  , k))
-                      + (phi_arr(i  , j+1, k+1) - phi_arr(i  , j+1, k))
-                      + (phi_arr(i+1, j  , k+1) - phi_arr(i+1, j  , k))
-                      + (phi_arr(i+1, j+1, k+1) - phi_arr(i+1, j+1, k)) );
-            }
-
-            Real dp_dot_dp = dpdx*dpdx + dpdy*dpdy + dpdz*dpdz;
-            Real phi_avg = 0.125 * (
-                    phi_arr(i  , j  , k  ) + phi_arr(i  , j  , k+1) + phi_arr(i  , j+1, k  ) + phi_arr(i  , j+1, k+1)
-                  + phi_arr(i+1, j  , k  ) + phi_arr(i+1, j  , k+1) + phi_arr(i+1, j+1, k  ) + phi_arr(i+1, j+1, k+1) );
-            dist_arr(i, j, k) = -std::sqrt(dp_dot_dp) + std::sqrt(dp_dot_dp + 2*phi_avg);
-
+            Real magsqr_dphi = dpdx*dpdx + dpdy*dpdy + dpdz*dpdz;
+            Real mag_dphi = std::sqrt(magsqr_dphi);
+#if 1
+            // Tucker 2003 Eqn 2
+            dist_arr[b](i, j, k) = -mag_dphi + std::sqrt(magsqr_dphi + 2*phi_arr[b](i, j, k));
+#else
             // DEBUG: output phi instead
-            //dist_arr(i, j, k) = phi_arr(i, j, k);
+            if (i==0 && j==0) AllPrint() << "walldist"<<IntVect(i,j,k) << " = " << dist_arr[b](i,j,k) << std::endl;
+            dist_arr[b](i, j, k) = phi_arr[b](i, j, k);
+#endif
+            // Update RHS source term to explicitly include cross-terms
+            if (n_corr > 0) {
+                // d/dxi ( h_xi * dphi/dzeta )
+                Real phi_zeta_xlo = 0.25 * dxinv[2] * ( phi_arr[b](i  , j, k+1) - phi_arr[b](i  , j, k-1)
+                                                      + phi_arr[b](i-1, j, k+1) - phi_arr[b](i-1, j, k-1) );
+                Real phi_zeta_xhi = 0.25 * dxinv[2] * ( phi_arr[b](i  , j, k+1) - phi_arr[b](i  , j, k-1)
+                                                      + phi_arr[b](i+1, j, k+1) - phi_arr[b](i+1, j, k-1) );
+                Real h_xi_xlo = Compute_h_xi_AtIface(i  , j, k, dxinv, zphys_arr[b]);
+                Real h_xi_xhi = Compute_h_xi_AtIface(i+1, j, k, dxinv, zphys_arr[b]);
+
+                // d/deta ( h_eta * dphi/dzeta )
+                Real phi_zeta_ylo = 0.25 * dxinv[2] * ( phi_arr[b](i, j  , k+1) - phi_arr[b](i, j  , k-1)
+                                                      + phi_arr[b](i, j-1, k+1) - phi_arr[b](i, j-1, k-1) );
+                Real phi_zeta_yhi = 0.25 * dxinv[2] * ( phi_arr[b](i, j  , k+1) - phi_arr[b](i, j  , k-1)
+                                                      + phi_arr[b](i, j+1, k+1) - phi_arr[b](i, j+1, k-1) );
+                Real h_eta_ylo = Compute_h_eta_AtJface(i, j  , k, dxinv, zphys_arr[b]);
+                Real h_eta_yhi = Compute_h_eta_AtJface(i, j+1, k, dxinv, zphys_arr[b]);
+
+                // d/dzeta ( h_xi * dphi/dxi )
+                Real phi_xi_zlo = 0.25 * dxinv[0] * ( phi_arr[b](i+1, j, k  ) - phi_arr[b](i-1, j, k  )
+                                                    + phi_arr[b](i+1, j, k-1) - phi_arr[b](i-1, j, k-1) );
+                Real phi_xi_zhi = 0.25 * dxinv[0] * ( phi_arr[b](i+1, j, k  ) - phi_arr[b](i-1, j, k  )
+                                                    + phi_arr[b](i+1, j, k+1) - phi_arr[b](i-1, j, k+1) );
+                Real h_xi_zlo = Compute_h_xi_AtKface(i, j, k  , dxinv, zphys_arr[b]);
+                Real h_xi_zhi = Compute_h_xi_AtKface(i, j, k+1, dxinv, zphys_arr[b]);
+
+                // d/dzeta ( h_eta * dphi/deta )
+                Real phi_eta_zlo = 0.25 * dxinv[1] * ( phi_arr[b](i, j+1, k  ) - phi_arr[b](i, j-1, k  )
+                                                     + phi_arr[b](i, j+1, k-1) - phi_arr[b](i, j-1, k-1) );
+                Real phi_eta_zhi = 0.25 * dxinv[1] * ( phi_arr[b](i, j+1, k  ) - phi_arr[b](i, j-1, k  )
+                                                     + phi_arr[b](i, j+1, k+1) - phi_arr[b](i, j-1, k+1) );
+                Real h_eta_zlo = Compute_h_eta_AtKface(i, j, k  , dxinv, zphys_arr[b]);
+                Real h_eta_zhi = Compute_h_eta_AtKface(i, j, k+1, dxinv, zphys_arr[b]);
+
+                Real detJ = Compute_h_zeta_AtCellCenter(i, j, k, dxinv, zphys_arr[b]);
+
+                rhs_arr[b](i, j, k) = -detJ
+                                    + dxinv[0] * ( h_xi_xhi * phi_zeta_xhi - h_xi_xlo * phi_zeta_xlo)
+                                    + dxinv[1] * ( h_eta_yhi * phi_zeta_yhi - h_eta_ylo * phi_zeta_ylo)
+                                    + dxinv[2] * ( h_xi_zhi * phi_xi_zhi - h_xi_zlo * phi_xi_zlo
+                                                 + h_eta_zhi * phi_eta_zhi - h_eta_zlo * phi_eta_zlo);
+            }
         });
-    }
+    } // corrector loop
 }
