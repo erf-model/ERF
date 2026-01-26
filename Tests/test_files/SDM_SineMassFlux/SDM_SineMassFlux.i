@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "Sinusoidal_Mass_Flux"
+erf.prob_name = "SinusoidalMassFlux"
 stop_time = 3600   #  6 hours
 max_step = 50
 
