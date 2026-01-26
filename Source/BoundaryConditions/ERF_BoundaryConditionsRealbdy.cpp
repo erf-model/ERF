@@ -297,32 +297,30 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
     // Data structure for WfromOmega
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
 
-    // Include rho_theta as well as q_v
-    Vector<int> cons_read = {0, 1, 0, 0,
-                             1, 0, 0,
-                             0, 0, 0};
+    // Map loop index to variable index
+    // NOTE: Loop backwards and do v/u first for WfromOmega
+    Vector<int> var_idx_map = {Vars::cons, Vars::zvel, Vars::xvel, Vars::yvel};
 
-    Vector<int> cons_map = {Rho_comp, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
-                            RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
-                            RhoQ4_comp, RhoQ5_comp, RhoQ6_comp};
-
+    // Variables read from bdy (indexed with var_idx)
     Vector<Vector<int>> is_read;
-    is_read.push_back( cons_read );
-    is_read.push_back( {0} ); // zvel NOTE: Loop is backwards (need u/v filled first)
+    is_read.push_back( {0, 1, 0, 0,
+                        1, 0, 0,
+                        0, 0, 0} );
     is_read.push_back( {1} ); // xvel
     is_read.push_back( {1} ); // yvel
+    is_read.push_back( {0} ); // zvel
 
+    // Variable component (indexed with var_idx)
     Vector<Vector<int>> ind_map;
-    ind_map.push_back( cons_map );
-    ind_map.push_back( {0} );              // zvel NOTE: Loop is backwards (need u/v filled first)
+    ind_map.push_back( {Rho_comp, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
+                        RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
+                        RhoQ4_comp, RhoQ5_comp, RhoQ6_comp} );
     ind_map.push_back( {RealBdyVars::U} ); // xvel
     ind_map.push_back( {RealBdyVars::V} ); // yvel
+    ind_map.push_back( {0} );              // zvel
 
     // Nvars to loop over
     Vector<int> comp_var = {ncomp_cons, 1, 1, 1};
-
-    // Var index map
-    Vector<int> var_idx_map = {Vars::cons, Vars::zvel, Vars::xvel, Vars::yvel};
 
     // End of vars loop
     int var_idx_end = (cons_only) ? Vars::cons + 1 : Vars::NumTypes;
@@ -334,25 +332,26 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
         mfs[Vars::zvel]->setVal(0.0);
     }
 
-    MultiFab& mf_u = *mfs[Vars::xvel];
-    MultiFab& mf_v = *mfs[Vars::yvel];
-
     // Loop over all variable types -- note we intentionally do
     //      the velocities before the scalars since we may use
     //      the normal velocity on each face for upwinding
-    for (int var_idx = var_idx_end-1; var_idx >= Vars::cons; --var_idx)
+    for (int var_lp_idx = var_idx_end-1; var_lp_idx >= Vars::cons; --var_lp_idx)
     {
-        MultiFab& mf = *mfs[var_idx_map[var_idx]];
+        int var_idx  = var_idx_map[var_lp_idx];
+        MultiFab& mf = *mfs[var_idx];
 
         mf.FillBoundary(geom[lev].periodicity());
 
-        //
-        // Note that "domain" is mapped onto the type of box the data is in
-        //
+        // CC domain
         Box domain = geom[lev].Domain();
+        const auto& dom_cc_lo = lbound(domain);
+        const auto& dom_cc_hi = ubound(domain);
+
+        // Map domain onto index type of the data
         domain.convert(mf.boxArray().ixType());
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
+        IntVect iv = domain.type();
 
         // Offset only applies to cons (we may fill a subset of these vars)
         int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
@@ -385,6 +384,16 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                 const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][ivar].const_array();
                 const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][ivar].const_array();
 
+                // U/V for upwind masking
+                const auto& bdatxlo_n_m   = bdy_data_xlo[n_time   ][RealBdyVars::U].const_array();
+                const auto& bdatxlo_np1_m = bdy_data_xlo[n_time_p1][RealBdyVars::U].const_array();
+                const auto& bdatxhi_n_m   = bdy_data_xhi[n_time   ][RealBdyVars::U].const_array();
+                const auto& bdatxhi_np1_m = bdy_data_xhi[n_time_p1][RealBdyVars::U].const_array();
+                const auto& bdatylo_n_m   = bdy_data_ylo[n_time   ][RealBdyVars::V].const_array();
+                const auto& bdatylo_np1_m = bdy_data_ylo[n_time_p1][RealBdyVars::V].const_array();
+                const auto& bdatyhi_n_m   = bdy_data_yhi[n_time   ][RealBdyVars::V].const_array();
+                const auto& bdatyhi_np1_m = bdy_data_yhi[n_time_p1][RealBdyVars::V].const_array();
+
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -399,16 +408,6 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                                       bx_ylo, bx_yhi,
                                       ng_vect);
 
-                    // Mask arrays
-                    const Array4<const Real>& u_arr = mf_u.const_array(mfi);
-                    const Array4<const Real>& v_arr = mf_v.const_array(mfi);
-
-                    // Bounding
-                    auto lb_u = lbound(u_arr); lb_u.x += ngvect_vels[0]; lb_u.y += ngvect_vels[1];
-                    auto ub_u = ubound(u_arr); ub_u.x -= ngvect_vels[0]; ub_u.y -= ngvect_vels[1];
-                    auto lb_v = lbound(v_arr); lb_v.x += ngvect_vels[0]; lb_v.y += ngvect_vels[1];
-                    auto ub_v = ubound(v_arr); ub_v.x -= ngvect_vels[0]; ub_v.y -= ngvect_vels[1];
-
                     // NOTE: Xlo/hi boxes own corner cells (Ylo/hi)
                     ParallelFor(bx_xlo, bx_xhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -418,13 +417,19 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                         int jj = std::max(j , dom_lo.y);
                             jj = std::min(jj, dom_hi.y);
 
-                        // Limit for u_arr and v_arr
-                        int ju = std::min(std::max(j, lb_u.y), ub_u.y);
-                        int iv = std::min(std::max(i, lb_v.x), ub_v.x);
+                        // Compute bdy velocities
+                        int jju = std::min(std::max(j, dom_cc_lo.y), dom_cc_hi.y);
+                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
+                        Real u_bdy    = oma   * bdatxlo_n_m  (dom_cc_lo.x,jju,k,0)
+                                      + alpha * bdatxlo_np1_m(dom_cc_lo.x,jju,k,0);
+                        Real v_bdy_lo = oma   * bdatylo_n_m  (iiv,dom_cc_lo.y,k,0)
+                                      + alpha * bdatylo_np1_m(iiv,dom_cc_lo.y,k,0);
+                        Real v_bdy_hi = oma   * bdatyhi_n_m  (iiv,dom_cc_hi.y+1,k,0)
+                                      + alpha * bdatyhi_np1_m(iiv,dom_cc_hi.y+1,k,0);
 
-                        if ( (u_arr(dom_lo.x,ju,k) >= 0.0) ||
-                             ((jj == dom_lo.y) && (v_arr(iv,dom_lo.y  ,k) >= 0.0)) ||
-                             ((jj == dom_hi.y) && (v_arr(iv,dom_hi.y+1,k) <= 0.0)) ) {
+                        if ( (u_bdy >= 0.0) ||
+                             ((jj == dom_cc_lo.y      ) && (v_bdy_lo >= 0.0)) ||
+                             ((jj == dom_cc_hi.y+iv[1]) && (v_bdy_hi <= 0.0)) ) {
                             dest_arr(i,j,k,comp_idx) = oma   * bdatxlo_n  (ii,jj,k,0)
                                                      + alpha * bdatxlo_np1(ii,jj,k,0);
                             if (var_idx == Vars::cons) {
@@ -441,20 +446,24 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                         int jj = std::max(j , dom_lo.y);
                             jj = std::min(jj, dom_hi.y);
 
-                        // Limit for u_arr and v_arr
-                        int ju = std::min(std::max(j, lb_u.y), ub_u.y);
-                        int iv = std::min(std::max(i, lb_v.x), ub_v.x);
+                        // Compute bdy velocities
+                        int jju = std::min(std::max(j, dom_cc_lo.y), dom_cc_hi.y);
+                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
+                        Real u_bdy    = oma   * bdatxhi_n_m  (dom_cc_lo.x,jju,k,0)
+                                      + alpha * bdatxhi_np1_m(dom_cc_lo.x,jju,k,0);
+                        Real v_bdy_lo = oma   * bdatylo_n_m  (iiv,dom_cc_lo.y,k,0)
+                                      + alpha * bdatylo_np1_m(iiv,dom_cc_lo.y,k,0);
+                        Real v_bdy_hi = oma   * bdatyhi_n_m  (iiv,dom_cc_hi.y+1,k,0)
+                                      + alpha * bdatyhi_np1_m(iiv,dom_cc_hi.y+1,k,0);
 
-                        if ( (u_arr(dom_hi.x+1,ju,k) <= 0.0) ||
-                             ((jj == dom_lo.y) && (v_arr(iv,dom_lo.y  ,k) >= 0.0)) ||
-                             ((jj == dom_hi.y) && (v_arr(iv,dom_hi.y+1,k) <= 0.0)) ) {
+                        if ( (u_bdy <= 0.0) ||
+                             ((jj == dom_cc_lo.y      ) && (v_bdy_lo >= 0.0)) ||
+                             ((jj == dom_cc_hi.y+iv[1]) && (v_bdy_hi <= 0.0)) ) {
                             dest_arr(i,j,k,comp_idx) = oma   * bdatxhi_n  (ii,jj,k,0)
                                                      + alpha * bdatxhi_np1(ii,jj,k,0);
                             if (var_idx == Vars::cons) {
                                 dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                             }
-                        } else if (var_idx == Vars::xvel) {
-                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x+1,jj,k,comp_idx);
                         } else {
                             dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x,jj,k,comp_idx);
                         }
@@ -467,10 +476,12 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                         // Limit for BDY FAB data
                         int jj = std::max(j, dom_lo.y);
 
-                        // Limit for v_arr
-                        int iv = std::min(std::max(i, lb_v.x), ub_v.x);
+                        // Compute bdy velocities
+                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
+                        Real v_bdy = oma   * bdatylo_n_m  (iiv,dom_cc_lo.y,k,0)
+                                   + alpha * bdatylo_np1_m(iiv,dom_cc_lo.y,k,0);
 
-                        if (v_arr(iv,dom_lo.y,k) >= 0.0) {
+                        if (v_bdy >= 0.0) {
                             dest_arr(i,j,k,comp_idx) = oma   * bdatylo_n  (i,jj,k,0)
                                                      + alpha * bdatylo_np1(i,jj,k,0);
                             if (var_idx == Vars::cons) {
@@ -485,17 +496,17 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                         // Limit for BDY FAB data
                         int jj = std::min(j, dom_hi.y);
 
-                        // Limit for v_arr
-                        int iv = std::min(std::max(i, lb_v.x), ub_v.x);
+                        // Compute bdy velocities
+                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
+                        Real v_bdy = oma   * bdatyhi_n_m  (iiv,dom_cc_hi.y+1,k,0)
+                                   + alpha * bdatyhi_np1_m(iiv,dom_cc_hi.y+1,k,0);
 
-                        if (v_arr(iv,dom_hi.y+1,k) <= 0.0) {
+                        if (v_bdy <= 0.0) {
                             dest_arr(i,j,k,comp_idx) = oma   * bdatyhi_n  (i,jj,k,0)
                                                      + alpha * bdatyhi_np1(i,jj,k,0);
                             if (var_idx == Vars::cons) {
                                 dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                             }
-                        } else if (var_idx == Vars::yvel) {
-                            dest_arr(i,j,k,comp_idx) = dest_arr(i,dom_hi.y+1,k,comp_idx);
                         } else {
                             dest_arr(i,j,k,comp_idx) = dest_arr(i,dom_hi.y,k,comp_idx);
                         }
@@ -505,6 +516,8 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
             // Variable not read from wrf bdy
             //------------------------------------
             } else {
+                MultiFab& mf_u = *mfs[Vars::xvel];
+                MultiFab& mf_v = *mfs[Vars::yvel];
                 int width = (var_idx == Vars::zvel) ? real_width : 0;
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

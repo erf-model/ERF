@@ -67,7 +67,7 @@ moist_set_rhs (const Geometry& geom,
 
     // Size the FABs
     //==========================================================
-    // NOTE: No ghost cells needed since mask is idx type (0,0,0)
+    // NOTE: No ghost cells, we force mask to be idx type (0,0,0)
     IntVect ng_vect(0);
     Box gdom(domain); gdom.grow(ng_vect);
     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
@@ -83,8 +83,10 @@ moist_set_rhs (const Geometry& geom,
 
     // Masks for upwinding
     FArrayBox M_xlo, M_xhi, M_ylo, M_yhi;
-    M_xlo.resize(bx_xlo,1,The_Async_Arena()); M_xhi.resize(bx_xhi,1,The_Async_Arena());
-    M_ylo.resize(bx_ylo,1,The_Async_Arena()); M_yhi.resize(bx_yhi,1,The_Async_Arena());
+    M_xlo.resize(convert(bx_xlo,IntVect(1,0,0)),1,The_Async_Arena());
+    M_xhi.resize(convert(bx_xhi,IntVect(1,0,0)),1,The_Async_Arena());
+    M_ylo.resize(convert(bx_ylo,IntVect(0,1,0)),1,The_Async_Arena());
+    M_yhi.resize(convert(bx_yhi,IntVect(0,1,0)),1,The_Async_Arena());
 
     // Populate FABs from bdy interpolation (primitive vars)
     //==========================================================
@@ -145,7 +147,7 @@ moist_set_rhs (const Geometry& geom,
         arr_xhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
                                                     + alpha * bdatxhi_np1(ii,jj,k) );
         // NOTE: correct for idx type mismatch with u bdy data
-        mask_xhi(i,j,k) = ( oma * bdatxhi_n_m(ii+1,jj,k) + alpha * bdatxhi_np1_m(ii+1,jj,k) );
+        mask_xhi(i+1,j,k) = ( oma * bdatxhi_n_m(ii+1,jj,k) + alpha * bdatxhi_np1_m(ii+1,jj,k) );
     });
 
     ParallelFor(tbx_ylo, tbx_yhi,
@@ -168,7 +170,7 @@ moist_set_rhs (const Geometry& geom,
         arr_yhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
                                                     + alpha * bdatyhi_np1(ii,jj,k) );
         // NOTE: correct for idx type mismatch with v bdy data
-        mask_yhi(i,j,k) = ( oma * bdatyhi_n_m(ii,jj+1,k) + alpha * bdatyhi_np1_m(ii,jj+1,k) );
+        mask_yhi(i,j+1,k) = ( oma * bdatyhi_n_m(ii,jj+1,k) + alpha * bdatyhi_np1_m(ii,jj+1,k) );
     });
 
 
@@ -183,7 +185,7 @@ moist_set_rhs (const Geometry& geom,
                                 tbx_ylo, tbx_yhi);
         realbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
                                        width, set_width-1, set_width-1,
-                                       dom_lo, dom_hi,
+                                       domain, domain,
                                        tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                        arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
                                        mask_xlo, mask_xhi, mask_ylo, mask_yhi,
@@ -203,7 +205,7 @@ moist_set_rhs (const Geometry& geom,
                                 tbx_ylo, tbx_yhi,
                                 set_width, ng_vect);
         realbdy_compute_relaxation(RhoQ1_comp, 1,
-                                   width, dx, ProbLo, ProbHi, F1,
+                                   width, dx, ProbLo, ProbHi, F1, domain,
                                    tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                    arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
                                    mask_xlo, mask_xhi, mask_ylo, mask_yhi,

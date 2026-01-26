@@ -234,7 +234,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
     int BdyEnd = RealBdyVars::NumTypes-1;
 
 
-    // NOTE: These sizing of the temporary BDY FABS is
+    // NOTE: The sizing of the temporary BDY FABS is
     //       GLOBAL and occurs over the entire BDY region.
 
     // Size the FABs
@@ -468,7 +468,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
                 realbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
                                                width, set_width_x, set_width_y,
-                                               dom_lo, dom_hi,
+                                               domain, geom.Domain(),
                                                tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                                arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
                                                mask_xlo, mask_xhi, mask_ylo, mask_yhi,
@@ -532,7 +532,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 Array4<Real> mask_ylo = V_ylo.array(); Array4<Real> mask_yhi = V_yhi.array();
 
                 realbdy_compute_relaxation(icomp, 1,
-                                           width, dx, ProbLo, ProbHi, F1,
+                                           width, dx, ProbLo, ProbHi, F1, geom.Domain(),
                                            tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                            arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
                                            mask_xlo, mask_xhi, mask_ylo, mask_yhi,

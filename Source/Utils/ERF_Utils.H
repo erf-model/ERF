@@ -186,8 +186,8 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
                                 const int& width,
                                 const int& set_width_x,
                                 const int& set_width_y,
-                                const amrex::Dim3& dom_lo,
-                                const amrex::Dim3& dom_hi,
+                                const amrex::Box& domain,
+                                const amrex::Box& domain_cc,
                                 const amrex::Box& bx_xlo,
                                 const amrex::Box& bx_xhi,
                                 const amrex::Box& bx_ylo,
@@ -206,6 +206,11 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
 {
     int Spec_z_x = set_width_x;
     int Spec_z_y = set_width_y;
+    amrex::IntVect iv = bx_xlo.type();
+    const auto& dom_lo    = lbound(domain);
+    const auto& dom_hi    = ubound(domain);
+    const auto& dom_cc_lo = lbound(domain_cc);
+    const auto& dom_cc_hi = ubound(domain_cc);
     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // Corners with x boxes
@@ -215,9 +220,16 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
         int n_ind_y = jj + 1;
         int n_ind_x = i - dom_lo.x + 1;
         if ((n_ind_x <= Spec_z_x) || (n_ind_y <= Spec_z_y)) {
-            amrex::Real tend = (mask_xlo(i,j,k) > 0. && do_upwind) ?
-                ( arr_xlo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt : 0.;
-            rhs_arr(i,j,k,n+icomp) = tend;
+            amrex::Real tend = ( arr_xlo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
+            if (!do_upwind) {
+                rhs_arr(i,j,k,n+icomp) = tend;
+            } else {
+                if ( (mask_xlo(dom_cc_lo.x,j,k) >= 0.0) ||
+                     ((j == dom_cc_lo.y      ) && (mask_ylo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
+                     ((j == dom_cc_hi.y+iv[1]) && (mask_yhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
+                    rhs_arr(i,j,k,n+icomp) = tend;
+                }
+            }
         }
     },
     bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -229,9 +241,16 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
         int n_ind_y = jj + 1;
         int n_ind_x = dom_hi.x - i + 1;
         if ((n_ind_x <= Spec_z_x) || (n_ind_y <= Spec_z_y)) {
-            amrex::Real tend = (mask_xhi(i,j,k) < 0. && do_upwind) ?
-                ( arr_xhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt : 0.;
-            rhs_arr(i,j,k,n+icomp) = tend;
+            amrex::Real tend = ( arr_xhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
+            if (!do_upwind) {
+                rhs_arr(i,j,k,n+icomp) = tend;
+            } else {
+                if ( (mask_xhi(dom_cc_hi.x+1,j,k) <= 0.0) ||
+                     ((j == dom_cc_lo.y      ) && (mask_ylo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
+                     ((j == dom_cc_hi.y+iv[1]) && (mask_yhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
+                    rhs_arr(i,j,k,n+icomp) = tend;
+                }
+            }
         }
     });
 
@@ -240,9 +259,14 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
         // No corners for y boxes
         int n_ind = j - dom_lo.y + 1;
         if (n_ind <= Spec_z_y) {
-            amrex::Real tend = (mask_ylo(i,j,k) > 0. && do_upwind) ?
-                ( arr_ylo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt : 0.;
-            rhs_arr(i,j,k,n+icomp) = tend;
+            amrex::Real tend = ( arr_ylo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
+            if (!do_upwind) {
+                rhs_arr(i,j,k,n+icomp) = tend;
+            } else {
+                if (mask_ylo(i,dom_cc_lo.y,k) >= 0.0) {
+                    rhs_arr(i,j,k,n+icomp) = tend;
+                }
+            }
         }
     },
     bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -250,9 +274,14 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
         // No corners for y boxes
         int n_ind = dom_hi.y - j + 1;
         if (n_ind <= Spec_z_y) {
-            amrex::Real tend = (mask_yhi(i,j,k) < 0. && do_upwind) ?
-                ( arr_yhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt : 0.;
-            rhs_arr(i,j,k,n+icomp) = tend;
+            amrex::Real tend = ( arr_yhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
+            if (!do_upwind) {
+                rhs_arr(i,j,k,n+icomp) = tend;
+            } else {
+                if (mask_yhi(i,dom_cc_hi.y+1,k) >= 0.0) {
+                    rhs_arr(i,j,k,n+icomp) = tend;
+                }
+            }
         }
     });
 }
@@ -290,6 +319,7 @@ realbdy_compute_relaxation (const int& icomp,
                             const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbLo,
                             const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbHi,
                             const amrex::Real& F1,
+                            const amrex::Box& domain_cc,
                             const amrex::Box& bx_xlo,
                             const amrex::Box& bx_xhi,
                             const amrex::Box& bx_ylo,
@@ -306,10 +336,11 @@ realbdy_compute_relaxation (const int& icomp,
                             const amrex::Array4<amrex::Real>& rhs_arr,
                             const bool& do_upwind)
 {
-    // RHS computation
     amrex::IntVect iv = bx_xlo.type();
     amrex::Real ioff  = (iv[0]==1) ? 0.0 : 0.5;
     amrex::Real joff  = (iv[1]==1) ? 0.0 : 0.5;
+    const auto& dom_cc_lo = lbound(domain_cc);
+    const auto& dom_cc_hi = ubound(domain_cc);
     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // Corners with x boxes
@@ -326,7 +357,15 @@ realbdy_compute_relaxation (const int& icomp,
 
         amrex::Real delta = arr_xlo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real Temp  = Factor*F1*delta;
-        rhs_arr(i,j,k,n+icomp) += (mask_xlo(i,j,k) > 0. && do_upwind) ? Temp : 0.;
+        if (!do_upwind) {
+            rhs_arr(i,j,k,n+icomp) += Temp;
+        } else {
+            if ( (mask_xlo(dom_cc_lo.x,j,k) >= 0.0) ||
+                 ((j == dom_cc_lo.y      ) && (mask_ylo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
+                 ((j == dom_cc_hi.y+iv[1]) && (mask_yhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
+                rhs_arr(i,j,k,n+icomp) += Temp;
+            }
+        }
     },
     bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -344,7 +383,15 @@ realbdy_compute_relaxation (const int& icomp,
 
         amrex::Real delta = arr_xhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real Temp  = Factor*F1*delta;
-        rhs_arr(i,j,k,n+icomp) += (mask_xhi(i,j,k) < 0. && do_upwind) ? Temp : 0.;
+        if (!do_upwind) {
+            rhs_arr(i,j,k,n+icomp) += Temp;
+        } else {
+            if ( (mask_xhi(dom_cc_hi.x+1,j,k) <= 0.0) ||
+                 ((j == dom_cc_lo.y      ) && (mask_ylo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
+                 ((j == dom_cc_hi.y+iv[1]) && (mask_yhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
+                rhs_arr(i,j,k,n+icomp) += Temp;
+            }
+        }
     });
 
     amrex::ParallelFor(bx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -357,7 +404,13 @@ realbdy_compute_relaxation (const int& icomp,
 
         amrex::Real delta = arr_ylo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real Temp  = Factor*F1*delta;
-        rhs_arr(i,j,k,n+icomp) += (mask_ylo(i,j,k) > 0. && do_upwind) ? Temp : 0.;
+        if (!do_upwind) {
+            rhs_arr(i,j,k,n+icomp) += Temp;
+        } else {
+            if (mask_ylo(i,dom_cc_lo.y,k) >= 0.0) {
+                rhs_arr(i,j,k,n+icomp) += Temp;
+            }
+        }
     },
     bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -369,7 +422,13 @@ realbdy_compute_relaxation (const int& icomp,
 
         amrex::Real delta = arr_yhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real Temp  = Factor*F1*delta;
-        rhs_arr(i,j,k,n+icomp) += (mask_yhi(i,j,k) < 0. && do_upwind) ? Temp : 0.;
+        if (!do_upwind) {
+            rhs_arr(i,j,k,n+icomp) += Temp;
+        } else {
+            if (mask_yhi(i,dom_cc_hi.y+1,k) >= 0.0) {
+                rhs_arr(i,j,k,n+icomp) += Temp;
+            }
+        }
     });
 }
 

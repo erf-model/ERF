@@ -1,0 +1,510 @@
+diff --git a/Source/BoundaryConditions/ERF_BoundaryConditionsRealbdy.cpp b/Source/BoundaryConditions/ERF_BoundaryConditionsRealbdy.cpp
+index 864f611d..abf9b0c2 100644
+--- a/Source/BoundaryConditions/ERF_BoundaryConditionsRealbdy.cpp
++++ b/Source/BoundaryConditions/ERF_BoundaryConditionsRealbdy.cpp
+@@ -297,33 +297,31 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
+     // Data structure for WfromOmega
+     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
+ 
+-    // Include rho_theta as well as q_v
+-    Vector<int> cons_read = {0, 1, 0, 0,
+-                             1, 0, 0,
+-                             0, 0, 0};
+-
+-    Vector<int> cons_map = {Rho_comp, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
+-                            RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
+-                            RhoQ4_comp, RhoQ5_comp, RhoQ6_comp};
++    // Map loop index to variable index
++    // NOTE: Loop backwards and do v/u first for WfromOmega
++    Vector<int> var_idx_map = {Vars::cons, Vars::zvel, Vars::xvel, Vars::yvel};
+ 
++    // Variables read from bdy (indexed with var_idx)
+     Vector<Vector<int>> is_read;
+-    is_read.push_back( cons_read );
+-    is_read.push_back( {0} ); // zvel NOTE: Loop is backwards (need u/v filled first)
++    is_read.push_back( {0, 1, 0, 0,
++                        1, 0, 0,
++                        0, 0, 0} );
+     is_read.push_back( {1} ); // xvel
+     is_read.push_back( {1} ); // yvel
++    is_read.push_back( {0} ); // zvel
+ 
++    // Variable component (indexed with var_idx)
+     Vector<Vector<int>> ind_map;
+-    ind_map.push_back( cons_map );
+-    ind_map.push_back( {0} );              // zvel NOTE: Loop is backwards (need u/v filled first)
++    ind_map.push_back( {Rho_comp, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
++                        RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
++                        RhoQ4_comp, RhoQ5_comp, RhoQ6_comp} );
+     ind_map.push_back( {RealBdyVars::U} ); // xvel
+     ind_map.push_back( {RealBdyVars::V} ); // yvel
++    ind_map.push_back( {0} );              // zvel
+ 
+     // Nvars to loop over
+     Vector<int> comp_var = {ncomp_cons, 1, 1, 1};
+ 
+-    // Var index map
+-    Vector<int> var_idx_map = {Vars::cons, Vars::zvel, Vars::xvel, Vars::yvel};
+-
+     // End of vars loop
+     int var_idx_end = (cons_only) ? Vars::cons + 1 : Vars::NumTypes;
+ 
+@@ -334,25 +332,26 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
+         mfs[Vars::zvel]->setVal(0.0);
+     }
+ 
+-    MultiFab& mf_u = *mfs[Vars::xvel];
+-    MultiFab& mf_v = *mfs[Vars::yvel];
+-
+     // Loop over all variable types -- note we intentionally do
+     //      the velocities before the scalars since we may use
+     //      the normal velocity on each face for upwinding
+-    for (int var_idx = var_idx_end-1; var_idx >= Vars::cons; --var_idx)
++    for (int var_lp_idx = var_idx_end-1; var_lp_idx >= Vars::cons; --var_lp_idx)
+     {
+-        MultiFab& mf = *mfs[var_idx_map[var_idx]];
++        int var_idx  = var_idx_map[var_lp_idx];
++        MultiFab& mf = *mfs[var_idx];
+ 
+         mf.FillBoundary(geom[lev].periodicity());
+ 
+-        //
+-        // Note that "domain" is mapped onto the type of box the data is in
+-        //
++        // CC domain
+         Box domain = geom[lev].Domain();
++        const auto& dom_cc_lo = lbound(domain);
++        const auto& dom_cc_hi = ubound(domain);
++
++        // Map domain onto index type of the data
+         domain.convert(mf.boxArray().ixType());
+         const auto& dom_lo = lbound(domain);
+         const auto& dom_hi = ubound(domain);
++        IntVect iv = domain.type();
+ 
+         // Offset only applies to cons (we may fill a subset of these vars)
+         int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
+@@ -385,6 +384,16 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
+                 const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][ivar].const_array();
+                 const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][ivar].const_array();
+ 
++                // U/V for upwind masking
++                const auto& bdatxlo_n_m   = bdy_data_xlo[n_time   ][RealBdyVars::U].const_array();
++                const auto& bdatxlo_np1_m = bdy_data_xlo[n_time_p1][RealBdyVars::U].const_array();
++                const auto& bdatxhi_n_m   = bdy_data_xhi[n_time   ][RealBdyVars::U].const_array();
++                const auto& bdatxhi_np1_m = bdy_data_xhi[n_time_p1][RealBdyVars::U].const_array();
++                const auto& bdatylo_n_m   = bdy_data_ylo[n_time   ][RealBdyVars::V].const_array();
++                const auto& bdatylo_np1_m = bdy_data_ylo[n_time_p1][RealBdyVars::V].const_array();
++                const auto& bdatyhi_n_m   = bdy_data_yhi[n_time   ][RealBdyVars::V].const_array();
++                const auto& bdatyhi_np1_m = bdy_data_yhi[n_time_p1][RealBdyVars::V].const_array();
++
+ #ifdef AMREX_USE_OMP
+ #pragma omp parallel if (Gpu::notInLaunchRegion())
+ #endif
+@@ -399,16 +408,6 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
+                                       bx_ylo, bx_yhi,
+                                       ng_vect);
+ 
+-                    // Mask arrays
+-                    const Array4<const Real>& u_arr = mf_u.const_array(mfi);
+-                    const Array4<const Real>& v_arr = mf_v.const_array(mfi);
+-
+-                    // Bounding
+-                    auto lb_u = lbound(u_arr); lb_u.x += ngvect_vels[0]; lb_u.y += ngvect_vels[1];
+-                    auto ub_u = ubound(u_arr); ub_u.x -= ngvect_vels[0]; ub_u.y -= ngvect_vels[1];
+-                    auto lb_v = lbound(v_arr); lb_v.x += ngvect_vels[0]; lb_v.y += ngvect_vels[1];
+-                    auto ub_v = ubound(v_arr); ub_v.x -= ngvect_vels[0]; ub_v.y -= ngvect_vels[1];
+-
+                     // NOTE: Xlo/hi boxes own corner cells (Ylo/hi)
+                     ParallelFor(bx_xlo, bx_xhi,
+                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
+@@ -418,13 +417,19 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
+                         int jj = std::max(j , dom_lo.y);
+                             jj = std::min(jj, dom_hi.y);
+ 
+-                        // Limit for u_arr and v_arr
+-                        int ju = std::min(std::max(j, lb_u.y), ub_u.y);
+-                        int iv = std::min(std::max(i, lb_v.x), ub_v.x);
+-
+-                        if ( (u_arr(dom_lo.x,ju,k) >= 0.0) ||
+-                             ((jj == dom_lo.y) && (v_arr(iv,dom_lo.y  ,k) >= 0.0)) ||
+-                             ((jj == dom_hi.y) && (v_arr(iv,dom_hi.y+1,k) <= 0.0)) ) {
++                        // Compute bdy velocities
++                        int jju = std::min(std::max(j, dom_cc_lo.y), dom_cc_hi.y);
++                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
++                        Real u_bdy    = oma   * bdatxlo_n_m  (dom_cc_lo.x,jju,k,0)
++                                      + alpha * bdatxlo_np1_m(dom_cc_lo.x,jju,k,0);
++                        Real v_bdy_lo = oma   * bdatylo_n_m  (iiv,dom_cc_lo.y,k,0)
++                                      + alpha * bdatylo_np1_m(iiv,dom_cc_lo.y,k,0);
++                        Real v_bdy_hi = oma   * bdatyhi_n_m  (iiv,dom_cc_hi.y+1,k,0)
++                                      + alpha * bdatyhi_np1_m(iiv,dom_cc_hi.y+1,k,0);
++                        
++                        if ( (u_bdy >= 0.0) ||
++                             ((jj == dom_cc_lo.y      ) && (v_bdy_lo >= 0.0)) ||
++                             ((jj == dom_cc_hi.y+iv[1]) && (v_bdy_hi <= 0.0)) ) {
+                             dest_arr(i,j,k,comp_idx) = oma   * bdatxlo_n  (ii,jj,k,0)
+                                                      + alpha * bdatxlo_np1(ii,jj,k,0);
+                             if (var_idx == Vars::cons) {
+@@ -441,20 +446,24 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
+                         int jj = std::max(j , dom_lo.y);
+                             jj = std::min(jj, dom_hi.y);
+ 
+-                        // Limit for u_arr and v_arr
+-                        int ju = std::min(std::max(j, lb_u.y), ub_u.y);
+-                        int iv = std::min(std::max(i, lb_v.x), ub_v.x);
+-
+-                        if ( (u_arr(dom_hi.x+1,ju,k) <= 0.0) ||
+-                             ((jj == dom_lo.y) && (v_arr(iv,dom_lo.y  ,k) >= 0.0)) ||
+-                             ((jj == dom_hi.y) && (v_arr(iv,dom_hi.y+1,k) <= 0.0)) ) {
++                        // Compute bdy velocities
++                        int jju = std::min(std::max(j, dom_cc_lo.y), dom_cc_hi.y);
++                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
++                        Real u_bdy    = oma   * bdatxhi_n_m  (dom_cc_lo.x,jju,k,0)
++                                      + alpha * bdatxhi_np1_m(dom_cc_lo.x,jju,k,0);
++                        Real v_bdy_lo = oma   * bdatylo_n_m  (iiv,dom_cc_lo.y,k,0)
++                                      + alpha * bdatylo_np1_m(iiv,dom_cc_lo.y,k,0);
++                        Real v_bdy_hi = oma   * bdatyhi_n_m  (iiv,dom_cc_hi.y+1,k,0)
++                                      + alpha * bdatyhi_np1_m(iiv,dom_cc_hi.y+1,k,0);
++
++                        if ( (u_bdy <= 0.0) ||
++                             ((jj == dom_cc_lo.y      ) && (v_bdy_lo >= 0.0)) ||
++                             ((jj == dom_cc_hi.y+iv[1]) && (v_bdy_hi <= 0.0)) ) {
+                             dest_arr(i,j,k,comp_idx) = oma   * bdatxhi_n  (ii,jj,k,0)
+                                                      + alpha * bdatxhi_np1(ii,jj,k,0);
+                             if (var_idx == Vars::cons) {
+                                 dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                             }
+-                        } else if (var_idx == Vars::xvel) {
+-                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x+1,jj,k,comp_idx);
+                         } else {
+                             dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x,jj,k,comp_idx);
+                         }
+@@ -467,10 +476,12 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
+                         // Limit for BDY FAB data
+                         int jj = std::max(j, dom_lo.y);
+ 
+-                        // Limit for v_arr
+-                        int iv = std::min(std::max(i, lb_v.x), ub_v.x);
++                        // Compute bdy velocities
++                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
++                        Real v_bdy = oma   * bdatylo_n_m  (iiv,dom_cc_lo.y,k,0)
++                                   + alpha * bdatylo_np1_m(iiv,dom_cc_lo.y,k,0);
+ 
+-                        if (v_arr(iv,dom_lo.y,k) >= 0.0) {
++                        if (v_bdy >= 0.0) {
+                             dest_arr(i,j,k,comp_idx) = oma   * bdatylo_n  (i,jj,k,0)
+                                                      + alpha * bdatylo_np1(i,jj,k,0);
+                             if (var_idx == Vars::cons) {
+@@ -485,17 +496,17 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
+                         // Limit for BDY FAB data
+                         int jj = std::min(j, dom_hi.y);
+ 
+-                        // Limit for v_arr
+-                        int iv = std::min(std::max(i, lb_v.x), ub_v.x);
++                        // Compute bdy velocities
++                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
++                        Real v_bdy = oma   * bdatyhi_n_m  (iiv,dom_cc_hi.y+1,k,0)
++                                   + alpha * bdatyhi_np1_m(iiv,dom_cc_hi.y+1,k,0);
+ 
+-                        if (v_arr(iv,dom_hi.y+1,k) <= 0.0) {
++                        if (v_bdy <= 0.0) {
+                             dest_arr(i,j,k,comp_idx) = oma   * bdatyhi_n  (i,jj,k,0)
+                                                      + alpha * bdatyhi_np1(i,jj,k,0);
+                             if (var_idx == Vars::cons) {
+                                 dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                             }
+-                        } else if (var_idx == Vars::yvel) {
+-                            dest_arr(i,j,k,comp_idx) = dest_arr(i,dom_hi.y+1,k,comp_idx);
+                         } else {
+                             dest_arr(i,j,k,comp_idx) = dest_arr(i,dom_hi.y,k,comp_idx);
+                         }
+@@ -505,6 +516,8 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
+             // Variable not read from wrf bdy
+             //------------------------------------
+             } else {
++                MultiFab& mf_u = *mfs[Vars::xvel];
++                MultiFab& mf_v = *mfs[Vars::yvel];
+                 int width = (var_idx == Vars::zvel) ? real_width : 0;
+ #ifdef AMREX_USE_OMP
+ #pragma omp parallel if (Gpu::notInLaunchRegion())
+diff --git a/Source/SourceTerms/ERF_MoistSetRhs.cpp b/Source/SourceTerms/ERF_MoistSetRhs.cpp
+index 10bfd7fa..d4477379 100644
+--- a/Source/SourceTerms/ERF_MoistSetRhs.cpp
++++ b/Source/SourceTerms/ERF_MoistSetRhs.cpp
+@@ -67,7 +67,7 @@ moist_set_rhs (const Geometry& geom,
+ 
+     // Size the FABs
+     //==========================================================
+-    // NOTE: No ghost cells needed since mask is idx type (0,0,0)
++    // NOTE: No ghost cells, we force mask to be idx type (0,0,0)
+     IntVect ng_vect(0);
+     Box gdom(domain); gdom.grow(ng_vect);
+     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+@@ -83,8 +83,10 @@ moist_set_rhs (const Geometry& geom,
+ 
+     // Masks for upwinding
+     FArrayBox M_xlo, M_xhi, M_ylo, M_yhi;
+-    M_xlo.resize(bx_xlo,1,The_Async_Arena()); M_xhi.resize(bx_xhi,1,The_Async_Arena());
+-    M_ylo.resize(bx_ylo,1,The_Async_Arena()); M_yhi.resize(bx_yhi,1,The_Async_Arena());
++    M_xlo.resize(convert(bx_xlo,IntVect(1,0,0)),1,The_Async_Arena());
++    M_xhi.resize(convert(bx_xhi,IntVect(1,0,0)),1,The_Async_Arena());
++    M_ylo.resize(convert(bx_ylo,IntVect(0,1,0)),1,The_Async_Arena());
++    M_yhi.resize(convert(bx_yhi,IntVect(0,1,0)),1,The_Async_Arena());
+ 
+     // Populate FABs from bdy interpolation (primitive vars)
+     //==========================================================
+@@ -145,7 +147,7 @@ moist_set_rhs (const Geometry& geom,
+         arr_xhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
+                                                     + alpha * bdatxhi_np1(ii,jj,k) );
+         // NOTE: correct for idx type mismatch with u bdy data
+-        mask_xhi(i,j,k) = ( oma * bdatxhi_n_m(ii+1,jj,k) + alpha * bdatxhi_np1_m(ii+1,jj,k) );
++        mask_xhi(i+1,j,k) = ( oma * bdatxhi_n_m(ii+1,jj,k) + alpha * bdatxhi_np1_m(ii+1,jj,k) );
+     });
+ 
+     ParallelFor(tbx_ylo, tbx_yhi,
+@@ -168,7 +170,7 @@ moist_set_rhs (const Geometry& geom,
+         arr_yhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
+                                                     + alpha * bdatyhi_np1(ii,jj,k) );
+         // NOTE: correct for idx type mismatch with v bdy data
+-        mask_yhi(i,j,k) = ( oma * bdatyhi_n_m(ii,jj+1,k) + alpha * bdatyhi_np1_m(ii,jj+1,k) );
++        mask_yhi(i,j+1,k) = ( oma * bdatyhi_n_m(ii,jj+1,k) + alpha * bdatyhi_np1_m(ii,jj+1,k) );
+     });
+ 
+ 
+@@ -183,7 +185,7 @@ moist_set_rhs (const Geometry& geom,
+                                 tbx_ylo, tbx_yhi);
+         realbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
+                                        width, set_width-1, set_width-1,
+-                                       dom_lo, dom_hi,
++                                       domain, domain,
+                                        tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
+                                        arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
+                                        mask_xlo, mask_xhi, mask_ylo, mask_yhi,
+@@ -203,7 +205,7 @@ moist_set_rhs (const Geometry& geom,
+                                 tbx_ylo, tbx_yhi,
+                                 set_width, ng_vect);
+         realbdy_compute_relaxation(RhoQ1_comp, 1,
+-                                   width, dx, ProbLo, ProbHi, F1,
++                                   width, dx, ProbLo, ProbHi, F1, domain,
+                                    tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
+                                    arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
+                                    mask_xlo, mask_xhi, mask_ylo, mask_yhi,
+diff --git a/Source/Utils/ERF_InteriorGhostCells.cpp b/Source/Utils/ERF_InteriorGhostCells.cpp
+index 81daac71..d0972d10 100644
+--- a/Source/Utils/ERF_InteriorGhostCells.cpp
++++ b/Source/Utils/ERF_InteriorGhostCells.cpp
+@@ -234,7 +234,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
+     int BdyEnd = RealBdyVars::NumTypes-1;
+ 
+ 
+-    // NOTE: These sizing of the temporary BDY FABS is
++    // NOTE: The sizing of the temporary BDY FABS is
+     //       GLOBAL and occurs over the entire BDY region.
+ 
+     // Size the FABs
+@@ -468,7 +468,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
+ 
+                 realbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
+                                                width, set_width_x, set_width_y,
+-                                               dom_lo, dom_hi,
++                                               domain, geom.Domain(),
+                                                tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
+                                                arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
+                                                mask_xlo, mask_xhi, mask_ylo, mask_yhi,
+@@ -532,7 +532,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
+                 Array4<Real> mask_ylo = V_ylo.array(); Array4<Real> mask_yhi = V_yhi.array();
+ 
+                 realbdy_compute_relaxation(icomp, 1,
+-                                           width, dx, ProbLo, ProbHi, F1,
++                                           width, dx, ProbLo, ProbHi, F1, geom.Domain(),
+                                            tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
+                                            arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
+                                            mask_xlo, mask_xhi, mask_ylo, mask_yhi,
+diff --git a/Source/Utils/ERF_Utils.H b/Source/Utils/ERF_Utils.H
+index 6b84923f..94fa3d8c 100644
+--- a/Source/Utils/ERF_Utils.H
++++ b/Source/Utils/ERF_Utils.H
+@@ -186,8 +186,8 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
+                                 const int& width,
+                                 const int& set_width_x,
+                                 const int& set_width_y,
+-                                const amrex::Dim3& dom_lo,
+-                                const amrex::Dim3& dom_hi,
++                                const amrex::Box& domain,
++                                const amrex::Box& domain_cc,
+                                 const amrex::Box& bx_xlo,
+                                 const amrex::Box& bx_xhi,
+                                 const amrex::Box& bx_ylo,
+@@ -206,6 +206,11 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
+ {
+     int Spec_z_x = set_width_x;
+     int Spec_z_y = set_width_y;
++    amrex::IntVect iv = bx_xlo.type();
++    const auto& dom_lo    = lbound(domain);
++    const auto& dom_hi    = ubound(domain);
++    const auto& dom_cc_lo = lbound(domain_cc);
++    const auto& dom_cc_hi = ubound(domain_cc);
+     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+     {
+         // Corners with x boxes
+@@ -215,9 +220,16 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
+         int n_ind_y = jj + 1;
+         int n_ind_x = i - dom_lo.x + 1;
+         if ((n_ind_x <= Spec_z_x) || (n_ind_y <= Spec_z_y)) {
+-            amrex::Real tend = (mask_xlo(i,j,k) > 0. && do_upwind) ?
+-                ( arr_xlo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt : 0.;
+-            rhs_arr(i,j,k,n+icomp) = tend;
++            amrex::Real tend = ( arr_xlo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
++            if (!do_upwind) {
++                rhs_arr(i,j,k,n+icomp) = tend;
++            } else {
++                if ( (mask_xlo(dom_cc_lo.x,j,k) >= 0.0) ||
++                     ((j == dom_cc_lo.y      ) && (mask_ylo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
++                     ((j == dom_cc_hi.y+iv[1]) && (mask_yhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
++                    rhs_arr(i,j,k,n+icomp) = tend;
++                }
++            }
+         }
+     },
+     bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+@@ -229,9 +241,16 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
+         int n_ind_y = jj + 1;
+         int n_ind_x = dom_hi.x - i + 1;
+         if ((n_ind_x <= Spec_z_x) || (n_ind_y <= Spec_z_y)) {
+-            amrex::Real tend = (mask_xhi(i,j,k) < 0. && do_upwind) ?
+-                ( arr_xhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt : 0.;
+-            rhs_arr(i,j,k,n+icomp) = tend;
++            amrex::Real tend = ( arr_xhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
++            if (!do_upwind) {
++                rhs_arr(i,j,k,n+icomp) = tend;
++            } else {
++                if ( (mask_xhi(dom_cc_hi.x+1,j,k) <= 0.0) ||
++                     ((j == dom_cc_lo.y      ) && (mask_ylo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
++                     ((j == dom_cc_hi.y+iv[1]) && (mask_yhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
++                    rhs_arr(i,j,k,n+icomp) = tend;
++                }
++            }
+         }
+     });
+ 
+@@ -240,9 +259,14 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
+         // No corners for y boxes
+         int n_ind = j - dom_lo.y + 1;
+         if (n_ind <= Spec_z_y) {
+-            amrex::Real tend = (mask_ylo(i,j,k) > 0. && do_upwind) ?
+-                ( arr_ylo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt : 0.;
+-            rhs_arr(i,j,k,n+icomp) = tend;
++            amrex::Real tend = ( arr_ylo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
++            if (!do_upwind) {
++                rhs_arr(i,j,k,n+icomp) = tend;
++            } else {
++                if (mask_ylo(i,dom_cc_lo.y,k) >= 0.0) {
++                    rhs_arr(i,j,k,n+icomp) = tend;
++                }
++            }
+         }
+     },
+     bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+@@ -250,9 +274,14 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
+         // No corners for y boxes
+         int n_ind = dom_hi.y - j + 1;
+         if (n_ind <= Spec_z_y) {
+-            amrex::Real tend = (mask_yhi(i,j,k) < 0. && do_upwind) ?
+-                ( arr_yhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt : 0.;
+-            rhs_arr(i,j,k,n+icomp) = tend;
++            amrex::Real tend = ( arr_yhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
++            if (!do_upwind) {
++                rhs_arr(i,j,k,n+icomp) = tend;
++            } else {
++                if (mask_yhi(i,dom_cc_hi.y+1,k) >= 0.0) {
++                    rhs_arr(i,j,k,n+icomp) = tend;
++                }
++            }
+         }
+     });
+ }
+@@ -290,6 +319,7 @@ realbdy_compute_relaxation (const int& icomp,
+                             const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbLo,
+                             const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbHi,
+                             const amrex::Real& F1,
++                            const amrex::Box& domain_cc,
+                             const amrex::Box& bx_xlo,
+                             const amrex::Box& bx_xhi,
+                             const amrex::Box& bx_ylo,
+@@ -306,10 +336,11 @@ realbdy_compute_relaxation (const int& icomp,
+                             const amrex::Array4<amrex::Real>& rhs_arr,
+                             const bool& do_upwind)
+ {
+-    // RHS computation
+     amrex::IntVect iv = bx_xlo.type();
+     amrex::Real ioff  = (iv[0]==1) ? 0.0 : 0.5;
+     amrex::Real joff  = (iv[1]==1) ? 0.0 : 0.5;
++    const auto& dom_cc_lo = lbound(domain_cc);
++    const auto& dom_cc_hi = ubound(domain_cc);
+     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+     {
+         // Corners with x boxes
+@@ -326,7 +357,15 @@ realbdy_compute_relaxation (const int& icomp,
+ 
+         amrex::Real delta = arr_xlo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
+         amrex::Real Temp  = Factor*F1*delta;
+-        rhs_arr(i,j,k,n+icomp) += (mask_xlo(i,j,k) > 0. && do_upwind) ? Temp : 0.;
++        if (!do_upwind) {
++            rhs_arr(i,j,k,n+icomp) += Temp;
++        } else {
++            if ( (mask_xlo(dom_cc_lo.x,j,k) >= 0.0) ||
++                 ((j == dom_cc_lo.y      ) && (mask_ylo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
++                 ((j == dom_cc_hi.y+iv[1]) && (mask_yhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
++                rhs_arr(i,j,k,n+icomp) += Temp;
++            }
++        }
+     },
+     bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+     {
+@@ -344,7 +383,15 @@ realbdy_compute_relaxation (const int& icomp,
+ 
+         amrex::Real delta = arr_xhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
+         amrex::Real Temp  = Factor*F1*delta;
+-        rhs_arr(i,j,k,n+icomp) += (mask_xhi(i,j,k) < 0. && do_upwind) ? Temp : 0.;
++        if (!do_upwind) {
++            rhs_arr(i,j,k,n+icomp) += Temp;
++        } else {
++            if ( (mask_xhi(dom_cc_hi.x+1,j,k) <= 0.0) ||
++                 ((j == dom_cc_lo.y      ) && (mask_ylo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
++                 ((j == dom_cc_hi.y+iv[1]) && (mask_yhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
++                rhs_arr(i,j,k,n+icomp) += Temp;
++            }
++        }
+     });
+ 
+     amrex::ParallelFor(bx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+@@ -357,7 +404,13 @@ realbdy_compute_relaxation (const int& icomp,
+ 
+         amrex::Real delta = arr_ylo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
+         amrex::Real Temp  = Factor*F1*delta;
+-        rhs_arr(i,j,k,n+icomp) += (mask_ylo(i,j,k) > 0. && do_upwind) ? Temp : 0.;
++        if (!do_upwind) {
++            rhs_arr(i,j,k,n+icomp) += Temp;
++        } else {
++            if (mask_ylo(i,dom_cc_lo.y,k) >= 0.0) {
++                rhs_arr(i,j,k,n+icomp) += Temp;
++            }
++        }
+     },
+     bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+     {
+@@ -369,7 +422,13 @@ realbdy_compute_relaxation (const int& icomp,
+ 
+         amrex::Real delta = arr_yhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
+         amrex::Real Temp  = Factor*F1*delta;
+-        rhs_arr(i,j,k,n+icomp) += (mask_yhi(i,j,k) < 0. && do_upwind) ? Temp : 0.;
++        if (!do_upwind) {
++            rhs_arr(i,j,k,n+icomp) += Temp;
++        } else {
++            if (mask_yhi(i,dom_cc_hi.y+1,k) >= 0.0) {
++                rhs_arr(i,j,k,n+icomp) += Temp;
++            }
++        }
+     });
+ }
+ 
