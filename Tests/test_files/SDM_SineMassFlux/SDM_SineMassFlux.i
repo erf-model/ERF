@@ -1,4 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Sinusoidal_Mass_Flux"
 stop_time = 3600   #  6 hours
 max_step = 50
 

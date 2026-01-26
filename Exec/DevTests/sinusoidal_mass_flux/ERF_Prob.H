@@ -117,7 +117,6 @@ public:
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
 protected:
-    std::string name () override { return "SinusoidalMassFlux"; }
 
 private:
     ProbParm parms;
