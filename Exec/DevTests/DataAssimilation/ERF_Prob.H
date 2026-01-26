@@ -53,7 +53,6 @@ public:
         const int lev) override;
 
 protected:
-    std::string name() override { return "Isentropic Vortex"; }
 
 private:
     ProbParm parms;
