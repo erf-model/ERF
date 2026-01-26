@@ -15,11 +15,11 @@ SLM::Init (const int& /*lev*/,
            const MultiFab& v_in,
            const Geometry& geom,
            const Real& dt,
-           std::unique_ptr<amrex::MultiFab>& z_phys_cc_in)
+           std::unique_ptr<amrex::MultiFab>& z_phys_nd_in)
 {
     m_dt = dt;
     m_geom = geom;
-    z_phys_cc = z_phys_cc_in.get();
+    z_phys_nd = z_phys_nd_in.get();
 
     ParmParse pp("slm");
     pp.query("nsoil", m_nz_lsm);
@@ -271,13 +271,13 @@ SLM::Init (const int& /*lev*/,
         Real dz       = m_geom.CellSize(2);
         for ( MFIter mfi(cons_in,TileNoZ()); mfi.isValid(); ++mfi) {
             const Box& xybx      = mfi.growntilebox(0);
-            const Array4<const Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : Array4<Real>{};
+            const Array4<const Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
             auto ztop_arr = ztop.array(mfi);
 			auto zrefxy_arr = zrefxy.array(mfi);
 
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
-                Real zcc = (z_cc_arr) ? z_cc_arr(i,j,0) : zlo + 0.5*dz;
-			    zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + zcc;
+                Real znd = (z_nd_arr) ? z_nd_arr(i,j,0) : zlo + 0.5*dz;
+			    zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + znd;
 		    });	
 	    }		
     } else {

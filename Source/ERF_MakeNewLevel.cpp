@@ -112,7 +112,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     lsm.Define(lev, solverChoice);
     if (solverChoice.lsm_type != LandSurfaceType::None)
     {
-        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_cc[lev] ); // dummy dt value
+        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
@@ -562,7 +562,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     lsm.Define(lev, solverChoice);
     if (solverChoice.lsm_type != LandSurfaceType::None)
     {
-        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_cc[lev] ); // dummy dt value
+        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
@@ -789,6 +789,30 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
           Define_ERFFillPatchers(lev);
         }
     }
+
+    //********************************************************************************************
+    // Land Surface Model
+    // *******************************************************************************************
+    int lsm_data_size  = lsm.Get_Data_Size();
+    int lsm_flux_size  = lsm.Get_Flux_Size();
+    lsm_data[lev].resize(lsm_data_size);
+    lsm_data_name.resize(lsm_data_size);
+    lsm_flux[lev].resize(lsm_flux_size);
+    lsm_flux_name.resize(lsm_flux_size);
+    lsm.Define(lev, solverChoice);
+    if (solverChoice.lsm_type != LandSurfaceType::None)
+    {
+        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
+    }
+    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
+    }
+    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+    }
+
 
     // ********************************************************************************************
     // Update the SurfaceLayer arrays at this level

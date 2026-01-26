@@ -204,7 +204,7 @@ public:
           const amrex::MultiFab& v_in,
           const amrex::Geometry& geom,
           const amrex::Real& dt,
-          std::unique_ptr<amrex::MultiFab>& z_phys_cc_in) override;
+          std::unique_ptr<amrex::MultiFab>& z_phys_nd_in) override;
 
     // Wrapper to do all the updating
     void
@@ -350,21 +350,21 @@ public:
                 init_slm_vars();
             }
 
-            // update zref using updated z_phys_cc
+            // update zref using updated z_phys_nd
             if (!set_from_file) {
                 amrex::Real zlo      = m_geom.ProbLo(2);
                 amrex::Real dz       = m_geom.CellSize(2);
                 for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
                     const amrex::Box& xybx      = mfi.growntilebox(0);
-                    const amrex::Array4<const amrex::Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : amrex::Array4<amrex::Real>{};
+                    const amrex::Array4<const amrex::Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : amrex::Array4<amrex::Real>{};
                     auto ztop_arr = ztop.array(mfi);
                     auto zrefxy_arr = zrefxy.array(mfi);
                     auto landmask_arr = landmask.const_array(mfi);
 
                     ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
                         if (landmask_arr(i,j,0) == 1) {
-                            amrex::Real zcc = (z_cc_arr) ? z_cc_arr(i,j,0) : zlo + 0.5*dz;
-                            zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + zcc;
+                            amrex::Real znd = (z_nd_arr) ? z_nd_arr(i,j,0) : zlo + 0.5*dz;
+                            zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + znd;
                             //amrex::Print() << " i = " << i << " j = " << j << ": zrefxy = " << zrefxy_arr(i,j,0) << std::endl;
                         }
                     });
@@ -817,7 +817,7 @@ private:
     int m_orbital_day = -1;
     int m_orbital_sec = -1;
 
-    amrex::MultiFab *z_phys_cc; // input z_phys_cc from ERF
+    amrex::MultiFab *z_phys_nd; // input z_phys_nd from ERF
 
     // Extra MFs for output:
     amrex::MultiFab slm_diag;
