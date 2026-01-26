@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Sinusoidal_W"
+
 #stop_time = 3600    #  1 hour
 #stop_time = 4800    #  1.5 hours
 #stop_time = 7200    #  2 hours
