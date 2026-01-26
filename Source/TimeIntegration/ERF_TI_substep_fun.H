@@ -67,6 +67,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      d_sinesq_at_lev,
+                     (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
                      input_sounding_data, turbPert, false);
 
         // *************************************************************************
@@ -104,6 +105,7 @@ auto acoustic_substepping_fun = [&](int fast_step, int n_sub, int nrk,
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                          d_sinesq_at_lev, d_sinesq_stag_at_lev, d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
+                         (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
                          input_sounding_data, false);
 
         // Moving terrain

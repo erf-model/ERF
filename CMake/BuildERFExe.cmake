@@ -348,6 +348,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_MoistSetRhs.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
        ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
+       ${SRC_DIR}/SourceTerms/ERF_ApplySurfaceTreatment_BulkCoeff.cpp 
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStep.cpp
@@ -375,6 +376,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
        ${SRC_DIR}/Utils/ERF_VolWgtSum.cpp
        ${SRC_DIR}/Utils/ERF_WeatherDataInterpolation.cpp
+       ${SRC_DIR}/Utils/ERF_SurfaceDataInterpolation.cpp
+       ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
+       ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
+       ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
+       ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/ERF_SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/ERF_MM5.cpp
   )

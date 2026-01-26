@@ -704,6 +704,11 @@ struct SolverChoice {
             }
         }
 
+        pp.query("hindcast_surface_bcs", hindcast_surface_bcs);
+        if(hindcast_surface_bcs) {
+            pp.query("hindcast_surface_data_dir", hindcast_surface_data_dir);
+        }
+
         pp.query("io_hurricane_eye_tracker", io_hurricane_eye_tracker);
         if (io_hurricane_eye_tracker) {
             pp.query("hurricane_eye_latitude", hurricane_eye_latitude);
@@ -1179,9 +1184,10 @@ struct SolverChoice {
     int massflux_klo {0}; // these are updated in ERF.cpp
     int massflux_khi {0};
 
-    std::string hindcast_boundary_data_dir;
+    std::string hindcast_boundary_data_dir, hindcast_surface_data_dir;
     amrex::Real hindcast_data_interval_in_hrs = -1.0;
     bool hindcast_lateral_forcing = false;
+    bool hindcast_surface_bcs = false;
     amrex::Real hindcast_lateral_sponge_strength = -1.0, hindcast_lateral_sponge_length = -1.0;
     amrex::Real hindcast_zhi_sponge_strength = -1.0, hindcast_zhi_sponge_length = -1.0;
     bool hindcast_zhi_sponge_damping = false;
