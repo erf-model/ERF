@@ -461,15 +461,16 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                     continue;
                 }
 
-                Array4<Real> mask_xlo = U_xlo.array(); Array4<Real> mask_xhi = U_xhi.array();
-                Array4<Real> mask_ylo = V_ylo.array(); Array4<Real> mask_yhi = V_yhi.array();
+                Array4<Real> u_xlo = U_xlo.array(); Array4<Real> u_xhi = U_xhi.array();
+                Array4<Real> v_xlo = U_xlo.array(); Array4<Real> v_xhi = U_xhi.array();
+                Array4<Real> v_ylo = V_ylo.array(); Array4<Real> v_yhi = V_yhi.array();
 
                 realbdy_set_rhs_in_spec_region(delta_t, icomp, 1,
                                                width, set_width_x, set_width_y,
                                                domain, geom.Domain(),
                                                tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                                arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                               mask_xlo, mask_xhi, mask_ylo, mask_yhi,
+                                               u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
                                                data_arr, rhs_arr, do_upwind);
 
             } // mfi
@@ -526,14 +527,15 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                     continue;
                 }
 
-                Array4<Real> mask_xlo = U_xlo.array(); Array4<Real> mask_xhi = U_xhi.array();
-                Array4<Real> mask_ylo = V_ylo.array(); Array4<Real> mask_yhi = V_yhi.array();
+                Array4<Real> u_xlo = U_xlo.array(); Array4<Real> u_xhi = U_xhi.array();
+                Array4<Real> v_xlo = U_xlo.array(); Array4<Real> v_xhi = U_xhi.array();
+                Array4<Real> v_ylo = V_ylo.array(); Array4<Real> v_yhi = V_yhi.array();
 
                 realbdy_compute_relaxation(icomp, 1,
                                            width, dx, ProbLo, ProbHi, F1, geom.Domain(),
                                            tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                            arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                           mask_xlo, mask_xhi, mask_ylo, mask_yhi,
+                                           u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
                                            data_arr, rhs_arr, do_upwind);
 
                 /*

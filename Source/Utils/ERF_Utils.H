@@ -196,10 +196,12 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
                                 const amrex::Array4<const amrex::Real>& arr_xhi,
                                 const amrex::Array4<const amrex::Real>& arr_ylo,
                                 const amrex::Array4<const amrex::Real>& arr_yhi,
-                                const amrex::Array4<const amrex::Real>& mask_xlo,
-                                const amrex::Array4<const amrex::Real>& mask_xhi,
-                                const amrex::Array4<const amrex::Real>& mask_ylo,
-                                const amrex::Array4<const amrex::Real>& mask_yhi,
+                                const amrex::Array4<const amrex::Real>& u_xlo,
+                                const amrex::Array4<const amrex::Real>& u_xhi,
+                                const amrex::Array4<const amrex::Real>& v_xlo,
+                                const amrex::Array4<const amrex::Real>& v_xhi,
+                                const amrex::Array4<const amrex::Real>& v_ylo,
+                                const amrex::Array4<const amrex::Real>& v_yhi,
                                 const amrex::Array4<const amrex::Real>& data_arr,
                                 const amrex::Array4<amrex::Real>& rhs_arr,
                                 const bool& do_upwind)
@@ -224,9 +226,9 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
             if (!do_upwind) {
                 rhs_arr(i,j,k,n+icomp) = tend;
             } else {
-                if ( (mask_xlo(dom_cc_lo.x,j,k) >= 0.0) ||
-                     ((j == dom_cc_lo.y      ) && (mask_ylo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
-                     ((j == dom_cc_hi.y+iv[1]) && (mask_yhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
+                if ( (u_xlo(dom_cc_lo.x,j,k) >= 0.0) ||
+                     ((j == dom_cc_lo.y      ) && (v_xlo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
+                     ((j == dom_cc_hi.y+iv[1]) && (v_xlo(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
                     rhs_arr(i,j,k,n+icomp) = tend;
                 }
             }
@@ -245,9 +247,9 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
             if (!do_upwind) {
                 rhs_arr(i,j,k,n+icomp) = tend;
             } else {
-                if ( (mask_xhi(dom_cc_hi.x+1,j,k) <= 0.0) ||
-                     ((j == dom_cc_lo.y      ) && (mask_ylo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
-                     ((j == dom_cc_hi.y+iv[1]) && (mask_yhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
+                if ( (u_xhi(dom_cc_hi.x+1,j,k) <= 0.0) ||
+                     ((j == dom_cc_lo.y      ) && (v_xhi(i,dom_cc_lo.y  ,k) >= 0.0)) ||
+                     ((j == dom_cc_hi.y+iv[1]) && (v_xhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
                     rhs_arr(i,j,k,n+icomp) = tend;
                 }
             }
@@ -263,7 +265,7 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
             if (!do_upwind) {
                 rhs_arr(i,j,k,n+icomp) = tend;
             } else {
-                if (mask_ylo(i,dom_cc_lo.y,k) >= 0.0) {
+                if (v_ylo(i,dom_cc_lo.y,k) >= 0.0) {
                     rhs_arr(i,j,k,n+icomp) = tend;
                 }
             }
@@ -278,7 +280,7 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
             if (!do_upwind) {
                 rhs_arr(i,j,k,n+icomp) = tend;
             } else {
-                if (mask_yhi(i,dom_cc_hi.y+1,k) >= 0.0) {
+                if (v_yhi(i,dom_cc_hi.y+1,k) >= 0.0) {
                     rhs_arr(i,j,k,n+icomp) = tend;
                 }
             }
@@ -287,7 +289,7 @@ realbdy_set_rhs_in_spec_region (const amrex::Real& dt,
 }
 
 /**
- * Compute the Laplacian RHS in the relaxation zone
+ * Compute the nudging relaxation
  *
  * @param[in] delta_t time step
  * @param[in] icomp component offset
@@ -328,10 +330,12 @@ realbdy_compute_relaxation (const int& icomp,
                             const amrex::Array4<const amrex::Real>& arr_xhi,
                             const amrex::Array4<const amrex::Real>& arr_ylo,
                             const amrex::Array4<const amrex::Real>& arr_yhi,
-                            const amrex::Array4<const amrex::Real>& mask_xlo,
-                            const amrex::Array4<const amrex::Real>& mask_xhi,
-                            const amrex::Array4<const amrex::Real>& mask_ylo,
-                            const amrex::Array4<const amrex::Real>& mask_yhi,
+                            const amrex::Array4<const amrex::Real>& u_xlo,
+                            const amrex::Array4<const amrex::Real>& u_xhi,
+                            const amrex::Array4<const amrex::Real>& v_xlo,
+                            const amrex::Array4<const amrex::Real>& v_xhi,
+                            const amrex::Array4<const amrex::Real>& v_ylo,
+                            const amrex::Array4<const amrex::Real>& v_yhi,
                             const amrex::Array4<const amrex::Real>& data_arr,
                             const amrex::Array4<amrex::Real>& rhs_arr,
                             const bool& do_upwind)
@@ -360,9 +364,9 @@ realbdy_compute_relaxation (const int& icomp,
         if (!do_upwind) {
             rhs_arr(i,j,k,n+icomp) += Temp;
         } else {
-            if ( (mask_xlo(dom_cc_lo.x,j,k) >= 0.0) ||
-                 ((j == dom_cc_lo.y      ) && (mask_ylo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
-                 ((j == dom_cc_hi.y+iv[1]) && (mask_yhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
+            if ( (u_xlo(dom_cc_lo.x,j,k) >= 0.0) ||
+                 ((j == dom_cc_lo.y      ) && (v_xlo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
+                 ((j == dom_cc_hi.y+iv[1]) && (v_xlo(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
                 rhs_arr(i,j,k,n+icomp) += Temp;
             }
         }
@@ -386,9 +390,9 @@ realbdy_compute_relaxation (const int& icomp,
         if (!do_upwind) {
             rhs_arr(i,j,k,n+icomp) += Temp;
         } else {
-            if ( (mask_xhi(dom_cc_hi.x+1,j,k) <= 0.0) ||
-                 ((j == dom_cc_lo.y      ) && (mask_ylo(i,dom_cc_lo.y  ,k) >= 0.0)) ||
-                 ((j == dom_cc_hi.y+iv[1]) && (mask_yhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
+            if ( (u_xhi(dom_cc_hi.x+1,j,k) <= 0.0) ||
+                 ((j == dom_cc_lo.y      ) && (v_xhi(i,dom_cc_lo.y  ,k) >= 0.0)) ||
+                 ((j == dom_cc_hi.y+iv[1]) && (v_xhi(i,dom_cc_hi.y+1,k) <= 0.0)) ) {
                 rhs_arr(i,j,k,n+icomp) += Temp;
             }
         }
@@ -407,7 +411,7 @@ realbdy_compute_relaxation (const int& icomp,
         if (!do_upwind) {
             rhs_arr(i,j,k,n+icomp) += Temp;
         } else {
-            if (mask_ylo(i,dom_cc_lo.y,k) >= 0.0) {
+            if (v_ylo(i,dom_cc_lo.y,k) >= 0.0) {
                 rhs_arr(i,j,k,n+icomp) += Temp;
             }
         }
@@ -425,7 +429,7 @@ realbdy_compute_relaxation (const int& icomp,
         if (!do_upwind) {
             rhs_arr(i,j,k,n+icomp) += Temp;
         } else {
-            if (mask_yhi(i,dom_cc_hi.y+1,k) >= 0.0) {
+            if (v_yhi(i,dom_cc_hi.y+1,k) >= 0.0) {
                 rhs_arr(i,j,k,n+icomp) += Temp;
             }
         }

@@ -82,11 +82,13 @@ moist_set_rhs (const Geometry& geom,
     QV_ylo.resize(bx_ylo,1,The_Async_Arena()); QV_yhi.resize(bx_yhi,1,The_Async_Arena());
 
     // Masks for upwinding
-    FArrayBox M_xlo, M_xhi, M_ylo, M_yhi;
-    M_xlo.resize(convert(bx_xlo,IntVect(1,0,0)),1,The_Async_Arena());
-    M_xhi.resize(convert(bx_xhi,IntVect(1,0,0)),1,The_Async_Arena());
-    M_ylo.resize(convert(bx_ylo,IntVect(0,1,0)),1,The_Async_Arena());
-    M_yhi.resize(convert(bx_yhi,IntVect(0,1,0)),1,The_Async_Arena());
+    FArrayBox U_xlo, U_xhi, V_xlo, V_xhi, V_ylo, V_yhi;
+    U_xlo.resize(convert(bx_xlo,IntVect(1,0,0)),1,The_Async_Arena());
+    U_xhi.resize(convert(bx_xhi,IntVect(1,0,0)),1,The_Async_Arena());
+    V_xlo.resize(convert(bx_xlo,IntVect(0,1,0)),1,The_Async_Arena());
+    V_xhi.resize(convert(bx_xhi,IntVect(0,1,0)),1,The_Async_Arena());
+    V_ylo.resize(convert(bx_ylo,IntVect(0,1,0)),1,The_Async_Arena());
+    V_yhi.resize(convert(bx_yhi,IntVect(0,1,0)),1,The_Async_Arena());
 
     // Populate FABs from bdy interpolation (primitive vars)
     //==========================================================
@@ -99,14 +101,20 @@ moist_set_rhs (const Geometry& geom,
     const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][WRFBdyVars::QV].const_array();
     const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][WRFBdyVars::QV].const_array();
 
-    const auto& bdatxlo_n_m   = bdy_data_xlo[n_time   ][WRFBdyVars::U].const_array();
-    const auto& bdatxlo_np1_m = bdy_data_xlo[n_time_p1][WRFBdyVars::U].const_array();
-    const auto& bdatxhi_n_m   = bdy_data_xhi[n_time   ][WRFBdyVars::U].const_array();
-    const auto& bdatxhi_np1_m = bdy_data_xhi[n_time_p1][WRFBdyVars::U].const_array();
-    const auto& bdatylo_n_m   = bdy_data_ylo[n_time   ][WRFBdyVars::V].const_array();
-    const auto& bdatylo_np1_m = bdy_data_ylo[n_time_p1][WRFBdyVars::V].const_array();
-    const auto& bdatyhi_n_m   = bdy_data_yhi[n_time   ][WRFBdyVars::V].const_array();
-    const auto& bdatyhi_np1_m = bdy_data_yhi[n_time_p1][WRFBdyVars::V].const_array();
+    const auto& bdatxlo_n_u   = bdy_data_xlo[n_time   ][WRFBdyVars::U].const_array();
+    const auto& bdatxlo_np1_u = bdy_data_xlo[n_time_p1][WRFBdyVars::U].const_array();
+    const auto& bdatxhi_n_u   = bdy_data_xhi[n_time   ][WRFBdyVars::U].const_array();
+    const auto& bdatxhi_np1_u = bdy_data_xhi[n_time_p1][WRFBdyVars::U].const_array();
+
+    const auto& bdatxlo_n_v   = bdy_data_xlo[n_time   ][WRFBdyVars::V].const_array();
+    const auto& bdatxlo_np1_v = bdy_data_xlo[n_time_p1][WRFBdyVars::V].const_array();
+    const auto& bdatxhi_n_v   = bdy_data_xhi[n_time   ][WRFBdyVars::V].const_array();
+    const auto& bdatxhi_np1_v = bdy_data_xhi[n_time_p1][WRFBdyVars::V].const_array();
+
+    const auto& bdatylo_n_v   = bdy_data_ylo[n_time   ][WRFBdyVars::V].const_array();
+    const auto& bdatylo_np1_v = bdy_data_ylo[n_time_p1][WRFBdyVars::V].const_array();
+    const auto& bdatyhi_n_v   = bdy_data_yhi[n_time   ][WRFBdyVars::V].const_array();
+    const auto& bdatyhi_np1_v = bdy_data_yhi[n_time_p1][WRFBdyVars::V].const_array();
 
     // Get Array4 of interpolated values
     Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();
@@ -130,47 +138,50 @@ moist_set_rhs (const Geometry& geom,
     ParallelFor(tbx_xlo, tbx_xhi,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        int ii = std::max(i , dom_lo.x);
-            ii = std::min(ii, dom_lo.x+offset);
-        int jj = std::max(j , dom_lo.y);
-            jj = std::min(jj, dom_hi.y);
+        int ii = std::min(std::max(i , dom_lo.x), dom_lo.x+offset);
+        int jj = std::min(std::max(j , dom_lo.y), dom_hi.y       );
         arr_xlo(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxlo_n  (ii,jj,k)
                                                     + alpha * bdatxlo_np1(ii,jj,k) );
-        mask_xlo(i,j,k) = ( oma * bdatxlo_n_m(ii,jj,k) + alpha * bdatxlo_np1_m(ii,jj,k) );
+        u_xlo(i,j,k) = ( oma * bdatxlo_n_u(ii,jj,k) + alpha * bdatxlo_np1_u(ii,jj,k) );
+        v_xlo(i,j,k) = ( oma * bdatxlo_n_v(ii,jj,k) + alpha * bdatxlo_np1_v(ii,jj,k) );
+        if (j == dom_hi.y) {
+            v_xlo(i,dom_hi.y+1,k) = ( oma   * bdatxlo_n_v  (ii,dom_hi.y+1,k)
+                                    + alpha * bdatxlo_np1_v(ii,dom_hi.y+1,k) );
+        }
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        int ii = std::max(i , dom_hi.x-offset);
-            ii = std::min(ii, dom_hi.x);
-        int jj = std::max(j , dom_lo.y);
-            jj = std::min(jj, dom_hi.y);
+        int ii = std::min(std::max(i , dom_hi.x-offset), dom_hi.x);
+        int jj = std::min(std::max(j , dom_lo.y       ), dom_hi.y);
         arr_xhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
                                                     + alpha * bdatxhi_np1(ii,jj,k) );
         // NOTE: correct for idx type mismatch with u bdy data
-        mask_xhi(i+1,j,k) = ( oma * bdatxhi_n_m(ii+1,jj,k) + alpha * bdatxhi_np1_m(ii+1,jj,k) );
+        u_xhi(i+1,j,k) = ( oma * bdatxhi_n_u(ii+1,jj,k) + alpha * bdatxhi_np1_u(ii+1,jj,k) );
+        v_xhi(i  ,j,k) = ( oma * bdatxhi_n_v(ii  ,jj,k) + alpha * bdatxhi_np1_v(ii,jj,k) );
+        if (j == dom_hi.y) {
+            v_xhi(i,dom_hi.y+1,k) = ( oma   * bdatxhi_n_v  (ii,dom_hi.y+1,k)
+                                    + alpha * bdatxhi_np1_v(ii,dom_hi.y+1,k) );
+        }
     });
 
     ParallelFor(tbx_ylo, tbx_yhi,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        int ii = std::max(i , dom_lo.x);
-            ii = std::min(ii, dom_hi.x);
-        int jj = std::max(j , dom_lo.y);
-            jj = std::min(jj, dom_lo.y+offset);
+        int ii = std::min(std::max(i , dom_lo.x), dom_hi.x       );
+        int jj = std::min(std::max(j , dom_lo.y), dom_lo.y+offset);
         arr_ylo(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatylo_n  (ii,jj,k)
                                                     + alpha * bdatylo_np1(ii,jj,k) );
-        mask_ylo(i,j,k) = ( oma * bdatylo_n_m(ii,jj,k) + alpha * bdatylo_np1_m(ii,jj,k) );
+        v_ylo(i,j,k) = ( oma * bdatylo_n_v(ii,jj,k) + alpha * bdatylo_np1_v(ii,jj,k) );
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        int ii = std::max(i , dom_lo.x);
-            ii = std::min(ii, dom_hi.x);
-        int jj = std::max(j , dom_hi.y-offset);
+        int ii = std::min(std::max(i , dom_lo.x       ), dom_hi.x);
+        int jj = std::min(std::max(j , dom_hi.y-offset), dom_hi.y);
             jj = std::min(jj, dom_hi.y);
         arr_yhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
                                                     + alpha * bdatyhi_np1(ii,jj,k) );
         // NOTE: correct for idx type mismatch with v bdy data
-        mask_yhi(i,j+1,k) = ( oma * bdatyhi_n_m(ii,jj+1,k) + alpha * bdatyhi_np1_m(ii,jj+1,k) );
+        v_yhi(i,j+1,k) = ( oma * bdatyhi_n_v(ii,jj+1,k) + alpha * bdatyhi_np1_v(ii,jj+1,k) );
     });
 
 
@@ -188,7 +199,7 @@ moist_set_rhs (const Geometry& geom,
                                        domain, domain,
                                        tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                        arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                       mask_xlo, mask_xhi, mask_ylo, mask_yhi,
+                                       u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
                                        old_cons, cell_rhs, do_upwind);
     }
 
@@ -208,7 +219,7 @@ moist_set_rhs (const Geometry& geom,
                                    width, dx, ProbLo, ProbHi, F1, domain,
                                    tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                    arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                   mask_xlo, mask_xhi, mask_ylo, mask_yhi,
+                                   u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
                                    new_cons, cell_rhs, do_upwind);
     }
 
