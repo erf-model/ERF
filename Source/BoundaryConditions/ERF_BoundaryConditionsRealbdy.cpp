@@ -449,8 +449,8 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                         // Compute bdy velocities
                         int jju = std::min(std::max(j, dom_cc_lo.y), dom_cc_hi.y);
                         int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
-                        Real u_bdy    = oma   * bdatxhi_n_m  (dom_cc_lo.x,jju,k,0)
-                                      + alpha * bdatxhi_np1_m(dom_cc_lo.x,jju,k,0);
+                        Real u_bdy    = oma   * bdatxhi_n_m  (dom_cc_hi.x+1,jju,k,0)
+                                      + alpha * bdatxhi_np1_m(dom_cc_hi.x+1,jju,k,0);
                         Real v_bdy_lo = oma   * bdatylo_n_m  (iiv,dom_cc_lo.y,k,0)
                                       + alpha * bdatylo_np1_m(iiv,dom_cc_lo.y,k,0);
                         Real v_bdy_hi = oma   * bdatyhi_n_m  (iiv,dom_cc_hi.y+1,k,0)
