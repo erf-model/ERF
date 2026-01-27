@@ -540,12 +540,12 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
                 /*
                 // UNIT TEST DEBUG
-                realbdy_interior_bxs_xy(tbx, domain, width+1,
+                realbdy_interior_bxs_xy(tbx, domain, width,
                                         tbx_xlo, tbx_xhi,
                                         tbx_ylo, tbx_yhi);
                 ParallelFor(tbx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    if (arr_xlo(i,j,k) != data_arr(i,j,k,icomp)) {
+                  if (std::fabs(arr_xlo(i,j,k) - data_arr(i,j,k,icomp)) > 0.01) {
                         Print() << "ERROR XLO: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
                         Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_xlo(i,j,k) << "\n";
                         exit(0);
@@ -553,7 +553,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 });
                 ParallelFor(tbx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    if (arr_xhi(i,j,k) != data_arr(i,j,k,icomp)) {
+                  if (std::fabs(arr_xhi(i,j,k) - data_arr(i,j,k,icomp)) > 0.01) {
                         Print() << "ERROR XHI: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
                         Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_xhi(i,j,k) << "\n";
                         exit(0);
@@ -561,7 +561,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 });
                 ParallelFor(tbx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    if (arr_ylo(i,j,k) != data_arr(i,j,k,icomp)) {
+                  if (std::fabs(arr_ylo(i,j,k) - data_arr(i,j,k,icomp)) > 0.01) {
                         Print() << "ERROR YLO: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
                         Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_ylo(i,j,k) << "\n";
                         exit(0);
@@ -569,7 +569,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 });
                 ParallelFor(tbx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    if (arr_yhi(i,j,k) != data_arr(i,j,k,icomp)) {
+                  if (std::fabs(arr_yhi(i,j,k)-data_arr(i,j,k,icomp)) > 0.01) {
                         Print() << "ERROR YHI: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
                         Print() << "DATA: " << data_arr(i,j,k,icomp) << ' ' << arr_yhi(i,j,k) << "\n";
                         exit(0);

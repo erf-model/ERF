@@ -226,37 +226,38 @@ moist_set_rhs (const Geometry& geom,
 
     /*
     // UNIT TEST DEBUG
-    compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
-                                  bx_xlo, bx_xhi,
-                                  bx_ylo, bx_yhi);
-    ParallelFor(bx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    realbdy_interior_bxs_xy(tbx, domain, width,
+                            tbx_xlo, tbx_xhi,
+                            tbx_ylo, tbx_yhi);
+    ParallelFor(tbx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if (arr_xlo(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+      if (std::fabs(arr_xlo(i,j,k) - new_cons(i,j,k,RhoQ1_comp)) > 1.0e-7) {
             Print() << "ERROR XLO: " <<  RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
-    ParallelFor(bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(tbx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if (arr_xhi(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+      if (std::fabs(arr_xhi(i,j,k) - new_cons(i,j,k,RhoQ1_comp)) > 1.0e-7) {
             Print() << "ERROR XHI: " << RhoQ1_comp<< ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
-    ParallelFor(bx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(tbx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if (arr_ylo(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+      if (std::fabs(arr_ylo(i,j,k) - new_cons(i,j,k,RhoQ1_comp))> 1.0e-7) {
             Print() << "ERROR YLO: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
-    ParallelFor(bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(tbx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if (arr_yhi(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+      if (std::fabs(arr_yhi(i,j,k) - new_cons(i,j,k,RhoQ1_comp))> 1.0e-7) {
             Print() << "ERROR YHI: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
+    exit(0);
     */
 } // moist_set_rhs
 #endif

@@ -226,7 +226,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                     {
                         int jj = std::max(j , dom_lo.y+width);
                             jj = std::min(jj, dom_hi.y-width);
-                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
                             WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
                             dest_arr(i_xlo,jj,k,comp_idx);
                     },
@@ -234,7 +234,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                     {
                         int jj = std::max(j , dom_lo.y+width);
                             jj = std::min(jj, dom_hi.y-width);
-                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
                             WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
                             dest_arr(i_xhi,jj,k,comp_idx);
                     });
@@ -243,13 +243,13 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                     ParallelFor(bx_ylo, bx_yhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
                             WFromOmega(i,j,k,0.0,u_arr,u_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
                             dest_arr(i,j_ylo,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                      dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
                             WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
                             dest_arr(i,j_yhi,k,comp_idx);
                     });
@@ -554,7 +554,7 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                     {
                         int jj = std::max(j , dom_lo.y+width);
                             jj = std::min(jj, dom_hi.y-width);
-                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
                             WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
                             dest_arr(i_xlo,jj,k,comp_idx);
                     },
@@ -562,7 +562,7 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                     {
                         int jj = std::max(j , dom_lo.y+width);
                             jj = std::min(jj, dom_hi.y-width);
-                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
                             WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
                             dest_arr(i_xhi,jj,k,comp_idx);
                     });
@@ -571,13 +571,13 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                     ParallelFor(bx_ylo, bx_yhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
                             WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
                             dest_arr(i,j_ylo,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = (var_idx == Vars::zvel) ?
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
                             WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
                             dest_arr(i,j_yhi,k,comp_idx);
                     });
