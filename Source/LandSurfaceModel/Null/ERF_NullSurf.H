@@ -112,7 +112,7 @@ class NullSurf {
     }
 
  private:
-    int m_lsm_size = 1;
+    int m_lsm_size = 0;
     amrex::Geometry m_lsm_geom;
     std::string dataname = " ";
     std::string fluxname = " ";
