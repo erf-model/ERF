@@ -96,6 +96,7 @@ Problem::init_custom_pert (
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
     const bool use_terrain = (sc.terrain_type != TerrainType::None);
+    const bool const_rho    = (sc.fixed_density[lev] == 1);
 
     const Real rdOcp   = sc.rdOcp;
 
@@ -153,12 +154,24 @@ Problem::init_custom_pert (
 
             Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
             Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
+
+            if (const_rho) {
+                // anelastic
+                state_pert(i, j, k, Rho_comp) = 0.0;
+                //state_pert(i, j, k, RhoTheta_comp) = rhotheta - (theta_new * rhonew);
+                state_pert(i, j, k, RhoTheta_comp) = r_hse(i, j, k) * (theta_new - (rhotheta / rho));
+            } else {
+                // compressible
+                state_pert(i, j, k, Rho_comp) = rhonew - rho;
+                state_pert(i, j, k, RhoTheta_comp) = 0.0;
+            }
+
             //state_pert(i, j, k, Rho_comp) = rhonew - rho;
-            state_pert(i, j, k, Rho_comp) = 0.0;
+            //state_pert(i, j, k, Rho_comp) = 0.0;
 
             // Note we do not perturb this
             //state_pert(i, j, k, RhoTheta_comp) = 0.0;
-            state_pert(i, j, k, RhoTheta_comp) = rhotheta - (theta_new * rhonew);
+            //state_pert(i, j, k, RhoTheta_comp) = rhotheta - (theta_new * rhonew);
 
             //  Instead of perturbing (rho theta) we perturb T and hold (rho theta) fixed,
             //  which ends up being stored as a perturbation in rho
