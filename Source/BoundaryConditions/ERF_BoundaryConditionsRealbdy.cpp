@@ -369,8 +369,7 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
             //------------------------------------
             if (is_read[var_idx][comp_idx])
             {
-                int width = real_width;
-                int ivar  = ind_map[var_idx][comp_idx];
+                int ivar = ind_map[var_idx][comp_idx];
 
                 // We have data at fixed time intervals we will call dT
                 // Then to interpolate, given time, we can define n = (time/dT)
@@ -478,7 +477,7 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                         int jj = std::max(j, dom_lo.y);
 
                         // Compute bdy velocities
-                        int iiv = std::min(std::max(i, dom_cc_lo.x+width), dom_cc_hi.x-width);
+                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
                         Real v_bdy = oma   * bdatylo_n_m  (iiv,dom_cc_lo.y,k,0)
                                    + alpha * bdatylo_np1_m(iiv,dom_cc_lo.y,k,0);
 
@@ -498,7 +497,7 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                         int jj = std::min(j, dom_hi.y);
 
                         // Compute bdy velocities
-                        int iiv = std::min(std::max(i, dom_cc_lo.x+width), dom_cc_hi.x-width);
+                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
                         Real v_bdy = oma   * bdatyhi_n_m  (iiv,dom_cc_hi.y+1,k,0)
                                    + alpha * bdatyhi_np1_m(iiv,dom_cc_hi.y+1,k,0);
 
