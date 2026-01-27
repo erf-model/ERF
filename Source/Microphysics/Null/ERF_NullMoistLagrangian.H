@@ -65,14 +65,6 @@ public:
              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&, /* terrain */
              const amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& ) { }
 
-    virtual
-    void
-    Set_dzmin (const amrex::Real /*dz_min*/) { }
-
-    virtual
-    void
-    Set_RealWidth (const int /*real_width*/) { }
-
 protected:
 
 private:
