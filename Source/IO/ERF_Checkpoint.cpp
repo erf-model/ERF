@@ -368,21 +368,37 @@ ERF::WriteCheckpointFile () const
         }
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
-            amrex::Print() << "Writing C1H/C2H/MUB variables at level " << lev << std::endl;
-            MultiFab tmp1d(ba1d[0],dmap[0],1,0);
+            if (lev == 0) {
+                amrex::Print() << "Writing C1H/C2H/MUB variables at level " << lev << std::endl;
+                MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
-            MultiFab::Copy(tmp1d,*mf_C1H,0,0,1,0);
-            VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C1H"));
+                MultiFab::Copy(tmp1d,*mf_C1H,0,0,1,0);
+                VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C1H"));
 
-            MultiFab::Copy(tmp1d,*mf_C2H,0,0,1,0);
-            VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
+                MultiFab::Copy(tmp1d,*mf_C2H,0,0,1,0);
+                VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
 
-            MultiFab tmp2d(ba2d[0],dmap[0],1,mf_MUB->nGrowVect());
+                MultiFab tmp2d(ba2d[0],dmap[0],1,mf_MUB->nGrowVect());
 
-            MultiFab::Copy(tmp2d,*mf_MUB,0,0,1,mf_MUB->nGrowVect());
-            VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
+                MultiFab::Copy(tmp2d,*mf_MUB,0,0,1,mf_MUB->nGrowVect());
+                VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
+            }
         }
 #endif
+
+        // Write the LSM data
+        if (solverchoice.lsm_type != LandSurfaceType::None) {
+            int nvar  = lsm.Get_Data_Size();
+            for (int ivar(0); ivar<nvar; ++ivar) {
+                MultiFab* lsm_data = lsm.Get_Data_Ptr(lev,ivar);
+                VisMF::Write(*lsm_data, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmData" + ivar));
+            }
+            int nflux = lsm.Get_Flux_Size();
+            for (int iflux(0); iflux<nflux; ++iflux) {
+                MultiFab* lsm_flux = lsm.Get_Flux_Ptr(lev,ivar);
+                VisMF::Write(*lsm_flux, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmFlux" + iflux));
+            }
+        }
 
     } // for lev
 
@@ -901,7 +917,6 @@ ERF::ReadCheckpointFile ()
         }
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
-
             if (lev == 0) {
                 MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
@@ -918,6 +933,20 @@ ERF::ReadCheckpointFile ()
             }
         }
 #endif
+
+        // Read the LSM data
+        if (solverchoice.lsm_type != LandSurfaceType::None) {
+            int nvar  = lsm.Get_Data_Size();
+            for (int ivar(0); ivar<nvar; ++ivar) {
+                MultiFab* lsm_data = lsm.Get_Data_Ptr(lev,ivar);
+                VisMF::Read(*lsm_data, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmData" + ivar));
+            }
+            int nflux = lsm.Get_Flux_Size();
+            for (int iflux(0); iflux<nflux; ++iflux) {
+                MultiFab* lsm_flux = lsm.Get_Flux_Ptr(lev,ivar);
+                VisMF::Read(*lsm_flux, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmFlux" + iflux));
+            }
+        }
 
     } // for lev
 
