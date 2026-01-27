@@ -214,7 +214,7 @@ ERF::WriteCheckpointFile () const
                 int nvar   = lsm_data[lev][ivar]->nComp();
                 MultiFab lsm_vars(ba,dm,nvar,ng);
                 MultiFab::Copy(lsm_vars,*(lsm_data[lev][ivar]),0,0,nvar,ng);
-                VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmData" + ivar));
+                VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmData" + std::to_string(ivar)));
             }
             for (int iflux(0); iflux<lsm_flux[lev].size(); ++iflux) {
                 BoxArray ba = lsm_flux[lev][iflux]->boxArray();
@@ -223,7 +223,7 @@ ERF::WriteCheckpointFile () const
                 int nvar   = lsm_flux[lev][iflux]->nComp();
                 MultiFab lsm_vars(ba,dm,nvar,ng);
                 MultiFab::Copy(lsm_vars,*(lsm_flux[lev][iflux]),0,0,nvar,ng);
-                VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmFlux" + iflux));
+                VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmFlux" + std::to_string(iflux)));
             }
         }
 
@@ -748,7 +748,7 @@ ERF::ReadCheckpointFile ()
                 IntVect ng = lsm_data[lev][ivar]->nGrowVect();
                 int nvar   = lsm_data[lev][ivar]->nComp();
                 MultiFab lsm_vars(ba,dm,nvar,ng);
-                VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmData" + ivar));
+                VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmData" + std::to_string(ivar)));
                 MultiFab::Copy(*(lsm_data[lev][ivar]),lsm_vars,0,0,nvar,ng);
             }
             for (int iflux(0); iflux<lsm_flux[lev].size(); ++iflux) {
@@ -757,7 +757,7 @@ ERF::ReadCheckpointFile ()
                 IntVect ng = lsm_flux[lev][iflux]->nGrowVect();
                 int nvar   = lsm_flux[lev][iflux]->nComp();
                 MultiFab lsm_vars(ba,dm,nvar,ng);
-                VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmFlux" + iflux));
+                VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmFlux" + std::to_string(iflux)));
                 MultiFab::Copy(*(lsm_flux[lev][iflux]),lsm_vars,0,0,nvar,ng);
             }
         }
