@@ -1,19 +1,16 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "Sinusoidal_W"
-
-#stop_time = 3600    #  1 hour
-#stop_time = 4800    #  1.5 hours
-#stop_time = 7200    #  2 hours
-stop_time = 600   #  6 hours
+erf.prob_name = "SinusoidalMassFlux"
+stop_time = 3600   #  6 hours
+max_step = 50
 
 amrex.fpe_trap_invalid = 1
+erf.fix_random_seed = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-# PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     =  0.   0.    0.
-geometry.prob_hi     =  400. 400. 3260.
+geometry.prob_hi     =  400. 400. 2975.
 amr.n_cell           =  4    4    50      # dx=dy=dz=100m
 
 geometry.is_periodic = 1 1 0
@@ -22,14 +19,9 @@ geometry.is_periodic = 1 1 0
 zlo.type = "Outflow"
 zhi.type = "Outflow"
 
-#zhi.theta_grad = 0.00365
-
 # TIME STEP CONTROL
-#erf.fixed_dt           = 0.3 # fixed time step depending on grid resolution
-#erf.fixed_mri_dt_ratio = 4
-# TIME STEP CONTROL
-erf.fixed_dt = 0.5
-erf.fixed_fast_dt = 0.5
+erf.fixed_dt = 0.25
+erf.fixed_fast_dt = 0.25
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -43,21 +35,17 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk     # root name of checkpoint file
-erf.check_int       = 2000    # number of timesteps between checkpoints
+erf.check_int       = -1     # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 10    # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat qrain
+erf.plot_int_1      = 100    # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat qrain rel_humidity super_droplets_moisture_radius super_droplets_moisture_mass_density super_droplets_moisture_number_density
+particles.disable_plt = true
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
-
 erf.use_coriolis    = false
-erf.coriolis_3d     = false
-erf.latitude        = 14.982176712702886  # f = 0.376e-4 1/s
 
 erf.dycore_horiz_adv_type    = Upwind_3rd
 erf.dycore_vert_adv_type     = Upwind_3rd
@@ -66,24 +54,39 @@ erf.dryscal_vert_adv_type    = Upwind_3rd
 erf.moistscal_horiz_adv_type = WENO5
 erf.moistscal_vert_adv_type  = WENO5
 
-erf.moisture_model  = "Kessler"
-erf.buoyancy_type   = 2
+erf.moisture_model  = "SuperDroplets"
+erf.buoyancy_type   = 1
 
 erf.molec_diff_type = "None"
-
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.17
-
-#erf.les_type = "Deardorff"
-#erf.Ck       = 0.1
-#erf.sigma_k  = 1.0
-#erf.Ce       = 0.1
-
 erf.Pr_t      = 0.33333333333333
 erf.Sc_t      = 0.33333333333333
 
+#sdm parameters
+super_droplets_moisture.stable_redistribute = true
+super_droplets_moisture.place_randomly_in_cells = false
+super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.diagnostics_interval = 100
+super_droplets_moisture.include_coalescence = false
+super_droplets_moisture.prescribed_advection = true
+super_droplets_moisture.density_scaling = true
+super_droplets_moisture.advect_with_gravity = false
+super_droplets_moisture.dimensionality = "one_d_z"
+super_droplets_moisture.aerosols = NH42SO4
+super_droplets_moisture.num_initializations = 1
+super_droplets_moisture.initial_aerosol_distribution_type_NH42SO4 = "radius_log_normal"
+super_droplets_moisture.initial_aerosol_mean_radius_NH42SO4 = 80.0e-9 #kg (0.03 mu-m)
+super_droplets_moisture.initial_aerosol_min_radius_NH42SO4 = 1e-9 #kg (0.03 mu-m)
+super_droplets_moisture.initial_aerosol_max_radius_NH42SO4 = 5e-6 #kg (0.03 mu-m)
+super_droplets_moisture.initial_aerosol_std_radius_NH42SO4 = 0.146
+super_droplets_moisture.initial_number_density = 5.0e7 #m^{-3}
+super_droplets_moisture.initial_particles_per_cell = 128
+
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
+
+erf.nudging_from_input_sounding = true
+erf.tau_nudging = 0.2
 
 erf.add_custom_rhotheta_forcing        = true
 erf.add_custom_moisture_forcing        = true
@@ -108,6 +111,5 @@ prob.source_cutoff_transition = 1500.0
 prob.advection_moisture_rate            = 0.0
 prob.moisture_source_cutoff            	= 300.0
 prob.moisture_source_cutoff_transition 	= 200.0
-
 
 prob.custom_TKE      = true

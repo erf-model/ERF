@@ -205,13 +205,15 @@ if(ERF_ENABLE_PARTICLES)
     # These tests require machine-specific gold files due to platform-dependent initial sampling
     if(ERF_TEST_ENABLE_EXTRA_SDM_TESTS)
         # log-normal distribution for radius
-        add_test_sdm(SDM_RICO3D_InitSampling         "DevTests/RICO"        "erf_rico"     "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding")
+        add_test_sdm(SDM_RICO3D_InitSampling         "DevTests/RICO"                    "erf_rico"     "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding")
         # mass-exponential distribution for mass
-        add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "MoistRegTests/Bubble" "erf_bubble"   "plt00000" 1e-14 1e-14)
+        add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "MoistRegTests/Bubble"             "erf_bubble"   "plt00000" 1e-14 1e-14)
         # INAS sampled initialization for freezing temperature
-        add_test_sdm(SDM_Bubble2D_Adv_TfzINAS        "MoistRegTests/Bubble" "erf_bubble"   "plt00000" 1e-14 1e-14)
+        add_test_sdm(SDM_Bubble2D_Adv_TfzINAS        "MoistRegTests/Bubble"             "erf_bubble"   "plt00000" 1e-14 1e-14)
     endif()
 
+    # column case to test condensation
+    add_test_sdm(SDM_SineMassFlux                "DevTests/sinusoidal_mass_flux" "erf_sinusoidal_mass_flux" "plt00050" 1e-14 1e-14 INPUT_SOUNDING "input_sounding")
     # passive advection of particles
     add_test_sdm(SDM_Bubble2D_Adv                "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 1e-12 1e-12)
     # passive advection of particles with injection

@@ -49,7 +49,6 @@ else ()
   add_subdirectory(DevTests/TemperatureSourceSpatial)
   add_subdirectory(DevTests/TropicalCyclone)
   add_subdirectory(DevTests/Tornado)
-  add_subdirectory(DevTests/sinusoidal_w)
   add_subdirectory(DevTests/sinusoidal_mass_flux)
 endif()
 
