@@ -233,6 +233,7 @@ public:
 
                 const int isnature = 14; // nature cell type to use for urban cells
                 const int isurban  = 13; // urban cell type
+                const int islake   = 21; // lake cell
                 for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
                     amrex::Box bx2d = mfi.tilebox();
 
@@ -297,7 +298,7 @@ public:
                         in_vegfrac_max_arr(i,j,d_khi_lsm) *= 0.01;
                         in_vegfrac_max_arr(i,j,0) = in_vegfrac_max_arr(i,j,d_khi_lsm);
 
-                        if (landtype_arr(i,j,0) == 17) {
+                        if (landtype_arr(i,j,0) == 17 || landtype_arr(i, j, 0) == islake) {
                             //amrex::Print() << "     -- water cell - setting landtype=0 landmask=0" << std::endl;
                             landmask_arr(i,j,0) = 0;
                             landtype_arr(i,j,0) = 0;
