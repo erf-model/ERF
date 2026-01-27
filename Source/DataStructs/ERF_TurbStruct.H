@@ -12,7 +12,7 @@ AMREX_ENUM(PBLType, None, MYJ, MYNN25, MYNNEDMF, YSU, MRF, SHOC);
 AMREX_ENUM(StratType, theta, thetav, thetal);
 
 template <typename T>
-void
+int
 query_one_or_per_level (
   const amrex::ParmParse& pp,
   const char* query_string,
@@ -22,15 +22,16 @@ query_one_or_per_level (
 {
   int count = pp.countval(query_string);
   if (count == 0) {
-    return; // nothing to do
+    return 0; // nothing to do
   } else if (count == 1) {
-    pp.query(query_string, query_var);
+    return pp.query(query_string, query_var);
   } else if (count == maxlev + 1) {
-    pp.query(query_string, query_var, lev);
+    return pp.query(query_string, query_var, lev);
   } else {
     amrex::Error(
       "For parmparse variable " + pp.prefixedName(query_string) +
       ": if specified, specify once total or once for each level");
+    return 0; // avoid compiler warning
   }
 }
 
@@ -191,7 +192,10 @@ public:
     query_one_or_per_level(pp, "max_geom_lscale", l_g_max, lev, max_level);
 
     // Common inputs (LES or RANS)
-    query_one_or_per_level(pp, "sigma_k", sigma_k, lev, max_level);
+    if (!query_one_or_per_level(pp, "sigma_k", sigma_k, lev, max_level) && rans_type == RANSType::kEqn) {
+        amrex::Print() << "Overriding default sigma_k for k-eqn RANS" << std::endl;
+        sigma_k = 1.0;
+    };
     query_one_or_per_level(pp, "theta_ref", theta_ref, lev, max_level);
 
     query_one_or_per_level(pp, "mix_isotropic", mix_isotropic, lev, max_level);
@@ -386,7 +390,7 @@ public:
   amrex::Real Cb = 0.35;
   amrex::Real Rt_crit = -1.0;
   amrex::Real Rt_min = -3.0;
-  amrex::Real l_g_max = 1e99;
+  amrex::Real l_g_max = 30.0; // ~ kappa * (0.1 * zi)
 
   // Deardorff or k-eqn RANS
   // - diffusivity of tke is 1/sigma_k times the eddy viscosity

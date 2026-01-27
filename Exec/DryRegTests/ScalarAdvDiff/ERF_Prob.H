@@ -62,7 +62,6 @@ public:
         amrex::Real zdamp) override;
 
 protected:
-    std::string name() override { return "Scalar Advection/Diffusion"; }
 
 private:
     ProbParm parms;

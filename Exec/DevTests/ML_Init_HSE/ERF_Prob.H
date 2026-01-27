@@ -49,10 +49,6 @@ public:
                            const SolverChoice& sc,
                            const int lev) override;
 
-    void init_custom_terrain (const amrex::Geometry& geom,
-                              amrex::FArrayBox& terrain_fab,
-                              const amrex::Real& time) override;
-
     void
     erf_init_dens_hse (amrex::MultiFab& rho_hse,
                        std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
@@ -60,7 +56,6 @@ public:
                        amrex::Geometry const& geom) override;
 
 protected:
-    std::string name () override { return "ML Init HSE Test"; }
 
 private:
     ProbParm parms;

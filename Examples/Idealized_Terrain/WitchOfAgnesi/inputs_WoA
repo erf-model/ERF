@@ -79,5 +79,6 @@ erf.terrain_type = StaticFittedMesh
 erf.terrain_smoothing = 2 # Sullivan TF
 
 # PROBLEM PARAMETERS
+prob.custom_terrain_type = "WoA"
 prob.hmax  = 1.0  # full hill height
 prob.L     = 1000.0 # hill length at half-height

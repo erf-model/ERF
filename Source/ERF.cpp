@@ -555,9 +555,14 @@ ERF::ERF_shared ()
         auto gshop = EB2::makeShop(implicit_fun);
         EB2::Build(gshop, this->Geom(), ngrow_for_eb);
     }
+
     forecast_state_1.resize(nlevs_max);
     forecast_state_2.resize(nlevs_max);
     forecast_state_interp.resize(nlevs_max);
+
+    surface_state_1.resize(nlevs_max);
+    surface_state_2.resize(nlevs_max);
+    surface_state_interp.resize(nlevs_max);
 }
 
 ERF::~ERF () = default;
@@ -600,6 +605,13 @@ ERF::Evolve ()
           solverChoice.hindcast_lateral_forcing) {
             for(int lev=0;lev<finest_level+1;lev++){
                 WeatherDataInterpolation(lev,cur_time,z_phys_nd,false);
+            }
+        }
+
+        if(solverChoice.init_type == InitType::HindCast and
+          solverChoice.hindcast_surface_bcs) {
+            for(int lev=0;lev<finest_level+1;lev++){
+                SurfaceDataInterpolation(lev,cur_time,z_phys_nd,false);
             }
         }
 
@@ -903,15 +915,25 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
                                hurricane_eye_track_xy,
                                hurricane_maxvel_vs_time);
 
+        HurricaneMinPressureTracker(solverChoice.moisture_type,
+                                    geom[levc],
+                                    vars_new[levc][Vars::cons],
+                                    t_new[0],
+                                    hurricane_eye_track_xy,
+                                    hurricane_minpressure_vs_time);
+
         std::string filename_tracker = MakeVTKFilename_TrackerCircle(nstep);
         std::string filename_xy      = MakeVTKFilename_EyeTracker_xy(nstep);
         std::string filename_latlon  = MakeFilename_EyeTracker_latlon(nstep);
         std::string filename_maxvel  = MakeFilename_EyeTracker_maxvel(nstep);
+        std::string filename_minpressure  = MakeFilename_EyeTracker_minpressure(nstep);
+
         if (ParallelDescriptor::IOProcessor()) {
             WriteVTKPolyline(filename_tracker, hurricane_tracker_circle);
             WriteVTKPolyline(filename_xy, hurricane_eye_track_xy);
             WriteLinePlot(filename_latlon, hurricane_eye_track_latlon);
             WriteLinePlot(filename_maxvel, hurricane_maxvel_vs_time);
+            WriteLinePlot(filename_minpressure, hurricane_minpressure_vs_time);
         }
     }
 } // post_timestep
@@ -2188,6 +2210,10 @@ ERF::init_only (int lev, Real time)
 void
 ERF::ReadParameters ()
 {
+    std::string prob_name = "Unknown";
+    ParmParse pp_pn("erf"); pp_pn.queryAdd("prob_name", prob_name);
+    Print() << "Problem name (from inputs file) is " << prob_name << std::endl;
+
     {
         ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
         pp.query("max_step", max_step);
@@ -3040,7 +3066,7 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
 
             if (temp < t_low) {
 #ifdef AMREX_USE_GPU
-                AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
+                //AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
 #else
                 printf("Temperature too low in cell: %d %d %d \n", i,j,k);
                 printf("Based on temp / rhotheta / rho %e %e %e \n", temp,rhotheta,rho);

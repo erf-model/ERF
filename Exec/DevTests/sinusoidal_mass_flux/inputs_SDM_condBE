@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "SinusoidalMassFlux"
+
 stop_time = 3600   #  6 hours
 
 amrex.fpe_trap_invalid = 1

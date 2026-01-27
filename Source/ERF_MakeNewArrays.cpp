@@ -384,6 +384,27 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
 
+    if(solverChoice.init_type == InitType::HindCast and
+        solverChoice.hindcast_surface_bcs)
+
+    {
+        const MultiFab& src = vars_new[lev][0];
+        BoxArray ba_hc = src.boxArray();
+        BoxList bl2d_hc = ba_hc.boxList();
+        for (auto& b : bl2d_hc) {
+            b.setRange(2, 0);
+        }
+        BoxArray ba2d_hc(std::move(bl2d_hc));
+        const amrex::DistributionMapping& dm_hc = src.DistributionMap();
+
+        surface_state_1[lev].define(ba2d_hc, dm_hc, 2, src.nGrow());
+        surface_state_2[lev].define(ba2d_hc, dm_hc, 2, src.nGrow());
+        surface_state_interp[lev].define(ba2d_hc, dm_hc, 2, src.nGrow());
+
+        bool regrid_forces_file_read = true;
+        SurfaceDataInterpolation(lev, t_new[0], z_phys_nd, regrid_forces_file_read);
+    }
+
 #ifdef ERF_USE_WW3_COUPLING
     // create a new BoxArray and DistributionMapping for a MultiFab with 1 box
     BoxArray ba_onegrid(geom[lev].Domain());

@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Temperature Source Test"
+
 stop_time = 999.9
 max_step = 20
 
