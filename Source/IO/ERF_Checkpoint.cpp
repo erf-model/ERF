@@ -205,15 +205,25 @@ ERF::WriteCheckpointFile () const
         }
 #endif
 
+        // Write the LSM data
         if (solverChoice.lsm_type != LandSurfaceType::None) {
-            for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-                BoxArray ba = lsm_data[lev][mvar]->boxArray();
-                DistributionMapping dm = lsm_data[lev][mvar]->DistributionMap();
-                IntVect ng = lsm_data[lev][mvar]->nGrowVect();
-                int nvar = lsm_data[lev][mvar]->nComp();
+            for (int ivar(0); ivar<lsm_data[lev].size(); ++ivar) {
+                BoxArray ba = lsm_data[lev][ivar]->boxArray();
+                DistributionMapping dm = lsm_data[lev][ivar]->DistributionMap();
+                IntVect ng = lsm_data[lev][ivar]->nGrowVect();
+                int nvar   = lsm_data[lev][ivar]->nComp();
                 MultiFab lsm_vars(ba,dm,nvar,ng);
-                MultiFab::Copy(lsm_vars,*(lsm_data[lev][mvar]),0,0,nvar,ng);
-                VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmVars"));
+                MultiFab::Copy(lsm_vars,*(lsm_data[lev][ivar]),0,0,nvar,ng);
+                VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmData" + ivar));
+            }
+            for (int iflux(0); iflux<lsm_flux[lev].size(); ++iflux) {
+                BoxArray ba = lsm_flux[lev][iflux]->boxArray();
+                DistributionMapping dm = lsm_flux[lev][iflux]->DistributionMap();
+                IntVect ng = lsm_flux[lev][iflux]->nGrowVect();
+                int nvar   = lsm_flux[lev][iflux]->nComp();
+                MultiFab lsm_vars(ba,dm,nvar,ng);
+                MultiFab::Copy(lsm_vars,*(lsm_flux[lev][iflux]),0,0,nvar,ng);
+                VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmFlux" + iflux));
             }
         }
 
@@ -385,21 +395,6 @@ ERF::WriteCheckpointFile () const
             }
         }
 #endif
-
-        // Write the LSM data
-        if (solverchoice.lsm_type != LandSurfaceType::None) {
-            int nvar  = lsm.Get_Data_Size();
-            for (int ivar(0); ivar<nvar; ++ivar) {
-                MultiFab* lsm_data = lsm.Get_Data_Ptr(lev,ivar);
-                VisMF::Write(*lsm_data, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmData" + ivar));
-            }
-            int nflux = lsm.Get_Flux_Size();
-            for (int iflux(0); iflux<nflux; ++iflux) {
-                MultiFab* lsm_flux = lsm.Get_Flux_Ptr(lev,ivar);
-                VisMF::Write(*lsm_flux, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmFlux" + iflux));
-            }
-        }
-
     } // for lev
 
 #ifdef ERF_USE_PARTICLES
@@ -745,15 +740,25 @@ ERF::ReadCheckpointFile ()
         }
 #endif
 
+        // Read the LSM data
         if (solverChoice.lsm_type != LandSurfaceType::None) {
-            for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-                BoxArray ba = lsm_data[lev][mvar]->boxArray();
-                DistributionMapping dm = lsm_data[lev][mvar]->DistributionMap();
-                IntVect ng = lsm_data[lev][mvar]->nGrowVect();
-                int nvar = lsm_data[lev][mvar]->nComp();
+            for (int ivar(0); ivar<lsm_data[lev].size(); ++ivar) {
+                BoxArray ba = lsm_data[lev][ivar]->boxArray();
+                DistributionMapping dm = lsm_data[lev][ivar]->DistributionMap();
+                IntVect ng = lsm_data[lev][ivar]->nGrowVect();
+                int nvar   = lsm_data[lev][ivar]->nComp();
                 MultiFab lsm_vars(ba,dm,nvar,ng);
-                VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmVars"));
-                MultiFab::Copy(*(lsm_data[lev][mvar]),lsm_vars,0,0,nvar,ng);
+                VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmData" + ivar));
+                MultiFab::Copy(*(lsm_data[lev][ivar]),lsm_vars,0,0,nvar,ng);
+            }
+            for (int iflux(0); iflux<lsm_flux[lev].size(); ++iflux) {
+                BoxArray ba = lsm_flux[lev][iflux]->boxArray();
+                DistributionMapping dm = lsm_flux[lev][iflux]->DistributionMap();
+                IntVect ng = lsm_flux[lev][iflux]->nGrowVect();
+                int nvar   = lsm_flux[lev][iflux]->nComp();
+                MultiFab lsm_vars(ba,dm,nvar,ng);
+                VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmFlux" + iflux));
+                MultiFab::Copy(*(lsm_flux[lev][iflux]),lsm_vars,0,0,nvar,ng);
             }
         }
 
@@ -933,21 +938,6 @@ ERF::ReadCheckpointFile ()
             }
         }
 #endif
-
-        // Read the LSM data
-        if (solverchoice.lsm_type != LandSurfaceType::None) {
-            int nvar  = lsm.Get_Data_Size();
-            for (int ivar(0); ivar<nvar; ++ivar) {
-                MultiFab* lsm_data = lsm.Get_Data_Ptr(lev,ivar);
-                VisMF::Read(*lsm_data, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmData" + ivar));
-            }
-            int nflux = lsm.Get_Flux_Size();
-            for (int iflux(0); iflux<nflux; ++iflux) {
-                MultiFab* lsm_flux = lsm.Get_Flux_Ptr(lev,ivar);
-                VisMF::Read(*lsm_flux, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmFlux" + iflux));
-            }
-        }
-
     } // for lev
 
 #ifdef ERF_USE_PARTICLES
