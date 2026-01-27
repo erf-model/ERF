@@ -102,9 +102,6 @@ public:
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
-protected:
-    std::string name() override { return "TemperatureSourceSpatial"; }
-
 private:
     ProbParm parms;
     amrex::Vector<amrex::Real> zlevels;

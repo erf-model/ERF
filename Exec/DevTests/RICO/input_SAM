@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "RICO"
+
 #stop_time = 3600    #  1 hour
 #stop_time = 4800    #  1.5 hours
 #stop_time = 7200    #  2 hours
