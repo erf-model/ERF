@@ -2113,18 +2113,6 @@ ERF::init_only (int lev, Real time)
 
         init_from_wrfinput(lev, *mf_C1H, *mf_C2H, *mf_MUB, *mf_PSFC[lev]);
 
-        if (lev==0) {
-            if ((start_time > 0) && (start_time != start_bdy_time)) {
-                Print() << "Ignoring specified start_time="
-                        << std::setprecision(timeprecision) << start_time
-                        << std::endl;
-            }
-        }
-
-        start_time = start_bdy_time;
-
-        use_datetime = true;
-
         // The physbc's need the terrain but are needed for initHSE
         if (!solverChoice.use_real_bcs) {
             make_physbcs(lev);
@@ -2221,7 +2209,6 @@ ERF::ReadParameters ()
             max_step = std::numeric_limits<int>::max();
         }
 
-        // TODO: more robust general datetime parsing
         std::string start_datetime, stop_datetime;
         if (pp.query("start_datetime", start_datetime)) {
             if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
@@ -2235,27 +2222,50 @@ ERF::ReadParameters ()
             start_time = getEpochTime(start_datetime, datetime_format);
             Print() << "Start datetime : " << start_datetime << std::endl;
 
-            if (pp.query("stop_datetime", stop_datetime)) {
-                if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
-                    stop_datetime += ":00"; // add seconds
+            // This is the start time as written in the wrfinput file
+            if (init_type == "WRFInput") {
+                Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
+                if (start_time != start_time_from_wrfinput) {
+                    Abort("start_datetime from inputs file does not match SIMULATION START DATE from wrfinput");
                 }
-                if (stop_datetime.length() != 19) {
-                    Print() << "Got stop_datetime = \"" << stop_datetime
-                        << "\", format should be " << datetime_format << std::endl;
-                    exit(0);
-                }
-                stop_time = getEpochTime(stop_datetime, datetime_format);
-                Print() << "Stop  datetime : " << start_datetime << std::endl;
-            } else if (pp.query("stop_time", stop_time)) {
-                Print() << "Sim length     : " << stop_time << " s" << std::endl;
-                stop_time += start_time;
             }
 
             use_datetime = true;
 
         } else {
+
+            // This is the start time as written in the wrfinput file
+            if (init_type == "WRFInput") {
+                Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
+                start_time = start_time_from_wrfinput;
+
+                use_datetime = true;
+
+                if (pp.query("start_time", start_time)) {
+                    Abort("start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput");
+                }
+            }
+        }
+
+        if (pp.query("stop_datetime", stop_datetime)) {
+            if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
+                stop_datetime += ":00"; // add seconds
+            }
+            if (stop_datetime.length() != 19) {
+                Print() << "Got stop_datetime = \"" << stop_datetime
+                    << "\", format should be " << datetime_format << std::endl;
+                exit(0);
+            }
+
+            stop_time = getEpochTime(stop_datetime, datetime_format);
+            Print() << "Stop  datetime : " << start_datetime << std::endl;
+
+        } else {
+
             pp.query("stop_time", stop_time);
-            pp.query("start_time", start_time); // This is optional, it defaults to 0
+
+            Print() << "Simulation length     : " << stop_time << " s" << std::endl;
+            stop_time += start_time;
         }
     }
 
