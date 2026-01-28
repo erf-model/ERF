@@ -124,6 +124,10 @@ int  ERF::input_bndry_planes             = 0;
 
 Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
+#ifdef ERF_USE_NETCDF
+Real read_start_time_from_wrfinput (int lev, const std::string& fname);
+#endif
+
 // constructor - reads in parameters from inputs file
 //             - sizes multilevel arrays and data structures
 //             - initializes BCRec boundary condition object
@@ -2223,7 +2227,7 @@ ERF::ReadParameters ()
             Print() << "Start datetime : " << start_datetime << std::endl;
 
             // This is the start time as written in the wrfinput file
-            if (init_type == "WRFInput") {
+            if (solverChoice.init_type == InitType::WRFInput) {
                 Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
                 if (start_time != start_time_from_wrfinput) {
                     Abort("start_datetime from inputs file does not match SIMULATION START DATE from wrfinput");
@@ -2235,7 +2239,7 @@ ERF::ReadParameters ()
         } else {
 
             // This is the start time as written in the wrfinput file
-            if (init_type == "WRFInput") {
+            if (solverChoice.init_type == InitType::WRFInput) {
                 Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
                 start_time = start_time_from_wrfinput;
 
