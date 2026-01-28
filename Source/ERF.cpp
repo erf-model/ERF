@@ -2206,77 +2206,6 @@ ERF::ReadParameters ()
     ParmParse pp_pn("erf"); pp_pn.queryAdd("prob_name", prob_name);
     Print() << "Problem name (from inputs file) is " << prob_name << std::endl;
 
-    {
-        ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
-        pp.query("max_step", max_step);
-        if (max_step < 0) {
-            max_step = std::numeric_limits<int>::max();
-        }
-
-        std::string start_datetime, stop_datetime;
-        if (pp.query("start_datetime", start_datetime)) {
-            if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
-                start_datetime += ":00"; // add seconds
-            }
-            if (start_datetime.length() != 19) {
-                Print() << "Got start_datetime = \"" << start_datetime
-                    << "\", format should be " << datetime_format << std::endl;
-                exit(0);
-            }
-            start_time = getEpochTime(start_datetime, datetime_format);
-            Print() << "Start datetime : " << start_datetime << std::endl;
-
-#ifdef ERF_USE_NETCDF
-            // This is the start time as written in the wrfinput file
-            if (solverChoice.init_type == InitType::WRFInput) {
-                Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
-                if (start_time != start_time_from_wrfinput) {
-                    Abort("start_datetime from inputs file does not match SIMULATION START DATE from wrfinput");
-                }
-            }
-#endif
-
-            use_datetime = true;
-
-        } else {
-
-            // This is the start time as written in the wrfinput file
-#ifdef ERF_USE_NETCDF
-            if (solverChoice.init_type == InitType::WRFInput) {
-                Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
-                start_time = start_time_from_wrfinput;
-
-                use_datetime = true;
-
-                if (pp.query("start_time", start_time)) {
-                    Abort("start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput");
-                }
-            }
-#endif
-        }
-
-        if (pp.query("stop_datetime", stop_datetime)) {
-            if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
-                stop_datetime += ":00"; // add seconds
-            }
-            if (stop_datetime.length() != 19) {
-                Print() << "Got stop_datetime = \"" << stop_datetime
-                    << "\", format should be " << datetime_format << std::endl;
-                exit(0);
-            }
-
-            stop_time = getEpochTime(stop_datetime, datetime_format);
-            Print() << "Stop  datetime : " << start_datetime << std::endl;
-
-        } else {
-
-            pp.query("stop_time", stop_time);
-
-            Print() << "Simulation length     : " << stop_time << " s" << std::endl;
-            stop_time += start_time;
-        }
-    }
-
     ParmParse pp(pp_prefix);
     ParmParse pp_amr("amr");
     {
@@ -2636,6 +2565,80 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level,pp_prefix);
+
+    {
+        ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
+        pp.query("max_step", max_step);
+        if (max_step < 0) {
+            max_step = std::numeric_limits<int>::max();
+        }
+
+        std::string start_datetime, stop_datetime;
+        if (pp.query("start_datetime", start_datetime)) {
+            if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
+                start_datetime += ":00"; // add seconds
+            }
+            if (start_datetime.length() != 19) {
+                Print() << "Got start_datetime = \"" << start_datetime
+                    << "\", format should be " << datetime_format << std::endl;
+                exit(0);
+            }
+            start_time = getEpochTime(start_datetime, datetime_format);
+
+#ifdef ERF_USE_NETCDF
+            if (solverChoice.init_type == InitType::WRFInput) {
+                // This is the start time as written in the wrfinput file
+                Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
+                if (start_time != start_time_from_wrfinput) {
+		    amrex::Print() << "start_datetime from inputs file = "       << start_time <<
+			              " does not match SIMULATION START DATE from wrfinput = " << start_time_from_wrfinput << std::endl;
+		    amrex::Abort();
+                }
+            }
+#endif
+            Print() << "Start datetime   : " << start_datetime << std::endl;
+
+            use_datetime = true;
+
+        } else {
+
+#ifdef ERF_USE_NETCDF
+            if (solverChoice.init_type == InitType::WRFInput) {
+                // This is the start time as written in the wrfinput file
+                Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
+                start_time = start_time_from_wrfinput;
+
+                use_datetime = true;
+
+                if (pp.query("start_time", start_time)) {
+		    amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput" << std::endl;
+		    amrex::Abort();
+                }
+            }
+#endif
+        }
+
+        if (pp.query("stop_datetime", stop_datetime)) {
+            if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
+                stop_datetime += ":00"; // add seconds
+            }
+            if (stop_datetime.length() != 19) {
+                Print() << "Got stop_datetime = \"" << stop_datetime
+                    << "\", format should be " << datetime_format << std::endl;
+                exit(0);
+            }
+
+            stop_time = getEpochTime(stop_datetime, datetime_format);
+            Print() << "Stop  datetime : " << start_datetime << std::endl;
+
+        } else {
+
+            if (pp.query("stop_time", stop_time)) {
+                Print() << "Simulation length: " << stop_time << " s (elapsed) " << std::endl;
+                stop_time += start_time;
+            }
+        }
+    }
 
 #ifndef ERF_USE_NETCDF
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&
