@@ -1607,8 +1607,16 @@ ERF::InitData_post ()
 
         // Define surface value mapping between SLM and BEM_BEP
         if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+            amrex::Vector<amrex::MultiFab*> olen_ptrs_slm(finest_level+1);
+            amrex::Vector<amrex::MultiFab*> olen_ptrs_urb(finest_level+1);
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                olen_ptrs_slm[lev] = lsm_flux[lev][lsm.Get_FluxIdx(lev, "olen")];
+            }
             /*
             if (solverChoice.urban_type == UrbanType::BEM_BEP) {
+                for (int lev = 0; lev <= finest_level; ++lev) {
+                    olen_ptrs_urb[lev] = urban_data[lev][UrbanVar_BEP::olen];
+                }
                 m_SurfaceModel->register_field_map("tskin", {lsm.Get_DataIdx(0, "tsurf"), UrbanVar_BEP::tsk});
                 m_SurfaceModel->register_field_map("emiss", {lsm.Get_DataIdx(0, "emis_sfc"), UrbanVar_BEP::emiss});
                 m_SurfaceModel->register_field_map("albedo_vis", {lsm.Get_DataIdx(0, "alb_vis_sfc"), -1});
@@ -1616,8 +1624,9 @@ ERF::InitData_post ()
                 m_SurfaceModel->register_field_map("albedo_vis_diff", {lsm.Get_DataIdx(0, "alb_vis_sfc_diff"), -1});
                 m_SurfaceModel->register_field_map("albedo_nir_diff", {lsm.Get_DataIdx(0, "alb_nir_sfc_diff"), -1});
                 m_SurfaceModel->register_field_map("ustar", {lsm.Get_DataIdx(0, "ustar"), UrbanVar_BEP::ustar}, true);
-                m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1});
-                m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1});
+                m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), UrbanVar_BEP::tstar}, true);
+                m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), UrbanVar_BEP::qstar}, true);
+                m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
             } else {
             */
                 // No urban model, only register SLM fields with the surface model
@@ -1628,9 +1637,16 @@ ERF::InitData_post ()
                 m_SurfaceModel->register_field_map("albedo_vis_diff", {lsm.Get_DataIdx(0, "alb_vis_sfc_diff"), -1});
                 m_SurfaceModel->register_field_map("albedo_nir_diff", {lsm.Get_DataIdx(0, "alb_nir_sfc_diff"), -1});
                 m_SurfaceModel->register_field_map("ustar", {lsm.Get_DataIdx(0, "ustar"), -1}, true);
-                m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1});
-                m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1});
+                m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1}, true);
+                m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1}, true);
+                m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
             //}
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                // Set initial olen to > 0. Note: at initial MOST compute_fluxes call, urban fraction has not been set,
+                // so weight-avg olen would be 0 which causes issues in PBL
+                m_SurfaceModel->get_field("olen", lev)->setVal(1.0E34);
+                m_SurfaceModel->get_field("ustar", lev)->setVal(1.0E34);
+            }
         }
     }
 

@@ -227,6 +227,42 @@ void SurfaceModel::register_field_map(std::string name, const std::pair<int, int
     }
 }
 
+void SurfaceModel::register_field_map(std::string name, amrex::Vector<amrex::MultiFab*> &lsm_lev_mf, amrex::Vector<amrex::MultiFab*> &urb_lev_mf, bool fill_boundary)
+{
+    // Register a field using explicit data pointers, rather than indices into lsm_data and urban_data
+    AMREX_ALWAYS_ASSERT(lsm_lev_mf.size() > 0);
+    amrex::Print() << " adding mapping between LSM<->Urban mfs <"<<lsm_lev_mf[0] << "," << urb_lev_mf[0] << "> to common surface name " << name << std::endl;
+
+    AMREX_ALWAYS_ASSERT(lsm_lev_mf.size() == urb_lev_mf.size());
+    if (fieldmap.find(name) == fieldmap.end()) {
+
+        Field field;
+        field.map = std::pair<int,int>(-1,-1);
+        field.mf_ind = -1;
+        field.fill_bound = fill_boundary;
+        field.lsm_ptr = lsm_lev_mf;
+        field.urb_ptr = urb_lev_mf;
+
+        // Create MF to hold output for this field
+
+        amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_lev(m_nlevs);
+        for (int lev = 0; lev < m_nlevs; lev++)
+        {
+            mf_lev[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, IntVect(1,1,0));
+            mf_lev[lev]->setVal(0.0);
+        }
+
+        fields.push_back(std::move(mf_lev));
+        field.mf_ind = fields.size() - 1;
+
+        amrex::Print() << "    -- created at ind = " << field.mf_ind << std::endl;
+
+        fieldmap.insert({name, field});
+    } else {
+        return;
+    }
+}
+
 void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const urban_frac)
 {
     for (auto &field : fieldmap)
@@ -247,6 +283,14 @@ void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const urban_f
                             urb_idx != -1 &&
                             urban_data_lev[lev][urb_idx]);
 
+        bool use_mf = false;
+        if (lsm_idx == -1 && urb_idx == -1) {
+            // use explicit MF ptrs rather than indices
+            use_mf = true;
+            valid_land = (m_use_land && field.second.lsm_ptr[lev]);
+            valid_urban = (m_use_urban && field.second.urb_ptr[lev]);
+        }
+
         for (MFIter mfi(*fields[mf_idx][lev], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box tbx = mfi.tilebox();
@@ -256,8 +300,11 @@ void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const urban_f
 
             // Calculate weight average into output
             auto output_arr = fields[mf_idx][lev]->array(mfi);
-            auto lsm_data_arr = (valid_land) ? lsm_data_lev[lev][lsm_idx]->const_array(mfi) : Array4<const Real>{};
-            auto urban_data_arr = (valid_urban) ? urban_data_lev[lev][urb_idx]->const_array(mfi) : Array4<const Real>{};
+            const amrex::MultiFab *lsm_mf = (use_mf) ? field.second.lsm_ptr[lev] : (lsm_idx != -1 ? lsm_data_lev[lev][lsm_idx] : nullptr);
+            const amrex::MultiFab *urb_mf = (use_mf) ? field.second.urb_ptr[lev] : (urb_idx != -1 ? urban_data_lev[lev][urb_idx] : nullptr);
+
+            auto lsm_data_arr = (valid_land) ? lsm_mf->const_array(mfi) : Array4<const Real>{};
+            auto urban_data_arr = (valid_urban) ? urb_mf->const_array(mfi) : Array4<const Real>{};
 
             if (valid_land && !valid_urban) {
                 // use solely land value

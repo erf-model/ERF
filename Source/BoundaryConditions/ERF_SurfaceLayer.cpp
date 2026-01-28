@@ -252,28 +252,47 @@ SurfaceLayer::update_fluxes (const int& lev,
     }
 
     // If using Land and/or Urban models, then overwrite u_star and t_star with values calculated from the surface models
-    if (use_surface_model) {
+    if (use_surface_model && time > 0.0) {
+        for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+        {
+            Box gtbx = mfi.growntilebox();
 
-        if (surf_model_fluxes) {
-            // if the surface model is already outputting fluxes directly, then skip writing into ustar,tstar,qstar
-            u_star[lev]->setVal(0.0);
-            t_star[lev]->setVal(0.0);
-            q_star[lev]->setVal(0.0);
-        } else {
-            // NOTE: these are already weight-averaged if land and urban model
-            MultiFab::Copy(*u_star[lev], *(m_surf_model->get_ustar(lev)), 0, 0, 1, 0);
-            MultiFab::Copy(*t_star[lev], *(m_surf_model->get_tstar(lev)), 0, 0, 1, 0);
-            MultiFab::Copy(*q_star[lev], *(m_surf_model->get_qstar(lev)), 0, 0, 1, 0);
+            auto u_star_arr = u_star[lev]->array(mfi);
+            auto t_star_arr = t_star[lev]->array(mfi);
+            auto q_star_arr = q_star[lev]->array(mfi);
+            auto olen_arr   = olen[lev]->array(mfi);
 
-            // Fill interior ghost cells
-            u_star[lev]->FillBoundary(m_geom[lev].periodicity());
-            t_star[lev]->FillBoundary(m_geom[lev].periodicity());
-            q_star[lev]->FillBoundary(m_geom[lev].periodicity());
-        
-            //m_lsm_data_lev[lev][11]->FillBoundary(m_geom[lev].periodicity());
-            //m_lsm_data_lev[lev][12]->FillBoundary(m_geom[lev].periodicity());
+            // Land mask array if it exists
+            auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
+                                                        Array4<int> {};
 
+            auto lsm_tstar_arr = Array4<Real> {};
+            auto lsm_qstar_arr = Array4<Real> {};
+            auto lsm_ustar_arr = Array4<Real> {};
+            auto lsm_olen_arr  = Array4<Real> {};
+            if (use_surface_model) {
+                lsm_tstar_arr = m_surf_model->get_field("tstar", lev)->array(mfi);
+                lsm_qstar_arr = m_surf_model->get_field("qstar", lev)->array(mfi);
+                lsm_ustar_arr = m_surf_model->get_field("ustar", lev)->array(mfi);
+                lsm_olen_arr = m_surf_model->get_field("olen", lev)->array(mfi);
+            }
+
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                // Overwrite ustar, tstar, qstar, and olen computed above with LSM values
+                if ( lmask_arr(i,j,0) == 1) {
+                    if (lsm_tstar_arr) t_star_arr(i,j,k) = lsm_tstar_arr(i,j,0);
+                    if (lsm_qstar_arr) q_star_arr(i,j,k) = lsm_qstar_arr(i,j,0);
+                    if (lsm_ustar_arr) u_star_arr(i,j,k) = lsm_ustar_arr(i,j,0);
+                    if (lsm_olen_arr)  olen_arr(i,j,k)   = lsm_olen_arr(i,j,0);
+                }
+            });
         }
+
+        u_star[lev]->FillBoundary(m_geom[lev].periodicity());
+        t_star[lev]->FillBoundary(m_geom[lev].periodicity());
+        q_star[lev]->FillBoundary(m_geom[lev].periodicity());
+        olen[lev]->FillBoundary(m_geom[lev].periodicity());
     }
 }
 
@@ -330,20 +349,6 @@ SurfaceLayer::compute_fluxes (const int& lev,
         auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
                                                        Array4<int> {};
 
-        auto lsm_tstar_arr = Array4<Real> {};
-        auto lsm_qstar_arr = Array4<Real> {};
-        auto lsm_ustar_arr = Array4<Real> {};
-        auto lsm_olen_arr  = Array4<Real> {};
-        if (use_surface_model) {
-            lsm_tstar_arr = m_surf_model->get_field("tstar", lev)->array(mfi);
-            lsm_qstar_arr = m_surf_model->get_field("qstar", lev)->array(mfi);
-            lsm_ustar_arr = m_surf_model->get_field("ustar", lev)->array(mfi);
-
-            for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
-                if (toLower(m_lsm_flux_name[n]) == "olen")   { lsm_olen_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
-            }
-        }
-
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             if (( is_land && lmask_arr(i,j,k) == 1) ||
@@ -359,14 +364,6 @@ SurfaceLayer::compute_fluxes (const int& lev,
                                        t_surf_arr, q_surf_arr, olen_arr,    // updated
                                        pblh_arr,                            // updated if(m_include_wstar)
                                        Hwave_arr, Lwave_arr, eta_arr);
-            }
-
-            // Overwrite ustar, tstar, qstar, and olen computed above with LSM values
-            if ( is_land && lmask_arr(i,j,k) == 1) {
-                if (lsm_tstar_arr) t_star_arr(i,j,k) = lsm_tstar_arr(i,j,0);
-                if (lsm_qstar_arr) q_star_arr(i,j,k) = lsm_qstar_arr(i,j,0);
-                if (lsm_ustar_arr) u_star_arr(i,j,k) = lsm_ustar_arr(i,j,0);
-                if (lsm_olen_arr)  olen_arr(i,j,k)   = lsm_olen_arr(i,j,0);
             }
         });
     }

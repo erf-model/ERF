@@ -220,6 +220,8 @@ public:
 
     void register_field_map(std::string name, const std::pair<int, int> &lsm_urb_map, bool fill_boundary=false);
 
+    void register_field_map(std::string name, amrex::Vector<amrex::MultiFab*> &lsm_lev_mf, amrex::Vector<amrex::MultiFab*> &urb_lev_mf, bool fill_boundary=false);
+
     amrex::MultiFab* get_field(const std::string &name, int lev = 0) {
         auto &field = fieldmap.at(name);
         AMREX_ASSERT(field.mf_ind != -1);
@@ -300,6 +302,8 @@ private:
 
     struct Field {
         std::pair<int, int> map;
+        amrex::Vector<amrex::MultiFab*> lsm_ptr;
+        amrex::Vector<amrex::MultiFab*> urb_ptr;
         int mf_ind;
         bool fill_bound;
     };
