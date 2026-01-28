@@ -2226,6 +2226,7 @@ ERF::ReadParameters ()
             start_time = getEpochTime(start_datetime, datetime_format);
             Print() << "Start datetime : " << start_datetime << std::endl;
 
+#ifdef ERF_USE_NETCDF
             // This is the start time as written in the wrfinput file
             if (solverChoice.init_type == InitType::WRFInput) {
                 Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
@@ -2233,12 +2234,14 @@ ERF::ReadParameters ()
                     Abort("start_datetime from inputs file does not match SIMULATION START DATE from wrfinput");
                 }
             }
+#endif
 
             use_datetime = true;
 
         } else {
 
             // This is the start time as written in the wrfinput file
+#ifdef ERF_USE_NETCDF
             if (solverChoice.init_type == InitType::WRFInput) {
                 Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
                 start_time = start_time_from_wrfinput;
@@ -2249,6 +2252,7 @@ ERF::ReadParameters ()
                     Abort("start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput");
                 }
             }
+#endif
         }
 
         if (pp.query("stop_datetime", stop_datetime)) {
