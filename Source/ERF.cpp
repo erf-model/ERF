@@ -2590,9 +2590,10 @@ ERF::ReadParameters ()
                 // This is the start time as written in the wrfinput file
                 Real start_time_from_wrfinput = read_start_time_from_wrfinput(0, nc_init_file[0][0]);
                 if (start_time != start_time_from_wrfinput) {
-		    amrex::Print() << "start_datetime from inputs file = "       << start_time <<
-			              " does not match SIMULATION START DATE from wrfinput = " << start_time_from_wrfinput << std::endl;
-		    amrex::Abort();
+                    amrex::Print() << "start_datetime from inputs file = "       << start_time <<
+                                      " does not match SIMULATION START DATE from wrfinput = " <<
+                                       start_time_from_wrfinput << std::endl;
+                    amrex::Abort();
                 }
             }
 #endif
@@ -2611,8 +2612,8 @@ ERF::ReadParameters ()
                 use_datetime = true;
 
                 if (pp.query("start_time", start_time)) {
-		    amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput" << std::endl;
-		    amrex::Abort();
+                    amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput" << std::endl;
+                    amrex::Abort();
                 }
             }
 #endif
