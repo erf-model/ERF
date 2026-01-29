@@ -246,7 +246,7 @@ List of Parameters
 |                               | z levels        |                 |             |
 +-------------------------------+-----------------+-----------------+-------------+
 
-.. _notes-3:
+.. _notes-1:
 
 Notes
 -----
@@ -341,7 +341,7 @@ Notes
 -  **amr.max_grid_size** must be a multiple of **amr.blocking_factor**
    at every level
 
-.. _examples-of-usage-3:
+.. _examples-of-usage-4:
 
 Examples of Usage
 -----------------
@@ -431,7 +431,7 @@ Notes
   strftime format: "%Y-%m-%d %H:%M:%S", e.g., "2001-01-01 18:00:00".
   The start/stop datetime inputs have precedence over the time inputs.
 
-.. _examples-of-usage-4:
+.. _examples-of-usage-5:
 
 Examples of Usage
 -----------------
@@ -546,6 +546,7 @@ Notes
        If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
 -  | If **erf.substepping_type** is not **None** we must determine both the slow and fast timesteps.
+
    * | If **erf.fixed_dt** is specified, the slow timestep will be set to **fixed_dt**.
 
    * | If **erf.fixed_dt** is not set, the slow timestep will be computed using the CFL
@@ -556,8 +557,10 @@ Notes
        of the following are true the code will abort while reading the inputs.
 
      * | If **erf.fixed_mri_dt_ratio** is specified but is not an even positive integer
+
      * | If **erf.fixed_dt** and **erf.fast_fixed_dt** are specified and the ratio of **fixed_dt** to **fast_fixed_dt**
          is not an even positive integer
+
      * | If **erf.fixed_dt** and **erf.fast_fixed_dt** and **erf.fixed_mri_dt_ratio** are all specified but are inconsistent
 
    * | Once the slow timestep is set and the inputs are allowed per the above criteria,
@@ -573,7 +576,7 @@ Notes
          as above so that the ratio of slow timestep to fine timestep is an even integer.
          If **erf.substepping_cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
-.. _examples-of-usage-5:
+.. _examples-of-usage-6:
 
 Examples of Usage of Additional Parameters
 -------------------------------------------
@@ -811,7 +814,7 @@ The requested output files have the following columns:
 
 
 Data Sampling Outputs
-==================
+=====================
 
 Data along query lines or planes may be output during the simulation if
 ``erf.do_line_sampling = true`` or  ``erf.do_plane_sampling = true``, respectively.
@@ -1245,9 +1248,9 @@ List of Parameters
 |                                     | geostrophic wind       |                   |                     |
 |                                     | profile                |                   |                     |
 |                                     | (with z, Ug, and       |                   |                     |
-|                                     |  Vg whitespace         |                   |                     |
-|                                     |  delimited             |                   |                     |
-|                                     |  columns)              |                   |                     |
+|                                     | Vg whitespace          |                   |                     |
+|                                     | delimited              |                   |                     |
+|                                     | columns)               |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.windfarm_type**               | Wind farm              | "None",           | "None"              |
 |                                     | parameterization       | "Fitch", "EWP",   |                     |
@@ -1403,7 +1406,6 @@ with an ``erf.abl_geo_wind_table``.
 - Wind farm parameterization requires ``USE_WINDFARM=TRUE`` (gmake)
   or ``-DERF_ENABLE_WINDFARM`` (cmake) at build time.
   See :ref:`sec:WindFarmModels` for theory and examples.
-
 
 Numerical Stability
 ===================
@@ -1864,7 +1866,7 @@ The lookup data may be downloaded as a package from `here <https://doi.org/10.22
 
 .. note::
 
-   Using RRTMGP requires ``USE_RRTMGP=TRUE`` at build time. See :ref:`building` for build instructions.
+   Using RRTMGP requires ``USE_RRTMGP=TRUE`` at build time. See :ref:`sec:building` for build instructions.
 
 Runtime Error Checking
 ======================

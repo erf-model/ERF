@@ -33,6 +33,11 @@ public:
                        std::unique_ptr<amrex::MultiFab>&,
                        std::unique_ptr<amrex::MultiFab>&) = 0;
 
+    /*! \brief finish initializations steps that require flow variables */
+    virtual void FinishInit (const int&,
+                             amrex::MultiFab&,
+                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) = 0;
+
     /*! \brief advance microphysics for one time step */
     virtual void Advance (const int&,
                           const amrex::Real&,
@@ -99,6 +104,8 @@ public:
              || (a_moisture_type == MoistureType::SatAdj)
              || (a_moisture_type == MoistureType::None) ) {
             return MoistureModelType::Eulerian;
+        } else if ( (a_moisture_type == MoistureType::SuperDroplets) ) {
+            return MoistureModelType::Lagrangian;
         } else {
             amrex::Abort("Dont know this moisture_type!") ;
             return MoistureModelType::Undefined;

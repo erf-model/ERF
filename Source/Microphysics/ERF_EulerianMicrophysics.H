@@ -68,6 +68,11 @@ public:
                                  z_phys_nd, detJ_cc);
     }
 
+    /*! \brief finish initializations steps that require flow variables */
+    virtual void FinishInit (const int&,
+                             amrex::MultiFab&,
+                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) override { }
+
     /*! \brief Advance the moisture model for one time step */
     void Advance (const int& lev, /*!< AMR level */
                   const amrex::Real& dt_advance, /*!< Time step */

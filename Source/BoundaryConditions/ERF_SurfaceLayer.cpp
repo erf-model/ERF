@@ -156,7 +156,7 @@ SurfaceLayer::update_fluxes (const int& lev,
 
     } // MOENG -- SEA
 
-    if (flux_type == FluxCalcType::CUSTOM) {
+    if (flux_type == FluxCalcType::CUSTOM || flux_type == FluxCalcType::RICO) {
         if (custom_rhosurf > 0) {
             specified_rho_surf = true;
             u_star[lev]->setVal(std::sqrt(custom_rhosurf) * custom_ustar);
@@ -277,6 +277,12 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                  z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::ROTATE) {
         rotate_flux flux_comp;
+        compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
+                                 xheat_flux, yheat_flux, zheat_flux,
+                                 xqv_flux, yqv_flux, zqv_flux,
+                                 z_phys, flux_comp);
+    } else if (flux_type == FluxCalcType::RICO) {
+        rico_flux flux_comp(rico_theta_z0, rico_qsat_z0);
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,

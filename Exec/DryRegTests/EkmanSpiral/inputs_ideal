@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Ekman Spiral"
+
 max_step = 1
 stop_time = 1000.0
 

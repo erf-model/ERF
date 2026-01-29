@@ -34,7 +34,7 @@ Or, to automatically include the necessary submodules when downloading ERF, type
          # Future submodule updates will also need the -c flag
          git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --recursive
 
-.. _Submodule:
+.. _Submodules:
 
 Git Submodules
 --------------

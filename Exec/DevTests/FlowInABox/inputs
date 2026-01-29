@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Flow in a Box"
+
 stop_time = 370.
 
 amrex.fpe_trap_invalid = 1

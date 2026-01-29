@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Wind Farm Test"
+
 max_step = 1000
 
 amrex.fpe_trap_invalid = 1
@@ -101,6 +103,7 @@ erf.init_type = "uniform"
 
 
 # PROBLEM PARAMETERS
+prob.custom_terrain_type = "WindFarmTest"
 prob.rho_0 = 1.226
 prob.A_0 = 1.0
 

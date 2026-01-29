@@ -1,0 +1,48 @@
+HyperCLaw-V1.1
+20
+density
+rhotheta
+temp
+theta
+pressure
+eq_pot_temp
+super_droplets_moisture_mass_flux_x
+super_droplets_moisture_mass_flux_y
+super_droplets_moisture_mass_flux_z
+super_droplets_moisture_number_density
+super_droplets_moisture_mass_density
+super_droplets_moisture_radius
+super_droplets_moisture_mass_density_H2O
+super_droplets_moisture_mass_flux_x_H2O
+super_droplets_moisture_mass_flux_y_H2O
+super_droplets_moisture_mass_flux_z_H2O
+super_droplets_moisture_aerosol_mass_density_NaCl
+super_droplets_moisture_aerosol_mass_flux_x_NaCl
+super_droplets_moisture_aerosol_mass_flux_y_NaCl
+super_droplets_moisture_aerosol_mass_flux_z_NaCl
+3
+0.05000000000000001
+0
+0 0 0 
+8 8 4 
+
+((0,0,0) (7,7,3) (0,0,0)) 
+20 
+1 1 1 
+0
+0
+0 4 0.05000000000000001
+20
+0 4
+0 4
+0 4
+4 8
+0 4
+0 4
+0 4
+4 8
+0 4
+4 8
+4 8
+0 4
+Level_0/Cell
