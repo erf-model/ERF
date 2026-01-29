@@ -11,7 +11,7 @@ using namespace amrex;
 void
 SurfaceLayer::update_fluxes (const int& lev,
                              const Real& time,
-                             const MultiFab& cons_in,
+                             MultiFab& cons_in,
                              const std::unique_ptr<MultiFab>& z_phys_nd,
                              int max_iters)
 {
