@@ -31,7 +31,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //
     // Here is where we set the number of ghost cells for the base state!
     // ********************************************************************************************
-    int ngb = (solverChoice.terrain_type == TerrainType::EB) ? 4 : 3;
+    int ngb = (solverChoice.terrain_type == TerrainType::EB) ? ComputeGhostCells(solverChoice)+1 : 3;
     tmp_base_state.define(ba,dm,BaseState::num_comps,ngb);
     tmp_base_state.setVal(0.);
 
