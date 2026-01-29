@@ -186,7 +186,7 @@ SurfaceLayer::update_fluxes (const int& lev,
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 Real rho = cons_arr(i,j,k,Rho_comp);
-                if (t_star_arr(i,j,k) < 0) {
+                if (t_star_arr(i,j,k) < -1e-8) {
                     // Only destabilizing buoyancy flux affects the boundary k
                     // tstar < 0 ==> B > 0
                     Real B = -CONST_GRAV * l_inv_theta0 * u_star_arr(i,j,k) * t_star_arr(i,j,k);
