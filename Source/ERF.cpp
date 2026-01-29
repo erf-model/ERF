@@ -3088,12 +3088,12 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
 
             if (temp < t_low) {
 #ifdef AMREX_USE_GPU
-                //AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
+                AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
 #else
                 printf("Temperature too low in cell: %d %d %d \n", i,j,k);
                 printf("Based on temp / rhotheta / rho %e %e %e \n", temp,rhotheta,rho);
-                Abort();
 #endif
+                Abort();
             }
         });
     }
