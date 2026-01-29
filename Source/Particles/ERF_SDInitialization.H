@@ -120,17 +120,25 @@ amrex::Real SD_sample_mass_gpu(const SDDistributionParams& params,
 
         case SDDistributionType::radius_log_normal:
         case SDDistributionType::radius_lognormal_autorange: {
-            // Truncated log-normal using inverse CDF
-            // Map u from [0,1] to [cdf_min, cdf_max]
-            amrex::Real u_trunc = params.cdf_min + u * (params.cdf_max - params.cdf_min);
-            // Inverse CDF: r = mu * exp(sigma * sqrt(2) * erfinv(2*u - 1))
-            amrex::Real z = SD_erfinv_gpu(2.0 * u_trunc - 1.0) * std::sqrt(2.0);
-            amrex::Real dry_r = params.radius_mean * std::exp(params.sigma * z);
+            amrex::Real dry_r;
+            if (params.sampled_mult) {
+                // Sampled multiplicity: sample uniformly in log-space, weight by log-normal PDF
+                amrex::Real lnval = params.lnmin + u * params.lnrng;
+                dry_r = std::exp(lnval);
+                // Log-normal PDF contribution for multiplicity weighting
+                amrex::Real term = std::exp(-std::log(dry_r/params.radius_mean)*std::log(dry_r/params.radius_mean)
+                                            /(2.0*params.sigma*params.sigma));
+                mult_contribution = (params.numdens * params.cell_volume) / (params.sigma * std::sqrt(2.0*PI)) * term;
+            } else {
+                // Constant multiplicity: true log-normal via inverse CDF
+                // Map u from [0,1] to [cdf_min, cdf_max] for truncated distribution
+                amrex::Real u_trunc = params.cdf_min + u * (params.cdf_max - params.cdf_min);
+                // Inverse CDF: r = mu * exp(sigma * sqrt(2) * erfinv(2*u - 1))
+                amrex::Real z = SD_erfinv_gpu(2.0 * u_trunc - 1.0) * std::sqrt(2.0);
+                dry_r = params.radius_mean * std::exp(params.sigma * z);
+                mult_contribution = 0.0;  // Not used for constant multiplicity
+            }
             mass = (4.0/3.0) * PI * dry_r * dry_r * dry_r * params.density;
-            // Log-normal PDF contribution for multiplicity (used for sampled mult)
-            amrex::Real term = std::exp(-std::log(dry_r/params.radius_mean)*std::log(dry_r/params.radius_mean)
-                                        /(2.0*params.sigma*params.sigma));
-            mult_contribution = (params.numdens * params.cell_volume) / (params.sigma * std::sqrt(2.0*PI)) * term;
             break;
         }
     }
