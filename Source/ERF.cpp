@@ -2567,14 +2567,14 @@ ERF::ReadParameters ()
     solverChoice.init_params(max_level,pp_prefix);
 
     {
-        ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
-        pp.query("max_step", max_step);
+        ParmParse pp_no_prefix;  // Traditionally, max_step and stop_time do not have prefix.
+        pp_no_prefix.query("max_step", max_step);
         if (max_step < 0) {
             max_step = std::numeric_limits<int>::max();
         }
 
         std::string start_datetime, stop_datetime;
-        if (pp.query("start_datetime", start_datetime)) {
+        if (pp_no_prefix.query("start_datetime", start_datetime)) {
             if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 start_datetime += ":00"; // add seconds
             }
@@ -2611,7 +2611,7 @@ ERF::ReadParameters ()
 
                 use_datetime = true;
 
-                if (pp.query("start_time", start_time)) {
+                if (pp_no_prefix.query("start_time", start_time)) {
                     amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput" << std::endl;
                     amrex::Abort();
                 }
@@ -2619,7 +2619,7 @@ ERF::ReadParameters ()
 #endif
         }
 
-        if (pp.query("stop_datetime", stop_datetime)) {
+        if (pp_no_prefix.query("stop_datetime", stop_datetime)) {
             if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 stop_datetime += ":00"; // add seconds
             }
@@ -2634,7 +2634,7 @@ ERF::ReadParameters ()
 
         } else {
 
-            if (pp.query("stop_time", stop_time)) {
+            if (pp_no_prefix.query("stop_time", stop_time)) {
                 Print() << "Simulation length: " << stop_time << " s (elapsed) " << std::endl;
                 stop_time += start_time;
             }
