@@ -13,6 +13,7 @@ SurfaceLayer::update_fluxes (const int& lev,
                              const Real& time,
                              MultiFab& cons_in,
                              const std::unique_ptr<MultiFab>& z_phys_nd,
+                             const std::unique_ptr<MultiFab>& walldist,
                              int max_iters)
 {
     // Update with SST/TSK data if we have a valid pointer

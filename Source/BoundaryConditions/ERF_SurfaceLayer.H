@@ -474,6 +474,7 @@ public:
                  const amrex::Real& time,
                  amrex::MultiFab& cons_in,
                  const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                 const std::unique_ptr<amrex::MultiFab>& walldist,
                  int max_iters = 100);
 
   template <typename FluxIter>
