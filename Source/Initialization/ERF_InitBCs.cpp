@@ -660,7 +660,7 @@ void ERF::init_bcs ()
                 }
                 if (keqn_rans) {
                     Print() << "Setting surface layer logical BC to dirichlet for RANS with k model" << std::endl;
-                    domain_bcs_type[BCVars::RhoKE_bc_comp].setLo(dir, ERFBCType::ext_dir_prim);
+                    domain_bcs_type[BCVars::RhoKE_bc_comp].setLo(dir, ERFBCType::ext_dir);
                 }
             }
         }

@@ -1520,6 +1520,7 @@ ERF::InitData_post ()
                                                         z_phys_nd,
                                                         solverChoice.mesh_type,
                                                         solverChoice.terrain_type,
+                                                        solverChoice.turbChoice[finest_level],
                                                         start_time, stop_time
 #ifdef ERF_USE_NETCDF
                                                         , bdy_time_interval
