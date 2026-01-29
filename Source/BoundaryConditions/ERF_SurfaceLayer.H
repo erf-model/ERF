@@ -256,7 +256,8 @@ public:
       // all levels are using the same RANS model.
       m_update_k_rans = (a_turb_choice.rans_type == RANSType::kEqn);
       if (m_update_k_rans) {
-          invCmu2 = 1.0 / (a_turb_choice.Cmu0 * a_turb_choice.Cmu0);
+          inv_Cmu2 = 1.0 / (a_turb_choice.Cmu0 * a_turb_choice.Cmu0);
+          theta_ref = a_turb_choice.theta_ref;
       }
 
   } // constructor
@@ -719,7 +720,8 @@ private:
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;
 
   bool m_update_k_rans = false;
-  amrex::Real invCmu2 = 0.0;
+  amrex::Real inv_Cmu2 = 0.0;
+  amrex::Real theta_ref = 0.0;
 };
 
 #endif /* SURFACELAYER_H */

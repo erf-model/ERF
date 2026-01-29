@@ -169,6 +169,44 @@ SurfaceLayer::update_fluxes (const int& lev,
             q_star[lev]->setVal(custom_qstar);
         }
     }
+
+    if (m_update_k_rans) {
+        const bool use_ref_theta = (theta_ref > 0);
+        const Real l_inv_theta0  = (use_ref_theta) ? 1.0 / theta_ref : 1.0;
+
+        for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+        {
+            Box gtbx = mfi.growntilebox();
+
+            auto cons_arr = cons_in.array(mfi);
+            const auto& u_star_arr = u_star[lev]->const_array(mfi);
+            const auto& t_star_arr = t_star[lev]->const_array(mfi);
+            const auto& dist_arr = walldist->const_array(mfi);
+
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                Real rho = cons_arr(i,j,k,Rho_comp);
+                if (t_star_arr(i,j,k) < 0) {
+                    // Only destabilizing buoyancy flux affects the boundary k
+                    // tstar < 0 ==> B > 0
+                    Real B = -CONST_GRAV * l_inv_theta0 * u_star_arr(i,j,k) * t_star_arr(i,j,k);
+                    if (!use_ref_theta) {
+                        B *= cons_arr(i,j,k,Rho_comp) /
+                             cons_arr(i,j,k,RhoTheta_comp);
+                    }
+
+                    // Axell & Liungman 2001, Eqn. 16
+                    cons_arr(i,j,k,RhoKE_comp) = rho * inv_Cmu2 *
+                        std::pow(
+                            u_star_arr(i,j,k) * u_star_arr(i,j,k) * u_star_arr(i,j,k)
+                            + KAPPA * B * dist_arr(i,j,k),
+                        2.0/3.0);
+                } else {
+                    cons_arr(i,j,k,RhoKE_comp) = rho * inv_Cmu2 * u_star_arr(i,j,k) * u_star_arr(i,j,k);
+                }
+            });
+        }
+    }
 }
 
 /**
