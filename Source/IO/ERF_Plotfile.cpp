@@ -2373,18 +2373,15 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     for (int lev = 0; lev <= finest_level; lev++)
     {
-       Box slab = makeSlab(geom[lev].Domain(),2,0);
-       auto const slab_lo = lbound(slab);
-       auto const slab_hi = ubound(slab);
+        Box slab = makeSlab(geom[lev].Domain(),2,0);
+        auto const slab_lo = lbound(slab);
+        auto const slab_hi = ubound(slab);
 
         // Create a new geometry based only on the 2D slab
-        // We need
-        //   1) my_geom.Domain()
-        //   2) my_geom.CellSize()
-        //   3) my_geom.periodicity()
-        const auto dx    = geom[lev].CellSize();
-        RealBox rb( slab_lo.x   *dx[0],  slab_lo.y   *dx[1],  slab_lo.z   *dx[2],
-                   (slab_hi.x+1)*dx[0], (slab_hi.y+1)*dx[1], (slab_hi.z+1)*dx[2]);
+        Real dz = geom[lev].CellSize(2);
+        RealBox rb = geom[lev].ProbDomain();
+        rb.setLo(2,  slab_lo.z   *dz);
+        rb.setHi(2, (slab_hi.z+1)*dz);
         my_geom[lev].define(slab, rb, coord_sys, is_per);
     }
 
