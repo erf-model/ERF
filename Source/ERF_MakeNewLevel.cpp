@@ -156,8 +156,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         if ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) )
         {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-            init_only(lev, time);
-            init_zphys(lev, time);
+            init_only(lev, start_time+time);
+            init_zphys(lev, start_time+time);
             update_terrain_arrays(lev);
             make_physbcs(lev);
         } else {

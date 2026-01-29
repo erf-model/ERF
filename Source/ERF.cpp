@@ -2635,7 +2635,8 @@ ERF::ReadParameters ()
         } else {
 
             if (pp_no_prefix.query("stop_time", stop_time)) {
-                Print() << "Simulation length: " << stop_time << " s (elapsed) " << std::endl;
+                Print() << "Maximum simulation length based on stop_time: " << stop_time << " s (elapsed) " << std::endl;
+                amrex::Print() <<" Adding stop time " << stop_time << " to start_time " << start_time << std::endl;
                 stop_time += start_time;
             }
         }
