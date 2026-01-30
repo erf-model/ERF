@@ -254,7 +254,8 @@ public:
       // BC based on the instantaneous u* and θ*; the turbulence modeling
       // choices can vary per level but for now, assume that if specified then
       // all levels are using the same RANS model.
-      m_update_k_rans = (a_turb_choice.rans_type == RANSType::kEqn);
+      m_update_k_rans = (a_turb_choice.rans_type == RANSType::kEqn &&
+                         a_turb_choice.dirichlet_k == true);
       if (m_update_k_rans) {
           inv_Cmu2 = 1.0 / (a_turb_choice.Cmu0 * a_turb_choice.Cmu0);
           theta_ref = a_turb_choice.theta_ref;
