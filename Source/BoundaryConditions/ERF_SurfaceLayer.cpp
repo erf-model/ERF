@@ -173,6 +173,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     if (m_update_k_rans) {
         const bool use_ref_theta = (theta_ref > 0);
         const Real l_inv_theta0  = (use_ref_theta) ? 1.0 / theta_ref : 1.0;
+        const Real l_inv_Cmu2 = inv_Cmu2;
 
         for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
         {
@@ -196,13 +197,13 @@ SurfaceLayer::update_fluxes (const int& lev,
                     }
 
                     // Axell & Liungman 2001, Eqn. 16
-                    cons_arr(i,j,k,RhoKE_comp) = rho * inv_Cmu2 *
+                    cons_arr(i,j,k,RhoKE_comp) = rho * l_inv_Cmu2 *
                         std::pow(
                             u_star_arr(i,j,k) * u_star_arr(i,j,k) * u_star_arr(i,j,k)
                             + KAPPA * B * dist_arr(i,j,k),
                         2.0/3.0);
                 } else {
-                    cons_arr(i,j,k,RhoKE_comp) = rho * inv_Cmu2 * u_star_arr(i,j,k) * u_star_arr(i,j,k);
+                    cons_arr(i,j,k,RhoKE_comp) = rho * l_inv_Cmu2 * u_star_arr(i,j,k) * u_star_arr(i,j,k);
                 }
             });
         }
