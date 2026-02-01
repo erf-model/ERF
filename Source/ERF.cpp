@@ -1498,6 +1498,24 @@ ERF::InitData_post ()
    // send_to_ww3(my_lev);
 #endif
 
+    // Create wall distance field for RANS model
+    for (int lev = 0; lev <= finest_level; lev++) {
+        if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
+            // Handle bottom boundary
+            poisson_wall_dist(lev);
+
+            // Correct the wall distance for immersed bodies
+            if (solverChoice.advChoice.have_zero_flux_faces) {
+                thinbody_wall_dist(walldist[lev],
+                                   solverChoice.advChoice.zero_xflux,
+                                   solverChoice.advChoice.zero_yflux,
+                                   solverChoice.advChoice.zero_zflux,
+                                   geom[lev],
+                                   z_phys_cc[lev]);
+            }
+        }
+    }
+
     // Configure SurfaceLayer params if used
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
@@ -1610,24 +1628,6 @@ ERF::InitData_post ()
             }
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
-
-    // Create wall distance field for RANS model
-    for (int lev = 0; lev <= finest_level; lev++) {
-        if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
-            // Handle bottom boundary
-            poisson_wall_dist(lev);
-
-            // Correct the wall distance for immersed bodies
-            if (solverChoice.advChoice.have_zero_flux_faces) {
-                thinbody_wall_dist(walldist[lev],
-                                   solverChoice.advChoice.zero_xflux,
-                                   solverChoice.advChoice.zero_yflux,
-                                   solverChoice.advChoice.zero_zflux,
-                                   geom[lev],
-                                   z_phys_cc[lev]);
-            }
-        }
-    }
 
     // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
