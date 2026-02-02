@@ -626,6 +626,8 @@ private:
     void init_phys_bcs (bool& rho_read, bool& read_prim_theta);
 
     void init_custom (int lev);
+    void apply_gaussian_smoothing_to_perturbations (int lev);
+    void create_random_perturbations (int lev);
 
     void init_uniform (int lev);
 

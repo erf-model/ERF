@@ -2162,6 +2162,14 @@ ERF::init_only (int lev, Real time)
         init_from_hse(lev);
     }
 
+    // If the initial condition needs to have correlated perturbations above the 
+    // base state, then first create a multifab with random perturbations, 
+    // and then apply a Gaussian smoothing to make the perturbation correlated
+    if(solverChoice.init_with_correlated_pert) {
+        create_random_perturbations(lev);
+        apply_gaussian_smoothing_to_perturbations(lev);
+    }
+
     // Add problem-specific flow features
     //
     // Notes:

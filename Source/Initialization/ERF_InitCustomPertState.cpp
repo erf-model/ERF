@@ -42,6 +42,9 @@ ERF::init_custom (int lev)
     yvel_pert.setVal(0.);
     zvel_pert.setVal(0.);
 
+    create_random_perturbations(lev);
+    apply_gaussian_smoothing_to_perturbations(lev);
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -99,4 +102,47 @@ ERF::init_custom (int lev)
     MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
     MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
     MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
+}
+
+void
+ERF::create_random_perturbations(lev)
+{
+  // Set the x-velocity
+  ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+  {
+
+      const Real* prob_lo = geomdata.ProbLo();
+      const Real* dx = geomdata.CellSize();
+
+      const Real x = prob_lo[0] + i * dx[0]; // face center
+      const Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
+      const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
+
+      const Real u = (parms_d.M_inf * std::cos(parms_d.alpha)
+                          - (y - parms_d.yc)/parms_d.R * Omg) * parms_d.a_inf;
+
+       Real rand_double = amrex::Random(engine);
+
+      // Gaussian random number (mean 0, variance 1)
+       x_vel_pert(i, j, k) = u + ens_pert_ampitude*rand_double;
+
+  });
+}
+
+void
+ERF::apply_gaussian_smoothing_to_perturbations(lev)
+{
+
+    auto& lev_new = vars_new[lev];
+
+    MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp, 1);
+    MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp, 1);
+
+    MultiFab cons_pert(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
+                       lev_new[Vars::cons].nComp()   , lev_new[Vars::cons].nGrow());
+    MultiFab xvel_pert(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
+    MultiFab yvel_pert(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
+    MultiFab zvel_pert(lev_new[Vars::zvel].boxArray(), lev_new[Vars::zvel].DistributionMap(), 1, lev_new[Vars::zvel].nGrowVect());
+
+
 }
