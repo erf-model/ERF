@@ -436,7 +436,7 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                 // using the old dissipation value
                 Real diss0 = max(diss(i, j, k) / cell_data(i, j, k, Rho_comp),
                                  eps);
-                Real Rt = tke*tke * N2 / diss0;
+                Real Rt = tke*tke * N2 / (diss0*diss0);
 
                 // Turbulent length scale
                 Real length;
