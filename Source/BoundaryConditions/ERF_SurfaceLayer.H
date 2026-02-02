@@ -39,6 +39,7 @@ public:
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                          const MeshType& a_mesh_type,
                          const TerrainType& a_terrain_type,
+                         const TurbChoice& a_turb_choice,
                          amrex::Real start_time,
                          amrex::Real stop_time,
                          amrex::Real bdy_time_interval = 0.0)
@@ -248,6 +249,18 @@ public:
       // use skin temperature instead of sea-surface temperature
       // (wrfinput data may have lower resolution SST data)
       pp.query("most.ignore_sst", m_ignore_sst);
+
+      // If we're using the RANS k model, then we need to update the dirichlet
+      // BC based on the instantaneous u* and θ*; the turbulence modeling
+      // choices can vary per level but for now, assume that if specified then
+      // all levels are using the same RANS model.
+      m_update_k_rans = (a_turb_choice.rans_type == RANSType::kEqn &&
+                         a_turb_choice.dirichlet_k == true);
+      if (m_update_k_rans) {
+          inv_Cmu2 = 1.0 / (a_turb_choice.Cmu0 * a_turb_choice.Cmu0);
+          theta_ref = a_turb_choice.theta_ref;
+      }
+
   } // constructor
 
   void make_SurfaceLayer_at_level (const int& lev,
@@ -461,8 +474,9 @@ public:
   void
   update_fluxes (const int& lev,
                  const amrex::Real& time,
-                 const amrex::MultiFab& cons_in,
+                 amrex::MultiFab& cons_in,
                  const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                 const std::unique_ptr<amrex::MultiFab>& walldist,
                  int max_iters = 100);
 
   template <typename FluxIter>
@@ -705,6 +719,10 @@ private:
   amrex::Vector<amrex::MultiFab*> m_Hwave_lev;
   amrex::Vector<amrex::MultiFab*> m_Lwave_lev;
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;
+
+  bool m_update_k_rans = false;
+  amrex::Real inv_Cmu2 = 0.0;
+  amrex::Real theta_ref = 0.0;
 };
 
 #endif /* SURFACELAYER_H */

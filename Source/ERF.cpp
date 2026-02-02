@@ -1520,6 +1520,7 @@ ERF::InitData_post ()
                                                         z_phys_nd,
                                                         solverChoice.mesh_type,
                                                         solverChoice.terrain_type,
+                                                        solverChoice.turbChoice[finest_level],
                                                         start_time, stop_time
 #ifdef ERF_USE_NETCDF
                                                         , bdy_time_interval
@@ -1588,7 +1589,10 @@ ERF::InitData_post ()
                 // it will change u* and theta* from their previous values
                 m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
                                             solverChoice.moisture_indices);
-                m_SurfaceLayer->update_fluxes(lev, time, vars_new[lev][Vars::cons], z_phys_nd[lev]);
+                m_SurfaceLayer->update_fluxes(lev, time,
+                                              vars_new[lev][Vars::cons],
+                                              z_phys_nd[lev],
+                                              walldist[lev]);
 
                 // Initialize tke(x,y,z) as a function of u*(x,y)
                 if (solverChoice.turbChoice[lev].init_tke_from_ustar) {

@@ -112,7 +112,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             m_SurfaceLayer->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
             m_SurfaceLayer->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
                                         solverChoice.moisture_indices);
-            m_SurfaceLayer->update_fluxes(lev, time, S_old, z_phys_nd[lev]);
+            m_SurfaceLayer->update_fluxes(lev, time, S_old, z_phys_nd[lev], walldist[lev]);
         }
     }
 
