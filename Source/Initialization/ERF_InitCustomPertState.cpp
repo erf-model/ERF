@@ -42,8 +42,13 @@ ERF::init_custom (int lev)
     yvel_pert.setVal(0.);
     zvel_pert.setVal(0.);
 
-    create_random_perturbations(lev);
-    apply_gaussian_smoothing_to_perturbations(lev);
+    // If the initial condition needs to have spatially correlated perturbations superimposed onto 
+    // the base state, then populate the "pert" multifabs with random perturbations,
+    // and then apply a Gaussian smoothing to make the perturbations spatially correlated
+    if(solverChoice.init_with_correlated_pert) {
+        create_random_perturbations(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert);
+        apply_gaussian_smoothing_to_perturbations(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert);
+    }
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -105,44 +110,31 @@ ERF::init_custom (int lev)
 }
 
 void
-ERF::create_random_perturbations(lev)
+ERF::create_random_perturbations(const int lev, 
+                                 MultiFab& cons_pert,
+                                 MultiFab& xvel_pert,
+                                 MultiFab& yvel_pert,
+                                 MultiFab& zvel_pert)
 {
-  // Set the x-velocity
-  ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
-  {
 
-      const Real* prob_lo = geomdata.ProbLo();
-      const Real* dx = geomdata.CellSize();
+  auto& lev_new = vars_new[lev];
 
-      const Real x = prob_lo[0] + i * dx[0]; // face center
-      const Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
-      const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
-
-      const Real u = (parms_d.M_inf * std::cos(parms_d.alpha)
-                          - (y - parms_d.yc)/parms_d.R * Omg) * parms_d.a_inf;
-
-       Real rand_double = amrex::Random(engine);
-
-      // Gaussian random number (mean 0, variance 1)
-       x_vel_pert(i, j, k) = u + ens_pert_ampitude*rand_double;
-
-  });
+  for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi) {
+        const auto &xvel_pert_arr = xvel_pert.array(mfi);
+        const Box &xbx = mfi.tilebox(IntVect(1,0,0));
+        ParallelForRNG(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+        {
+            xvel_pert_arr(i, j, k) = amrex::Random(engine);
+        });
+   }
 }
 
 void
-ERF::apply_gaussian_smoothing_to_perturbations(lev)
+ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
+                                               MultiFab& cons_pert,
+                                               MultiFab& xvel_pert,
+                                               MultiFab& yvel_pert,
+                                               MultiFab& zvel_pert)
 {
-
-    auto& lev_new = vars_new[lev];
-
-    MultiFab r_hse(base_state[lev], make_alias, BaseState::r0_comp, 1);
-    MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp, 1);
-
-    MultiFab cons_pert(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
-                       lev_new[Vars::cons].nComp()   , lev_new[Vars::cons].nGrow());
-    MultiFab xvel_pert(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
-    MultiFab yvel_pert(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
-    MultiFab zvel_pert(lev_new[Vars::zvel].boxArray(), lev_new[Vars::zvel].DistributionMap(), 1, lev_new[Vars::zvel].nGrowVect());
-
 
 }

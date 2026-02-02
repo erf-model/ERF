@@ -730,6 +730,8 @@ struct SolverChoice {
                               " location of the eye in the initial condition");
             }
         }
+
+        pp.query("init_with_correlated_pert", init_with_correlated_pert);
     }
 
     void check_params (int max_level, const amrex::Vector<amrex::Geometry>& geom_vect, amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type)
@@ -1208,5 +1210,7 @@ struct SolverChoice {
 
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
+
+    bool init_with_correlated_pert = false;
 };
 #endif
