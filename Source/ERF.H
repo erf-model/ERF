@@ -637,7 +637,7 @@ private:
     void init_phys_bcs (bool& rho_read, bool& read_prim_theta);
 
     void init_custom (int lev);
-    
+
     void init_uniform (int lev);
 
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,

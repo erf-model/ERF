@@ -731,7 +731,17 @@ struct SolverChoice {
             }
         }
 
-        pp.query("init_with_correlated_pert", init_with_correlated_pert);
+        amrex::ParmParse pp_ens("ensemble");
+        pp_ens.query("is_init_with_correlated_pert", is_init_with_correlated_pert);
+        if(is_init_with_correlated_pert) {
+            pp_ens.query("pert_correlated_radius", pert_correlated_radius);
+            if(pert_correlated_radius <= 0.0) {
+                amrex::Abort("You are using initialization with spatially correlated perturbations using the inputs option "
+                             "ensemble.is_init_with_correlated_pert=true. In this case, there has to be an option "
+                             "ensemble.pert_correlated_radius which is the value of the the spatial correlation radius, "
+                             "and has to be greater than 0.0");
+            }
+        }
     }
 
     void check_params (int max_level, const amrex::Vector<amrex::Geometry>& geom_vect, amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type)
@@ -1211,6 +1221,7 @@ struct SolverChoice {
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
 
-    bool init_with_correlated_pert = false;
+    bool is_init_with_correlated_pert = false;
+    amrex::Real pert_correlated_radius = -1.0;
 };
 #endif
