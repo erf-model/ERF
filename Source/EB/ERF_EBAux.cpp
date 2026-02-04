@@ -847,7 +847,6 @@ define( [[maybe_unused]] int const& a_level,
 
     const Box& bx = mfi.validbox();
     const Box& bx_grown = mfi.growntilebox();
-    const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
 
     Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
     Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
