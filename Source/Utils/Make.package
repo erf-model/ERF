@@ -33,3 +33,4 @@ CEXE_sources += ERF_VolWgtSum.cpp
 
 CEXE_sources += ERF_ThinBodyWallDist.cpp
 CEXE_sources += ERF_WeatherDataInterpolation.cpp
+CEXE_sources += ERF_SurfaceDataInterpolation.cpp

@@ -112,7 +112,6 @@ public:
                                         const int& khi);
 
 protected:
-    std::string name () override { return "Supercell"; }
 
 private:
     ProbParm parms;

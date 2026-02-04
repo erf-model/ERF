@@ -1,4 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "TemperatureSourceSpatial"
 stop_time = 8500
 max_step = 50000
 

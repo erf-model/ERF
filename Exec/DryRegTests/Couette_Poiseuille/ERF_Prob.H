@@ -61,15 +61,6 @@ public:
         const int lev) override;
 
 protected:
-    std::string name() override {
-        if ( parms.prob_type == 1 ) {
-            return "Couette Flow";
-        } else if ( parms.prob_type == 10 || parms.prob_type == 11) {
-            return "Poiseuille Flow";
-        } else {
-            return "Unknown";
-        }
-    }
 
 private:
     ProbParm parms;

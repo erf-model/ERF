@@ -29,7 +29,7 @@ void SDInitProperties::setDefaults ( const amrex::Geometry& a_geom,
 
     for (int i = 0; i < m_num_species; i++) {
         // default values
-        m_species_init_type[i] = SupDropInit::attrib_init_const;
+        m_species_init_type[i] = SDDistributionType::mass_constant;
         if (a_species_mat[i]->m_is_water) {
             m_mass_species_min[i]   = 4.1887902e-42;
             m_mass_species_max[i]   = 4.1887902e-42;
@@ -60,7 +60,7 @@ void SDInitProperties::setDefaults ( const amrex::Geometry& a_geom,
 
     for (int i = 0; i < m_num_aerosols; i++) {
         // default values
-        m_aerosol_init_type[i] = SupDropInit::attrib_init_const;
+        m_aerosol_init_type[i] = SDDistributionType::mass_constant;
         m_mass_aerosol_min[i]   = 0.0;
         m_mass_aerosol_max[i]   = 0.0;
         m_mass_aerosol_mean[i]  = 0.0;
@@ -261,10 +261,10 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
     for (unsigned long i=0; i < a_species_mat.size(); i++) {
         Print() << "        "
                 << getEnumNameString(a_species_mat[i]->m_name)
-                << " (distribution: " << m_species_init_type[i];
-        if (m_species_init_type[i] == SupDropInit::attrib_init_const) {
+                << " (distribution: " << getEnumNameString(m_species_init_type[i]);
+        if (m_species_init_type[i] == SDDistributionType::mass_constant) {
             Print() << ", value=" << m_mass_species_mean[i];
-        } else if (m_species_init_type[i] == SupDropInit::attrib_init_exp) {
+        } else if (m_species_init_type[i] == SDDistributionType::mass_exponential) {
             Print() << ", min=" << m_mass_species_min[i]
                     << ", mean=" << m_mass_species_mean[i]
                     << ", max=" << m_mass_species_max[i];
@@ -272,7 +272,7 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
             AMREX_ALWAYS_ASSERT(m_mass_species_max[i] >= m_mass_species_min[i]);
             AMREX_ALWAYS_ASSERT(    (m_mass_species_mean[i] >= m_mass_species_min[i])
                                  && (m_mass_species_mean[i] <= m_mass_species_max[i]) );
-        } else if (m_species_init_type[i] == SupDropInit::attrib_init_lnr) {
+        } else if (m_species_init_type[i] == SDDistributionType::radius_log_normal) {
             Print() << ", min=" << m_radius_species_min[i]
                     << ", max=" << m_radius_species_max[i]
                     << ", mean=" << m_radius_species_mean[i]
@@ -281,7 +281,7 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
             AMREX_ALWAYS_ASSERT(m_radius_species_max[i] >= m_radius_species_min[i]);
             AMREX_ALWAYS_ASSERT(    (m_radius_species_mean[i] >= m_radius_species_min[i])
                                  && (m_radius_species_mean[i] <= m_radius_species_max[i]) );
-        } else if (m_species_init_type[i] == SupDropInit::attrib_init_lnr_auto) {
+        } else if (m_species_init_type[i] == SDDistributionType::radius_lognormal_autorange) {
             Print() << ", mean=" << m_radius_species_mean[i]
                     << ", std=" << m_radius_species_geom_std[i];
             AMREX_ALWAYS_ASSERT(m_radius_species_mean[i] > 0.0);
@@ -294,11 +294,11 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
         for (unsigned long i=0; i < a_aerosol_mat.size(); i++) {
             Print() << "        "
                     << getEnumNameString(a_aerosol_mat[i]->m_name)
-                    << " (distribution: " << m_aerosol_init_type[i];
-            if (m_aerosol_init_type[i] == SupDropInit::attrib_init_const) {
+                    << " (distribution: " << getEnumNameString(m_aerosol_init_type[i]);
+            if (m_aerosol_init_type[i] == SDDistributionType::mass_constant) {
                 Print() << ", value=" << m_mass_aerosol_mean[i];
                 AMREX_ALWAYS_ASSERT(m_mass_aerosol_mean[i] > 0.0);
-            } else if (m_aerosol_init_type[i] == SupDropInit::attrib_init_exp) {
+            } else if (m_aerosol_init_type[i] == SDDistributionType::mass_exponential) {
                 Print() << ", min=" << m_mass_aerosol_min[i]
                         << ", mean=" << m_mass_aerosol_mean[i]
                         << ", max=" << m_mass_aerosol_max[i];
@@ -306,7 +306,7 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
                 AMREX_ALWAYS_ASSERT(m_mass_aerosol_max[i] >= m_mass_aerosol_min[i]);
                 AMREX_ALWAYS_ASSERT(    (m_mass_aerosol_mean[i] >= m_mass_aerosol_min[i])
                                      && (m_mass_aerosol_mean[i] <= m_mass_aerosol_max[i]) );
-            } else if (m_aerosol_init_type[i] == SupDropInit::attrib_init_lnr) {
+            } else if (m_aerosol_init_type[i] == SDDistributionType::radius_log_normal) {
                 Print() << ", min=" << m_radius_aerosol_min[i]
                         << ", max=" << m_radius_aerosol_max[i]
                         << ", mean=" << m_radius_aerosol_mean[i]
@@ -315,7 +315,7 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
                 AMREX_ALWAYS_ASSERT(m_radius_aerosol_max[i] >= m_radius_aerosol_min[i]);
                 AMREX_ALWAYS_ASSERT(    (m_radius_aerosol_mean[i] >= m_radius_aerosol_min[i])
                                      && (m_radius_aerosol_mean[i] <= m_radius_aerosol_max[i]) );
-            } else if (m_aerosol_init_type[i] == SupDropInit::attrib_init_lnr_auto) {
+            } else if (m_aerosol_init_type[i] == SDDistributionType::radius_lognormal_autorange) {
                 Print() << ", mean=" << m_radius_aerosol_mean[i]
                         << ", std=" << m_radius_aerosol_geom_std[i];
                 AMREX_ALWAYS_ASSERT(m_radius_aerosol_mean[i] > 0.0);
@@ -349,30 +349,30 @@ void SDInjection::printParameters ( const MatVec& a_species_mat,
 }
 
 void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
-                                         const int a_np,
-                                         const amrex::Real a_density,
-                                         const std::string& a_init_type,
-                                         const amrex::Real a_mass_min,
-                                         const amrex::Real /*a_mass_max*/,
-                                         const amrex::Real a_mass_mean,
-                                         const amrex::Real a_radius_min,
-                                         const amrex::Real a_radius_max,
-                                         const amrex::Real a_radius_mean,
-                                         const amrex::Real a_radius_gstd,
+                                         int a_np,
+                                         amrex::Real a_density,
+                                         SDDistributionType a_init_type,
+                                         amrex::Real a_mass_min,
+                                         amrex::Real /*a_mass_max*/,
+                                         amrex::Real a_mass_mean,
+                                         amrex::Real a_radius_min,
+                                         amrex::Real a_radius_max,
+                                         amrex::Real a_radius_mean,
+                                         amrex::Real a_radius_gstd,
                                          std::mt19937& a_rng ) const
 {
     a_mass.resize(a_np);
-    if (a_init_type == SupDropInit::attrib_init_const) {
+    if (a_init_type == SDDistributionType::mass_constant) {
         for (int n = 0; n < a_np; n++) {
             a_mass[n] = a_mass_mean;
         }
-    } else if (a_init_type == SupDropInit::attrib_init_exp) {
+    } else if (a_init_type == SDDistributionType::mass_exponential) {
         auto delta = a_mass_mean - a_mass_min;
         std::exponential_distribution<amrex::Real> ed(1.0/delta);
         for (int n = 0; n < a_np; n++) {
             a_mass[n] = ed(a_rng) + a_mass_min;
         }
-    } else if (a_init_type == SupDropInit::attrib_init_lnr) {
+    } else if (a_init_type == SDDistributionType::radius_log_normal) {
         std::normal_distribution<amrex::Real> nrd(std::log(a_radius_mean),
                                                   std::log(a_radius_gstd));
         for (int n = 0; n < a_np; n++) {
@@ -404,28 +404,28 @@ static amrex::Real SD_erfinv(const amrex::Real x) {
 
 void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
                                          amrex::Vector<amrex::Real>& a_mult,
-                                         const amrex::Real a_dV,
-                                         const int a_np,
-                                         const amrex::Real a_density,
-                                         const std::string& a_init_type,
-                                         const amrex::Real a_mass_min,
-                                         const amrex::Real a_mass_max,
-                                         const amrex::Real a_mass_mean,
-                                         const amrex::Real a_radius_min,
-                                         const amrex::Real a_radius_max,
-                                         const amrex::Real a_radius_mean,
-                                         const amrex::Real a_radius_gstd,
+                                         amrex::Real a_dV,
+                                         int a_np,
+                                         amrex::Real a_density,
+                                         SDDistributionType a_init_type,
+                                         amrex::Real a_mass_min,
+                                         amrex::Real a_mass_max,
+                                         amrex::Real a_mass_mean,
+                                         amrex::Real a_radius_min,
+                                         amrex::Real a_radius_max,
+                                         amrex::Real a_radius_mean,
+                                         amrex::Real a_radius_gstd,
                                          std::mt19937& a_rng ) const
 {
     a_mass.resize(a_np);
-    AMREX_ALWAYS_ASSERT(a_mult.size() == a_np);
-    if (a_init_type == SupDropInit::attrib_init_const) {
+    AMREX_ALWAYS_ASSERT(a_mult.size() == static_cast<size_t>(a_np));
+    if (a_init_type == SDDistributionType::mass_constant) {
         std::uniform_real_distribution<> urd(0.0, 1.0);
         for (int n = 0; n < a_np; n++) {
             a_mass[n] = a_mass_mean;
             a_mult[n] += urd(a_rng); // initially this will be a non-integer; later we will rescale to an integer.
         }
-    } else if (a_init_type == SupDropInit::attrib_init_exp) {
+    } else if (a_init_type == SDDistributionType::mass_exponential) {
         std::uniform_real_distribution<> urd(0.0, 1.0);
         auto delta = a_mass_mean - a_mass_min;
         auto lnrng = std::log(a_mass_max) - std::log(a_mass_min);
@@ -435,7 +435,7 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             a_mass[n] = std::exp(tmp);
             a_mult[n] += (m_numdens * a_dV) * std::exp(-a_mass[n] / delta);
         }
-    } else if (a_init_type == SupDropInit::attrib_init_lnr) {
+    } else if (a_init_type == SDDistributionType::radius_log_normal) {
         std::uniform_real_distribution<> urd(0.0, 1.0);
         auto sigma = std::log(a_radius_gstd);
         auto mu = a_radius_mean;
@@ -448,7 +448,7 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
             auto term = std::exp(-std::log(dry_r/mu)*std::log(dry_r/mu)/(2.0*sigma*sigma));
             a_mult[n] += ( m_numdens * a_dV ) / (sigma*std::sqrt(2*PI)) * term;
         }
-    } else if (a_init_type == SupDropInit::attrib_init_lnr_auto) {
+    } else if (a_init_type == SDDistributionType::radius_lognormal_autorange) {
         std::uniform_real_distribution<> urd(0.0, 1.0);
         auto sigma = std::log(a_radius_gstd);
         auto mu = a_radius_mean;
@@ -508,4 +508,86 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
     } else {
         amrex::Abort("Unknown m_init_type!");
     }
+}
+
+SDDistributionParams SDInitProperties::makeDistributionParams(
+    SDDistributionType a_init_type,
+    amrex::Real a_mass_min,
+    amrex::Real a_mass_max,
+    amrex::Real a_mass_mean,
+    amrex::Real a_radius_min,
+    amrex::Real a_radius_max,
+    amrex::Real a_radius_mean,
+    amrex::Real a_radius_gstd,
+    amrex::Real a_density,
+    amrex::Real a_cell_volume,
+    bool a_sampled_mult) const
+{
+    SDDistributionParams params;
+    params.dist_type = a_init_type;
+    params.mass_min = a_mass_min;
+    params.mass_max = a_mass_max;
+    params.mass_mean = a_mass_mean;
+    params.radius_min = a_radius_min;
+    params.radius_max = a_radius_max;
+    params.radius_mean = a_radius_mean;
+    params.radius_gstd = a_radius_gstd;
+    params.density = a_density;
+    params.numdens = m_numdens;
+    params.cell_volume = a_cell_volume;
+    params.delta = a_mass_mean - a_mass_min;
+    params.sampled_mult = a_sampled_mult ? 1 : 0;
+
+    // Pre-compute values for log-normal distribution
+    params.sigma = std::log(a_radius_gstd);
+
+    if (params.dist_type == SDDistributionType::mass_exponential) {
+        // For exponential with sampled multiplicity, we sample in log-space
+        // For constant multiplicity, we use inverse transform sampling
+        params.lnmin = std::log(a_mass_min);
+        params.lnrng = std::log(a_mass_max) - params.lnmin;
+        params.cdf_min = 0.0;
+        params.cdf_max = 1.0;
+    } else if (params.dist_type == SDDistributionType::radius_log_normal ||
+               params.dist_type == SDDistributionType::radius_lognormal_autorange) {
+        // For log-normal, compute CDF bounds for truncated sampling
+        // CDF of log-normal: Phi((ln(x) - ln(mu)) / sigma)
+        // where Phi is the standard normal CDF: Phi(z) = 0.5 * (1 + erf(z/sqrt(2)))
+        amrex::Real rmin = a_radius_min;
+        amrex::Real rmax = a_radius_max;
+        amrex::Real mu = a_radius_mean;
+        amrex::Real sigma = params.sigma;
+
+        // For LogNormalAuto, find appropriate bounds iteratively
+        if (params.dist_type == SDDistributionType::radius_lognormal_autorange) {
+            rmin = 1e-9;
+            rmax = 1.0;
+            amrex::Real tol = (m_numdens > 0 && a_cell_volume > 0) ?
+                              1.0 / (m_numdens * a_cell_volume) : 1e-6;
+            amrex::Real P_min = 0.0;
+            amrex::Real P_max = 1.0;
+            while ((P_max >= 1.0 - tol) || (P_min <= tol)) {
+                if (P_max >= 1.0 - tol) rmax *= 0.99;
+                if (P_min <= tol) rmin *= 1.01;
+                P_min = 0.5 * (1.0 + std::erf(std::log(rmin / mu) / (sigma * std::sqrt(2.0))));
+                P_max = 0.5 * (1.0 + std::erf(std::log(rmax / mu) / (sigma * std::sqrt(2.0))));
+            }
+            // Update the params with computed bounds
+            params.radius_min = rmin;
+            params.radius_max = rmax;
+        }
+
+        params.cdf_min = 0.5 * (1.0 + std::erf(std::log(rmin / mu) / (sigma * std::sqrt(2.0))));
+        params.cdf_max = 0.5 * (1.0 + std::erf(std::log(rmax / mu) / (sigma * std::sqrt(2.0))));
+        params.lnmin = std::log(rmin);
+        params.lnrng = std::log(rmax) - params.lnmin;
+    } else {
+        // Constant distribution - no special pre-computation needed
+        params.cdf_min = 0.0;
+        params.cdf_max = 1.0;
+        params.lnmin = 0.0;
+        params.lnrng = 0.0;
+    }
+
+    return params;
 }

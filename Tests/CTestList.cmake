@@ -187,8 +187,8 @@ add_test_r(MoistBubble                       "MoistRegTests/Bubble" "erf_bubble"
 add_test_r(SquallLine_2D                     "MoistRegTests/SquallLine_2D" "erf_squallline" "plt00010")
 add_test_r(SuperCell_3D                      "MoistRegTests/SuperCell_3D" "erf_supercell"   "plt00010")
 if(ERF_ENABLE_PARTICLES)
-  add_test_r(ParticleAdvect                  "DryRegTests/ParticleAdvection" "erf_particles_advect" "plt00010")
-  add_test_r(ParticleWoA                     "DryRegTests/ParticlesOverWoA" "erf_particles_over_woa" "plt00010")
+  add_test_r(ParticleAdvect                  "DryRegTests/ParticleTests" "erf_particles" "plt00010")
+  add_test_r(ParticleWoA                     "DryRegTests/ParticleTests" "erf_particles" "plt00010")
 endif()
 if(ERF_ENABLE_RRGMTP)
   add_test_r(Radiation                       "DevTests/Radiation" "erf_radiation" "plt00010")
@@ -205,11 +205,13 @@ if(ERF_ENABLE_PARTICLES)
     # These tests require machine-specific gold files due to platform-dependent initial sampling
     if(ERF_TEST_ENABLE_EXTRA_SDM_TESTS)
         # log-normal distribution for radius
-        add_test_sdm(SDM_RICO3D_InitSampling         "DevTests/RICO"        "erf_rico"     "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding")
+        add_test_sdm(SDM_RICO3D_InitSampling         "DevTests/RICO"                    "erf_rico"     "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding")
         # mass-exponential distribution for mass
-        add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "MoistRegTests/Bubble" "erf_bubble"   "plt00000" 1e-14 1e-14)
+        add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "MoistRegTests/Bubble"             "erf_bubble"   "plt00000" 1e-14 1e-14)
         # INAS sampled initialization for freezing temperature
-        add_test_sdm(SDM_Bubble2D_Adv_TfzINAS        "MoistRegTests/Bubble" "erf_bubble"   "plt00000" 1e-14 1e-14)
+        add_test_sdm(SDM_Bubble2D_Adv_TfzINAS        "MoistRegTests/Bubble"             "erf_bubble"   "plt00000" 1e-14 1e-14)
+        # column case to test condensation
+        add_test_sdm(SDM_SineMassFlux                "DevTests/sinusoidal_mass_flux" "erf_sinusoidal_mass_flux" "plt00050" 1e-14 1e-14 INPUT_SOUNDING "input_sounding")
     endif()
 
     # passive advection of particles

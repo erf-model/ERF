@@ -28,7 +28,6 @@ public:
 #include "Prob/ERF_InitDensityHSEDry.H"
 
 protected:
-    std::string name() override { return "Radiation"; }
 
 private:
     ProbParm parms;

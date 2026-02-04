@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "SquallLine"
+
 max_step = 14400
 stop_time = 90000.0
 
