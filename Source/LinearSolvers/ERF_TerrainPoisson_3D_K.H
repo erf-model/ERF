@@ -153,6 +153,75 @@ T terrpoisson_flux_z (int i, int j, int k,
     return -pz_lo;
 }
 
+/*
+ * Simplified gradient calc with dirichlet BC (phi_zlo==0)
+ * - compare with terrpoisson_flux_z
+ */
+template <typename T>
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+T terrpoisson_flux_zlo_dir (int i, int j, int k,
+                            amrex::Array4<T const> const& sol,
+                            amrex::Array4<T const> const& zp,
+                            T dxinv, T dyinv) noexcept
+{
+    using amrex::Real;
+
+    Real h_xi, h_eta, h_zeta;
+
+    // On z-face, one-sided
+    Real pz_lo = sol(i,j,k);
+    Real hzeta_inv_on_zlo = 8.0 / ( (zp(i,j,k+1) + zp(i+1,j,k+1) + zp(i,j+1,k+1) + zp(i+1,j+1,k+1))
+                                   -(zp(i,j,k  ) + zp(i+1,j,k  ) + zp(i,j+1,k  ) + zp(i+1,j+1,k  )) );
+    pz_lo *= hzeta_inv_on_zlo;
+
+    // On corners
+    constexpr Real px_hi_md_lo = 0.0;
+    constexpr Real px_lo_md_lo = 0.0;
+    constexpr Real py_md_hi_lo = 0.0;
+    constexpr Real py_md_lo_lo = 0.0;
+
+    // On y-edges, one-sided
+    Real pz_hi_md_lo  = Real(0.5) * ( sol(i+1,j,k  ) + sol(i,j,k  ));
+         h_xi         = Real(0.25) * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
+                                      +zp(i+1,j+1,k  ) - zp(i-1,j+1,k  ) ) * dxinv;
+         h_zeta       = Real(0.25) * ( zp(i+1,j  ,k+1) - zp(i+1,j  ,k  )
+                                      +zp(i+1,j+1,k+1) - zp(i+1,j+1,k  ) );
+         pz_hi_md_lo *= h_xi / h_zeta;
+
+    // On y-edges, one-sided
+    Real pz_lo_md_lo  = Real(0.5) * ( sol(i,j,k  ) + sol(i-1,j,k  ));
+         h_xi         = Real(0.25) * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
+                                      +zp(i,j+1,k  ) - zp(i-2,j+1,k  ) ) * dxinv;
+         h_zeta       = Real(0.25) * ( zp(i,j  ,k+1) - zp(i  ,j  ,k  )
+                                      +zp(i,j+1,k+1) - zp(i  ,j+1,k  ) );
+         pz_lo_md_lo *= h_xi / h_zeta;
+
+    // On x-edges, one-sided
+    Real pz_md_hi_lo  = Real(0.5) * ( sol(i,j+1,k  ) + sol(i,j,k  ));
+         h_eta        = Real(0.25) * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k)
+                                      +zp(i+1,j+1,k  ) - zp(i+1,j-1,k) ) * dyinv;
+         h_zeta       = Real(0.25) * ( zp(i  ,j+1,k+1) - zp(i  ,j+1,k  )
+                                      +zp(i+1,j+1,k+1) - zp(i+1,j+1,k  ) );
+         pz_md_hi_lo *= h_eta/ h_zeta;
+
+    // On x-edges, one-sided
+    Real pz_md_lo_lo  = Real(0.5) * ( sol(i,j,k  ) + sol(i,j-1,k  ));
+         h_eta        = Real(0.25) * ( zp(i  ,j,k  ) - zp(i  ,j-2,k  )
+                                      +zp(i+1,j,k  ) - zp(i+1,j-2,k  ) ) * dyinv;
+         h_zeta       = Real(0.25) * ( zp(i  ,j,k+1) - zp(i  ,j  ,k  )
+                                      +zp(i+1,j,k+1) - zp(i+1,j  ,k  ) );
+         pz_md_lo_lo *= h_eta/ h_zeta;
+
+    // On z-face
+    Real h_xi_on_zlo  = 0.5 * (zp(i+1,j+1,k) + zp(i+1,j,k) - zp(i,j+1,k) - zp(i,j,k)) * dxinv;
+    Real h_eta_on_zlo = 0.5 * (zp(i+1,j+1,k) + zp(i,j+1,k) - zp(i+1,j,k) - zp(i,j,k)) * dyinv;
+
+    pz_lo -= 0.5 * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
+    pz_lo -= 0.5 * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
+
+    return -pz_lo;
+}
+
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,

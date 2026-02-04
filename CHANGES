@@ -1,3 +1,14 @@
+#26.02
+    -- BDY nudging revamp (#2851)
+
+    -- Refactor problem set up approach (#2848, 2846)
+
+    -- Super droplet method (#2820)
+
+    -- era5 bulk surface (#2826)
+
+    -- RRTMGP fixes (#2841, 2838)
+
 #26.01
     -- Fixes for MLMG solver (#2814)
 
