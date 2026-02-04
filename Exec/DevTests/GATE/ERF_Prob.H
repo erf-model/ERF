@@ -64,7 +64,7 @@ struct ProbParm : ProbParmDefaults {
     amrex::Real vfac;
     amrex::Real cval, dval;
     amrex::Real tfac, qvfac;
-}; // namespace ProbParm
+};
 
 class Problem : public ProblemBase
 {
@@ -113,7 +113,7 @@ public:
         amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
         const amrex::MultiFab& state,
         const amrex::Geometry& geom,
-        std::unique_ptr<amrex::MultiFab>& z_phys_nd) override;
+        std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
     void update_geostrophic_profile (
         const amrex::Real& /*time*/,
@@ -123,9 +123,6 @@ public:
         amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
-
-protected:
-    std::string name () override { return "RICO"; }
 
 private:
     ProbParm parms;

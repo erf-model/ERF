@@ -305,46 +305,26 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
             src->setVal(0.0);
         } else {
             bool use_zlevels = (z_phys_cc != nullptr);
-            ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int k) {
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real z_cc = (use_zlevels) ? d_zlevels_arr[k] : prob_lo[2] + (k+0.5)* dx[2];
-                if ((z_cc < 15000) & (z_cc > 380))
-                {
-                //float f_a[12] = {1.41770036e-46, -1.30614099e-41,  5.22851563e-37, -1.19344214e-32,
-                //                 1.71342624e-28, -1.60922260e-24,  9.95447431e-21, -3.97516965e-17,
-                //                 9.71369124e-14, -1.27780086e-10,  5.27058227e-08, -3.10576910e-05};
-                //   float f_a[4] = {-1.31157351e-16,  3.93790747e-12, -2.86881832e-08, -1.55435477e-05};
-                   //float f_a[5] = {1.54019861e-21, -1.79372236e-16,  4.43316011e-12, -3.05439436e-08,-1.36394509e-05};
-                   float f_a[6] = {-1.22998448e-24,  5.86487977e-20, -1.11949167e-15,  1.03417521e-11,
-       -3.80858898e-08, -1.39371490e-05};
-                //const Real divtheta  = f_a[0] * std::pow(z_cc,11.0) + f_a[1] * std::pow(z_cc,10.0)+ f_a[2] * std::pow(z_cc,9.0)
-                 //                 + f_a[3] * std::pow(z_cc,8.0) + f_a[4] * std::pow(z_cc,7.0)+ f_a[5] * std::pow(z_cc,6.0)
-                 //                 + f_a[6] * std::pow(z_cc,5.0) + f_a[7] * std::pow(z_cc,4.0) + f_a[8] * std::pow(z_cc,3.0)
-                 //                 + f_a[9] * std::pow(z_cc,2.0) + f_a[10] * z_cc + f_a[11];
-
-                   double result = f_a[0];
-                   for (int ind = 1; ind < 6; ++ind)
-                       {
+                if ((z_cc < 15000) && (z_cc > 380)) {
+                    Real f_a[6] = {-1.22998448e-24,  5.86487977e-20, -1.11949167e-15,
+                                    1.03417521e-11, -3.80858898e-08, -1.39371490e-05};
+                    Real result = f_a[0];
+                    for (int ind = 1; ind < 6; ++ind) {
                         result = result * z_cc + f_a[ind];
-                       }
-                //const Real dum = src_arr(i, j, k);
-                //if (i==0 & j ==0)
-                //{
-                 //Print() << "heating values is "<< divtheta << std::endl;
-                //}
-                    src_arr(i, j, k) = result;}
-                else if (z_cc <= 380)
-                {
-                    float f_a[2] = {1.73461284e-08, -3.00569096e-05};
-                    double result = f_a[0];
-                    for (int ind = 1; ind < 2; ++ind)
-                        {
-                         result = result * z_cc + f_a[ind];
-                        }
-                }
-                 else
-                    {
-                    src_arr(i, j, k) = 0.0;
                     }
+                    src_arr(i, j, k) = result;
+                } else if (z_cc <= 380) {
+                    Real f_a[2] = {1.73461284e-08, -3.00569096e-05};
+                    Real result = f_a[0];
+                    for (int ind = 1; ind < 2; ++ind) {
+                        result = result * z_cc + f_a[ind];
+                    }
+                    src_arr(i, j, k) = result;
+                } else {
+                    src_arr(i, j, k) = 0.0;
+                }
             });
         }
     }
@@ -389,16 +369,16 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
             qsrc->setVal(0.0);
         } else {
             bool use_zlevels = (z_phys_cc != nullptr);
-            ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int k) {
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real z_cc = (use_zlevels) ? d_zlevels_arr[k] : prob_lo[2] + (k+0.5)* dx[2];
-                float f_a[9] = {-3.19860779e-39,  2.41718658e-34, -7.62715842e-30,  1.30171558e-25,
-                                -1.30129938e-21,  7.71169160e-18, -2.59263914e-14,  4.05941658e-11,
+                Real f_a[9] = {-3.19860779e-39,  2.41718658e-34, -7.62715842e-30,  1.30171558e-25,
+                               -1.30129938e-21,  7.71169160e-18, -2.59263914e-14,  4.05941658e-11,
                                 2.56947279e-09};
-                qsrc_arr(i, j, k) = f_a[0] * std::pow(z_cc,8.0) + f_a[1] * std::pow(z_cc,7.0)+ f_a[2] * std::pow(z_cc,6.0)
-                                  + f_a[3] * std::pow(z_cc,5.0) + f_a[4] * std::pow(z_cc,4.0)+ f_a[5] * std::pow(z_cc,3.0)
-                                  + f_a[6] * std::pow(z_cc,2.0) + f_a[7] * z_cc + f_a[8];
-                //const Real dum = qsrc_arr(i, j, k);
-                //Print() << "divq value is "<< dum << std::endl;
+                Real result = f_a[0];
+                for (int ind = 1; ind < 9; ++ind) {
+                    result = result * z_cc + f_a[ind];
+                }
+                qsrc_arr(i, j, k) = result;
             });
         }
     }
@@ -411,33 +391,26 @@ void
 Problem::update_w_subsidence (const Real& /*time*/,
                               Vector<Real>& wbar,
                               Gpu::DeviceVector<Real>& d_wbar,
-                              const amrex::MultiFab& /* state */,
+                              const amrex::MultiFab& /*state*/,
                               const Geometry& geom,
-                              std::unique_ptr<MultiFab>& z_phys_nd)
+                              std::unique_ptr<MultiFab>& z_phys_cc)
 {
     if (wbar.empty()) return;
 
-    const int khi       = geom.Domain().bigEnd()[2] + 1; // lives on z-faces
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx       = geom.CellSize();
+    const int khi = geom.Domain().bigEnd()[2] + 1; // lives on z-faces
 
-    // Note: If z_phys_nd, then use_terrain=1 was set. If the z coordinate
-    // varies in time and or space, then the the height needs to be
+    // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
+    // varies in time and or space, then the height needs to be
     // calculated at each time step. Here, we assume that only grid
     // stretching exists.
-    if (z_phys_nd) {
+    if (z_phys_cc) {
         zlevels.resize(khi+1);
-        reduce_to_max_per_height(zlevels, z_phys_nd);
+        reduce_to_max_per_height(zlevels, z_phys_cc);
     }
 
-    wbar[0] = 0.0;
-    for (int k = 1; k <= khi; k++) {
-        const Real z_cc = (z_phys_nd) ? zlevels[k] : prob_lo[2] + k*dx[2];
-        if (z_cc <= parms.wbar_cutoff_max) {
-            wbar[k] = 0.0;
-        } else {
-            wbar[k] = 0.0;
-        }
+    // Currently subsidence is disabled (all zeros)
+    for (int k = 0; k <= khi; k++) {
+        wbar[k] = 0.0;
     }
 
     // Copy from host version to device version
@@ -474,15 +447,13 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
     // Only apply momentum source below nominal inversion height
     for (int k = 0; k <= khi; k++) {
         const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
-//        const Real u_geo_wind = -9.9 + z_cc * 0.002;
-        float f_a[12] = {-1.27239999e-41,  1.11717520e-36, -4.33415278e-32,  9.86488742e-28,
-                         -1.46662495e-23,  1.47887323e-19, -9.96258532e-16,  4.17832623e-12,
-                         -9.41191724e-09,  8.63378170e-06, -4.29197266e-03, -8.18730365e-01};
-        const Real u_geo_wind = f_a[0] * std::pow(z_cc,11.0) + f_a[1] * std::pow(z_cc,10.0)+ f_a[2] * std::pow(z_cc,9.0)
-                            + f_a[3] * std::pow(z_cc,8.0) + f_a[4] * std::pow(z_cc,7.0)+ f_a[5] * std::pow(z_cc,6.0)
-                            + f_a[6] * std::pow(z_cc,5.0) + f_a[7] * std::pow(z_cc,4.0) + f_a[8] * std::pow(z_cc,3.0)
-                            + f_a[9] * std::pow(z_cc,2.0) + f_a[10] * z_cc + f_a[11];
-        //Print() << "u value is "<< u_geo_wind << std::endl;
+        Real f_a[12] = {-1.27239999e-41,  1.11717520e-36, -4.33415278e-32,  9.86488742e-28,
+                        -1.46662495e-23,  1.47887323e-19, -9.96258532e-16,  4.17832623e-12,
+                        -9.41191724e-09,  8.63378170e-06, -4.29197266e-03, -8.18730365e-01};
+        Real u_geo_wind = f_a[0];
+        for (int ind = 1; ind < 12; ++ind) {
+            u_geo_wind = u_geo_wind * z_cc + f_a[ind];
+        }
         u_geos[k] = u_geo_wind;
         v_geos[k] = 0.0;
     }
