@@ -222,24 +222,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     }
 
     //********************************************************************************************
-    // Create wall distance field for RANS model (depends upon z_phys)
-    // *******************************************************************************************
-    if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
-        // Handle bottom boundary
-        poisson_wall_dist(lev);
-
-        // Correct the wall distance for immersed bodies
-        if (solverChoice.advChoice.have_zero_flux_faces) {
-            thinbody_wall_dist(walldist[lev],
-                               solverChoice.advChoice.zero_xflux,
-                               solverChoice.advChoice.zero_yflux,
-                               solverChoice.advChoice.zero_zflux,
-                               geom[lev],
-                               z_phys_cc[lev]);
-        }
-    }
-
-    //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
     int q_size  = micro->Get_Qmoist_Size(lev);
