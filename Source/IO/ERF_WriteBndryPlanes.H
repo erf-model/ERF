@@ -23,17 +23,20 @@ public:
 
 private:
 
+    //! Number of planes for output
+    int m_bndry_count = 1;
+
     //! IO output box region
-    amrex::Box target_box;
+    amrex::Vector<amrex::Box> target_box;
 
     //! Geometry objects for all levels
     amrex::Vector<amrex::Geometry>& m_geom;
 
     //! File name for IO
-    std::string m_filename{""};
+    amrex::Vector<std::string> m_filename;
 
     //! File name for Native time file
-    std::string m_time_file{""};
+    amrex::Vector<std::string> m_time_file;
 
     //! Variables for IO
     amrex::Vector<std::string> m_var_names;

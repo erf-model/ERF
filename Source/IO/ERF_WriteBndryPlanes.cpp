@@ -56,56 +56,69 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
 {
     ParmParse pp("erf");
 
-    // User-specified region is given in physical coordinates, not index space
-    std::vector<Real> box_lo(3), box_hi(3);
-    pp.getarr("bndry_output_box_lo",box_lo,0,2);
-    pp.getarr("bndry_output_box_hi",box_hi,0,2);
+    // How many planes to output?
+    pp.query("bndry_output_count",m_bndry_count);
+    target_box.resize(m_bndry_count);
+    m_filename.resize(m_bndry_count,"");
+    m_time_file.resize(m_bndry_count,"");
 
-    // If the target area is contained at a finer level, use the finest data possible
-    for (int ilev = 0; ilev < grids.size(); ilev++) {
+    // Get the output file names
+    pp.getarr("bndry_output_planes_file",m_filename,0,m_bndry_count);
 
-        const Real* xLo = m_geom[ilev].ProbLo();
-        auto const dxi  = geom[ilev].InvCellSizeArray();
-        const Box& domain = m_geom[ilev].Domain();
-
-        // We create the smallest box that contains all of the cell centers
-        // in the physical region specified
-        int ilo = static_cast<int>(Math::floor((box_lo[0] - xLo[0]) * dxi[0])+.5);
-        int jlo = static_cast<int>(Math::floor((box_lo[1] - xLo[1]) * dxi[1])+.5);
-        int ihi = static_cast<int>(Math::floor((box_hi[0] - xLo[0]) * dxi[0])+.5)-1;
-        int jhi = static_cast<int>(Math::floor((box_hi[1] - xLo[1]) * dxi[1])+.5)-1;
-
-        // Map this to index space -- for now we do no interpolation
-        target_box.setSmall(IntVect(ilo,jlo,0));
-        target_box.setBig(IntVect(ihi,jhi,domain.bigEnd(2)));
-
-        // Test if the target box at this level fits in the grids at this level
-        Box gbx = target_box; gbx.grow(IntVect(1,1,0));
-
-        // Ensure that the box is no larger than can fit in the (periodically grown) domain
-        // at level 0
-        if (ilev == 0) {
-            Box per_grown_domain(domain);
-            int growx = (geom[0].isPeriodic(0)) ? 1 : 0;
-            int growy = (geom[0].isPeriodic(1)) ? 1 : 0;
-            per_grown_domain.grow(IntVect(growx,growy,0));
-            if (!per_grown_domain.contains(gbx))
-                Error("WriteBndryPlanes: Requested box is too large to fill");
-        }
-
-        if (grids[ilev].contains(gbx)) bndry_lev = ilev;
-    }
-
-    // The folder "m_filename" will contain the time series of data and the time.dat file
-    pp.get("bndry_output_planes_file", m_filename);
-
-    m_time_file = m_filename + "/time.dat";
-
-    if (pp.contains("bndry_output_var_names"))
-    {
+    // Get the output var names
+    if (pp.contains("bndry_output_var_names")) {
         int num_vars = pp.countval("bndry_output_var_names");
         m_var_names.resize(num_vars);
         pp.queryarr("bndry_output_var_names",m_var_names,0,num_vars);
+    }
+
+    // User-specified region is given in physical coordinates, not index space
+    std::vector<Real> box_lo(2*m_bndry_count), box_hi(2*m_bndry_count);
+    pp.getarr("bndry_output_box_lo",box_lo,0,2*m_bndry_count);
+    pp.getarr("bndry_output_box_hi",box_hi,0,2*m_bndry_count);
+
+    // Loop over all the specified boundaries
+    for (int ibnd(0); ibnd<m_bndry_count; ++ibnd) {
+
+      int ibx = ibnd*2;
+      int jbx = ibnd*2 + 1;
+
+      // If the target area is contained at a finer level, use the finest data possible
+      for (int ilev = 0; ilev < grids.size(); ilev++) {
+
+          const Real* xLo = m_geom[ilev].ProbLo();
+          auto const dxi  = geom[ilev].InvCellSizeArray();
+          const Box& domain = m_geom[ilev].Domain();
+
+          // We create the smallest box that contains all of the cell centers
+          // in the physical region specified
+          int ilo = static_cast<int>(Math::floor((box_lo[ibx] - xLo[0]) * dxi[0])+.5);
+          int jlo = static_cast<int>(Math::floor((box_lo[jbx] - xLo[1]) * dxi[1])+.5);
+          int ihi = static_cast<int>(Math::floor((box_hi[ibx] - xLo[0]) * dxi[0])+.5)-1;
+          int jhi = static_cast<int>(Math::floor((box_hi[jbx] - xLo[1]) * dxi[1])+.5)-1;
+
+          // Map this to index space -- for now we do no interpolation
+          target_box[ibnd].setSmall(IntVect(ilo,jlo,0));
+          target_box[ibnd].setBig(IntVect(ihi,jhi,domain.bigEnd(2)));
+
+          // Test if the target box at this level fits in the grids at this level
+          Box gbx = target_box[ibnd]; gbx.grow(IntVect(1,1,0));
+
+          // Ensure that the box can fit in the (periodically grown) domain at lev 0
+          if (ilev == 0) {
+              Box per_grown_domain(domain);
+              int growx = (geom[0].isPeriodic(0)) ? 1 : 0;
+              int growy = (geom[0].isPeriodic(1)) ? 1 : 0;
+              per_grown_domain.grow(IntVect(growx,growy,0));
+              if (!per_grown_domain.contains(gbx)) {
+                  Error("WriteBndryPlanes: Requested box is too large to fill");
+              }
+          }
+
+          if (grids[ilev].contains(gbx)) bndry_lev = ilev;
+      }
+
+      m_time_file[ibnd] = m_filename[ibnd] + "/time.dat";
     }
 }
 
@@ -116,7 +129,8 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
  * @param time Current time
  * @param vars_new Grid data for all variables across the AMR hierarchy
  */
-void WriteBndryPlanes::write_planes (const int t_step, const Real time,
+void WriteBndryPlanes::write_planes (const int t_step,
+                                     const Real time,
                                      Vector<Vector<MultiFab>>& vars_new,
                                      bool is_moist)
 {
@@ -127,119 +141,129 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
     MultiFab& yvel = vars_new[bndry_lev][Vars::yvel];
     MultiFab& zvel = vars_new[bndry_lev][Vars::zvel];
 
-    const std::string chkname =
-        m_filename + Concatenate("/bndry_output", t_step);
+    // Loop over all output planes
+    for (int ibnd(0); ibnd<m_bndry_count; ++ibnd) {
 
-    //Print() << "Writing boundary planes at time " << time << std::endl;
+        const std::string chkname = m_filename[ibnd] + Concatenate("/bndry_output", t_step);
 
-    const std::string level_prefix = "Level_";
-    PreBuildDirectorHierarchy(chkname, level_prefix, 1, true);
+        //Print() << "Writing boundary planes at time " << time << std::endl;
 
-    // note: by using the entire domain box we end up using 1 processor
-    // to hold all boundaries
-    BoxArray ba(target_box);
-    DistributionMapping dm{ba};
+        const std::string level_prefix = "Level_";
+        PreBuildDirectorHierarchy(chkname, level_prefix, 1, true);
 
-    IntVect new_hi = target_box.bigEnd() - target_box.smallEnd();
-    Box target_box_shifted(IntVect(0,0,0),new_hi);
-    BoxArray ba_shifted(target_box_shifted);
+        // note: by using the entire domain box we end up using 1 processor
+        // to hold all boundaries
+        BoxArray ba(target_box[ibnd]);
+        DistributionMapping dm{ba};
 
-    for (int i = 0; i < m_var_names.size(); i++)
-    {
-        std::string var_name = m_var_names[i];
-        std::string filename = MultiFabFileFullPrefix(bndry_lev, chkname, level_prefix, var_name);
+        IntVect new_hi = target_box[ibnd].bigEnd() - target_box[ibnd].smallEnd();
+        Box target_box_shifted(IntVect(0,0,0),new_hi);
+        BoxArray ba_shifted(target_box_shifted);
 
-        int ncomp;
-        if (var_name == "velocity") {
-            ncomp = AMREX_SPACEDIM;
-        } else {
-            ncomp = 1;
-        }
-
-        BndryRegister bndry        (ba        , dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
-        BndryRegister bndry_shifted(ba_shifted, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
-
-        int nghost = 0;
-        if (var_name == "density")
+        for (int i = 0; i < m_var_names.size(); i++)
         {
-            bndry.copyFrom(S, nghost, Rho_comp, 0, ncomp, m_geom[bndry_lev].periodicity());
+            std::string var_name = m_var_names[i];
+            std::string filename = MultiFabFileFullPrefix(bndry_lev, chkname, level_prefix, var_name);
 
-        } else if (var_name == "temperature") {
+            int ncomp;
+            if (var_name == "velocity") {
+                ncomp = AMREX_SPACEDIM;
+            } else {
+                ncomp = 1;
+            }
 
-            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
-            for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            BndryRegister bndry        (ba        , dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
+            BndryRegister bndry_shifted(ba_shifted, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
+
+            int nghost = 0;
+            if (var_name == "density")
             {
-                const Box& bx = mfi.tilebox();
-                if (is_moist) {
-                    derived::erf_dermoisttemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
+                bndry.copyFrom(S, nghost, Rho_comp, 0, ncomp, m_geom[bndry_lev].periodicity());
+            } else if (var_name == "temperature") {
+                MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+                for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    if (is_moist) {
+                        derived::erf_dermoisttemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
+                    } else {
+                        derived::erf_dertemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
+                    }
+                }
+                bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            } else if (var_name == "theta") {
+                MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+                for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoTheta_comp);
+                }
+                bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            } else if (var_name == "scalar") {
+                MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+                for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoScalar_comp);
+                }
+                bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            } else if (var_name == "ke") {
+                MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+                for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoKE_comp);
+                }
+                bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            } else if (var_name == "qv") {
+                MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+                if (S.nComp() > RhoQ2_comp) {
+                    for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                    {
+                        const Box& bx = mfi.tilebox();
+                        derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQ1_comp);
+                    }
                 } else {
-                    derived::erf_dertemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
-                }
-            }
-            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
-        } else if (var_name == "scalar") {
-
-            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
-            for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoKE_comp);
-            }
-            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
-
-        } else if (var_name == "ke") {
-
-            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
-            for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoKE_comp);
-            }
-            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
-        } else if (var_name == "qv") {
-            if (S.nComp() > RhoQ2_comp) {
-                MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
-                for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQ1_comp);
+                  Temp.setVal(0.);
                 }
                 bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
-            }
-        } else if (var_name == "qc") {
-            if (S.nComp() > RhoQ2_comp) {
+            } else if (var_name == "qc") {
                 MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
-                for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    const Box& bx = mfi.tilebox();
-                    derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQ2_comp);
+                if (S.nComp() > RhoQ2_comp) {
+                    for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                    {
+                        const Box& bx = mfi.tilebox();
+                        derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQ2_comp);
+                    }
+                } else {
+                  Temp.setVal(0.);
                 }
                 bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            } else if (var_name == "velocity") {
+                MultiFab Vel(S.boxArray(), S.DistributionMap(), 3, m_out_rad);
+                average_face_to_cellcenter(Vel,0,Array<const MultiFab*,3>{&xvel,&yvel,&zvel});
+                bndry.copyFrom(Vel, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            } else {
+                //Print() << "Trying to write planar output for " << var_name << std::endl;
+                Error("Don't know how to output this variable");
             }
-        } else if (var_name == "velocity") {
-            MultiFab Vel(S.boxArray(), S.DistributionMap(), 3, m_out_rad);
-            average_face_to_cellcenter(Vel,0,Array<const MultiFab*,3>{&xvel,&yvel,&zvel});
-            bndry.copyFrom(Vel, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
-        } else {
-            //Print() << "Trying to write planar output for " << var_name << std::endl;
-            Error("Don't know how to output this variable");
-        }
 
-        for (OrientationIter oit; oit != nullptr; ++oit) {
-            auto ori = oit();
-            if (ori.coordDir() < 2) {
-                std::string facename = Concatenate(filename + '_', ori, 1);
-                br_shift(oit, bndry, bndry_shifted);
-                bndry_shifted[ori].write(facename);
+            for (OrientationIter oit; oit != nullptr; ++oit) {
+                auto ori = oit();
+                if (ori.coordDir() < 2) {
+                    std::string facename = Concatenate(filename + '_', ori, 1);
+                    br_shift(oit, bndry, bndry_shifted);
+                    bndry_shifted[ori].write(facename);
+                }
             }
+
+        } // loop over num_vars
+
+        // Writing time.dat
+        if (ParallelDescriptor::IOProcessor()) {
+            std::ofstream oftime(m_time_file[ibnd], std::ios::out | std::ios::app);
+            oftime << t_step << ' ' << time << '\n';
+            oftime.close();
         }
-
-    } // loop over num_vars
-
-    // Writing time.dat
-    if (ParallelDescriptor::IOProcessor()) {
-        std::ofstream oftime(m_time_file, std::ios::out | std::ios::app);
-        oftime << t_step << ' ' << time << '\n';
-        oftime.close();
-    }
+    } // loop over number of planes
 }
