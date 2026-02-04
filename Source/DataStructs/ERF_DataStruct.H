@@ -731,7 +731,7 @@ struct SolverChoice {
             }
         }
 
-        ParmParse pp_ens("ensemble");
+        amrex::ParmParse pp_ens("ensemble");
         pp_ens.query("is_init_with_correlated_pert", is_init_with_correlated_pert);
         if(is_init_with_correlated_pert) {
             pp_ens.query("pert_correlated_radius", pert_correlated_radius);
