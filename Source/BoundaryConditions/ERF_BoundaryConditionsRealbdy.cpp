@@ -46,9 +46,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         n_time_p1 = n_time;
     }
 
-    // Data structure for WfromOmega
-    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
-
     // Flags for read vars and index mapping
     Vector<int> cons_read = {0, 1, 0, 0,
                              1, 0, 0,
@@ -275,9 +272,6 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
         // another snapshot
         n_time_p1 = n_time;
     }
-
-    // Data structure for WfromOmega
-    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
 
     // Map loop index to variable index
     // NOTE: Loop backwards and do v/u first for WfromOmega
