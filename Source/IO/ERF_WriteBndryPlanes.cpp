@@ -165,7 +165,6 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
             bndry.copyFrom(S, nghost, Rho_comp, 0, ncomp, m_geom[bndry_lev].periodicity());
 
         } else if (var_name == "temperature") {
-
             MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
             for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
@@ -177,18 +176,23 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
                 }
             }
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
-        } else if (var_name == "scalar") {
-
+        } else if (var_name == "theta") {
             MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
             for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
-                derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoKE_comp);
+                derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoTheta_comp);
             }
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
-
+        } else if (var_name == "scalar") {
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+            for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoScalar_comp);
+            }
+            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
         } else if (var_name == "ke") {
-
             MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
             for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
@@ -197,25 +201,29 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
             }
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
         } else if (var_name == "qv") {
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
             if (S.nComp() > RhoQ2_comp) {
-                MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
                 for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
                     derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQ1_comp);
                 }
-                bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            } else {
+                Temp.setVal(0.);
             }
+            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
         } else if (var_name == "qc") {
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
             if (S.nComp() > RhoQ2_comp) {
-                MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
                 for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
                     derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQ2_comp);
                 }
-                bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            } else {
+                Temp.setVal(0.);
             }
+            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
         } else if (var_name == "velocity") {
             MultiFab Vel(S.boxArray(), S.DistributionMap(), 3, m_out_rad);
             average_face_to_cellcenter(Vel,0,Array<const MultiFab*,3>{&xvel,&yvel,&zvel});
