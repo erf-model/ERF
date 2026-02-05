@@ -645,7 +645,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
                     });
                 }
             } else {
-                int kmax = m_geom[lev].Domain().bigEnd(2) + 1;
+                int kmax = m_geom[lev].Domain().bigEnd(2);// + 1;
                 for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
                     Box npbx = mfi.tilebox(IntVect(1,1,1),IntVect(1,1,0));
                     const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
@@ -1314,7 +1314,6 @@ MOSTAverage::compute_region_averages (const int& lev)
     auto& k_indx   = m_k_indx[lev];
 
     const int dir = m_face.coordDir();
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dir == 2, "Regional average does not work yet with X or Y faces!");
 
     // Set factors for time averaging
     Real d_fact_new, d_fact_old;
@@ -1339,6 +1338,16 @@ MOSTAverage::compute_region_averages (const int& lev)
     //
     for (int imf(0); imf < 5; ++imf) {
 
+        int sm_index = 0;
+        if (m_face.isLow()) {
+            sm_index = m_geom[lev].Domain().smallEnd(dir);
+        } else {
+            sm_index = m_geom[lev].Domain().bigEnd(dir);
+            if (imf < 3 && imf == dir) {
+                sm_index += 1;
+            }
+        }
+
         // Continue if no valid Qv pointer
         if (!fields[imf]) continue;
 
@@ -1346,7 +1355,20 @@ MOSTAverage::compute_region_averages (const int& lev)
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
+            Box vbx = mfi.validbox(); // This is the grid (not tile)
+            Box pbx = mfi.tilebox();
+
+            if (m_face.isLow()) {
+                if (vbx.smallEnd(dir) != sm_index) {
+                    continue;
+                }
+            } else {
+                if (vbx.bigEnd(dir) != sm_index) {
+                    continue;
+                }
+            }
+
+            pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
 
             auto mf_arr = (m_rotate) ? rot_fields[imf]->const_array(mfi) :
                                            fields[imf]->const_array(mfi);
@@ -1385,11 +1407,11 @@ MOSTAverage::compute_region_averages (const int& lev)
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
                 ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    ma_arr(i,j,k) *= d_fact_old;
-
-                    int mk = k_arr(i,j,k);
+                    int mk = (dir == 2) ? k_arr(i,j,k) : k;
                     int mj = j_arr ? j_arr(i,j,k) : j;
                     int mi = i_arr ? i_arr(i,j,k) : i;
+
+                    ma_arr(i,j,k) *= d_fact_old;
                     for (int lk(mk-d_radius); lk <= (mk+d_radius); ++lk) {
                       for (int lj(mj-d_radius); lj <= (mj+d_radius); ++lj) {
                         for (int li(mi-d_radius); li <= (mi+d_radius); ++li) {
@@ -1404,8 +1426,9 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[imf]->FillBoundary(geom.periodicity());
-
+        //averages[imf]->FillBoundary(geom.periodicity());
+        averages[imf]->FillBoundary(averages[imf]->nGrowVect(), Periodicity(IntVect::TheDimensionVector(m_face.coordDir())));
+        //averages[imf]->FillBoundary(Periodicity(IntVect::TheDimensionVector(m_face.coordDir())));
     } // imf
 
     //
@@ -1415,13 +1438,33 @@ MOSTAverage::compute_region_averages (const int& lev)
     //
     if (fields[4]) // We have water vapor
     {
+        int sm_index = 0;
+        if (m_face.isLow()) {
+            sm_index = m_geom[lev].Domain().smallEnd(dir);
+        } else {
+            sm_index = m_geom[lev].Domain().bigEnd(dir);
+        }
+
         int iavg = 5;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
+        for (MFIter mfi(*fields[4], TileNoZ()); mfi.isValid(); ++mfi) {
+        //for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
+            Box pbx = mfi.tilebox(); 
+
+            if (m_face.isLow()) {
+                if (pbx.smallEnd(dir) != sm_index) {
+                    continue;
+                }
+            } else {
+                if (pbx.bigEnd(dir) != sm_index) {
+                    continue;
+                }
+            }
+
+            pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
 
             const Array4<Real const>& T_mf_arr = fields[3]->const_array(mfi);
             const Array4<Real const>& qv_mf_arr = (fields[4])? fields[4]->const_array(mfi) : Array4<const Real>{};
@@ -1474,11 +1517,11 @@ MOSTAverage::compute_region_averages (const int& lev)
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
                 ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    ma_arr(i,j,k) *= d_fact_old;
-
-                    int mk = k_arr(i,j,k);
+                    int mk = (dir == 2) ? k_arr(i,j,k) : k;
                     int mj = j_arr ? j_arr(i,j,k) : j;
                     int mi = i_arr ? i_arr(i,j,k) : i;
+
+                    ma_arr(i,j,k) *= d_fact_old;
                     for (int lk(mk-d_radius); lk <= (mk+d_radius); ++lk) {
                       for (int lj(mj-d_radius); lj <= (mj+d_radius); ++lj) {
                         for (int li(mi-d_radius); li <= (mi+d_radius); ++li) {
@@ -1501,7 +1544,8 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[iavg]->FillBoundary(geom.periodicity());
+        //averages[iavg]->FillBoundary(geom.periodicity());
+        averages[iavg]->FillBoundary(averages[iavg]->nGrowVect(), Periodicity(IntVect::TheDimensionVector(m_face.coordDir())));
 
     }
     else // copy temperature
@@ -1517,22 +1561,49 @@ MOSTAverage::compute_region_averages (const int& lev)
     //----------------------------------------------------------
     //
     {
-        int imf  = 0;
-        int iavg = m_navg - 3;
+        int sm_index = 0;
+        if (m_face.isLow()) {
+            sm_index = m_geom[lev].Domain().smallEnd(dir);
+        } else {
+            sm_index = m_geom[lev].Domain().bigEnd(dir);
+        }
+
+        const int imf  = 0;
+        const int iavg = m_navg - 3;
+        const int iavg_xz = m_navg - 2;
+        const int iavg_yz = m_navg - 1;
 
         const Real Vsg = m_Vsg[lev];
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
+        for (MFIter mfi(*fields[3], TileNoZ()); mfi.isValid(); ++mfi) { // cell-centered for velocity mag
+        //for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
+            Box pbx = mfi.tilebox(); 
+
+            if (m_face.isLow()) {
+                if (pbx.smallEnd(dir) != sm_index) {
+                    continue;
+                }
+            } else {
+                if (pbx.bigEnd(dir) != sm_index) {
+                    continue;
+                }
+            }
+
+            pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
 
             auto u_mf_arr = (m_rotate) ? rot_fields[imf  ]->const_array(mfi) :
                                              fields[imf  ]->const_array(mfi);
             auto v_mf_arr = (m_rotate) ? rot_fields[imf+1]->const_array(mfi) :
                                              fields[imf+1]->const_array(mfi);
-            auto ma_arr   = averages[iavg]->array(mfi);
+            auto w_mf_arr = (m_rotate) ? rot_fields[imf+2]->const_array(mfi) :
+                                             fields[imf+2]->const_array(mfi);
+            auto ma_arr      = averages[iavg]->array(mfi);
+            auto ma_xz_arr   = averages[iavg_xz]->array(mfi);
+            auto ma_yz_arr   = averages[iavg_yz]->array(mfi);
+
 
             if (m_interp) {
                 const auto plo   = geom.ProbLoArray();
@@ -1570,11 +1641,19 @@ MOSTAverage::compute_region_averages (const int& lev)
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
                 ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    ma_arr(i,j,k) *= d_fact_old;
-
-                    int mk = k_arr(i,j,k);
+                    int mk = (dir == 2) ? k_arr(i,j,k) : k;
                     int mj = j_arr ? j_arr(i,j,k) : j;
                     int mi = i_arr ? i_arr(i,j,k) : i;
+
+                    ma_arr(i,j,k) *= d_fact_old;
+
+                    if (dir < 2) {
+                        ma_xz_arr(i,j,k) *= d_fact_old;
+                        ma_yz_arr(i,j,k) *= d_fact_old;
+                    } else {
+                        ma_xz_arr(i,j,k) = 0.0;
+                        ma_yz_arr(i,j,k) = 0.0;
+                    }
                     for (int lk(mk-d_radius); lk <= (mk+d_radius); ++lk) {
                       for (int lj(mj-d_radius); lj <= (mj+d_radius); ++lj) {
                         for (int li(mi-d_radius); li <= (mi+d_radius); ++li) {
@@ -1583,6 +1662,16 @@ MOSTAverage::compute_region_averages (const int& lev)
                             const Real mag   = std::sqrt(u_val*u_val + v_val*v_val + Vsg*Vsg);
                             Real val = denom * mag * d_fact_new;
                             ma_arr(i,j,k) += val;
+
+                            if (dir < 2) {
+                                // averages for mean velocity on XZ and YZ planes
+                                const Real w_val = 0.5 * (w_mf_arr(li,lj,lk) + w_mf_arr(li  ,lj,lk+1));
+                                const Real val_xz = std::sqrt(u_val*u_val + w_val*w_val + Vsg*Vsg);
+                                const Real val_yz = std::sqrt(v_val*v_val + w_val*w_val + Vsg*Vsg);
+
+                                ma_xz_arr(i,j,k) += denom * val_xz * d_fact_new;
+                                ma_yz_arr(i,j,k) += denom * val_yz * d_fact_new;
+                             }
                         }
                       }
                     }
@@ -1592,8 +1681,14 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[iavg]->FillBoundary(geom.periodicity());
-
+        //averages[iavg]->FillBoundary(geom.periodicity());
+        averages[iavg]->FillBoundary(averages[iavg]->nGrowVect(), Periodicity(IntVect::TheDimensionVector(m_face.coordDir())));
+        if (dir < 2) {
+            //averages[iavg_xz]->FillBoundary(geom.periodicity());
+            //averages[iavg_yz]->FillBoundary(geom.periodicity());
+            averages[iavg_xz]->FillBoundary(averages[iavg_xz]->nGrowVect(), Periodicity(IntVect::TheDimensionVector(m_face.coordDir())));
+            averages[iavg_yz]->FillBoundary(averages[iavg_yz]->nGrowVect(), Periodicity(IntVect::TheDimensionVector(m_face.coordDir())));
+        }
     }
 
     // NOTE: Checking periodicity with the geom structure is not
@@ -1606,44 +1701,105 @@ MOSTAverage::compute_region_averages (const int& lev)
     bool not_per_y = !(geom.periodicity().isPeriodic(1));
     Box cc_bnd_bx  = (m_fields[lev][3]->boxArray()).minimalBox();
     Box domain     = geom.Domain();
+
     if (domain.contains(cc_bnd_bx) || (not_per_x || not_per_y)) {
-        for (int iavg(0); iavg < m_navg - 4; ++iavg) {
-            IntVect ng = averages[iavg]->nGrowVect(); ng[2]=0;
+        for (int iavg(0); iavg < m_navg; ++iavg) {
+            IntVect ng = averages[iavg]->nGrowVect();
 
             // NOTE:  Level 0 spans the whole domain, but finer
             //        levels do not have such a restriction.
             //        For now, use the bounding box of the boxArray.
 
             // NOTE2: The fields and averages have different indexing.
-            //        The averages are: U/V/T/Qv/Tv/Umag
-            //        The fields   are: U/V/T/Qv/Qr/W
-            //        We clip iavg at 2 since all the remaining data is CC
+            //        The averages are: U/V/W/T/Qv/Tv/Umag_XY/Umag_XZ/Umag_YZ
+            //        The fields   are: U/V/W/T/Qv/Qr
+            //        We clip iavg at 3 since all the remaining data is CC
 
             // Bounded box of CC data used for normalization
             int imf = min(iavg,3);
             Box bnd_bx = (m_fields[lev][imf]->boxArray()).minimalBox();
+
+            int sm_index = 0;
+            if (m_face.isLow()) {
+                sm_index = m_geom[lev].Domain().smallEnd(dir);
+            } else {
+                sm_index = m_geom[lev].Domain().bigEnd(dir);
+
+                if (imf == dir) {
+                    sm_index += 1;
+                }
+            }
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-            for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
-                Box gpbx = mfi.growntilebox(ng); gpbx.setSmall(2,0); gpbx.setBig(2,0);
+            //for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
+            for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
+                Box vbx = mfi.tilebox();
+                Box gpbx = mfi.growntilebox(ng); 
 
-                if (bnd_bx.contains(gpbx)) continue;
+                if (bnd_bx.contains(gpbx)) {
+                    continue;
+                }
+
+                if (m_face.isLow()) {
+                    if (vbx.smallEnd(dir) != sm_index) {
+                        continue;
+                    }
+                    gpbx.setBig(dir, sm_index);
+                } else {
+                    if (vbx.bigEnd(dir) != sm_index) {
+                        continue;
+                    }
+                    gpbx.setSmall(dir, sm_index);
+                }
 
                 auto ma_arr = averages[iavg]->array(mfi);
 
-                int i_lo = bnd_bx.smallEnd(0); int i_hi = bnd_bx.bigEnd(0);
-                int j_lo = bnd_bx.smallEnd(1); int j_hi = bnd_bx.bigEnd(1);
-                ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                {
-                    int li, lj;
-                    li = i  < i_lo ? i_lo : i;
-                    li = li > i_hi ? i_hi : li;
-                    lj = j  < j_lo ? j_lo : j;
-                    lj = lj > j_hi ? j_hi : lj;
+                if (dir == 0) {
+                    //int j_lo = bnd_bx.smallEnd(1); int j_hi = bnd_bx.bigEnd(1);
+                    //int k_lo = bnd_bx.smallEnd(2); int k_hi = bnd_bx.bigEnd(2);
+                    int j_lo = vbx.smallEnd(1); int j_hi = vbx.bigEnd(1);
+                    int k_lo = vbx.smallEnd(2); int k_hi = vbx.bigEnd(2);
 
-                    ma_arr(i,j,k) = ma_arr(li,lj,k);
-                });
+                    ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                    {
+                        int lj, lk;
+                        lj = j  < j_lo ? j_lo : j;
+                        lj = lj > j_hi ? j_hi : lj;
+                        lk = k  < k_lo ? k_lo : k;
+                        lk = lk > k_hi ? k_hi : lk;
+
+                        ma_arr(i,j,k) = ma_arr(sm_index,lj,lk);
+                    });
+                } else if (dir == 1) {
+                    //int i_lo = bnd_bx.smallEnd(0); int i_hi = bnd_bx.bigEnd(0);
+                    //int k_lo = bnd_bx.smallEnd(2); int k_hi = bnd_bx.bigEnd(2);
+                    int i_lo = vbx.smallEnd(0); int i_hi = vbx.bigEnd(0);
+                    int k_lo = vbx.smallEnd(2); int k_hi = vbx.bigEnd(2);
+                    ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                    {
+                        int li, lk;
+                        li = i  < i_lo ? i_lo : i;
+                        li = li > i_hi ? i_hi : li;
+                        lk = k  < k_lo ? k_lo : k;
+                        lk = lk > k_hi ? k_hi : lk;
+
+                        ma_arr(i,j,k) = ma_arr(li,sm_index,lk);
+                    });
+                } else {
+                    int i_lo = bnd_bx.smallEnd(0); int i_hi = bnd_bx.bigEnd(0);
+                    int j_lo = bnd_bx.smallEnd(1); int j_hi = bnd_bx.bigEnd(1);
+                    ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                    {
+                        int li, lj;
+                        li = i  < i_lo ? i_lo : i;
+                        li = li > i_hi ? i_hi : li;
+                        lj = j  < j_lo ? j_lo : j;
+                        lj = lj > j_hi ? j_hi : lj;
+
+                        ma_arr(i,j,k) = ma_arr(li,lj,sm_index);
+                    });
+                }
             } // MFiter
         } // iavg
     } // Not periodic

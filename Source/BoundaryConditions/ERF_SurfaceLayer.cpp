@@ -244,17 +244,19 @@ SurfaceLayer::compute_fluxes (const int& lev,
         vbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
         gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
 
+        const auto ng = umm_ptr->nGrowVect();
+
         if (m_face.isLow()) {
             if (vbx.smallEnd(dir) != sm_index) {
                 continue;
             }
-            gtbx.grow(2, 3);
+            gtbx.grow(2, ng[2]);
             gtbx.setBig(dir, sm_index);
         } else {
             if (vbx.bigEnd(dir) != sm_index) {
                 continue;
             }
-            gtbx.grow(2, 3);
+            gtbx.grow(2, ng[2]);
             gtbx.setSmall(dir, sm_index);
         }
 
@@ -870,12 +872,30 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                                     const std::unique_ptr<MultiFab>& z_phys_nd)
 {
     // NOTE: We have already tested a moisture model exists
+    const int dir = m_face.coordDir();
+    int sm_index;
+    if (m_face.isLow()) {
+        sm_index = m_geom[lev].Domain().smallEnd(dir);
+    } else {
+        sm_index = m_geom[lev].Domain().bigEnd(dir);
+    }
 
     // Populate q_surf with qsat over water
     auto dz = m_geom[lev].CellSize(2);
-    for (MFIter mfi(*q_surf[lev]); mfi.isValid(); ++mfi)
+    // NOTE: need to use lmask (defined over entire X/Y grid) for MFIter here so that we can properly detect if a box on a given MPI rank is not on the current face
+    //       if u_star is used instead, then all ranks will participate, even if their boxes do not coincide with the face!
+    //for (MFIter mfi(*q_surf[lev]); mfi.isValid(); ++mfi)
+    for (MFIter mfi(*m_lmask_lev[lev][0]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
+        Box vbx = mfi.validbox();
+
+        const int face_lo = vbx.smallEnd(dir);
+
+        // Since lmask is used in the MFIter, the Z dimensions of the box is 0!
+        // X and Y faces need the entire domain Z range, so resize the box accordingly
+        vbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
+        gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto q_surf_arr = q_surf[lev]->array(mfi);
@@ -884,6 +904,18 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
         const auto cons_arr = cons_in.const_array(mfi);
         const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
                                             Array4<const Real> {};
+
+        if (m_face.isLow()) {
+            gtbx.grow(2, 3);
+            gtbx.setBig(dir, sm_index);
+        } else {
+            gtbx.grow(2, 3);
+            gtbx.setSmall(dir, sm_index);
+        }
+
+        if (vbx[m_face] != sm_index) {
+            continue;
+        }
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
