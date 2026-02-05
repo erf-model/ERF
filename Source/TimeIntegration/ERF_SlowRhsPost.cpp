@@ -97,7 +97,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         std::unique_ptr<SHOCInterface>& shoc_lev,
 #endif
                         YAFluxRegister* fr_as_crse,
-                        YAFluxRegister* fr_as_fine)
+                        YAFluxRegister* fr_as_fine,
+                        std::unique_ptr<ReadBndryPlanes>& m_r2d)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -478,7 +479,8 @@ void erf_slow_rhs_post (int level, int finest_level,
             const Array4<const Real> & new_cons_const = S_new[IntVars::cons].const_array(mfi);
             moist_set_rhs(geom, tbx, old_cons_const, new_cons_const, cell_rhs, bdy_time_interval,
                           new_stage_time, dt, stop_time_elapsed, width, set_width, do_upwind, domain,
-                          bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
+                          bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                          m_r2d);
         }
 #endif
 

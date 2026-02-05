@@ -63,8 +63,10 @@ void ReadBndryPlanes::define_level_data (int /*lev*/)
             IntVect plo(lo);
             IntVect phi(hi);
             const int normal = ori.coordDir();
-            plo[normal] = ori.isHigh() ? hi[normal] + 1 : -1;
-            phi[normal] = ori.isHigh() ? hi[normal] + 1 : -1;
+            //plo[normal] = ori.isHigh() ? hi[normal] + 1 : -1;
+            //phi[normal] = ori.isHigh() ? hi[normal] + 1 : -1;
+            plo[normal] = ori.isHigh() ? hi[normal] - 4 : -1;
+            phi[normal] = ori.isHigh() ? hi[normal] + 1 :  4;
             const Box pbx(plo, phi);
             m_data_n[ori]->push_back(FArrayBox(pbx, ncomp));
             m_data_np1[ori]->push_back(FArrayBox(pbx, ncomp));

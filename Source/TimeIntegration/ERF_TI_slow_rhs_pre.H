@@ -331,7 +331,8 @@
                                                    real_width, real_set_width, do_upwind, fine_geom,
                                                    S_rhs, S_old, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
-                                                   bdy_data_ylo, bdy_data_yhi);
+                                                   bdy_data_ylo, bdy_data_yhi,
+                                                   m_r2d);
             }
         }
 #endif

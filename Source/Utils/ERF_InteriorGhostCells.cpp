@@ -185,9 +185,20 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     Vector<Vector<FArrayBox>>& bdy_data_xlo,
                                     Vector<Vector<FArrayBox>>& bdy_data_xhi,
                                     Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                                    Vector<Vector<FArrayBox>>& bdy_data_yhi)
+                                    Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                                    std::unique_ptr<ReadBndryPlanes>& m_r2d)
 {
     BL_PROFILE_REGION("realbdy_compute_interior_ghost_RHS()");
+
+    // HACK HACK HACK
+    // Get bndry data
+    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+    const auto& bdatxlo = (*bndry_data[0])[0].const_array();
+    const auto& bdatylo = (*bndry_data[1])[0].const_array();
+    const auto& bdatxhi = (*bndry_data[3])[0].const_array();
+    const auto& bdatyhi = (*bndry_data[4])[0].const_array();
+    Vector<int> ind_map2 = {BCVars::xvel_bc, BCVars::yvel_bc, BCVars::RhoTheta_bc_comp};
+
 
     // Relaxation constants
     Real F1 = 1./delta_t;
@@ -246,7 +257,8 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
         domain.convert(ixtype);
 
         // NOTE: Ghost cells needed for idx type mismatch between mask and data (do_upwind)
-        IntVect ng_vect(1,1,0);
+        // IntVect ng_vect(1,1,0);
+        IntVect ng_vect(0);
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         realbdy_interior_bxs_xy(gdom, domain, width,
@@ -286,12 +298,16 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
 
+        // HACK HACK HACK
+        int bdy_comp = ind_map2[ivar];
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             // NOTE: Ghost cells needed for idx type mismatch between mask and data (do_upwind)
-            IntVect ng_vect(1,1,0);
+            // IntVect ng_vect(1,1,0);
+            IntVect ng_vect(0);
             Box gtbx = grow(mfi.tilebox(ixtype.toIntVect()),ng_vect);
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
             realbdy_interior_bxs_xy(gtbx, domain, width,
@@ -350,6 +366,9 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 }
                 arr_xlo(i,j,k) = rho_interp * ( oma   * bdatxlo_n  (ii,jj,k,0)
                                               + alpha * bdatxlo_np1(ii,jj,k,0) );
+
+                // HACK HACK HACK
+                arr_xlo(i,j,k) = bdatxlo(ii,jj,k,bdy_comp);
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -368,6 +387,9 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 }
                 arr_xhi(i,j,k) = rho_interp * ( oma   * bdatxhi_n  (ii,jj,k,0)
                                               + alpha * bdatxhi_np1(ii,jj,k,0) );
+
+                // HACK HACK HACK
+                arr_xhi(i,j,k) = bdatxhi(ii,jj,k,bdy_comp);
             });
 
             ParallelFor(tbx_ylo, tbx_yhi,
@@ -388,6 +410,9 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 }
                 arr_ylo(i,j,k) = rho_interp * ( oma  * bdatylo_n  (ii,jj,k,0)
                                              + alpha * bdatylo_np1(ii,jj,k,0) );
+
+                // HACK HACK HACK
+                arr_ylo(i,j,k) = bdatylo(ii,jj,k,bdy_comp);
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -406,6 +431,9 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 }
                 arr_yhi(i,j,k) = rho_interp * ( oma   * bdatyhi_n  (ii,jj,k,0)
                                               + alpha * bdatyhi_np1(ii,jj,k,0) );
+
+                // HACK HACK HACK
+                arr_yhi(i,j,k) = bdatyhi(ii,jj,k,bdy_comp);
             });
         } // mfi
     } // ivar

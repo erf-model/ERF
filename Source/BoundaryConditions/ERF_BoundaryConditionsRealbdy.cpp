@@ -22,6 +22,24 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
 {
     int lev = 0;
 
+
+    // HACK HACK HACK
+    // Get bndry data
+    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+    const auto& bdatxlo = (*bndry_data[0])[lev].const_array();
+    const auto& bdatylo = (*bndry_data[1])[lev].const_array();
+    const auto& bdatxhi = (*bndry_data[3])[lev].const_array();
+    const auto& bdatyhi = (*bndry_data[4])[lev].const_array();
+    Vector<int> cons_map2 = {Rho_comp, BCVars::RhoTheta_bc_comp, RhoKE_comp, RhoScalar_comp,
+                             BCVars::RhoQ1_bc_comp, RhoQ2_comp, RhoQ3_comp,
+                             RhoQ4_comp, RhoQ5_comp, RhoQ6_comp};
+    Vector<Vector<int>> ind_map2;
+    ind_map2.push_back( cons_map2 );
+    ind_map2.push_back( {BCVars::xvel_bc} ); // xvel
+    ind_map2.push_back( {BCVars::yvel_bc} ); // yvel
+    ind_map2.push_back( {0} );               // zvel NOTE: Loop is forward (need u/v filled first)
+
+
     // We do not operate on the z ghost cells
     ngvect_cons[2] = 0;
     ngvect_vels[2] = 0;
@@ -45,9 +63,6 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         // another snapshot
         n_time_p1 = n_time;
     }
-
-    // Data structure for WfromOmega
-    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
 
     // Flags for read vars and index mapping
     Vector<int> cons_read = {0, 1, 0, 0,
@@ -118,6 +133,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
             {
                 int ivar  = ind_map[var_idx][comp_idx];
 
+                // HACK HACK HACK
+                int bdy_comp = ind_map2[var_idx][comp_idx];
+
                 // We have data at fixed time intervals we will call dT
                 // Then to interpolate, given time, we can define n = (time/dT)
                 // and alpha = (time - n*dT) / dT, then we define the data at time
@@ -155,6 +173,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                         dest_arr(i,j,k,comp_idx) = oma   * bdatxlo_n  (ii,jj,k,0)
                                                  + alpha * bdatxlo_np1(ii,jj,k,0);
                         if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+
+                        // HACK HACK HACK
+                        dest_arr(i,j,k,comp_idx) = bdatxlo(ii,jj,k,bdy_comp);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -164,6 +185,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                         dest_arr(i,j,k,comp_idx) = oma   * bdatxhi_n  (ii,jj,k,0)
                                                  + alpha * bdatxhi_np1(ii,jj,k,0);
                         if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+
+                        // HACK HACK HACK
+                        dest_arr(i,j,k,comp_idx) = bdatxhi(ii,jj,k,bdy_comp);
                     });
 
                     // y-faces (do not include exterior x ghost cells)
@@ -174,6 +198,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                         dest_arr(i,j,k,comp_idx) = oma   * bdatylo_n  (i,jj,k,0)
                                                  + alpha * bdatylo_np1(i,jj,k,0);
                         if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+
+                        // HACK HACK HACK
+                        dest_arr(i,j,k,comp_idx) = bdatylo(i,jj,k,bdy_comp);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -181,6 +208,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                         dest_arr(i,j,k,comp_idx) = oma   * bdatyhi_n  (i,jj,k,0)
                                                  + alpha * bdatyhi_np1(i,jj,k,0);
                         if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+
+                        // HACK HACK HACK
+                        dest_arr(i,j,k,comp_idx) = bdatyhi(i,jj,k,bdy_comp);
                     });
                 } // mfi
 
@@ -275,9 +305,6 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
         // another snapshot
         n_time_p1 = n_time;
     }
-
-    // Data structure for WfromOmega
-    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
 
     // Map loop index to variable index
     // NOTE: Loop backwards and do v/u first for WfromOmega

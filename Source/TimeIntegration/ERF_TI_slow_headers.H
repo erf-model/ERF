@@ -17,6 +17,7 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_EB.H"
+#include "ERF_ReadBndryPlanes.H"
 
 void erf_make_tau_terms (int level, int nrk,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type,
@@ -157,9 +158,10 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
 #endif
 #ifdef ERF_USE_SHOC
-                      std::unique_ptr<SHOCInterface>& shoc_lev,
+                       std::unique_ptr<SHOCInterface>& shoc_lev,
 #endif
                        amrex::YAFluxRegister* fr_as_crse,
-                       amrex::YAFluxRegister* fr_as_fine);
+                       amrex::YAFluxRegister* fr_as_fine,
+                       std::unique_ptr<ReadBndryPlanes>& m_r2d);
 
 #endif
