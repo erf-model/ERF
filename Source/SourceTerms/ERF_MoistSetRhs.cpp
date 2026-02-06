@@ -32,7 +32,8 @@ moist_set_rhs (const Geometry& geom,
 {
     // HACK HACK HACK
     // Get bndry data
-    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(new_stage_time);
+    Real total_time = new_stage_time + Real(1306044000.0);
+    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(total_time);
     const auto& bdatxlo = (*bndry_data[0])[0].const_array();
     const auto& bdatylo = (*bndry_data[1])[0].const_array();
     const auto& bdatxhi = (*bndry_data[3])[0].const_array();
@@ -161,7 +162,7 @@ moist_set_rhs (const Geometry& geom,
         }
 
         // HACK HACK HACK
-        arr_xlo(i,j,k) = bdatxlo(ii,jj,k,bdy_comp);
+        arr_xlo(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatxlo(ii,jj,k,bdy_comp);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -178,7 +179,7 @@ moist_set_rhs (const Geometry& geom,
         }
 
         // HACK HACK HACK
-        arr_xhi(i,j,k) = bdatxhi(ii,jj,k,bdy_comp);
+        arr_xhi(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatxhi(ii,jj,k,bdy_comp);
     });
 
     ParallelFor(tbx_ylo, tbx_yhi,
@@ -191,7 +192,7 @@ moist_set_rhs (const Geometry& geom,
         v_ylo(i,j,k) = ( oma * bdatylo_n_v(ii,jj,k) + alpha * bdatylo_np1_v(ii,jj,k) );
 
         // HACK HACK HACK
-        arr_ylo(i,j,k) = bdatylo(ii,jj,k,bdy_comp);
+        arr_ylo(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatylo(ii,jj,k,bdy_comp);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -204,7 +205,7 @@ moist_set_rhs (const Geometry& geom,
         v_yhi(i,j+1,k) = ( oma * bdatyhi_n_v(ii,jj+1,k) + alpha * bdatyhi_np1_v(ii,jj+1,k) );
 
         // HACK HACK HACK
-        arr_yhi(i,j,k) = bdatyhi(ii,jj,k,bdy_comp);
+        arr_yhi(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatyhi(ii,jj,k,bdy_comp);
     });
 
 

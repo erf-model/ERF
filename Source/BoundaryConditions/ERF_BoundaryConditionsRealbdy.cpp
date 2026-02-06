@@ -25,7 +25,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
 
     // HACK HACK HACK
     // Get bndry data
-    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time+start_time);
     const auto& bdatxlo = (*bndry_data[0])[lev].const_array();
     const auto& bdatylo = (*bndry_data[1])[lev].const_array();
     const auto& bdatxhi = (*bndry_data[3])[lev].const_array();
@@ -114,6 +114,10 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
 
+        // HACK HACK HACK
+        const auto& dom_cc_lo = lbound(geom[lev].Domain());
+        const auto& dom_cc_hi = ubound(geom[lev].Domain());
+
         // Offset only applies to cons (we may fill a subset of these vars)
         int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
 
@@ -172,10 +176,14 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                             jj = std::min(jj, dom_hi.y);
                         dest_arr(i,j,k,comp_idx) = oma   * bdatxlo_n  (ii,jj,k,0)
                                                  + alpha * bdatxlo_np1(ii,jj,k,0);
-                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+
 
                         // HACK HACK HACK
-                        dest_arr(i,j,k,comp_idx) = bdatxlo(ii,jj,k,bdy_comp);
+                        int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                        int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                        dest_arr(i,j,k,comp_idx) = bdatxlo(ii2,jj2,k,bdy_comp);
+
+                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -184,10 +192,14 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                             jj = std::min(jj, dom_hi.y);
                         dest_arr(i,j,k,comp_idx) = oma   * bdatxhi_n  (ii,jj,k,0)
                                                  + alpha * bdatxhi_np1(ii,jj,k,0);
-                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+
 
                         // HACK HACK HACK
-                        dest_arr(i,j,k,comp_idx) = bdatxhi(ii,jj,k,bdy_comp);
+                        int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                        int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                        dest_arr(i,j,k,comp_idx) = bdatxhi(ii2,jj2,k,bdy_comp);
+
+                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                     });
 
                     // y-faces (do not include exterior x ghost cells)
@@ -200,17 +212,23 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                         if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
 
                         // HACK HACK HACK
-                        dest_arr(i,j,k,comp_idx) = bdatylo(i,jj,k,bdy_comp);
+                        int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                        int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                        dest_arr(i,j,k,comp_idx) = bdatylo(ii2,jj2,k,bdy_comp);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         int jj = std::min(j , dom_hi.y);
                         dest_arr(i,j,k,comp_idx) = oma   * bdatyhi_n  (i,jj,k,0)
                                                  + alpha * bdatyhi_np1(i,jj,k,0);
-                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+
 
                         // HACK HACK HACK
-                        dest_arr(i,j,k,comp_idx) = bdatyhi(i,jj,k,bdy_comp);
+                        int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                        int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                        dest_arr(i,j,k,comp_idx) = bdatyhi(ii2,jj2,k,bdy_comp);
+
+                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                     });
                 } // mfi
 

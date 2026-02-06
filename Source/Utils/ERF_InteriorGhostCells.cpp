@@ -186,13 +186,15 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     Vector<Vector<FArrayBox>>& bdy_data_xhi,
                                     Vector<Vector<FArrayBox>>& bdy_data_ylo,
                                     Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                                    std::unique_ptr<ReadBndryPlanes>& m_r2d)
+                                    std::unique_ptr<ReadBndryPlanes>& m_r2d,
+                                    Real start_time)
 {
     BL_PROFILE_REGION("realbdy_compute_interior_ghost_RHS()");
 
     // HACK HACK HACK
     // Get bndry data
-    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+    Real total_time = time + Real(1306044000.0);
+    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(total_time);
     const auto& bdatxlo = (*bndry_data[0])[0].const_array();
     const auto& bdatylo = (*bndry_data[1])[0].const_array();
     const auto& bdatxhi = (*bndry_data[3])[0].const_array();
@@ -300,6 +302,8 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
         // HACK HACK HACK
         int bdy_comp = ind_map2[ivar];
+        const auto& dom_cc_lo = lbound(geom.Domain());
+        const auto& dom_cc_hi = ubound(geom.Domain());
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -368,7 +372,9 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                               + alpha * bdatxlo_np1(ii,jj,k,0) );
 
                 // HACK HACK HACK
-                arr_xlo(i,j,k) = bdatxlo(ii,jj,k,bdy_comp);
+                int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                arr_xlo(i,j,k) = rho_interp * bdatxlo(ii2,jj2,k,bdy_comp);
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -389,7 +395,9 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                               + alpha * bdatxhi_np1(ii,jj,k,0) );
 
                 // HACK HACK HACK
-                arr_xhi(i,j,k) = bdatxhi(ii,jj,k,bdy_comp);
+                int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                arr_xhi(i,j,k) = rho_interp * bdatxhi(ii2,jj2,k,bdy_comp);
             });
 
             ParallelFor(tbx_ylo, tbx_yhi,
@@ -412,7 +420,9 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                              + alpha * bdatylo_np1(ii,jj,k,0) );
 
                 // HACK HACK HACK
-                arr_ylo(i,j,k) = bdatylo(ii,jj,k,bdy_comp);
+                int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                arr_ylo(i,j,k) = rho_interp * bdatylo(ii2,jj2,k,bdy_comp);
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -433,7 +443,9 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                               + alpha * bdatyhi_np1(ii,jj,k,0) );
 
                 // HACK HACK HACK
-                arr_yhi(i,j,k) = bdatyhi(ii,jj,k,bdy_comp);
+                int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                arr_yhi(i,j,k) = rho_interp * bdatyhi(ii2,jj2,k,bdy_comp);
             });
         } // mfi
     } // ivar

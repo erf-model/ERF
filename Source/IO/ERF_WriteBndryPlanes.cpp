@@ -247,7 +247,7 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
     // Writing time.dat
     if (ParallelDescriptor::IOProcessor()) {
         std::ofstream oftime(m_time_file, std::ios::out | std::ios::app);
-        oftime << t_step << ' ' << time << '\n';
+        oftime << std::setprecision(17) << t_step << ' ' << time << '\n';
         oftime.close();
     }
 }

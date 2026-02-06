@@ -594,7 +594,7 @@ ERF::Evolve ()
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_bndry_planes)
         {
-            m_r2d->read_input_files(cur_time,dt[0],m_bc_extdir_vals);
+            m_r2d->read_input_files(start_time+cur_time,dt[0],m_bc_extdir_vals);
         }
 
 #ifdef ERF_USE_PARTICLES
@@ -1166,7 +1166,7 @@ ERF::InitData_post ()
 
         // We haven't populated dt yet, set to 0 to ensure assert doesn't crash
         Real dt_dummy = 0.0;
-        m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
+        m_r2d->read_input_files(start_time,dt_dummy,m_bc_extdir_vals);
     }
 
     if (solverChoice.custom_rhotheta_forcing)
@@ -1293,7 +1293,7 @@ ERF::InitData_post ()
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
-        Real time = 0.;
+        Real time = start_time;
         if (time >= bndry_output_planes_start_time) {
             bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
             m_w2d->write_planes(0, time, vars_new, is_moist);
