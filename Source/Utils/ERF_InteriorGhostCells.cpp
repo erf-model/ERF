@@ -186,8 +186,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     Vector<Vector<FArrayBox>>& bdy_data_xhi,
                                     Vector<Vector<FArrayBox>>& bdy_data_ylo,
                                     Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                                    std::unique_ptr<ReadBndryPlanes>& m_r2d,
-                                    Real start_time)
+                                    std::unique_ptr<ReadBndryPlanes>& m_r2d)
 {
     BL_PROFILE_REGION("realbdy_compute_interior_ghost_RHS()");
 
