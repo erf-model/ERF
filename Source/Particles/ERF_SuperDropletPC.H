@@ -439,8 +439,10 @@ class SuperDropletPC : public ERFPC
         /*! save inactive particles to file */
         bool m_save_inactive;
 
-        /*! Stretched dz for non-uniform vertical grid spacing (computed from terrain_z_levels) */
-        amrex::Gpu::DeviceVector<amrex::Real> m_stretched_dz_d;
+        /*! Staggered z-levels for non-uniform vertical grid spacing (from terrain_z_levels).
+         *  Size nz+1: z_levels[k] is the bottom face of cell k. Used for CIC interpolation
+         *  weights and cell volume computation in particle-to-mesh deposition. */
+        amrex::Gpu::DeviceVector<amrex::Real> m_zlevels_d;
 
         /*! Persistent device vectors for material properties */
         amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_density;    // Species densities

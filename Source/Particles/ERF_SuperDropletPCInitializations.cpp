@@ -240,21 +240,16 @@ void SuperDropletPC::define (  const std::vector<Species::Name>& a_species_mat,
     // Initialize device properties for efficient GPU access
     initializeDeviceProperties();
 
-    // Initialize stretched_dz for non-uniform vertical grids (from terrain_z_levels)
+    // Initialize staggered z-levels for non-uniform vertical grids (from terrain_z_levels)
     {
         ParmParse pp_erf("erf");
         int n_zlevels = pp_erf.countval("terrain_z_levels");
         if (n_zlevels > 0) {
-            Vector<Real> zlevels_stag(n_zlevels);
-            pp_erf.getarr("terrain_z_levels", zlevels_stag, 0, n_zlevels);
-            int nz = n_zlevels - 1;
-            Vector<Real> stretched_dz_h(nz);
-            for (int k = 0; k < nz; k++) {
-                stretched_dz_h[k] = zlevels_stag[k+1] - zlevels_stag[k];
-            }
-            m_stretched_dz_d.resize(nz);
-            Gpu::copy(Gpu::hostToDevice, stretched_dz_h.begin(), stretched_dz_h.end(),
-                      m_stretched_dz_d.begin());
+            Vector<Real> zlevels_h(n_zlevels);
+            pp_erf.getarr("terrain_z_levels", zlevels_h, 0, n_zlevels);
+            m_zlevels_d.resize(n_zlevels);
+            Gpu::copy(Gpu::hostToDevice, zlevels_h.begin(), zlevels_h.end(),
+                      m_zlevels_d.begin());
         }
     }
 
