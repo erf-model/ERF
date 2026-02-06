@@ -182,6 +182,10 @@ Long SuperDropletPC::NumSDDeactivated ()
  *  This template consolidates the common boilerplate for all particle-to-mesh
  *  deposition functions. The ValueFunc should return the value to deposit
  *  (before multiplication by inv_cell_volume).
+ *
+ *  NOTE: This function correctly handles non-uniform vertical grid spacing
+ *  (terrain_z_levels) by using the actual dz for each cell's k-level instead
+ *  of the nominal dz from the geometry.
  */
 template<typename ValueFunc>
 void SuperDropletPC::particleToMeshHelper(MultiFab& a_mf, int a_comp, ValueFunc&& value_func) const
@@ -192,7 +196,11 @@ void SuperDropletPC::particleToMeshHelper(MultiFab& a_mf, int a_comp, ValueFunc&
     const auto& geom = Geom(m_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
-    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const auto dx = geom.CellSizeArray();
+
+    // Get stretched dz if available for non-uniform vertical grids
+    const Real* stretched_dz_d = m_stretched_dz_d.empty() ? nullptr : m_stretched_dz_d.data();
+    const Real nominal_dz = dx[2];
 
     a_mf.setVal(0.0);
 
@@ -205,6 +213,15 @@ void SuperDropletPC::particleToMeshHelper(MultiFab& a_mf, int a_comp, ValueFunc&
             interp.ParticleToMesh(p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE (const SuperDropletPC::ParticleType&, int)
                 {
+                    // Use the particle's stored k-index (correct for non-uniform grids)
+                    int cell_k = p.idata(ERFParticlesIntIdxAoS::k);
+
+                    // Get actual dz for this cell (use stretched if available, else nominal)
+                    Real actual_dz = stretched_dz_d ? stretched_dz_d[cell_k] : nominal_dz;
+
+                    // Compute inv_cell_volume with actual dz
+                    ParticleReal inv_cell_volume = dxi[0] * dxi[1] / actual_dz;
+
                     return value_func(ptd, i) * inv_cell_volume;
                 });
         });
@@ -256,7 +273,11 @@ void SuperDropletPC::massFlux(MultiFab& a_mf, const int a_dim, const int a_comp)
     const auto& geom = Geom(m_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
-    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const auto dx = geom.CellSizeArray();
+
+    // Get stretched dz if available for non-uniform vertical grids
+    const Real* stretched_dz_d = m_stretched_dz_d.empty() ? nullptr : m_stretched_dz_d.data();
+    const Real nominal_dz = dx[2];
 
     a_mf.setVal(0.0);
 
@@ -268,6 +289,11 @@ void SuperDropletPC::massFlux(MultiFab& a_mf, const int a_dim, const int a_comp)
             interp.ParticleToMesh(p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE (const SuperDropletPC::ParticleType&, int)
                 {
+                    // Use the particle's stored k-index (correct for non-uniform grids)
+                    int cell_k = p.idata(ERFParticlesIntIdxAoS::k);
+                    Real actual_dz = stretched_dz_d ? stretched_dz_d[cell_k] : nominal_dz;
+                    ParticleReal inv_cell_volume = dxi[0] * dxi[1] / actual_dz;
+
                     auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto par_mass = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
@@ -306,9 +332,13 @@ void SuperDropletPC::aerosolMassFlux(MultiFab& a_mf, const int a_idx, const int 
     const auto& geom = Geom(m_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
-    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const auto dx = geom.CellSizeArray();
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
+
+    // Get stretched dz if available for non-uniform vertical grids
+    const Real* stretched_dz_d = m_stretched_dz_d.empty() ? nullptr : m_stretched_dz_d.data();
+    const Real nominal_dz = dx[2];
 
     a_mf.setVal(0.0);
 
@@ -320,6 +350,11 @@ void SuperDropletPC::aerosolMassFlux(MultiFab& a_mf, const int a_idx, const int 
             interp.ParticleToMesh(p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE (const SuperDropletPC::ParticleType&, int)
                 {
+                    // Use the particle's stored k-index (correct for non-uniform grids)
+                    int cell_k = p.idata(ERFParticlesIntIdxAoS::k);
+                    Real actual_dz = stretched_dz_d ? stretched_dz_d[cell_k] : nominal_dz;
+                    ParticleReal inv_cell_volume = dxi[0] * dxi[1] / actual_dz;
+
                     auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto aero_mass = ptd.m_runtime_rdata[ridx_a(a_idx,na,ns)][i];
@@ -358,10 +393,14 @@ void SuperDropletPC::cloudRainDensity(MultiFab& a_mf, const Real a_rmin, const R
     const auto& geom = Geom(m_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
-    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const auto dx = geom.CellSizeArray();
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
     const auto idx = m_idx_w;
+
+    // Get stretched dz if available for non-uniform vertical grids
+    const Real* stretched_dz_d = m_stretched_dz_d.empty() ? nullptr : m_stretched_dz_d.data();
+    const Real nominal_dz = dx[2];
 
     a_mf.setVal(0.0);
 
@@ -377,6 +416,12 @@ void SuperDropletPC::cloudRainDensity(MultiFab& a_mf, const Real a_rmin, const R
                     if ((radius < a_rmin) || (radius >= a_rmax)) {
                         return 0.0;
                     }
+
+                    // Use the particle's stored k-index (correct for non-uniform grids)
+                    int cell_k = p.idata(ERFParticlesIntIdxAoS::k);
+                    Real actual_dz = stretched_dz_d ? stretched_dz_d[cell_k] : nominal_dz;
+                    ParticleReal inv_cell_volume = dxi[0] * dxi[1] / actual_dz;
+
                     auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto species_mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
@@ -407,11 +452,15 @@ void SuperDropletPC::iceCategoryDensity(MultiFab& a_mf, IceCategory a_category,
     const auto& geom = Geom(m_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
-    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const auto dx = geom.CellSizeArray();
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
     const auto idx = m_idx_i;
     const auto category = a_category;
+
+    // Get stretched dz if available for non-uniform vertical grids
+    const Real* stretched_dz_d = m_stretched_dz_d.empty() ? nullptr : m_stretched_dz_d.data();
+    const Real nominal_dz = dx[2];
 
     ParticleToMesh(*this, a_mf, m_lev,
         [=] AMREX_GPU_DEVICE (const SDTDType& ptd, int i, Array4<Real> const& rho)
@@ -419,7 +468,7 @@ void SuperDropletPC::iceCategoryDensity(MultiFab& a_mf, IceCategory a_category,
             auto p = ptd.m_aos[i];
             ParticleInterpolator::Linear interp(p, plo, dxi);
             interp.ParticleToMesh(p, rho, 0, a_comp, 1,
-                [=] AMREX_GPU_DEVICE (const SuperDropletPC::ParticleType&, int)
+                [=] AMREX_GPU_DEVICE (const SuperDropletPC::ParticleType& part, int)
                 {
                     auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
                     auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
@@ -443,6 +492,11 @@ void SuperDropletPC::iceCategoryDensity(MultiFab& a_mf, IceCategory a_category,
                     }
 
                     if (include) {
+                        // Use the particle's stored k-index (correct for non-uniform grids)
+                        int cell_k = p.idata(ERFParticlesIntIdxAoS::k);
+                        Real actual_dz = stretched_dz_d ? stretched_dz_d[cell_k] : nominal_dz;
+                        ParticleReal inv_cell_volume = dxi[0] * dxi[1] / actual_dz;
+
                         auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                         auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                         return ai * num_par * mass * inv_cell_volume;
@@ -491,9 +545,13 @@ void SuperDropletPC::speciesMassFlux(MultiFab& a_mf, const int a_idx, const int 
     const auto& geom = Geom(m_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
-    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const auto dx = geom.CellSizeArray();
     const auto na = m_num_aerosols;
     const auto ns = m_num_species;
+
+    // Get stretched dz if available for non-uniform vertical grids
+    const Real* stretched_dz_d = m_stretched_dz_d.empty() ? nullptr : m_stretched_dz_d.data();
+    const Real nominal_dz = dx[2];
 
     a_mf.setVal(0.0);
 
@@ -505,6 +563,11 @@ void SuperDropletPC::speciesMassFlux(MultiFab& a_mf, const int a_idx, const int 
             interp.ParticleToMesh(p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE (const SuperDropletPC::ParticleType&, int)
                 {
+                    // Use the particle's stored k-index (correct for non-uniform grids)
+                    int cell_k = p.idata(ERFParticlesIntIdxAoS::k);
+                    Real actual_dz = stretched_dz_d ? stretched_dz_d[cell_k] : nominal_dz;
+                    ParticleReal inv_cell_volume = dxi[0] * dxi[1] / actual_dz;
+
                     auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto species_mass = ptd.m_runtime_rdata[ridx_s(a_idx,na,ns)][i];
@@ -528,7 +591,11 @@ void SuperDropletPC::effectiveRadius(MultiFab& a_mf, const int a_comp) const
     const auto& geom = Geom(m_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
-    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const auto dx = geom.CellSizeArray();
+
+    // Get stretched dz if available for non-uniform vertical grids
+    const Real* stretched_dz_d = m_stretched_dz_d.empty() ? nullptr : m_stretched_dz_d.data();
+    const Real nominal_dz = dx[2];
 
     a_mf.setVal(0.0);
 
@@ -543,6 +610,11 @@ void SuperDropletPC::effectiveRadius(MultiFab& a_mf, const int a_comp) const
             interp.ParticleToMesh(p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE (const SuperDropletPC::ParticleType&, int)
                 {
+                    // Use the particle's stored k-index (correct for non-uniform grids)
+                    int cell_k = p.idata(ERFParticlesIntIdxAoS::k);
+                    Real actual_dz = stretched_dz_d ? stretched_dz_d[cell_k] : nominal_dz;
+                    ParticleReal inv_cell_volume = dxi[0] * dxi[1] / actual_dz;
+
                     auto ai = ptd.m_runtime_idata[SuperDropletsIntIdxSoA_RT::active][i];
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto radius = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];

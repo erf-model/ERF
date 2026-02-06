@@ -84,6 +84,7 @@ class SuperDropletPC : public ERFPC
             return *m_species_mat[0];
         }
 
+
         /*! \brief Set aerosol material */
         AMREX_FORCE_INLINE
         virtual void setAerosolMaterial ( const Species::Name& a_name )
@@ -437,6 +438,9 @@ class SuperDropletPC : public ERFPC
 
         /*! save inactive particles to file */
         bool m_save_inactive;
+
+        /*! Stretched dz for non-uniform vertical grid spacing (computed from terrain_z_levels) */
+        amrex::Gpu::DeviceVector<amrex::Real> m_stretched_dz_d;
 
         /*! Persistent device vectors for material properties */
         amrex::Gpu::DeviceVector<amrex::ParticleReal> m_sp_density;    // Species densities
