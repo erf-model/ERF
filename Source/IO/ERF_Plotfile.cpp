@@ -676,8 +676,6 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const int ncomp = vars_new[lev][Vars::cons].nComp();
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    const Real rho      = S_arr(i, j, k, Rho_comp);
-                    const Real rhotheta = S_arr(i, j, k, RhoTheta_comp);
                     const Real qv       = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0.0;
 
                     const Real T        = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
