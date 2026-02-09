@@ -19,7 +19,8 @@ moist_set_rhs (const Geometry& geom,
                const Real& bdy_time_interval,
                const Real& new_stage_time,
                const Real& dt,
-               const Real & stop_time_elapsed,
+               const Real& stop_time_elapsed,
+               const Real& nudge_factor,
                int  width,
                int  set_width,
                bool do_upwind,
@@ -30,7 +31,7 @@ moist_set_rhs (const Geometry& geom,
                Vector<Vector<FArrayBox>>& bdy_data_yhi)
 {
     // Relaxation constants
-    Real F1 = 1./dt;
+    Real F1 = 1./(nudge_factor*dt);
 
     // Domain bounds
     const auto& dom_hi = ubound(domain);

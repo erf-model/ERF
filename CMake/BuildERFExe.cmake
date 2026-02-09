@@ -268,7 +268,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsZvel.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsBaseState.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsBndryReg.cpp
-       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsRealbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillCoarsePatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillIntermediatePatch.cpp

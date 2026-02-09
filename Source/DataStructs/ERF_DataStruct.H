@@ -582,6 +582,9 @@ struct SolverChoice {
             }
         }
 
+        // What's the strength of the bdy nudging?
+        pp.query("bdy_nudge_factor",bdy_nudge_factor);
+
         // Are we using SHOC? (test on compilation done in turb struct)
         if (turbChoice[0].pbl_type == PBLType::SHOC) { use_shoc = true; }
 
@@ -1197,6 +1200,9 @@ struct SolverChoice {
     amrex::Real turb_disk_angle = -1.0;
     amrex::Real windfarm_x_shift = -1.0;
     amrex::Real windfarm_y_shift = -1.0;
+
+    // Nudging factor for bdy sponging : F1 = 1/(nudge_factor * dt)
+    amrex::Real bdy_nudge_factor = 100.0;
 
     // Use forest canopy model?
     bool do_forest_drag {false};

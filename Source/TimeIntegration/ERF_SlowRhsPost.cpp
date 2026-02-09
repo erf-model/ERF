@@ -474,10 +474,11 @@ void erf_slow_rhs_post (int level, int finest_level,
 #if defined(ERF_USE_NETCDF)
         if (moist_set_rhs_bool)
         {
+            Real bdy_factor = solverChoice.bdy_nudge_factor;
             const Array4<const Real> & old_cons_const = S_old[IntVars::cons].const_array(mfi);
             const Array4<const Real> & new_cons_const = S_new[IntVars::cons].const_array(mfi);
             moist_set_rhs(geom, tbx, old_cons_const, new_cons_const, cell_rhs, bdy_time_interval,
-                          new_stage_time, dt, stop_time_elapsed, width, set_width, do_upwind, domain,
+                          new_stage_time, dt, stop_time_elapsed, bdy_factor, width, set_width, do_upwind, domain,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
         }
 #endif
