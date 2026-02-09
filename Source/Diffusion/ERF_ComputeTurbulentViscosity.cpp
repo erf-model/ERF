@@ -432,14 +432,8 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                 // Enforce a maximum value
                 l_g = l_g_max * l_g / (l_g_max + l_g);
 
-                // Turbulent Richardson number (AL01, Eqn. 29)
-                // using the old dissipation value
-                Real diss0 = max(diss(i, j, k) / cell_data(i, j, k, Rho_comp),
-                                 eps);
-                Real Rt = tke*tke * N2 / diss0;
-
                 // Turbulent length scale
-                Real length;
+                Real length, Rt;
                 if (std::abs(N2) <= eps) {
                     length = l_g;
                 } else if (N2 > eps) {
@@ -447,10 +441,25 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                     length = std::sqrt(1.0 /
                             (1.0 / (l_g * l_g) + inv_Cb_sq * N2 / tke));
                 } else {
+                    Real diss0 = Cmu0_pow3 * std::pow(tke,1.5) / l_g; // approx
+                    Rt = tke*tke * N2 / (diss0*diss0);
+
                     // Unstable (AL01, Eqn. 28)
+                    // - predict
                     length = l_g * std::sqrt(1.0 - Cmu0_pow3*Cmu0_pow3 * inv_Cb_sq * Rt);
+                    // - correct
+                    diss0 = Cmu0_pow3 * std::pow(tke,1.5) / length;
+                    Rt = tke*tke * N2 / (diss0*diss0);
+                    length  = l_g * std::sqrt(1.0 - Cmu0_pow3*Cmu0_pow3 * inv_Cb_sq * Rt);
                 }
                 mu_turb(i, j, k, EddyDiff::Turb_lengthscale) = length;
+
+                // Dissipation rate (AL01, Eqn. 19)
+                diss(i, j, k) = cell_data(i, j, k, Rho_comp) * Cmu0_pow3 * std::pow(tke,1.5) / length;
+
+                // Turbulent Richardson number (AL01, Eqn. 29)
+                //Real Rt = tke*tke * N2 / (diss(i,j,k)*diss(i,j,k));
+                Rt = length*length * N2 / (tke * Cmu0_pow3 * Cmu0_pow3); // combined with Eqn. 19
 
                 // Burchard & Petersen smoothing function
                 Rt = (Rt >= Rt_crit) ? Rt
@@ -472,13 +481,8 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
                 mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
                 mu_turb(i, j, k, EddyDiff::Theta_v) = cell_data(i, j, k, Rho_comp) * nut_prime;
 
-                // Calculate SFS quantities
-                // - dissipation (AL01 Eqn. 19)
-                diss(i, j, k) = cell_data(i, j, k, Rho_comp) * Cmu0_pow3 * std::pow(tke,1.5) / length;
-
-                // - heat flux
-                //   (Note: If using SurfaceLayer, the value at k=0 will
-                //    be overwritten)
+                // Calculate heat flux
+                // - If using SurfaceLayer, the value at k=0 will be overwritten
                 hfx_x(i, j, k) = 0.0;
                 hfx_y(i, j, k) = 0.0;
                 // Note: buoyant production = g/theta0 * hfx == -nut_prime * N^2 (c.f. AL01 Eqn. 15)

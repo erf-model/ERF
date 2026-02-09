@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 1000
+max_step = 1
 
 amrex.fpe_trap_invalid = 1
 
@@ -15,8 +15,10 @@ geometry.is_periodic = 1 1 0
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
-ensemble.n_members = 3
+ensemble.n_members = 1
 ensemble_pert.amplitude = 100
+ensemble.is_init_with_correlated_pert = true
+ensemble.pert_correlated_radius = 1.0
 
 
 # TIME STEP CONTROL

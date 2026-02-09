@@ -991,6 +991,7 @@ ERF::InitData_post ()
     if (!restart_chkfile.empty()) {
         restart();
     }
+
     //
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one and if two way coupling
     //
@@ -1497,6 +1498,24 @@ ERF::InitData_post ()
    // send_to_ww3(my_lev);
 #endif
 
+    // Create wall distance field for RANS model
+    for (int lev = 0; lev <= finest_level; lev++) {
+        if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
+            // Handle bottom boundary
+            poisson_wall_dist(lev);
+
+            // Correct the wall distance for immersed bodies
+            if (solverChoice.advChoice.have_zero_flux_faces) {
+                thinbody_wall_dist(walldist[lev],
+                                   solverChoice.advChoice.zero_xflux,
+                                   solverChoice.advChoice.zero_yflux,
+                                   solverChoice.advChoice.zero_zflux,
+                                   geom[lev],
+                                   z_phys_cc[lev]);
+            }
+        }
+    }
+
     // Configure SurfaceLayer params if used
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
@@ -1520,6 +1539,7 @@ ERF::InitData_post ()
                                                         z_phys_nd,
                                                         solverChoice.mesh_type,
                                                         solverChoice.terrain_type,
+                                                        solverChoice.turbChoice[finest_level],
                                                         start_time, stop_time
 #ifdef ERF_USE_NETCDF
                                                         , bdy_time_interval
@@ -1588,7 +1608,10 @@ ERF::InitData_post ()
                 // it will change u* and theta* from their previous values
                 m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
                                             solverChoice.moisture_indices);
-                m_SurfaceLayer->update_fluxes(lev, time, vars_new[lev][Vars::cons], z_phys_nd[lev]);
+                m_SurfaceLayer->update_fluxes(lev, time,
+                                              vars_new[lev][Vars::cons],
+                                              z_phys_nd[lev],
+                                              walldist[lev]);
 
                 // Initialize tke(x,y,z) as a function of u*(x,y)
                 if (solverChoice.turbChoice[lev].init_tke_from_ustar) {
@@ -2634,7 +2657,8 @@ ERF::ReadParameters ()
         } else {
 
             if (pp_no_prefix.query("stop_time", stop_time)) {
-                Print() << "Simulation length: " << stop_time << " s (elapsed) " << std::endl;
+                Print() << "Maximum simulation length based on stop_time: " << stop_time << " s (elapsed) " << std::endl;
+                amrex::Print() <<" Adding stop time " << stop_time << " to start_time " << start_time << std::endl;
                 stop_time += start_time;
             }
         }
@@ -3087,12 +3111,12 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
 
             if (temp < t_low) {
 #ifdef AMREX_USE_GPU
-                //AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
+                AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
 #else
                 printf("Temperature too low in cell: %d %d %d \n", i,j,k);
                 printf("Based on temp / rhotheta / rho %e %e %e \n", temp,rhotheta,rho);
-                Abort();
 #endif
+                Abort();
             }
         });
     }

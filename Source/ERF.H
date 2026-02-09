@@ -496,6 +496,17 @@ public:
                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                                   bool regrid_forces_file_read);
 
+    void create_random_perturbations (const int lev,
+                                      amrex::MultiFab& cons_pert,
+                                      amrex::MultiFab& xvel_pert,
+                                      amrex::MultiFab& yvel_pert,
+                                      amrex::MultiFab& zvel_pert);
+
+    void apply_gaussian_smoothing_to_perturbations (const int lev,
+                                                    amrex::MultiFab& cons_pert,
+                                                    amrex::MultiFab& xvel_pert,
+                                                    amrex::MultiFab& yvel_pert,
+                                                    amrex::MultiFab& zvel_pert);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -1125,7 +1136,7 @@ private:
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
-                                                    "eq_pot_temp",
+                                                    "eq_pot_temp", "VPD",
 #ifdef ERF_USE_WINDFARM
                                                     "num_turb", "SMark0", "SMark1",
 #endif
