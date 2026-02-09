@@ -333,6 +333,7 @@ void SLM::init_from_file()
     if (dosoiltnudging || dosoilwnudging) {
         get_layer_prop("relax_hgt", m_nz_lsm, relax_hgt);
     } else {
+        relax_hgt.resize(m_nz_lsm);
         std::fill(relax_hgt.begin(), relax_hgt.end(), 0.0);
     }
 
