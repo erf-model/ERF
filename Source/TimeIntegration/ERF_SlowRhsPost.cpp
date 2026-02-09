@@ -136,6 +136,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.pbl_type  == PBLType::MRF );
     const bool l_rotate         = (solverChoice.use_rotate_surface_flux);
     const bool do_upwind        = solverChoice.upwind_real_bcs;
+    const bool l_do_scalar      = (solverChoice.transport_scalar);
     amrex::ignore_unused(do_upwind);
 
     const Box& domain = geom.Domain();
@@ -172,8 +173,8 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     // Valid vars
     Vector<int> is_valid_slow_var; is_valid_slow_var.resize(RhoQ1_comp+1,0);
-    if (l_use_KE) {is_valid_slow_var[    RhoKE_comp] = 1;}
-                   is_valid_slow_var[RhoScalar_comp] = 1;
+    if (l_use_KE)    { is_valid_slow_var[    RhoKE_comp] = 1; }
+    if (l_do_scalar) { is_valid_slow_var[RhoScalar_comp] = 1; }
     if (solverChoice.moisture_type != MoistureType::None) {
          is_valid_slow_var[RhoQ1_comp] = 1;
     }
