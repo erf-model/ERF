@@ -584,7 +584,7 @@ struct SolverChoice {
 
         // What's the strength of the bdy nudging?
         pp.query("bdy_nudge_factor",bdy_nudge_factor);
-      
+
         // Are me transporting the scalar component?
         pp.query("transport_scalar",transport_scalar);
 

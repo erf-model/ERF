@@ -22,7 +22,6 @@ moist_set_rhs (const Geometry& geom,
                const Real& stop_time_elapsed,
                const Real& nudge_factor,
                int  width,
-               int  set_width,
                bool do_upwind,
                const Box& domain,
                Vector<Vector<FArrayBox>>& bdy_data_xlo,
@@ -133,8 +132,7 @@ moist_set_rhs (const Geometry& geom,
                             ng_vect, true);
 
     // Limiting offset
-    int offset = set_width - 1;
-    if (width > set_width) offset = width - 1;
+    int offset = width - 1;
 
     // Populate with interpolation (protect from ghost cells)
     ParallelFor(tbx_xlo, tbx_xhi,

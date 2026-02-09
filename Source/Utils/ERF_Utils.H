@@ -114,7 +114,6 @@ void realbdy_compute_interior_ghost_rhs (const amrex::Real& bdy_time_interval,
                                          const amrex::Real& stop_time_elapsed,
                                          const amrex::Real& nudge_factor,
                                          int width,
-                                         int set_width,
                                          bool do_upwind,
                                          const amrex::Geometry& geom,
                                          amrex::Vector<amrex::MultiFab>& S_rhs,
@@ -160,7 +159,6 @@ Time_Avg_Vel_atCC (const amrex::Real& dt,
  * @param[in] icomp component offset
  * @param[in] num_var number of variables to loop
  * @param[in] width width of wrf bdy file
- * @param[in] set_width width the set region
  * @param[in] dom_lo low bound of domain
  * @param[in] dom_hi high bound of domain
  * @param[in] F1 drift relaxation parameter

@@ -97,7 +97,6 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     const Real& stop_time_elapsed,
                                     const Real& nudge_factor,
                                     int  width,
-                                    int  set_width,
                                     bool do_upwind,
                                     const Geometry& geom,
                                     Vector<MultiFab>& S_rhs,
@@ -249,8 +248,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             Array4<Real> r_arr = S_cur_data[IntVars::cons].array(mfi);
 
             // Limiting offset
-            int offset = set_width - 1;
-            if (width > set_width) offset = width - 1;
+            int offset = width - 1;
 
             // Populate with interpolation (protect from ghost cells)
             ParallelFor(tbx_xlo, tbx_xhi,

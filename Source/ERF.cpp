@@ -2548,9 +2548,8 @@ ERF::ReadParameters ()
         // Specify whether ingest boundary planes of data
         pp.query("input_bndry_planes", input_bndry_planes);
 
-        // Query the set and total widths for wrfbdy interior ghost cells
+        // Query the total width for wrfbdy interior ghost cells
         pp.query("real_width", real_width);
-        pp.query("real_set_width", real_set_width);
 
         // If using real boundaries, do we extrapolate w (or set to 0)
         pp.query("real_extrap_w", real_extrap_w);
@@ -2713,8 +2712,6 @@ ERF::ParameterSanityChecks ()
                         ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) );
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
-    AMREX_ALWAYS_ASSERT(real_set_width >= 0);
-    AMREX_ALWAYS_ASSERT(real_width >= real_set_width);
 
     if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
         Abort("You must set cf_width >= cf_set_width >= 0");

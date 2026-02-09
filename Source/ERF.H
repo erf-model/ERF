@@ -1235,7 +1235,6 @@ private:
     // NetCDF initialization (wrfbdy/met_em) file
     static std::string nc_bdy_file;
     int real_width{0};
-    int real_set_width{0};
     bool real_extrap_w{true};
 
     // NetCDF initialization of zlo boundary values
