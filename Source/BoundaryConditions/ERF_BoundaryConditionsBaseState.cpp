@@ -78,7 +78,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                 int dest_comp = n;
                 int l_bc_type = bc_ptr[n].lo(0);
                 int iflip = dom_lo.x - 1 - i;
-                if (l_bc_type == ERFBCType::foextrap) {
+                if (l_bc_type == ERFBCType::foextrap || l_bc_type == ERFBCType::hoextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(dom_lo.x,j,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::open) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(dom_lo.x,j,k,dest_comp);
@@ -91,7 +91,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                 int dest_comp = n;
                 int h_bc_type = bc_ptr[n].hi(0);
                 int iflip =  2*dom_hi.x + 1 - i;
-                if (h_bc_type == ERFBCType::foextrap) {
+                if (h_bc_type == ERFBCType::foextrap || h_bc_type == ERFBCType::hoextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(dom_hi.x,j,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::open) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(dom_hi.x,j,k,dest_comp);
@@ -117,7 +117,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                 int dest_comp = n;
                 int l_bc_type = bc_ptr[n].lo(1);
                 int jflip = dom_lo.y - 1 - j;
-                if (l_bc_type == ERFBCType::foextrap) {
+                if (l_bc_type == ERFBCType::foextrap || l_bc_type == ERFBCType::hoextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,dom_lo.y,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::open) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,dom_lo.y,k,dest_comp);
@@ -131,7 +131,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
                 int dest_comp = n;
                 int h_bc_type = bc_ptr[n].hi(1);
                 int jflip =  2*dom_hi.y + 1 - j;
-                if (h_bc_type == ERFBCType::foextrap) {
+                if (h_bc_type == ERFBCType::foextrap || h_bc_type == ERFBCType::hoextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,dom_hi.y,k,dest_comp);
                 } else if (h_bc_type == ERFBCType::open) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,dom_hi.y,k,dest_comp);
