@@ -76,6 +76,20 @@ ERF::MakeFilename_EyeTracker_maxvel(int nstep) {
     return oss.str();
 }
 
+std::string
+ERF::MakeFilename_EyeTracker_minpressure(int nstep) {
+    // Ensure output directory exists
+    const std::string dir = "Output_StormTracker/minpressure";
+    if (!fs::exists(dir)) {
+        fs::create_directories(dir);
+    }
+
+    // Construct filename with zero-padded step
+    std::ostringstream oss;
+    oss << dir << "/storm_minpressure_" << std::setw(7) << std::setfill('0') << nstep << ".txt";
+    return oss.str();
+}
+
 void
 ERF::WriteVTKPolyline(const std::string& filename,
                       Vector<std::array<Real, 2>>& points_xy)

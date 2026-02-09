@@ -402,7 +402,7 @@ ERF::WeatherDataInterpolation(const int lev,
 
         int idx1 = static_cast<int>(time / hindcast_data_interval);
         int idx2 = static_cast<int>(time / hindcast_data_interval)+1;
-        std::cout << "Reading weather data " << time << " " << idx1 << " " << idx2 <<" " << bin_files.size() << std::endl;
+        Print() << "Reading weather data " << time << " " << idx1 << " " << idx2 <<" " << bin_files.size() << std::endl;
 
         if (idx2 >= static_cast<int>(bin_files.size())) {
             throw std::runtime_error("Error: Not enough .bin files to cover time " + std::to_string(time));

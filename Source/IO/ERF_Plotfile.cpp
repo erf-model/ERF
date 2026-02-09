@@ -248,10 +248,20 @@ ERF::appendPlotVariables (const std::string& pp_plot_var_names, Vector<std::stri
 #ifdef ERF_USE_PARTICLES
     Vector<std::string> particle_mesh_plot_names;
     particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
-    for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
-        std::string tmp(particle_mesh_plot_names[i]);
-        if (containerHasElement(plot_var_names, tmp) ) {
-            tmp_plot_names.push_back(tmp);
+    if (particle_mesh_plot_names.size() > 0) {
+        static bool first_call = true;
+        if (first_call) {
+            Print() << "ParticleData: the following additional Eulerian variables are available to plot:\n";
+            for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
+                Print() << "    " << particle_mesh_plot_names[i] << "\n";
+            }
+            first_call = false;
+        }
+        for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
+            std::string tmp(particle_mesh_plot_names[i]);
+            if (containerHasElement(plot_var_names, tmp) ) {
+                tmp_plot_names.push_back(tmp);
+            }
         }
     }
 #endif
@@ -1135,6 +1145,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     MultiFab::Copy(mf[lev],*(qmoist[lev][offset]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
+                if (containerHasElement(plot_var_names, "rel_humidity")) {
+                    Print() << "Warning: plot variable \"rel_humidity\" is not available with Kessler moisture model.\n";
+                    mf[lev].setVal(0.0, mf_comp, 1, 0);
+                    mf_comp += 1;
+                }
             }
             else if ( (solverChoice.moisture_type == MoistureType::SAM) ||
                       (solverChoice.moisture_type == MoistureType::Morrison) )
@@ -1153,6 +1168,25 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 if (containerHasElement(plot_var_names, "graup_accum"))
                 {
                     MultiFab::Copy(mf[lev],*(qmoist[lev][offset+2]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "rel_humidity")) {
+                    Print() << "Warning: plot variable \"rel_humidity\" is not available with SAM moisture model.\n";
+                    mf[lev].setVal(0.0, mf_comp, 1, 0);
+                    mf_comp += 1;
+                }
+            }
+            else if(solverChoice.moisture_type == MoistureType::SuperDroplets) {
+                if (containerHasElement(plot_var_names, "rain_accum")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][6]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "rel_humidity")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][5]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "condensation_rate")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][3]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
             }

@@ -124,7 +124,6 @@ public:
 #include "Prob/ERF_InitRayleighDamping.H"
 
 protected:
-    std::string name() override { return "Bubble"; }
 
 private:
     ProbParm parms;

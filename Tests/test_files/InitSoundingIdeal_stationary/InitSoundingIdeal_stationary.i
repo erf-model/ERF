@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "Ideal Input Sounding"
+
 stop_time = 10.
 
 amrex.fpe_trap_invalid = 1

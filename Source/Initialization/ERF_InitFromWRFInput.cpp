@@ -154,7 +154,6 @@ ERF::init_from_wrfinput (int lev,
     // NOTE: Following MFs must have an underlying BA that follows
     //       the shapes in ERF_ReadFromWRFInput.cpp
     //       Most are 3D but MU/MUB are 2D and C1/2H are 1D
-
     MultiFab mf_PH , mf_PHB;         // For geopotential height
     MultiFab mf_ALB, mf_PB , mf_P  ; // For base state
 
@@ -765,7 +764,7 @@ ERF::init_from_wrfinput (int lev,
         int ncomp = lev_new[Vars::cons].nComp();
         int k_dom_lo = geom[lev].Domain().smallEnd(2);
         int k_dom_hi = geom[lev].Domain().bigEnd(2);
-        Real tol = 1.0e-10;
+        Real tol  = 1.0e-10;
         Real grav = CONST_GRAV;
         for ( MFIter mfi(lev_new[Vars::cons],TileNoZ()); mfi.isValid(); ++mfi ) {
             Box bx  = mfi.tilebox();
@@ -909,7 +908,7 @@ ERF::init_from_wrfinput (int lev,
         }
 
         bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
-                                                   bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                                    start_bdy_time);
 
         // *******************************************************************************************
@@ -919,8 +918,8 @@ ERF::init_from_wrfinput (int lev,
         int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
         for (int itime = 0; itime < ntimes; itime++)
         {
-            read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
-                             bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+            read_from_wrfbdy(itime, nc_bdy_file, geom[0].Domain(),
+                             bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                              real_width);
 
             if (itime == 0) {
@@ -929,7 +928,8 @@ ERF::init_from_wrfinput (int lev,
                         << " and relaxation width: " << real_width - real_set_width << std::endl;
             }
 
-            convert_all_wrfbdy_data(itime, geom[lev].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+            convert_all_wrfbdy_data(itime, geom[lev].Domain(),
+                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                     mf_MUB_lev, mf_C1H_lev, mf_C2H_lev,
                                     lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                     geom[lev], use_moist);
@@ -1245,7 +1245,7 @@ init_terrain_from_wrfinput (int /*lev*/,
         // PHB and PH are on z-faces (0.5 dx/y ahead of zphys)
         Box z_face_box = convert(subdomain,IntVect(0,0,1));
 
-        // Prevent averaging from going into domain ghost cells
+        // Prevent averaging from going into ghost cells
         int ilo = z_face_box.smallEnd()[0] + 1;
         int ihi = z_face_box.bigEnd()[0];
         int jlo = z_face_box.smallEnd()[1] + 1;

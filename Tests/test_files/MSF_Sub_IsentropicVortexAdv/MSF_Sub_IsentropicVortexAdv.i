@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "Advecting Isentropic Vortex with Map Scale Factors and Acoustic Substepping"
+
 max_step = 10
 
 amrex.fpe_trap_invalid = 1

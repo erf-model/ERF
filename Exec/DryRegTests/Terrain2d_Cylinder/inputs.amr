@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Terrain - 2D Cylinder"
+
 max_step = 6000
 
 amrex.fpe_trap_invalid = 1
@@ -94,7 +96,8 @@ erf.alpha_T           = 0.0 # [m^2/s]
 #erf.abl_driver_type = "PressureGradient"
 #erf.abl_pressure_grad = -0.2 0. 0.
 
-# PROBLEM PARAMETERS (optional)
+# PROBLEM PARAMETERS
+prob.custom_terrain_type = "HalfCylinder"
 prob.T_0   = 300.0
 prob.U_0   = 0.0
 prob.rho_0 = 1.16

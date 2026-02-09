@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "Density Current Anelastic"
+
 max_step = 10
 
 erf.anelastic   = 1

@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "Scalar Advection Test"
+
 max_step = 20
 
 amrex.fpe_trap_invalid = 1

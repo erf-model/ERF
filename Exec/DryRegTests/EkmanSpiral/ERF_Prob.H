@@ -42,7 +42,6 @@ public:
         const int lev) override;
 
 protected:
-    std::string name() override { return "Ekman Spiral"; }
 
 private:
     ProbParm parms;

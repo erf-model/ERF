@@ -22,21 +22,15 @@ moist_set_rhs (const Geometry& geom,
                const Real & stop_time_elapsed,
                int  width,
                int  set_width,
+               bool do_upwind,
                const Box& domain,
                Vector<Vector<FArrayBox>>& bdy_data_xlo,
                Vector<Vector<FArrayBox>>& bdy_data_xhi,
                Vector<Vector<FArrayBox>>& bdy_data_ylo,
                Vector<Vector<FArrayBox>>& bdy_data_yhi)
 {
-    // NOTE: We pass the full width into this routine. For relaxation, the last cell is a halo
-    //       cell for the Laplacian. We remove that cell here if it is present.
-
-    // The width to do RHS augmentation
-    if (width > set_width+1) width -= 1;
-
     // Relaxation constants
-    Real F1 = 1./(10.*dt);
-    Real F2 = 1./(50.*dt);
+    Real F1 = 1./dt;
 
     // Domain bounds
     const auto& dom_hi = ubound(domain);
@@ -48,9 +42,7 @@ moist_set_rhs (const Geometry& geom,
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    //
-    // Note this is because we define "time" to be time since start_bdy_time
-    //
+    // NOTE: This is because we define "time" to be time since start_bdy_time
     Real time_since_start = new_stage_time;
 
     int n_time = static_cast<int>( time_since_start /  dT);
@@ -70,12 +62,13 @@ moist_set_rhs (const Geometry& geom,
     oma = 1.0; alpha = 0.0;
     */
 
-    // NOTE: These sizing of the temporary BDY FABS is
+    // NOTE: The sizing of the temporary BDY FABS is
     //       GLOBAL and occurs over the entire BDY region.
 
     // Size the FABs
     //==========================================================
-    IntVect ng_vect{2,2,0};
+    // NOTE: No ghost cells, we force mask to be idx type (0,0,0)
+    IntVect ng_vect(0);
     Box gdom(domain); gdom.grow(ng_vect);
     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
     realbdy_interior_bxs_xy(gdom, domain, width,
@@ -88,12 +81,14 @@ moist_set_rhs (const Geometry& geom,
     QV_xlo.resize(bx_xlo,1,The_Async_Arena()); QV_xhi.resize(bx_xhi,1,The_Async_Arena());
     QV_ylo.resize(bx_ylo,1,The_Async_Arena()); QV_yhi.resize(bx_yhi,1,The_Async_Arena());
 
-
-    // NOTE: These operations use the BDY FABS and RHO. The
-    //       use of RHO to go from PRIM -> CONS requires that
-    //       these operations be LOCAL. So we have allocated
-    //       enough space to do global operations (1 rank) but
-    //       will fill a subset of that data that the rank owns.
+    // Masks for upwinding
+    FArrayBox U_xlo, U_xhi, V_xlo, V_xhi, V_ylo, V_yhi;
+    U_xlo.resize(convert(bx_xlo,IntVect(1,0,0)),1,The_Async_Arena());
+    U_xhi.resize(convert(bx_xhi,IntVect(1,0,0)),1,The_Async_Arena());
+    V_xlo.resize(convert(bx_xlo,IntVect(0,1,0)),1,The_Async_Arena());
+    V_xhi.resize(convert(bx_xhi,IntVect(0,1,0)),1,The_Async_Arena());
+    V_ylo.resize(convert(bx_ylo,IntVect(0,1,0)),1,The_Async_Arena());
+    V_yhi.resize(convert(bx_yhi,IntVect(0,1,0)),1,The_Async_Arena());
 
     // Populate FABs from bdy interpolation (primitive vars)
     //==========================================================
@@ -106,66 +101,88 @@ moist_set_rhs (const Geometry& geom,
     const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][WRFBdyVars::QV].const_array();
     const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][WRFBdyVars::QV].const_array();
 
+    const auto& bdatxlo_n_u   = bdy_data_xlo[n_time   ][WRFBdyVars::U].const_array();
+    const auto& bdatxlo_np1_u = bdy_data_xlo[n_time_p1][WRFBdyVars::U].const_array();
+    const auto& bdatxhi_n_u   = bdy_data_xhi[n_time   ][WRFBdyVars::U].const_array();
+    const auto& bdatxhi_np1_u = bdy_data_xhi[n_time_p1][WRFBdyVars::U].const_array();
+
+    const auto& bdatxlo_n_v   = bdy_data_xlo[n_time   ][WRFBdyVars::V].const_array();
+    const auto& bdatxlo_np1_v = bdy_data_xlo[n_time_p1][WRFBdyVars::V].const_array();
+    const auto& bdatxhi_n_v   = bdy_data_xhi[n_time   ][WRFBdyVars::V].const_array();
+    const auto& bdatxhi_np1_v = bdy_data_xhi[n_time_p1][WRFBdyVars::V].const_array();
+
+    const auto& bdatylo_n_v   = bdy_data_ylo[n_time   ][WRFBdyVars::V].const_array();
+    const auto& bdatylo_np1_v = bdy_data_ylo[n_time_p1][WRFBdyVars::V].const_array();
+    const auto& bdatyhi_n_v   = bdy_data_yhi[n_time   ][WRFBdyVars::V].const_array();
+    const auto& bdatyhi_np1_v = bdy_data_yhi[n_time_p1][WRFBdyVars::V].const_array();
+
     // Get Array4 of interpolated values
     Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();
     Array4<Real> arr_ylo = QV_ylo.array();  Array4<Real> arr_yhi = QV_yhi.array();
 
-    // We need lateral ghost cells for the Laplacian
-    // NOTE: We don't write into the ghost cells
-    Box gtbx = grow(tbx,ng_vect);
+    Array4<Real> u_xlo = U_xlo.array();  Array4<Real> u_xhi = U_xhi.array();
+    Array4<Real> v_xlo = V_xlo.array();  Array4<Real> v_xhi = V_xhi.array();
+    Array4<Real> v_ylo = V_ylo.array();  Array4<Real> v_yhi = V_yhi.array();
 
+    Box gtbx = grow(tbx,ng_vect);
     Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
     realbdy_interior_bxs_xy(gtbx, domain, width,
                             tbx_xlo, tbx_xhi,
                             tbx_ylo, tbx_yhi,
                             0, ng_vect, true);
 
-    // NOTE: width is now one less than the total bndy width
-    //       if we have a relaxation zone; so we can access
-    //       dom_lo/hi +- width. If we do not have a relax
-    //       zone, this offset is set_width - 1.
+    // Limiting offset
     int offset = set_width - 1;
-    if (width > set_width) offset = width;
+    if (width > set_width) offset = width - 1;
 
     // Populate with interpolation (protect from ghost cells)
     ParallelFor(tbx_xlo, tbx_xhi,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        int ii = std::max(i , dom_lo.x);
-            ii = std::min(ii, dom_lo.x+offset);
-        int jj = std::max(j , dom_lo.y);
-            jj = std::min(jj, dom_hi.y);
+        int ii = std::min(std::max(i , dom_lo.x), dom_lo.x+offset);
+        int jj = std::min(std::max(j , dom_lo.y), dom_hi.y       );
         arr_xlo(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxlo_n  (ii,jj,k)
                                                     + alpha * bdatxlo_np1(ii,jj,k) );
+        u_xlo(i,j,k) = ( oma * bdatxlo_n_u(ii,jj,k) + alpha * bdatxlo_np1_u(ii,jj,k) );
+        v_xlo(i,j,k) = ( oma * bdatxlo_n_v(ii,jj,k) + alpha * bdatxlo_np1_v(ii,jj,k) );
+        if (j == dom_hi.y) {
+            v_xlo(i,dom_hi.y+1,k) = ( oma   * bdatxlo_n_v  (ii,dom_hi.y+1,k)
+                                    + alpha * bdatxlo_np1_v(ii,dom_hi.y+1,k) );
+        }
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        int ii = std::max(i , dom_hi.x-offset);
-            ii = std::min(ii, dom_hi.x);
-        int jj = std::max(j , dom_lo.y);
-            jj = std::min(jj, dom_hi.y);
+        int ii = std::min(std::max(i , dom_hi.x-offset), dom_hi.x);
+        int jj = std::min(std::max(j , dom_lo.y       ), dom_hi.y);
         arr_xhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
                                                     + alpha * bdatxhi_np1(ii,jj,k) );
+        // NOTE: correct for idx type mismatch with u bdy data
+        u_xhi(i+1,j,k) = ( oma * bdatxhi_n_u(ii+1,jj,k) + alpha * bdatxhi_np1_u(ii+1,jj,k) );
+        v_xhi(i  ,j,k) = ( oma * bdatxhi_n_v(ii  ,jj,k) + alpha * bdatxhi_np1_v(ii,jj,k) );
+        if (j == dom_hi.y) {
+            v_xhi(i,dom_hi.y+1,k) = ( oma   * bdatxhi_n_v  (ii,dom_hi.y+1,k)
+                                    + alpha * bdatxhi_np1_v(ii,dom_hi.y+1,k) );
+        }
     });
 
     ParallelFor(tbx_ylo, tbx_yhi,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        int ii = std::max(i , dom_lo.x);
-            ii = std::min(ii, dom_hi.x);
-        int jj = std::max(j , dom_lo.y);
-            jj = std::min(jj, dom_lo.y+offset);
+        int ii = std::min(std::max(i , dom_lo.x), dom_hi.x       );
+        int jj = std::min(std::max(j , dom_lo.y), dom_lo.y+offset);
         arr_ylo(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatylo_n  (ii,jj,k)
                                                     + alpha * bdatylo_np1(ii,jj,k) );
+        v_ylo(i,j,k) = ( oma * bdatylo_n_v(ii,jj,k) + alpha * bdatylo_np1_v(ii,jj,k) );
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        int ii = std::max(i , dom_lo.x);
-            ii = std::min(ii, dom_hi.x);
-        int jj = std::max(j , dom_hi.y-offset);
+        int ii = std::min(std::max(i , dom_lo.x       ), dom_hi.x);
+        int jj = std::min(std::max(j , dom_hi.y-offset), dom_hi.y);
             jj = std::min(jj, dom_hi.y);
         arr_yhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
                                                     + alpha * bdatyhi_np1(ii,jj,k) );
+        // NOTE: correct for idx type mismatch with v bdy data
+        v_yhi(i,j+1,k) = ( oma * bdatyhi_n_v(ii,jj+1,k) + alpha * bdatyhi_np1_v(ii,jj+1,k) );
     });
 
 
@@ -180,10 +197,11 @@ moist_set_rhs (const Geometry& geom,
                                 tbx_ylo, tbx_yhi);
         realbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
                                        width, set_width-1, set_width-1,
-                                       dom_lo, dom_hi,
-                                       tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                       arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                       old_cons, cell_rhs);
+                                       domain, domain,
+                                       tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
+                                       arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
+                                       u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
+                                       old_cons, cell_rhs, do_upwind);
     }
 
 
@@ -198,46 +216,48 @@ moist_set_rhs (const Geometry& geom,
                                 tbx_xlo, tbx_xhi,
                                 tbx_ylo, tbx_yhi,
                                 set_width, ng_vect);
-        realbdy_compute_laplacian_relaxation(RhoQ1_comp, 1,
-                                             width, dx, ProbLo, ProbHi, F1, F2,
-                                             tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                             arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                             new_cons, cell_rhs);
+        realbdy_compute_relaxation(RhoQ1_comp, 1,
+                                   width, dx, ProbLo, ProbHi, F1, domain,
+                                   tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
+                                   arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
+                                   u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
+                                   new_cons, cell_rhs, do_upwind);
     }
 
     /*
     // UNIT TEST DEBUG
-    compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
-                                  bx_xlo, bx_xhi,
-                                  bx_ylo, bx_yhi);
-    ParallelFor(bx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    realbdy_interior_bxs_xy(tbx, domain, width,
+                            tbx_xlo, tbx_xhi,
+                            tbx_ylo, tbx_yhi);
+    ParallelFor(tbx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if (arr_xlo(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+      if (std::fabs(arr_xlo(i,j,k) - new_cons(i,j,k,RhoQ1_comp)) > 1.0e-7) {
             Print() << "ERROR XLO: " <<  RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
-    ParallelFor(bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(tbx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if (arr_xhi(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+      if (std::fabs(arr_xhi(i,j,k) - new_cons(i,j,k,RhoQ1_comp)) > 1.0e-7) {
             Print() << "ERROR XHI: " << RhoQ1_comp<< ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
-    ParallelFor(bx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(tbx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if (arr_ylo(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+      if (std::fabs(arr_ylo(i,j,k) - new_cons(i,j,k,RhoQ1_comp))> 1.0e-7) {
             Print() << "ERROR YLO: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
-    ParallelFor(bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(tbx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if (arr_yhi(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+      if (std::fabs(arr_yhi(i,j,k) - new_cons(i,j,k,RhoQ1_comp))> 1.0e-7) {
             Print() << "ERROR YHI: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
             exit(0);
         }
     });
+    exit(0);
     */
 } // moist_set_rhs
 #endif

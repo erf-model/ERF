@@ -1,6 +1,7 @@
 #ifndef ERF_INTERPOLATE_BILINEAR_H_
 #define ERF_INTERPOLATE_BILINEAR_H_
 
+#include "AMReX_GpuPrint.H"
 #include "ERF_DataStruct.H"
 
 /**
@@ -50,9 +51,9 @@ void bilinear_interpolation(const amrex::Real* xvec, const amrex::Real* yvec, co
     if(iloc > nx-1 or iloc < 0 or
        jloc > ny-1 or iloc < 0 or
        kloc > nz-1 or kloc < 0){
-        printf("There is a problem inside here %d %d %d %d %d %d\n", iloc, jloc, kloc, nx-1, ny-1, nz-1);
+        AMREX_DEVICE_PRINTF("There is a problem inside here %d %d %d %d %d %d\n", iloc, jloc, kloc, nx-1, ny-1, nz-1);
         for(int k=0;k<nz;k++){
-            printf("Value of z is %d %0.15g %0.15g\n", k, zvec[k], z);
+            AMREX_DEVICE_PRINTF("Value of z is %d %0.15g %0.15g\n", k, zvec[k], z);
        }
     }
 
@@ -122,6 +123,54 @@ amrex::Real interpolate_from_coarse(const amrex::Array4<const amrex::Real>& crse
             v111 * dx       * dy       * dz;
 
     return v;
+}
+
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+void bilinear_interpolation_2d(const amrex::Real* xvec, const amrex::Real* yvec,
+                            const amrex::Real dxvec, const amrex::Real dyvec,
+                            const int nx, const int ny,
+                            amrex::Real x, amrex::Real y,
+                            const amrex::Real* varvec,
+                            amrex::Real& tmp_var)
+{
+        if(x<xvec[0]) {
+            x = xvec[0];
+        }
+        if(x>xvec[nx-1]) {
+            x = xvec[nx-1];
+        }
+
+        if(y<yvec[0]) {
+            y = yvec[0];
+        }
+        if(y>yvec[ny-1]) {
+            y = yvec[ny-1];
+        }
+
+        int iloc=-1, jloc=-1;
+        iloc = static_cast<int>(std::floor((x-xvec[0])/dxvec));
+        jloc = static_cast<int>(std::floor((y-yvec[0])/dyvec));
+
+        if(iloc < 0 or jloc < 0) {
+            printf("Interpolation of surface data for MOST has gone wrong with iloc, jloc=%d %d\n", iloc, jloc);
+        }
+
+        amrex::Real xlo = xvec[0] + iloc*dxvec;
+        amrex::Real ylo = yvec[0] + jloc*dyvec;
+
+        amrex::Real w_x = (x - xlo)/dxvec;
+        amrex::Real w_y = (y - ylo)/dyvec;
+
+        int ind0 = get_single_index(iloc,jloc,0,nx,ny);
+        int ind1 = get_single_index(iloc+1,jloc,0,nx,ny);
+        int ind2 = get_single_index(iloc+1,jloc+1,0,nx,ny);
+        int ind3 = get_single_index(iloc,jloc+1,0,nx,ny);
+
+        tmp_var = (1-w_x)*(1-w_y)*varvec[ind0] + w_x*(1-w_y)*varvec[ind1] +
+                  w_x*w_y*varvec[ind2] + (1-w_x)*w_y*varvec[ind3];
+
+        //std::cout << "Variable value is " << tmp_var << "\n";
 }
 
 

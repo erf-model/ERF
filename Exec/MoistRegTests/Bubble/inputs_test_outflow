@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Bubble"
+
 max_step  = 2000
 max_step  = 20
 stop_time = 3600.0

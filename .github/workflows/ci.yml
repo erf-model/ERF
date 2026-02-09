@@ -36,6 +36,9 @@ jobs:
       with:
         submodules: true
 
+    - name: Free disk space on Ubuntu
+      uses: ./.github/actions/free-space-ubuntu
+
     - name: Setup
       run: |
         # echo "::add-matcher::.github/problem-matchers/gcc.json"

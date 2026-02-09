@@ -19,7 +19,6 @@ public:
 #include "Prob/ERF_InitConstantDensityHSE.H"
 
 protected:
-    std::string name() override { return "Stokes Second Problem"; }
 
 private:
     ProbParm parms;

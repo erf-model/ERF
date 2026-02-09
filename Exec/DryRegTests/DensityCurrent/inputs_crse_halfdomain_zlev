@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Density Current"
+
 max_step = 999999
 stop_time = 900.0
 max_step = 100

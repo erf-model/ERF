@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "ABL with MYNN"
+
 stop_time = 32400.0  # 540 min = 9 h (Cuxart et al. 2006)
 max_step  = 100
 

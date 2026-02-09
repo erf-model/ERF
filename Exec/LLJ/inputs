@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Low-Level Jet"
+
 max_step   = 2
 start_time = 1589529600.
 

@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Stationary Isentropic Vortex"
+
 max_step = 8
 
 amrex.fpe_trap_invalid = 1

@@ -151,16 +151,22 @@ public:
     amrex::Vector<std::array<amrex::Real, 2>> hurricane_eye_track_xy,
                                               hurricane_eye_track_latlon,
                                               hurricane_maxvel_vs_time,
+                                              hurricane_minpressure_vs_time,
                                               hurricane_tracker_circle;
     amrex::Vector<amrex::MultiFab> weather_forecast_data_1, weather_forecast_data_2;
     amrex::Vector<amrex::Vector<amrex::MultiFab>> forecast_state_1,
                                                   forecast_state_2,
                                                   forecast_state_interp;
+    amrex::Vector<amrex::MultiFab> surface_state_1,
+                                   surface_state_2,
+                                   surface_state_interp;
+
     std::string MakeVTKFilename(int nstep);
     std::string MakeVTKFilename_TrackerCircle(int nstep);
     std::string MakeVTKFilename_EyeTracker_xy(int nstep);
     std::string MakeFilename_EyeTracker_latlon(int nstep);
     std::string MakeFilename_EyeTracker_maxvel(int nstep);
+    std::string MakeFilename_EyeTracker_minpressure(int nstep);
     void WriteVTKPolyline(const std::string& filename,
                           amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
@@ -474,12 +480,23 @@ public:
     void FillForecastStateMultiFabs(const int lev,
                                     const std::string& filename,
                                     const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                                    amrex::Vector<amrex::Vector<amrex::MultiFab>>& weather_forecast_data);
+                                    amrex::Vector<amrex::Vector<amrex::MultiFab>>& forecast_state);
+
+    void FillSurfaceStateMultiFabs(const int lev,
+                                   const std::string& filename,
+                                   amrex::Vector<amrex::MultiFab>& surface_state);
+
 
     void WeatherDataInterpolation(const int nlevs,
                                   const amrex::Real time,
                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                                   bool regrid_forces_file_read);
+
+    void SurfaceDataInterpolation(const int nlevs,
+                                  const amrex::Real time,
+                                  amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                                  bool regrid_forces_file_read);
+
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -554,13 +571,15 @@ public:
 #ifdef ERF_USE_WINDFARM
     void init_windfarm(int lev);
     void advance_windfarm (const amrex::Geometry& a_geom,
-                       const amrex::Real& dt_advance,
-                       amrex::MultiFab& cons_in,
-                       amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
-                       amrex::MultiFab& mf_vars_windfarm,
-                       const amrex::MultiFab& mf_Nturb,
-                       const amrex::MultiFab& mf_SMark,
-                       const amrex::Real& time);
+                           const amrex::Real& dt_advance,
+                           amrex::MultiFab& cons_in,
+                           amrex::MultiFab& U_old,
+                           amrex::MultiFab& V_old,
+                           amrex::MultiFab& W_old,
+                           amrex::MultiFab& mf_vars_windfarm,
+                           const amrex::MultiFab& mf_Nturb,
+                           const amrex::MultiFab& mf_SMark,
+                           const amrex::Real& time);
 #endif
 
     void MakeEBGeometry ();
@@ -1146,7 +1165,9 @@ private:
                                                     "diss",
                                                     // moisture vars
                                                     "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup", "qt", "qn", "qp", "qsat",
-                                                    "rain_accum", "snow_accum", "graup_accum", "reflectivity", "max_reflectivity",
+                                                    "rain_accum", "snow_accum", "graup_accum",
+                                                    "rel_humidity", "condensation_rate",
+                                                    "reflectivity", "max_reflectivity",
                                                     "qsrc",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
@@ -1292,11 +1313,8 @@ private:
     static int ng_pres_hse;
 
     // Custom source terms
-    amrex::Vector<           amrex::Vector<amrex::Real> > h_rhotheta_src;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhotheta_src;
-
-    amrex::Vector<           amrex::Vector<amrex::Real> > h_rhoqt_src;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhoqt_src;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rhotheta_src;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rhoqt_src;
 
     amrex::Vector<           amrex::Vector<amrex::Real> > h_w_subsid;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_w_subsid;
@@ -1409,7 +1427,7 @@ private:
             else
             {
                 if (sc.terrain_type == TerrainType::EB){
-                    ngrow = 3;
+                    ngrow = 4;
                 } else {
                     ngrow = 2;
                 }

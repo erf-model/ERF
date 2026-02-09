@@ -72,6 +72,8 @@ public:
               flux_type = FluxCalcType::DONELAN;
           } else if (flux_string == "moeng") {
               flux_type = FluxCalcType::MOENG;
+          } else if (flux_string == "rico") {
+                flux_type = FluxCalcType::RICO;
           } else if (flux_string == "bulk_coeff") {
               flux_type = FluxCalcType::BULK_COEFF;
           } else if (flux_string == "custom") {
@@ -114,7 +116,8 @@ public:
       if (erf_sq) { default_land_surf_moist = surf_moist; }
 
       // Custom type user must specify the fluxes
-      if (flux_type == FluxCalcType::CUSTOM) {
+      if (flux_type == FluxCalcType::CUSTOM ||
+          flux_type == FluxCalcType::RICO) {
           theta_type = ThetaCalcType::HEAT_FLUX;
           moist_type = MoistCalcType::MOISTURE_FLUX;
           pp.get("most.ustar", custom_ustar);
@@ -174,6 +177,12 @@ public:
                   moist_type = MoistCalcType::ADIABATIC;
               }
           }
+      }
+
+      if (flux_type == FluxCalcType::RICO)
+      {
+          pp.query("most.rico.theta_z0", rico_theta_z0);
+          pp.query("most.rico.qsat_z0", rico_qsat_z0);
       }
 
       // Make sure the inputs file doesn't try to use most.roughness_type
@@ -631,11 +640,12 @@ public:
   bool use_sfc_fluxes() { return m_use_sfc_fluxes; }
 
   enum struct FluxCalcType {
-    MOENG = 0,  ///< Moeng functional form
-    DONELAN,    ///< Donelan functional form
-    CUSTOM,     ///< Custom constant flux functional form
+    MOENG = 0, ///< Moeng functional form
+    DONELAN,   ///< Donelan functional form
+    CUSTOM,    ///< Custom constant flux functional form
     BULK_COEFF, ///< Bulk transfer coefficient functional form
-    ROTATE      ///< Terrain rotation flux functional form
+    ROTATE,     ///< Terrain rotation flux functional form
+    RICO
   };
 
   enum struct ThetaCalcType {
@@ -699,6 +709,9 @@ private:
   amrex::Real sfc_qflux;
   amrex::Real sfc_tflux;
   amrex::Real sfc_sst;
+
+  amrex::Real rico_theta_z0{298.0};
+  amrex::Real rico_qsat_z0{0.001};
 
   bool use_moisture;
   bool m_has_lsm_tsurf  = false;

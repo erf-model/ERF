@@ -37,6 +37,11 @@ T erf_get_single_value (std::istream& is, int n)
   return r;
 }
 
+void
+init_my_custom_terrain (const amrex::Geometry& geom,
+                        amrex::FArrayBox& terrain_fab,
+                        const amrex::Real& time);
+
 /**
  * Class to hold problem-specific routines
 */
@@ -137,27 +142,25 @@ public:
     */
     virtual void
     update_rhotheta_sources (const amrex::Real& /*time*/,
-                             amrex::Vector<amrex::Real>& src,
-                             amrex::Gpu::DeviceVector<amrex::Real>& d_src,
-                             const amrex::Geometry& geom,
+                             amrex::MultiFab* src,
+                             const amrex::Geometry& /*geom*/,
                              std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {
-        if (src.empty()) return;
+        if (src->empty()) return;
 
         amrex::Warning("Temperature forcing not defined for "+name()+" problem");
-
-        const int khi              = geom.Domain().bigEnd()[2];
-        // const amrex::Real* prob_lo = geom.ProbLo();
-        // const auto dx              = geom.CellSize();
-        for (int k = 0; k <= khi; k++)
+        for ( amrex::MFIter mfi(*src, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
-            // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-            // set RHS term of RhoTheta equation based on time, z_cc here
-            src[k] = 0.0;
+            const auto &box = mfi.tilebox();
+            const amrex::Array4<amrex::Real>& src_arr = src->array(mfi);
+            // src is a spatial function if erf.spatial_rhotheta_forcing = true
+            // otherwise, qsrc_arr is defined only in over Z (box x and y dimensions are 1)
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // set RHS term of RhoTheta equation based on time, z_cc here
+                src_arr(i, j, k) = 0.0;
+            });
         }
-
-        // Copy from host version to device version
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, src.begin(), src.end(), d_src.begin());
     }
 
     /**
@@ -171,27 +174,25 @@ public:
     */
     virtual void
     update_rhoqt_sources (const amrex::Real& /*time*/,
-                             amrex::Vector<amrex::Real>& qsrc,
-                             amrex::Gpu::DeviceVector<amrex::Real>& d_qsrc,
-                             const amrex::Geometry& geom,
+                             amrex::MultiFab* qsrc,
+                             const amrex::Geometry& /*geom*/,
                              std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {
-        if (qsrc.empty()) return;
+        if (qsrc->empty()) return;
 
         amrex::Warning("Moisture forcing not defined for "+name()+" problem");
-
-        const int khi              = geom.Domain().bigEnd()[2];
-        // const amrex::Real* prob_lo = geom.ProbLo();
-        // const auto dx              = geom.CellSize();
-        for (int k = 0; k <= khi; k++)
+        for ( amrex::MFIter mfi(*qsrc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
-            // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-            // set RHS term of RhoQ1 equation based on time, z_cc here
-            qsrc[k] = 0.0;
+            const auto &box = mfi.tilebox();
+            const amrex::Array4<amrex::Real>& qsrc_arr = qsrc->array(mfi);
+            // src is a spatial function if erf.spatial_moisture_forcing = true
+            // otherwise, qsrc_arr is defined only in over Z (box x and y dimensions are 1)
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // set RHS term of RhoQ1 equation based on time, z_cc here
+                qsrc_arr(i, j, k) = 0.0;
+            });
         }
-
-        // Copy from host version to device version
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, qsrc.begin(), qsrc.end(), d_qsrc.begin());
     }
 
     /**
@@ -210,6 +211,7 @@ public:
     update_w_subsidence (const amrex::Real& /*time*/,
                          amrex::Vector<amrex::Real>& wbar,
                          amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
+                         const amrex::MultiFab& /*state*/,
                          const amrex::Geometry& geom,
                          std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {
@@ -289,7 +291,7 @@ public:
         if (valid_fname) {
             read_custom_terrain(fname,false,geom,buildings_fab,time);
         } else {
-            init_custom_terrain(geom, buildings_fab, time);
+            init_my_custom_terrain(geom, buildings_fab, time);
         }
     }
 
@@ -323,7 +325,7 @@ public:
             read_custom_terrain(fname_usgs,is_usgs,geom,terrain_fab,time);
 
         } else {
-            init_custom_terrain (geom, terrain_fab, time);
+            init_my_custom_terrain (geom, terrain_fab, time);
         }
     }
 
@@ -592,18 +594,27 @@ public:
      * @param[in] time current time
     */
     virtual void
-    init_custom_terrain (const amrex::Geometry& /*geom*/,
+    init_custom_terrain (const amrex::Geometry& geom,
                          amrex::FArrayBox& terrain_fab,
-                         const amrex::Real& /*time*/)
+                         const amrex::Real& time)
     {
-        amrex::Print() << "Initializing flat terrain" << std::endl;
+        std::string custom_terrain_type = "None";
+        amrex::ParmParse pp_prob("prob"); pp_prob.query("custom_terrain_type",custom_terrain_type);
 
-        if (SolverChoice::mesh_type == MeshType::VariableDz) {
-            SolverChoice::set_mesh_type(MeshType::StretchedDz);
-            amrex::Print() << "Resetting mesh type to StretchedDz" << std::endl;
+        if (custom_terrain_type != "None")
+        {
+            amrex::Print() << "Calling custom terrain initialization" << std::endl;
+            init_my_custom_terrain(geom,terrain_fab,time);
+
+        } else {
+            amrex::Print() << "Initializing flat terrain" << std::endl;
+            terrain_fab.template setVal<amrex::RunOn::Device>(0.0);
+
+            if (SolverChoice::mesh_type == MeshType::VariableDz) {
+                SolverChoice::set_mesh_type(MeshType::StretchedDz);
+                amrex::Print() << "Resetting mesh type to StretchedDz" << std::endl;
+            }
         }
-
-        terrain_fab.template setVal<amrex::RunOn::Device>(0.0);
     }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY
@@ -661,8 +672,7 @@ protected:
         base_parms.T_0 = T_0;
     }
 
-    // descriptor for problem definition
-    virtual std::string name () = 0;
+    std::string name() { std::string prob_name; amrex::ParmParse pp("erf"); pp.query("prob_name",prob_name); return prob_name; }
 };
 
 

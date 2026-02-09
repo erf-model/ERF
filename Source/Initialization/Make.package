@@ -1,7 +1,8 @@
 CEXE_sources += ERF_InitBCs.cpp
+CEXE_sources += ERF_InitCustomPertState.cpp
+CEXE_sources += ERF_InitCustomTerrain.cpp
 CEXE_sources += ERF_InitUniform.cpp
 CEXE_sources += ERF_InitFromHSE.cpp
-CEXE_sources += ERF_InitCustom.cpp
 CEXE_sources += ERF_InitFromInputSounding.cpp
 CEXE_sources += ERF_InitGeowind.cpp
 CEXE_sources += ERF_InitRayleigh.cpp

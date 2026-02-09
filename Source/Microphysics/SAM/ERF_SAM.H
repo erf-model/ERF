@@ -151,6 +151,9 @@ public:
     int
     Qstate_Moist_Size () override { return SAM::n_qstate_moist_size; }
 
+    void
+    Set_RealWidth (const int real_width) override { m_real_width = real_width; }
+
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     static amrex::Real
@@ -296,8 +299,8 @@ private:
     // geometry
     amrex::Geometry m_geom;
 
-    // valid boxes on which to evolve the solution
-    amrex::BoxArray m_gtoe;
+    // Nudging + set width
+    int m_real_width{0};
 
     // timestep
     amrex::Real dt;

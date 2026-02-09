@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "Metgrid"
+
 max_step = 100
 
 # PROBLEM SIZE & GEOMETRY

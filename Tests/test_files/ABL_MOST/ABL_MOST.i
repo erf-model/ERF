@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "ABL with MOST"
+
 max_step = 10
 
 amrex.fpe_trap_invalid = 1

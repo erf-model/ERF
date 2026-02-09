@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "EB Square Cylinder"
+
 #max_step = 10000000
 
 amrex.fpe_trap_invalid = 1

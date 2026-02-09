@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "Density Current With No Substepping"
+
 max_step = 20
 
 erf.buoyancy_type = 1

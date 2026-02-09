@@ -73,7 +73,7 @@ Clone, build, and run with CMake. Choose workflow based on preference (see :ref:
          cd ../../install/bin
          mpiexec -n 4 ./erf_abl ../../../Exec/ABL/inputs_most
 
-.. tab-item:: Automated Script
+   .. tab-item:: Automated Script
 
       Auto-creates build and install directories. Customize with environment variables or edit script defaults.
 

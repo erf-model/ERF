@@ -5,6 +5,9 @@
 #
 # Exact solution: du/dt = Fdamp = -dampcoef*(u - ubar)
 #   u(t) = ubar * (1 - exp(-dampcoef * t))
+#
+erf.prob_name = "ABL"
+
 stop_time = 600.0
 
 amrex.fpe_trap_invalid = 1

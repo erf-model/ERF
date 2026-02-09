@@ -1,5 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-#stop_time = 86400.0
+erf.prob_name = "ABL with input sounding"
+
 stop_time = 115200.0
 
 stop_time = 600.

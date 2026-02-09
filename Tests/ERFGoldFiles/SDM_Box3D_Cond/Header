@@ -1,0 +1,61 @@
+HyperCLaw-V1.1
+33
+density
+rhotheta
+rhoQ1
+rhoQ2
+x_velocity
+y_velocity
+z_velocity
+temp
+theta
+pres_hse
+dens_hse
+pressure
+pert_pres
+pert_dens
+qv
+qc
+qrain
+qt
+rain_accum
+super_droplets_moisture_mass_flux_y
+super_droplets_moisture_mass_flux_z
+super_droplets_moisture_number_density
+super_droplets_moisture_mass_density
+super_droplets_moisture_radius
+super_droplets_moisture_mass_density_H2O
+super_droplets_moisture_mass_flux_x_H2O
+super_droplets_moisture_mass_flux_y_H2O
+super_droplets_moisture_mass_flux_z_H2O
+super_droplets_moisture_aerosol_mass_density_NaCl
+super_droplets_moisture_aerosol_mass_flux_x_NaCl
+super_droplets_moisture_aerosol_mass_flux_y_NaCl
+super_droplets_moisture_aerosol_mass_flux_z_NaCl
+accum_NaCl
+3
+0.0020000000000000005
+0
+0 0 0
+0.80000000000000004 0.80000000000000004 0.80000000000000004
+
+((0,0,0) (7,7,7) (0,0,0))
+10
+0.10000000000000001 0.10000000000000001 0.10000000000000001
+0
+0
+0 4 0.0020000000000000005
+10
+0 0.40000000000000002
+0 0.40000000000000002
+0 0.80000000000000004
+0.40000000000000002 0.80000000000000004
+0 0.40000000000000002
+0 0.80000000000000004
+0 0.40000000000000002
+0.40000000000000002 0.80000000000000004
+0 0.80000000000000004
+0.40000000000000002 0.80000000000000004
+0.40000000000000002 0.80000000000000004
+0 0.80000000000000004
+Level_0/Cell

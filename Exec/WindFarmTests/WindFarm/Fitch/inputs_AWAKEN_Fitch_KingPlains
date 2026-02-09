@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Wind Farm Test"
+
 max_step = 10000 
 
 amrex.fpe_trap_invalid = 1

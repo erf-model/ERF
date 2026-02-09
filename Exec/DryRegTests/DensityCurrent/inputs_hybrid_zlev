@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Density Current"
+
 stop_time = 900.0
 
 amr.blocking_factor_x = 16

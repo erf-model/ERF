@@ -37,6 +37,9 @@ jobs:
     - name: Install CCache
       run: ${ERF_DIR}/Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
 
+    - name: Free up disk space
+      uses: ./erf_clone/.github/actions/free-space-ubuntu
+
     - name: Set Up Cache
       uses: actions/cache@v4
       with:

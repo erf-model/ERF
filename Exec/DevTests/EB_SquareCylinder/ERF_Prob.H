@@ -45,9 +45,6 @@ public:
         const int lev) override;
 
 protected:
-    std::string name() override {
-            return "EB_SquareCylinder";
-    }
 
 private:
     ProbParm parms;

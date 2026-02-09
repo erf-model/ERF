@@ -1,0 +1,25 @@
+Version_Two_Dot_Zero_double
+3
+11
+xvel
+yvel
+zvel
+particle_mass
+temperature
+radius
+multiplicity
+terminal_velocity
+uid
+aerosol_mass_NaCl
+species_mass_H2O
+1
+int_comp0
+1
+512
+129
+0
+4
+0 128 0
+1 128 0
+2 128 0
+3 128 0

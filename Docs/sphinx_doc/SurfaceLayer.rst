@@ -2,7 +2,7 @@
  .. role:: cpp(code)
     :language: c++
 
-.. _sec::surface_layer
+.. _sec:surface_layer:
 
 Surface Layer Boundaries
 ------------------------

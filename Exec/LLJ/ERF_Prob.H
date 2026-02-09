@@ -41,7 +41,6 @@ public:
         const SolverChoice& sc) override;
 
 protected:
-    std::string name() override { return "Low-Level Jet"; }
 
 private:
     ProbParm parms;

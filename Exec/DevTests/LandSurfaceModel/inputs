@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Land Surface Model Test"
+
 max_step = 100
 
 amrex.fpe_trap_invalid = 1

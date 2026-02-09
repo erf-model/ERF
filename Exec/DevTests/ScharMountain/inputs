@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Schar Mountain Test" 
+
 max_step = 20000
 
 amrex.fpe_trap_invalid = 0
@@ -79,3 +81,5 @@ erf.moistscal_vert_adv_type  = Centered_4th
 # TERRRAIN GRID TYPE
 erf.terrain_type = StaticFittedMesh
 erf.terrain_smoothing = 0
+
+prob.custom_terrain_type = "ScharMountain"
