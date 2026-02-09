@@ -225,6 +225,8 @@ ERF::WriteCheckpointFile () const
                 MultiFab::Copy(lsm_vars,*(lsm_flux[lev][iflux]),0,0,nvar,ng);
                 VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmFlux" + std::to_string(iflux)));
             }
+
+            lsm.WriteCheckpoint(lev, checkpointname);
         }
 
         IntVect ng = mapfac[lev][MapFacType::m_x]->nGrowVect();
@@ -760,6 +762,8 @@ ERF::ReadCheckpointFile ()
                 VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmFlux" + std::to_string(iflux)));
                 MultiFab::Copy(*(lsm_flux[lev][iflux]),lsm_vars,0,0,nvar,ng);
             }
+
+            lsm.ReadCheckpoint(lev, restart_chkfile);
         }
 
 

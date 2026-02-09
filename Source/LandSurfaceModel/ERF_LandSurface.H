@@ -199,6 +199,16 @@ public:
         return static_cast<SurfModelType*>(m_lsm_model[lev].get());
     }
 
+    void WriteCheckpoint(const int &lev, const std::string &checkpointname) const
+    {
+        m_lsm_model[lev]->WriteCheckpoint(lev, checkpointname);
+    }
+
+    void ReadCheckpoint(const int &lev, const std::string &checkpointname)
+    {
+        m_lsm_model[lev]->ReadCheckpoint(lev, checkpointname);
+    }
+
 private:
     // lsm model at each level
     amrex::Vector<std::unique_ptr<NullSurf>> m_lsm_model;

@@ -572,6 +572,14 @@ public:
         return slm_to_rad_vars;
     }
 
+    // utility to skip to next line in Header
+    //  -- taken from ERF_Checkpoint
+    static void GotoNextLine (std::istream& is);
+
+    void WriteCheckpoint(const int &lev, const std::string &checkpointname) const override;
+
+    void ReadCheckpoint(const int &lev, const std::string &checkpointname) override;
+
 private:
     // number of lsm variables (theta)
     int m_lsm_data_size = 42;

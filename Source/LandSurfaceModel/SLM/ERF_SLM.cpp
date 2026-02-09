@@ -173,6 +173,24 @@ SLM::Init (const int& /*lev*/,
     mws_mx.define(ba_lsm_2d, dm, 1, ng_2d);
     BAI.define(ba_lsm_2d, dm, 1, ng_2d);
 
+    cp_vege.setVal(0.0);
+    z0_sfc.setVal(0.0);
+    Khai_L.setVal(0.0);
+    phi_1.setVal(0.0);
+    phi_2.setVal(0.0);
+    ztop.setVal(0.0);
+    disp_hgt.setVal(0.0);
+    Rgl.setVal(0.0);
+    Rc_min.setVal(0.0);
+    hs_rc.setVal(0.0);
+    rootL.setVal(0.0);
+    root_a.setVal(0.0);
+    root_b.setVal(0.0);
+    precip_extinc.setVal(0.0);
+    mw_mx.setVal(0.0);
+    mws_mx.setVal(0.0);
+    BAI.setVal(0.0);
+
     mw_inc.define(ba_lsm_2d, dm, 1, ng_2d);
 
     evapo_dry.define(ba_lsm_2d, dm, 1, ng_2d);

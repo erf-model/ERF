@@ -142,6 +142,18 @@ class NullSurf {
         return wrfinput_map;
     }
 
+    virtual
+    void WriteCheckpoint(const int &lev, const std::string &checkpointname) const
+    {
+        return;
+    }
+
+    virtual
+    void ReadCheckpoint(const int &lev, const std::string &checkpointname)
+    {
+        return;
+    }
+
  private:
     int m_lsm_size = 0;
     amrex::Geometry m_lsm_geom;
