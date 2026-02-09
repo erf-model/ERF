@@ -22,7 +22,7 @@
 
 #if defined(ERF_USE_NETCDF)
         bool moist_set_rhs = false;
-        if ( solverChoice.use_real_bcs && (level==0) && (real_set_width > 0) &&
+        if ( solverChoice.use_real_bcs && (level==0) &&
              (solverChoice.moisture_type != MoistureType::None) )
         {
             moist_set_rhs = true;
