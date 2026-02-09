@@ -74,7 +74,7 @@ moist_set_rhs (const Geometry& geom,
     realbdy_interior_bxs_xy(gdom, domain, width,
                             bx_xlo, bx_xhi,
                             bx_ylo, bx_yhi,
-                            0, ng_vect, true);
+                            ng_vect, true);
 
     // Temporary FABs for storage (owned/filled on all ranks)
     FArrayBox QV_xlo, QV_xhi, QV_ylo, QV_yhi;
@@ -129,7 +129,7 @@ moist_set_rhs (const Geometry& geom,
     realbdy_interior_bxs_xy(gtbx, domain, width,
                             tbx_xlo, tbx_xhi,
                             tbx_ylo, tbx_yhi,
-                            0, ng_vect, true);
+                            ng_vect, true);
 
     // Limiting offset
     int offset = set_width - 1;
@@ -186,43 +186,22 @@ moist_set_rhs (const Geometry& geom,
     });
 
 
-    // NOTE: We pass 'old_cons' here since the tendencies are with
-    //       respect to the start of the RK integration.
-
-    // Compute RHS in specified region
-    //==========================================================
-    if (set_width > 0) {
-        realbdy_interior_bxs_xy(tbx, domain, width,
-                                tbx_xlo, tbx_xhi,
-                                tbx_ylo, tbx_yhi);
-        realbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
-                                       width, set_width-1, set_width-1,
-                                       domain, domain,
-                                       tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
-                                       arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                       u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
-                                       old_cons, cell_rhs, do_upwind);
-    }
-
-
     // NOTE: We pass 'new_cons' here since it has its ghost cells
     //       populated and we are only operating on RhoQv; thus,
     //       we do not need the updated fast quantities.
 
     // Compute RHS in relaxation region
     //==========================================================
-    if (width > set_width) {
-        realbdy_interior_bxs_xy(tbx, domain, width,
-                                tbx_xlo, tbx_xhi,
-                                tbx_ylo, tbx_yhi,
-                                set_width, ng_vect);
-        realbdy_compute_relaxation(RhoQ1_comp, 1,
-                                   width, dx, ProbLo, ProbHi, F1, domain,
-                                   tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
-                                   arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
-                                   u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
-                                   new_cons, cell_rhs, do_upwind);
-    }
+    realbdy_interior_bxs_xy(tbx, domain, width,
+                            tbx_xlo, tbx_xhi,
+                            tbx_ylo, tbx_yhi,
+                            ng_vect);
+    realbdy_compute_relaxation(RhoQ1_comp, 1,
+                               width, dx, ProbLo, ProbHi, F1, domain,
+                               tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
+                               arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
+                               u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
+                               new_cons, cell_rhs, do_upwind);
 
     /*
     // UNIT TEST DEBUG

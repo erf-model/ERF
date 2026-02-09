@@ -47,24 +47,24 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     }
 
     // Flags for read vars and index mapping
-    Vector<int> cons_read = {0, 1, 0, 0,
-                             1, 0, 0,
+    Vector<int> cons_read = {0, 0, 0, 0,
+                             0, 0, 0,
                              0, 0, 0};
 
-    Vector<int> cons_map = {Rho_comp, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
-                            RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
-                            RhoQ4_comp, RhoQ5_comp, RhoQ6_comp};
+    Vector<int> cons_map = {Rho_comp  , RhoTheta_comp, RhoKE_comp, RhoScalar_comp,
+                            RhoQ1_comp, RhoQ2_comp   , RhoQ3_comp,
+                            RhoQ4_comp, RhoQ5_comp   , RhoQ6_comp};
 
     Vector<Vector<int>> is_read;
     is_read.push_back( cons_read );
-    is_read.push_back( {1} ); // xvel
-    is_read.push_back( {1} ); // yvel
+    is_read.push_back( {0} ); // xvel
+    is_read.push_back( {0} ); // yvel
     is_read.push_back( {0} ); // zvel
 
     Vector<Vector<int>> ind_map;
     ind_map.push_back( cons_map );
-    ind_map.push_back( {RealBdyVars::U} ); // xvel
-    ind_map.push_back( {RealBdyVars::V} ); // yvel
+    ind_map.push_back( {0} ); // xvel
+    ind_map.push_back( {0} ); // yvel
     ind_map.push_back( {0} );              // zvel NOTE: Loop is forward (need u/v filled first)
 
     // Nvars to loop over
@@ -184,7 +184,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
             // Variable not read from wrf bdy
             //------------------------------------
             } else {
-                int width = (var_idx == Vars::zvel) ? real_width : 0;
+              int width = 0; //(var_idx == Vars::zvel) ? real_width : 0;
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
