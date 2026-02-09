@@ -87,48 +87,63 @@ public:
      * Function to perform custom initialization of a test problem
      *
      * @param[in]  bx cell-centered box on which to initialize scalars
-     * @param[in] xbx box on which to initialize x-component of velocity
-     * @param[in] ybx box on which to initialize y-component of velocity
-     * @param[in] zbx box on which to initialize z-component of velocity
      * @param[out] state cell-centered variables to be filled in this routine
-     * @param[out] x_velocity  x-component of velocity to be filled in this routine
-     * @param[out] y_velocity  y-component of velocity to be filled in this routine
-     * @param[out] z_velocity  z-component of velocity to be filled in this routine
      * @param[out] r_hse       hydrostatic reference density
      * @param[out] p_hse       hydrostatic reference pressure
      * @param[in] z_nd         height coordinate at nodes
      * @param[in] z_cc         height coordinate at cell centers
-     * @param[in] qv           water vapor
-     * @param[in] qc           cloud water
-     * @param[in] qi           cloud ice
      * @param[in] mf_m         map factor on cell centers
      * @param[in] mf_u         map factor on x-faces
      * @param[in] mf_v         map factor on y-faces
      * @param[in] sc           SolverChoice structure that carries parameters
+     * @param[in] lev          AMR level
     */
     virtual void
     init_custom_pert (const amrex::Box&  /*bx*/,
-                      const amrex::Box& /*xbx*/,
-                      const amrex::Box& /*ybx*/,
-                      const amrex::Box& /*zbx*/,
                       amrex::Array4<amrex::Real const> const& /*state*/,
                       amrex::Array4<amrex::Real      > const& /*state_pert*/,
-                      amrex::Array4<amrex::Real      > const& /*x_vel_pert*/,
-                      amrex::Array4<amrex::Real      > const& /*y_vel_pert*/,
-                      amrex::Array4<amrex::Real      > const& /*z_vel_pert*/,
                       amrex::Array4<amrex::Real      > const& /*r_hse*/,
                       amrex::Array4<amrex::Real      > const& /*p_hse*/,
                       amrex::Array4<amrex::Real const> const& /*z_nd*/,
                       amrex::Array4<amrex::Real const> const& /*z_cc*/,
                       amrex::GeometryData const& /*geomdata*/,
                       amrex::Array4<amrex::Real const> const& /*mf_m*/,
-                      amrex::Array4<amrex::Real const> const& /*mf_u*/,
-                      amrex::Array4<amrex::Real const> const& /*mf_v*/,
-                      const SolverChoice& /*sc*/,
-                      const int /*lev*/)
+                      const SolverChoice& /*sc*/, const int /*lev*/)
     {
         amrex::Print() << "No perturbation to background fields supplied for "
             << name() << " problem" << std::endl;
+    }
+
+    /**
+     * Function to perform custom initialization of the velocities
+     *
+     * @param[in] xbx box on which to initialize x_vel_pert
+     * @param[in] ybx box on which to initialize y_vel_pert
+     * @param[in] zbx box on which to initialize z_vel_pert
+     * @param[out] x_vel_pert  x-component of velocity perturbation to be filled in this routine
+     * @param[out] y_vel_pert  y-component of velocity perturbation to be filled in this routine
+     * @param[out] z_vel_pert  z-component of velocity perturbation to be filled in this routine
+     * @param[in] z_nd         height coordinate at nodes
+     * @param[in] mf_m         map factor on cell centers
+     * @param[in] mf_u         map factor on x-faces
+     * @param[in] mf_v         map factor on y-faces
+     * @param[in] sc           SolverChoice structure that carries parameters
+     * @param[in] lev          AMR level
+    */
+    virtual void
+    init_custom_pert_vels (const amrex::Box& /*xbx*/,
+                           const amrex::Box& /*ybx*/,
+                           const amrex::Box& /*zbx*/,
+                           amrex::Array4<amrex::Real      > const& /*x_vel_pert*/,
+                           amrex::Array4<amrex::Real      > const& /*y_vel_pert*/,
+                           amrex::Array4<amrex::Real      > const& /*z_vel_pert*/,
+                           amrex::Array4<amrex::Real const> const& /*z_nd*/,
+                           amrex::GeometryData const& /*geomdata*/,
+                           amrex::Array4<amrex::Real const> const& /*mf_u*/,
+                           amrex::Array4<amrex::Real const> const& /*mf_v*/,
+                           const SolverChoice& /*sc*/, const int /*lev*/)
+    {
+        amrex::Print() << "No perturbation velocities supplied for " << name() << " problem" << std::endl;
     }
 
     /**

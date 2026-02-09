@@ -2151,8 +2151,7 @@ ERF::init_only (int lev, Real time)
         initHSE(lev);
     } else {
         // No background flow initialization specified, initialize the
-        // background field to be equal to the base state, calculated from the
-        // problem-specific erf_init_dens_hse
+        // background field to be equal to the base state.
 
         // The bc's need the terrain but are needed for initHSE
         make_physbcs(lev);
