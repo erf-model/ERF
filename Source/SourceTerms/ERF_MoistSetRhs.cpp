@@ -13,7 +13,6 @@ using namespace amrex;
 void
 moist_set_rhs (const Geometry& geom,
                const Box& tbx,
-               const Array4<Real const>& old_cons,
                const Array4<Real const>& new_cons,
                const Array4<Real      >& cell_rhs,
                const Real& bdy_time_interval,
