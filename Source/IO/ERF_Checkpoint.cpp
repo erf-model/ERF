@@ -350,6 +350,29 @@ ERF::WriteCheckpointFile () const
                 }
                 VisMF::Write(lmask_at_t, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
                                                               "LMASK_" + std::to_string(nt)));
+
+                if (land_type_lev[lev][nt]) {
+                    MultiFab ltype_at_t = amrex::ToMultiFab(*land_type_lev[lev][nt]);
+                    VisMF::Write(ltype_at_t, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
+                                                                    "LANDTYPE_" + std::to_string(nt)));
+                }
+
+                if (soil_type_lev[lev][nt]) {
+                    MultiFab stype_at_t = amrex::ToMultiFab(*soil_type_lev[lev][nt].get());
+                    VisMF::Write(stype_at_t, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
+                                                                    "SOILTYPE_" + std::to_string(nt)));
+                }
+            }
+        }
+
+        if (urb_frac_lev[lev][0]) {
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab urbfrac_at_t(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                MultiFab::Copy(urbfrac_at_t,*urb_frac_lev[lev][nt],0,0,1,ng);
+                VisMF::Write(urbfrac_at_t, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
+                                                                  "URBAN_FRAC_" + std::to_string(nt)));
             }
         }
 
@@ -894,6 +917,65 @@ ERF::ReadCheckpointFile ()
                 lmask_lev[lev][0]->setVal(1);
             }
             lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+        }
+
+        std::string LTypeFileName(restart_chkfile + "/Level_0/LANDTYPE_0_H");
+        if (amrex::FileExists(LTypeFileName))
+        {
+            amrex::Print() << "Reading LANDTYPE data" << std::endl;
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab ltype_at_t(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                VisMF::Read(ltype_at_t, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                               "LANDTYPE_" + std::to_string(nt)));
+                for (MFIter mfi(ltype_at_t); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.growntilebox();
+                    Array4<int>  const& dst_arr = land_type_lev[lev][nt]->array(mfi);
+                    Array4<Real> const& src_arr = ltype_at_t.array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        dst_arr(i,j,k) = int(src_arr(i,j,k));
+                    });
+                }
+            }
+        }
+
+        std::string STypeFileName(restart_chkfile + "/Level_0/SOILTYPE_0_H");
+        if (amrex::FileExists(STypeFileName))
+        {
+            amrex::Print() << "Reading SOILTYPE data" << std::endl;
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab stype_at_t(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                VisMF::Read(stype_at_t, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                               "SOILTYPE_" + std::to_string(nt)));
+                for (MFIter mfi(stype_at_t); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.growntilebox();
+                    Array4<int>  const& dst_arr = soil_type_lev[lev][nt]->array(mfi);
+                    Array4<Real> const& src_arr = stype_at_t.array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        dst_arr(i,j,k) = int(src_arr(i,j,k));
+                    });
+                }
+            }
+        }
+
+        std::string FirstUrbanFracFileName(restart_chkfile + "/Level_0/URBAN_FRAC_0_H");
+        if (amrex::FileExists(FirstUrbanFracFileName))
+        {
+            amrex::Print() << "Reading Urban fraction" << std::endl;
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab urbfrac_at_t(ba2d[lev],dmap[lev],1,ng);
+            urb_frac_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                VisMF::Read(urbfrac_at_t, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                                 "URBAN_FRAC_" + std::to_string(nt)));
+                MultiFab::Copy(*urb_frac_lev[lev][nt],urbfrac_at_t,0,0,1,ng);
+            }
         }
 
         IntVect ngv = ng; ngv[2] = 0;
