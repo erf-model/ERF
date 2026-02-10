@@ -1388,6 +1388,8 @@ ERF::InitData_post ()
         }
     }
 
+    print_state(vars_new[0][Vars::cons], IntVect(10,0,0));
+
     // We don't need to recompute dt[lev] on restart because we read it in from the checkpoint file.
     if (restart_chkfile.empty()) {
         ComputeDt();
@@ -2163,25 +2165,24 @@ ERF::init_only (int lev, Real time)
         // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
-    } else if (solverChoice.init_type == InitType::Uniform) {
-        // Initialize a uniform background field and base state based on the
-        // problem-specified reference density and temperature
+    } else if ( (solverChoice.init_type == InitType::Uniform) ||
+                (solverChoice.init_type == InitType::ConstantDensity) ||
+                (solverChoice.init_type == InitType::Isentropic) ) {
+        // Initialize a uniform density/entropy background field and base state
+        // based on the problem-specified reference density and temperature
 
         // The physbc's need the terrain but are needed for initHSE
         make_physbcs(lev);
 
-        init_uniform(lev);
-        initHSE(lev);
-    } else {
-        // No background flow initialization specified, initialize the
-        // background field to be equal to the base state.
-
-        // The bc's need the terrain but are needed for initHSE
-        make_physbcs(lev);
-
         // We will initialize the state from the background state so must set that first
+        // The choice between constant rho and constant theta will be made inside initHSE
         initHSE(lev);
+
+        // Copy rho and rhotheta from rho_hse and p_hse
         init_from_hse(lev);
+
+    } else {
+        Abort("Unknown init_type!");
     }
 
     // Add problem-specific flow features

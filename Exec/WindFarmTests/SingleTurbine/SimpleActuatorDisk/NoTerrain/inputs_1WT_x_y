@@ -81,7 +81,7 @@ erf.moistscal_horiz_adv_type = "Centered_2nd"
 erf.moistscal_vert_adv_type  = "Centered_2nd"
 
 # SOLVER CHOICE
-erf.use_gravity = false
+erf.use_gravity = true
 
 erf.les_type          = "None"
 erf.molec_diff_type   = "ConstantAlpha"

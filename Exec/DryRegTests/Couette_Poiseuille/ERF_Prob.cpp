@@ -10,18 +10,15 @@ amrex_probinit(
     return std::make_unique<Problem>(problo, probhi);
 }
 
-Problem::Problem(const Real* problo, const Real* probhi)
+Problem::Problem(const Real* /*problo*/, const Real* /*probhi*/)
 {
   // Parse params
   ParmParse pp("prob");
 
-  Real rho_0 = 1.0;
-  Real T_0   = 300.0;
+  pp.query("rho_0", parms.rho_0);
+  pp.query("T_0", parms.T_0);
 
-  pp.query("rho_0", rho_0);
-  pp.query("T_0", T_0);
-
-  init_base_parms(rho_0, T_0);
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void
@@ -33,7 +30,7 @@ Problem::init_custom_pert (
     Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& /*z_cc*/,
-    GeometryData const& geomdata,
+    GeometryData const& /*geomdata*/,
     Array4<Real const> const& /*mf_m*/,
     const SolverChoice& sc,
     const int /*lev*/)
@@ -63,7 +60,8 @@ Problem::init_custom_pert_vels (
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc, const int /*lev*/)
+    const SolverChoice& /*sc*/,
+    const int /*lev*/)
 {
     Real u_0   = 0.0;
     Real v_0   = 0.0;

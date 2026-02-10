@@ -7,6 +7,7 @@
  * density and pressure in HSE are calculated but only the density is used at
  * this point.
 */
+
 void
 erf_init_dens_hse (amrex::MultiFab& rho_hse,
                    std::unique_ptr<amrex::MultiFab>& z_phys_nd,
@@ -108,4 +109,43 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
               });
           } // mfi
     } // no terrain
+}
+
+void
+erf_init_const_dens_hse (amrex::MultiFab& rho_hse) override
+{
+    amrex::Real rho_0 = parms.rho_0;
+    for ( amrex::MFIter mfi(rho_hse, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+       amrex::Array4<amrex::Real> rho_hse_arr = rho_hse.array(mfi);
+       const amrex::Box& gbx = mfi.growntilebox(1);
+       ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+       {
+           rho_hse_arr(i,j,k) = rho_0;
+       });
+    }
+}
+
+void
+erf_init_const_dens_and_th_hse (amrex::MultiFab& rho_hse, amrex::MultiFab&  p_hse,
+                                amrex::MultiFab&  pi_hse, amrex::MultiFab& th_hse,
+                                amrex::MultiFab&  qv_hse, amrex::Real l_rdOcp)
+{
+    amrex::Real rho_0 = parms.rho_0;
+    amrex::Real   T_0 = parms.T_0;
+
+    rho_hse.setVal(rho_0);
+    th_hse.setVal(T_0);
+
+    amrex::Real rt_0 = rho_0 * T_0;
+
+    amrex::Real p_0  = getPgivenRTh(rt_0);
+    p_hse.setVal(p_0);
+
+    amrex::Real pi_0 = getExnergivenRTh(rt_0, l_rdOcp);
+
+    pi_hse.setVal(pi_0);
+
+    // Default to zero background moisture
+    qv_hse.setVal(0.0);
 }

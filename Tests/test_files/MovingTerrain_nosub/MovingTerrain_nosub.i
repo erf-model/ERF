@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_type = "Moving Terrain with No Substepping"
 
+erf.init_type = Isentropic
+
 prob.custom_terrain_type = "MovingSineWave"
 
 max_step = 20

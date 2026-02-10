@@ -59,7 +59,7 @@ erf.dycore_vert_adv_type   = Centered_2nd
 erf.dryscal_horiz_adv_type = Centered_2nd
 erf.dryscal_vert_adv_type  = Centered_2nd
 
-erf.init_type = "uniform"
+erf.init_type = Uniform
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

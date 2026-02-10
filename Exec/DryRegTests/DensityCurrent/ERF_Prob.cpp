@@ -140,10 +140,10 @@ Problem::init_custom_pert_vels (
     Array4<Real      > const& y_vel_pert,
     Array4<Real      > const& z_vel_pert,
     Array4<Real const> const& /*z_nd*/,
-    GeometryData const& geomdata,
+    GeometryData const& /*geomdata*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int lev)
 {
   const Real u0 = parms.U_0;

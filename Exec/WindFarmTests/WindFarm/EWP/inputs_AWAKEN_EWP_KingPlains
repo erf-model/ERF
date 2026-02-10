@@ -64,7 +64,7 @@ erf.plot_int_1      = 1000       # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta QKE vorticity SMark0 SMark1
 
 # SOLVER CHOICE
-erf.use_gravity = false
+erf.use_gravity = true
 
 erf.les_type          = "None"
 erf.molec_diff_type   = "ConstantAlpha"

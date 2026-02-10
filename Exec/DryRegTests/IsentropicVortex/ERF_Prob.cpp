@@ -142,7 +142,7 @@ Problem::init_custom_pert_vels (
     amrex::GeometryData const& geomdata,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
     Real xc = parms.xc; Real yc = parms.yc;

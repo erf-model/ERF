@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_type = "Isentropic Vortex NumDiff Test"
 
+erf.init_type = Uniform
+
 max_step = 10
 
 amrex.fpe_trap_invalid = 1

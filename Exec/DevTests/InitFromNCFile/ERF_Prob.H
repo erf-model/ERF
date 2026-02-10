@@ -18,8 +18,6 @@ class Problem : public ProblemBase
 public:
     Problem();
 
-#include "Prob/ERF_InitConstantDensityHSE.H"
-
 protected:
 
 private:

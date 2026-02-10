@@ -3,9 +3,7 @@
 using namespace amrex;
 
 std::unique_ptr<ProblemBase>
-amrex_probinit(
-    const amrex_real* /*problo*/,
-    const amrex_real* /*probhi*/)
+amrex_probinit( const amrex::Real* /*problo*/, const amrex::Real* /*probhi*/)
 {
     return std::make_unique<Problem>();
 }
@@ -29,37 +27,11 @@ Problem::init_custom_pert (
     Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& /*z_cc*/,
-    GeometryData const& geomdata,
+    GeometryData const& /*geomdata*/,
     Array4<Real const> const& /*mf_m*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
-    //
-    // NOTE: this is only used when doing custom initialization!
-    //
-    // When initializng from an input sounding or from a wrfinput file,
-    // we bypass the code below
-    //
-
-    ParmParse pp("erf");
-    std::string init_type;
-    pp.query("init_type", init_type);
-
-    if (init_type == "uniform")
-    {
-        const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            // Set scalar = 0 everywhere
-            state_pert(i, j, k, RhoScalar_comp) = 0.0;
-
-            if (use_moisture) {
-                state_pert(i, j, k, RhoQ1_comp) = 0.0;
-                state_pert(i, j, k, RhoQ2_comp) = 0.0;
-            }
-        });
-    } // end if uniform
 }
 
 void
@@ -74,7 +46,7 @@ Problem::init_custom_pert_vels (
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
     //

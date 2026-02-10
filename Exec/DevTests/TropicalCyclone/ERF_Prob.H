@@ -28,7 +28,6 @@ class Problem : public ProblemBase
 public:
     Problem();
 
-//#include "Prob/ERF_InitConstantDensityHSE.H" // not needed if init_type=="input_sounding"
 #include "Prob/ERF_InitRayleighDamping.H" // provides WRF-style damping layer, with U_0, V_0, W_0, and T_0 as ref values
 #include "Prob/ERF_InitCustomPert.H"
 

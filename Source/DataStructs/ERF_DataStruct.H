@@ -33,7 +33,7 @@ enum TauType {
 };
 
 AMREX_ENUM(InitType,
-    None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform, HindCast
+    None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform, ConstantDensity, Isentropic, HindCast
 );
 
 AMREX_ENUM(SoundingType,
@@ -267,8 +267,7 @@ struct SolverChoice {
             amrex::Abort("erf.init_type = Ideal is deprecated; please replace Ideal by WRFInput");
         } else if (init_type_temp_string == "hindcast") {
             init_type = InitType::HindCast;
-        }
-        else {
+        } else {
             pp.query_enum_case_insensitive("init_type",init_type);
             use_real_bcs = ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) );
         }

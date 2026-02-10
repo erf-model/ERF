@@ -139,7 +139,7 @@ Problem::init_custom_pert_vels (
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
     // Set the x-velocity
@@ -171,14 +171,3 @@ Problem::init_custom_pert_vels (
         z_vel_pert(i, j, k) = parms_d.w_0;
     });
 }
-
-#if 0
-AMREX_GPU_DEVICE
-Real
-dhdt(int /*i*/, int /*j*/,
-     const GpuArray<Real,AMREX_SPACEDIM> /*dx*/,
-     const Real /*time_mt*/, const Real /*delta_t*/)
-{
-    return 0.;
-}
-#endif

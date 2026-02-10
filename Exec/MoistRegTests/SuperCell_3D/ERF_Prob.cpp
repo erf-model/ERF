@@ -340,7 +340,7 @@ Problem::init_custom_pert_vels (
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
   const amrex::Real& dz        = geomdata.CellSize()[2];

@@ -58,7 +58,7 @@ erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.17
 
-erf.init_type = "uniform"
+erf.init_type = Uniform
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

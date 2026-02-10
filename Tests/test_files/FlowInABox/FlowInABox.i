@@ -7,7 +7,7 @@ amrex.fpe_trap_invalid = 1
 
 erf.anelastic = 1
 
-erf.init_type = "uniform"
+erf.init_type = Uniform
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 

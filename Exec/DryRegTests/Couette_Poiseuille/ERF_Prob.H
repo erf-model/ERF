@@ -8,7 +8,8 @@
 
 struct ProbParm : ProbParmDefaults {
   amrex::Real rho_0;
-}; // namespace ProbParm
+  amrex::Real   T_0;
+};
 
 class Problem : public ProblemBase
 {
@@ -20,7 +21,7 @@ private:
 
 public:
 
-#include "Prob/ERF_InitConstantDensityHSE.H"
+#include "Prob/ERF_InitDensityHSEDry.H"
 #include "Prob/ERF_InitCustomPert.H"
 };
 

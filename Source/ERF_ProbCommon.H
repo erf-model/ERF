@@ -72,7 +72,21 @@ public:
             << " -- an appropriate init_type should probably have been specified"
             << " (e.g., input_sounding, WRFInput, or Metgrid)"
             << std::endl;
-        amrex::Error("Should never call erf_init_dens_hse for "+name()+" problem");
+        amrex::Error("Should never call this version of erf_init_dens_hse for "+name()+" problem");
+    }
+
+    virtual void
+    erf_init_const_dens_hse(amrex::MultiFab& /*rho_hse*/)
+    {
+        amrex::Error("Should never call this version of erf_init_const_dens_hse for "+name()+" problem");
+    }
+
+    virtual void
+    erf_init_const_dens_and_th_hse (amrex::MultiFab& /*rho_hse*/, amrex::MultiFab& /* p_hse*/,
+                                   amrex::MultiFab& /* pi_hse*/, amrex::MultiFab& /*th_hse*/,
+                                   amrex::MultiFab& /* qv_hse*/, amrex::Real /*l_rdOcp*/)
+    {
+        amrex::Error("Should never call this version of erf_init_const_dens_and_th_hse for "+name()+" problem");
     }
 
     virtual void

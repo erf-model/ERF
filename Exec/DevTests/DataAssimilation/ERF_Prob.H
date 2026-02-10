@@ -29,7 +29,6 @@ class Problem : public ProblemBase
 public:
     Problem(const amrex_real* problo, const amrex_real* probhi);
 
-#include "Prob/ERF_InitConstantDensityHSE.H"
 #include "Prob/ERF_InitCustomPert.H"
 
 protected:
