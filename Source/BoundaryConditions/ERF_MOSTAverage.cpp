@@ -235,7 +235,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         }
 
         // Default zref to 10 and fill will true values later
-        m_zref[lev] = std::make_unique<MultiFab>(ba,dm,1,ng);
+        m_zref[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ng);
         m_zref[lev]->setVal(zref_default);
 
         if (use_terrain_fitted_coords && m_norm_vec && m_interp) {
@@ -565,6 +565,13 @@ MOSTAverage::set_k_indices_T (const int& lev)
 
     // Specify z_ref & compute k_indx (z_ref takes precedence)
     if (read_z) {
+        int sm_index = 0;
+        if (m_face.isLow()) {
+            sm_index = m_geom[lev].Domain().smallEnd(dir);
+        } else {
+            sm_index = m_geom[lev].Domain().bigEnd(dir);
+        }
+
         if (dir == 0 || dir == 1) {
             Real prob_lo = m_geom[lev].ProbLo(dir);
             Real prob_hi = m_geom[lev].ProbHi(dir);
@@ -575,53 +582,77 @@ MOSTAverage::set_k_indices_T (const int& lev)
             int kmax = m_geom[lev].Domain().bigEnd(dir);
 
             for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-                Box npbx = mfi.tilebox(IntVect::TheDimensionVector(dir), IntVect::TheDimensionVector(dir));
+                IntVect dim_tbx(1,1,1);
+                dim_tbx[dir] = 0;
+                Box npbx = mfi.tilebox(dim_tbx, IntVect(1,1,1));
+                Box pbx = mfi.tilebox();
+
                 auto k_arr = m_k_indx[lev]->array(mfi);
+                auto zref_arr = m_zref[lev]->array(mfi);
+
+                if (m_face.isLow()) {
+                    if (pbx.smallEnd(dir) != sm_index) {
+                        continue;
+                    }
+                } else {
+                    if (pbx.bigEnd(dir) != sm_index) {
+                        continue;
+                    }
+                }
+
                 if (is_lo_face) {
                     ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
                         k_arr(i,j,k) = 0;
+                        bool found = false;
                         Real face = prob_lo;
                         int index = (dir == 0) ? i : j;
 
-                        Real z_target = (face + index*dx[dir]);
+                        Real z_target = (face + d_zref);
 
                         for (int lk(0); lk<=kmax; ++lk) {
                             Real z_lo = face + lk*dx[dir];
                             Real z_hi = face + (lk+1)*dx[dir];
-                            if (z_target > z_lo && z_target < z_hi){
+                            if (z_target >= z_lo && z_target <= z_hi){
                                 AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                         "K index must be larger than averaging radius!");
-                                k_arr(i,j,k) = lk;
+                                //k_arr(i,j,k) = lk;
+                                k_arr(i,j,k) = k;
+                                zref_arr(i,j,k) = face + 0.5 * (z_hi + z_lo);
+                                found = true;
                                 break;
                             }
                         }
-
-                        // TODO: -- fix this to work properly with X and Y faces -- 
-                        k_arr(i, j, k) = k;
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found,
+                                                         "zref not found with terrain!");
                     });
                 } else {
                     ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
                         k_arr(i,j,k) = kmax;
+                        bool found = false;
+
                         Real face = prob_hi;
                         int index = (dir == 0) ? i : j;
 
-                        Real z_target = (face - index*dx[dir]);
+                        Real z_target = (face - d_zref);
 
-                        for (int lk(kmax); lk>=0; --lk) {
+                        //for (int lk(kmax); lk>=0; --lk) {
+                        for (int lk(0); lk<=kmax; ++lk) {
                             Real z_hi = face - lk*dx[dir];
                             Real z_lo = face - (lk+1)*dx[dir];
-                            if (z_target > z_lo && z_target < z_hi){
+                            if (z_target >= z_lo && z_target <= z_hi){
                                 AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                         "K index must be larger than averaging radius!");
-                                k_arr(i,j,k) = lk;
+                                //k_arr(i,j,k) = lk;
+                                k_arr(i,j,k) = k;
+                                zref_arr(i,j,k) = face - 0.5 * (z_hi + z_lo);
+                                found = true;
                                 break;
                             }
                         }
-
-                        // TODO: -- fix this to work properly with X and Y faces -- 
-                        k_arr(i, j, k) = k;
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found,
+                                                         "zref not found with terrain!");
                     });
                 }
             }
@@ -645,7 +676,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
                                                + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
                             Real z_hi = 0.25 * ( z_phys_arr(i,j  ,lk+1) + z_phys_arr(i+1,j  ,lk+1)
                                                + z_phys_arr(i,j+1,lk+1) + z_phys_arr(i+1,j+1,lk+1) );
-                            if (z_target > z_lo && z_target < z_hi){
+                            if (z_target >= z_lo && z_target <= z_hi){
                                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                                  "K index must be larger than averaging radius!");
                                 k_arr(i,j,k) = lk;
@@ -659,14 +690,16 @@ MOSTAverage::set_k_indices_T (const int& lev)
                     });
                 }
             } else {
-                int kmax = m_geom[lev].Domain().bigEnd(2);// + 1;
+                int kmax = m_geom[lev].Domain().bigEnd(2);
                 for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-                    Box npbx = mfi.tilebox(IntVect(1,1,1),IntVect(1,1,0));
+                    Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
                     const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
                     auto k_arr = m_k_indx[lev]->array(mfi);
+                    auto zref_arr = m_zref[lev]->array(mfi);
                     ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
                         k_arr(i,j,k) = kmax;
+                        bool found = false;
                         Real z_top_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
                                                   + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
                         Real z_target    = z_top_face - d_zref;
@@ -675,17 +708,24 @@ MOSTAverage::set_k_indices_T (const int& lev)
                                                + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
                             Real z_lo = 0.25 * ( z_phys_arr(i,j  ,lk-1) + z_phys_arr(i+1,j  ,lk-1)
                                                + z_phys_arr(i,j+1,lk-1) + z_phys_arr(i+1,j+1,lk-1) );
-                            if (z_target > z_lo && z_target < z_hi){
+                            if (z_target >= z_lo && z_target <= z_hi){
                                 AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                         "K index must be larger than averaging radius!");
                                 k_arr(i,j,k) = lk;
+                                zref_arr(i,j,k) = z_top_face - 0.5 * (z_hi + z_lo);
+                                found = true;
                                 break;
                             }
                         }
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found,
+                                                         "zref not found with terrain!");
                     });
                 }
             }
         }
+
+        m_k_indx[lev]->FillBoundary(m_k_indx[lev]->nGrowVect(), Periodicity(IntVect::TheDimensionVector(m_face.coordDir())));
+
     // Specified k_indx & compute z_ref
     } else if (read_k) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(false, "Specified k-indx with terrain not implemented!");
