@@ -1601,7 +1601,9 @@ ERF::InitData_post ()
                                                                                          UrbanVar_BEP::b_v,
                                                                                          UrbanVar_BEP::b_t,
                                                                                          UrbanVar_BEP::b_e,
-                                                                                         UrbanVar_BEP::b_q}, true);
+                                                                                         UrbanVar_BEP::b_q,
+                                                                                         UrbanVar_BEP::sf,
+                                                                                         UrbanVar_BEP::vl}, true);
         }
         */
 
