@@ -14,7 +14,8 @@
  * equation for the z-component of momentum in the slow integrator.  There
  * are three options for how buoyancy is computed (two are the same in the absence of moisture).
  */
-void make_buoyancy (const amrex::Vector<amrex::MultiFab>& S_data,
+void make_buoyancy (int level,
+                    const amrex::Vector<amrex::MultiFab>& S_data,
                     const               amrex::MultiFab & S_prim,
                     const               amrex::MultiFab & qt,
                     amrex::MultiFab& buoyancy,
@@ -71,6 +72,8 @@ void make_sources (int level, int nrk,
                    const amrex::MultiFab* rhoqt_src,
                    const amrex::Real* dptr_wbar_sub,
                    const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
+                   const amrex::Real* sinesq_at_lev_d,
+                   const amrex::MultiFab* surface_state_at_lev,
                    InputSoundingData& input_sounding_data,
                    TurbulentPerturbation& turbPert,
                    bool is_slow_step);
@@ -78,8 +81,8 @@ void make_sources (int level, int nrk,
 void make_mom_sources (amrex::Real time,
                        amrex::Real dt,
                        const amrex::Vector<amrex::MultiFab>& S_data,
-                             amrex::MultiFab& z_phys_nd,
-                             amrex::MultiFab& z_phys_cc,
+                       const amrex::MultiFab* z_phys_nd,
+                       const amrex::MultiFab* z_phys_cc,
                              amrex::Vector<amrex::Real>& stretched_dz_h,
                        const amrex::MultiFab& xvel,
                        const amrex::MultiFab& yvel,
@@ -99,8 +102,11 @@ void make_mom_sources (amrex::Real time,
                        const amrex::Real* dptr_rhoqt_src,
                        const amrex::Real* dptr_wbar_sub,
                        const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
+                       const amrex::Real* sinesq_at_lev_d,
+                       const amrex::Real* sinesq_stag_at_lev_d,
                        const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev,
                        const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
+                       const amrex::MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
                              bool is_slow_step);
 
@@ -125,7 +131,7 @@ moist_set_rhs (const amrex::Geometry& geom,
                const amrex::Real& new_stage_time,
                const amrex::Real& dt,
                const amrex::Real& stop_time_elapsed,
-               int width, int set_width,
+               int width, int set_width, bool do_upwind,
                const amrex::Box& domain,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
@@ -184,5 +190,23 @@ void ApplyBndryForcing_Forecast (const SolverChoice& solverChoice,
                                  const amrex::Array4<const amrex::Real>& rho_v_initial_state,
                                  const amrex::Array4<const amrex::Real>& rho_w_initial_state,
                                  const amrex::Array4<const amrex::Real>& cons_initial_state);
+
+void
+ApplySurfaceTreatment_BulkCoeff_Mom (const amrex::Box& tbx,
+                                     const amrex::Box& tby,
+                                     const amrex::Array4<amrex::Real>& rho_u_rhs,
+                                     const amrex::Array4<amrex::Real>& rho_v_rhs,
+                                     const amrex::Array4<const amrex::Real>& rho_u,
+                                     const amrex::Array4<const amrex::Real>& rho_v,
+                                     const amrex::Array4<const amrex::Real>& cons_state,
+                                     const amrex::Array4<const amrex::Real>& z_phys_nd,
+                                     const amrex::Array4<const amrex::Real>& surface_state_arr);
+
+void
+ApplySurfaceTreatment_BulkCoeff_CC (const amrex::Box& bx,
+                                    const amrex::Array4<amrex::Real>& cell_rhs,
+                                    const amrex::Array4<const amrex::Real>& cons_state,
+                                    const amrex::Array4<const amrex::Real>& z_phys_cc,
+                                    const amrex::Array4<const amrex::Real>& surface_state_arr);
 
 #endif

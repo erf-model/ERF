@@ -1,3 +1,5 @@
+erf.prob_name = "Tornado"
+
 #stop_time = 36000.
 max_step = 12000
 

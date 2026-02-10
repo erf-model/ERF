@@ -84,6 +84,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& buoyancy,
                        const MultiFab* zmom_crse_rhs,
                        Vector<std::unique_ptr<MultiFab>>& Tau_lev,
+                       Vector<std::unique_ptr<MultiFab>>& Tau_corr_lev,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
                        MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3,
@@ -141,6 +142,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_use_turb       = tc.use_kturb;
     const bool l_need_SmnSmn    = tc.use_keqn;
 
+    const Real l_vert_implicit_fac = (solverChoice.vert_implicit_fac[nrk] > 0 &&
+                                      solverChoice.implicit_thermal_diffusion);
+
     const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
 
     auto any_SurfLayer = [&SurfLayer_ = SurfLayer]() -> bool {
@@ -156,8 +160,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const bool l_rotate        = (solverChoice.use_rotate_surface_flux);
 
-    const bool l_anelastic = solverChoice.anelastic[level];
-    const bool l_fixed_rho = solverChoice.fixed_density;
+    const bool l_anelastic = (solverChoice.anelastic[level]     == 1);
+    const bool l_fixed_rho = (solverChoice.fixed_density[level] == 1);
 
     const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
                             ( (l_anelastic && nrk == 1) || (!l_anelastic && nrk == 2) ) );
@@ -170,6 +174,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
     // *****************************************************************************
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
+
+    // **************************************************************************************
+    // If doing advection with EB we need the extra values for tangential interpolation
+    // **************************************************************************************
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        S_data[IntVars::xmom].FillBoundary(geom.periodicity());
+        S_data[IntVars::ymom].FillBoundary(geom.periodicity());
+        S_data[IntVars::zmom].FillBoundary(geom.periodicity());
+    }
 
     // *****************************************************************************
     // Pre-computed quantities
@@ -188,24 +201,35 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     if (l_use_diff) {
 #ifdef ERF_USE_SHOC
-        // Populate vertical component of eddyDiffs
-        shoc_lev->set_eddy_diffs();
+        if (solverChoice.use_shoc) {
+            // Populate vertical component of eddyDiffs
+            shoc_lev->set_eddy_diffs();
+        }
 #endif
 
-        // With solverChoice.vert_implicit_fac > 0, tau31 and tau32 will always
-        // be calculated and scaled by (1 - implicit_fac)
         erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
-                           S_data,xvel,yvel,zvel,Tau_lev,
+                           S_data,xvel,yvel,zvel,
+                           Tau_lev,Tau_corr_lev,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
-                           stretched_dz_d, detJ,mapfac);
+                           stretched_dz_d, detJ,mapfac, ax, ay, az, ebfact);
 
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
 #ifdef ERF_USE_SHOC
-        // Zero out the surface stresses of tau13/tau23
-        shoc_lev->set_diff_stresses();
+        if (solverChoice.use_shoc) {
+            // Zero out the surface stresses of tau13/tau23
+            shoc_lev->set_diff_stresses();
+        } else if (l_use_SurfLayer) {
+            // Set surface shear stresses, update heat and moisture fluxes
+            // (fluxes will be later applied in the diffusion source update)
+            Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
+            SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
+                                               Hfx1, Hfx2, Hfx3,
+                                               Q1fx1, Q1fx2, Q1fx3,
+                                               &z_phys_nd);
+        }
 #else
         // This is computed pre step in Advance if we use SHOC
         if (l_use_SurfLayer) {
@@ -221,6 +245,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                                             &z_phys_nd);
                 }
             }
+
+            //if (l_vert_implicit_fac > 0 && solverChoice.implicit_momentum_diffusion) {
+            //    copy_surface_tau_for_implicit(Tau_lev, Tau_corr_lev);
+            //}
         }
 #endif
     } // l_use_diff
@@ -231,15 +259,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     // *****************************************************************************
     // Define updates and fluxes in the current RK stage
     // *****************************************************************************
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-    {
-    std::array<FArrayBox,AMREX_SPACEDIM> flux;
-    std::array<FArrayBox,AMREX_SPACEDIM> flux_u;
-    std::array<FArrayBox,AMREX_SPACEDIM> flux_v;
-    std::array<FArrayBox,AMREX_SPACEDIM> flux_w;
-
     // Cell-centered masks for EB (used for flux interpolation)
     bool already_on_centroids = false;
     Vector<iMultiFab> physbnd_mask;
@@ -255,6 +274,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
         }
     }
 
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    {
     for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bx  = mfi.tilebox();
@@ -356,11 +379,16 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         // Define flux arrays for use in advection
         // *****************************************************************************
+        std::array<FArrayBox,AMREX_SPACEDIM> flux;
+        std::array<FArrayBox,AMREX_SPACEDIM> flux_u;
+        std::array<FArrayBox,AMREX_SPACEDIM> flux_v;
+        std::array<FArrayBox,AMREX_SPACEDIM> flux_w;
+
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             if (solverChoice.terrain_type != TerrainType::EB) {
-                flux[dir].resize(surroundingNodes(bx,dir),2);
+                flux[dir].resize(surroundingNodes(bx,dir),2,The_Async_Arena());
             } else {
-                flux[dir].resize(surroundingNodes(bx,dir).grow(1),2);
+                flux[dir].resize(surroundingNodes(bx,dir).grow(1),2,The_Async_Arena());
             }
             flux[dir].setVal<RunOn::Device>(0.);
         }
@@ -371,11 +399,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_u_arr{};
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_v_arr{};
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_w_arr{};
+
         if (solverChoice.terrain_type == TerrainType::EB) {
             for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-                flux_u[dir].resize(tbx_grown[dir],1);
-                flux_v[dir].resize(tby_grown[dir],1);
-                flux_w[dir].resize(tbz_grown[dir],1);
+                flux_u[dir].resize(tbx_grown[dir],1,The_Async_Arena());
+                flux_v[dir].resize(tby_grown[dir],1,The_Async_Arena());
+                flux_w[dir].resize(tbz_grown[dir],1,The_Async_Arena());
                 flux_u[dir].setVal<RunOn::Device>(0.);
                 flux_v[dir].setVal<RunOn::Device>(0.);
                 flux_w[dir].setVal<RunOn::Device>(0.);
@@ -495,9 +524,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<const Real> fcy_arr{};
         Array4<const Real> fcz_arr{};
         Array4<const Real> detJ_arr{};
-        Array4<const Real> u_detJ_arr{};
-        Array4<const Real> v_detJ_arr{};
-        Array4<const Real> w_detJ_arr{};
 
         if (solverChoice.terrain_type == TerrainType::EB)
         {
@@ -520,9 +546,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 az_arr   = az.const_array(mfi);
                 detJ_arr = detJ.const_array(mfi);
             }
-            u_detJ_arr = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
-            v_detJ_arr = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
-            w_detJ_arr = (ebfact.get_w_const_factory())->getVolFrac().const_array(mfi);
         } else {
             ax_arr   = ax.const_array(mfi);
             ay_arr   = ay.const_array(mfi);
@@ -589,10 +612,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_start = RhoTheta_comp;
             int n_comp  = 1;
 
-            // For implicit_fac > 0, we scale the rho*theta contribution by (1 - implicit_fac)
-            // and add in the implicit contribution in acoustic_substepping_fun scaled by implicit_fac
-            const Real l_vert_implicit_fac = solverChoice.vert_implicit_fac[nrk];
-
+            // For l_vert_implicit_fac > 0, we scale the rho*theta contribution
+            // by (1 - implicit_fac) and add in the implicit contribution with
+            // ERF_Implicit.H
             if (l_use_stretched_dz) {
                 DiffusionSrcForState_S(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -633,15 +655,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             cell_rhs(i,j,k,Rho_comp)      += source_arr(i,j,k,Rho_comp);
             cell_rhs(i,j,k,RhoTheta_comp) += source_arr(i,j,k,RhoTheta_comp);
         });
-
-        // Multiply the slow RHS for rho and rhotheta by detJ here so we don't have to later
-        if (l_moving_terrain) {
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                cell_rhs(i,j,k,Rho_comp)      *= detJ_arr(i,j,k);
-                cell_rhs(i,j,k,RhoTheta_comp) *= detJ_arr(i,j,k);
-            });
-        }
 
         // If anelastic and in second RK stage, take average of old-time and new-time source
         if ( l_anelastic && (nrk == 1) )
@@ -866,11 +879,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
                     dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
-
-            // This is necessary here so we don't go on to the next FArrayBox without
-            // having finished copying the fluxes into the FluxRegisters (since the fluxes
-            // are stored in temporary FArrayBox's)
-            Gpu::streamSynchronize();
 
         } // two-way coupling
         } // end profile

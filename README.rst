@@ -99,17 +99,18 @@ To cite ERF, please see the following publications:
 
 |JAMES Image|
 
-.. |JAMES Image| image:: https://zenodo.org/badge/DOI/10.48550/arXiv.2412.04395.svg
-  :target: https://doi.org/10.48550/arXiv.2412.04395
+.. |JAMES Image| image:: https://zenodo.org/badge/DOI/10.1029/2024MS004884.svg
+  :target: https://doi.org/10.1029/2024MS004884
 
 ::
 
    @article{ERF_JAMES,
-       title = {{ERF}: {Energy} {Research} and {Forecasting} {Model}},
-       shorttitle = {{ERF}},
-       doi = {10.48550/arXiv.2412.04395},
-       publisher = {arXiv},
-       author = {Lattanzi, Aaron and Almgren, Ann and Quon, Eliot and Natarajan, Mahesh and Kosovic, Branko and Mirocha, Jeff and Perry, Bruce and Wiersema, David and Willcox, Donald and Yuan, Xingqiu and Zhang, Weiqun},
-       month = dec,
-       year = {2024},
+   author = {Lattanzi, Aaron and Almgren, Ann and Quon, Eliot and Natarajan, Mahesh and Kosovic, Branko and Mirocha, Jeffrey and Perry, Bruce and Wiersema, David and Willcox, Donald and Yuan, Xingqiu and Zhang, Weiqun},
+   title = {ERF: Energy Research and Forecasting Model},
+   journal = {Journal of Advances in Modeling Earth Systems},
+   volume = {17},
+   number = {11},
+   pages = {e2024MS004884},
+   doi = {https://doi.org/10.1029/2024MS004884},
+   year = {2025}
    }

@@ -182,30 +182,21 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
         // FillBoundary for density so we can go back and forth between velocity and momentum
         vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
 
-        if (SolverChoice::terrain_type != TerrainType::EB) {
-            VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect(0,0,0),
-                            vars_new[lev][Vars::yvel], IntVect(0,0,0),
-                            vars_new[lev][Vars::zvel], IntVect(0,0,0),
-                            vars_new[lev][Vars::cons],
-                                rU_new[lev],
-                                rV_new[lev],
-                                rW_new[lev],
-                            Geom(lev).Domain(),
-                            domain_bcs_type);
-        } else {
-            const MultiFab& c_vfrac = (get_eb(lev).get_const_factory())->getVolFrac();
-
-            VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect(0,0,0),
-                            vars_new[lev][Vars::yvel], IntVect(0,0,0),
-                            vars_new[lev][Vars::zvel], IntVect(0,0,0),
-                            vars_new[lev][Vars::cons],
-                                rU_new[lev],
-                                rV_new[lev],
-                                rW_new[lev],
-                            Geom(lev).Domain(),
-                            domain_bcs_type,
-                            &c_vfrac);
+        const MultiFab* c_vfrac = nullptr;
+        if (SolverChoice::terrain_type == TerrainType::EB) {
+            c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
         }
+
+        VelocityToMomentum(vars_new[lev][Vars::xvel], IntVect(0,0,0),
+                        vars_new[lev][Vars::yvel], IntVect(0,0,0),
+                        vars_new[lev][Vars::zvel], IntVect(0,0,0),
+                        vars_new[lev][Vars::cons],
+                            rU_new[lev],
+                            rV_new[lev],
+                            rW_new[lev],
+                        Geom(lev).Domain(),
+                        domain_bcs_type,
+                        c_vfrac);
     }
 
     if (SolverChoice::terrain_type != TerrainType::EB) {
@@ -219,29 +210,21 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
     }
 
     for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
-        if (SolverChoice::terrain_type != TerrainType::EB) {
-            MomentumToVelocity(vars_new[lev][Vars::xvel],
-                            vars_new[lev][Vars::yvel],
-                            vars_new[lev][Vars::zvel],
-                            vars_new[lev][Vars::cons],
-                                rU_new[lev],
-                                rV_new[lev],
-                                rW_new[lev],
-                            Geom(lev).Domain(),
-                            domain_bcs_type);
-        } else {
-            const MultiFab& c_vfrac = (get_eb(lev).get_const_factory())->getVolFrac();
 
-            MomentumToVelocity(vars_new[lev][Vars::xvel],
-                            vars_new[lev][Vars::yvel],
-                            vars_new[lev][Vars::zvel],
-                            vars_new[lev][Vars::cons],
-                                rU_new[lev],
-                                rV_new[lev],
-                                rW_new[lev],
-                            Geom(lev).Domain(),
-                            domain_bcs_type,
-                            &c_vfrac);
+        const MultiFab* c_vfrac = nullptr;
+        if (SolverChoice::terrain_type == TerrainType::EB) {
+            c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
         }
+
+        MomentumToVelocity(vars_new[lev][Vars::xvel],
+                        vars_new[lev][Vars::yvel],
+                        vars_new[lev][Vars::zvel],
+                        vars_new[lev][Vars::cons],
+                            rU_new[lev],
+                            rV_new[lev],
+                            rW_new[lev],
+                        Geom(lev).Domain(),
+                        domain_bcs_type,
+                        c_vfrac);
     }
 }

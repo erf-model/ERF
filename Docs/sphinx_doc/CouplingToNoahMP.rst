@@ -1,6 +1,8 @@
    .. role:: cpp(code)
       :language: c++
 
+.. _CouplingToNoahMP:
+
 Coupling to Noah-MP
 ===================
 
@@ -14,6 +16,22 @@ This documentation covers key components of this interface and its
 associated data structures and routines, which are implemented in C++
 and Fortran, and provides details on initialization and management of
 data structures necessary for these processes.
+
+Building and Running with Noah-MP
+---------------------------------
+To build ERF with Noah-MP support, the ``NetCDF``, ``NetCDF Fortran``, and ``HDF5`` libraries are
+required. Furthermore, ``ERF_ENABLE_NOAHMP=ON`` must be specified with CMake builds or ``USE_NOAHMP=TRUE``
+and ``USE_NETCDF=TRUE`` must be specified with GNU Make. Once an executable has been generated, the
+inputs file for the simulation must specify Noah-MP as the land surface model type:
+
+.. code-block:: bash
+
+    erf.land_surface_model = "NOAHMP"
+
+Currently, Noah-MP may only be utilized for simulations that are initialized from a WRF input file
+(``erf.init_type = "WRFInput"``). Additionally, two files are required to be in the run directory
+for Noah-MP initialization: ``namelist.erf`` and ``NoahmpTable.TBL``. Sample files are provided for
+the :download:`namelist.erf <namelist.erf>` and :download:`NoahmpTable.TBL <NoahmpTable.TBL>`.
 
 Files Overview
 --------------
@@ -36,7 +54,7 @@ Files Overview
    responsible for managing mapping data between C++ and Fortran.
 
 NOAHMP Class
-----------
+------------
 
 The NOAH class serves as the handler for initializing and managing the
 data structures required for NOAH-MP operations. It inherits from the
@@ -121,26 +139,51 @@ model (e.g., OpenAI, Argo, etc.). Tutorials are available at
 1. Edit the prompt file **prompts/noahmpio_update.toml** to specify which
    variables should be exposed to the C++ interface.
 
-2. Run the following commands to generate or update bindings in **Submodules/Noah-MP/drivers/erf**::
+2. Run the following commands to generate or update bindings in **Submodules/Noah-MP/drivers/erf** directory:
+
+.. code-block:: bash
 
    code-scribe update NoahmpIO.H NoahmpIO.cpp NoahmpIO_fi.F90 \
-       -p prompts/noahmpio_update.toml -m <openai|argo-gpt4o|...>
+       -p prompts/noahmpio_update.toml \
+       -q "Write a natural language prompt with variable names, dimensions, etc." \
+       -m <openai|argo-gpt4o|...>
 
-3. Run the following to generate or update bindings in **Source/LandSurfaceModel/Noah-MP**::
+3. Run the following to generate or update bindings in **Source/LandSurfaceModel/Noah-MP** directory:
+
+.. code-block:: bash
 
    code-scribe update ERF_NOAHMP.cpp \
-       -p prompts/noahmpio_update.toml -m <openai|argo-gpt4o|...>
+       -p prompts/noahmpio_update.toml \
+       -q "Write a natural language prompt with variable names, dimensions, etc." \
+       -m <openai|argo-gpt4o|...>
 
-You may need to manually edit **Submodules/Noah-MP/drivers/erf/NoahmpIOVarType.F90** to replace::
+You may need to manually edit **Submodules/Noah-MP/drivers/erf/NoahmpIOVarType.F90** to replace:
+
+.. code-block:: fortran
 
    real(kind=kind_noahmp)
 
-with::
+with:
+
+.. code-block:: fortran
 
    real(kind=C_DOUBLE)
 
 This ensures compatibility with the C++ side. Alternatively, CodeScribe can perform this update automatically (depending on your
-model’s context length) using::
+model’s context length) using:
+
+.. code-block:: bash
 
    code-scribe update NoahmpIOVarType.F90 \
-       -p prompts/noahmpio_update.toml -m <openai|argo-gpt4o|...>
+       -p prompts/noahmpio_update.toml \
+       -q "Write a natural language prompt with variable names, dimensions, etc." \
+       -m <openai|argo-gpt4o|...>
+
+If you want to control Noah-MP plot variables, you can update **Submodules/Noah-MP/drivers/erf/NoahmpWriteLandMod.F90** file:
+
+.. code-block:: bash
+
+   code-scribe update NoahmpWriteLandMod.F90 \
+       -p prompts/noahmpwriteland_update.toml \
+       -q "Write a natural language prompt with variable names, dimensions, etc." \
+       -m <openai|argo-gpt4o|...>

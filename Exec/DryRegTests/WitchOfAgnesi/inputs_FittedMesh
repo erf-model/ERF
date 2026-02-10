@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_type = "Flow over Witch of Agnesi hill" 
+
 max_step = 4000
 
 amrex.fpe_trap_invalid = 0
@@ -64,8 +66,8 @@ erf.abl_driver_type = "PressureGradient"
 erf.abl_pressure_grad = -0.02 0. 0.
 
 erf.rayleigh_damp_W = true
-erf.rayleigh_zdamp = 5000.0
-erf.rayleigh_dampcoef = 0.2
+erf.rayleigh_zdamp = 50.0
+erf.rayleigh_dampcoef = 0.25
 
 #erf.init_type = "input_sounding"
 #erf.init_sounding_ideal = true
@@ -76,7 +78,8 @@ erf.terrain_type = StaticFittedMesh
 #erf.terrain_gamma_m = 0.5
 erf.terrain_smoothing = 2 # Sullivan TF
 
-# PROBLEM PARAMETERS (optional)
+# PROBLEM PARAMETERS
+prob.custom_terrain_type = "WoA"
 prob.T_0   = 300.0
 prob.U_0   = 0.0
 prob.rho_0 = 1.16

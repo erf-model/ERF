@@ -249,7 +249,8 @@ Problem::init_custom_pert(
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc)
+    const SolverChoice& sc,
+    const int /*lev*/)
 {
     const int khi = geomdata.Domain().bigEnd()[2];
 
@@ -356,7 +357,7 @@ Problem::init_custom_pert(
             state_pert(i, j, k, RhoQ2_comp) = rho*(parms_d.qt_init - q_v_hot);
 
             // Cold microphysics are present
-            int nstate = state_pert.ncomp;
+            int nstate = state_pert.nComp();
             if (nstate == NVAR_max) {
                 Real omn;
                 if(moisture_type == 1) {

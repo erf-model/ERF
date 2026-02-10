@@ -8,11 +8,11 @@
 #include "ERF_MaterialProperties.H"
 #include "ERF_SuperDropletPCDefinitions.H"
 
-using MFPtr = std::unique_ptr<amrex::MultiFab>;
-using BCTypeArr = amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>;
-
 class SuperDropletPC : public ERFPC
 {
+    using MFPtr = std::unique_ptr<amrex::MultiFab>;
+    using BCTypeArr = amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>;
+
     public:
 
         /*! \brief Constructor */
@@ -127,11 +127,15 @@ class SuperDropletPC : public ERFPC
                                       const amrex::RealBox&,
                                       const bool );
 
-        /*! \brief Set super-droplets attributes from a given condensate mass density */
-        virtual void SetAttributes (  amrex::MultiFab& );
+        /*! \brief Set super-droplets attributes from a given condensate mass density
+         * \param[in] a_mf Multifab containing the initial condensate mass density
+         */
+        virtual void SetAttributes (  amrex::MultiFab& a_mf );
 
-        /*! \brief Scale the SDM number density with air density  */
-        virtual void DensityScaling ( const amrex::MultiFab& );
+        /*! \brief Scale the SDM number density with air density
+         * \param[in] a_mf Multifab containing the air density field
+         */
+        virtual void DensityScaling ( const amrex::MultiFab& a_mf );
 
         /*! \brief Evolve particles for one time step */
         virtual void EvolveParticles ( int,
@@ -142,37 +146,73 @@ class SuperDropletPC : public ERFPC
             amrex::Abort("SuperDropletPC::EvolveParticles() is intentionally disabled.");
         }
 
-        /*! \brief Advect particles for one time step */
-        virtual void AdvectParticles (   int,
-                                         amrex::Real,
-                                         amrex::Real,
-                                         const amrex::MultiFab* const,
-                                         const amrex::MultiFab&,
-                                         const amrex::MultiFab&,
-                                         const amrex::MultiFab&,
-                                         const amrex::Vector<MFPtr>&,
-                                         const BCTypeArr&,
-                                         const bool );
+        /*! \brief Advect particles for one time step
+         * \param[in] a_lev AMR level
+         * \param[in] a_time Current simulation time
+         * \param[in] a_dt Timestep for advection
+         * \param[in] a_flow_vel Array of face-based velocities
+         * \param[in] a_density Density field
+         * \param[in] a_pressure Pressure field
+         * \param[in] a_temperature Temperature field
+         * \param[in] a_z_phys_nd Array of terrain heights
+         * \param[in] a_bctypes Array of boundary condition types
+         * \param[in] a_recycle Flag to enable particle recycling
+         */
+        virtual void AdvectParticles (   int a_lev,
+                                         amrex::Real a_time,
+                                         amrex::Real a_dt,
+                                         const amrex::MultiFab* const a_flow_vel,
+                                         const amrex::MultiFab& a_density,
+                                         const amrex::MultiFab& a_pressure,
+                                         const amrex::MultiFab& a_temperature,
+                                         const amrex::Vector<MFPtr>& a_z_phys_nd,
+                                         const BCTypeArr& a_bctypes,
+                                         const bool a_recycle);
 
-        /*! \brief Grow/shrink particles for one time step */
-        virtual void MassChange (   int,
-                                    amrex::Real,
-                                    const Species::Name&,
-                                    const amrex::MultiFab&,
-                                    const amrex::MultiFab&,
-                                    const amrex::MultiFab&,
-                                    const amrex::MultiFab&,
-                                    const amrex::Vector<MFPtr>&,
-                                    const bool );
+        /*! \brief Grow/shrink particles for one time step
+         * \param[in] a_lev AMR level
+         * \param[in] a_dt Timestep for mass change
+         * \param[in] a_vap_name Name of the vapour species undergoing phase change
+         * \param[in] a_temperature Temperature field
+         * \param[in] a_pressure Pressure field
+         * \param[in] a_sat_pressure Saturation pressure field
+         * \param[in] a_sat_ratio Saturation ratio field
+         * \param[in] a_z_phys_nd Array of terrain heights
+         * \param[in] a_is_water Flag indicating if this is water species
+         */
+        virtual void MassChange (   int a_lev,
+                                    amrex::Real a_dt,
+                                    const Species::Name& a_vap_name,
+                                    const amrex::MultiFab& a_temperature,
+                                    const amrex::MultiFab& a_pressure,
+                                    const amrex::MultiFab& a_sat_pressure,
+                                    const amrex::MultiFab& a_sat_ratio,
+                                    const amrex::Vector<MFPtr>& a_z_phys_nd,
+                                    const bool a_is_water);
 
-        /*! \brief Coalescence of super-droplets */
-        virtual void Coalescence (  int,
-                                    amrex::Real,
-                                    const amrex::MultiFab&,
-                                    const amrex::MultiFab& );
+        /*! \brief Coalescence of super-droplets
+         * \param[in] a_lev AMR level
+         * \param[in] a_dt Timestep for coalescence
+         * \param[in] a_pressure Pressure field used in coalescence calculation
+         * \param[in] a_temperature Temperature field used in coalescence calculation
+         */
+        virtual void Coalescence (  int a_lev,
+                                    amrex::Real a_dt,
+                                    const amrex::MultiFab& a_pressure,
+                                    const amrex::MultiFab& a_temperature);
 
-        /*! \brief Recycle super-droplets */
-        virtual void Recycle ( const int, const amrex::Vector<MFPtr>&, const int, const amrex::Real, const bool );
+        /*! \brief Recycle super-droplets
+         * \param[in] a_lev AMR level
+         * \param[in] a_z_phys_nd Array of terrain heights
+         * \param[in] a_iter Current iteration number
+         * \param[in] a_dt Timestep size
+         * \param[in] a_recycle Flag to enable recycling
+         */
+        virtual void Recycle ( const int a_lev,
+                               const amrex::Vector<MFPtr>& a_z_phys_nd,
+                               const int a_iter,
+                               const amrex::Real a_dt,
+                               const bool a_recycle);
 
         /*! \brief Return the number of super-droplets
             This returns the number of AMReX particles being used in the simulation. */

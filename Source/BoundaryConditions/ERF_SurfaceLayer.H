@@ -295,7 +295,7 @@ public:
           }
       }
 
-      if ((lev == 0) || (lev > nlevs - 1)) {
+      if (m_eddyDiffs_lev.size() < lev+1) {
           m_Hwave_lev.resize(nlevs);
           m_Lwave_lev.resize(nlevs);
           m_eddyDiffs_lev.resize(nlevs);
@@ -402,6 +402,7 @@ public:
       amrex::BoxArray ba2d(std::move(bl2d));
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
+      //amrex::IntVect ng{1,1,0};
       amrex::IntVect ng = mf.nGrowVect();
       ng[2] = ng[0];
 
@@ -440,6 +441,7 @@ public:
       q_surf[lev]->setVal(default_land_surf_moist);
 
       // TODO: Do we want an enum struct for indexing?
+
       if (m_sst_lev[lev][0] || m_tsk_lev[lev][0] || m_has_lsm_tsurf) {
           // Valid SST, TSK or LSM data; t_surf set before computing fluxes (avoids
           // extended lambda capture) Note that land temp will be set from m_tsk_lev
@@ -450,13 +452,16 @@ public:
           bool use_tsk = (m_tsk_lev[lev][0]);
           bool use_sst = (m_sst_lev[lev][0]);
           amrex::Print() << "Using MOST with specified surface temperature ";
-          if (use_tsk && !use_sst) { m_ignore_sst = true; }
+          // NOTE: SST from the LOW file populates TSK in update_sst_tsk.
+          //       So if we have TSK, it contains everything and has been
+          //       sanity checked for valid SST values.
+          if (use_tsk) { m_ignore_sst = true; }
           if (use_tsk) {
               amrex::Print() << "(land: TSK, ";
           } else {
               amrex::Print() << "(land: T0, ";
           }
-          if (use_tsk && m_ignore_sst) {
+          if (use_tsk && !use_sst) {
               amrex::Print() << "sea: TSK)" << std::endl;
           } else {
               amrex::Print() << "sea: SST)" << std::endl;
@@ -572,10 +577,12 @@ public:
   }
 
   amrex::MultiFab* get_t_surf (const int& lev) { return t_surf[lev].get(); }
+  void set_t_surf(const int& lev, const amrex::Real tsurf) { t_surf[lev]->setVal(tsurf); }
 
   amrex::MultiFab* get_q_surf (const int& lev) { return q_surf[lev].get(); }
+  void set_q_surf(const int& lev, const amrex::Real qsurf) { q_surf[lev]->setVal(qsurf); }
 
-  amrex::Real get_zref () { return m_ma.get_zref(); }
+  amrex::Real get_zref (const int& lev) { return (m_ma.get_zref(lev))->min(0); }
 
   amrex::MultiFab* get_z0 (const int& lev) { return &z_0[lev]; }
 

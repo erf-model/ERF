@@ -45,10 +45,11 @@ Problem::init_custom_pert(
     Array4<Real const> const&   mf_m,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc)
+    const SolverChoice& sc,
+    const int lev)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
-    const bool const_rho    =  sc.fixed_density;
+    const bool const_rho    = (sc.fixed_density[lev] == 1);
 
     const Real l_x_r = parms.x_r;
     const Real l_x_c = parms.x_c;

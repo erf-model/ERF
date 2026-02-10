@@ -4,7 +4,6 @@
 #include <string>
 
 #include "AMReX_REAL.H"
-
 #include "ERF_ProbCommon.H"
 
 struct ProbParm : ProbParmDefaults {
@@ -19,6 +18,11 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real hmax = 0.0;   // full hill height, can be negative to simulate valleys
   amrex::Real L = 0.0;      // hill length at half-height
   amrex::Real z_offset = 0.0;  // shift in height
+
+  // Default to the x-direction
+  int dir = 0;
+
+  std::string custom_terrain_type;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
@@ -47,15 +51,10 @@ public:
         amrex::Array4<amrex::Real const> const& mf_m,
         amrex::Array4<amrex::Real const> const& mf_u,
         amrex::Array4<amrex::Real const> const& mf_v,
-        const SolverChoice& sc) override;
-
-    void init_custom_terrain (
-        const amrex::Geometry& geom,
-        amrex::FArrayBox& terrain_fab,
-        const amrex::Real& time) override;
+        const SolverChoice& sc,
+        const int lev) override;
 
 protected:
-    std::string name() override { return "Witch of Agnesi Hill"; }
 
 private:
     ProbParm parms;

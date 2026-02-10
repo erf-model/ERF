@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Tropical Cyclone"
+
 stop_time = 200000.0
 
 amrex.fpe_trap_invalid = 0

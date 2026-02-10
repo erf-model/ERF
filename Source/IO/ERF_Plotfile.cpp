@@ -2,6 +2,7 @@
 #include "ERF_SrcHeaders.H"
 #include "ERF_StormDiagnostics.H"
 #include "ERF_TerrainMetrics.H"
+#include "ERF_EpochTime.H"
 
 using namespace amrex;
 
@@ -103,7 +104,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     //
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing) ||
+            bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing || solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ||
                                (derived_names[i] != "terrain_IB_mask") );
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
                                (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
@@ -330,7 +331,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     //     because we don't need to set interior fine points.
     // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
 
-    // Level 0 FilLPatch
+    // Level 0 FillPatch
     FillPatchCrseLevel(0, t_new[0], {&vars_new[0][Vars::cons], &vars_new[0][Vars::xvel],
                        &vars_new[0][Vars::yvel], &vars_new[0][Vars::zvel]});
 
@@ -544,6 +545,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {
+        // Make sure getPgivenRTh and getTgivenRandRTh don't fail
+        if (check_for_nans) {
+            check_for_negative_theta(vars_new[lev][Vars::cons]);
+        }
+
         int mf_comp = 0;
 
         BoxArray ba(vars_new[lev][Vars::cons].boxArray());
@@ -1294,18 +1300,6 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                     MultiFab::Copy(mf[lev],*(qmoist[lev][3]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
-                if (containerHasElement(plot_var_names, "qv_sdm")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][1]),0,mf_comp,1,0);
-                    mf_comp += 1;
-                }
-                if (containerHasElement(plot_var_names, "qc_sdm")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][2]),0,mf_comp,1,0);
-                    mf_comp += 1;
-                }
-                if (containerHasElement(plot_var_names, "qrain_sdm")) {
-                    MultiFab::Copy(mf[lev],*(qmoist[lev][4]),0,mf_comp,1,0);
-                    mf_comp += 1;
-                }
             }
 
             if (containerHasElement(plot_var_names, "reflectivity")) {
@@ -1748,16 +1742,27 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     std::string plotfilenameU;
     std::string plotfilenameV;
     std::string plotfilenameW;
+
     if (which == 1) {
-       plotfilename = Concatenate(plot3d_file_1, istep[0], 5);
-       plotfilenameU = Concatenate(plot3d_file_1+"U", istep[0], 5);
-       plotfilenameV = Concatenate(plot3d_file_1+"V", istep[0], 5);
-       plotfilenameW = Concatenate(plot3d_file_1+"W", istep[0], 5);
+       if (use_real_time_in_pltname) {
+           const std::string dt_format = "%Y-%m-%d_%H:%M:%S"; // ISO 8601 standard
+           plotfilename = plot3d_file_1+"_"+getTimestamp(start_time+t_new[0], dt_format,false);
+       } else {
+           plotfilename  = Concatenate(plot3d_file_1, istep[0], file_name_digits);
+       }
+       plotfilenameU = Concatenate(plot3d_file_1+"U", istep[0], file_name_digits);
+       plotfilenameV = Concatenate(plot3d_file_1+"V", istep[0], file_name_digits);
+       plotfilenameW = Concatenate(plot3d_file_1+"W", istep[0], file_name_digits);
     } else if (which == 2) {
-       plotfilename = Concatenate(plot3d_file_2, istep[0], 5);
-       plotfilenameU = Concatenate(plot3d_file_2+"U", istep[0], 5);
-       plotfilenameV = Concatenate(plot3d_file_2+"V", istep[0], 5);
-       plotfilenameW = Concatenate(plot3d_file_2+"W", istep[0], 5);
+       if (use_real_time_in_pltname) {
+           const std::string dt_format = "%Y-%m-%d_%H:%M:%S"; // ISO 8601 standard
+           plotfilename = plot3d_file_2+"_"+getTimestamp(start_time+t_new[0], dt_format,false);
+       } else {
+           plotfilename  = Concatenate(plot3d_file_2, istep[0], file_name_digits);
+       }
+       plotfilenameU = Concatenate(plot3d_file_2+"U", istep[0], file_name_digits);
+       plotfilenameV = Concatenate(plot3d_file_2+"V", istep[0], file_name_digits);
+       plotfilenameW = Concatenate(plot3d_file_2+"W", istep[0], file_name_digits);
     }
 
     // LSM writes it's own data
@@ -2177,6 +2182,11 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     // **********************************************************************************************
     for (int lev = 0; lev <= finest_level; ++lev)
     {
+        // Make sure getPgivenRTh and getTgivenRandRTh don't fail
+        if (check_for_nans) {
+            check_for_negative_theta(vars_new[lev][Vars::cons]);
+        }
+
         int mf_comp = 0;
 
         // Set all components to zero in case they aren't defined below
@@ -2405,9 +2415,9 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 {
                     const Box& bx = mfi.tilebox();
                     const auto& derdat = mf[lev].array(mfi);
-                    const auto& ustar  = m_SurfaceLayer[Orientation(Direction::z,Orientation::low)]->get_t_surf(lev)->const_array(mfi);
+                    const auto& tsurf  = m_SurfaceLayer[Orientation(Direction::z,Orientation::low)]->get_t_surf(lev)->const_array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                       derdat(i, j, k, mf_comp) = ustar(i, j, 0);
+                       derdat(i, j, k, mf_comp) = tsurf(i, j, 0);
                     });
                 }
             } else {
@@ -2517,10 +2527,10 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         } // laten_flux
 
         if (containerHasElement(plot_var_names, "surf_pres")) {
+            bool moist = (solverChoice.moisture_type != MoistureType::None);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            bool moist = (solverChoice.moisture_type != MoistureType::None);
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
@@ -2536,13 +2546,22 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp++;
         } // surf_pres
 
+        if (containerHasElement(plot_var_names, "integrated_qv")) {
+            MultiFab mf_qv_int(mf[lev],make_alias,mf_comp,1);
+            if (solverChoice.moisture_type != MoistureType::None) {
+                volWgtColumnSum(lev, vars_new[lev][Vars::cons], RhoQ1_comp, mf_qv_int, *detJ_cc[lev]);
+            } else {
+                mf_qv_int.setVal(0.);
+            }
+            mf_comp++;
+        }
     } // lev
 
     std::string plotfilename;
     if (which == 1) {
-       plotfilename = Concatenate(plot2d_file_1, istep[0], 5);
+       plotfilename = Concatenate(plot2d_file_1, istep[0], file_name_digits);
     } else if (which == 2) {
-       plotfilename = Concatenate(plot2d_file_2, istep[0], 5);
+       plotfilename = Concatenate(plot2d_file_2, istep[0], file_name_digits);
     }
 
     Vector<Geometry> my_geom(finest_level+1);

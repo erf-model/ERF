@@ -156,6 +156,13 @@ public:
         m_moist_model[a_lev]->Set_dzmin(dz_min);
     }
 
+    /*! \brief Populates real_width in micro model for box limiting */
+    virtual void Set_RealWidth (const int a_lev,
+                                const int real_width) const override
+    {
+        m_moist_model[a_lev]->Set_RealWidth(real_width);
+    }
+
 protected:
 
     /*! \brief Create and set the specified moisture model */

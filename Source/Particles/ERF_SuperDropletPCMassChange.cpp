@@ -8,6 +8,7 @@
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using namespace SDPCDefn;
 using namespace SDMassChangeUtils;
 
 /*! Compute mass change of particles due to evaporation and condensation */
@@ -73,7 +74,6 @@ void SuperDropletPC::MassChange ( int                                         a_
         auto* active_ptr = soa.GetIntData(rtoff_i+SuperDropletsIntIdxSoA_RT::active).data();
         int rtoff_r = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* mult_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
         auto* condt_ptr = soa.GetRealData(rtoff_r+SuperDropletsRealIdxSoA_RT::cond_tendency).data();
 #endif
@@ -169,8 +169,7 @@ void SuperDropletPC::MassChange ( int                                         a_
                                                                           m_newton_rtol,
                                                                           m_newton_atol,
                                                                           m_newton_stol,
-                                                                          m_newton_maxits,
-                                                                          false };
+                                                                          m_newton_maxits };
 
         Gpu::Buffer<Long> unconverged_particles({0});
         auto* unconverged_particles_ptr = unconverged_particles.data();

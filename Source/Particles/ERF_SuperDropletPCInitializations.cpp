@@ -5,6 +5,7 @@
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using namespace SDPCDefn;
 
 /*! Add super-droplet method-specific attributes to particles */
 void SuperDropletPC::add_superdroplet_attributes()
@@ -14,7 +15,7 @@ void SuperDropletPC::add_superdroplet_attributes()
     for (int i = 0; i < SuperDropletsIntIdxSoA_RT::ncomps; i++) {
         AddIntComp(communicate_this_comp);
     }
-    Print() << "SuperDropletPC(" << m_name << "): added " << SuperDropletsIntIdxSoA_RT::ncomps << " int-type attibute(s).\n";
+    Print() << "SuperDropletPC(" << m_name << "): added " << SuperDropletsIntIdxSoA_RT::ncomps << " int-type attribute(s).\n";
     int count(0);
     for (int i = 0; i < SuperDropletsRealIdxSoA_RT::ncomps; i++) {
         AddRealComp(communicate_this_comp);
@@ -28,7 +29,7 @@ void SuperDropletPC::add_superdroplet_attributes()
         AddRealComp(communicate_this_comp);
         count++;
     }
-    Print() << "SuperDropletPC(" << m_name << "): added " << count << " real-type attibute(s).\n";
+    Print() << "SuperDropletPC(" << m_name << "): added " << count << " real-type attribute(s).\n";
     return;
 }
 
@@ -110,7 +111,7 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
 
     if (pp.contains("recycle_threshold")) {
         char err_msg[100];
-        sprintf(err_msg, "Use \"inactive_threshold\" instead of \"recycle_threshold\"");
+        snprintf(err_msg, sizeof(err_msg), "Use \"inactive_threshold\" instead of \"recycle_threshold\"");
         amrex::Abort(err_msg);
     }
     pp.query("inactive_threshold", m_deac_threshold);
@@ -181,7 +182,7 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
         m_initializations[i] = std::make_unique<SDInitialization>();
         m_initializations[i]->setDefaults(Geom(0), m_species_mat,m_aerosol_mat);
 
-        char i_str[12]; sprintf(i_str, "%d", i);
+        char i_str[12]; snprintf(i_str, sizeof(i_str), "%d", i);
         std::string prefix = m_name + "." + std::string(i_str);
         m_initializations[i]->readInputs(m_name, Geom(0), m_species_mat, m_aerosol_mat);
         m_initializations[i]->readInputs(prefix, Geom(0), m_species_mat, m_aerosol_mat);
@@ -194,7 +195,7 @@ void SuperDropletPC::readInputs (const amrex::Real a_dt)
         m_injections[i] = std::make_unique<SDInjection>();
         m_injections[i]->setDefaults(Geom(0), m_species_mat,m_aerosol_mat);
 
-        char i_str[12]; sprintf(i_str, "%d", i);
+        char i_str[12]; snprintf(i_str, sizeof(i_str), "%d", i);
         std::string str = m_name + ".injection";
         std::string prefix = str + "." + std::string(i_str);
         m_injections[i]->readInputs(str, Geom(0), m_species_mat, m_aerosol_mat, a_dt);
@@ -357,7 +358,7 @@ void SuperDropletPC::InjectParticles (const Real a_t, const MFPtr& a_ptr, const 
     Given the condensate mass density, we compute the mass of condensate per super-droplet from
     the mass per cell and the number of super-droplets per cell. We vary the multiplicity by a
     random amount for each super-droplet. The mass per physical particle is then computed from the
-    mass per super-droplet and the multiplicity. The equivalent radius is then comptued from the
+    mass per super-droplet and the multiplicity. The equivalent radius is then computed from the
     particle mass and the density of condensate. */
 void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of condensate */)
 {

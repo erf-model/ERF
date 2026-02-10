@@ -17,13 +17,8 @@ using namespace amrex;
  * Stores this information in both host and device vectors
  * so it is available for GPU kernels.
  */
-void ERF::init_bcs ()
+void ERF::init_phys_bcs (bool& rho_read, bool& read_prim_theta)
 {
-    bool rho_read = false;
-    bool read_prim_theta = true;
-    Vector<Real> cons_dir_init(NBCVAR_max,0.0);
-    cons_dir_init[BCVars::Rho_bc_comp] = 1.0;
-    cons_dir_init[BCVars::RhoTheta_bc_comp] = -1.0;
     auto f = [this,&rho_read,&read_prim_theta] (std::string const& bcid, Orientation ori)
     {
         // These are simply defaults for Dirichlet faces -- they should be over-written below
@@ -287,6 +282,18 @@ void ERF::init_bcs ()
     f("yhi", Orientation(Direction::y,Orientation::high));
     f("zlo", Orientation(Direction::z,Orientation::low));
     f("zhi", Orientation(Direction::z,Orientation::high));
+}
+
+void ERF::init_bcs ()
+{
+    bool rho_read = false;
+    bool read_prim_theta = true;
+
+    init_phys_bcs(rho_read, read_prim_theta);
+
+    Vector<Real> cons_dir_init(NBCVAR_max,0.0);
+    cons_dir_init[BCVars::Rho_bc_comp] = 1.0;
+    cons_dir_init[BCVars::RhoTheta_bc_comp] = -1.0;
 
     // *****************************************************************************
     //

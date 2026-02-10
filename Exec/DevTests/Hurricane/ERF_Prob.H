@@ -58,8 +58,8 @@ public:
         amrex::Array4<amrex::Real const> const& mf_m,
         amrex::Array4<amrex::Real const> const& mf_u,
         amrex::Array4<amrex::Real const> const& mf_v,
-        const SolverChoice& sc) override;
-
+        const SolverChoice& sc,
+        const int lev) override;
 
     void erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
                                   std::unique_ptr<amrex::MultiFab>& z_phys_nd,
@@ -112,7 +112,6 @@ public:
                                         const int& khi);
 
 protected:
-    std::string name () override { return "Supercell"; }
 
 private:
     ProbParm parms;

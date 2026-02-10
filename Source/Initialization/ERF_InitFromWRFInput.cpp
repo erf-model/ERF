@@ -16,12 +16,10 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 
-void
-compute_terrain_top_and_bottom (Real& terrain_bottom_min,
-                                Real& terrain_bottom_max,
-                                Real& terrain_top_min,
-                                Real& terrain_top_max,
-                                const MultiFab& mf_PH,
+#include "ERF_NCWpsFile.H"
+
+Real
+compute_terrain_top_and_bottom (const MultiFab& mf_PH,
                                 const MultiFab& mf_PHB,
                                 const Box& domain);
 
@@ -47,6 +45,30 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                const MultiFab& mf_PB,
                                const MultiFab& mf_P,
                                const bool& use_P_eos);
+
+Real
+read_start_time_from_wrfinput(int lev, const std::string& fname)
+{
+    std::string NC_dateTime;
+    Real        NC_epochTime;
+    if (ParallelDescriptor::IOProcessor()) {
+        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+
+        NC_dateTime = ncf.get_attr("SIMULATION_START_DATE");
+
+        const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
+        NC_epochTime = getEpochTime(NC_dateTime, dateTimeFormat);
+
+        ncf.close();
+
+        amrex::Print() << "Have read start_time string at level "<< lev << " is " << NC_dateTime << std::endl;
+        amrex::Print() << "Have read start_time number at level "<< lev << " is " << NC_epochTime << std::endl;
+    }
+
+    amrex::ParallelDescriptor::Bcast(&NC_epochTime,1,amrex::ParallelDescriptor::IOProcessorNumber());
+
+    return NC_epochTime;
+}
 
 /**
  * ERF function that initializes data from a WRF dataset
@@ -132,7 +154,6 @@ ERF::init_from_wrfinput (int lev,
     // NOTE: Following MFs must have an underlying BA that follows
     //       the shapes in ERF_ReadFromWRFInput.cpp
     //       Most are 3D but MU/MUB are 2D and C1/2H are 1D
-
     MultiFab mf_PH , mf_PHB;         // For geopotential height
     MultiFab mf_ALB, mf_PB , mf_P  ; // For base state
 
@@ -393,6 +414,7 @@ ERF::init_from_wrfinput (int lev,
               var_fab.clear();
           }
 
+          bool lat_periodic = (geom[lev].isPeriodic(0) && geom[lev].isPeriodic(1));
           int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
           int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
 
@@ -575,15 +597,29 @@ ERF::init_from_wrfinput (int lev,
                   Print() << "MAPFAC_U cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1.0);
               }
+              if (lat_periodic) {
+                  Print() << "MAPFAC_U resetting to 1 with lateral periodic BCs!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
               for ( MFIter mfi(*mapfac[lev][MapFacType::u_x], TilingIfNotGPU()); mfi.isValid(); ++mfi )
               {
-                  // Define fabs for holding the initial data
-                  FArrayBox &msf_fab = (*mapfac[lev][MapFacType::u_x])[mfi];
-                  msf_fab.template copy<RunOn::Device>(var_fab);
+                  Box gtbx = mfi.growntilebox();
+                  Box vbx  = mfi.validbox();
+                  int ilo = vbx.smallEnd(0); int ihi = vbx.bigEnd(0);
+                  int jlo = vbx.smallEnd(1); int jhi = vbx.bigEnd(1);
+                  const Array4<      Real>& dst_arr = mapfac[lev][MapFacType::u_x]->array(mfi);
+                  const Array4<const Real>& src_arr = var_fab.const_array();
+                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  {
+                      int li = amrex::min(amrex::max(i, ilo), ihi);
+                      int lj = amrex::min(amrex::max(j, jlo), jhi);
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
+                  });
               }
+              mapfac[lev][MapFacType::u_x]->FillBoundary(geom[lev].periodicity());
           }
 
           // Initialize MapFac V
@@ -593,15 +629,29 @@ ERF::init_from_wrfinput (int lev,
                   Print() << "MAPFAC_V cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1.0);
               }
+              if (lat_periodic) {
+                  Print() << "MAPFAC_V resetting to 1 with lateral periodic BCs!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
               for ( MFIter mfi(*mapfac[lev][MapFacType::v_x], TilingIfNotGPU()); mfi.isValid(); ++mfi )
               {
-                  // Define fabs for holding the initial data
-                  FArrayBox &msf_fab = (*mapfac[lev][MapFacType::v_x])[mfi];
-                  msf_fab.template copy<RunOn::Device>(var_fab);
+                  Box gtbx = mfi.growntilebox();
+                  Box vbx  = mfi.validbox();
+                  int ilo = vbx.smallEnd(0); int ihi = vbx.bigEnd(0);
+                  int jlo = vbx.smallEnd(1); int jhi = vbx.bigEnd(1);
+                  const Array4<      Real>& dst_arr = mapfac[lev][MapFacType::v_x]->array(mfi);
+                  const Array4<const Real>& src_arr = var_fab.const_array();
+                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  {
+                      int li = amrex::min(amrex::max(i, ilo), ihi);
+                      int lj = amrex::min(amrex::max(j, jlo), jhi);
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
+                  });
               }
+              mapfac[lev][MapFacType::v_x]->FillBoundary(geom[lev].periodicity());
           }
 
           // Initialize MapFac M
@@ -611,15 +661,29 @@ ERF::init_from_wrfinput (int lev,
                   Print() << "MAPFAC_M cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1.0);
               }
+              if (lat_periodic) {
+                  Print() << "MAPFAC_M resetting to 1 with lateral periodic BCs!\n";
+                  var_fab.template setVal<RunOn::Device>(1.0);
+              }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
               for ( MFIter mfi(*mapfac[lev][MapFacType::m_x], TilingIfNotGPU()); mfi.isValid(); ++mfi )
               {
-                  // Define fabs for holding the initial data
-                  FArrayBox &msf_fab = (*mapfac[lev][MapFacType::m_x])[mfi];
-                  msf_fab.template copy<RunOn::Device>(var_fab);
+               Box gtbx = mfi.growntilebox();
+                  Box vbx  = mfi.validbox();
+                  int ilo = vbx.smallEnd(0); int ihi = vbx.bigEnd(0);
+                  int jlo = vbx.smallEnd(1); int jhi = vbx.bigEnd(1);
+                  const Array4<      Real>& dst_arr = mapfac[lev][MapFacType::m_x]->array(mfi);
+                  const Array4<const Real>& src_arr = var_fab.const_array();
+                  ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                  {
+                      int li = amrex::min(amrex::max(i, ilo), ihi);
+                      int lj = amrex::min(amrex::max(j, jlo), jhi);
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
+                  });
               }
+              mapfac[lev][MapFacType::m_x]->FillBoundary(geom[lev].periodicity());
           }
 
           if (success) {
@@ -627,6 +691,7 @@ ERF::init_from_wrfinput (int lev,
           }
         } // ivar
         Print() << "\n";
+        have_read_nc_init_file[lev][idx] = 1;
     } // idx
 
     // Convert the velocities using the map factors
@@ -667,14 +732,7 @@ ERF::init_from_wrfinput (int lev,
     if (compute_terrain_here) {
         if (lev == 0) {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-            Real terrain_bottom_min, terrain_bottom_max;
-            Real terrain_top_min, terrain_top_max;
-            compute_terrain_top_and_bottom(terrain_bottom_min, terrain_bottom_max,
-                                           terrain_top_min, terrain_top_max,
-                                           mf_PH, mf_PHB, geom[lev].Domain());
-
-            z_top = 0.5 * (terrain_top_min + terrain_top_max);
-            amrex::Print() << "Warning: ProbHi(2) will be ignored; we are setting top of domain to " << z_top << std::endl;
+            z_top = compute_terrain_top_and_bottom(mf_PH, mf_PHB, geom[lev].Domain());
         } else {
             amrex::Print() << "Warning: using top of domain set at level 0 which is " << z_top << std::endl;
         }
@@ -706,7 +764,7 @@ ERF::init_from_wrfinput (int lev,
         int ncomp = lev_new[Vars::cons].nComp();
         int k_dom_lo = geom[lev].Domain().smallEnd(2);
         int k_dom_hi = geom[lev].Domain().bigEnd(2);
-        Real tol = 1.0e-10;
+        Real tol  = 1.0e-10;
         Real grav = CONST_GRAV;
         for ( MFIter mfi(lev_new[Vars::cons],TileNoZ()); mfi.isValid(); ++mfi ) {
             Box bx  = mfi.tilebox();
@@ -850,7 +908,7 @@ ERF::init_from_wrfinput (int lev,
         }
 
         bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
-                                                   bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                                    start_bdy_time);
 
         // *******************************************************************************************
@@ -860,8 +918,8 @@ ERF::init_from_wrfinput (int lev,
         int ntimes = bdy_data_xlo.size(); ntimes = amrex::min(ntimes, 3);
         for (int itime = 0; itime < ntimes; itime++)
         {
-            read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
-                             bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+            read_from_wrfbdy(itime, nc_bdy_file, geom[0].Domain(),
+                             bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                              real_width);
 
             if (itime == 0) {
@@ -870,15 +928,13 @@ ERF::init_from_wrfinput (int lev,
                         << " and relaxation width: " << real_width - real_set_width << std::endl;
             }
 
-            convert_all_wrfbdy_data(itime, geom[lev].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+            convert_all_wrfbdy_data(itime, geom[lev].Domain(),
+                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                     mf_MUB_lev, mf_C1H_lev, mf_C2H_lev,
                                     lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                     geom[lev], use_moist);
         } // itime
-    } // use_real_bcs && lev == 0
 
-    if (solverChoice.use_real_bcs)
-    {
         //
         // Start at the earliest time (read_from_wrfbdy)
         // Note we only have start_bdy_time if at level 0 and init_type == InitType::WRFInput or InitType::Metgrid
@@ -894,7 +950,7 @@ ERF::init_from_wrfinput (int lev,
             t_new[lev] = t_new[0];
             t_old[lev] = t_old[0];
         }
-    } // use_real_bcs
+    } // use_real_bcs && (lev == 0)
 
     // *******************************************************************************************
     // Initialize the low data if available
@@ -920,7 +976,7 @@ ERF::init_from_wrfinput (int lev,
                            sst_lev[lev], tsk_lev[lev],
                            m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
                            lev_new[Vars::cons], *mf_PSFC[lev],
-                           l_rdOcp, use_moist);
+                           l_rdOcp, lmask_lev[lev][0], use_moist);
         }
     } // lev == 0 && nc_low_file exists
 }
@@ -997,7 +1053,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
             //       We want domain GCs and FB picks up interior GCs
             if (tbx.contains(i,j,k)) {
                 if ( (DelP > 1.0) || (DelP/Ptot > 1e-6) ) {
-                    printf("p (%i, %i, %i): %e; p_eos: %e; (qv = %e, rho = %e, rT = %e) \n",
+                    AMREX_DEVICE_PRINTF("p (%i, %i, %i): %e; p_eos: %e; (qv = %e, rho = %e, rT = %e) \n",
                            i, j, k, Ptot, P_eos, Qv, cons_arr(ii,jj,kk,Rho_comp), RT);
                     amrex::Abort("Initial state is inconsistent with EOS!?");
                 }
@@ -1025,15 +1081,13 @@ init_base_state_from_wrfinput (const Box& subdomain,
  * @param NC_PH_fab  Vector of FArrayBox objects storing WRF terrain coordinate data (PH)
  * @param NC_PHB_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PHB)
  */
-void
-compute_terrain_top_and_bottom (Real& terrain_bottom_min,
-                                Real& terrain_bottom_max,
-                                Real& terrain_top_min,
-                                Real& terrain_top_max,
-                                const MultiFab& mf_PH,
+Real
+compute_terrain_top_and_bottom (const MultiFab& mf_PH,
                                 const MultiFab& mf_PHB,
                                 const Box& domain)
 {
+    Real z_top;
+
     //
     // For the bottom/top boundary (in that order)
     //
@@ -1041,8 +1095,8 @@ compute_terrain_top_and_bottom (Real& terrain_bottom_min,
     Gpu::DeviceVector<Real> Max_d(3);
     Gpu::copy(Gpu::hostToDevice, Max_h.begin(), Max_h.end(), Max_d.begin());
 
-    Gpu::HostVector  <Real> Min_h(1, 1.0e16);
-    Gpu::DeviceVector<Real> Min_d(1);
+    Gpu::HostVector  <Real> Min_h(2, 1.0e16);
+    Gpu::DeviceVector<Real> Min_d(2);
     Gpu::copy(Gpu::hostToDevice, Min_h.begin(), Min_h.end(), Min_d.begin());
 
     Real* min_d = Min_d.data();
@@ -1060,7 +1114,6 @@ compute_terrain_top_and_bottom (Real& terrain_bottom_min,
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for ( MFIter mfi(mf_PH, TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-
         Box vbx = mfi.validbox();
 
         Box nodal_box = amrex::surroundingNodes(vbx);
@@ -1112,6 +1165,7 @@ compute_terrain_top_and_bottom (Real& terrain_bottom_min,
                                       phb(ii,jj  ,khi) + phb(ii-1,jj  ,khi) +
                                       phb(ii,jj-1,khi) + phb(ii-1,jj-1,khi) ) / CONST_GRAV;
             amrex::Gpu::Atomic::Max(&(max_d[1]),z_calc_hi);
+            amrex::Gpu::Atomic::Min(&(min_d[1]),z_calc_hi);
         });
 
         //
@@ -1133,18 +1187,34 @@ compute_terrain_top_and_bottom (Real& terrain_bottom_min,
     Gpu::copy(Gpu::deviceToHost, Max_d.begin(), Max_d.end(), Max_h.begin());
 
     ParallelDescriptor::ReduceRealMin(Min_h[0]);
+    ParallelDescriptor::ReduceRealMin(Min_h[1]);
 
     ParallelDescriptor::ReduceRealMax(Max_h[0]);
     ParallelDescriptor::ReduceRealMax(Max_h[1]);
     ParallelDescriptor::ReduceRealMax(Max_h[2]);
 
-    terrain_bottom_max = Max_h[0];
-    terrain_bottom_min = Min_h[0];
-    terrain_top_max    = Max_h[1];
-    terrain_top_min    = Max_h[2];
+    Real terrain_bottom_max = Max_h[0];
+    Real terrain_bottom_min = Min_h[0];
+    Real terrain_top_max    = Max_h[1];
+    Real terrain_top_min    = Min_h[1];
+    Real terrain_km1_max    = Max_h[2];
 
-    Print() << "Terrain     has min value = " << terrain_bottom_min << " and max value = " << terrain_bottom_max << std::endl;
-    Print() << "Top of mesh has min value = " << terrain_top_min    << " and max value = " << terrain_top_max << std::endl;
+    Print() << "Terrain     has min value    = " << terrain_bottom_min << " and max value = " << terrain_bottom_max << std::endl;
+    Print() << "Top of mesh has min value    = " << terrain_top_min    << " and max value = " << terrain_top_max << std::endl;
+
+    // Average the top nodes to define a flat surface at the top
+    z_top = 0.5 * (terrain_top_min + terrain_top_max);
+
+    // If this creates a case where z_k < z_{k-1} then we do what we used to do
+    if (terrain_km1_max > z_top) {
+        amrex::Print() << "Max of second-to-highest row = " << terrain_km1_max <<
+                          " which is greater than average of top row so defaulting to alternate approach " << std::endl;
+        z_top = 0.5 * (terrain_km1_max + terrain_top_max);
+    }
+
+    amrex::Print() << "Warning: ProbHi(2) will be ignored; we are setting top of domain to " << z_top << std::endl;
+
+    return z_top;
 }
 
 /**
@@ -1175,7 +1245,7 @@ init_terrain_from_wrfinput (int /*lev*/,
         // PHB and PH are on z-faces (0.5 dx/y ahead of zphys)
         Box z_face_box = convert(subdomain,IntVect(0,0,1));
 
-        // Prevent averaging from going into domain ghost cells
+        // Prevent averaging from going into ghost cells
         int ilo = z_face_box.smallEnd()[0] + 1;
         int ihi = z_face_box.bigEnd()[0];
         int jlo = z_face_box.smallEnd()[1] + 1;
@@ -1187,6 +1257,7 @@ init_terrain_from_wrfinput (int /*lev*/,
         {
             int ii = std::max(std::min(i,ihi),ilo);
             int jj = std::max(std::min(j,jhi),jlo);
+
             if (k < klo) {
                 Real z_klo   =  0.25 * ( nc_ph_arr (ii,jj  ,klo  ) + nc_ph_arr (ii-1,jj  ,klo  ) +
                                          nc_ph_arr (ii,jj-1,klo  ) + nc_ph_arr (ii-1,jj-1,klo) +
@@ -1204,6 +1275,10 @@ init_terrain_from_wrfinput (int /*lev*/,
                                          nc_phb_arr(ii,jj-1,khi-1) + nc_phb_arr(ii-1,jj-1,khi-1) ) / CONST_GRAV;
                 z_arr(i, j, k) = 2.0 * z_top - z_khim1;
             } else if (k == khi) {
+                z_arr(i, j, k) = 0.25 * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
+                                          nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
+                                          nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
+                                          nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
                 z_arr(i, j, k) = z_top;
             } else {
                 // Note: wrfinput geopotentials ph, phb are only staggered in the vertical, i.e.,

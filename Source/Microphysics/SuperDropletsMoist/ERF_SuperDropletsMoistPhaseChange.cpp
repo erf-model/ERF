@@ -3,12 +3,29 @@
 
 #ifdef ERF_USE_PARTICLES
 
-/*! Compute phase change for a timestep: shrink/grow the super-droplet particles
-    for a timestep, depending on the ambient flow conditions (saturation ratio,
-    saturation pressure, and temperature). Update the Eulerial vapour and condensate
-    mixing ratios accordingly. */
-void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
-                                       const Vector<std::unique_ptr<MultiFab>>& a_z, /*!< terrain */
+using namespace amrex;
+
+/*! \brief Compute phase change for a timestep
+ *
+ * Shrink/grow the super-droplet particles for a timestep, depending on the ambient
+ * flow conditions (saturation ratio, saturation pressure, and temperature).
+ * This function handles all species defined in the model and updates the
+ * Eulerian vapor and condensate mixing ratios accordingly.
+ *
+ * For each species, this function:
+ * 1. Computes saturation pressure based on temperature
+ * 2. Computes saturation ratio
+ * 3. Computes phase change for all particles
+ * 4. Updates condensate mixing ratio
+ * 5. Updates vapor mixing ratio if requested
+ * 6. Updates temperature and pressure fields to account for latent heat
+ *
+ * \param[in] a_dt Timestep size
+ * \param[in] a_z Array containing terrain height information
+ * \param[in] a_update_qv Flag to enable updating vapor mixing ratio
+ */
+void SuperDropletsMoist::phaseChange ( const Real& a_dt,
+                                       const Vector<std::unique_ptr<MultiFab>>& a_z,
                                        const bool a_update_qv )
 {
     BL_PROFILE("SuperDropletsMoist::phaseChange()");

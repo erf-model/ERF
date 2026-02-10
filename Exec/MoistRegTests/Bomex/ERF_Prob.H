@@ -84,7 +84,8 @@ public:
         amrex::Array4<amrex::Real const> const& mf_m,
         amrex::Array4<amrex::Real const> const& mf_u,
         amrex::Array4<amrex::Real const> const& mf_v,
-        const SolverChoice& sc) override;
+        const SolverChoice& sc,
+        const int lev) override;
 
     void update_rhotheta_sources (
         const amrex::Real& /*time*/,
@@ -116,7 +117,6 @@ public:
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
 protected:
-    std::string name () override { return "BOMEX"; }
 
 private:
     ProbParm parms;

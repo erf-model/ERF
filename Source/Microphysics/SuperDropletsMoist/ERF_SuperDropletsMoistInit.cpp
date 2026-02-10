@@ -1,17 +1,39 @@
+#ifndef _WIN32
 #include <sys/time.h>
+#endif
 #include "ERF_SuperDropletsMoist.H"
 #include "ERF_MaterialProperties.H"
 
 #ifdef ERF_USE_PARTICLES
 
-/*! Define the super-droplet moisture model parameters from provided inputs */
-void SuperDropletsMoist::Define (SolverChoice& a_sc /*!< Solver choices */)
+using namespace amrex;
+
+/*! \brief Define the super-droplet moisture model parameters from provided inputs
+ *
+ * This function initializes basic model parameters from the solver choices object.
+ * Currently it only sets the specific heat capacity (Cp) from the solver choices.
+ *
+ * \param[in] a_sc Solver choices containing model configuration parameters
+ */
+void SuperDropletsMoist::Define (SolverChoice& a_sc)
 {
     BL_PROFILE("SuperDropletsMoist::Define()");
     m_Cp = a_sc.c_p;
 }
 
-/*! Read inputs from file */
+/*! \brief Read model configuration parameters from input file
+ *
+ * This function reads all configuration parameters for the SuperDropletsMoist
+ * model from the input file. Parameters include:
+ * - Model flags (phase change, advection, coalescence)
+ * - Initial distribution type
+ * - Rain threshold radius
+ * - Model modes (kinematic mode, dimensionality)
+ * - Particle recycling options
+ * - Species and aerosol definitions
+ * - Diagnostic and output options
+ * - Phase change parameters
+ */
 void SuperDropletsMoist::readInputs ()
 {
     BL_PROFILE("SuperDropletsMoist::readInputs");
@@ -97,12 +119,24 @@ void SuperDropletsMoist::readInputs ()
     return;
 }
 
-/*! Initializes the super-droplet moisture model: allocates the moisture model
-    variables Multifabs and the super-droplet particle container. */
-void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved variables */
-                                const BoxArray&,                /*!< Grids */
-                                const Geometry&   a_geom,       /*!< Computational domain */
-                                const Real&       a_dt,         /*!< Timestep */
+/*! \brief Initialize the super-droplet moisture model
+ *
+ * Allocates the moisture model variable MultiFabs and creates the
+ * super-droplet particle container. This function sets up:
+ * 1. The mapping between moisture variable indices and internal arrays
+ * 2. MultiFabs for all moisture model variables
+ * 3. The SuperDropletPC particle container
+ *
+ * After initialization, it prints configuration summary to output.
+ *
+ * \param[in] a_cons_vars Conserved variables MultiFab
+ * \param[in] a_geom Geometry information for computational domain
+ * \param[in] a_dt Timestep size
+ */
+void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,
+                                const BoxArray&,
+                                const Geometry&   a_geom,
+                                const Real&       a_dt,
                                 MFPtr&,
                                 MFPtr& )
 {
@@ -162,9 +196,18 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
 
 }
 
-/*! Initializes particles in the super-droplet moisture model: if not a restart run, initialize the particles
- *  in the particle container for the super-droplets. */
-void SuperDropletsMoist::InitParticles ( MFPtr& a_z_phys_nd /*!< terrain */)
+/*! \brief Initialize particles in the super-droplet moisture model
+ *
+ * If this is not a restart run, this function initializes the particles
+ * in the particle container for the super-droplets. The initialization
+ * depends on the configured initialization type:
+ * - For condensate_density: Initially creates particles with uniform distribution,
+ *   which will be updated later during FinishInit() based on condensate density
+ * - For other types: Initializes particles directly with the configured distribution
+ *
+ * \param[in] a_z_phys_nd MultiFab containing terrain height information
+ */
+void SuperDropletsMoist::InitParticles ( MFPtr& a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletsMoist::InitParticles()");
 
@@ -184,17 +227,31 @@ void SuperDropletsMoist::InitParticles ( MFPtr& a_z_phys_nd /*!< terrain */)
     }
 }
 
-/*! Restarts particles in the super-droplet moisture model */
-void SuperDropletsMoist::RestartParticles ( ParGDBBase*, const std::string& a_fname )
+/*! \brief Restart particles in the super-droplet moisture model from checkpoint file
+ *
+ * This function restarts superdroplet particles from a checkpoint file.
+ * It performs the following operations:
+ * 1. Reads particle data from the specified restart file
+ * 2. Redistributes particles to appropriate processors/grids
+ * 3. Measures and reports the time taken to perform the restart
+ * 4. Outputs statistics about the restarted particle population
+ *
+ * \param[in] a_gdb Unused particle grid database pointer
+ * \param[in] a_fname File name for the checkpoint file to restart from
+ */
+void SuperDropletsMoist::RestartParticles ( ParGDBBase* /* a_gdb */, const std::string& a_fname )
 {
     BL_PROFILE("SuperDropletsMoist::RestartParticles()");
 
     amrex::Print() << "Reading in " << m_name << " particle data from restart file.\n";
 
+#ifndef _WIN32
     struct timeval total_start, total_end;
     gettimeofday(&total_start, NULL);
+#endif
     m_super_droplets->Restart(a_fname, m_name);
     m_super_droplets->Redistribute();
+#ifndef _WIN32
     gettimeofday(&total_end,NULL);
     long long total_wtime;
     total_wtime = (   (total_end.tv_sec   * 1000000 + total_end.tv_usec  )
@@ -203,6 +260,9 @@ void SuperDropletsMoist::RestartParticles ( ParGDBBase*, const std::string& a_fn
     ParallelDescriptor::ReduceRealMax( &total_wtime_sec,
                                        1,
                                        ParallelDescriptor::IOProcessorNumber() );
+#else
+    Real total_wtime_sec = 0.0;
+#endif
 
     amrex::Print() << "Restarted "
                    << m_super_droplets->NumSuperDroplets()
@@ -212,12 +272,24 @@ void SuperDropletsMoist::RestartParticles ( ParGDBBase*, const std::string& a_fn
                    << "(" << total_wtime_sec << " seconds).\n";
 }
 
-/*! Finish any initializations that depend on the conserved state variables
-    that were not available during Init(); also, overwrite the rhoq2 component
-    with the quantity computed from the this model. */
+/*! \brief Complete initialization using now-available state variables
+ *
+ * This function finalizes initialization steps that depend on conserved state
+ * variables that were not available during Init(). It performs:
+ * 1. Particle density scaling based on air density
+ * 2. For condensate_density initialization type: sets particle attributes from condensate density
+ * 3. For other initialization types: optionally performs initial phase change relaxation
+ * 4. Computes cloud/rain water and total water content for all species
+ * 5. Updates the rhoq2 component in conserved variables with computed cloud water
+ * 6. Runs initial diagnostics for superdroplets
+ *
+ * \param[in] a_lev Unused AMR level parameter
+ * \param[in,out] a_cons_vars Conserved variables MultiFab to be updated
+ * \param[in] a_z_phys_nd Vector of MultiFabs containing terrain information
+ */
 void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
-                                     MultiFab& a_cons_vars, /*!< Conserved variables */
-                                     const Vector<MFPtr>& a_z_phys_nd /*!< terrain */)
+                                     MultiFab& a_cons_vars,
+                                     const Vector<MFPtr>& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::FinishInit()");
     m_super_droplets->DensityScaling(*(m_mic_fab_vars[MicVar_SD::rho]));

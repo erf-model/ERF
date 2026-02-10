@@ -12,9 +12,13 @@ using namespace amrex;
 */
 
 #ifdef ERF_USE_NETCDF
-Box
-read_subdomain_from_wrfinput (int lev, const std::string& fname, int& ratio);
+Box read_subdomain_from_wrfinput (int lev, const std::string& fname, int& ratio);
+Real read_start_time_from_wrfinput (int lev, const std::string& fname);
 #endif
+
+void
+tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
+                         const Real eye_x, const Real eye_y, const Real rad_tag);
 
 void
 ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
@@ -22,56 +26,87 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     const int clearval = TagBox::CLEAR;
     const int   tagval = TagBox::SET;
 
-
 #ifdef ERF_USE_NETCDF
     if (solverChoice.init_type == InitType::WRFInput) {
         int ratio;
         Box subdomain;
-        if (!nc_init_file[levc+1].empty()) {
-            amrex::Print() << "WRFIinput file to read: " << nc_init_file[levc+1][0] << std::endl;
-            subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][0], ratio);
-            amrex::Print() << " WRFInput subdomain at level " << levc+1 << " is " << subdomain << std::endl;
-        }
 
-        if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
-            amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
-            amrex::Print() << "The inputs file has refinement ratio = " << ref_ratio[levc] << std::endl;
-            amrex::Abort("These must be the same -- please edit your inputs file and try again.");
-        }
+        if (!nc_init_file[levc+1].empty())
+        {
+            Real levc_start_time = read_start_time_from_wrfinput(levc  , nc_init_file[levc  ][0]);
+            amrex::Print() << " WRFInput       time at level " << levc << " is " << levc_start_time << std::endl;
 
-        if ( (ref_ratio[levc][2]) != 1) {
-            amrex::Abort("The ref_ratio specified in the inputs file must have 1 in the z direction; please use ref_ratio_vect rather than ref_ratio");
-        }
+            for (int isub = 0; isub < nc_init_file[levc+1].size(); isub++) {
+                if (!have_read_nc_init_file[levc+1][isub])
+                {
+                    Real levf_start_time = read_start_time_from_wrfinput(levc+1, nc_init_file[levc+1][isub]);
+                    amrex::Print() << " WRFInput start_time at level " << levc+1 << " is " << levf_start_time << std::endl;
 
-        subdomain.coarsen(IntVect(ratio,ratio,1));
+                    // We assume there is only one subdomain at levc; otherwise we don't know
+                    //     which one is the parent of the fine region we are trying to create
+                    AMREX_ALWAYS_ASSERT(subdomains[levc].size() == 1);
 
-        // We assume there is only one subdomain at levc; otherwise we don't know
-        //     which one is the parent of the fine region we are trying to create
-        AMREX_ALWAYS_ASSERT(subdomains[levc].size() == 1);
+                    if ( (ref_ratio[levc][2]) != 1) {
+                        amrex::Abort("The ref_ratio specified in the inputs file must have 1 in the z direction; please use ref_ratio_vect rather than ref_ratio");
+                    }
 
-        Box coarser_level(subdomains[levc][0].minimalBox());
-        subdomain.shift(coarser_level.smallEnd());
+                    if ( levf_start_time <= (levc_start_time + t_new[levc]) ) {
+                        amrex::Print() << " WRFInput file to read: " << nc_init_file[levc+1][isub] << std::endl;
+                        subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][isub], ratio);
+                        amrex::Print() << " WRFInput subdomain " << isub << " at level " << levc+1 << " is " << subdomain << std::endl;
 
-        if (verbose > 0) {
-            amrex::Print() << " Crse subdomain to be tagged is" << subdomain << std::endl;
-        }
+                        if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
+                            amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
+                            amrex::Print() << "The inputs file has refinement ratio = " << ref_ratio[levc] << std::endl;
+                            amrex::Abort("These must be the same -- please edit your inputs file and try again.");
+                        }
 
-        Box new_fine(subdomain); new_fine.refine(IntVect(ratio,ratio,1));
-        num_boxes_at_level[levc+1] = 1;
-        boxes_at_level[levc+1].push_back(new_fine);
+                        subdomain.coarsen(IntVect(ratio,ratio,1));
 
-        for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
-            auto tag_arr = tags.array(mfi);  // Get device-accessible array
+                        Box coarser_level(subdomains[levc][isub].minimalBox());
+                        subdomain.shift(coarser_level.smallEnd());
 
-            Box bx = mfi.validbox(); bx &= subdomain;
+                        if (verbose > 0) {
+                            amrex::Print() << " Crse subdomain to be tagged is" << subdomain << std::endl;
+                        }
 
-            if (!bx.isEmpty()) {
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                    tag_arr(i,j,k) = TagBox::SET;
-                });
-            }
-        }
-        return;
+                        Box new_fine(subdomain); new_fine.refine(IntVect(ratio,ratio,1));
+                        num_boxes_at_level[levc+1] = 1;
+                        boxes_at_level[levc+1].push_back(new_fine);
+
+                        for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
+                            auto tag_arr = tags.array(mfi);  // Get device-accessible array
+
+                            Box bx = mfi.validbox(); bx &= subdomain;
+
+                            if (!bx.isEmpty()) {
+                                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                                    tag_arr(i,j,k) = TagBox::SET;
+                                });
+                            }
+                        }
+                    } // time is right
+                } else {
+                    // Re-tag this region
+                    for (MFIter mfi(tags); mfi.isValid(); ++mfi)
+                    {
+                        auto tag_arr = tags.array(mfi);  // Get device-accessible array
+
+                        Box existing_bx_coarsened(boxes_at_level[levc+1][isub]);
+                        existing_bx_coarsened.coarsen(ref_ratio[levc]);
+
+                        Box bx = mfi.validbox(); bx &= existing_bx_coarsened;
+
+                        if (!bx.isEmpty()) {
+                            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                                tag_arr(i,j,k) = TagBox::SET;
+                            });
+                        }
+                    }
+                } // has file been read?
+            } // isub
+            return;
+        } // file not empty
     }
 #endif
 
@@ -91,7 +126,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         FillPatchFineLevel(levc, time, {&S_new, &U_new, &V_new, &W_new},
                            {&S_new, &rU_new[levc], &rV_new[levc], &rW_new[levc]},
                            base_state[levc], base_state[levc],
-                              false, true);
+                           false, true);
     }
 
     for (int j=0; j < ref_tags.size(); ++j)
@@ -100,6 +135,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         // This mf must have ghost cells because we may take differences between adjacent values
         //
         std::unique_ptr<MultiFab> mf = std::make_unique<MultiFab>(grids[levc], dmap[levc], 1, 1);
+        mf->setVal(0.0);
 
         // This allows dynamic refinement based on the value of the density
         if (ref_tags[j].Field() == "density")
@@ -156,22 +192,41 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     (ref_tags[j].Field() == "terrain_blanking") )
         {
             MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,1);
-        } else if (ref_tags[j].Field() == "velmag") {
-            mf->setVal(0.0);
+        }
+        else if (ref_tags[j].Field() == "velmag")
+        {
             ParmParse pp(pp_prefix);
             Vector<std::string> refinement_indicators;
             pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
-            Real velmag_threshold = 1e10;
+            Real velmag_threshold;
+            bool is_hurricane_tracker = false;
             for (int i=0; i<refinement_indicators.size(); ++i)
             {
-                if(refinement_indicators[i]=="hurricane_tracker"){
+                if (refinement_indicators[i]=="hurricane_tracker") {
+                    is_hurricane_tracker = true;
                     std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
                     ParmParse ppr(ref_prefix);
-                    ppr.get("value_greater",velmag_threshold);
+                    ppr.get("value_greater", velmag_threshold);
                     break;
                 }
             }
-            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, false, &tags);
+
+            Vector<MultiFab> mf_cc_vel(1);
+            mf_cc_vel[0].define(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
+            average_face_to_cellcenter(mf_cc_vel[0],0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new});
+
+            if (is_hurricane_tracker) {
+                HurricaneTracker(levc, time, mf_cc_vel[0], velmag_threshold, &tags);
+            } else {
+                for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    auto& dfab = (*mf)[mfi];
+                    auto& sfab = mf_cc_vel[0][mfi];
+                    derived::erf_dermagvel(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
+                }
+            }
+
 #ifdef ERF_USE_PARTICLES
         } else {
             //
@@ -213,6 +268,48 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         ref_tags[j](tags,mf.get(),clearval,tagval,time,levc,geom[levc]);
     } // loop over j
+
+    // ********************************************************************************************
+    // Refinement based on 2d distance from the "eye" which is defined here as the (x,y) location of
+    //    the integrated qv
+    // ********************************************************************************************
+    ParmParse pp(pp_prefix);
+    Vector<std::string> refinement_indicators;
+    pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
+    for (int i=0; i<refinement_indicators.size(); ++i)
+    {
+        if ( (refinement_indicators[i]=="storm_tracker") && (solverChoice.moisture_type != MoistureType::None) )
+        {
+            std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
+            ParmParse ppr(ref_prefix);
+
+            Real ref_start_time = -1.0;
+            ppr.query("start_time",ref_start_time);
+
+            if (time >= ref_start_time) {
+
+                Real max_radius = -1.0;
+                ppr.get("max_radius", max_radius);
+
+                // Create the volume-weighted sum of (rho qv) in each column
+                MultiFab mf_qv_int(ba2d[levc], dmap[levc], 1, 0); mf_qv_int.setVal(0.);
+
+                // Define the 2D MultiFab holding the column-integrated (rho qv)
+                volWgtColumnSum(levc, S_new, RhoQ1_comp, mf_qv_int, *detJ_cc[levc]);
+
+                // Find the max value in the domain
+                IntVect eye = mf_qv_int.maxIndex(0);
+
+                const auto dx      = geom[levc].CellSizeArray();
+                const auto prob_lo = geom[levc].ProbLoArray();
+
+                Real eye_x = prob_lo[0] + (eye[0] + 0.5) * dx[0];
+                Real eye_y = prob_lo[1] + (eye[1] + 0.5) * dx[1];
+
+                tag_on_distance_from_eye(geom[levc], &tags, eye_x, eye_y, max_radius);
+            }
+        }
+    }
 }
 
 /**
@@ -440,64 +537,54 @@ ERF::refinement_criteria_setup ()
             else if (realbox.ok())
             {
                 ref_tags.push_back(AMRErrorTag(info));
-            } else {
+            } else if (refinement_indicators[i] != "storm_tracker") {
                 Abort(std::string("Unrecognized refinement indicator for " + refinement_indicators[i]).c_str());
             }
         } // loop over criteria
     } // if max_level > 0
 }
 
-void
-ERF::HurricaneTracker(int levc,
-                      const MultiFab& U_new,
-                      const MultiFab& V_new,
-                      const MultiFab& W_new,
-                      const Real velmag_threshold,
-                      const bool is_track_io,
-                      TagBoxArray* tags)
+bool
+ERF::FindInitialEye(int levc,
+                    const MultiFab& mf_cc_vel,
+                    const Real velmag_threshold,
+                    Real& eye_x, Real& eye_y)
 {
     const auto dx = geom[levc].CellSizeArray();
     const auto prob_lo = geom[levc].ProbLoArray();
 
-    const int ncomp = AMREX_SPACEDIM; // Number of components (3 for 3D)
+    Gpu::DeviceVector<Real> d_coords(2, 0.0);
+    Gpu::DeviceVector<int>  d_found(1,0);
 
-    Gpu::DeviceVector<Real> d_coords(3, 0.0); // Initialize to -1
-    Real* d_coords_ptr = d_coords.data(); // Get pointer to device vector
-    Gpu::DeviceVector<int> d_found(1,0);
-    int* d_found_ptr = d_found.data();
+    Real* d_coords_ptr = d_coords.data();
+    int*   d_found_ptr = d_found.data();
 
-    MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
-    average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
+    for (MFIter mfi(mf_cc_vel); mfi.isValid(); ++mfi)
+    {
+        const Box& box = mfi.validbox();
+        const Array4<const Real>& vel_arr = mf_cc_vel.const_array(mfi);
 
-    // Loop through MultiFab using MFIter
-    for (MFIter mfi(mf_cc_vel); mfi.isValid(); ++mfi) {
-        const Box& box = mfi.validbox(); // Get the valid box for the current MFIter
-        const Array4<const Real>& vel_arr = mf_cc_vel.const_array(mfi); // Get the array for this MFIter
+        ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+        {
+            Real magnitude = std::sqrt(vel_arr(i,j,k,0) * vel_arr(i,j,k,0) +
+                                       vel_arr(i,j,k,1) * vel_arr(i,j,k,1) +
+                                       vel_arr(i,j,k,2) * vel_arr(i,j,k,2));
 
-        // ParallelFor loop to check velocity magnitudes on the GPU
-        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-            // Access velocity components using ncomp
-            Real magnitude = 0.0; // Initialize magnitude
+            magnitude *= 3.6;
 
-            for (int comp = 0; comp < ncomp; ++comp) {
-                Real vel = vel_arr(i, j, k, comp); // Access the component for each (i, j, k)
-                magnitude += vel * vel; // Sum the square of the components
-            }
-
-            magnitude = std::sqrt(magnitude)*3.6; // Calculate magnitude
-            Real x = prob_lo[0] + (i + 0.5) * dx[0];
-            Real y = prob_lo[1] + (j + 0.5) * dx[1];
             Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
             // Check if magnitude exceeds threshold
-            if (z < 2.0e3 && magnitude > velmag_threshold) {
+            if (z < 2000. && magnitude > velmag_threshold) {
                 // Use atomic operations to set found flag and store coordinates
                 Gpu::Atomic::Add(&d_found_ptr[0], 1); // Mark as found
+
+                Real x = prob_lo[0] + (i + 0.5) * dx[0];
+                Real y = prob_lo[1] + (j + 0.5) * dx[1];
 
                 // Store coordinates
                 Gpu::Atomic::Add(&d_coords_ptr[0],x); // Store x index
                 Gpu::Atomic::Add(&d_coords_ptr[1],y); // Store x index
-                Gpu::Atomic::Add(&d_coords_ptr[2],z); // Store x index
             }
         });
     }
@@ -507,51 +594,78 @@ ERF::HurricaneTracker(int levc,
 
     Vector<int> h_found(1,0);
     Gpu::copy(Gpu::deviceToHost, d_found.begin(), d_found.end(), h_found.begin());
-    ParallelAllReduce::Sum(h_found.data(),
-                           h_found.size(),
-                           ParallelContext::CommunicatorAll());
+    ParallelAllReduce::Sum(h_found.data(), h_found.size(), ParallelContext::CommunicatorAll());
 
-    Real eye_x, eye_y;
     // Broadcast coordinates if found
     if (h_found[0] > 0) {
-        Vector<Real> h_coords(3,-1e10);
+        Vector<Real> h_coords(2,-1e10);
         Gpu::copy(Gpu::deviceToHost, d_coords.begin(), d_coords.end(), h_coords.begin());
 
-        ParallelAllReduce::Sum(h_coords.data(),
-                               h_coords.size(),
-                               ParallelContext::CommunicatorAll());
+        ParallelAllReduce::Sum(h_coords.data(), h_coords.size(), ParallelContext::CommunicatorAll());
 
         eye_x = h_coords[0]/h_found[0];
         eye_y = h_coords[1]/h_found[0];
 
-        // Data structure to hold the hurricane track for I/O
-        if (amrex::ParallelDescriptor::IOProcessor() and is_track_io) {
-            hurricane_track_xy.push_back({eye_x, eye_y});
-        }
+    } else {
+        // Random large negative numbers so we don't trigger refinement in this case
+        eye_x = -1.e20;
+        eye_y = -1.e20;
+    }
 
-        if(is_track_io) {
-            return;
-        }
+    return (h_found[0] > 0);
+}
 
-        Real rad_tag = 3e5*std::pow(2, max_level-1-levc);
+void
+tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
+                         const Real eye_x, const Real eye_y, const Real rad_tag)
+{
+    const auto dx      = cgeom.CellSizeArray();
+    const auto prob_lo = cgeom.ProbLoArray();
 
-        for (MFIter mfi(*tags); mfi.isValid(); ++mfi) {
-            TagBox& tag = (*tags)[mfi];
-            auto tag_arr = tag.array();  // Get device-accessible array
+    for (MFIter mfi(*tags); mfi.isValid(); ++mfi) {
+        TagBox& tag = (*tags)[mfi];
+        auto tag_arr = tag.array();  // Get device-accessible array
 
-            const Box& tile_box = mfi.tilebox(); // The box for this tile
+        const Box& tile_box = mfi.tilebox(); // The box for this tile
 
-            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                // Compute cell center coordinates
-                Real x = prob_lo[0] + (i + 0.5) * dx[0];
-                Real y = prob_lo[1] + (j + 0.5) * dx[1];
+        ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+            // Compute cell center coordinates
+            Real x = prob_lo[0] + (i + 0.5) * dx[0];
+            Real y = prob_lo[1] + (j + 0.5) * dx[1];
 
-                Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
+            Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
 
-                if (dist < rad_tag) {
-                    tag_arr(i,j,k) = TagBox::SET;
-                }
-            });
-        }
+            if (dist < rad_tag) {
+                tag_arr(i,j,k) = TagBox::SET;
+            } else {
+                tag_arr(i,j,k) = TagBox::CLEAR;
+            }
+        });
+    }
+}
+
+void
+ERF::HurricaneTracker(int levc,
+                      Real time,
+                      const MultiFab& mf_cc_vel,
+                      const Real velmag_threshold,
+                      TagBoxArray* tags)
+{
+    bool is_found;
+
+    Real eye_x, eye_y;
+
+    if (time==0.0) {
+        is_found = FindInitialEye(levc, mf_cc_vel, velmag_threshold, eye_x, eye_y);
+    } else {
+        is_found = true;
+        const auto& last = hurricane_eye_track_xy.back();
+        eye_x = last[0];
+        eye_y = last[1];
+    }
+
+    if (is_found) {
+        Real rad_tag = 4.e5 * std::pow(2, max_level-1-levc);
+        tag_on_distance_from_eye(geom[levc], tags, eye_x, eye_y, rad_tag);
     }
 }

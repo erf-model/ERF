@@ -3,6 +3,9 @@
 #include <ERF_EBAux.H>
 #include <ERF_EBCutCell.H>
 #include <AMReX_MultiFabUtil.H>
+#if 0
+#include <AMReX_VisMF.H>
+#endif
 
 using namespace amrex;
 
@@ -37,9 +40,9 @@ define( [[maybe_unused]] int const& a_level,
 
   const IntVect vdim(IntVect::TheDimensionVector(a_idim));
 
-  const BoxArray& grids = amrex::convert(a_grids, vdim);
+  const BoxArray& my_grids = amrex::convert(a_grids, vdim);
 
-  m_cellflags = new FabArray<EBCellFlagFab>(grids, a_dmap, 1, a_ngrow[0], MFInfo(),
+  m_cellflags = new FabArray<EBCellFlagFab>(my_grids, a_dmap, 1, a_ngrow[0], MFInfo(),
                                             DefaultFabFactory<EBCellFlagFab>());
 
   // Set m_cellflags type to singlevalued
@@ -49,23 +52,17 @@ define( [[maybe_unused]] int const& a_level,
     fab.setType(FabType::singlevalued);
   }
 
-  m_volfrac = new MultiFab(grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
-  m_volcent = new MultiFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_volfrac = new MultiFab(my_grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
+  m_volcent = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-      const BoxArray& faceba = amrex::convert(a_grids, IntVect::TheDimensionVector(idim));
-      if (idim == a_idim) {
-          m_areafrac[idim] = new MultiFab(a_grids, a_dmap,                1, a_ngrow[1]+1, MFInfo(), FArrayBoxFactory());
-          m_facecent[idim] = new MultiFab(a_grids, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-      } else {
-          m_areafrac[idim] = new MultiFab(faceba, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
-          m_facecent[idim] = new MultiFab(faceba, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-      }
+    m_areafrac[idim] = new MultiFab(a_grids, a_dmap,                1, a_ngrow[1]+1, MFInfo(), FArrayBoxFactory());
+    m_facecent[idim] = new MultiFab(a_grids, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
   }
 
-  m_bndryarea = new MultiFab(grids, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-  m_bndrycent = new MultiFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-  m_bndrynorm = new MultiFab(grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndryarea = new MultiFab(my_grids, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndrycent = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndrynorm = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
 
   // Initialize with zeros
   m_volfrac->setVal(0.0);
@@ -574,8 +571,8 @@ define( [[maybe_unused]] int const& a_level,
 
             // 1. Volume Fraction
 
-            Real lo_vol {lo_eb_cc.volume()};
-            Real hi_vol {hi_eb_cc.volume()};
+            Real lo_vol {lo_eb_cc.volume()}; AMREX_ASSERT(lo_vol >= 0.0 && lo_vol <= 0.5);
+            Real hi_vol {hi_eb_cc.volume()}; AMREX_ASSERT(hi_vol >= 0.0 && hi_vol <= 0.5);
 
             aux_vfrac(i,j,k) = lo_vol + hi_vol;
 
@@ -848,51 +845,69 @@ define( [[maybe_unused]] int const& a_level,
 
   for (MFIter mfi(*m_cellflags, false); mfi.isValid(); ++mfi) {
 
-      const Box& bx = mfi.validbox();
-      const Box& bx_grown = mfi.growntilebox();
+    const Box& bx = mfi.validbox();
+    const Box& bx_grown = mfi.growntilebox();
+    const Box domain = surroundingNodes(a_geom.Domain(), a_idim);
+    const int dom_lo_i = domain.smallEnd(0);
+    const int dom_hi_i = domain.bigEnd(0);
+    const int dom_lo_j = domain.smallEnd(1);
+    const int dom_hi_j = domain.bigEnd(1);
+    const int dom_lo_k = domain.smallEnd(2);
+    const int dom_hi_k = domain.bigEnd(2);
 
-      Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
-      Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
-      Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
-      Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
-      Array4<Real>       const& aux_afrac_z = m_areafrac[2]->array(mfi);
+    Array4<EBCellFlag> const& aux_flag  = m_cellflags->array(mfi);
+    Array4<Real>       const& aux_vfrac = m_volfrac->array(mfi);
+    Array4<Real>       const& aux_afrac_x = m_areafrac[0]->array(mfi);
+    Array4<Real>       const& aux_afrac_y = m_areafrac[1]->array(mfi);
+    Array4<Real>       const& aux_afrac_z = m_areafrac[2]->array(mfi);
 
-      Array4<Real>       const& aux_vcent = m_volcent->array(mfi);
-      Array4<Real>       const& aux_fcent_x = m_facecent[0]->array(mfi);
-      Array4<Real>       const& aux_fcent_y = m_facecent[1]->array(mfi);
-      Array4<Real>       const& aux_fcent_z = m_facecent[2]->array(mfi);
-      Array4<Real>       const& aux_barea = m_bndryarea->array(mfi);
-      Array4<Real>       const& aux_bcent = m_bndrycent->array(mfi);
-      Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
-
+    Array4<Real>       const& aux_vcent = m_volcent->array(mfi);
+    Array4<Real>       const& aux_fcent_x = m_facecent[0]->array(mfi);
+    Array4<Real>       const& aux_fcent_y = m_facecent[1]->array(mfi);
+    Array4<Real>       const& aux_fcent_z = m_facecent[2]->array(mfi);
+    Array4<Real>       const& aux_barea = m_bndryarea->array(mfi);
+    Array4<Real>       const& aux_bcent = m_bndrycent->array(mfi);
+    Array4<Real>       const& aux_bnorm = m_bndrynorm->array(mfi);
 
     if (FlagFab[mfi].getType(bx) == FabType::singlevalued ) {
 
       // Corrections for small cells
-      Box my_xbx(bx); if (a_idim == 0) my_xbx.growLo(0,1);
+      Box my_xbx(bx); my_xbx.growHi(0,1);
       ParallelFor(my_xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac) {
-          aux_afrac_x(i  ,j  ,k  ) = 0.0;
-          aux_afrac_x(i+1,j  ,k  ) = 0.0;
+        if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i-1,j,k) < small_volfrac) {
+          // At domain boundary, keep area fraction as is unless inside cell is small
+          if ((i == dom_lo_i && aux_vfrac(i,j,k) < small_volfrac) ||
+              (i == dom_hi_i+1 && aux_vfrac(i-1,j,k) < small_volfrac) ||
+              (i != dom_lo_i && i != dom_hi_i+1)) {
+              aux_afrac_x(i,j,k) = 0.0;
+          }
         }
       });
 
-      Box my_ybx(bx); if (a_idim == 1) my_ybx.growLo(1,1);
+      Box my_ybx(bx); my_ybx.growHi(1,1);
       ParallelFor(my_ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac) {
-          aux_afrac_y(i  ,j  ,k  ) = 0.0;
-          aux_afrac_y(i  ,j+1,k  ) = 0.0;
+        if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i,j-1,k) < small_volfrac) {
+          // At domain boundary, keep area fraction as is unless inside cell is small
+          if ((j == dom_lo_j && aux_vfrac(i,j,k) < small_volfrac) ||
+              (j == dom_hi_j+1 && aux_vfrac(i,j-1,k) < small_volfrac) ||
+              (j != dom_lo_j && j != dom_hi_j+1)) {
+              aux_afrac_y(i,j,k) = 0.0;
+          }
         }
       });
 
-      Box my_zbx(bx); if (a_idim == 2) my_zbx.growLo(2,1);
+      Box my_zbx(bx); my_zbx.growHi(2,1);
       ParallelFor(my_zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-        if (aux_vfrac(i,j,k) < small_volfrac) {
-          aux_afrac_z(i  ,j  ,k+1) = 0.0;
-          aux_afrac_z(i  ,j  ,k  ) = 0.0;
+        if (aux_vfrac(i,j,k) < small_volfrac || aux_vfrac(i,j,k-1) < small_volfrac) {
+          // At domain boundary, keep area fraction as is unless inside cell is small
+          if ((k == dom_lo_k && aux_vfrac(i,j,k) < small_volfrac) ||
+              (k == dom_hi_k+1 && aux_vfrac(i,j,k-1) < small_volfrac) ||
+              (k != dom_lo_k && k != dom_hi_k+1)) {
+              aux_afrac_z(i,j,k) = 0.0;
+          }
         }
       });
 
@@ -1110,6 +1125,26 @@ define( [[maybe_unused]] int const& a_level,
 
   m_cellflags->FillBoundary(a_geom.periodicity());
 
+#if 0
+  // We leave these here for debugging if necessary.
+  // If you uncomment these, make sure to uncomment AMReX_VisMF include above
+  if (a_idim == 0) {
+      amrex::VisMF::Write(*m_volfrac,"UVOL");
+      amrex::VisMF::Write(*m_areafrac[0],"UAREAX");
+      amrex::VisMF::Write(*m_areafrac[1],"UAREAY");
+      amrex::VisMF::Write(*m_areafrac[2],"UAREAZ");
+  } else if (a_idim == 1) {
+      amrex::VisMF::Write(*m_volfrac,"VVOL");
+      amrex::VisMF::Write(*m_areafrac[0],"VAREAX");
+      amrex::VisMF::Write(*m_areafrac[1],"VAREAY");
+      amrex::VisMF::Write(*m_areafrac[2],"VAREAZ");
+  } else {
+      amrex::VisMF::Write(*m_volfrac,"WVOL");
+      amrex::VisMF::Write(*m_areafrac[0],"WAREAX");
+      amrex::VisMF::Write(*m_areafrac[1],"WAREAY");
+      amrex::VisMF::Write(*m_areafrac[2],"WAREAZ");
+  }
+#endif
 }
 
 const FabArray<EBCellFlagFab>&

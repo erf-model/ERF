@@ -35,7 +35,7 @@ ERF::WriteCheckpointFile () const
     // etc.                these subdirectories will hold the MultiFab data at each level of refinement
 
     // checkpoint file name, e.g., chk00010
-    const std::string& checkpointname = Concatenate(check_file,istep[0],5);
+    const std::string& checkpointname = Concatenate(check_file,istep[0],file_name_digits);
 
     Print() << "Writing native checkpoint " << checkpointname << "\n";
 
@@ -205,15 +205,25 @@ ERF::WriteCheckpointFile () const
         }
 #endif
 
+        // Write the LSM data
         if (solverChoice.lsm_type != LandSurfaceType::None) {
-            for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-                BoxArray ba = lsm_data[lev][mvar]->boxArray();
-                DistributionMapping dm = lsm_data[lev][mvar]->DistributionMap();
-                IntVect ng = lsm_data[lev][mvar]->nGrowVect();
-                int nvar = lsm_data[lev][mvar]->nComp();
+            for (int ivar(0); ivar<lsm_data[lev].size(); ++ivar) {
+                BoxArray ba = lsm_data[lev][ivar]->boxArray();
+                DistributionMapping dm = lsm_data[lev][ivar]->DistributionMap();
+                IntVect ng = lsm_data[lev][ivar]->nGrowVect();
+                int nvar   = lsm_data[lev][ivar]->nComp();
                 MultiFab lsm_vars(ba,dm,nvar,ng);
-                MultiFab::Copy(lsm_vars,*(lsm_data[lev][mvar]),0,0,nvar,ng);
-                VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmVars"));
+                MultiFab::Copy(lsm_vars,*(lsm_data[lev][ivar]),0,0,nvar,ng);
+                VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmData" + std::to_string(ivar)));
+            }
+            for (int iflux(0); iflux<lsm_flux[lev].size(); ++iflux) {
+                BoxArray ba = lsm_flux[lev][iflux]->boxArray();
+                DistributionMapping dm = lsm_flux[lev][iflux]->DistributionMap();
+                IntVect ng = lsm_flux[lev][iflux]->nGrowVect();
+                int nvar   = lsm_flux[lev][iflux]->nComp();
+                MultiFab lsm_vars(ba,dm,nvar,ng);
+                MultiFab::Copy(lsm_vars,*(lsm_flux[lev][iflux]),0,0,nvar,ng);
+                VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmFlux" + std::to_string(iflux)));
             }
         }
 
@@ -258,6 +268,7 @@ ERF::WriteCheckpointFile () const
             if (m_SurfaceLayer[ori])  {
                 amrex::Print() << "Writing SurfaceLayer variables at level " << lev << " for face " << ori << std::endl;
                 ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+                //ng = IntVect(1,1,0);
 
                 const int dir = ori.coordDir();
                 int sm_index;
@@ -386,22 +397,23 @@ ERF::WriteCheckpointFile () const
         }
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
-            amrex::Print() << "Writing C1H/C2H/MUB variables at level " << lev << std::endl;
-            MultiFab tmp1d(ba1d[0],dmap[0],1,0);
+            if (lev == 0) {
+                amrex::Print() << "Writing C1H/C2H/MUB variables at level " << lev << std::endl;
+                MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
-            MultiFab::Copy(tmp1d,*mf_C1H,0,0,1,0);
-            VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C1H"));
+                MultiFab::Copy(tmp1d,*mf_C1H,0,0,1,0);
+                VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C1H"));
 
-            MultiFab::Copy(tmp1d,*mf_C2H,0,0,1,0);
-            VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
+                MultiFab::Copy(tmp1d,*mf_C2H,0,0,1,0);
+                VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
 
-            MultiFab tmp2d(ba2d[0],dmap[0],1,mf_MUB->nGrowVect());
+                MultiFab tmp2d(ba2d[0],dmap[0],1,mf_MUB->nGrowVect());
 
-            MultiFab::Copy(tmp2d,*mf_MUB,0,0,1,mf_MUB->nGrowVect());
-            VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
+                MultiFab::Copy(tmp2d,*mf_MUB,0,0,1,mf_MUB->nGrowVect());
+                VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
+            }
         }
 #endif
-
     } // for lev
 
 #ifdef ERF_USE_PARTICLES
@@ -747,15 +759,25 @@ ERF::ReadCheckpointFile ()
         }
 #endif
 
+        // Read the LSM data
         if (solverChoice.lsm_type != LandSurfaceType::None) {
-            for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-                BoxArray ba = lsm_data[lev][mvar]->boxArray();
-                DistributionMapping dm = lsm_data[lev][mvar]->DistributionMap();
-                IntVect ng = lsm_data[lev][mvar]->nGrowVect();
-                int nvar = lsm_data[lev][mvar]->nComp();
+            for (int ivar(0); ivar<lsm_data[lev].size(); ++ivar) {
+                BoxArray ba = lsm_data[lev][ivar]->boxArray();
+                DistributionMapping dm = lsm_data[lev][ivar]->DistributionMap();
+                IntVect ng = lsm_data[lev][ivar]->nGrowVect();
+                int nvar   = lsm_data[lev][ivar]->nComp();
                 MultiFab lsm_vars(ba,dm,nvar,ng);
-                VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmVars"));
-                MultiFab::Copy(*(lsm_data[lev][mvar]),lsm_vars,0,0,nvar,ng);
+                VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmData" + std::to_string(ivar)));
+                MultiFab::Copy(*(lsm_data[lev][ivar]),lsm_vars,0,0,nvar,ng);
+            }
+            for (int iflux(0); iflux<lsm_flux[lev].size(); ++iflux) {
+                BoxArray ba = lsm_flux[lev][iflux]->boxArray();
+                DistributionMapping dm = lsm_flux[lev][iflux]->DistributionMap();
+                IntVect ng = lsm_flux[lev][iflux]->nGrowVect();
+                int nvar   = lsm_flux[lev][iflux]->nComp();
+                MultiFab lsm_vars(ba,dm,nvar,ng);
+                VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmFlux" + std::to_string(iflux)));
+                MultiFab::Copy(*(lsm_flux[lev][iflux]),lsm_vars,0,0,nvar,ng);
             }
         }
 
@@ -919,7 +941,6 @@ ERF::ReadCheckpointFile ()
         }
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
-
             if (lev == 0) {
                 MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
@@ -936,7 +957,6 @@ ERF::ReadCheckpointFile ()
             }
         }
 #endif
-
     } // for lev
 
 #ifdef ERF_USE_PARTICLES
@@ -1063,8 +1083,9 @@ ERF::ReadCheckpointFileSurfaceLayer ()
             {
                 amrex::Print() << "Reading MOST variables for face " << ori << std::endl;
 
+                //IntVect ng(1,1,0);
                 IntVect ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
-                
+
                 const int dir = ori.coordDir();
                 int sm_index;
                 if (ori.isLow()) {

@@ -46,13 +46,11 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         n_time_p1 = n_time;
     }
 
+    // Data structure for WfromOmega
+    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
+
     // Flags for read vars and index mapping
-    /*
     Vector<int> cons_read = {0, 1, 0, 0,
-                             1, 0, 0,
-                             0, 0, 0};
-    */
-    Vector<int> cons_read = {0, 0, 0, 0,
                              1, 0, 0,
                              0, 0, 0};
 
@@ -70,7 +68,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     ind_map.push_back( cons_map );
     ind_map.push_back( {RealBdyVars::U} ); // xvel
     ind_map.push_back( {RealBdyVars::V} ); // yvel
-    ind_map.push_back( {0} );              // zvel
+    ind_map.push_back( {0} );              // zvel NOTE: Loop is forward (need u/v filled first)
 
     // Nvars to loop over
     Vector<int> comp_var = {ncomp_cons, 1, 1, 1};
@@ -85,6 +83,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
 
         mfs[Vars::zvel]->setVal(0.0);
     }
+
+    MultiFab& mf_u = *mfs[Vars::xvel];
+    MultiFab& mf_v = *mfs[Vars::yvel];
 
     // Loop over all variable types
     for (int var_idx = Vars::cons; var_idx < var_idx_end; ++var_idx)
@@ -189,7 +190,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
             // Variable not read from wrf bdy
             //------------------------------------
             } else {
-
+                int width = (var_idx == Vars::zvel) ? real_width : 0;
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -198,44 +199,59 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                     // Grown tilebox so we fill exterior ghost cells as well
                     Box gbx = mfi.growntilebox(ng_vect);
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                    realbdy_bc_bxs_xy(gbx, domain, set_width,
+                    realbdy_bc_bxs_xy(gbx, domain, width+1,
                                       bx_xlo, bx_xhi,
                                       bx_ylo, bx_yhi,
                                       ng_vect);
 
                     // Bounding
-                    int i_xlo = bx_xlo.bigEnd(0)   + set_width;
-                    int i_xhi = bx_xhi.smallEnd(0) - set_width;
-                    int j_ylo = bx_ylo.bigEnd(1)   + set_width;
-                    int j_yhi = bx_yhi.smallEnd(1) - set_width;
+                    int i_xlo = bx_xlo.bigEnd(0)   + 1;
+                    int i_xhi = bx_xhi.smallEnd(0) - 1;
+                    int j_ylo = bx_ylo.bigEnd(1)   + 1;
+                    int j_yhi = bx_yhi.smallEnd(1) - 1;
 
                     // Destination array
                     const Array4<Real>& dest_arr = mf.array(mfi);
+
+                    // Compute w from Omega
+                    const Array4<const Real>& z_nd_arr = z_phys_nd[lev]->const_array(mfi);
+                    const Array4<const Real>& u_arr    = mf_u.const_array(mfi);
+                    const Array4<const Real>& v_arr    = mf_v.const_array(mfi);
+                    const Array4<const Real>& mf_ux    = mapfac[lev][MapFacType::u_x]->const_array(mfi);
+                    const Array4<const Real>& mf_vy    = mapfac[lev][MapFacType::v_y]->const_array(mfi);
 
                     // x-faces (includes y ghost cells)
                     ParallelFor(bx_xlo, bx_xhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        int jj = std::max(j , dom_lo.y+set_width);
-                            jj = std::min(jj, dom_hi.y-set_width);
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i_xlo,jj,k,comp_idx);
+                        int jj = std::max(j , dom_lo.y+width);
+                            jj = std::min(jj, dom_hi.y-width);
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i_xlo,jj,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        int jj = std::max(j , dom_lo.y+set_width);
-                            jj = std::min(jj, dom_hi.y-set_width);
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i_xhi,jj,k,comp_idx);
+                        int jj = std::max(j , dom_lo.y+width);
+                            jj = std::min(jj, dom_hi.y-width);
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i_xhi,jj,k,comp_idx);
                     });
 
                     // y-faces (does not include x ghost cells)
                     ParallelFor(bx_ylo, bx_yhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i,j_ylo,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,u_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i,j_ylo,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i,j_yhi,k,comp_idx);
+                      dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i,j_yhi,k,comp_idx);
                     });
                 } // mfi
             } // is_read
@@ -278,23 +294,27 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
         n_time_p1 = n_time;
     }
 
-    // Include rho_theta as well as q_v
-    Vector<int> cons_read = {0, 1, 0, 0,
-                             1, 0, 0,
-                             0, 0, 0};
+    // Data structure for WfromOmega
+    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
 
-    Vector<int> cons_map = {Rho_comp, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
-                            RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
-                            RhoQ4_comp, RhoQ5_comp, RhoQ6_comp};
+    // Map loop index to variable index
+    // NOTE: Loop backwards and do v/u first for WfromOmega
+    Vector<int> var_idx_map = {Vars::cons, Vars::zvel, Vars::xvel, Vars::yvel};
 
+    // Variables read from bdy (indexed with var_idx)
     Vector<Vector<int>> is_read;
-    is_read.push_back( cons_read );
+    is_read.push_back( {0, 1, 0, 0,
+                        1, 0, 0,
+                        0, 0, 0} );
     is_read.push_back( {1} ); // xvel
     is_read.push_back( {1} ); // yvel
     is_read.push_back( {0} ); // zvel
 
+    // Variable component (indexed with var_idx)
     Vector<Vector<int>> ind_map;
-    ind_map.push_back( cons_map );
+    ind_map.push_back( {Rho_comp, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
+                        RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
+                        RhoQ4_comp, RhoQ5_comp, RhoQ6_comp} );
     ind_map.push_back( {RealBdyVars::U} ); // xvel
     ind_map.push_back( {RealBdyVars::V} ); // yvel
     ind_map.push_back( {0} );              // zvel
@@ -312,25 +332,26 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
         mfs[Vars::zvel]->setVal(0.0);
     }
 
-    MultiFab& mf_u = *mfs[Vars::xvel];
-    MultiFab& mf_v = *mfs[Vars::yvel];
-
     // Loop over all variable types -- note we intentionally do
     //      the velocities before the scalars since we may use
     //      the normal velocity on each face for upwinding
-    for (int var_idx = var_idx_end-1; var_idx >= Vars::cons; --var_idx)
+    for (int var_lp_idx = var_idx_end-1; var_lp_idx >= Vars::cons; --var_lp_idx)
     {
+        int var_idx  = var_idx_map[var_lp_idx];
         MultiFab& mf = *mfs[var_idx];
 
         mf.FillBoundary(geom[lev].periodicity());
 
-        //
-        // Note that "domain" is mapped onto the type of box the data is in
-        //
+        // CC domain
         Box domain = geom[lev].Domain();
+        const auto& dom_cc_lo = lbound(domain);
+        const auto& dom_cc_hi = ubound(domain);
+
+        // Map domain onto index type of the data
         domain.convert(mf.boxArray().ixType());
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
+        IntVect iv = domain.type();
 
         // Offset only applies to cons (we may fill a subset of these vars)
         int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
@@ -348,7 +369,7 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
             //------------------------------------
             if (is_read[var_idx][comp_idx])
             {
-                int ivar  = ind_map[var_idx][comp_idx];
+                int ivar = ind_map[var_idx][comp_idx];
 
                 // We have data at fixed time intervals we will call dT
                 // Then to interpolate, given time, we can define n = (time/dT)
@@ -363,6 +384,16 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                 const auto& bdatyhi_n   = bdy_data_yhi[n_time   ][ivar].const_array();
                 const auto& bdatyhi_np1 = bdy_data_yhi[n_time_p1][ivar].const_array();
 
+                // U/V for upwind masking
+                const auto& bdatxlo_n_m   = bdy_data_xlo[n_time   ][RealBdyVars::U].const_array();
+                const auto& bdatxlo_np1_m = bdy_data_xlo[n_time_p1][RealBdyVars::U].const_array();
+                const auto& bdatxhi_n_m   = bdy_data_xhi[n_time   ][RealBdyVars::U].const_array();
+                const auto& bdatxhi_np1_m = bdy_data_xhi[n_time_p1][RealBdyVars::U].const_array();
+                const auto& bdatylo_n_m   = bdy_data_ylo[n_time   ][RealBdyVars::V].const_array();
+                const auto& bdatylo_np1_m = bdy_data_ylo[n_time_p1][RealBdyVars::V].const_array();
+                const auto& bdatyhi_n_m   = bdy_data_yhi[n_time   ][RealBdyVars::V].const_array();
+                const auto& bdatyhi_np1_m = bdy_data_yhi[n_time_p1][RealBdyVars::V].const_array();
+
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -377,45 +408,64 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                                       bx_ylo, bx_yhi,
                                       ng_vect);
 
-                    const Array4<Real>& u_arr = mf_u.array(mfi);
-                    const Array4<Real>& v_arr = mf_v.array(mfi);
-
                     // NOTE: Xlo/hi boxes own corner cells (Ylo/hi)
                     ParallelFor(bx_xlo, bx_xhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
+                        // Limit for BDY FAB data
                         int ii = std::max(i , dom_lo.x);
                         int jj = std::max(j , dom_lo.y);
                             jj = std::min(jj, dom_hi.y);
-                        if ( (u_arr(dom_lo.x,jj,k) >= 0.0) ||
-                             ((jj == dom_lo.y) && (v_arr(ii,dom_lo.y  ,k) >= 0.0)) ||
-                             ((jj == dom_hi.y) && (v_arr(ii,dom_hi.y+1,k) <= 0.0)) ) {
+
+                        // Compute bdy velocities
+                        int jju = std::min(std::max(j, dom_cc_lo.y), dom_cc_hi.y);
+                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
+                        Real u_bdy    = oma   * bdatxlo_n_m  (dom_cc_lo.x,jju,k,0)
+                                      + alpha * bdatxlo_np1_m(dom_cc_lo.x,jju,k,0);
+                        Real v_bdy_lo = oma   * bdatylo_n_m  (iiv,dom_cc_lo.y,k,0)
+                                      + alpha * bdatylo_np1_m(iiv,dom_cc_lo.y,k,0);
+                        Real v_bdy_hi = oma   * bdatyhi_n_m  (iiv,dom_cc_hi.y+1,k,0)
+                                      + alpha * bdatyhi_np1_m(iiv,dom_cc_hi.y+1,k,0);
+
+                        if ( (u_bdy >= 0.0) ||
+                             ((jj == dom_cc_lo.y      ) && (v_bdy_lo >= 0.0)) ||
+                             ((jj == dom_cc_hi.y+iv[1]) && (v_bdy_hi <= 0.0)) ) {
                             dest_arr(i,j,k,comp_idx) = oma   * bdatxlo_n  (ii,jj,k,0)
                                                      + alpha * bdatxlo_np1(ii,jj,k,0);
                             if (var_idx == Vars::cons) {
                                 dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                             }
                         } else {
-                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_lo.x,j,k,comp_idx);
+                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_lo.x,jj,k,comp_idx);
                         }
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
+                        // Limit for BDY FAB data
                         int ii = std::min(i , dom_hi.x);
                         int jj = std::max(j , dom_lo.y);
                             jj = std::min(jj, dom_hi.y);
-                        if ( (u_arr(dom_hi.x+1,jj,k) <= 0.0) ||
-                             ((jj == dom_lo.y) && (v_arr(ii,dom_lo.y  ,k) >= 0.0)) ||
-                             ((jj == dom_hi.y) && (v_arr(ii,dom_hi.y+1,k) <= 0.0)) ) {
+
+                        // Compute bdy velocities
+                        int jju = std::min(std::max(j, dom_cc_lo.y), dom_cc_hi.y);
+                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
+                        Real u_bdy    = oma   * bdatxhi_n_m  (dom_cc_hi.x+1,jju,k,0)
+                                      + alpha * bdatxhi_np1_m(dom_cc_hi.x+1,jju,k,0);
+                        Real v_bdy_lo = oma   * bdatylo_n_m  (iiv,dom_cc_lo.y,k,0)
+                                      + alpha * bdatylo_np1_m(iiv,dom_cc_lo.y,k,0);
+                        Real v_bdy_hi = oma   * bdatyhi_n_m  (iiv,dom_cc_hi.y+1,k,0)
+                                      + alpha * bdatyhi_np1_m(iiv,dom_cc_hi.y+1,k,0);
+
+                        if ( (u_bdy <= 0.0) ||
+                             ((jj == dom_cc_lo.y      ) && (v_bdy_lo >= 0.0)) ||
+                             ((jj == dom_cc_hi.y+iv[1]) && (v_bdy_hi <= 0.0)) ) {
                             dest_arr(i,j,k,comp_idx) = oma   * bdatxhi_n  (ii,jj,k,0)
                                                      + alpha * bdatxhi_np1(ii,jj,k,0);
                             if (var_idx == Vars::cons) {
                                 dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                             }
-                        } else if (var_idx == Vars::xvel) {
-                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x+1,j,k,comp_idx);
                         } else {
-                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x,j,k,comp_idx);
+                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x,jj,k,comp_idx);
                         }
                     });
 
@@ -423,8 +473,15 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                     ParallelFor(bx_ylo, bx_yhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
+                        // Limit for BDY FAB data
                         int jj = std::max(j, dom_lo.y);
-                        if (v_arr(i,dom_lo.y,k) >= 0.0) {
+
+                        // Compute bdy velocities
+                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
+                        Real v_bdy = oma   * bdatylo_n_m  (iiv,dom_cc_lo.y,k,0)
+                                   + alpha * bdatylo_np1_m(iiv,dom_cc_lo.y,k,0);
+
+                        if (v_bdy >= 0.0) {
                             dest_arr(i,j,k,comp_idx) = oma   * bdatylo_n  (i,jj,k,0)
                                                      + alpha * bdatylo_np1(i,jj,k,0);
                             if (var_idx == Vars::cons) {
@@ -436,15 +493,20 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
+                        // Limit for BDY FAB data
                         int jj = std::min(j, dom_hi.y);
-                        if (v_arr(i,dom_hi.y+1,k) <= 0.0) {
+
+                        // Compute bdy velocities
+                        int iiv = std::min(std::max(i, dom_cc_lo.x), dom_cc_hi.x);
+                        Real v_bdy = oma   * bdatyhi_n_m  (iiv,dom_cc_hi.y+1,k,0)
+                                   + alpha * bdatyhi_np1_m(iiv,dom_cc_hi.y+1,k,0);
+
+                        if (v_bdy <= 0.0) {
                             dest_arr(i,j,k,comp_idx) = oma   * bdatyhi_n  (i,jj,k,0)
                                                      + alpha * bdatyhi_np1(i,jj,k,0);
                             if (var_idx == Vars::cons) {
                                 dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
                             }
-                        } else if (var_idx == Vars::yvel) {
-                            dest_arr(i,j,k,comp_idx) = dest_arr(i,dom_hi.y+1,k,comp_idx);
                         } else {
                             dest_arr(i,j,k,comp_idx) = dest_arr(i,dom_hi.y,k,comp_idx);
                         }
@@ -454,7 +516,9 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
             // Variable not read from wrf bdy
             //------------------------------------
             } else {
-
+                MultiFab& mf_u = *mfs[Vars::xvel];
+                MultiFab& mf_v = *mfs[Vars::yvel];
+                int width = (var_idx == Vars::zvel) ? real_width : 0;
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -463,44 +527,59 @@ ERF::fill_from_realbdy_upwind (const Vector<MultiFab*>& mfs,
                     // Grown tilebox so we fill exterior ghost cells as well
                     Box gbx = mfi.growntilebox(ng_vect);
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                    realbdy_bc_bxs_xy(gbx, domain, set_width,
+                    realbdy_bc_bxs_xy(gbx, domain, width+1,
                                       bx_xlo, bx_xhi,
                                       bx_ylo, bx_yhi,
                                       ng_vect);
 
                     // Bounding
-                    int i_xlo = bx_xlo.bigEnd(0)   + set_width;
-                    int i_xhi = bx_xhi.smallEnd(0) - set_width;
-                    int j_ylo = bx_ylo.bigEnd(1)   + set_width;
-                    int j_yhi = bx_yhi.smallEnd(1) - set_width;
+                    int i_xlo = bx_xlo.bigEnd(0)   + 1;
+                    int i_xhi = bx_xhi.smallEnd(0) - 1;
+                    int j_ylo = bx_ylo.bigEnd(1)   + 1;
+                    int j_yhi = bx_yhi.smallEnd(1) - 1;
 
                     // Destination array
                     const Array4<Real>& dest_arr = mf.array(mfi);
+
+                    // Compute w from Omega
+                    const Array4<const Real>& z_nd_arr = z_phys_nd[lev]->const_array(mfi);
+                    const Array4<const Real>& u_arr    = mf_u.const_array(mfi);
+                    const Array4<const Real>& v_arr    = mf_v.const_array(mfi);
+                    const Array4<const Real>& mf_ux    = mapfac[lev][MapFacType::u_x]->const_array(mfi);
+                    const Array4<const Real>& mf_vy    = mapfac[lev][MapFacType::v_y]->const_array(mfi);
 
                     // x-faces (includes y ghost cells)
                     ParallelFor(bx_xlo, bx_xhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        int jj = std::max(j , dom_lo.y+set_width);
-                            jj = std::min(jj, dom_hi.y-set_width);
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i_xlo,jj,k,comp_idx);
+                        int jj = std::max(j , dom_lo.y+width);
+                            jj = std::min(jj, dom_hi.y-width);
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i_xlo,jj,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        int jj = std::max(j , dom_lo.y+set_width);
-                            jj = std::min(jj, dom_hi.y-set_width);
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i_xhi,jj,k,comp_idx);
+                        int jj = std::max(j , dom_lo.y+width);
+                            jj = std::min(jj, dom_hi.y-width);
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i_xhi,jj,k,comp_idx);
                     });
 
                     // y-faces (does not include x ghost cells)
                     ParallelFor(bx_ylo, bx_yhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i,j_ylo,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i,j_ylo,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        dest_arr(i,j,k,comp_idx) = dest_arr(i,j_yhi,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = (false) ? //(var_idx == Vars::zvel) ?
+                            WFromOmega(i,j,k,0.0,u_arr,v_arr,mf_ux,mf_vy,z_nd_arr,dxInv) :
+                            dest_arr(i,j_yhi,k,comp_idx);
                     });
                 } // mfi
             } // is_read

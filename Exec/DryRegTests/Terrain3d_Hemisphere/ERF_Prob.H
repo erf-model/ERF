@@ -57,15 +57,10 @@ public:
         amrex::Array4<amrex::Real const> const& mf_m,
         amrex::Array4<amrex::Real const> const& mf_u,
         amrex::Array4<amrex::Real const> const& mf_v,
-        const SolverChoice& sc) override;
-
-    void init_custom_terrain (
-        const amrex::Geometry& geom,
-        amrex::FArrayBox& terrain_fab,
-        const amrex::Real& time) override;
+        const SolverChoice& sc,
+        const int lev) override;
 
 protected:
-    std::string name() override { return "3D Terrain - Hemisphere"; }
 
 private:
     ProbParm parms;

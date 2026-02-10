@@ -10,45 +10,47 @@
 #include "ERFPC.H"
 #include "ERF_SDInitialization.H"
 
-using SDSpeciesMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_species_max>;
-using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;
+namespace SDPCDefn {
+    using SDSpeciesMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_species_max>;
+    using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;
 
-/*! \brief Real-type array-of-struct attributes of a super-droplet */
-using SuperDropletsRealIdxAoS = ERFParticlesRealIdxAoS;
+    /*! \brief Real-type array-of-struct attributes of a super-droplet */
+    using SuperDropletsRealIdxAoS = ERFParticlesRealIdxAoS;
 
-/*! \brief Int-type array-of-struct attributes of a super-droplet */
-using SuperDropletsIntIdxAoS = ERFParticlesIntIdxAoS;
+    /*! \brief Int-type array-of-struct attributes of a super-droplet */
+    using SuperDropletsIntIdxAoS = ERFParticlesIntIdxAoS;
 
-/*! \brief Real-type struct-of-array attributes of a super-droplet */
-using SuperDropletsRealIdxSoA = ERFParticlesRealIdxSoA;
+    /*! \brief Real-type struct-of-array attributes of a super-droplet */
+    using SuperDropletsRealIdxSoA = ERFParticlesRealIdxSoA;
 
-/*! \brief Int-type struct-of-array attributes added during runtime */
-struct SuperDropletsIntIdxSoA_RT
-{
-    enum {
-        active = 0,     /*!< Active/inactive */
-        ncomps
+    /*! \brief Int-type struct-of-array attributes added during runtime */
+    struct SuperDropletsIntIdxSoA_RT
+    {
+        enum {
+            active = 0,     /*!< Active/inactive */
+            ncomps
+        };
     };
-};
 
-/*! \brief Real-type struct-of-array attributes added during runtime */
-struct SuperDropletsRealIdxSoA_RT
-{
-    enum {
-        radius = 0,     /*!< Radius of physical particles */
-        multiplicity,   /*!< Number of droplets that this super-droplet represents
-                             (Real type to handle large values) */
-        term_vel,       /*!< Terminal velocity */
+    /*! \brief Real-type struct-of-array attributes added during runtime */
+    struct SuperDropletsRealIdxSoA_RT
+    {
+        enum {
+            radius = 0,     /*!< Radius of physical particles */
+            multiplicity,   /*!< Number of droplets that this super-droplet represents
+                                 (Real type to handle large values) */
+            term_vel,       /*!< Terminal velocity */
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
-        cond_tendency,  /*!< Condensation/evaporation tendency */
+            cond_tendency,  /*!< Condensation/evaporation tendency */
 #endif
-        uid,            /*!< unique ID */
-        ncomps
+            uid,            /*!< unique ID */
+            ncomps
+        };
     };
-};
 
-/*! \brief Int-type struct-of-array attributes of a super-droplet */
-using SuperDropletsIntIdxSoA = ERFParticlesIntIdxSoA;
+    /*! \brief Int-type struct-of-array attributes of a super-droplet */
+    using SuperDropletsIntIdxSoA = ERFParticlesIntIdxSoA;
+}
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 static int idx_a(const int a_i, /*!< Species index */
@@ -57,8 +59,8 @@ static int idx_a(const int a_i, /*!< Species index */
 {
     amrex::ignore_unused(a_num_a);
     amrex::ignore_unused(a_num_s);
-    return    SuperDropletsRealIdxSoA::ncomps
-            + SuperDropletsRealIdxSoA_RT::ncomps
+    return    SDPCDefn::SuperDropletsRealIdxSoA::ncomps
+            + SDPCDefn::SuperDropletsRealIdxSoA_RT::ncomps
             + a_i;
 }
 
@@ -68,8 +70,8 @@ static int idx_s(const int a_i, /*!< Species index */
                  const int a_num_s  /*!< Number of species */)
 {
     amrex::ignore_unused(a_num_s);
-    return    SuperDropletsRealIdxSoA::ncomps
-            + SuperDropletsRealIdxSoA_RT::ncomps
+    return    SDPCDefn::SuperDropletsRealIdxSoA::ncomps
+            + SDPCDefn::SuperDropletsRealIdxSoA_RT::ncomps
             + a_num_a
             + a_i;
 }
@@ -81,7 +83,7 @@ static int ridx_a(const int a_i, /*!< Species index */
 {
     amrex::ignore_unused(a_num_a);
     amrex::ignore_unused(a_num_s);
-    return    SuperDropletsRealIdxSoA_RT::ncomps
+    return    SDPCDefn::SuperDropletsRealIdxSoA_RT::ncomps
             + a_i;
 }
 
@@ -91,18 +93,18 @@ static int ridx_s(const int a_i, /*!< Species index */
                  const int a_num_s  /*!< Number of species */)
 {
     amrex::ignore_unused(a_num_s);
-    return    SuperDropletsRealIdxSoA_RT::ncomps
+    return    SDPCDefn::SuperDropletsRealIdxSoA_RT::ncomps
             + a_num_a
             + a_i;
 }
 
 /*! \brief Compute total mass of a droplet from its components */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static auto SD_total_mass( const int a_idx, /*!< Particle index */
+static amrex::ParticleReal SD_total_mass( const int a_idx, /*!< Particle index */
                            const int a_num_sp,   /*!< number of species */
                            const int a_num_ae,   /*!< number of aerosols */
-                           const SDSpeciesMassArr& a_sp_mass, /*!< species masses */
-                           const SDAerosolMassArr& a_ae_mass  /*!< aerosol masses */ )
+                           const SDPCDefn::SDSpeciesMassArr& a_sp_mass, /*!< species masses */
+                           const SDPCDefn::SDAerosolMassArr& a_ae_mass  /*!< aerosol masses */ )
 {
     amrex::ParticleReal retval = 0.0;
     for (int j = 0; j < a_num_sp; j++) {
@@ -116,15 +118,15 @@ static auto SD_total_mass( const int a_idx, /*!< Particle index */
 
 /*! \brief Compute effective radius of a droplet from its components */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static auto SD_effective_radius( const int a_idx, /*!< Particle index */
+static amrex::ParticleReal SD_effective_radius( const int a_idx, /*!< Particle index */
                                  const int a_idx_w, /*!< Species index of water */
                                  amrex::ParticleReal a_rho_w,  /*!< density of water */
                                  const int a_num_sp,   /*!< number of species */
                                  const int a_num_ae,   /*!< number of aerosols */
                                  const int* const a_sp_sol_arr, /*!< solubility of species */
                                  const int* const a_ae_sol_arr, /*!< solubility of aerosols */
-                                 const SDSpeciesMassArr& a_sp_mass, /*!< species masses */
-                                 const SDAerosolMassArr& a_ae_mass, /*!< aerosol masses */
+                                 const SDPCDefn::SDSpeciesMassArr& a_sp_mass, /*!< species masses */
+                                 const SDPCDefn::SDAerosolMassArr& a_ae_mass, /*!< aerosol masses */
                                  const amrex::ParticleReal* const a_sp_rho, /*!< species densities */
                                  const amrex::ParticleReal* const a_ae_rho  /*!< aerosol densities */ )
 {
@@ -159,13 +161,13 @@ static auto SD_effective_radius( const int a_idx, /*!< Particle index */
 
 /*! \brief Compute "dry" radius of a droplet from its insoluble components */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static auto SD_dry_radius( const int a_idx, /*!< Particle index */
+static amrex::ParticleReal SD_dry_radius( const int a_idx, /*!< Particle index */
                            const int a_num_sp,   /*!< number of species */
                            const int a_num_ae,   /*!< number of aerosols */
                            const int* const a_sp_sol_arr, /*!< solubility of species */
                            const int* const a_ae_sol_arr, /*!< solubility of aerosols */
-                           const SDSpeciesMassArr& a_sp_mass, /*!< species masses */
-                           const SDAerosolMassArr& a_ae_mass, /*!< aerosol masses */
+                           const SDPCDefn::SDSpeciesMassArr& a_sp_mass, /*!< species masses */
+                           const SDPCDefn::SDAerosolMassArr& a_ae_mass, /*!< aerosol masses */
                            const amrex::ParticleReal* const a_sp_rho, /*!< species densities */
                            const amrex::ParticleReal* const a_ae_rho  /*!< aerosol densities */ )
 {

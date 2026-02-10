@@ -106,13 +106,19 @@ Problem::init_custom_pert (
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc)
+    const SolverChoice& sc,
+    const int /*lev*/)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
     const int khi = geomdata.Domain().bigEnd()[2];
 
+    if(bx.length()[2] != khi+1){
+        Print() << "The unequal values are " << bx.length()[2] << " " << khi+1 << "\n";
+    }
+
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
+
 
   // This is what we do at k = 0 -- note we assume p = p_0 and T = T_0 at z=0
   const amrex::Real& dz        = geomdata.CellSize()[2];

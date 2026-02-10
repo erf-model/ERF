@@ -65,7 +65,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                                  real_width);
 
                 convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                    *mf_MUB, *mf_C1H, *mf_C2H,
+                                        *mf_MUB, *mf_C1H, *mf_C2H,
                                     vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
                                     geom[lev], use_moist);
            }
@@ -98,7 +98,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
                                S_new, *mf_PSFC[lev],
-                               solverChoice.rdOcp, use_moist);
+                               solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
             }
         } // itime
     } // have nc_low_file && lev == 0
@@ -147,7 +147,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
                 // if there are newly created levels, set the time step
                 for (int k = old_finest+1; k <= finest_level; ++k) {
-                    dt[k] = dt[k-1] / MaxRefRatio(k-1);
+                    dt[k] = dt[k-1] / static_cast<Real>(nsubsteps[k]);
                 }
             } // if
         } // lev

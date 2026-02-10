@@ -1,6 +1,8 @@
 #include <cmath>
 #include "ERF_SDInitialization.H"
 
+using MatVec = std::vector<std::unique_ptr<MaterialProperties>>;
+
 void SDInitProperties::setDefaults ( const amrex::Geometry& a_geom,
                                      const MatVec& a_species_mat,
                                      const MatVec& a_aerosol_mat )
@@ -261,7 +263,6 @@ void SDInitProperties::printParameters ( const MatVec& a_species_mat,
                 << " (distribution: " << m_species_init_type[i];
         if (m_species_init_type[i] == SupDropInit::attrib_init_const) {
             Print() << ", value=" << m_mass_species_mean[i];
-            AMREX_ALWAYS_ASSERT(m_mass_species_mean[i] > 0.0);
         } else if (m_species_init_type[i] == SupDropInit::attrib_init_exp) {
             Print() << ", min=" << m_mass_species_min[i]
                     << ", mean=" << m_mass_species_mean[i]
@@ -328,7 +329,7 @@ void SDInitialization::printParameters ( const MatVec& a_species_mat,
 {
     using namespace amrex;
     Print() << "    Initial number density: " << this->m_numdens << "\n"
-            << "    Inital super-droplets number density: " << m_numdens_sd_init << "\n";
+            << "    Initial super-droplets number density: " << m_numdens_sd_init << "\n";
     SDInitProperties::printParameters(a_species_mat, a_aerosol_mat);
 }
 

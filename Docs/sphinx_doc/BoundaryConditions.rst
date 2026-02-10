@@ -61,10 +61,10 @@ We use the following options preceded by ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``z
 +---------------+--------------+----------------+----------------+--------------------------+---------------+
 | outflow       | foextrap     | foextrap       | foextrap       | foextrap                 | foextrap      |
 +---------------+--------------+----------------+----------------+--------------------------+---------------+
-| inflowoutflow | ext_dir if   | ext_dir if     | ext_dir if     | ext_dir if               | ext_dir if   |
-|               | inflowing;   | inflowing;     | inflowing;     | inflowing;               | inflowing;   |
-|               | otherwise    | otherwise      | otherwise      | otherwise                | otherwise    |
-|               | foextrap     | foextrap       | foextrap       | foextrap                 | foextrap     |
+| inflowoutflow | ext_dir if   | ext_dir if     | ext_dir if     | ext_dir if               | ext_dir if    |
+|               | inflowing;   | inflowing;     | inflowing;     | inflowing;               | inflowing;    |
+|               | otherwise    | otherwise      | otherwise      | otherwise                | otherwise     |
+|               | foextrap     | foextrap       | foextrap       | foextrap                 | foextrap      |
 +---------------+--------------+----------------+----------------+--------------------------+---------------+
 | slipwall      | ext_dir      | foextrap       | foextrap       | ext_dir/foextrap/neumann | foextrap      |
 +---------------+--------------+----------------+----------------+--------------------------+---------------+
@@ -223,7 +223,7 @@ and :math:`n` is the minimum number of grid points from a lateral boundary.
 
 
 Inflow turbulence generation
----------------------------
+----------------------------
 
 ERF provides the capability to apply a perturbation zone at the inflow domain boundary to mechanically trip turbulence within the domain. The current version of the turbulence generation techniques allows for `x` and `y` (horizontal) direction perturbations. In Figure 2, as the bulk flow passes through the buoyant region, it becomes perturbed. This perturbation, combined with a short development fetch, quickly leads to the evolution of turbulence.
 
