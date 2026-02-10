@@ -29,6 +29,7 @@ public:
                          amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_extdir_vals,
                          amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_neumann_vals,
                          std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                         const bool use_real_bcs,
                          amrex::Real* th_bc_data)
         : m_lev(lev), m_geom(geom),
           m_domain_bcs_type(domain_bcs_type),
