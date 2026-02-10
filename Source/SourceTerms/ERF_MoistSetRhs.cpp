@@ -13,7 +13,7 @@ using namespace amrex;
 void
 moist_set_rhs (const Geometry& geom,
                const Box& tbx,
-               const Array4<Real const>& new_cons,
+               const Array4<Real const>& old_cons,
                const Array4<Real      >& cell_rhs,
                const Real& bdy_time_interval,
                const Real& new_stage_time,
@@ -194,12 +194,12 @@ moist_set_rhs (const Geometry& geom,
                             tbx_xlo, tbx_xhi,
                             tbx_ylo, tbx_yhi,
                             ng_vect);
-    realbdy_compute_relaxation(RhoQ1_comp, 1,
-                               width, dx, ProbLo, ProbHi, F1, domain,
+    realbdy_compute_relaxation(RhoQ1_comp, 1, width,
+                               dt, dx, ProbLo, ProbHi, F1, domain,
                                tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
                                u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
-                               new_cons, cell_rhs, do_upwind);
+                               old_cons, cell_rhs, do_upwind);
 
     /*
     // UNIT TEST DEBUG

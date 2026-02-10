@@ -124,7 +124,7 @@ void add_thin_body_sources (amrex::MultiFab& xmom_source,
 void
 moist_set_rhs (const amrex::Geometry& geom,
                const amrex::Box& tbx,
-               const amrex::Array4<amrex::Real const>& new_cons,
+               const amrex::Array4<amrex::Real const>& old_cons,
                const amrex::Array4<amrex::Real      >& cell_rhs,
                const amrex::Real& bdy_time_interval,
                const amrex::Real& new_stage_time,

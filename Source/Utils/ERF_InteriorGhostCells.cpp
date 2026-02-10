@@ -100,7 +100,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     bool do_upwind,
                                     const Geometry& geom,
                                     Vector<MultiFab>& S_rhs,
-                                    Vector<MultiFab>& S_cur_data,
+                                    Vector<MultiFab>& S_old_data,
                                     Vector<Vector<FArrayBox>>& bdy_data_xlo,
                                     Vector<Vector<FArrayBox>>& bdy_data_xhi,
                                     Vector<Vector<FArrayBox>>& bdy_data_ylo,
@@ -370,7 +370,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
                 arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
                 rhs_arr  = S_rhs[IntVars::cons].array(mfi);
-                data_arr = S_cur_data[IntVars::cons].array(mfi);
+                data_arr = S_old_data[IntVars::cons].array(mfi);
             } else {
                 continue;
             }
@@ -379,8 +379,8 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             Array4<Real> v_xlo = V_xlo.array(); Array4<Real> v_xhi = V_xhi.array();
             Array4<Real> v_ylo = V_ylo.array(); Array4<Real> v_yhi = V_yhi.array();
 
-            realbdy_compute_relaxation(icomp, 1,
-                                       width, dx, ProbLo, ProbHi, F1, geom.Domain(),
+            realbdy_compute_relaxation(icomp, 1, width,
+                                       delta_t, dx, ProbLo, ProbHi, F1, geom.Domain(),
                                        tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                        arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
                                        u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
