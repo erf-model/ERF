@@ -14,6 +14,7 @@ void
 moist_set_rhs (const Geometry& geom,
                const Box& tbx,
                const Array4<Real const>& old_cons,
+               const Array4<Real const>& new_cons,
                const Array4<Real      >& cell_rhs,
                const Real& bdy_time_interval,
                const Real& new_stage_time,
@@ -183,10 +184,6 @@ moist_set_rhs (const Geometry& geom,
         v_yhi(i,j+1,k) = ( oma * bdatyhi_n_v(ii,jj+1,k) + alpha * bdatyhi_np1_v(ii,jj+1,k) );
     });
 
-
-    // NOTE: We pass 'new_cons' here since it has its ghost cells
-    //       populated and we are only operating on RhoQv; thus,
-    //       we do not need the updated fast quantities.
 
     // Compute RHS in relaxation region
     //==========================================================

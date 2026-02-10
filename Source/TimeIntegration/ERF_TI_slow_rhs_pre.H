@@ -330,7 +330,7 @@
                 realbdy_compute_interior_ghost_rhs(bdy_time_interval,
                                                    new_stage_time, slow_dt, stop_time-start_time, bdy_factor,
                                                    real_width, do_upwind, fine_geom,
-                                                   S_rhs, S_old,
+                                                   S_rhs, S_old, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
                                                    bdy_data_ylo, bdy_data_yhi);
             }

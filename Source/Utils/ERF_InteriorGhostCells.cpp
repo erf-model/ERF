@@ -101,6 +101,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     const Geometry& geom,
                                     Vector<MultiFab>& S_rhs,
                                     Vector<MultiFab>& S_old_data,
+                                    Vector<MultiFab>& S_cur_data,
                                     Vector<Vector<FArrayBox>>& bdy_data_xlo,
                                     Vector<Vector<FArrayBox>>& bdy_data_xhi,
                                     Vector<Vector<FArrayBox>>& bdy_data_ylo,
@@ -360,12 +361,12 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
                 arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
                 rhs_arr  = S_rhs[IntVars::xmom].array(mfi);
-                data_arr = S_cur_data[IntVars::xmom].array(mfi);
+                data_arr = S_old_data[IntVars::xmom].array(mfi);
             } else if (ivar  == ivarV) {
                 arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
                 arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
                 rhs_arr  = S_rhs[IntVars::ymom].array(mfi);
-                data_arr = S_cur_data[IntVars::ymom].array(mfi);
+                data_arr = S_old_data[IntVars::ymom].array(mfi);
             } else if (ivar  == ivarT){
                 arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
                 arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
