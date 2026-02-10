@@ -214,9 +214,9 @@ realbdy_compute_relaxation (const int& icomp,
         // Corners with x boxes
         amrex::Real x = ProbLo[0] + (i + ioff) * dx[0];
         amrex::Real y = ProbLo[1] + (j + joff) * dx[1];
-        amrex::Real x_end  = ProbLo[0] + (width + ioff) * dx[0];
-        amrex::Real y_end  = ProbLo[1] + (width + joff) * dx[1];
-        amrex::Real y_strt = ProbHi[1] - (width + joff) * dx[1];
+        amrex::Real x_end  = ProbLo[0] + width * dx[0];
+        amrex::Real y_end  = ProbLo[1] + width * dx[1];
+        amrex::Real y_strt = ProbHi[1] - width * dx[1];
         amrex::Real xi     = (x_end - x) / (x_end - ProbLo[0]);
         amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : 0.0;
         amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : 0.0;
@@ -243,9 +243,9 @@ realbdy_compute_relaxation (const int& icomp,
         // Corners with x boxes
         amrex::Real x = ProbLo[0] + (i + ioff) * dx[0];
         amrex::Real y = ProbLo[1] + (j + joff) * dx[1];
-        amrex::Real x_strt = ProbHi[0] - (width + ioff) * dx[0];
-        amrex::Real y_strt = ProbHi[1] - (width + joff) * dx[1];
-        amrex::Real y_end  = ProbLo[1] + (width + joff) * dx[1];
+        amrex::Real x_strt = ProbHi[0] - width * dx[0];
+        amrex::Real y_strt = ProbHi[1] - width * dx[1];
+        amrex::Real y_end  = ProbLo[1] + width * dx[1];
         amrex::Real xi     = (x - x_strt) / (ProbHi[0] - x_strt);
         amrex::Real eta_lo = (y < y_end ) ? (y_end  - y) / (y_end  - ProbLo[1]) : 0.0;
         amrex::Real eta_hi = (y > y_strt) ? (y - y_strt) / (ProbHi[1] - y_strt) : 0.0;
@@ -272,7 +272,7 @@ realbdy_compute_relaxation (const int& icomp,
     {
         // No corners for y boxes
         amrex::Real y      = ProbLo[1] + (j + joff) * dx[1];
-        amrex::Real y_end  = ProbLo[1] + (width + joff) * dx[1];
+        amrex::Real y_end  = ProbLo[1] + width * dx[1];
         amrex::Real eta    = (y_end - y) / (y_end - ProbLo[1]);
         amrex::Real Factor = eta*eta;
 
@@ -292,7 +292,7 @@ realbdy_compute_relaxation (const int& icomp,
     {
         // No corners for y boxes
         amrex::Real y      = ProbLo[1] + (j + joff) * dx[1];
-        amrex::Real y_strt = ProbHi[1] - (width + joff) * dx[1];
+        amrex::Real y_strt = ProbHi[1] - width * dx[1];
         amrex::Real eta    = (y - y_strt) / (ProbHi[1] - y_strt);
         amrex::Real Factor = eta*eta;
 
