@@ -935,6 +935,11 @@ void SLM::ReadCheckpoint(const int &lev, const std::string &checkpointname)
 
     first_step = false;
 
+    // Initialize common parameters
+    init_layer_depths();
+    vege_root_init();
+    init_soil_vars();
+
     auto check_end = amrex::second() - check_start;
     ParallelDescriptor::ReduceRealMax(check_end,ParallelDescriptor::IOProcessorNumber());
     amrex::Print() << "    SLM Checkpoint load time = " << check_end << " seconds." << '\n';

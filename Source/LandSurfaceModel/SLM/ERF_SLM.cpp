@@ -265,6 +265,7 @@ SLM::Init (const int& /*lev*/,
     landtype.setVal(landtype0);
     LAI.setVal(LAI0);
     SAI.setVal(0.0);
+    sstxy.setVal(0.0);
     mws_mx.setVal(mws_mx0);
 
     net_rad.setVal(0.0);
@@ -748,69 +749,7 @@ void SLM::slm_init()
     // Initialize soil parameters
     init_soil_tw();
 
-    auto tsurf = lsm_fab_vars[LsmVar_SLM::tsurf];
-    for ( MFIter mfi(*tsurf, TileNoZ()); mfi.isValid(); ++mfi) {
-        const auto& box3d = mfi.tilebox();
-
-        auto landmask_arr = landmask.const_array(mfi);
-
-        auto sand_arr = lsm_fab_vars[LsmVar_SLM::sand]->const_array(mfi);
-        auto clay_arr = lsm_fab_vars[LsmVar_SLM::clay]->const_array(mfi);
-
-        auto w_s_FC_arr = lsm_fab_vars[LsmVar_SLM::w_s_FC]->array(mfi);
-        auto w_s_WP_arr = lsm_fab_vars[LsmVar_SLM::w_s_WP]->array(mfi);
-        auto sst_capa_arr = lsm_fab_vars[LsmVar_SLM::sst_capa]->array(mfi);
-        auto sst_cond_arr = lsm_fab_vars[LsmVar_SLM::sst_cond]->array(mfi);
-        auto poro_soil_arr = lsm_fab_vars[LsmVar_SLM::poro_soil]->array(mfi);
-        auto theta_FC_arr = lsm_fab_vars[LsmVar_SLM::theta_FC]->array(mfi);
-        auto theta_WP_arr = lsm_fab_vars[LsmVar_SLM::theta_WP]->array(mfi);
-        auto m_pot_sat_arr = lsm_fab_vars[LsmVar_SLM::m_pot_sat]->array(mfi);
-        auto Bconst_arr = lsm_fab_vars[LsmVar_SLM::Bconst]->array(mfi);
-        auto ks_arr = lsm_fab_vars[LsmVar_SLM::ks]->array(mfi);
-
-        ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            if (landmask_arr(i, j, 0) == 1)
-            {
-                const amrex::Real sand_per = sand_arr(i, j, k); // sand percentage
-
-                // soil solids thermal conductivity (Johansen 1975)
-                //  quartz (= SAND content) thermal conductivity = 7.7 W/mK
-                const amrex::Real mineral_tcond = sand_per > 20.0 ? 2.0 : 3.0; // thermal conductivity of other minerals [W/mK]
-                sst_cond_arr(i, j, k) = std::pow(7.7, (sand_per * 0.01)) * std::pow(mineral_tcond, (1.0 - (sand_per * 0.01)));
-
-                // Calculated following Cosby et al. 1984 ( hydraulic properties)
-                // hydraulic conductivity at satuation , mm/s
-                ks_arr(i, j, k) = std::pow(10.0, (0.0153*sand_per) - 0.884) * (25.4 / 3600.0); // [mm/s] from [inch/hr]
-
-                // constant B
-                Bconst_arr(i, j, k) = 0.159 * clay_arr(i, j, k) + 2.91;
-
-                // porosity (or saturation volumetric water content)
-                poro_soil_arr(i, j, k) = -0.00126 * sand_per + 0.489; // volume/volume
-
-                // moisture potential at saturation, [mm]
-                m_pot_sat_arr(i, j, k) = std::min(-150.0, -10.0*(std::pow(10.0, 1.88 - 0.0131*sand_per))); // [mm] from [cm]
-
-                // soil heat capacity, [J/m^3/K]
-                //  Following de Vries(1963) using SAND=34% CLAY=63%
-                sst_capa_arr(i, j, k) = 1.0e6 * (2.128*sand_per + 2.385*clay_arr(i, j, k)) / (sand_per + clay_arr(i, j, k));
-
-                // volumetric moisture content at field capacity
-                // field capacity is assumed to be the occasion when hydraulic conductivity is 0.1mm/d
-                theta_FC_arr(i, j, k) = poro_soil_arr(i, j, k) * std::pow((0.1 / 86400.0 / ks_arr(i, j, k)), 1.0 / (2.0 * Bconst_arr(i, j, k) + 3.0));
-
-                // volumetric moisture content at wilting point
-                theta_WP_arr(i, j, k) = poro_soil_arr(i, j, k) * std::pow((-150000.0 / m_pot_sat_arr(i, j, k)), (-1.0 / Bconst_arr(i, j, k)));
-
-                // soil wetness at field capacity
-                w_s_FC_arr(i, j, k) = theta_FC_arr(i, j, k) / poro_soil_arr(i, j, k);
-
-                // soil wetness at wilting point
-                w_s_WP_arr(i, j, k) = theta_WP_arr(i, j, k) / poro_soil_arr(i, j, k);
-            }
-        });
-    }
+    init_soil_vars();
 
     // Calculate fraction of root in each soil layer
     vege_root_init();
@@ -1323,11 +1262,20 @@ void SLM::init_soil_tw()
         });
     }
 
-    // TODO: is it worth storing s_depth_mm, or should we always convert?
-    // s_depth_mm[] = s_depth[] * 1000.0
-
     // Calculate node_z (depth of the center of each soil layer)
-    // TODO: this can probably be done natively via AMReX?
+    init_layer_depths();
+}
+
+/**
+ * Calculates center and face depths for each soil layer
+ */
+void SLM::init_layer_depths()
+{
+    const int d_khi_lsm = khi_lsm;
+    const int d_klo_lsm = klo_lsm;
+
+    const bool wrfinput = use_wrfinput;
+
     for ( MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
         const auto& box = mfi.tilebox();
 
@@ -1362,6 +1310,77 @@ void SLM::init_soil_tw()
         });
     }
 }
+
+/**
+ * Initializes soil properties based on clay and sand percentages
+ */
+void SLM::init_soil_vars()
+{
+    auto tsurf = lsm_fab_vars[LsmVar_SLM::tsurf];
+    for ( MFIter mfi(*tsurf, TileNoZ()); mfi.isValid(); ++mfi) {
+        const auto& box3d = mfi.tilebox();
+
+        auto landmask_arr = landmask.const_array(mfi);
+
+        auto sand_arr = lsm_fab_vars[LsmVar_SLM::sand]->const_array(mfi);
+        auto clay_arr = lsm_fab_vars[LsmVar_SLM::clay]->const_array(mfi);
+
+        auto w_s_FC_arr = lsm_fab_vars[LsmVar_SLM::w_s_FC]->array(mfi);
+        auto w_s_WP_arr = lsm_fab_vars[LsmVar_SLM::w_s_WP]->array(mfi);
+        auto sst_capa_arr = lsm_fab_vars[LsmVar_SLM::sst_capa]->array(mfi);
+        auto sst_cond_arr = lsm_fab_vars[LsmVar_SLM::sst_cond]->array(mfi);
+        auto poro_soil_arr = lsm_fab_vars[LsmVar_SLM::poro_soil]->array(mfi);
+        auto theta_FC_arr = lsm_fab_vars[LsmVar_SLM::theta_FC]->array(mfi);
+        auto theta_WP_arr = lsm_fab_vars[LsmVar_SLM::theta_WP]->array(mfi);
+        auto m_pot_sat_arr = lsm_fab_vars[LsmVar_SLM::m_pot_sat]->array(mfi);
+        auto Bconst_arr = lsm_fab_vars[LsmVar_SLM::Bconst]->array(mfi);
+        auto ks_arr = lsm_fab_vars[LsmVar_SLM::ks]->array(mfi);
+
+        ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            if (landmask_arr(i, j, 0) == 1)
+            {
+                const amrex::Real sand_per = sand_arr(i, j, k); // sand percentage
+
+                // soil solids thermal conductivity (Johansen 1975)
+                //  quartz (= SAND content) thermal conductivity = 7.7 W/mK
+                const amrex::Real mineral_tcond = sand_per > 20.0 ? 2.0 : 3.0; // thermal conductivity of other minerals [W/mK]
+                sst_cond_arr(i, j, k) = std::pow(7.7, (sand_per * 0.01)) * std::pow(mineral_tcond, (1.0 - (sand_per * 0.01)));
+
+                // Calculated following Cosby et al. 1984 ( hydraulic properties)
+                // hydraulic conductivity at satuation , mm/s
+                ks_arr(i, j, k) = std::pow(10.0, (0.0153*sand_per) - 0.884) * (25.4 / 3600.0); // [mm/s] from [inch/hr]
+
+                // constant B
+                Bconst_arr(i, j, k) = 0.159 * clay_arr(i, j, k) + 2.91;
+
+                // porosity (or saturation volumetric water content)
+                poro_soil_arr(i, j, k) = -0.00126 * sand_per + 0.489; // volume/volume
+
+                // moisture potential at saturation, [mm]
+                m_pot_sat_arr(i, j, k) = std::min(-150.0, -10.0*(std::pow(10.0, 1.88 - 0.0131*sand_per))); // [mm] from [cm]
+
+                // soil heat capacity, [J/m^3/K]
+                //  Following de Vries(1963) using SAND=34% CLAY=63%
+                sst_capa_arr(i, j, k) = 1.0e6 * (2.128*sand_per + 2.385*clay_arr(i, j, k)) / (sand_per + clay_arr(i, j, k));
+
+                // volumetric moisture content at field capacity
+                // field capacity is assumed to be the occasion when hydraulic conductivity is 0.1mm/d
+                theta_FC_arr(i, j, k) = poro_soil_arr(i, j, k) * std::pow((0.1 / 86400.0 / ks_arr(i, j, k)), 1.0 / (2.0 * Bconst_arr(i, j, k) + 3.0));
+
+                // volumetric moisture content at wilting point
+                theta_WP_arr(i, j, k) = poro_soil_arr(i, j, k) * std::pow((-150000.0 / m_pot_sat_arr(i, j, k)), (-1.0 / Bconst_arr(i, j, k)));
+
+                // soil wetness at field capacity
+                w_s_FC_arr(i, j, k) = theta_FC_arr(i, j, k) / poro_soil_arr(i, j, k);
+
+                // soil wetness at wilting point
+                w_s_WP_arr(i, j, k) = theta_WP_arr(i, j, k) / poro_soil_arr(i, j, k);
+            }
+        });
+    }
+}
+
 
 /**
  * Assigns root fraction in each soil layer

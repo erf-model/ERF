@@ -511,6 +511,10 @@ public:
 
     void slm_init();
 
+    void init_layer_depths();
+
+    void init_soil_vars();
+
     void init_landtype();
 
     void init_soil_tw();
