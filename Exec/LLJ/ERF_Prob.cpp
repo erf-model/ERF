@@ -39,7 +39,8 @@ Problem::init_custom_pert(
     amrex::Array4<amrex::Real const> const& /*mf_m*/,
     amrex::Array4<amrex::Real const> const& /*mf_u*/,
     amrex::Array4<amrex::Real const> const& /*mf_v*/,
-    const SolverChoice& /*sc*/)
+    const SolverChoice& /*sc*/,
+    const int /*lev*/)
 {
   amrex::Print() << "Dummy function..Needed for linking" << std::endl;
 }
