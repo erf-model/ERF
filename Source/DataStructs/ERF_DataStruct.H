@@ -1208,7 +1208,7 @@ struct SolverChoice {
     amrex::Real windfarm_y_shift = -1.0;
 
     // Nudging factor for bdy sponging : F1 = 1/(nudge_factor * dt)
-    amrex::Real bdy_nudge_factor = 100.0;
+    amrex::Real bdy_nudge_factor = 10.0;
 
     // Use forest canopy model?
     bool do_forest_drag {false};
