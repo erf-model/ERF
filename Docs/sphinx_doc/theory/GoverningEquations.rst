@@ -94,7 +94,7 @@ and
    x = \xi, \quad \quad y = \eta, \quad \quad z =  h \left(\xi, \, \eta, \, \zeta \right).
 
 Only the vertical coordinate in the physical domain is deformed by the terrain-fitting.
-To account for isotropic lateral grid stretching as represented by ``map factors" :math:`m_x = m_y = m` as in WRF, we augment the coordinate transform above with stretching in the lateral directions only.
+To account for isotropic lateral grid stretching as represented by "map factors" :math:`m_x = m_y = m` as in WRF, we augment the coordinate transform above with stretching in the lateral directions only.
 
 These combined transformations yield the following Jacobian, :math:`\bar{\mathbf{J}}`, and inverse Jacobian, :math:`\bar{\mathbf{T}}`, matrices
 
@@ -130,7 +130,8 @@ Vector rotation of the fluid velocity yields :math:`J  \bar{\mathbf{T}} \mathbf{
 Background (reference) state
 -----------------------------
 
-- Pressure and density perturbations are defined with respect to a hydrostatically stratified background state, i.e.
+Pressure and density perturbations are defined with respect to a hydrostatically stratified background state, i.e.
+
 .. math::
   p = p_{0}(z) + p^\prime  \hspace{24pt} \rho = \rho_{0}(z) + \rho^\prime
 

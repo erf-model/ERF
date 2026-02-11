@@ -1,6 +1,8 @@
    .. role:: cpp(code)
       :language: c++
 
+.. _CouplingToNoahMP:
+
 Coupling to Noah-MP
 ===================
 

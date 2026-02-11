@@ -69,7 +69,7 @@ AMREX_ENUM(MoistureModelType,
 );
 
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, SuperDroplets, None
 );
 
 AMREX_ENUM(WindFarmType,
@@ -182,6 +182,12 @@ struct SolverChoice {
                 RhoQ1_comp,  // water vapor
                 RhoQ2_comp,  // cloud water
                 -1,          // cloud ice
+                RhoQ3_comp   // rain
+            );
+        } else if (moisture_type == MoistureType::SuperDroplets) {
+            moisture_indices = MoistureComponentIndices(
+                RhoQ1_comp,  // water vapor
+                RhoQ2_comp,  // cloud water
                 RhoQ3_comp   // rain
             );
         }
@@ -510,8 +516,12 @@ struct SolverChoice {
         pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
         pp.query("add_custom_moisture_forcing", custom_moisture_forcing);
         pp.query("add_custom_w_subsidence", custom_w_subsidence);
+        pp.query("add_do_theta_advection", do_theta_advection);
+        pp.query("add_do_mom_advection", do_mom_advection);
         pp.query("add_custom_geostrophic_profile", custom_geostrophic_profile);
         pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
+        pp.query("spatial_rhotheta_forcing", spatial_rhotheta_forcing);
+        pp.query("spatial_moisture_forcing", spatial_moisture_forcing);
 
         pp.query("nudging_from_input_sounding", nudging_from_input_sounding);
 
@@ -571,6 +581,9 @@ struct SolverChoice {
                 }
             }
         }
+
+        // Are me transporting the scalar component?
+        pp.query("transport_scalar",transport_scalar);
 
         // Are we using SHOC? (test on compilation done in turb struct)
         if (turbChoice[0].pbl_type == PBLType::SHOC) { use_shoc = true; }
@@ -718,6 +731,18 @@ struct SolverChoice {
                               " but have not provided the initial location of the eye of the hurricane to be tracked. There has to be two"
                               " options in the inputs - erf.hurricane_eye_latitude and erf.hurricane_eye_longitude that gives an approximate"
                               " location of the eye in the initial condition");
+            }
+        }
+
+        amrex::ParmParse pp_ens("ensemble");
+        pp_ens.query("is_init_with_correlated_pert", is_init_with_correlated_pert);
+        if(is_init_with_correlated_pert) {
+            pp_ens.query("pert_correlated_radius", pert_correlated_radius);
+            if(pert_correlated_radius <= 0.0) {
+                amrex::Abort("You are using initialization with spatially correlated perturbations using the inputs option "
+                             "ensemble.is_init_with_correlated_pert=true. In this case, there has to be an option "
+                             "ensemble.pert_correlated_radius which is the value of the the spatial correlation radius, "
+                             "and has to be greater than 0.0");
             }
         }
     }
@@ -1115,8 +1140,12 @@ struct SolverChoice {
     bool custom_rhotheta_forcing  = false;
     bool custom_moisture_forcing  = false;
     bool custom_w_subsidence      = false;
+    bool do_theta_advection       = true;
+    bool do_mom_advection       = true;
     bool custom_geostrophic_profile = false;
     bool custom_forcing_prim_vars = false;
+    bool spatial_rhotheta_forcing = false;
+    bool spatial_moisture_forcing = false;
 
     // Do we use source terms to nudge the solution towards
     //    the time-varying data provided in input sounding files?
@@ -1127,6 +1156,9 @@ struct SolverChoice {
 
     // Should we use SHOC?
     bool use_shoc = false;
+
+    // Transport the passive scalar?
+    bool transport_scalar = true;
 
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;
@@ -1194,5 +1226,8 @@ struct SolverChoice {
 
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
+
+    bool is_init_with_correlated_pert = false;
+    amrex::Real pert_correlated_radius = -1.0;
 };
 #endif

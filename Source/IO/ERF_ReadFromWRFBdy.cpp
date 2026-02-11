@@ -223,9 +223,9 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Box xlo_line(IntVect(lo[0], lo[1], 0), IntVect(lo[0]+real_width-1, hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_x_stag, 1, Arena_Used)); // U
+                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_x_stag, 1, Arena_Used));  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_y_stag , 1, Arena_Used)); // V
+                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_y_stag, 1, Arena_Used));  // V
             } else if (bdyVarType == WRFBdyVars::T) {
                 bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
@@ -251,9 +251,9 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Box xhi_line(IntVect(hi[0]-real_width+1, lo[1], 0), IntVect(hi[0], hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_x_stag, 1, Arena_Used)); // U
+                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_x_stag, 1, Arena_Used));  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_y_stag , 1, Arena_Used)); // V
+                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_y_stag, 1, Arena_Used));  // V
             } else if (bdyVarType == WRFBdyVars::T) {
                 bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
@@ -279,9 +279,9 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Box ylo_line(IntVect(lo[0], lo[1], 0), IntVect(hi[0], lo[1]+real_width-1, 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_x_stag , 1, Arena_Used)); // U
+                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_x_stag, 1, Arena_Used));  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_y_stag, 1, Arena_Used)); // V
+                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_y_stag, 1, Arena_Used));  // V
             } else if (bdyVarType == WRFBdyVars::T) {
                 bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
@@ -307,9 +307,9 @@ read_from_wrfbdy (const int itime, const std::string& nc_bdy_file, const Box& do
             Box yhi_line(IntVect(lo[0], hi[1]-real_width+1, 0), IntVect(hi[0], hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_x_stag , 1, Arena_Used)); // U
+                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_x_stag, 1, Arena_Used));  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_y_stag, 1, Arena_Used)); // V
+                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_y_stag, 1, Arena_Used));  // V
             } else if (bdyVarType == WRFBdyVars::T) {
                 bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // T
             } else if (bdyVarType == WRFBdyVars::QV) {
@@ -522,9 +522,9 @@ convert_wrfbdy_data (const int itime,
         const Array4<const int>& mask_v_arr = mask_v->const_array(mfi);
 
         // Populated from read wrfinput
-        Array4<Real const> c1h_arr  = mf_C1H.const_array(mfi);
-        Array4<Real const> c2h_arr  = mf_C2H.const_array(mfi);
-        Array4<Real const> mub_arr  = mf_MUB.const_array(mfi);
+        Array4<Real const> c1h_arr   = mf_C1H.const_array(mfi);
+        Array4<Real const> c2h_arr   = mf_C2H.const_array(mfi);
+        Array4<Real const> mub_arr   = mf_MUB.const_array(mfi);
 
         // Define u velocity
         ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

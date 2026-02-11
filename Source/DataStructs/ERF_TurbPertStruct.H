@@ -240,7 +240,7 @@ struct TurbulentPerturbation {
         pp.query("fix_random_seed", fix_random_seed);
         if (fix_random_seed) {
             // We need this one for the ParalleForRNG used in calc_tpi
-            amrex::InitRandom(1024UL);
+            amrex::InitRandom(1024UL, amrex::ParallelDescriptor::NProcs(), 1024UL);
 
             // We need this one for the RandomReal below
             srand(1024UL);

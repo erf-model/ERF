@@ -110,7 +110,7 @@ which is equivalent to that written in (9) of
 
 .. _`MPAS report`: https://www2.mmm.ucar.edu/projects/mpas/mpas_website_linked_files/MPAS-A_tech_note.pdf
 
-.. _`Klemp, Dudhia & Hassiotis, An Upper Gravity-Wave Absorbing Layer for NWP Applications, 2008`: https://journals.ametsoc.org/view/journals/mwre/136/10/2008mwr2596.1.xml
+.. _`Klemp, Dudhia & Hassiotis, An Upper Gravity-Wave Absorbing Layer for NWP Applications (2008)`: https://journals.ametsoc.org/view/journals/mwre/136/10/2008mwr2596.1.xml
 
 Sponge regions
 ----------------------
@@ -158,7 +158,7 @@ The :math:`u` and :math:`v` velocity forcing in the sponge zones will be read in
 
 
 Immersed forcing to represent terrain
-----------------------
+-------------------------------------
 
 An additional option for representing terrain in ERF is to use an immersed forcing method where large body forces are applied to the momentum equations as sinks to force the velocity to near zero or to a desired value.
 This method follows the methods of `Chan and Leach (2007) <https://doi.org/10.1175/2006JAMC1321.1>`_ and `Muñoz-Esparza et al. (2020) <https://doi.org/10.1029/2020MS002141>`_, but is expanded to allow the user to utilize a wall-model (based on Monin Obukhov similarity theory, :ref:`sec:surface_layer`).
@@ -214,7 +214,7 @@ An example of using immersed forcing for a Witch of Agnesi hill is available in 
 .. note:: When using fully compressible simulations, it is recommended to apply immersed forcing on the substep for numerical stability.
 
 Immersed forcing to represent buildings
-----------------------
+---------------------------------------
 
 The immersed forcing capability can also be used to represent buildings.
 Currently, the implementation is similar to the formulation for fully immersed cells for terrain, but is proportional to the volume fraction :math:`V_f` thus implicitly applying a no-slip boundary condition following `Muñoz-Esparza et al. (2020) <https://doi.org/10.1029/2020MS002141>`_.

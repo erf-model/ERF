@@ -156,8 +156,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         if ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) )
         {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-            init_only(lev, time);
-            init_zphys(lev, time);
+            init_only(lev, start_time+time);
+            init_zphys(lev, start_time+time);
             update_terrain_arrays(lev);
             make_physbcs(lev);
         } else {
@@ -218,24 +218,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (restart_chkfile.empty()) {
         if (solverChoice.do_forest_drag) {
             m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
-        }
-    }
-
-    //********************************************************************************************
-    // Create wall distance field for RANS model (depends upon z_phys)
-    // *******************************************************************************************
-    if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
-        // Handle bottom boundary
-        poisson_wall_dist(lev);
-
-        // Correct the wall distance for immersed bodies
-        if (solverChoice.advChoice.have_zero_flux_faces) {
-            thinbody_wall_dist(walldist[lev],
-                               solverChoice.advChoice.zero_xflux,
-                               solverChoice.advChoice.zero_yflux,
-                               solverChoice.advChoice.zero_zflux,
-                               geom[lev],
-                               z_phys_cc[lev]);
         }
     }
 

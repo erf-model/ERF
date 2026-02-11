@@ -496,6 +496,17 @@ public:
                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                                   bool regrid_forces_file_read);
 
+    void create_random_perturbations (const int lev,
+                                      amrex::MultiFab& cons_pert,
+                                      amrex::MultiFab& xvel_pert,
+                                      amrex::MultiFab& yvel_pert,
+                                      amrex::MultiFab& zvel_pert);
+
+    void apply_gaussian_smoothing_to_perturbations (const int lev,
+                                                    amrex::MultiFab& cons_pert,
+                                                    amrex::MultiFab& xvel_pert,
+                                                    amrex::MultiFab& yvel_pert,
+                                                    amrex::MultiFab& zvel_pert);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -570,13 +581,15 @@ public:
 #ifdef ERF_USE_WINDFARM
     void init_windfarm(int lev);
     void advance_windfarm (const amrex::Geometry& a_geom,
-                       const amrex::Real& dt_advance,
-                       amrex::MultiFab& cons_in,
-                       amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
-                       amrex::MultiFab& mf_vars_windfarm,
-                       const amrex::MultiFab& mf_Nturb,
-                       const amrex::MultiFab& mf_SMark,
-                       const amrex::Real& time);
+                           const amrex::Real& dt_advance,
+                           amrex::MultiFab& cons_in,
+                           amrex::MultiFab& U_old,
+                           amrex::MultiFab& V_old,
+                           amrex::MultiFab& W_old,
+                           amrex::MultiFab& mf_vars_windfarm,
+                           const amrex::MultiFab& mf_Nturb,
+                           const amrex::MultiFab& mf_SMark,
+                           const amrex::Real& time);
 #endif
 
     void MakeEBGeometry ();
@@ -1123,7 +1136,7 @@ private:
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
-                                                    "eq_pot_temp",
+                                                    "eq_pot_temp", "VPD",
 #ifdef ERF_USE_WINDFARM
                                                     "num_turb", "SMark0", "SMark1",
 #endif
@@ -1145,7 +1158,9 @@ private:
                                                     "diss",
                                                     // moisture vars
                                                     "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup", "qt", "qn", "qp", "qsat",
-                                                    "rain_accum", "snow_accum", "graup_accum", "reflectivity", "max_reflectivity",
+                                                    "rain_accum", "snow_accum", "graup_accum",
+                                                    "rel_humidity", "condensation_rate",
+                                                    "reflectivity", "max_reflectivity",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
                                                     // EB variables
@@ -1290,11 +1305,8 @@ private:
     static int ng_pres_hse;
 
     // Custom source terms
-    amrex::Vector<           amrex::Vector<amrex::Real> > h_rhotheta_src;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhotheta_src;
-
-    amrex::Vector<           amrex::Vector<amrex::Real> > h_rhoqt_src;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhoqt_src;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rhotheta_src;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rhoqt_src;
 
     amrex::Vector<           amrex::Vector<amrex::Real> > h_w_subsid;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_w_subsid;
@@ -1407,7 +1419,7 @@ private:
             else
             {
                 if (sc.terrain_type == TerrainType::EB){
-                    ngrow = 3;
+                    ngrow = 4;
                 } else {
                     ngrow = 2;
                 }

@@ -105,7 +105,7 @@
                      qheating_rates[level].get(),
                      terrain_blank, fine_geom, solverChoice,
                      mapfac[level],
-                     dptr_rhotheta_src, dptr_rhoqt_src,
+                     rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
                       (solverChoice.hindcast_surface_bcs? &surface_state_interp[level] : nullptr),
                      input_sounding_data, turbPert, true);
@@ -324,10 +324,11 @@
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs
         if (solverChoice.use_real_bcs && (level == 0)) {
+            const bool do_upwind = solverChoice.upwind_real_bcs;
             if (real_width>0) {
                 realbdy_compute_interior_ghost_rhs(bdy_time_interval,
                                                    new_stage_time, slow_dt, stop_time-start_time,
-                                                   real_width, real_set_width, fine_geom,
+                                                   real_width, real_set_width, do_upwind, fine_geom,
                                                    S_rhs, S_old, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
                                                    bdy_data_ylo, bdy_data_yhi);

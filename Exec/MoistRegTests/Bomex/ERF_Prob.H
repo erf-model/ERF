@@ -89,15 +89,13 @@ public:
 
     void update_rhotheta_sources (
         const amrex::Real& /*time*/,
-        amrex::Vector<amrex::Real>& src,
-        amrex::Gpu::DeviceVector<amrex::Real>& d_src,
+        amrex::MultiFab* src,
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
     void update_rhoqt_sources (
         const amrex::Real& /*time*/,
-        amrex::Vector<amrex::Real>& qsrc,
-        amrex::Gpu::DeviceVector<amrex::Real>& d_qsrc,
+        amrex::MultiFab* qsrc,
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
@@ -105,6 +103,7 @@ public:
         const amrex::Real& /*time*/,
         amrex::Vector<amrex::Real>& wbar,
         amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
+        const amrex::MultiFab& state,
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_nd) override;
 
@@ -122,6 +121,7 @@ protected:
 private:
     ProbParm parms;
     amrex::Vector<amrex::Real> zlevels;
+    amrex::Gpu::DeviceVector<amrex::Real> d_zlevels;
 };
 
 #endif

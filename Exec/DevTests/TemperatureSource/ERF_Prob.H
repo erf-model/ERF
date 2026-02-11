@@ -77,8 +77,7 @@ public:
 
     void update_rhotheta_sources (
         const amrex::Real& time,
-        amrex::Vector<amrex::Real>& src,
-        amrex::Gpu::DeviceVector<amrex::Real>& d_src,
+        amrex::MultiFab* src,
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
@@ -87,6 +86,7 @@ protected:
 private:
     ProbParm parms;
     amrex::Vector<amrex::Real> zlevels;
+    amrex::Gpu::DeviceVector<amrex::Real> d_zlevels;
 };
 
 #endif

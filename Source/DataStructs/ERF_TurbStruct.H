@@ -190,6 +190,7 @@ public:
     query_one_or_per_level(pp, "Rt_crit", Rt_crit, lev, max_level);
     query_one_or_per_level(pp, "Rt_min", Rt_min, lev, max_level);
     query_one_or_per_level(pp, "max_geom_lscale", l_g_max, lev, max_level);
+    query_one_or_per_level(pp, "dirichlet_k", dirichlet_k, lev, max_level);
 
     // Common inputs (LES or RANS)
     if (!query_one_or_per_level(pp, "sigma_k", sigma_k, lev, max_level) && rans_type == RANSType::kEqn) {
@@ -271,7 +272,8 @@ public:
       amrex::Print() << "    Using Deardorff LES model at level " << lev << std::endl;
     } else if (rans_type == RANSType::kEqn) {
       amrex::Print()
-        << "    Using Axell & Liungman one-equation RANS k model at level " << lev << std::endl;
+        << "    Using Axell & Liungman one-equation RANS k model at level " << lev
+        << std::endl;
     } else if (pbl_type == PBLType::MYJ) {
       amrex::Print() << "    Using MYJ PBL model at level " << lev << std::endl;
     } else if (pbl_type == PBLType::MYNN25) {
@@ -409,6 +411,8 @@ public:
 
   // RANS type
   RANSType rans_type;
+
+  bool dirichlet_k = false;
 
   // PBL model
   PBLType pbl_type;

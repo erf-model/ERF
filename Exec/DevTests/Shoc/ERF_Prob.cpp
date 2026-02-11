@@ -223,6 +223,7 @@ void
 Problem::update_w_subsidence (const Real& /*time*/,
                               Vector<Real>& wbar,
                               Gpu::DeviceVector<Real>& d_wbar,
+                              const amrex::MultiFab& /*state*/,
                               const Geometry& geom,
                               std::unique_ptr<MultiFab>& z_phys_nd)
 {

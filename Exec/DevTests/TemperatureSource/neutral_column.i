@@ -50,3 +50,4 @@ erf.les_type = "None"
 
 erf.add_custom_rhotheta_forcing = true
 erf.custom_forcing_uses_primitive_vars = true
+prob.advection_heating_rate   = -2.3148E-5

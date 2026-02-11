@@ -142,27 +142,25 @@ public:
     */
     virtual void
     update_rhotheta_sources (const amrex::Real& /*time*/,
-                             amrex::Vector<amrex::Real>& src,
-                             amrex::Gpu::DeviceVector<amrex::Real>& d_src,
-                             const amrex::Geometry& geom,
+                             amrex::MultiFab* src,
+                             const amrex::Geometry& /*geom*/,
                              std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {
-        if (src.empty()) return;
+        if (src->empty()) return;
 
         amrex::Warning("Temperature forcing not defined for "+name()+" problem");
-
-        const int khi              = geom.Domain().bigEnd()[2];
-        // const amrex::Real* prob_lo = geom.ProbLo();
-        // const auto dx              = geom.CellSize();
-        for (int k = 0; k <= khi; k++)
+        for ( amrex::MFIter mfi(*src, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
-            // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-            // set RHS term of RhoTheta equation based on time, z_cc here
-            src[k] = 0.0;
+            const auto &box = mfi.tilebox();
+            const amrex::Array4<amrex::Real>& src_arr = src->array(mfi);
+            // src is a spatial function if erf.spatial_rhotheta_forcing = true
+            // otherwise, qsrc_arr is defined only in over Z (box x and y dimensions are 1)
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // set RHS term of RhoTheta equation based on time, z_cc here
+                src_arr(i, j, k) = 0.0;
+            });
         }
-
-        // Copy from host version to device version
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, src.begin(), src.end(), d_src.begin());
     }
 
     /**
@@ -176,27 +174,25 @@ public:
     */
     virtual void
     update_rhoqt_sources (const amrex::Real& /*time*/,
-                             amrex::Vector<amrex::Real>& qsrc,
-                             amrex::Gpu::DeviceVector<amrex::Real>& d_qsrc,
-                             const amrex::Geometry& geom,
+                             amrex::MultiFab* qsrc,
+                             const amrex::Geometry& /*geom*/,
                              std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {
-        if (qsrc.empty()) return;
+        if (qsrc->empty()) return;
 
         amrex::Warning("Moisture forcing not defined for "+name()+" problem");
-
-        const int khi              = geom.Domain().bigEnd()[2];
-        // const amrex::Real* prob_lo = geom.ProbLo();
-        // const auto dx              = geom.CellSize();
-        for (int k = 0; k <= khi; k++)
+        for ( amrex::MFIter mfi(*qsrc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
-            // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-            // set RHS term of RhoQ1 equation based on time, z_cc here
-            qsrc[k] = 0.0;
+            const auto &box = mfi.tilebox();
+            const amrex::Array4<amrex::Real>& qsrc_arr = qsrc->array(mfi);
+            // src is a spatial function if erf.spatial_moisture_forcing = true
+            // otherwise, qsrc_arr is defined only in over Z (box x and y dimensions are 1)
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // set RHS term of RhoQ1 equation based on time, z_cc here
+                qsrc_arr(i, j, k) = 0.0;
+            });
         }
-
-        // Copy from host version to device version
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, qsrc.begin(), qsrc.end(), d_qsrc.begin());
     }
 
     /**
@@ -215,6 +211,7 @@ public:
     update_w_subsidence (const amrex::Real& /*time*/,
                          amrex::Vector<amrex::Real>& wbar,
                          amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
+                         const amrex::MultiFab& /*state*/,
                          const amrex::Geometry& geom,
                          std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {

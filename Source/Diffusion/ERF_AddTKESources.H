@@ -26,6 +26,10 @@
             // mixing ratios, depending on whether conditions are saturated or
             // not (see the WRF model description, Skamarock et al 2019).
             cell_rhs(i,j,k,qty_index) += l_abs_g * l_inv_theta0 * hfx_z(i,j,k);
+            if (!use_ref_theta) {
+                // l_inv_theta0 == 1, divide by actual theta
+                cell_rhs(i,j,k,qty_index) /= cell_prim(i,j,k,PrimTheta_comp);
+            }
 
             // TKE shear production
             //   P = -tau_ij * S_ij = 2 * mu_turb * S_ij * S_ij

@@ -337,7 +337,7 @@ Output Options for 3D plotfiles
 | **KE**                      | SGS turbulent    |
 |                             | kinetic energy   |
 |                             | (from Deardorff  |
-|                             |  or MYNN)        |
+|                             | or MYNN)         |
 +-----------------------------+------------------+
 | **rhoKE**                   | Density * KE     |
 |                             |                  |

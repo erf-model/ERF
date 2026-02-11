@@ -179,12 +179,11 @@ Problem::init_custom_pert(
 void
 Problem::update_rhotheta_sources (
     const amrex::Real& time,
-    amrex::Vector<amrex::Real>& src,
-    amrex::Gpu::DeviceVector<amrex::Real>& d_src,
+    amrex::MultiFab* src,
     const amrex::Geometry& geom,
     std::unique_ptr<amrex::MultiFab>& z_phys_cc)
 {
-    if (src.empty()) return;
+    if (src->empty()) return;
 
     const int khi              = geom.Domain().bigEnd()[2];
     const amrex::Real* prob_lo = geom.ProbLo();
@@ -197,27 +196,37 @@ Problem::update_rhotheta_sources (
         amrex::Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
         reduce_to_max_per_height(zlevels, z_phys_cc);
+        d_zlevels.resize(khi+1);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
     }
 
     if (time < parms.restart_time) {
         // Uniform temperature source
-        for (int k = 0; k <= khi; k++) {
-            src[k] = parms.advection_heating_rate;
-        }
+        src->setVal(parms.advection_heating_rate);
     } else {
+        const Real* d_zlevels_arr = d_zlevels.dataPtr();
         // Only apply temperature source below nominal inversion height
-        for (int k = 0; k <= khi; k++) {
-            const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
-            if (z_cc < parms.cutoff) {
-                src[k] = parms.advection_heating_rate;
-            } else if (z_cc < parms.cutoff+parms.cutoff_transition) {
-                src[k] = parms.advection_heating_rate * (z_cc-parms.cutoff)/parms.cutoff_transition;
+        for ( amrex::MFIter mfi(*src, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            const auto &box = mfi.tilebox();
+            const Array4<Real>& src_arr = src->array(mfi);
+            if (box.length(0) != 1)
+            {
+                // spatially varying source not used in this problem
+                src->setVal(0.0);
             } else {
-                src[k] = 0.0;
+                bool use_zlevels = (z_phys_cc != nullptr);
+                ParallelFor(box, [=, parms_d=parms] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    const Real z_cc = (use_zlevels) ? d_zlevels_arr[k] : prob_lo[2] + (k+0.5)* dx[2];
+                    if (z_cc < parms_d.cutoff) {
+                        src_arr(i, j, k) = parms_d.advection_heating_rate;
+                    } else if (z_cc < parms_d.cutoff+parms_d.cutoff_transition) {
+                        src_arr(i, j, k) = parms_d.advection_heating_rate * (z_cc-parms_d.cutoff)/parms_d.cutoff_transition;
+                    } else {
+                        src_arr(i, j, k) = 0.0;
+                    }
+                });
             }
         }
     }
-
-    // Copy from host version to device version
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, src.begin(), src.end(), d_src.begin());
 }

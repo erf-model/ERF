@@ -142,13 +142,13 @@ Problem::init_custom_pert(
     // --------------------------------------------------------
     // Per-ensemble perturbation controls
     // --------------------------------------------------------
-    Real ens_pert_ampitude = 0.0;
-    ParmParse pp_pert("ensemble_pert");
-    pp_pert.query("amplitude", ens_pert_ampitude);
+    Real ens_pert_amplitude = 0.0;
+    ParmParse pp_ens("ensemble_pert");
+    pp_ens.query("amplitude", ens_pert_amplitude);
 
 
   // Set the x-velocity
-  ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+  ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
 
       const Real* prob_lo = geomdata.ProbLo();
@@ -161,10 +161,7 @@ Problem::init_custom_pert(
       const Real u = (parms_d.M_inf * std::cos(parms_d.alpha)
                           - (y - parms_d.yc)/parms_d.R * Omg) * parms_d.a_inf;
 
-       Real rand_double = amrex::Random(engine);
-
-      // Gaussian random number (mean 0, variance 1)
-       x_vel_pert(i, j, k) = u + ens_pert_ampitude*rand_double;
+       x_vel_pert(i, j, k) = u + ens_pert_amplitude*x_vel_pert(i, j, k);
 
   });
 
