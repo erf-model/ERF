@@ -1548,6 +1548,7 @@ ERF::InitData_post ()
 
             // If initializing from an input_sounding, make sure the surface layer
             // is using the same surface conditions
+            /*
             if (solverChoice.init_type == InitType::Input_Sounding) {
                 const Real theta0 = input_sounding_data.theta_ref_inp_sound;
                 const Real qv0    = input_sounding_data.qv_ref_inp_sound;
@@ -1556,6 +1557,7 @@ ERF::InitData_post ()
                     m_SurfaceLayer[ori]->set_q_surf(lev, qv0);
                 }
             }
+            */
 
             if (restart_chkfile != "") {
                 // Update surface fields if needed (and available)
