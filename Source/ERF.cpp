@@ -1617,7 +1617,7 @@ ERF::InitData_post ()
             /*
             if (solverChoice.urban_type == UrbanType::BEM_BEP) {
                 for (int lev = 0; lev <= finest_level; ++lev) {
-                    olen_ptrs_urb[lev] = urban_data[lev][UrbanVar_BEP::olen];
+                    olen_ptrs_urb[lev] = nullptr;
                 }
                 m_SurfaceModel->register_field_map("tskin", {lsm.Get_DataIdx(0, "tsurf"), UrbanVar_BEP::tsk});
                 m_SurfaceModel->register_field_map("emiss", {lsm.Get_DataIdx(0, "emis_sfc"), UrbanVar_BEP::emiss});
@@ -1626,8 +1626,8 @@ ERF::InitData_post ()
                 m_SurfaceModel->register_field_map("albedo_vis_diff", {lsm.Get_DataIdx(0, "alb_vis_sfc_diff"), -1});
                 m_SurfaceModel->register_field_map("albedo_nir_diff", {lsm.Get_DataIdx(0, "alb_nir_sfc_diff"), -1});
                 m_SurfaceModel->register_field_map("ustar", {lsm.Get_DataIdx(0, "ustar"), UrbanVar_BEP::ustar}, true);
-                m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), UrbanVar_BEP::tstar}, true);
-                m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), UrbanVar_BEP::qstar}, true);
+                m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1}, true);
+                m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1}, true);
                 m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
             } else {
             */
