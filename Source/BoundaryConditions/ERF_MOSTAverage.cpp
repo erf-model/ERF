@@ -724,7 +724,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
             }
         }
 
-        m_k_indx[lev]->FillBoundary(m_k_indx[lev]->nGrowVect(), Periodicity(IntVect::TheDimensionVector(m_face.coordDir())));
+        m_k_indx[lev]->FillBoundary(m_k_indx[lev]->nGrowVect(), Periodicity(IntVect(1,1,1)));
 
     // Specified k_indx & compute z_ref
     } else if (read_k) {
