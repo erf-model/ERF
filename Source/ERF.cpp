@@ -3085,7 +3085,7 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
         {
             const Real rho      = s_arr(i, j, k, Rho_comp);
             const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
-            const Real qv       = s_arr(i, j, k, RhoQ1_comp);
+            const Real qv       = s_arr(i, j, k, RhoQ1_comp) / rho;
 
             Real temp = getTgivenRandRTh(rho, rhotheta, qv);
 
@@ -3094,7 +3094,7 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
                 AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
 #else
                 printf("Temperature too low in cell: %d %d %d \n", i,j,k);
-                printf("Based on temp / rhotheta / rho %e %e %e \n", temp,rhotheta,rho);
+                printf("Based on temp / rhotheta / rho / qv %e %e %e %e \n", temp,rhotheta,rho,qv);
 #endif
                 Abort();
             }
