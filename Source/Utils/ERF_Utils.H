@@ -117,7 +117,6 @@ void realbdy_compute_interior_ghost_rhs (const amrex::Real& bdy_time_interval,
                                          bool do_upwind,
                                          const amrex::Geometry& geom,
                                          amrex::Vector<amrex::MultiFab>& S_rhs,
-                                         amrex::Vector<amrex::MultiFab>& S_old_data,
                                          amrex::Vector<amrex::MultiFab>& S_cur_data,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
@@ -180,7 +179,6 @@ void
 realbdy_compute_relaxation (const int& icomp,
                             const int& num_var,
                             const int& width,
-                            const amrex::Real& dt,
                             const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& dx,
                             const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbLo,
                             const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& ProbHi,
@@ -223,8 +221,7 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real eta    = std::max(eta_lo,eta_hi);
         amrex::Real Factor = std::max(xi*xi,eta*eta);
 
-        amrex::Real state = data_arr(i  ,j  ,k  ,n+icomp) + rhs_arr(i,j,k,n+icomp)*dt;
-        amrex::Real delta = arr_xlo(i  ,j  ,k,n) - state;
+        amrex::Real delta = arr_xlo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real Temp  = Factor*F1*delta;
         if (!do_upwind) {
             rhs_arr(i,j,k,n+icomp) += Temp;
@@ -252,8 +249,7 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real eta    = std::max(eta_lo,eta_hi);
         amrex::Real Factor = std::max(xi*xi,eta*eta);
 
-        amrex::Real state = data_arr(i  ,j  ,k  ,n+icomp) + rhs_arr(i,j,k,n+icomp)*dt;
-        amrex::Real delta = arr_xhi(i  ,j  ,k,n) - state;
+        amrex::Real delta = arr_xhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real Temp  = Factor*F1*delta;
         if (!do_upwind) {
             rhs_arr(i,j,k,n+icomp) += Temp;
@@ -276,8 +272,7 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real eta    = (y_end - y) / (y_end - ProbLo[1]);
         amrex::Real Factor = eta*eta;
 
-        amrex::Real state = data_arr(i  ,j  ,k  ,n+icomp) + rhs_arr(i,j,k,n+icomp)*dt;
-        amrex::Real delta = arr_ylo(i  ,j  ,k,n) - state;
+        amrex::Real delta = arr_ylo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real Temp  = Factor*F1*delta;
         if (!do_upwind) {
             rhs_arr(i,j,k,n+icomp) += Temp;
@@ -296,8 +291,7 @@ realbdy_compute_relaxation (const int& icomp,
         amrex::Real eta    = (y - y_strt) / (ProbHi[1] - y_strt);
         amrex::Real Factor = eta*eta;
 
-        amrex::Real state = data_arr(i  ,j  ,k  ,n+icomp) + rhs_arr(i,j,k,n+icomp)*dt;
-        amrex::Real delta = arr_yhi(i  ,j  ,k,n) - state;
+        amrex::Real delta = arr_yhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real Temp  = Factor*F1*delta;
         if (!do_upwind) {
             rhs_arr(i,j,k,n+icomp) += Temp;
