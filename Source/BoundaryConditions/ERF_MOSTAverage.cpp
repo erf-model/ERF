@@ -660,7 +660,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
             if (is_lo_face) {
                 int kmax = m_geom[lev].Domain().bigEnd(2);
                 for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-                    Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+                    Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,1));
                     const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
                     auto k_arr = m_k_indx[lev]->array(mfi);
                     auto zref_arr = m_zref[lev]->array(mfi);
@@ -690,9 +690,9 @@ MOSTAverage::set_k_indices_T (const int& lev)
                     });
                 }
             } else {
-                int kmax = m_geom[lev].Domain().bigEnd(2);
+                int kmax = m_geom[lev].Domain().bigEnd(2) + 1;
                 for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-                    Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+                    Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,1));
                     const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
                     auto k_arr = m_k_indx[lev]->array(mfi);
                     auto zref_arr = m_zref[lev]->array(mfi);
@@ -711,7 +711,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
                             if (z_target >= z_lo && z_target <= z_hi){
                                 AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                         "K index must be larger than averaging radius!");
-                                k_arr(i,j,k) = lk;
+                                k_arr(i,j,k) = kmax;
                                 zref_arr(i,j,k) = z_top_face - 0.5 * (z_hi + z_lo);
                                 found = true;
                                 break;
@@ -725,6 +725,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
         }
 
         m_k_indx[lev]->FillBoundary(m_k_indx[lev]->nGrowVect(), Periodicity(IntVect(1,1,1)));
+        m_zref[lev]->FillBoundary(m_zref[lev]->nGrowVect(), Periodicity(IntVect(1,1,1)));
 
     // Specified k_indx & compute z_ref
     } else if (read_k) {
