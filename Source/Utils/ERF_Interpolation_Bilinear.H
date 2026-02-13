@@ -152,8 +152,8 @@ void bilinear_interpolation_2d(const amrex::Real* xvec, const amrex::Real* yvec,
         iloc = static_cast<int>(std::floor((x-xvec[0])/dxvec));
         jloc = static_cast<int>(std::floor((y-yvec[0])/dyvec));
 
-        if(iloc < 0 or jloc < 0) {
-            printf("Interpolation of surface data for MOST has gone wrong with iloc, jloc=%d %d\n", iloc, jloc);
+        if (iloc < 0 or jloc < 0) {
+            AMREX_DEVICE_PRINT("Interpolation of surface data for MOST has gone wrong with iloc, jloc=%d %d\n", iloc, jloc);
         }
 
         amrex::Real xlo = xvec[0] + iloc*dxvec;
