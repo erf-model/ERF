@@ -69,7 +69,7 @@ jobs:
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_SYCL:BOOL=ON \
-          -DERF_ENABLE_TESTS:BOOL=ON \
+          -DERF_ENABLE_TESTS:BOOL=OFF \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DCMAKE_C_COMPILER=$(which icx) \

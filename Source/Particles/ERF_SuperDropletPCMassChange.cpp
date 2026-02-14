@@ -176,6 +176,12 @@ void SuperDropletPC::MassChange ( int                                         a_
 
         auto cfl = m_mass_change_cfl;
         auto ti_choice = m_mass_change_ti;
+        AMREX_ASSERT_WITH_MESSAGE( ti_choice == SDMassChangeTIMethod::RK4 ||
+                                   ti_choice == SDMassChangeTIMethod::RK3BS ||
+                                   ti_choice == SDMassChangeTIMethod::BE ||
+                                   ti_choice == SDMassChangeTIMethod::CN ||
+                                   ti_choice == SDMassChangeTIMethod::DIRK2,
+                                   "ERROR: invalid time integrator choice!" );
 
         auto sp_i_arr = sp_ionization.data();
         auto sp_mw_arr = sp_mol_weight.data();
@@ -261,9 +267,6 @@ void SuperDropletPC::MassChange ( int                                         a_
                 ti.cn(r_sq, success);
             } else if (ti_choice == SDMassChangeTIMethod::DIRK2) {
                 ti.dirk212(r_sq, success);
-            } else {
-                printf("ERROR: invalid time integrator choice!\n");
-                return;
             }
 
             if (!success) {
