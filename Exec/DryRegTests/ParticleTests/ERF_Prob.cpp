@@ -97,7 +97,7 @@ Problem::init_custom_pert(
 
   // Set the x-velocity
   auto U_0 = parms.U_0;
-  ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       Real ztop = z_nd(i,j,khi+1);
       Real zht  = z_nd(i,j,klo);
