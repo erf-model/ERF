@@ -2165,9 +2165,11 @@ ERF::init_only (int lev, Real time)
         // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
-    } else if ( (solverChoice.init_type == InitType::Uniform) ||
+    } else if ( (solverChoice.init_type == InitType::Uniform        ) ||
                 (solverChoice.init_type == InitType::ConstantDensity) ||
-                (solverChoice.init_type == InitType::Isentropic) ) {
+                (solverChoice.init_type == InitType::Isentropic     ) ||
+                (solverChoice.init_type == InitType::HindCast       ) ||
+                (solverChoice.init_type == InitType::MoistBaseState ) ) {
         // Initialize a uniform density/entropy background field and base state
         // based on the problem-specified reference density and temperature
 

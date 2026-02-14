@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "ABL with Inflow File"
+erf.prob_name = "ABL with Inflow File"
 
 max_step = 10
 

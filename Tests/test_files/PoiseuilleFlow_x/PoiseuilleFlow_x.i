@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Poiseuille Flow"
+erf.prob_name = "Poiseuille Flow"
 
 max_step = 10
 

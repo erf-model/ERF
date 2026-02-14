@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Scalar Advection/Diffusion Test"
+erf.prob_name = "Scalar Advection/Diffusion Test"
 
 max_step = 20
 

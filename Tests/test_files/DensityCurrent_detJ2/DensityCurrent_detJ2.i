@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Density Current With Nonzero detJ"
+erf.prob_name = "Density Current With Nonzero detJ"
 
 erf.init_type = Isentropic
 

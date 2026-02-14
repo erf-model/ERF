@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Metgrid"
+erf.prob_name = "Metgrid"
 
 max_step = 100
 

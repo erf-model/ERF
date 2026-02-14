@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Ekman Spiral"
+erf.prob_name = "Ekman Spiral"
 
 erf.init_type = Uniform
 

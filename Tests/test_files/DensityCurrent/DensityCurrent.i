@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Density Current Compressible"
+erf.prob_name = "Density Current Compressible"
 
 erf.init_type = Isentropic
 

@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Flow over Witch of Agnesi hill" 
+erf.prob_name = "Flow over Witch of Agnesi hill" 
 
 max_step = 16000
 

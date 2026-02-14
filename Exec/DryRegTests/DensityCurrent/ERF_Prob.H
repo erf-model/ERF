@@ -23,7 +23,7 @@ class Problem : public ProblemBase
 public:
     Problem();
 
-#include "Prob/ERF_InitDensityHSEDry.H"
+#include "Prob/ERF_InitDensityHSE.H"
 #include "Prob/ERF_InitCustomPert.H"
 
 protected:

@@ -669,25 +669,6 @@ public:
         amrex::Error("Should never call erf_init_rayleigh for "+name()+" problem");
     }
 
-    /**
-     * Function to set uniform background density and potential temperature fields
-    */
-    void
-    init_uniform (const amrex::Box& bx, amrex::Array4<amrex::Real> const& state)
-    {
-        amrex::Real rho_0 = base_parms.rho_0;
-        amrex::Real T_0 = base_parms.T_0;
-        amrex::Print() << "Initializing uniform fields"
-            << " rho=" << rho_0 << " theta=" << T_0
-            << std::endl;
-
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            state(i, j, k, Rho_comp) = rho_0;
-            state(i, j, k, RhoTheta_comp) = rho_0 * T_0;
-        });
-    }
-
 protected:
     // Struct to store problem parameters
     ProbParmDefaults base_parms;

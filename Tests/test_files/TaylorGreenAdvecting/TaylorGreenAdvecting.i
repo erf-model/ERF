@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Taylor-Green Vortex"
+erf.prob_name = "Taylor-Green Vortex"
 
 erf.init_type = Uniform
 

@@ -44,64 +44,8 @@ class Problem : public ProblemBase
 public:
     Problem();
 
-#include "Prob/ERF_InitDensityHSEDry.H"
+#include "Prob/ERF_InitDensityHSE.H"
 #include "Prob/ERF_InitCustomPert.H"
-
-    void erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
-                                  std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                                  amrex::Geometry const& geom) override;
-
-    AMREX_FORCE_INLINE
-    AMREX_GPU_HOST_DEVICE
-    amrex::Real compute_theta (const amrex::Real T_b, const amrex::Real p_b);
-
-    AMREX_FORCE_INLINE
-    AMREX_GPU_HOST_DEVICE
-    amrex::Real compute_temperature (const amrex::Real p_b);
-
-    AMREX_FORCE_INLINE
-    AMREX_GPU_HOST_DEVICE
-    amrex::Real compute_F_for_temp(const amrex::Real T_b, const amrex::Real p_b);
-
-    AMREX_FORCE_INLINE
-    AMREX_GPU_HOST_DEVICE
-    amrex::Real compute_p_k (amrex::Real& p_k,
-                             const amrex::Real p_k_minus_1,
-                             amrex::Real& theta_k,
-                             amrex::Real& rho_k,
-                             amrex::Real& q_v_k,
-                             amrex::Real& T_dp,
-                             amrex::Real& T_b,
-                             const amrex::Real dz,
-                             const amrex::Real rho_k_minus_1);
-    AMREX_FORCE_INLINE
-    AMREX_GPU_HOST_DEVICE
-    amrex::Real compute_F (const amrex::Real& p_k,
-                           const amrex::Real& p_k_minus_1,
-                           amrex::Real &theta_k,
-                           amrex::Real& rho_k,
-                           amrex::Real& q_v_k,
-                           amrex::Real& T_dp,
-                           amrex::Real& T_b,
-                           const amrex::Real& dz,
-                           const amrex::Real& rho_k_minus_1);
-
-    AMREX_FORCE_INLINE
-    AMREX_GPU_HOST_DEVICE
-    void compute_rho (const amrex::Real& pressure,
-                      amrex::Real &theta,
-                      amrex::Real& rho,
-                      amrex::Real& q_v,
-                      amrex::Real& T_dp,
-                      amrex::Real& T_b);
-
-  void init_isentropic_hse_no_terrain(amrex::Real *theta,
-                                        amrex::Real* r,
-                                        amrex::Real* p,
-                                        amrex::Real *q_v,
-                                        const amrex::Real& dz,
-                                        const int& khi);
-
 #include "Prob/ERF_InitRayleighDamping.H"
 
 protected:

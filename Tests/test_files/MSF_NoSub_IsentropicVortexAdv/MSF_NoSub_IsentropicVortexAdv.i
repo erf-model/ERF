@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Advecting Isentropic Vortex with Map Scale Factors and No Substepping"
+erf.prob_name = "Advecting Isentropic Vortex with Map Scale Factors and No Substepping"
 
 erf.init_type = Uniform
 

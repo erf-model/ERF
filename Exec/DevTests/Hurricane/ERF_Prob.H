@@ -38,58 +38,14 @@ class Problem : public ProblemBase
 public:
     Problem();
 
-#include "Prob/ERF_InitDensityHSEDry.H"
+#include "Prob/ERF_InitDensityHSE.H"
 #include "Prob/ERF_InitCustomPert.H"
-
-    void erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
-                                  std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                                  amrex::Geometry const& geom) override;
 
     void erf_init_rayleigh (
         amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
         amrex::Geometry const& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_nd,
         amrex::Real zdamp) override;
-
-    amrex::Real compute_theta (amrex::Real z);
-
-    amrex::Real compute_p_k (amrex::Real& p_k,
-                             const amrex::Real p_k_minus_1,
-                             amrex::Real& theta_k,
-                             amrex::Real& rho_k,
-                             amrex::Real& q_v_k,
-                             amrex::Real& T_dp,
-                             amrex::Real& T_b,
-                             const amrex::Real dz,
-                             const amrex::Real z,
-                             const amrex::Real rho_k_minus_1);
-
-    amrex::Real compute_F (const amrex::Real& p_k,
-                           const amrex::Real& p_k_minus_1,
-                           amrex::Real &theta_k,
-                           amrex::Real& rho_k,
-                           amrex::Real& q_v_k,
-                           amrex::Real& T_dp,
-                           amrex::Real& T_b,
-                           const amrex::Real& dz,
-                           const amrex::Real& z,
-                           const amrex::Real& rho_k_minus_1);
-
-    void compute_rho (const amrex::Real& z,
-                      const amrex::Real& pressure,
-                      amrex::Real &theta,
-                      amrex::Real& rho,
-                      amrex::Real& q_v,
-                      amrex::Real& T_dp,
-                      amrex::Real& T_b);
-
-    void init_isentropic_hse_no_terrain(amrex::Real *theta,
-                                        amrex::Real* r,
-                                        amrex::Real* p,
-                                        amrex::Real *q_v,
-                                        const amrex::Real& dz,
-                                        const amrex::Real&  prob_lo_z,
-                                        const int& khi);
 
 protected:
 

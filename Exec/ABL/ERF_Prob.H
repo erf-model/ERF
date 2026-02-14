@@ -47,7 +47,7 @@ class Problem : public ProblemBase
 public:
     Problem(const amrex::Real* problo, const amrex::Real* probhi);
 
-#include "Prob/ERF_InitDensityHSEDry.H"
+#include "Prob/ERF_InitDensityHSE.H"
 #include "Prob/ERF_InitRayleighDamping.H"
 #include "Prob/ERF_InitCustomPert.H"
 

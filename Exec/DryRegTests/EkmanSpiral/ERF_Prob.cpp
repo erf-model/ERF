@@ -1,4 +1,5 @@
 #include "ERF_Prob.H"
+#include "ERF_DataStruct.H"
 
 using namespace amrex;
 
@@ -57,10 +58,10 @@ Problem::init_custom_pert_vels (
     //
 
     ParmParse pp("erf");
-    std::string init_type;
-    pp.query("init_type", init_type);
+    InitType init_type;
+    pp.query_enum_case_insensitive("init_type",init_type);
 
-    if (init_type == "uniform")
+    if (init_type == InitType::Uniform)
     {
         Real rot_time_period;
         pp.get("rotational_time_period", rot_time_period);

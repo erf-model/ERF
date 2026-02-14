@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Moving Terrain with Acoustic Substepping"
+erf.prob_name = "Moving Terrain with Acoustic Substepping"
 
 erf.init_type = Isentropic
 

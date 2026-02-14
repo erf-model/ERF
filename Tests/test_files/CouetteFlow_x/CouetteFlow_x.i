@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Couette Flow"
+erf.prob_name = "Couette Flow"
 
 max_step = 50
 

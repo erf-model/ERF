@@ -36,7 +36,7 @@ private:
 
 public:
 
-#include "Prob/ERF_InitDensityHSEDry.H"
+#include "Prob/ERF_InitDensityHSE.H"
 #include "Prob/ERF_InitCustomPert.H"
 };
 

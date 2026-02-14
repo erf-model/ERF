@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Poiseuille Flow"
+erf.prob_name = "Poiseuille Flow"
+
+erf.init_type = Uniform
 
 max_step = 10
 
@@ -53,8 +55,6 @@ erf.alpha_C           = 0.0
 erf.use_coriolis = false
 erf.abl_driver_type   = "PressureGradient"
 erf.abl_pressure_grad = 0. -0.2  0.
-
-erf.init_type = "uniform"
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

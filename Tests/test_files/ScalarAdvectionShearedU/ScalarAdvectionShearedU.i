@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Scalar Advection Test"
+erf.prob_name = "Scalar Advection Test"
+
+erf.init_type = Uniform
 
 max_step = 80
 
@@ -42,8 +44,6 @@ erf.use_gravity = false
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
-
-erf.init_type = "uniform"
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

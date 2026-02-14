@@ -22,9 +22,23 @@ If **erf.init_type = Uniform** the user must provide values in the
 inputs file,  **prob.rho_0** and  **prob.T_0**, to
 specify the background density and temperature which will
 be assumed to be constant in space throughout the domain.
+Base state pressure is computed from the EOS.
+
+If **erf.init_type = ConstantDensity** the user must provide
+**prob.rho_0** to specify the background density which will
+be assumed to be constant in space throughout the domain.
 If gravity is set to be non-zero then the density will be vertically
 integrated to generate the background pressure
-as described in :ref:`sec:BaseState`.
+as described in :ref:`sec:BaseState`.  Once density and pressure are
+known, the base state potential temperature will be computed from the EOS.
+
+If **erf.init_type = Isentropic**, the background state is computed by
+iterating to find base state pressure and density which satisfy both the
+dry EOS and hydrostatic equilibrium (HSE).
+
+If **erf.init_type = MoistBaseState**, the background state is computed by
+iterating to find base state pressure and density which satisfy both the
+moist EOS and hydrostatic equilibrium (HSE).
 
 If **erf.init_type = InputSounding**, then the thermodynamic profiles in the
 provided **erf.input_sounding_file** are used to set initial conditions and the
