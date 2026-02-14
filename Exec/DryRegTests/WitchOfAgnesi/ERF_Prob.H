@@ -6,7 +6,7 @@
 #include "AMReX_REAL.H"
 #include "ERF_ProbCommon.H"
 
-struct ProbParm : ProbParmDefaults {
+struct ProbParmCore : ProbParmDefaults {
   // perturbations to initial conditions
   amrex::Real rho_0 = 0.0;
   amrex::Real T_0 = 0.0;
@@ -21,7 +21,9 @@ struct ProbParm : ProbParmDefaults {
 
   // Default to the x-direction
   int dir = 0;
+}; // namespace ProbParm
 
+struct ProbParm : ProbParmCore {
   std::string custom_terrain_type;
 }; // namespace ProbParm
 
