@@ -60,7 +60,8 @@ Problem::init_custom_pert(
 
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
-  ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  const ProbParmCore& parms_d = parms;
+  ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
     const auto prob_lo  = geomdata.ProbLo();
