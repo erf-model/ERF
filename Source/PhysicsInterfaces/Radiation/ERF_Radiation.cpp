@@ -582,7 +582,9 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                             0.06, 0.06};
         for (int ivar(0); ivar<lsm_input_ptrs.size(); ivar++) {
             auto rrtmgp_default_val = rrtmgp_default_vals[ivar];
-            auto rrtmgp_to_fill = rrtmgp_in_vars[ivar];
+            auto rrtmgp_to_fill_k = rrtmgp_in_vars[ivar];
+            amrex::Table1D<amrex::Real> rrtmgp_to_fill(rrtmgp_to_fill_k.data(),
+                                                       0, rrtmgp_to_fill_k.extent(0));
             for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
                 const auto& vbx  = mfi.validbox();
                 const auto& sbx  = makeSlab(vbx,2,vbx.smallEnd(2));
@@ -732,7 +734,11 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
                         lsm_out_arr(i,j,k) = mu0_tab(icol);
                     });
                 } else {
-                    auto rrtmgp_for_fill = rrtmgp_out_vars[ivar-1];
+                    auto rrtmgp_for_fill_k = rrtmgp_out_vars[ivar-1];
+                    amrex::Table2D<amrex::Real const, amrex::Order::C>
+                        rrtmgp_for_fill(rrtmgp_for_fill_k.data(),
+                                        {0,0}, {int(rrtmgp_for_fill_k.extent(0)),
+                                                int(rrtmgp_for_fill_k.extent(1))});
                     ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         // map [i,j,k] 0-based to [icol, ilay] 0-based

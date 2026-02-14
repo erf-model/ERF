@@ -46,8 +46,6 @@ public:
 #include "Prob/ERF_InitRayleighDamping.H"
 #include "Prob/ERF_InitCustomPert.H"
 
-protected:
-
 private:
     ProbParm parms;
 };

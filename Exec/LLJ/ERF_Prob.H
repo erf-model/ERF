@@ -21,11 +21,6 @@ public:
 #include "Prob/ERF_InitConstantDensityHSE.H"
 #include "Prob/ERF_InitCustomPert.H"
 
-protected:
-
-
-protected:
-
 private:
     ProbParm parms;
 };
