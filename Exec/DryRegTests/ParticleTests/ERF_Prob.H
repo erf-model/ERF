@@ -7,7 +7,7 @@
 
 #include "ERF_ProbCommon.H"
 
-struct ProbParm : ProbParmDefaults {
+struct ProbParmCore : ProbParmDefaults {
   amrex::Real T_0 = 300.0; // surface temperature == mean potential temperature
   amrex::Real U_0 = 0.0;
   amrex::Real V_0 = 0.0;
@@ -23,6 +23,9 @@ struct ProbParm : ProbParmDefaults {
   // overridden physical constants
   amrex::Real C_p = 1004.0;
 
+};
+
+struct ProbParm : ProbParmCore {
   std::string custom_terrain_type;
 }; // namespace ProbParm
 

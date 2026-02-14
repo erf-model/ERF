@@ -67,15 +67,17 @@ Problem::init_custom_pert (
     });
 
     // Set the x-velocity
-    ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    auto U_0 = parms.U_0;
+    ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        x_vel_pert(i, j, k) = parms_d.U_0;
+        x_vel_pert(i, j, k) = U_0;
     });
 
     // Set the y-velocity
-    ParallelFor(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    auto V_0 = parms.V_0;
+    ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        y_vel_pert(i, j, k) = parms_d.V_0;
+        y_vel_pert(i, j, k) = V_0;
     });
 
     const auto dx = geomdata.CellSize();

@@ -60,7 +60,8 @@ Problem::init_custom_pert(
 
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
-  ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  const ProbParmCore& parms_d = parms;
+  ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
     const auto prob_lo  = geomdata.ProbLo();
@@ -95,11 +96,12 @@ Problem::init_custom_pert(
   });
 
   // Set the x-velocity
-  ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  auto U_0 = parms.U_0;
+  ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       Real ztop = z_nd(i,j,khi+1);
       Real zht  = z_nd(i,j,klo);
-      x_vel_pert(i, j, k) = parms_d.U_0 * ztop / (ztop - zht);
+      x_vel_pert(i, j, k) = U_0 * ztop / (ztop - zht);
   });
 
   // Set the y-velocity
