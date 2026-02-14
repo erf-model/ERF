@@ -96,11 +96,12 @@ Problem::init_custom_pert(
   });
 
   // Set the x-velocity
+  auto U_0 = parms.U_0;
   ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       Real ztop = z_nd(i,j,khi+1);
       Real zht  = z_nd(i,j,klo);
-      x_vel_pert(i, j, k) = parms_d.U_0 * ztop / (ztop - zht);
+      x_vel_pert(i, j, k) = U_0 * ztop / (ztop - zht);
   });
 
   // Set the y-velocity

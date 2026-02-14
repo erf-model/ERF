@@ -74,8 +74,9 @@ jobs:
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DCMAKE_C_COMPILER=$(which icx) \
           -DCMAKE_CXX_COMPILER=$(which icpx) \
-          -DCMAKE_CXX_STANDARD=17
-        make -j 2 2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
+          -DCMAKE_CXX_STANDARD=17 \
+          -DAMReX_PARALLEL_LINK_JOBS=4
+        make -j 4 2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
 
         ccache -s
         du -hs ~/.cache/ccache
