@@ -51,6 +51,7 @@ void SuperDropletPC::MassChange ( int                                         a_
     AMREX_ALWAYS_ASSERT(idx_vap >= 0);
     AMREX_ALWAYS_ASSERT(mat_density >= 0);
     const MaterialProperties vapour_mat(*(m_species_mat[idx_vap]));
+    const MaterialPropertiesCore& vapour_mat_core = vapour_mat;
 
     const bool log_unconverged = m_mass_change_logging;
     [[maybe_unused]] FILE* file_handle = m_mass_change_log;
@@ -223,9 +224,9 @@ void SuperDropletPC::MassChange ( int                                         a_
                 }
             }
 
-            auto coeff_curv = vapour_mat.coeffCurv(temperature);
-            auto coeff_sol = vapour_mat.coeffVPSolute();
-            auto coeff_moldiff = vapour_mat.coeffMolecularDiffusion(temperature, pressure);
+            auto coeff_curv = vapour_mat_core.coeffCurv(temperature);
+            auto coeff_sol = vapour_mat_core.coeffVPSolute();
+            auto coeff_moldiff = vapour_mat_core.coeffMolecularDiffusion(temperature, pressure);
 
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
             if (a_is_water) {
