@@ -149,7 +149,6 @@ erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
     pp.query("T_from_theta_in_moist_init", T_from_theta);
 
     if (T_from_theta) {
-        amrex::ParmParse pp("prob");
         pp.get("theta_tr",theta_tr); pp.get("theta_0",theta_0);
         pp.get("T_tr",T_tr);
     }
