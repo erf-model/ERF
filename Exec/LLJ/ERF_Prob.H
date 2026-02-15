@@ -18,7 +18,7 @@ class Problem : public ProblemBase
 public:
     Problem();
 
-#include "Prob/ERF_InitConstantDensityHSE.H"
+#include "Prob/ERF_InitDensityHSE.H"
 #include "Prob/ERF_InitCustomPert.H"
 
 private:

@@ -78,7 +78,6 @@ ERF::initHSE (int lev)
         {
             // In this case we set rho from user-specified values, then integrate
             //    to define p from HSE (even if gravity = 0), then compute theta from (p,rho)
-            AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.anelastic[lev]);
             prob->erf_init_const_dens_hse(r_hse);
         }
         else if (solverChoice.init_type == InitType::Uniform)
@@ -89,6 +88,8 @@ ERF::initHSE (int lev)
         }
         else
         {
+            // In this case we set rho from user-specified values, then integrate
+            //    to define p from HSE (even if gravity = 0), then compute theta from (p,rho)
             prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
         }
 
@@ -134,11 +135,11 @@ ERF::initHSE (int lev)
         // Initial r_hse may or may not be in HSE -- defined in ERF_Prob.cpp
         if (solverChoice.init_type == InitType::MoistBaseState) {
             prob->erf_init_dens_hse_moist(new_r_hse, new_z_phys_nd, geom[lev]);
+
         } else if (solverChoice.init_type == InitType::ConstantDensity) {
 
             // In this case we set rho from user-specified values, then integrate
             //    to define p from HSE (even if gravity = 0), then compute theta from (p,rho)
-            AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.anelastic[lev]);
             prob->erf_init_const_dens_hse(r_hse);
 
         } else if (solverChoice.init_type == InitType::Uniform) {

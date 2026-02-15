@@ -74,5 +74,7 @@ erf.nc_init_file_1 = "wrfinput_d02"
 erf.real_width     = 5
 erf.real_set_width = 1
 erf.init_type      = WRFInput
+erf.moisture_model = Kessler
+erf.terrain_type   = StaticFittedMesh
 erf.nc_init_file_0 = "wrfinput_d01"  
 erf.nc_bdy_file    = "wrfbdy_d01" 
