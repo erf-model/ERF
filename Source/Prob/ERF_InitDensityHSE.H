@@ -116,7 +116,7 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
 void
 erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
                          std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
-                         amrex::Geometry const& geom)
+                         amrex::Geometry const& geom) override
 {
     const amrex::Real dz        = geom.CellSize()[2];
     const int khi        = geom.Domain().bigEnd()[2];
@@ -142,19 +142,30 @@ erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
     pp.query("height", z_tr_1);
     pp.query("z_tr", z_tr_2);
 
+    // We only set them to zero to make sure they are initialized
+    amrex::Real z_tr = 0.0, T_tr = 0.0, theta_tr = 0.0, theta_0 = 0.0;
+
     bool T_from_theta = false;
     pp.query("T_from_theta_in_moist_init", T_from_theta);
 
+    if (T_from_theta) {
+        amrex::ParmParse pp("prob");
+        pp.get("theta_tr",theta_tr); pp.get("theta_0",theta_0);
+        // pp.get("z_tr",z_tr);
+        pp.get("T_tr",T_tr);
+    }
+
     HSEutils::init_isentropic_hse_no_terrain( h_t.data(), h_r.data(), h_p.data(),
                                               h_q_v.data(), dz, khi, q_t, eq_pot_temp, use_empirical,
-                                              T_from_theta, z_tr_1, z_tr_2);
+                                              T_from_theta, z_tr_1, z_tr_2,
+                                              theta_0, theta_tr, T_tr);
 
     amrex::Gpu::DeviceVector<amrex::Real> d_r(khi+2);
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
     amrex::Real* r = d_r.data();
 
 #ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for ( amrex::MFIter mfi(rho_hse,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -186,7 +197,7 @@ erf_init_const_dens_hse (amrex::MultiFab& rho_hse) override
 void
 erf_init_const_dens_and_th_hse (amrex::MultiFab& rho_hse, amrex::MultiFab&  p_hse,
                                 amrex::MultiFab&  pi_hse, amrex::MultiFab& th_hse,
-                                amrex::MultiFab&  qv_hse, amrex::Real l_rdOcp)
+                                amrex::MultiFab&  qv_hse, amrex::Real l_rdOcp) override
 {
     amrex::Real rho_0 = base_parms.rho_0;
     amrex::Real   T_0 = base_parms.T_0;

@@ -152,7 +152,7 @@ Problem::init_custom_pert (
 
         int which_zone = -1;
 
-        ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k)
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
         {
             // Geometry (note we must include these here to get the data on device)
             const auto prob_lo         = geomdata.ProbLo();

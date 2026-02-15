@@ -16,18 +16,12 @@ Problem::Problem ()
 {
   // Parse params
   amrex::ParmParse pp("prob");
-  pp.query("z_tr", parms.z_tr);
-  pp.query("height", parms.height);
-  pp.query("theta_0", parms.theta_0);
-  pp.query("theta_tr", parms.theta_tr);
-  pp.query("T_tr", parms.T_tr);
   pp.query("x_c", parms.x_c);
   pp.query("y_c", parms.y_c);
   pp.query("z_c", parms.z_c);
   pp.query("x_r", parms.x_r);
   pp.query("y_r", parms.y_r);
   pp.query("z_r", parms.z_r);
-  pp.query("theta_c", parms.theta_c);
 }
 
 void
@@ -76,21 +70,37 @@ Problem::init_custom_pert (
     amrex::Gpu::DeviceVector<Real> d_t(khi+2);
     amrex::Gpu::DeviceVector<Real> d_q_v(khi+2);
 
-    Real height = parms.height;
-    Real z_tr = parms.z_tr;
+    Real height =  1200.;
+    pp.query("height",height);
+
+    Real   z_tr = 12000.;
+    pp.query("z_tr",z_tr);
+
+    Real theta_tr = 343;
+    pp.query("theta_tr",theta_tr);
+
+    Real theta_0 = 300.;
+    pp.query("theta_0",theta_0);
+
+    Real theta_c = 3.0;
+    pp.query("theta_c",theta_c);
+
+    Real T_tr = 213.0;
+    pp.query("T_tr",T_tr);
 
     HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(),h_q_v.data(),dz,khi,
-                                             q_t,eq_pot_temp,use_empirical,true,height,z_tr);
+                                             q_t,eq_pot_temp,use_empirical,true,height,z_tr,
+                                             theta_0, theta_tr, T_tr);
 
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_t.begin(), h_t.end(), d_t.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_q_v.begin(), h_q_v.end(), d_q_v.begin());
 
-     Real* t   = d_t.data();
-     Real* p   = d_p.data();
+    Real* t   = d_t.data();
+    Real* p   = d_p.data();
 
-     const Real x_c = parms.x_c, y_c = parms.y_c, z_c = parms.z_c, x_r = parms.x_r, y_r = parms.y_r,  z_r = parms.z_r, theta_c = parms.theta_c, r_c = 1.0;
+    const Real x_c = parms.x_c, y_c = parms.y_c, z_c = parms.z_c, x_r = parms.x_r, y_r = parms.y_r,  z_r = parms.z_r, r_c = 1.0;
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {

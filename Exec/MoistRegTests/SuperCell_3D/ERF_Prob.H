@@ -13,11 +13,6 @@
 #include "ERF_TileNoZ.H"
 
 struct ProbParm : ProbParmDefaults {
-  amrex::Real z_tr = 12000.0;
-  amrex::Real height = 1200.0;
-  amrex::Real theta_0 = 300.0;
-  amrex::Real theta_tr = 343.0;
-  amrex::Real T_tr = 213.0;
 
   amrex::Real x_c = 0.0;
   amrex::Real y_c = 0.0;
@@ -26,10 +21,8 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real x_r = 10.0e3;
   amrex::Real y_r = 10.0e3;
   amrex::Real z_r = 1.5e3;
-  amrex::Real theta_c = 3.0;
 
   amrex::Real C_p = 1004.0;
-  amrex::Real Theta_0 = 300.0;
 }; // namespace ProbParm
 
 

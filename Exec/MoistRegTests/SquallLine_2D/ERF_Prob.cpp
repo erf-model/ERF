@@ -16,8 +16,6 @@ Problem::Problem ()
 {
   // Parse params
   amrex::ParmParse pp("prob");
-//  pp.query("z_tr", parms.z_tr);
-//  pp.query("height", parms.height);
   pp.query("theta_0", parms.theta_0);
   pp.query("theta_tr", parms.theta_tr);
   pp.query("T_tr", parms.T_tr);
@@ -79,10 +77,18 @@ Problem::init_custom_pert (
    Real z_tr = -1.;
    pp.query("z_tr",z_tr);
 
-   amrex::Print() <<" HEIGHT ZTR " << height << " " << z_tr << std::endl;
+   Real theta_tr = 0.;
+   pp.query("theta_tr",theta_tr);
+
+   Real theta_0 = 0.;
+   pp.query("theta_0",theta_0);
+
+   Real T_tr = 0.;
+   pp.query("T_tr",T_tr);
 
    HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(),h_q_v.data(),dz,khi,
-                                            q_t,eq_pot_temp,use_empirical,true,height,z_tr);
+                                            q_t,eq_pot_temp,use_empirical,true,height,z_tr,
+                                            theta_0, theta_tr, T_tr);
 
    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());

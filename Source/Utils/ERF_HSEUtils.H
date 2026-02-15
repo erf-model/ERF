@@ -400,18 +400,12 @@ Real compute_dewpoint_temperature (const Real T_b, const Real RH)
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real compute_theta (const Real scaled_height)
+Real compute_theta (const Real scaled_height, const Real theta_0,
+                    const Real theta_tr, const Real z_tr, const Real T_tr)
 {
-    Real z_tr, T_tr, theta_tr, theta_0;
-
-    ParmParse pp("prob"); pp.get("theta_tr",theta_tr);
-
     if(scaled_height <= 1.0) {
-        pp.get("theta_0",theta_0);
         return theta_0 + (theta_tr - theta_0)*std::pow(scaled_height,1.25);
     } else {
-        pp.get("z_tr",z_tr);
-        pp.get("T_tr",T_tr);
         return theta_tr*exp(CONST_GRAV/(Cp_d*T_tr)*z_tr*(scaled_height - 1.0));
     }
 }
@@ -420,10 +414,12 @@ AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 void compute_rho (const Real& pressure, Real& theta, Real& rho, Real& q_v, Real& T_dp, Real& T_b,
                   const Real q_t, const Real eq_pot_temp, const bool use_empirical, const int which_zone,
-                  const Real scaled_height, const bool T_from_theta)
+                  const Real scaled_height, const bool T_from_theta,
+                  const Real theta_0, const Real theta_tr, const Real z_tr, const Real T_tr)
 {
+
     if (T_from_theta) {
-        theta   = compute_theta(scaled_height);
+        theta   = compute_theta(scaled_height, theta_0, theta_tr, z_tr, T_tr);
         T_b     = getTgivenPandTh(pressure, theta, (R_d/Cp_d));
     } else {
         T_b     = compute_temperature(pressure, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
@@ -450,12 +446,13 @@ AMREX_GPU_HOST_DEVICE
 Real compute_F (const Real& p_k, const Real& p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
                 Real& T_dp, Real& T_b, const Real& dz, const Real& rho_k_minus_1, const Real q_t,
                 const Real eq_pot_temp, const bool use_empirical,
-                const int which_zone, const Real scaled_height, const bool T_from_theta)
+                const int which_zone, const Real scaled_height, const bool T_from_theta,
+                const Real theta_0, const Real theta_tr, const Real z_tr, const Real T_tr)
 {
     Real F;
 
     compute_rho(p_k, theta_k, rho_k, q_v_k, T_dp, T_b, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height,
-                T_from_theta);
+                T_from_theta, theta_0, theta_tr, z_tr, T_tr);
 
     if(rho_k_minus_1 == 0.0) // This loop is for the first point above the ground
     {
@@ -474,7 +471,8 @@ AMREX_GPU_HOST_DEVICE
 Real compute_p_k (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
                   Real& T_dp, Real& T_b, const Real dz, const Real rho_k_minus_1, const Real q_t,
                   const Real eq_pot_temp, const bool use_empirical,
-                  const int which_zone, const Real scaled_height, const bool T_from_theta)
+                  const int which_zone, const Real scaled_height, const bool T_from_theta,
+                  const Real theta_0, const Real theta_tr, const Real z_tr, const Real T_tr)
 {
     Real delta_p_k;
     Real eps = 1.e-10;
@@ -482,9 +480,11 @@ Real compute_p_k (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k,
     for(int iter=0; iter<20; iter++)
     {
         Real F         = compute_F(p_k      , p_k_minus_1, theta_k, rho_k, q_v_k, T_dp, T_b, dz, rho_k_minus_1,
-                                   q_t, eq_pot_temp, use_empirical, which_zone, scaled_height, T_from_theta);
+                                   q_t, eq_pot_temp, use_empirical, which_zone, scaled_height, T_from_theta,
+                                   theta_0, theta_tr, z_tr, T_tr);
         Real F_plus_dF = compute_F(p_k+eps, p_k_minus_1, theta_k, rho_k, q_v_k, T_dp, T_b, dz, rho_k_minus_1,
-                                   q_t, eq_pot_temp, use_empirical, which_zone, scaled_height, T_from_theta);
+                                   q_t, eq_pot_temp, use_empirical, which_zone, scaled_height, T_from_theta,
+                                   theta_0, theta_tr, z_tr, T_tr);
         Real F_prime   = (F_plus_dF - F)/eps;
         delta_p_k = -F/F_prime;
         p_k            = p_k + delta_p_k;
@@ -505,7 +505,8 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
                                const Real& dz, const int& khi, const Real q_t,
                                const Real eq_pot_temp, const bool use_empirical,
                                const bool T_from_theta = false,
-                               const Real z_tr_1 = -1., const Real z_tr_2 = -1.)
+                               const Real z_tr_1 = -1., const Real z_tr_2 = -1.,
+                               const Real theta_0 = 0., const Real theta_tr = 0., const Real T_tr = 0.)
 {
     Real T_b, T_dp;
 
@@ -525,8 +526,10 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
         }
         scaled_height = z/z_tr_2;
     }
+
     compute_p_k(p[0], p_0, theta[0], r[0], q_v[0], T_dp, T_b, dz, 0.0, q_t, eq_pot_temp,
-                use_empirical, which_zone, scaled_height, T_from_theta);
+                use_empirical, which_zone, scaled_height, T_from_theta,
+                theta_0, theta_tr, z_tr_2, T_tr);
 
     for (int k=1; k<=khi; k++)
     {
@@ -545,7 +548,8 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
         }
 
         compute_p_k(p[k], p[k-1], theta[k], r[k], q_v[k], T_dp, T_b, dz, r[k-1], q_t, eq_pot_temp,
-                    use_empirical, which_zone, scaled_height, T_from_theta);
+                    use_empirical, which_zone, scaled_height, T_from_theta,
+                    theta_0, theta_tr, z_tr_2, T_tr);
     }
 
     r[khi+1] = r[khi];
