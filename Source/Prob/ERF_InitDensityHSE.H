@@ -143,7 +143,7 @@ erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
     pp.query("z_tr", z_tr_2);
 
     // We only set them to zero to make sure they are initialized
-    amrex::Real z_tr = 0.0, T_tr = 0.0, theta_tr = 0.0, theta_0 = 0.0;
+    amrex::Real T_tr = 0.0, theta_tr = 0.0, theta_0 = 0.0;
 
     bool T_from_theta = false;
     pp.query("T_from_theta_in_moist_init", T_from_theta);
@@ -151,7 +151,6 @@ erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
     if (T_from_theta) {
         amrex::ParmParse pp("prob");
         pp.get("theta_tr",theta_tr); pp.get("theta_0",theta_0);
-        // pp.get("z_tr",z_tr);
         pp.get("T_tr",T_tr);
     }
 

@@ -56,8 +56,6 @@ Problem::init_custom_pert (
     const SolverChoice& sc,
     const int /*lev*/)
 {
-    const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
     const bool use_terrain  = (SolverChoice::terrain_type != TerrainType::None);
 
     if (parms.KE_decay_height > 0) {

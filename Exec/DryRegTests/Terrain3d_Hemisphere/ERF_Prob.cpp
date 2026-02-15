@@ -33,14 +33,14 @@ Problem::Problem (const amrex::Real* problo,
 
 void
 Problem::init_custom_pert (
-    const Box& bx,
+    const Box& /*bx*/,
     Array4<Real const> const& /*state*/,
     Array4<Real      > const& /*state_pert*/,
     Array4<Real      > const& /*r_hse*/,
     Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& /*z_cc*/,
-    GeometryData const& geomdata,
+    GeometryData const& /*geomdata*/,
     Array4<Real const> const& /*mf_m*/,
     const SolverChoice& /*sc*/,
     const int /*lev*/)

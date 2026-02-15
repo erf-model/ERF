@@ -33,7 +33,7 @@ Problem::Problem ()
 
 void
 Problem::init_custom_pert (
-    const Box& bx,
+    const Box& /*bx*/,
     Array4<Real const> const& /*state*/,
     Array4<Real      > const& /*state_pert*/,
     Array4<Real      > const& /*r_hse*/,
