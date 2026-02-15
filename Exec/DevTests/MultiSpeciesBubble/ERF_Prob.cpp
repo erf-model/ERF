@@ -193,14 +193,8 @@ Problem::init_custom_pert (
             state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(1.0 + (R_v/R_d)*q_v_back[k]);
             state_pert(i, j, k, Rho_comp)      = rho - rho_back*(1.0 + q_t);
 
-            // Set scalar = 0 everywhere
-            state_pert(i, j, k, RhoScalar_comp) = 0.0;
-
             // mean states
             state_pert(i, j, k, RhoQ1_comp) = rho*q_v_hot;
-            state_pert(i, j, k, RhoQ2_comp) = 0.0;
-            state_pert(i, j, k, RhoQ3_comp) = 0.0;
-
         });
     } else {
         ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -217,12 +211,6 @@ Problem::init_custom_pert (
                               parms_d, rdOcp,
                               state_pert(i, j, k, Rho_comp),
                               state_pert(i, j, k, RhoTheta_comp));
-
-            state_pert(i, j, k, RhoScalar_comp) = 0.0;
-            state_pert(i, j, k, RhoQ1_comp) = 0.0;
-            state_pert(i, j, k, RhoQ2_comp) = 0.0;
-            state_pert(i, j, k, RhoQ3_comp) = 0.0;
-
         });
     } // do_moist_bubble
 
@@ -275,19 +263,26 @@ Problem::init_custom_pert_vels (
     Array4<Real      > const& y_vel_pert,
     Array4<Real      > const& z_vel_pert,
     Array4<Real const> const& /*z_nd*/,
-    GeometryData const& geomdata,
+    GeometryData const& /*geomdata*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
     const Real u0 = parms.U_0;
     const Real v0 = parms.V_0;
     const Real w0 = parms.W_0;
+
     ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         x_vel_pert(i, j, k) = u0;
+    });
+    ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
         y_vel_pert(i, j, k) = v0;
+    });
+    ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
         z_vel_pert(i, j, k) = w0;
     });
 

@@ -49,7 +49,7 @@ Problem::init_custom_pert (
     amrex::Array4<amrex::Real      > const& state_pert,
     amrex::Array4<amrex::Real      > const& r_hse,
     amrex::Array4<amrex::Real      > const& /*p_hse*/,
-    amrex::Array4<amrex::Real const> const& z_nd,
+    amrex::Array4<amrex::Real const> const& /*z_nd*/,
     amrex::Array4<amrex::Real const> const& z_cc,
     amrex::GeometryData const& geomdata,
     amrex::Array4<amrex::Real const> const& /*mf_m*/,
@@ -127,11 +127,6 @@ Problem::init_custom_pert (
                 1e-12);
         }
     }
-
-    if (use_moisture) {
-        state_pert(i, j, k, RhoQ1_comp) = 0.0;
-        state_pert(i, j, k, RhoQ2_comp) = 0.0;
-    }
   });
 }
 
@@ -147,7 +142,7 @@ Problem::init_custom_pert_vels (
     amrex::GeometryData const& geomdata,
     amrex::Array4<amrex::Real const> const& /*mf_u*/,
     amrex::Array4<amrex::Real const> const& /*mf_v*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
     const bool use_terrain  = (SolverChoice::terrain_type != TerrainType::None);

@@ -40,7 +40,6 @@ Problem::init_custom_pert (
     const SolverChoice& sc,
     const int lev)
 {
-    const bool use_moisture = (sc.moisture_type != MoistureType::None);
     const bool const_rho    = (sc.fixed_density[lev] == 1);
 
     const Real l_x_r = parms.x_r;
@@ -81,14 +80,6 @@ Problem::init_custom_pert (
                 state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
             }
         }
-
-        // Set scalar = 0 everywhere
-        state_pert(i, j, k, RhoScalar_comp) = 0.0;
-
-        if (use_moisture) {
-            state_pert(i, j, k, RhoQ1_comp) = 0.0;
-            state_pert(i, j, k, RhoQ2_comp) = 0.0;
-        }
       });
   } else {
       ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -118,14 +109,6 @@ Problem::init_custom_pert (
                 state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
             }
         }
-
-        // Set scalar = 0 everywhere
-        state_pert(i, j, k, RhoScalar_comp) = 0.0;
-
-        if (use_moisture) {
-            state_pert(i, j, k, RhoQ1_comp) = 0.0;
-            state_pert(i, j, k, RhoQ2_comp) = 0.0;
-        }
       });
     }
     amrex::Gpu::streamSynchronize();
@@ -144,7 +127,7 @@ Problem::init_custom_pert_vels (
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& /*sc*/,
-    const int lev)
+    const int /*lev*/)
 {
   const Real u0 = parms.U_0;
 

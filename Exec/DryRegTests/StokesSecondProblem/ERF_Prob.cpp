@@ -37,14 +37,6 @@ Problem::init_custom_pert (
     {
         // This version perturbs rho but not p -- TODO: CHECK THIS
         state(i, j, k, RhoTheta_comp) = std::pow(1.0,1.0/Gamma) * 101325.0 / 287.0 - p_hse(i,j,k);
-
-        // Set scalar = 0 everywhere
-        state(i, j, k, RhoScalar_comp) = 0.0;
-
-        if (use_moisture) {
-            state(i, j, k, RhoQ1_comp) = 0.0;
-            state(i, j, k, RhoQ2_comp) = 0.0;
-        }
     });
 
     amrex::Gpu::streamSynchronize();

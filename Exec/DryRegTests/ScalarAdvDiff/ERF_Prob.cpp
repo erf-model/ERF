@@ -120,10 +120,6 @@ Problem::init_custom_pert (
 
     state_pert(i, j, k, RhoScalar_comp) *= parms_d.rho_0;
 
-    if (use_moisture) {
-        state_pert(i, j, k, RhoQ1_comp) = 0.0;
-        state_pert(i, j, k, RhoQ2_comp) = 0.0;
-    }
   });
 }
 

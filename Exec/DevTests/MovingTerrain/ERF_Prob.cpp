@@ -30,15 +30,13 @@ Problem::init_custom_pert (
     Array4<Real      > const& state_pert,
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
-    Array4<Real const> const& z_nd,
+    Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& z_cc,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
-  const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
   Real H           = geomdata.ProbHi()[2];
   Real Ampl        = parms.Ampl;
   Real wavelength  = parms.wavelength;
@@ -65,11 +63,6 @@ Problem::init_custom_pert (
 
       // Set scalar = 0 everywhere
       state_pert(i, j, k, RhoScalar_comp) = state_pert(i,j,k,Rho_comp);
-
-      if (use_moisture) {
-          state_pert(i, j, k, RhoQ1_comp) = 0.0;
-          state_pert(i, j, k, RhoQ2_comp) = 0.0;
-      }
   });
 
   amrex::Gpu::streamSynchronize();

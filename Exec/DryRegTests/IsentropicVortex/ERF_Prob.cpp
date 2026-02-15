@@ -86,8 +86,6 @@ Problem::init_custom_pert (
     const SolverChoice& sc,
     const int /*lev*/)
 {
-    const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
     Real xc = parms.xc; Real yc = parms.yc;
     Real R  = parms.R ; Real beta = parms.beta;
     Real sigma = parms.sigma;
@@ -117,16 +115,8 @@ Problem::init_custom_pert (
         const Real rho_theta = parms_d.rho_0 * rho_norm * (T * std::pow(p_0 / p, rdOcp)); // T --> theta
         state_pert(i, j, k, RhoTheta_comp) = rho_theta - getRhoThetagivenP(p_hse(i,j,k)); // Set the perturbation rho*theta
 
-        // Set scalar = 0 -- unused
-        // state_pert(i, j, k, RhoScalar_comp) = 0.0;
-
         const Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
         state_pert(i, j, k, RhoScalar_comp) = 0.25 * (1.0 + std::cos(PI * std::min(r2d_xy, R) / R));
-
-        if (use_moisture) {
-            state_pert(i, j, k, RhoQ1_comp) = 0.0;
-            state_pert(i, j, k, RhoQ2_comp) = 0.0;
-        }
     });
 }
 

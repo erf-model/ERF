@@ -42,12 +42,10 @@ Problem::init_custom_pert (
     Array4<Real const> const& z_cc,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
   const int khi = geomdata.Domain().bigEnd()[2];
-
-  const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
@@ -76,14 +74,6 @@ Problem::init_custom_pert (
         // This version perturbs rho but not p
         state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
     }
-
-    // Set scalar = 0 everywhere
-    state_pert(i, j, k, RhoScalar_comp) = 0.0;
-
-      if (use_moisture) {
-          state_pert(i, j, k, RhoQ1_comp) = 0.0;
-          state_pert(i, j, k, RhoQ2_comp) = 0.0;
-      }
   });
   amrex::Gpu::streamSynchronize();
 }

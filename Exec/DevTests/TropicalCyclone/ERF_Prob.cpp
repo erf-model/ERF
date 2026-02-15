@@ -40,9 +40,9 @@ Problem::init_custom_pert (
     Array4<Real> const&,
     Array4<Real const> const&,
     Array4<Real const> const&,
-    GeometryData const& geomdata,
+    GeometryData const& /*geomdata*/,
     Array4<Real const> const&,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
     //
@@ -62,10 +62,10 @@ void
 Problem::init_custom_pert_vels (
     const Box& xbx,
     const Box& ybx,
-    const Box& zbx,
+    const Box& /*zbx*/,
     Array4<Real      > const& x_vel_pert,
     Array4<Real      > const& y_vel_pert,
-    Array4<Real      > const& z_vel_pert,
+    Array4<Real      > const& /*z_vel_pert*/,
     Array4<Real const> const&,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_u*/,

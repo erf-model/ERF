@@ -56,7 +56,6 @@ Problem::init_custom_pert (
 
     // This is what we do at k = 0 -- note we assume p = p_0 and T = T_0 at z=0
     const amrex::Real& dz        = geomdata.CellSize()[2];
-    const amrex::Real& prob_lo_z = geomdata.ProbLo()[2];
 
     // Call the routine to calculate the 1d background condition
 

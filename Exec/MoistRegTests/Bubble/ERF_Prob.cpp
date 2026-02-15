@@ -47,7 +47,7 @@ Real compute_saturation_pressure (const Real T_b)
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real compute_relative_humidity (bool use_empirical)
+Real compute_relative_humidity (bool /*use_empirical*/)
 {
     return 1.0;
 }

@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "Flow over Witch of Agnesi hill"
 
+erf.init_type = Isentropic
+
 amrex.fpe_trap_invalid=1
 amrex.fpe_trap_zero=1
 amrex.fpe_trap_overflow=1

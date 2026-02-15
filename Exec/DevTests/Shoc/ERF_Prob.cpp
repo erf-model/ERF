@@ -50,15 +50,13 @@ Problem::init_custom_pert (
     amrex::Array4<amrex::Real      > const& state_pert,
     amrex::Array4<amrex::Real      > const& r_hse,
     amrex::Array4<amrex::Real      > const& /*p_hse*/,
-    amrex::Array4<amrex::Real const> const& z_nd,
+    amrex::Array4<amrex::Real const> const& /*z_nd*/,
     amrex::Array4<amrex::Real const> const& z_cc,
     amrex::GeometryData const& geomdata,
     amrex::Array4<amrex::Real const> const& /*mf_m*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
-    const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
     if (parms.KE_decay_height > 0) {
         amrex::Print() << "Initial KE profile (order " << parms.KE_decay_order
                        << ") will extend up to " << parms.KE_decay_height
@@ -130,11 +128,6 @@ Problem::init_custom_pert (
                 1e-12);
         }
     }
-
-    if (use_moisture) {
-        state_pert(i, j, k, RhoQ1_comp) = 0.0;
-        state_pert(i, j, k, RhoQ2_comp) = 0.0;
-    }
   });
 }
 
@@ -150,7 +143,7 @@ Problem::init_custom_pert_vels (
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
   // Set the x-velocity

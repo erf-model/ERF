@@ -53,11 +53,9 @@ Problem::init_custom_pert (
     amrex::Array4<amrex::Real const> const& z_cc,
     amrex::GeometryData const& geomdata,
     amrex::Array4<amrex::Real const> const& /*mf_m*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
-    const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
     if (parms.KE_decay_height > 0) {
         amrex::Print() << "Initial KE profile (order " << parms.KE_decay_order
                        << ") will extend up to " << parms.KE_decay_height
@@ -124,11 +122,6 @@ Problem::init_custom_pert (
                 std::pow(1 - min(z/parms_d.KE_decay_height,1.0), parms_d.KE_decay_order),
                 1e-12);
         }
-    }
-
-    if (use_moisture) {
-        state_pert(i, j, k, RhoQ1_comp) = 0.0;
-        state_pert(i, j, k, RhoQ2_comp) = 0.0;
     }
   });
 }
