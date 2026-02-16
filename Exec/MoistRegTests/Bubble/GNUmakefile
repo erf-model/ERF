@@ -23,6 +23,8 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
+USE_PARTICLES = TRUE
+
 # GNU Make
 Bpack := ./Make.package
 Blocs := .

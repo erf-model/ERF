@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Supercell"
+erf.prob_name = "Supercell"
+
+erf.init_type =  MoistBaseState
 
 max_step = 28800
 stop_time = 14400.0
@@ -61,7 +63,6 @@ erf.alpha_T           = 33.33 # [m^2/s]
 erf.alpha_C           = 33.33
 
 erf.moisture_model = "Kessler"
-erf.use_moist_background = true
 
 # PROBLEM PARAMETERS (optional)
 prob.z_tr = 12000.0
@@ -76,3 +77,5 @@ prob.x_r = 10000.0
 prob.y_r = 10000.0
 prob.z_r = 2000.0
 prob.theta_c = 3.0
+
+prob.use_empirical_sat_pressure = true

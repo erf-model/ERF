@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "SquallLine"
+erf.prob_name = "SquallLine"
+
+erf.init_type = MoistBaseState
 
 max_step = 14400
 stop_time = 90000.0
@@ -53,7 +55,6 @@ erf.alpha_T           = 100.0 # [m^2/s]
 erf.alpha_C           = 100.0
 
 erf.moisture_model = "Kessler"
-erf.use_moist_background = true
 
 erf.dycore_horiz_adv_type    = Upwind_3rd
 erf.dycore_vert_adv_type     = Upwind_3rd
@@ -73,3 +74,5 @@ prob.z_c = 1500.0
 prob.x_r = 4000.0
 prob.z_r = 1500.0
 prob.theta_c = 3.0
+
+prob.use_empirical_sat_pressure = true

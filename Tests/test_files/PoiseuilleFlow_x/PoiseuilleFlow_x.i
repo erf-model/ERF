@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Poiseuille Flow"
+erf.prob_name = "Poiseuille Flow"
 
 max_step = 10
 
@@ -42,6 +42,8 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
 erf.use_gravity            = false
+
+erf.init_type = Uniform
 
 erf.les_type = "None"
 

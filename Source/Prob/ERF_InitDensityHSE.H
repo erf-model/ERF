@@ -7,6 +7,9 @@
  * density and pressure in HSE are calculated but only the density is used at
  * this point.
 */
+
+#include "ERF_HSEUtils.H"
+
 void
 erf_init_dens_hse (amrex::MultiFab& rho_hse,
                    std::unique_ptr<amrex::MultiFab>& z_phys_nd,
@@ -108,4 +111,107 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
               });
           } // mfi
     } // no terrain
+}
+
+void
+erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
+                         std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
+                         amrex::Geometry const& geom) override
+{
+    const amrex::Real dz        = geom.CellSize()[2];
+    const int khi        = geom.Domain().bigEnd()[2];
+
+    // These are at cell centers (unstaggered)
+    amrex::Vector<amrex::Real> h_r(khi+2);
+    amrex::Vector<amrex::Real> h_p(khi+2);
+    amrex::Vector<amrex::Real> h_t(khi+2);
+    amrex::Vector<amrex::Real> h_q_v(khi+2);
+
+    amrex::ParmParse pp("prob");
+    amrex::Real q_t = 0.02;
+    pp.query("qt_init",q_t);
+
+    amrex::Real eq_pot_temp = 320.0;
+    pp.query("eq_pot_temp",eq_pot_temp);
+
+    bool use_empirical = false;
+    pp.query("use_empirical_psat",use_empirical);
+
+    amrex::Real z_tr_1 = -1.;
+    amrex::Real z_tr_2 = -1.;
+    pp.query("height", z_tr_1);
+    pp.query("z_tr", z_tr_2);
+
+    // We only set them to zero to make sure they are initialized
+    amrex::Real T_tr = 0.0, theta_tr = 0.0, theta_0 = 0.0;
+
+    bool T_from_theta = false;
+    pp.query("T_from_theta_in_moist_init", T_from_theta);
+
+    if (T_from_theta) {
+        pp.get("theta_tr",theta_tr); pp.get("theta_0",theta_0);
+        pp.get("T_tr",T_tr);
+    }
+
+    HSEutils::init_isentropic_hse_no_terrain( h_t.data(), h_r.data(), h_p.data(),
+                                              h_q_v.data(), dz, khi, q_t, eq_pot_temp, use_empirical,
+                                              T_from_theta, z_tr_1, z_tr_2,
+                                              theta_0, theta_tr, T_tr);
+
+    amrex::Gpu::DeviceVector<amrex::Real> d_r(khi+2);
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
+    amrex::Real* r = d_r.data();
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( amrex::MFIter mfi(rho_hse,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const amrex::Box& bx = mfi.growntilebox(1);
+        const amrex::Array4<amrex::Real> rho_hse_arr   = rho_hse[mfi].array();
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int kk = std::max(k,0);
+            rho_hse_arr(i,j,k) = r[kk];
+        });
+    } // mfi
+}
+
+void
+erf_init_const_dens_hse (amrex::MultiFab& rho_hse) override
+{
+    amrex::Real rho_0 = base_parms.rho_0;
+    for ( amrex::MFIter mfi(rho_hse, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+       amrex::Array4<amrex::Real> rho_hse_arr = rho_hse.array(mfi);
+       const amrex::Box& gbx = mfi.growntilebox(1);
+       ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+       {
+           rho_hse_arr(i,j,k) = rho_0;
+       });
+    }
+}
+
+void
+erf_init_const_dens_and_th_hse (amrex::MultiFab& rho_hse, amrex::MultiFab&  p_hse,
+                                amrex::MultiFab&  pi_hse, amrex::MultiFab& th_hse,
+                                amrex::MultiFab&  qv_hse, amrex::Real l_rdOcp) override
+{
+    amrex::Real rho_0 = base_parms.rho_0;
+    amrex::Real   T_0 = base_parms.T_0;
+
+    rho_hse.setVal(rho_0);
+    th_hse.setVal(T_0);
+
+    amrex::Real rt0 = rho_0 * T_0;
+
+    amrex::Real p0  = getPgivenRTh(rt0);
+    p_hse.setVal(p0);
+
+    amrex::Real pi0 = getExnergivenRTh(rt0, l_rdOcp);
+
+    pi_hse.setVal(pi0);
+
+    // Default to zero background moisture
+    qv_hse.setVal(0.0);
 }

@@ -77,11 +77,13 @@ ERF::init_custom (int lev)
         Array4<Real> r_hse_arr = r_hse.array(mfi);
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
-        prob->init_custom_pert(bx, xbx, ybx, zbx, cons_arr, cons_pert_arr,
-                               xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
+        prob->init_custom_pert(bx, cons_arr, cons_pert_arr,
                                r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
-                               geom[lev].data(), mf_m, mf_u, mf_v,
-                               solverChoice, lev);
+                               geom[lev].data(), mf_m, solverChoice, lev);
+        prob->init_custom_pert_vels(xbx, ybx, zbx,
+                                    xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
+                                    z_nd_arr, geom[lev].data(), mf_u, mf_v,
+                                    solverChoice, lev);
     } //mfi
 
     // Add problem-specific perturbation to background flow if not doing anelastic with fixed-in-time density

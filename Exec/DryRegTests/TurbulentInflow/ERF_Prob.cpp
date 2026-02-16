@@ -43,29 +43,19 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
 }
 
 void
-Problem::init_custom_pert(
+Problem::init_custom_pert (
     const amrex::Box&  bx,
-    const amrex::Box& xbx,
-    const amrex::Box& ybx,
-    const amrex::Box& zbx,
     amrex::Array4<amrex::Real const> const& /*state*/,
     amrex::Array4<amrex::Real      > const& state_pert,
-    amrex::Array4<amrex::Real      > const& x_vel_pert,
-    amrex::Array4<amrex::Real      > const& y_vel_pert,
-    amrex::Array4<amrex::Real      > const& z_vel_pert,
     amrex::Array4<amrex::Real      > const& r_hse,
     amrex::Array4<amrex::Real      > const& /*p_hse*/,
-    amrex::Array4<amrex::Real const> const& z_nd,
+    amrex::Array4<amrex::Real const> const& /*z_nd*/,
     amrex::Array4<amrex::Real const> const& z_cc,
     amrex::GeometryData const& geomdata,
     amrex::Array4<amrex::Real const> const& /*mf_m*/,
-    amrex::Array4<amrex::Real const> const& /*mf_u*/,
-    amrex::Array4<amrex::Real const> const& /*mf_v*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
-    const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
     const bool use_terrain  = (SolverChoice::terrain_type != TerrainType::None);
 
     if (parms.KE_decay_height > 0) {
@@ -135,38 +125,52 @@ Problem::init_custom_pert(
                 1e-12);
         }
     }
-
-    if (use_moisture) {
-        state_pert(i, j, k, RhoQ1_comp) = 0.0;
-        state_pert(i, j, k, RhoQ2_comp) = 0.0;
-    }
   });
+}
 
-  // Set the x-velocity
-  ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-    const Real* prob_lo = geomdata.ProbLo();
-    const Real* dx = geomdata.CellSize();
-    const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z = use_terrain ? 0.25*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
-                                      + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
-                               : prob_lo[2] + (k + 0.5) * dx[2];
+void
+Problem::init_custom_pert_vels (
+    const amrex::Box& xbx,
+    const amrex::Box& ybx,
+    const amrex::Box& zbx,
+    amrex::Array4<amrex::Real      > const& x_vel_pert,
+    amrex::Array4<amrex::Real      > const& y_vel_pert,
+    amrex::Array4<amrex::Real      > const& z_vel_pert,
+    amrex::Array4<amrex::Real const> const& z_nd,
+    amrex::GeometryData const& geomdata,
+    amrex::Array4<amrex::Real const> const& /*mf_u*/,
+    amrex::Array4<amrex::Real const> const& /*mf_v*/,
+    const SolverChoice& /*sc*/,
+    const int /*lev*/)
+{
+    const bool use_terrain  = (SolverChoice::terrain_type != TerrainType::None);
 
     // Set the x-velocity
-    x_vel_pert(i, j, k) = parms_d.U_0;
-    if ((z <= parms_d.pert_ref_height) && (parms_d.U_0_Pert_Mag != 0.0))
+    ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
-        Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-        Real x_vel_prime = (rand_double*2.0 - 1.0)*parms_d.U_0_Pert_Mag;
-        x_vel_pert(i, j, k) += x_vel_prime;
-    }
-    if (parms_d.pert_deltaU != 0.0)
-    {
-        const amrex::Real yl = y - prob_lo[1];
-        const amrex::Real zl = z / parms_d.pert_ref_height;
-        const amrex::Real damp = std::exp(-0.5 * zl * zl);
-        x_vel_pert(i, j, k) += parms_d.ufac * damp * z * std::cos(parms_d.aval * yl);
-    }
-  });
+        const Real* prob_lo = geomdata.ProbLo();
+        const Real* dx = geomdata.CellSize();
+        const Real y = prob_lo[1] + (j + 0.5) * dx[1];
+        const Real z = use_terrain ? 0.25*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
+                                          + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
+                                   : prob_lo[2] + (k + 0.5) * dx[2];
+
+        // Set the x-velocity
+        x_vel_pert(i, j, k) = parms_d.U_0;
+        if ((z <= parms_d.pert_ref_height) && (parms_d.U_0_Pert_Mag != 0.0))
+        {
+            Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
+            Real x_vel_prime = (rand_double*2.0 - 1.0)*parms_d.U_0_Pert_Mag;
+            x_vel_pert(i, j, k) += x_vel_prime;
+        }
+        if (parms_d.pert_deltaU != 0.0)
+        {
+            const amrex::Real yl = y - prob_lo[1];
+            const amrex::Real zl = z / parms_d.pert_ref_height;
+            const amrex::Real damp = std::exp(-0.5 * zl * zl);
+            x_vel_pert(i, j, k) += parms_d.ufac * damp * z * std::cos(parms_d.aval * yl);
+        }
+    });
 
   // Set the y-velocity
   ParallelForRNG(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {

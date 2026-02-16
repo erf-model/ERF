@@ -72,12 +72,12 @@ erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure
 # SOLVER CHOICE
 erf.alpha_T = 0.0
 erf.alpha_C = 1.0
-erf.use_gravity = false
+erf.use_gravity = true
 
 erf.molec_diff_type = "ConstantAlpha"
 erf.les_type        = "None"
 erf.Cs              = 1.5
-erf.dynamicViscosity = 10.0
+erf.dynamic_viscosity = 10.0
 
 erf.pbl_type        = "None"
 

@@ -40,7 +40,7 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
 }
 
 void
-Problem::init_custom_pert(
+Problem::init_custom_pert (
     const amrex::Box&  bx,
     const amrex::Box& xbx,
     const amrex::Box& ybx,
@@ -96,6 +96,24 @@ Problem::init_custom_pert(
         state_pert(i, j, k, RhoQ2_comp) = 0.0;
     }
   });
+}
+
+void
+Problem::init_custom_pert_vels (
+    const amrex::Box&  bx,
+    const amrex::Box& xbx,
+    const amrex::Box& ybx,
+    const amrex::Box& zbx,
+    amrex::Array4<amrex::Real      > const& x_vel_pert,
+    amrex::Array4<amrex::Real      > const& y_vel_pert,
+    amrex::Array4<amrex::Real      > const& z_vel_pert,
+    amrex::GeometryData const& geomdata,
+    amrex::Array4<amrex::Real const> const& /*mf_m*/,
+    amrex::Array4<amrex::Real const> const& /*mf_u*/,
+    amrex::Array4<amrex::Real const> const& /*mf_v*/,
+    const SolverChoice& sc)
+{
+    const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
   // Set the x-velocity
   ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {

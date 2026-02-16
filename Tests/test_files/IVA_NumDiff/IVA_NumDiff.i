@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Isentropic Vortex NumDiff Test"
+erf.prob_name = "Isentropic Vortex NumDiff Test"
+
+erf.init_type = Uniform
 
 max_step = 10
 

@@ -42,31 +42,9 @@ class Problem : public ProblemBase
 public:
     Problem(const amrex::Real* problo, const amrex::Real* probhi);
 
-#include "Prob/ERF_InitConstantDensityHSE.H"
+#include "Prob/ERF_InitDensityHSE.H"
 #include "Prob/ERF_InitRayleighDamping.H"
-
-    void init_custom_pert (
-        const amrex::Box&  bx,
-        const amrex::Box& xbx,
-        const amrex::Box& ybx,
-        const amrex::Box& zbx,
-        amrex::Array4<amrex::Real const> const& state,
-        amrex::Array4<amrex::Real      > const& state_pert,
-        amrex::Array4<amrex::Real      > const& x_vel_pert,
-        amrex::Array4<amrex::Real      > const& y_vel_pert,
-        amrex::Array4<amrex::Real      > const& z_vel_pert,
-        amrex::Array4<amrex::Real      > const& r_hse,
-        amrex::Array4<amrex::Real      > const& p_hse,
-        amrex::Array4<amrex::Real const> const& z_nd,
-        amrex::Array4<amrex::Real const> const& z_cc,
-        amrex::GeometryData const& geomdata,
-        amrex::Array4<amrex::Real const> const& mf_m,
-        amrex::Array4<amrex::Real const> const& mf_u,
-        amrex::Array4<amrex::Real const> const& mf_v,
-        const SolverChoice& sc,
-        const int lev) override;
-
-protected:
+#include "Prob/ERF_InitCustomPert.H"
 
 private:
     ProbParm parms;

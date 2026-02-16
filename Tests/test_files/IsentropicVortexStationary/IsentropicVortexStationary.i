@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Stationary Isentropic Vortex"
+erf.prob_name = "Stationary Isentropic Vortex"
+
+erf.init_type = Uniform
 
 max_step = 10
 

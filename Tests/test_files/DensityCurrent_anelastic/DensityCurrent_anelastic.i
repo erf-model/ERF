@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Density Current Anelastic"
+erf.prob_name = "Density Current Anelastic"
+
+erf.init_type = Isentropic
 
 max_step = 10
 
