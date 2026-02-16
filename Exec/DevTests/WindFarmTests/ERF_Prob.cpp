@@ -50,7 +50,7 @@ Problem::init_custom_pert (
     Array4<Real const> const& /*z_cc*/,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
     ParallelForRNG(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const RandomEngine& engine) noexcept
