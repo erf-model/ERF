@@ -125,6 +125,20 @@ SLM::Init (const int& /*lev*/,
         lsm_fab_flux[ivar]->setVal(0.0);
     }
 
+    // build list for checkpointing extra variables not mapped to ERF in lsm_fab_vars
+    for (int i = 0; i < LsmVar_SLM::NumVars; i++) {
+        int found = 0;
+        for (int j = 0; j < m_lsm_data_size; j++) {
+            if (LsmDataMap[j] == i) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) {
+            unmapped_fields.push_back(i);
+        }
+    }
+
     // Initial olen to neutral condition
     lsm_fab_flux[LsmFlux_SLM::olen]->setVal(1.0E34);
 
@@ -244,11 +258,6 @@ SLM::Init (const int& /*lev*/,
     mws.setVal(0.0);
     mw_inc.setVal(0.0);
     evapo_dry.setVal(0.0);
-
-    // Initialize 1D arrays
-    soilw_inc.resize({klo_lsm},  {khi_lsm});
-    alpha.resize({klo_lsm},  {khi_lsm});
-    beta.resize({klo_lsm},  {khi_lsm});
 
     r_a.setVal(0.0);
     r_b.setVal(0.0);

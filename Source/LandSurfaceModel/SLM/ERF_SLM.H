@@ -706,8 +706,6 @@ private:
     amrex::MultiFab t_cas; // canopy air space temperature
     amrex::MultiFab q_cas; // canopy air space specific humidity
 
-    amrex::TableData<amrex::Real, 1> soilw_inc;
-
     // TODO: placeholder landmask array - should probably use the one defined by ERF
     amrex::iMultiFab landmask;
     amrex::iMultiFab landtype; // IGBP landtype (1 to 16)
@@ -738,9 +736,6 @@ private:
     amrex::MultiFab mw_mx; // max of mw
     amrex::MultiFab mws_mx; // max of mws
     amrex::MultiFab BAI; // Basal area index, sq.feet/acre
-
-    amrex::TableData<amrex::Real, 1> alpha;
-    amrex::TableData<amrex::Real, 1> beta;
 
     // Packed MF containing 1D arrays of variables used in soil temperature and soil water
     //  soilt: st_cond, st_capa, st_eff_cond, alpha, beta
@@ -856,6 +851,9 @@ private:
 
     // whether to initialize SLM from inputs file or from wrfinput
     bool use_wrfinput = false;
+
+    // list of extra MFs in lsm_fab_vars that are not checkpointed by ERF
+    amrex::Vector<int> unmapped_fields;
 
     // List of 2D output variables that are declared as 3D
     // These will only be saved at k = 0 (surface level) to save space
