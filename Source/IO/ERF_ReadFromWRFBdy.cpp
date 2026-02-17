@@ -80,7 +80,7 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
             }
         }
         start_bdy_time = epochTimes[0];
-        final_bdy_time = eposhTimes[ntimes-1];
+        final_bdy_time = epochTimes[ntimes-1];
     }
 
     ParallelDescriptor::Bcast(&start_bdy_time,1,ioproc);
