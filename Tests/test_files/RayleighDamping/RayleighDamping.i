@@ -1,4 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Rayleigh Damping Test"
+
+erf.init_type = Uniform
+
 max_step = 100
 
 amrex.fpe_trap_invalid = 1
@@ -49,8 +53,6 @@ erf.rayleigh_dampcoef = 1.0  # tau==1
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
-
-erf.init_type = "uniform"
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

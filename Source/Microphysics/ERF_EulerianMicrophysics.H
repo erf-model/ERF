@@ -68,6 +68,11 @@ public:
                                  z_phys_nd, detJ_cc);
     }
 
+    /*! \brief finish initializations steps that require flow variables */
+    virtual void FinishInit (const int&,
+                             amrex::MultiFab&,
+                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) override { }
+
     /*! \brief Advance the moisture model for one time step */
     void Advance (const int& lev, /*!< AMR level */
                   const amrex::Real& dt_advance, /*!< Time step */
@@ -149,6 +154,13 @@ public:
                             const amrex::Real dz_min) const override
     {
         m_moist_model[a_lev]->Set_dzmin(dz_min);
+    }
+
+    /*! \brief Populates real_width in micro model for box limiting */
+    virtual void Set_RealWidth (const int a_lev,
+                                const int real_width) const override
+    {
+        m_moist_model[a_lev]->Set_RealWidth(real_width);
     }
 
 protected:

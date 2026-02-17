@@ -1,4 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "SquallLine"
+
+erf.init_type = MoistBaseState
+
 max_step = 36000
 stop_time = 90000.0
 
@@ -45,8 +49,6 @@ erf.use_gravity = true
 erf.buoyancy_type = 1
 erf.use_coriolis = false
 
-#erf.les_type = "Smagorinsky"
-#erf.Cs              = 0.25
 erf.les_type = "None"
 
 # Constant diffusion coefficient
@@ -56,7 +58,6 @@ erf.alpha_T           = 200.0 # [m^2/s]
 erf.alpha_C           = 200.0
 
 erf.moisture_model = "Kessler"
-erf.use_moist_background = true
 
 # PROBLEM PARAMETERS (optional)
 prob.z_tr = 12000.0
@@ -69,3 +70,5 @@ prob.z_c = 2000.0
 prob.x_r = 10000.0
 prob.z_r = 1500.0
 prob.theta_c = 3.0
+
+prob.use_empirical_sat_pressure = true

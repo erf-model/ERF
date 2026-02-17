@@ -20,8 +20,8 @@ This folder contains examples for hurricane simulations from real weather data.
 1. Follow the steps in the ``erftools`` directory to generate the initial condition and boundary
    condition files.
 
-   - For ERA5 data see the README section `here <https://github.com/erf-model/erftools/tree/main/notebooks/era5>`_.
-   - For GFS data see the README section `here <https://github.com/erf-model/erftools/tree/main/notebooks/gfs>`_.
+   - For ERA5 data see the README section `here <https://github.com/erf-model/erftools/tree/main/notebooks/era5>`__.
+   - For GFS data see the README section `here <https://github.com/erf-model/erftools/tree/main/notebooks/gfs>`__.
 
 2. From the step above, copy the ``Output/ERA5Data_3D`` (``Output/GFSData_3D`` for GFS) directory to the directory
    where ERF will be run. This is the boundary data for the lateral forcing of large-scale meteorology. Set the

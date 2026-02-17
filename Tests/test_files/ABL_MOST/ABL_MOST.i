@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "ABL with MOST"
+
 max_step = 10
 
 amrex.fpe_trap_invalid = 1
@@ -51,7 +53,7 @@ erf.Ce        = 0.1
 erf.KE_0      = 0.1
 erf.theta_ref = 300.0
 
-erf.init_type = "uniform"
+erf.init_type = Uniform
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

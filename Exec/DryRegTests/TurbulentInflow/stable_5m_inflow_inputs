@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Turbulent Inflow"
+
 #max_step = 3000000
 stop_time = 2700.0
 

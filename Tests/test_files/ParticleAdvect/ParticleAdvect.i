@@ -1,4 +1,10 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Particle Advection Test"
+
+erf.init_type = Isentropic
+
+prob.custom_terrain_type = "FlatRaised"
+
 max_step =  10
 
 amrex.fpe_trap_invalid = 1

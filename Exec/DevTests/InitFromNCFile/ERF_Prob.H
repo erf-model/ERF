@@ -18,10 +18,7 @@ class Problem : public ProblemBase
 public:
     Problem();
 
-#include "Prob/ERF_InitConstantDensityHSE.H"
-
 protected:
-    std::string name() override { return "WPS Test"; }
 
 private:
     ProbParm parms;

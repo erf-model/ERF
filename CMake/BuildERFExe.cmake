@@ -11,7 +11,7 @@ endfunction(target_link_libraries_system)
 function(target_link_libraries_includes_only target visibility lib)
   # Link the library (this target will use it)
   target_link_libraries(${target} PRIVATE ${lib})
-  
+
   # But propagate includes with specified visibility
   get_target_property(lib_include_dirs ${lib} INTERFACE_INCLUDE_DIRECTORIES)
   if(lib_include_dirs)
@@ -47,12 +47,26 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
   endif()
 
+  if(ERF_ENABLE_PARTICLES AND ERF_ENABLE_ML_UPHYS_DIAGNOSTICS)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_ML_UPHYS_DIAGNOSTICS)
+  endif()
+
   if(ERF_ENABLE_PARTICLES)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Particles/ERFPCEvolve.cpp
                    ${SRC_DIR}/Particles/ERFPCInitializations.cpp
                    ${SRC_DIR}/Particles/ERFPCUtils.cpp
-                   ${SRC_DIR}/Particles/ERFTracers.cpp)
+                   ${SRC_DIR}/Particles/ERFTracers.cpp
+                   ${SRC_DIR}/Particles/ERF_SDInitialization.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCAddParticles.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCAdvection.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCBoundaries.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCCoalescence.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCDiagnostics.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCInitializations.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCMassChange.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCRecycle.cpp
+                   ${SRC_DIR}/Particles/ERF_SuperDropletPCUtils.cpp)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Particles>)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
   endif()
@@ -206,7 +220,7 @@ function(build_erf_lib erf_lib_name)
                    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics/shoc/eti/shoc_update_prognostics_implicit.cpp>
                   )
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_SHOC)
-    target_compile_definitions(${erf_lib_name} PUBLIC SCREAM_SHOC_SMALL_KERNELS)              
+    target_compile_definitions(${erf_lib_name} PUBLIC SCREAM_SHOC_SMALL_KERNELS)
   endif()
 
   if(ERF_ENABLE_MORR_FORT)
@@ -217,6 +231,18 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Morrison/ERF_module_model_constants.F90
        )
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MORR_FORT)
+  endif()
+
+  if(ERF_ENABLE_WINDFARM)
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/Initialization/ERF_InitWindFarm.cpp
+      ${SRC_DIR}/WindFarmParametrization/ERF_WindFarm.cpp
+      ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
+      ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
+      ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
+      ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
+    )
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WINDFARM)
   endif()
 
   target_sources(${erf_lib_name}
@@ -243,7 +269,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsZvel.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsBaseState.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsBndryReg.cpp
-       ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsRealbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillCoarsePatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillIntermediatePatch.cpp
@@ -273,13 +298,13 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/EB/ERF_EBCutCell.cpp
        ${SRC_DIR}/EB/ERF_EBRedistribute.cpp
        ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
-       ${SRC_DIR}/Initialization/ERF_InitCustom.cpp
+       ${SRC_DIR}/Initialization/ERF_InitCustomPertState.cpp
+       ${SRC_DIR}/Initialization/ERF_InitCustomTerrain.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromHSE.cpp
        ${SRC_DIR}/Initialization/ERF_InitFromInputSounding.cpp
        ${SRC_DIR}/Initialization/ERF_InitGeowind.cpp
        ${SRC_DIR}/Initialization/ERF_InitRayleigh.cpp
        ${SRC_DIR}/Initialization/ERF_InitSponge.cpp
-       ${SRC_DIR}/Initialization/ERF_InitUniform.cpp
        ${SRC_DIR}/Initialization/ERF_Init1D.cpp
        ${SRC_DIR}/Initialization/ERF_InitTurbPert.cpp
        ${SRC_DIR}/Initialization/ERF_InitImmersedForcing.cpp
@@ -320,6 +345,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SatAdj/ERF_InitSatAdj.cpp
        ${SRC_DIR}/Microphysics/SatAdj/ERF_SatAdj.cpp
        ${SRC_DIR}/Microphysics/SatAdj/ERF_UpdateSatAdj.cpp
+       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistAdvance.cpp
+       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistInit.cpp
+       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistPhaseChange.cpp
+       ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistUtils.cpp
+       ${SRC_DIR}/MaterialProperties/ERF_MaterialProperties.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYJ.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNN25.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMYNNEDMF.cpp
@@ -336,6 +366,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_MoistSetRhs.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
        ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
+       ${SRC_DIR}/SourceTerms/ERF_ApplySurfaceTreatment_BulkCoeff.cpp 
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStep.cpp
@@ -363,6 +394,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
        ${SRC_DIR}/Utils/ERF_VolWgtSum.cpp
        ${SRC_DIR}/Utils/ERF_WeatherDataInterpolation.cpp
+       ${SRC_DIR}/Utils/ERF_SurfaceDataInterpolation.cpp
        ${SRC_DIR}/WindFarmParametrization/Fitch/ERF_AdvanceFitch.cpp
        ${SRC_DIR}/WindFarmParametrization/EWP/ERF_AdvanceEWP.cpp
        ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
@@ -429,12 +461,14 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/TimeIntegration>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Utils>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/MaterialProperties>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SAM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Kessler>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/Morrison>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SatAdj>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/Source/WindFarmParametrization/Fitch>)

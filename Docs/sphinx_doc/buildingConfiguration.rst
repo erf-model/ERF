@@ -1,4 +1,4 @@
-.. _building:configuration
+.. _building:configuration:
 
 =================================
 Build Configuration Details

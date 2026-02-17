@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "EB Poiseuille"
+
 max_step = 10000
 
 amr.max_grid_size = 256 256 256
@@ -73,6 +75,9 @@ erf.terrain_type = "EB"
 erf.write_eb_surface = TRUE
 
 # PROBLEM PARAMETERS
+prob.custom_terrain_type = "RaisedFlat"
+prob.z_offset            = .0179687500
+
 prob.rho_0 = 100.0
 prob.T_0   = 1.0
 prob.u_0   = 0.0

@@ -26,7 +26,7 @@ class NullSurf {
                const amrex::MultiFab& /*v_in*/,
                const amrex::Geometry& /*geom*/,
                const amrex::Real& /*dt_advance*/, 
-               std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/) { } 
+               std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/) { }
 
     virtual
     void
@@ -142,8 +142,20 @@ class NullSurf {
         return wrfinput_map;
     }
 
+    virtual
+    void WriteCheckpoint(const int &lev, const std::string &checkpointname) const
+    {
+        return;
+    }
+
+    virtual
+    void ReadCheckpoint(const int &lev, const std::string &checkpointname)
+    {
+        return;
+    }
+
  private:
-    int m_lsm_size = 1;
+    int m_lsm_size = 0;
     amrex::Geometry m_lsm_geom;
     std::string dataname = " ";
     std::string fluxname = " ";

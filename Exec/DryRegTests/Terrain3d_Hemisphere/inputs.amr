@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Terrain - 3D Hemisphere" 
+
 max_step = 4000
 
 amrex.fpe_trap_invalid = 1
@@ -87,6 +89,7 @@ erf.dynamic_viscosity = 0.1 # [kg/(m-s)]
 erf.alpha_T           = 0.0 # [m^2/s]
 
 # PROBLEM PARAMETERS (optional)
+prob.custom_terrain_type = "Hemisphere"
 prob.T_0   = 300.0
 prob.U_0   = 0.0
 prob.rho_0 = 1.16

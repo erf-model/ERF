@@ -534,8 +534,9 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             iwp_tab(icol,ilay) = 0.0;
 
             // NOTE: These would be populated from P3 (we use the constants in p3_main_impl.hpp)
-            eff_radius_qc_tab(icol,ilay) = (qc>0.0) ? 10.0e-6 : 0.0;
-            eff_radius_qi_tab(icol,ilay) = (qi>0.0) ? 25.0e-6 : 0.0;
+            // NOTE: These are in units of micron!
+            eff_radius_qc_tab(icol,ilay) = (qc>0.0) ? 10.0 : 0.0;
+            eff_radius_qi_tab(icol,ilay) = (qi>0.0) ? 25.0 : 0.0;
 
             // Buffers on z-faces (nlay+1)
             p_lev_tab(icol,ilay) = getPgivenRTh(rt_avg, qv_avg);
@@ -586,7 +587,9 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                             0.06, 0.06};
         for (int ivar(0); ivar<lsm_input_ptrs.size(); ivar++) {
             auto rrtmgp_default_val = rrtmgp_default_vals[ivar];
-            auto rrtmgp_to_fill = rrtmgp_in_vars[ivar];
+            auto rrtmgp_to_fill_k = rrtmgp_in_vars[ivar];
+            amrex::Table1D<amrex::Real> rrtmgp_to_fill(rrtmgp_to_fill_k.data(),
+                                                       0, rrtmgp_to_fill_k.extent(0));
             for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
                 const auto& vbx  = mfi.validbox();
                 const auto& sbx  = makeSlab(vbx,2,vbx.smallEnd(2));
@@ -736,7 +739,11 @@ Radiation::kokkos_buffers_to_mf (const Vector<MultiFab*>& lsm_output_ptrs)
                         lsm_out_arr(i,j,k) = mu0_tab(icol);
                     });
                 } else {
-                    auto rrtmgp_for_fill = rrtmgp_out_vars[ivar-1];
+                    auto rrtmgp_for_fill_k = rrtmgp_out_vars[ivar-1];
+                    amrex::Table2D<amrex::Real const, amrex::Order::C>
+                        rrtmgp_for_fill(rrtmgp_for_fill_k.data(),
+                                        {0,0}, {int(rrtmgp_for_fill_k.extent(0)),
+                                                int(rrtmgp_for_fill_k.extent(1))});
                     ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         // map [i,j,k] 0-based to [icol, ilay] 0-based

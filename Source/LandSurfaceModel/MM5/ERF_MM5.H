@@ -51,7 +51,7 @@ public:
           const amrex::MultiFab& v_in,
           const amrex::Geometry& geom,
           const amrex::Real& dt,
-          std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
+          std::unique_ptr<amrex::MultiFab>& z_phys_nd) override;
 
     // Wrapper to do all the updating
     void

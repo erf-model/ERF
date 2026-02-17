@@ -254,7 +254,7 @@ Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
 .. |b2| image:: figures/tests/scalar_advec_uniform_u_end.png
         :width: 200
 
-.. _fig:scalar_advection_uniform_u
+.. _fig:scalar_advection_uniform_u:
 
 .. table:: X-Y slice of a 2-d cylindrical blob in a uniform velocity field (10,5,0)
 
@@ -282,7 +282,7 @@ Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
 .. |b3| image:: figures/tests/scalar_advec_sheared_u_end.png
         :width: 200
 
-.. _fig:scalar_advection_sheared_u
+.. _fig:scalar_advection_sheared_u:
 
 .. table:: X-Z slice of a 2-d cylindrical blob in a uniform shearing velocity field (8 log( (z+z0)/z0 ) / log ( (zref+z0)/z0 )
    with z0 = 0.1 and zref = 80 in a triply periodic domain 8x8x8
@@ -311,7 +311,7 @@ Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
 .. |b5| image:: figures/tests/scalar_diff_end.png
         :width: 300
 
-.. _fig:scalar_diffusion_gaussian
+.. _fig:scalar_diffusion_gaussian:
 
 .. table:: Diffusion of a spherical blob of scalar
 
@@ -339,7 +339,7 @@ Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
 .. |b6| image:: figures/tests/scalar_diff_sine_end.png
         :width: 300
 
-.. _fig:scalar_diffusion_sine
+.. _fig:scalar_diffusion_sine:
 
 .. table:: Diffusion of a scalar initialized as sin(x)
 
@@ -368,7 +368,7 @@ Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
 .. |b7| image:: figures/tests/scalar_advec_diff_end.png
         :width: 300
 
-.. _fig:scalar_diffusion_sine
+.. _fig:scalar_diffusion_uniform:
 
 .. table:: Advection and diffusion of a spherical blob in a uniform velocity field (100,0,0)
 
@@ -447,7 +447,7 @@ Problem Location: `Exec/DryRegTests/TaylorGreenVortex`_
 .. |b8| image:: figures/tests/TGV_end.png
         :width: 300
 
-.. _fig:taylor_green_vortex
+.. _fig:taylor_green_vortex:
 
 .. table:: Scalar concentration
 
@@ -467,11 +467,11 @@ the velocity is specified to be :math:`U = (2,0,0)`.   The steady solution for t
 
 Test Location: `Tests/test_files/CouetteFlow_x`_
 
-.. _`Tests/test_files/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_x
+.. _`Tests/test_files/CouetteFlow_x`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_x
 
 Problem Location: `Exec/DryRegTests/CouetteFlow_x`_
 
-.. _`Exec/DryRegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/Couette_Poiseuille
+.. _`Exec/DryRegTests/CouetteFlow_x`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/Couette_Poiseuille
 
 Couette Flow (y-direction)
 ---------------------------
@@ -483,11 +483,11 @@ the velocity is specified to be :math:`U = (0,2,0)`.   The steady solution for t
 
 Test Location: `Tests/test_files/CouetteFlow_y`_
 
-.. _`Tests/test_files/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_y
+.. _`Tests/test_files/CouetteFlow_y`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_y
 
 Problem Location: `Exec/DryRegTests/CouetteFlow_y`_
 
-.. _`Exec/DryRegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/Couette_Poiseuille
+.. _`Exec/DryRegTests/CouetteFlow_y`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/Couette_Poiseuille
 
 Poiseuille Flow (x-direction)
 -----------------------------
@@ -503,7 +503,7 @@ Test Location: `Tests/test_files/PoiseuilleFlow_x`_
 
 Problem Location: `Exec/DryRegTests/PoiseuilleFlow_x`_
 
-.. _`Exec/DryRegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/Couette_Poiseuille
+.. _`Exec/DryRegTests/PoiseuilleFlow_x`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/Couette_Poiseuille
 
 Poiseuille Flow (y-direction)
 -----------------------------
@@ -519,7 +519,7 @@ Test Location: `Tests/test_files/PoiseuilleFlow_y`_
 
 Problem Location: `Exec/DryRegTests/PoiseuilleFlow_y`_
 
-.. _`Exec/DryRegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/Couette_Poiseuille
+.. _`Exec/DryRegTests/PoiseuilleFlow_y`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/Couette_Poiseuille
 
 Nonlinear Density Current
 ---------------------------
@@ -533,7 +533,7 @@ Test Location: `Tests/test_files/DensityCurrent`_
 
 Problem Location: `Exec/DryRegTests/DensityCurrent`_
 
-.. _`Exec/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/DensityCurrent
+.. _`Exec/DryRegTests/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/DensityCurrent
 
 Ekman Spiral
 ---------------------------

@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "ML Init HSE Test"
+
 max_step = 1
 
 amrex.fpe_trap_invalid = 0
@@ -59,6 +61,7 @@ erf.terrain_type = StaticFittedMesh
 erf.terrain_smoothing = 0
 
 # PROBLEM SPECIFIC
+prob.custom_terrain_type = "ScharMountain"
 prob.Th_0 = 300.0
 prob.model_filename = "HSE_NN.pt"
 prob.model_unscale_filename = "HSE_NN_Unscale.bin"

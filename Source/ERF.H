@@ -152,16 +152,22 @@ public:
     amrex::Vector<std::array<amrex::Real, 2>> hurricane_eye_track_xy,
                                               hurricane_eye_track_latlon,
                                               hurricane_maxvel_vs_time,
+                                              hurricane_minpressure_vs_time,
                                               hurricane_tracker_circle;
     amrex::Vector<amrex::MultiFab> weather_forecast_data_1, weather_forecast_data_2;
     amrex::Vector<amrex::Vector<amrex::MultiFab>> forecast_state_1,
                                                   forecast_state_2,
                                                   forecast_state_interp;
+    amrex::Vector<amrex::MultiFab> surface_state_1,
+                                   surface_state_2,
+                                   surface_state_interp;
+
     std::string MakeVTKFilename(int nstep);
     std::string MakeVTKFilename_TrackerCircle(int nstep);
     std::string MakeVTKFilename_EyeTracker_xy(int nstep);
     std::string MakeFilename_EyeTracker_latlon(int nstep);
     std::string MakeFilename_EyeTracker_maxvel(int nstep);
+    std::string MakeFilename_EyeTracker_minpressure(int nstep);
     void WriteVTKPolyline(const std::string& filename,
                           amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
@@ -475,12 +481,34 @@ public:
     void FillForecastStateMultiFabs(const int lev,
                                     const std::string& filename,
                                     const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                                    amrex::Vector<amrex::Vector<amrex::MultiFab>>& weather_forecast_data);
+                                    amrex::Vector<amrex::Vector<amrex::MultiFab>>& forecast_state);
+
+    void FillSurfaceStateMultiFabs(const int lev,
+                                   const std::string& filename,
+                                   amrex::Vector<amrex::MultiFab>& surface_state);
+
 
     void WeatherDataInterpolation(const int nlevs,
                                   const amrex::Real time,
                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                                   bool regrid_forces_file_read);
+
+    void SurfaceDataInterpolation(const int nlevs,
+                                  const amrex::Real time,
+                                  amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                                  bool regrid_forces_file_read);
+
+    void create_random_perturbations (const int lev,
+                                      amrex::MultiFab& cons_pert,
+                                      amrex::MultiFab& xvel_pert,
+                                      amrex::MultiFab& yvel_pert,
+                                      amrex::MultiFab& zvel_pert);
+
+    void apply_gaussian_smoothing_to_perturbations (const int lev,
+                                                    amrex::MultiFab& cons_pert,
+                                                    amrex::MultiFab& xvel_pert,
+                                                    amrex::MultiFab& yvel_pert,
+                                                    amrex::MultiFab& zvel_pert);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -523,26 +551,6 @@ public:
                               amrex::Real time);
 
 #ifdef ERF_USE_NETCDF
-    // Version in which we always set the velocity values but don't set theta
-    void fill_from_realbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
-                            amrex::Real time,
-                            bool cons_only,
-                            int icomp_cons,
-                            int ncomp_cons,
-                            amrex::IntVect ngvect_cons,
-                            amrex::IntVect ngvect_vels);
-
-    // Version in which we only set the boundary value if inflowing, includes theta
-    void fill_from_realbdy_upwind (const amrex::Vector<amrex::MultiFab*>& mfs,
-                                   amrex::Real time,
-                                   bool cons_only,
-                                   int icomp_cons,
-                                   int ncomp_cons,
-                                   amrex::IntVect ngvect_cons,
-                                   amrex::IntVect ngvect_vels);
-#endif
-
-#ifdef ERF_USE_NETCDF
     void init_from_wrfinput (int lev,
                              amrex::MultiFab& mf_C1H,
                              amrex::MultiFab& mf_C2H,
@@ -555,13 +563,15 @@ public:
 #ifdef ERF_USE_WINDFARM
     void init_windfarm(int lev);
     void advance_windfarm (const amrex::Geometry& a_geom,
-                       const amrex::Real& dt_advance,
-                       amrex::MultiFab& cons_in,
-                       amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
-                       amrex::MultiFab& mf_vars_windfarm,
-                       const amrex::MultiFab& mf_Nturb,
-                       const amrex::MultiFab& mf_SMark,
-                       const amrex::Real& time);
+                           const amrex::Real& dt_advance,
+                           amrex::MultiFab& cons_in,
+                           amrex::MultiFab& U_old,
+                           amrex::MultiFab& V_old,
+                           amrex::MultiFab& W_old,
+                           amrex::MultiFab& mf_vars_windfarm,
+                           const amrex::MultiFab& mf_Nturb,
+                           const amrex::MultiFab& mf_SMark,
+                           const amrex::Real& time);
 #endif
 
     void MakeEBGeometry ();
@@ -609,8 +619,6 @@ private:
     void init_phys_bcs (bool& rho_read, bool& read_prim_theta);
 
     void init_custom (int lev);
-
-    void init_uniform (int lev);
 
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                      amrex::Vector<amrex::MultiFab>& lev_new, amrex::Vector<amrex::MultiFab>& lev_old,
@@ -1128,7 +1136,7 @@ private:
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
-                                                    "eq_pot_temp",
+                                                    "eq_pot_temp", "VPD",
 #ifdef ERF_USE_WINDFARM
                                                     "num_turb", "SMark0", "SMark1",
 #endif
@@ -1150,7 +1158,9 @@ private:
                                                     "diss",
                                                     // moisture vars
                                                     "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup", "qt", "qn", "qp", "qsat",
-                                                    "rain_accum", "snow_accum", "graup_accum", "reflectivity", "max_reflectivity",
+                                                    "rain_accum", "snow_accum", "graup_accum",
+                                                    "rel_humidity", "condensation_rate",
+                                                    "reflectivity", "max_reflectivity",
                                                     "qsrc",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
@@ -1246,7 +1256,6 @@ private:
     // NetCDF initialization (wrfbdy/met_em) file
     static std::string nc_bdy_file;
     int real_width{0};
-    int real_set_width{0};
     bool real_extrap_w{true};
 
     // NetCDF initialization of zlo boundary values
@@ -1296,11 +1305,8 @@ private:
     static int ng_pres_hse;
 
     // Custom source terms
-    amrex::Vector<           amrex::Vector<amrex::Real> > h_rhotheta_src;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhotheta_src;
-
-    amrex::Vector<           amrex::Vector<amrex::Real> > h_rhoqt_src;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhoqt_src;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rhotheta_src;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rhoqt_src;
 
     amrex::Vector<           amrex::Vector<amrex::Real> > h_w_subsid;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_w_subsid;
@@ -1413,7 +1419,7 @@ private:
             else
             {
                 if (sc.terrain_type == TerrainType::EB){
-                    ngrow = 3;
+                    ngrow = 4;
                 } else {
                     ngrow = 2;
                 }

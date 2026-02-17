@@ -1,4 +1,10 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Moving Terrain with No Substepping"
+
+erf.init_type = Isentropic
+
+prob.custom_terrain_type = "MovingSineWave"
+
 max_step = 20
 
 amrex.fpe_trap_invalid = 1

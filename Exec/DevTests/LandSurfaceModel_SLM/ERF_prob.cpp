@@ -39,22 +39,14 @@ void Problem::read_SLM_inputs()
 void
 Problem::init_custom_pert(
     const Box& bx,
-    const Box& xbx,
-    const Box& ybx,
-    const Box& zbx,
     Array4<Real const> const& state,
     Array4<Real      > const& state_pert,
-    Array4<Real      > const& x_vel_pert,
-    Array4<Real      > const& y_vel_pert,
-    Array4<Real      > const& z_vel_pert,
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
     Array4<Real const> const& z_nd,
     Array4<Real const> const& z_cc,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
-    Array4<Real const> const& /*mf_u*/,
-    Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc,
     const int lev)
 {
@@ -65,8 +57,6 @@ Problem::init_custom_pert(
     const Real q_ref = sounding[3][0];
     const Real T_ref = sounding[2][0];
     const Real p_ref = sounding[1][0];
-    const Real vx_ref = sounding[4][0];
-    const Real vy_ref = sounding[5][0];
 
     ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         // Geometry
@@ -94,6 +84,25 @@ Problem::init_custom_pert(
             state_pert(i, j, k, RhoQ2_comp) = 0.0;
         }
     });
+}
+
+void
+Problem::init_custom_pert_vels(
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
+    Array4<Real const> const& z_nd,
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice& sc,
+    const int lev)
+{
+    const Real vx_ref = sounding[4][0];
+    const Real vy_ref = sounding[5][0];
 
     amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         const auto *const prob_hi  = geomdata.ProbHi();
@@ -112,5 +121,4 @@ Problem::init_custom_pert(
     amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         z_vel_pert(i, j, k) = parms.w_0;
     });
-
 }

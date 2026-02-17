@@ -1,4 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Particle Advection over Witch of Agnesi Hill"
+
+erf.init_type = Isentropic
+
 max_step =  10
 
 amrex.fpe_trap_invalid = 1
@@ -86,3 +90,6 @@ erf.alpha_T           = 0.0 # [m^2/s]
 prob.T_0   = 300.0
 prob.U_0   = 10.0
 prob.rho_0 = 1.16
+
+prob.custom_terrain_type = "WoA"
+prob.hill_ampl = 0.5

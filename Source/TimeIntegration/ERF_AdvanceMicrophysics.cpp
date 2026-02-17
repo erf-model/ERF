@@ -9,6 +9,7 @@ void ERF::advance_microphysics (int lev,
                                 const Real& time )
 {
     if (solverChoice.moisture_type != MoistureType::None) {
+        micro->Set_RealWidth(lev, real_width);
         micro->Update_Micro_Vars_Lev(lev, cons);
         if (plot_micro_src) {
             // Copy current state into MF for microphysics source term

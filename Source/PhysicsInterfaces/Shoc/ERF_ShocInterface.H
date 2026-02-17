@@ -644,7 +644,7 @@ protected:
 
     // Runtime options
     //=======================================================
-    bool apply_tms = true;
+    bool apply_tms = false;
     bool check_flux_state = false;
     bool extra_shoc_diags = false;
     bool column_conservation_check = false;

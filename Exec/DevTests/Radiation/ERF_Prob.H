@@ -25,10 +25,9 @@ class Problem : public ProblemBase
 public:
     Problem();
 
-#include "Prob/ERF_InitDensityHSEDry.H"
+#include "Prob/ERF_InitDensityHSE.H"
 
 protected:
-    std::string name() override { return "Radiation"; }
 
 private:
     ProbParm parms;

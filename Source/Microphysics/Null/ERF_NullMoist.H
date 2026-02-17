@@ -88,6 +88,10 @@ public:
     void
     Set_dzmin (const amrex::Real /*dz_min*/) { }
 
+    virtual
+    void
+    Set_RealWidth (const int /*real_width*/) { }
+
 
 private:
     int m_qmoist_size = 0;

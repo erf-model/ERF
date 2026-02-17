@@ -47,9 +47,9 @@ public:
           const amrex::MultiFab& v_in,
           const amrex::Geometry& geom,
           const amrex::Real& dt_advance,
-          std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+          std::unique_ptr<amrex::MultiFab>& z_phys_nd)
     {
-        m_lsm_model[lev]->Init(lev, cons_in, u_in, v_in, geom, dt_advance, z_phys_cc);
+        m_lsm_model[lev]->Init(lev, cons_in, u_in, v_in, geom, dt_advance, z_phys_nd);
     }
 
     void
@@ -201,6 +201,16 @@ public:
     template<class SurfModelType>
     SurfModelType* get_model_lev(const int &lev) {
         return static_cast<SurfModelType*>(m_lsm_model[lev].get());
+    }
+
+    void WriteCheckpoint(const int &lev, const std::string &checkpointname) const
+    {
+        m_lsm_model[lev]->WriteCheckpoint(lev, checkpointname);
+    }
+
+    void ReadCheckpoint(const int &lev, const std::string &checkpointname)
+    {
+        m_lsm_model[lev]->ReadCheckpoint(lev, checkpointname);
     }
 
 private:

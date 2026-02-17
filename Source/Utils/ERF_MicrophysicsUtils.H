@@ -65,23 +65,28 @@ amrex::Real erf_esatw_cc (amrex::Real t) {
 // Coefficients come from Table 4 and the data is valid over a
 // temperature range of [-85  70] C. Assert we are in this temp range.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real erf_esatw (amrex::Real t) {
-    amrex::Real const a0 = 6.11239921;
-    amrex::Real const a1 = 0.443987641;
-    amrex::Real const a2 = 0.142986287e-1;
-    amrex::Real const a3 = 0.264847430e-3;
-    amrex::Real const a4 = 0.302950461e-5;
-    amrex::Real const a5 = 0.206739458e-7;
-    amrex::Real const a6 = 0.640689451e-10;
-    amrex::Real const a7 = -0.952447341e-13;
-    amrex::Real const a8 = -0.976195544e-15;
-
-    amrex::Real dtt = t-273.16;
+amrex::Real erf_esatw (amrex::Real t, bool use_empirical=false)
+{
     amrex::Real esatw;
-    if (dtt>-85 && dtt<70.0) {
-        esatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
+    if (use_empirical) {
+        esatw = exp(34.494 - 4924.99/(t - 273.15 + 237.1)) / std::pow(t - 273.15 + 105.0,1.57);
     } else {
-        esatw = erf_esatw_cc(t);
+        amrex::Real const a0 = 6.11239921;
+        amrex::Real const a1 = 0.443987641;
+        amrex::Real const a2 = 0.142986287e-1;
+        amrex::Real const a3 = 0.264847430e-3;
+        amrex::Real const a4 = 0.302950461e-5;
+        amrex::Real const a5 = 0.206739458e-7;
+        amrex::Real const a6 = 0.640689451e-10;
+        amrex::Real const a7 = -0.952447341e-13;
+        amrex::Real const a8 = -0.976195544e-15;
+
+        amrex::Real dtt = t-273.16;
+        if (dtt>-85 && dtt<70.0) {
+            esatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
+        } else {
+            esatw = erf_esatw_cc(t);
+        }
     }
     return esatw;
 }

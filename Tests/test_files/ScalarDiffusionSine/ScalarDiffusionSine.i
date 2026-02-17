@@ -1,4 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Scalar Diffusion Test"
+
+erf.init_type = Uniform
+
 max_step = 20
 
 amrex.fpe_trap_invalid = 1
@@ -44,8 +48,6 @@ erf.molec_diff_type   = "Constant"
 erf.dynamic_viscosity = 0.0
 erf.alpha_T           = 0.0
 erf.alpha_C           = 1.0
-
-erf.init_type = "uniform"
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

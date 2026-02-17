@@ -112,7 +112,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     lsm.Define(lev, solverChoice);
     if (solverChoice.lsm_type != LandSurfaceType::None)
     {
-        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_cc[lev] ); // dummy dt value
+        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
@@ -158,8 +158,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         if ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) )
         {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-            init_only(lev, time);
-            init_zphys(lev, time);
+            init_only(lev, start_time+time);
+            init_zphys(lev, start_time+time);
             update_terrain_arrays(lev);
             make_physbcs(lev);
         } else {
@@ -296,24 +296,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (restart_chkfile.empty()) {
         if (solverChoice.do_forest_drag) {
             m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
-        }
-    }
-
-    //********************************************************************************************
-    // Create wall distance field for RANS model (depends upon z_phys)
-    // *******************************************************************************************
-    if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
-        // Handle bottom boundary
-        poisson_wall_dist(lev);
-
-        // Correct the wall distance for immersed bodies
-        if (solverChoice.advChoice.have_zero_flux_faces) {
-            thinbody_wall_dist(walldist[lev],
-                               solverChoice.advChoice.zero_xflux,
-                               solverChoice.advChoice.zero_yflux,
-                               solverChoice.advChoice.zero_zflux,
-                               geom[lev],
-                               z_phys_cc[lev]);
         }
     }
 
@@ -527,6 +509,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Interpolate the solution data
     //
     FillCoarsePatch(lev, time);
+
     //
     // Interpolate the 2D arrays at the lower boundary
     // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
@@ -562,7 +545,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     lsm.Define(lev, solverChoice);
     if (solverChoice.lsm_type != LandSurfaceType::None)
     {
-        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_cc[lev] ); // dummy dt value
+        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
@@ -822,30 +805,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
     }
 
-    // Update Surface Model arrays for this new level
-    if (solverChoice.lsm_type != LandSurfaceType::None) { // || solverChoice.urban_type != UrbanType::None) {
-        m_SurfaceModel->initialize_for_level(lev, grids[lev], geom[lev], dmap[lev], lmask_lev[lev]);
-
-        if (solverChoice.lsm_type != LandSurfaceType::None) {
-            m_SurfaceModel->set_model_data(lev, lsm_data[lev], lsm_data_name, SurfaceModelType::LAND);
-        }
-    }
-
-    // ********************************************************************************************
-    // Update the SurfaceLayer arrays at this level
-    // ********************************************************************************************
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
-        int nlevs = finest_level+1;
-        Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
-                                     &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-        m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
-                                                   mfv_old, Theta_prim[lev], Qv_prim[lev],
-                                                   Qr_prim[lev], z_phys_nd[lev],
-                                                   Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                                   lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
-                                                   sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
-    }
-
     // These calls are done in AmrCore::regrid if this is a regrid at lev > 0
     // For a level 0 regrid we must explicitly do them here
     if (lev == 0) {
@@ -856,6 +815,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         SetDistributionMap(lev, dm);
     }
 
+    // ********************************************************************************************
+    // Initialize the 2D data structures
+    // ********************************************************************************************
+    // NOTE: 2D MFs must be filled before SurfaceLayer is defined since SL class uses sst/tsk
     // Clear the 2D arrays
     if (sst_lev[lev][0]) {
         for (int n = 0; n < sst_lev[lev].size(); n++) {
@@ -886,6 +849,30 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
     //     so we must explicitly pass dm.
     Interp2DArrays(lev,ba2d[lev],dm);
+
+    // Update Surface Model arrays for this new level
+    if (solverChoice.lsm_type != LandSurfaceType::None) { // || solverChoice.urban_type != UrbanType::None) {
+        m_SurfaceModel->initialize_for_level(lev, grids[lev], geom[lev], dmap[lev], lmask_lev[lev]);
+
+        if (solverChoice.lsm_type != LandSurfaceType::None) {
+            m_SurfaceModel->set_model_data(lev, lsm_data[lev], lsm_data_name, SurfaceModelType::LAND);
+        }
+    }
+
+    // ********************************************************************************************
+    // Update the SurfaceLayer arrays at this level
+    // ********************************************************************************************
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
+        int nlevs = finest_level+1;
+        Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
+                                     &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
+        m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
+                                                   mfv_old, Theta_prim[lev], Qv_prim[lev],
+                                                   Qr_prim[lev], z_phys_nd[lev],
+                                                   Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
+                                                   lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
+                                                   sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+    }
 
 #ifdef ERF_USE_PARTICLES
     particleData.Redistribute();

@@ -14,7 +14,8 @@
     bool l_use_mynn = turbChoice.use_pbl_tke;
 
     // used by ERF_AddTKESources.H
-    Real l_inv_theta0 = (turbChoice.theta_ref > 0) ? 1.0 / turbChoice.theta_ref : 1.0;
+    const bool use_ref_theta = (turbChoice.theta_ref > 0);
+    const Real l_inv_theta0 = (use_ref_theta) ? 1.0 / turbChoice.theta_ref : 1.0;
 
     // vertical diffusivities are defined in ERF_SetupVertDiff.H
     Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::Scalar_h,

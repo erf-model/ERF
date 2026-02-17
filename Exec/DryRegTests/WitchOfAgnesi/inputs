@@ -1,4 +1,10 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Flow over Witch of Agnesi hill" 
+
+erf.init_type = Isentropic
+
+prob.custom_terrain_type = "WoA"
+
 max_step = 3000000
 
 amrex.fpe_trap_invalid = 0

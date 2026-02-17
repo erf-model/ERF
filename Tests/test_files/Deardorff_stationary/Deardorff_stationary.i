@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Deardorff Stationary"
+
 stop_time = 999.9
 max_step = 10
 

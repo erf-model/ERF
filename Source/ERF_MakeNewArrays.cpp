@@ -31,7 +31,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //
     // Here is where we set the number of ghost cells for the base state!
     // ********************************************************************************************
-    int ngb = (solverChoice.terrain_type == TerrainType::EB) ? 4 : 3;
+    int ngb = (solverChoice.terrain_type == TerrainType::EB) ? ComputeGhostCells(solverChoice)+1 : 3;
     tmp_base_state.define(ba,dm,BaseState::num_comps,ngb);
     tmp_base_state.setVal(0.);
 
@@ -140,20 +140,26 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         lev_new[Vars::cons].define(ba, dm, ncomp, ngrow_state, MFInfo(), EBFactory(lev));
         lev_old[Vars::cons].define(ba, dm, ncomp, ngrow_state, MFInfo(), EBFactory(lev));
     }
+
+    // Initialize all components to zero so we don't need to explicitly set
+    //     scalars / moisture variables to zero in the initialization
+    lev_new[Vars::cons].setVal(0.0);
+    lev_old[Vars::cons].setVal(0.0);
+
     lev_new[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
     lev_old[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
 
     lev_new[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
     lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
 
-    gradp[lev][GpVars::gpx].define(convert(ba, IntVect(1,0,0)), dm, 1, 1); gradp[lev][GpVars::gpx].setVal(0.);
-    gradp[lev][GpVars::gpy].define(convert(ba, IntVect(0,1,0)), dm, 1, 1); gradp[lev][GpVars::gpy].setVal(0.);
-    gradp[lev][GpVars::gpz].define(convert(ba, IntVect(0,0,1)), dm, 1, 1); gradp[lev][GpVars::gpz].setVal(0.);
-
     // Note that we need the ghost cells in the z-direction if we are doing any
     // kind of domain decomposition in the vertical (at level 0 or above)
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+
+    gradp[lev][GpVars::gpx].define(convert(ba, IntVect(1,0,0)), dm, 1, 1); gradp[lev][GpVars::gpx].setVal(0.);
+    gradp[lev][GpVars::gpy].define(convert(ba, IntVect(0,1,0)), dm, 1, 1); gradp[lev][GpVars::gpy].setVal(0.);
+    gradp[lev][GpVars::gpz].define(convert(ba, IntVect(0,0,1)), dm, 1, 1); gradp[lev][GpVars::gpz].setVal(0.);
 
     if ( (solverChoice.anelastic[lev] == 1) || (solverChoice.project_initial_velocity[lev] == 1) ) {
         pp_inc[lev].define(ba, dm, 1, 1);
@@ -407,6 +413,27 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         WeatherDataInterpolation(lev, t_new[0],z_phys_nd, regrid_forces_file_read);
     }
 
+
+    if(solverChoice.init_type == InitType::HindCast and
+        solverChoice.hindcast_surface_bcs)
+
+    {
+        const MultiFab& src = vars_new[lev][0];
+        BoxArray ba_hc = src.boxArray();
+        BoxList bl2d_hc = ba_hc.boxList();
+        for (auto& b : bl2d_hc) {
+            b.setRange(2, 0);
+        }
+        BoxArray ba2d_hc(std::move(bl2d_hc));
+        const amrex::DistributionMapping& dm_hc = src.DistributionMap();
+
+        surface_state_1[lev].define(ba2d_hc, dm_hc, 2, src.nGrow());
+        surface_state_2[lev].define(ba2d_hc, dm_hc, 2, src.nGrow());
+        surface_state_interp[lev].define(ba2d_hc, dm_hc, 2, src.nGrow());
+
+        bool regrid_forces_file_read = true;
+        SurfaceDataInterpolation(lev, t_new[0], z_phys_nd, regrid_forces_file_read);
+    }
 
 #ifdef ERF_USE_WW3_COUPLING
     // create a new BoxArray and DistributionMapping for a MultiFab with 1 box

@@ -33,44 +33,36 @@ Problem::Problem (const amrex::Real* problo,
 
 void
 Problem::init_custom_pert (
-    const Box& bx,
+    const Box& /*bx*/,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& /*state_pert*/,
+    Array4<Real      > const& /*r_hse*/,
+    Array4<Real      > const& /*p_hse*/,
+    Array4<Real const> const& /*z_nd*/,
+    Array4<Real const> const& /*z_cc*/,
+    GeometryData const& /*geomdata*/,
+    Array4<Real const> const& /*mf_m*/,
+    const SolverChoice& /*sc*/,
+    const int /*lev*/)
+{
+}
+
+void
+Problem::init_custom_pert_vels (
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real const> const& /*state*/,
-    Array4<Real      > const& state_pert,
     Array4<Real      > const& x_vel_pert,
     Array4<Real      > const& y_vel_pert,
     Array4<Real      > const& z_vel_pert,
-    Array4<Real      > const& /*r_hse*/,
-    Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& z_nd,
-    Array4<Real const> const& /*z_cc*/,
     GeometryData const& geomdata,
-    Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
-    const int khi = geomdata.Domain().bigEnd()[2];
-
-    const bool use_moisture = (sc.moisture_type != MoistureType::None);
     const bool use_terrain  = (SolverChoice::terrain_type != TerrainType::None);
-
-    AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
-
-    // Geometry (note we must include these here to get the data on device)
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-    {
-        // Set scalar = 0 everywhere
-        state_pert(i, j, k, RhoScalar_comp) = 0.0;
-
-        if (use_moisture) {
-            state_pert(i, j, k, RhoQ1_comp) = 0.0;
-            state_pert(i, j, k, RhoQ2_comp) = 0.0;
-        }
-    });
 
     // Set the x-velocity
     ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
@@ -143,75 +135,4 @@ Problem::init_custom_pert (
     });
 
     amrex::Gpu::streamSynchronize();
-}
-
-void
-Problem::init_custom_terrain (
-    const Geometry& geom,
-    FArrayBox& terrain_fab,
-    const Real& /*time*/)
-{
-    // Domain cell size and real bounds
-    auto dx = geom.CellSizeArray();
-    auto ProbLoArr = geom.ProbLoArray();
-    auto ProbHiArr = geom.ProbHiArray();
-
-    // Domain valid box (z_nd is nodal)
-    const amrex::Box& domain = geom.Domain();
-    int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-    int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
-    int domlo_z = domain.smallEnd(2);
-
-    // User function parameters
-    Real a    = 0.5;
-    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
-    Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
-
-    // Populate bottom plane
-    int k0 = domlo_z;
-
-    Box zbx = terrain_fab.box();
-
-    //
-    // We put this here as a convenience for testing the map factor implementation
-    // Note that these factors must match those in Source/ERF_MakeNewArrays.cpp
-    //
-    ParmParse pp("erf");
-    bool test_mapfactor = false;
-    pp.query("test_mapfactor",test_mapfactor);
-
-    Real mf_x, mf_y;
-
-    if (test_mapfactor) {
-        mf_x = 0.5;
-        mf_y = 0.25;
-    } else {
-        mf_x = 1.;
-        mf_y = 1.;
-    }
-
-    if (zbx.smallEnd(2) <= k0)
-    {
-        amrex::Array4<Real> const& z_arr = terrain_fab.array();
-
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
-
-            // Clip indices for ghost-cells
-            int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-            int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
-
-            // Location of nodes
-            Real x = (ii  * dx[0] - xcen) * mf_x;
-            Real y = (jj  * dx[1] - ycen) * mf_y;
-
-            if(std::pow(x*x + y*y, 0.5) < a){
-                z_arr(i,j,k0) = std::pow(amrex::max(a*a - x*x - y*y, 0.0) , 0.5);
-            }
-            else{
-                z_arr(i,j,k0) = 0.0;
-            }
-
-        });
-    }
 }

@@ -1,4 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Scalar Advection/Diffusion Test"
+
+erf.init_type = Uniform
+
 max_step = 20
 
 amrex.fpe_trap_invalid = 1
@@ -56,8 +60,6 @@ erf.dycore_horiz_adv_type  = Upwind_5th
 erf.dycore_vert_adv_type   = Upwind_5th
 erf.dryscal_horiz_adv_type = Upwind_5th
 erf.dryscal_vert_adv_type  = Upwind_5th
-
-erf.init_type = "uniform"
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

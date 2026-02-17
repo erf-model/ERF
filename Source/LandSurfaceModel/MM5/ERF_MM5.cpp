@@ -10,7 +10,7 @@ MM5::Init (const int& /*lev*/,
            const MultiFab& v_in,
            const Geometry& geom,
            const Real& dt,
-           std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+           std::unique_ptr<amrex::MultiFab>& z_phys_nd)
 {
     m_dt = dt;
     m_geom = geom;

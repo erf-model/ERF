@@ -17,6 +17,7 @@
 #include <ERF_Constants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
+#include <ERF_TerrainMetrics.H>
 
 #include <ERF_NCInterface.H>
 
@@ -204,7 +205,7 @@ public:
           const amrex::MultiFab& v_in,
           const amrex::Geometry& geom,
           const amrex::Real& dt,
-          std::unique_ptr<amrex::MultiFab>& z_phys_cc_in) override;
+          std::unique_ptr<amrex::MultiFab>& z_phys_nd_in) override;
 
     // Wrapper to do all the updating
     void
@@ -350,21 +351,21 @@ public:
                 init_slm_vars();
             }
 
-            // update zref using updated z_phys_cc
+            // update zref using updated z_phys_nd
             if (!set_from_file) {
                 amrex::Real zlo      = m_geom.ProbLo(2);
                 amrex::Real dz       = m_geom.CellSize(2);
                 for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
                     const amrex::Box& xybx      = mfi.growntilebox(0);
-                    const amrex::Array4<const amrex::Real>& z_cc_arr = (use_terrain) ? z_phys_cc->const_array(mfi) : amrex::Array4<amrex::Real>{};
+                    const amrex::Array4<const amrex::Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : amrex::Array4<amrex::Real>{};
                     auto ztop_arr = ztop.array(mfi);
                     auto zrefxy_arr = zrefxy.array(mfi);
                     auto landmask_arr = landmask.const_array(mfi);
 
                     ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
                         if (landmask_arr(i,j,0) == 1) {
-                            amrex::Real zcc = (z_cc_arr) ? z_cc_arr(i,j,0) : zlo + 0.5*dz;
-                            zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + zcc;
+                            amrex::Real znd = (z_nd_arr) ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr) : zlo + 0.5*dz;
+                            zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + znd;
                             //amrex::Print() << " i = " << i << " j = " << j << ": zrefxy = " << zrefxy_arr(i,j,0) << std::endl;
                         }
                     });
@@ -512,6 +513,10 @@ public:
 
     void slm_init();
 
+    void init_layer_depths();
+
+    void init_soil_vars();
+
     void init_landtype();
 
     void init_soil_tw();
@@ -572,6 +577,14 @@ public:
     {
         return slm_to_rad_vars;
     }
+
+    // utility to skip to next line in Header
+    //  -- taken from ERF_Checkpoint
+    static void GotoNextLine (std::istream& is);
+
+    void WriteCheckpoint(const int &lev, const std::string &checkpointname) const override;
+
+    void ReadCheckpoint(const int &lev, const std::string &checkpointname) override;
 
 private:
     // number of lsm variables (theta)
@@ -695,8 +708,6 @@ private:
     amrex::MultiFab t_cas; // canopy air space temperature
     amrex::MultiFab q_cas; // canopy air space specific humidity
 
-    amrex::TableData<amrex::Real, 1> soilw_inc;
-
     // TODO: placeholder landmask array - should probably use the one defined by ERF
     amrex::iMultiFab landmask;
     amrex::iMultiFab landtype; // IGBP landtype (1 to 16)
@@ -727,9 +738,6 @@ private:
     amrex::MultiFab mw_mx; // max of mw
     amrex::MultiFab mws_mx; // max of mws
     amrex::MultiFab BAI; // Basal area index, sq.feet/acre
-
-    amrex::TableData<amrex::Real, 1> alpha;
-    amrex::TableData<amrex::Real, 1> beta;
 
     // Packed MF containing 1D arrays of variables used in soil temperature and soil water
     //  soilt: st_cond, st_capa, st_eff_cond, alpha, beta
@@ -819,7 +827,7 @@ private:
     int m_orbital_day = -1;
     int m_orbital_sec = -1;
 
-    amrex::MultiFab *z_phys_cc; // input z_phys_cc from ERF
+    amrex::MultiFab *z_phys_nd; // input z_phys_nd from ERF
 
     // Extra MFs for output:
     amrex::MultiFab slm_diag;
@@ -845,6 +853,9 @@ private:
 
     // whether to initialize SLM from inputs file or from wrfinput
     bool use_wrfinput = false;
+
+    // list of extra MFs in lsm_fab_vars that are not checkpointed by ERF
+    amrex::Vector<int> unmapped_fields;
 
     // List of 2D output variables that are declared as 3D
     // These will only be saved at k = 0 (surface level) to save space

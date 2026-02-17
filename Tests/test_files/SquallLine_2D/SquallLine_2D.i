@@ -1,4 +1,11 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "SquallLine"
+
+erf.init_type = MoistBaseState
+
+prob.use_empirical_psat = true
+prob.T_from_theta_in_moist_init = true
+
 max_step = 10
 
 amrex.fpe_trap_invalid = 1
@@ -57,7 +64,6 @@ erf.alpha_T           = 200.0 # [m^2/s]
 erf.alpha_C           = 200.0
 
 erf.moisture_model = "Kessler"
-erf.use_moist_background = true
 
 # PROBLEM PARAMETERS (optional)
 prob.z_tr = 12000.0

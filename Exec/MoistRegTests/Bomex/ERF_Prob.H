@@ -63,41 +63,19 @@ class Problem : public ProblemBase
 public:
     Problem (const amrex::Real* problo, const amrex::Real* probhi);
 
-#include "Prob/ERF_InitConstantDensityHSE.H"
+#include "Prob/ERF_InitDensityHSE.H"
 #include "Prob/ERF_InitRayleighDamping.H"
-
-    void init_custom_pert (
-        const amrex::Box&  bx,
-        const amrex::Box& xbx,
-        const amrex::Box& ybx,
-        const amrex::Box& zbx,
-        amrex::Array4<amrex::Real const> const& state,
-        amrex::Array4<amrex::Real      > const& state_pert,
-        amrex::Array4<amrex::Real      > const& x_vel_pert,
-        amrex::Array4<amrex::Real      > const& y_vel_pert,
-        amrex::Array4<amrex::Real      > const& z_vel_pert,
-        amrex::Array4<amrex::Real      > const& r_hse,
-        amrex::Array4<amrex::Real      > const& p_hse,
-        amrex::Array4<amrex::Real const> const& z_nd,
-        amrex::Array4<amrex::Real const> const& z_cc,
-        amrex::GeometryData const& geomdata,
-        amrex::Array4<amrex::Real const> const& mf_m,
-        amrex::Array4<amrex::Real const> const& mf_u,
-        amrex::Array4<amrex::Real const> const& mf_v,
-        const SolverChoice& sc,
-        const int lev) override;
+#include "Prob/ERF_InitCustomPert.H"
 
     void update_rhotheta_sources (
         const amrex::Real& /*time*/,
-        amrex::Vector<amrex::Real>& src,
-        amrex::Gpu::DeviceVector<amrex::Real>& d_src,
+        amrex::MultiFab* src,
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
     void update_rhoqt_sources (
         const amrex::Real& /*time*/,
-        amrex::Vector<amrex::Real>& qsrc,
-        amrex::Gpu::DeviceVector<amrex::Real>& d_qsrc,
+        amrex::MultiFab* qsrc,
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
@@ -105,6 +83,7 @@ public:
         const amrex::Real& /*time*/,
         amrex::Vector<amrex::Real>& wbar,
         amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
+        const amrex::MultiFab& state,
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_nd) override;
 
@@ -118,11 +97,11 @@ public:
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
 protected:
-    std::string name () override { return "BOMEX"; }
 
 private:
     ProbParm parms;
     amrex::Vector<amrex::Real> zlevels;
+    amrex::Gpu::DeviceVector<amrex::Real> d_zlevels;
 };
 
 #endif

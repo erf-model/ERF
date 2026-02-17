@@ -62,6 +62,7 @@ void make_mom_sources (Real time,
                        const amrex::Real* d_sinesq_stag_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
                        const Vector<MultiFab>* forecast_state_at_lev,
+                       const MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
                              LargeScaleForcingData &lsf_data,
                              std::unique_ptr<amrex::MultiFab>& lsf_tendencies,
@@ -355,7 +356,7 @@ void make_mom_sources (Real time,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
-                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
+                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i-1,j,k+1) + rho_w(i-1,j,k));
                     Real sphi_loc  = 0.5  * (sphi_arr(i,j,0) + sphi_arr(i-1,j,0));
                     Real cphi_loc  = 0.5  * (cphi_arr(i,j,0) + cphi_arr(i-1,j,0));
                     xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sphi_loc - rho_w_loc * cphi_loc);
@@ -374,7 +375,7 @@ void make_mom_sources (Real time,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
-                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
+                    Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i-1,j,k+1) + rho_w(i-1,j,k));
                     xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -469,7 +470,7 @@ void make_mom_sources (Real time,
         // *****************************************************************************
         // 4. Add custom SUBSIDENCE terms
         // *****************************************************************************
-        if (solverChoice.custom_w_subsidence && is_slow_step) {
+        if (solverChoice.custom_w_subsidence && is_slow_step && solverChoice.do_mom_advection) {
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
                 ParallelFor(tbx, tby,
@@ -752,6 +753,14 @@ void make_mom_sources (Real time,
                                            rho_u, rho_v, rho_w,
                                            rho_u_forecast_state, rho_v_forecast_state, rho_w_forecast_state,
                                            cons_forecast_state);
+            }
+            if(solverChoice.init_type == InitType::HindCast and solverChoice.hindcast_surface_bcs) {
+                const Array4<const Real>& surface_state_arr = (*surface_state_at_lev).array(mfi);
+                ApplySurfaceTreatment_BulkCoeff_Mom(tbx, tby,
+                                                    xmom_src_arr, ymom_src_arr,
+                                                    rho_u, rho_v,
+                                                    cell_data, z_nd_arr,
+                                                    surface_state_arr);
             }
         }
 

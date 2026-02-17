@@ -16,10 +16,9 @@ class Problem : public ProblemBase
 public:
     Problem();
 
-#include "Prob/ERF_InitConstantDensityHSE.H"
+#include "Prob/ERF_InitDensityHSE.H"
 
 protected:
-    std::string name() override { return "Stokes Second Problem"; }
 
 private:
     ProbParm parms;
