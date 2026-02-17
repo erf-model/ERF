@@ -16,7 +16,7 @@ moist_set_rhs (const Geometry& geom,
                const Array4<Real const>& new_cons,
                const Array4<Real      >& cell_rhs,
                const Real& bdy_time_interval,
-               const Real& new_stage_time,
+               const Real& time,
                const Real& dt,
                const Real& stop_time_elapsed,
                const Real& nudge_factor,
@@ -42,7 +42,7 @@ moist_set_rhs (const Geometry& geom,
     Real dT = bdy_time_interval;
 
     // NOTE: This is because we define "time" to be time since start_bdy_time
-    Real time_since_start = new_stage_time;
+    Real time_since_start = time;
 
     int n_time = static_cast<int>( time_since_start /  dT);
     Real alpha = (time_since_start - n_time * dT) / dT;
@@ -50,7 +50,7 @@ moist_set_rhs (const Geometry& geom,
     Real oma   = 1.0 - alpha;
 
     int n_time_p1 = n_time + 1;
-    if ((new_stage_time == stop_time_elapsed) && (alpha==0)) {
+    if ((time == stop_time_elapsed) && (alpha==0)) {
         // stop time coincides with final bdy snapshot -- don't try to read in
         // another snapshot
         n_time_p1 = n_time;

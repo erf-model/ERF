@@ -84,7 +84,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 #if defined(ERF_USE_NETCDF)
                         const bool& moist_set_rhs_bool,
                         const Real& bdy_time_interval,
-                        const Real& new_stage_time,
+                        const Real& old_stage_time,
                         const Real& stop_time_elapsed,
                         int  width,
                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
@@ -477,7 +477,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             Real bdy_factor = solverChoice.bdy_nudge_factor;
             const Array4<const Real> & new_cons_const = S_new[IntVars::cons].const_array(mfi);
             moist_set_rhs(geom, tbx, new_cons_const, cell_rhs, bdy_time_interval,
-                          new_stage_time, dt, stop_time_elapsed, bdy_factor, width, do_upwind, domain,
+                          old_stage_time, dt, stop_time_elapsed, bdy_factor, width, do_upwind, domain,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
         }
 #endif

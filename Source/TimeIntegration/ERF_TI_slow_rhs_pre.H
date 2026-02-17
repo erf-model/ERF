@@ -328,7 +328,7 @@
             const bool do_upwind  = solverChoice.upwind_real_bcs;
             if (real_width>0) {
                 realbdy_compute_interior_ghost_rhs(bdy_time_interval,
-                                                   new_stage_time, slow_dt, stop_time-start_time, bdy_factor,
+                                                   old_stage_time, slow_dt, stop_time-start_time, bdy_factor,
                                                    real_width, do_upwind, fine_geom,
                                                    S_rhs, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,

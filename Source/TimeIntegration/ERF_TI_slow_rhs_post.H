@@ -56,7 +56,7 @@
                           detJ_cc[level], new_detJ, stretched_dz_d[level], mapfac[level], EBFactory(level),
 #if defined(ERF_USE_NETCDF)
                           moist_set_rhs, bdy_time_interval,
-                          new_stage_time, stop_time-start_time, real_width,
+                          old_stage_time, stop_time-start_time, real_width,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
 #ifdef ERF_USE_SHOC
