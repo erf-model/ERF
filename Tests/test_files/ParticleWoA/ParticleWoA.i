@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Particle Advection over Witch of Agnesi Hill"
+erf.prob_name = "Particle Advection over Witch of Agnesi Hill"
+
+erf.init_type = Isentropic
 
 max_step =  10
 

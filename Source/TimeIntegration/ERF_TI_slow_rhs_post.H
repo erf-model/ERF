@@ -22,7 +22,7 @@
 
 #if defined(ERF_USE_NETCDF)
         bool moist_set_rhs = false;
-        if ( solverChoice.use_real_bcs && (level==0) && (real_set_width > 0) &&
+        if ( solverChoice.use_real_bcs && (level==0) &&
              (solverChoice.moisture_type != MoistureType::None) )
         {
             moist_set_rhs = true;
@@ -55,8 +55,8 @@
                           z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level],
                           detJ_cc[level], new_detJ, stretched_dz_d[level], mapfac[level], EBFactory(level),
 #if defined(ERF_USE_NETCDF)
-                          moist_set_rhs, bdy_time_interval, new_stage_time, stop_time-start_time,
-                          real_width, real_set_width,
+                          moist_set_rhs, bdy_time_interval,
+                          new_stage_time, stop_time-start_time, real_width,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
 #ifdef ERF_USE_SHOC

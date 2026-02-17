@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Advecting Isentropic Vortex with Map Scale Factors and Acoustic Substepping"
+erf.prob_name = "Advecting Isentropic Vortex with Map Scale Factors and Acoustic Substepping"
+
+erf.init_type = Uniform
 
 max_step = 10
 

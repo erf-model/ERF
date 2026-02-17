@@ -58,45 +58,24 @@ Problem::erf_init_rayleigh(
 }
 
 void
-Problem::init_custom_pert(
+Problem::init_custom_pert (
     const Box& bx,
-    const Box& xbx,
-    const Box& ybx,
-    const Box& zbx,
     Array4<Real const> const& /*state*/,
     Array4<Real      > const& state_pert,
-    Array4<Real      > const& x_vel_pert,
-    Array4<Real      > const& y_vel_pert,
-    Array4<Real      > const& z_vel_pert,
     Array4<Real      > const& /*r_hse*/,
     Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& /*z_cc*/,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
-    Array4<Real const> const& /*mf_u*/,
-    Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc,
     const int /*lev*/)
 {
     const int khi = geomdata.Domain().bigEnd()[2];
 
-    const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
     AMREX_ALWAYS_ASSERT(sc.terrain_type == TerrainType::EB);
 
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
-
-    // ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-    // {
-    //     // Set scalar = 0 everywhere
-    //     state_pert(i, j, k, RhoScalar_comp) = 0.0;
-
-    //     if (use_moisture) {
-    //         state_pert(i, j, k, RhoQ1_comp) = 0.0;
-    //         state_pert(i, j, k, RhoQ2_comp) = 0.0;
-    //     }
-    //   });
 
     // Set the state_pert
     ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -146,12 +125,26 @@ Problem::init_custom_pert(
         }
 
         state_pert(i, j, k, RhoScalar_comp) *= parms_d.rho_0;
-
-        if (use_moisture) {
-            state_pert(i, j, k, RhoQ1_comp) = 0.0;
-            state_pert(i, j, k, RhoQ2_comp) = 0.0;
-        }
     });
+
+    Gpu::streamSynchronize();
+}
+
+void
+Problem::init_custom_pert_vels (
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
+    Array4<Real      > const& r_hse,
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice& sc,
+    const int /*lev*/)
+{
 
     // Set the x-velocity
     ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -177,5 +170,5 @@ Problem::init_custom_pert(
         z_vel_pert(i, j, k) = 0.0;
     });
 
-    amrex::Gpu::streamSynchronize();
+    Gpu::streamSynchronize();
 }

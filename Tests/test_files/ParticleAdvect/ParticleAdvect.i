@@ -1,5 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Particle Advection Test"
+erf.prob_name = "Particle Advection Test"
+
+erf.init_type = Isentropic
+
 prob.custom_terrain_type = "FlatRaised"
 
 max_step =  10

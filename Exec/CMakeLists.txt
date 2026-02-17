@@ -50,6 +50,7 @@ else ()
   add_subdirectory(DevTests/TropicalCyclone)
   add_subdirectory(DevTests/Tornado)
   add_subdirectory(DevTests/sinusoidal_mass_flux)
+  add_subdirectory(DevTests/WindFarmTests)
 endif()
 
 if(ERF_ENABLE_TOOLS)
