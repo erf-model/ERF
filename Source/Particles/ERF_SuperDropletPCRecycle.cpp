@@ -22,7 +22,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
     const auto num_sd_deactivated = NumSDDeactivated();
     const auto num_sd = NumSuperDroplets();
-    const auto deac_frac = static_cast<Real>(num_sd_deactivated) / static_cast<Real>(num_sd);
+    const auto deac_frac = (num_sd > 0 ? static_cast<Real>(num_sd_deactivated)/static_cast<Real>(num_sd) : 0.0);
 
     int flag = 0;
     if (deac_frac > m_deac_threshold) { flag = 1; }
