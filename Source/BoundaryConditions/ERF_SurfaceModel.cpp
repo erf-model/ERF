@@ -306,13 +306,21 @@ void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const urban_f
             auto lsm_data_arr = (valid_land) ? lsm_mf->const_array(mfi) : Array4<const Real>{};
             auto urban_data_arr = (valid_urban) ? urb_mf->const_array(mfi) : Array4<const Real>{};
 
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real land = (lsm_data_arr) ? lsm_data_arr(i, j, k) * weights_arr(i, j, 0, SurfaceModelType::LAND) : 0.0;
-                Real urb  = (urban_data_arr) ? urban_data_arr(i, j, k) * weights_arr(i, j, 0, SurfaceModelType::URBAN) : 0.0;
+            if (valid_land && !valid_urban) {
+                // use solely land value
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    output_arr(i, j, k) = lsm_data_arr(i, j, k);
+                });
+            } else {
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real land = (lsm_data_arr) ? lsm_data_arr(i, j, k) * weights_arr(i, j, 0, SurfaceModelType::LAND) : 0.0;
+                    Real urb  = (urban_data_arr) ? urban_data_arr(i, j, k) * weights_arr(i, j, 0, SurfaceModelType::URBAN) : 0.0;
 
-                output_arr(i, j, k) = land + urb;
-            });
+                    output_arr(i, j, k) = land + urb;
+                });
+            }
         }
         if (field.second.fill_bound) {
             fields[mf_idx][lev]->FillBoundary(m_geom[lev].periodicity());

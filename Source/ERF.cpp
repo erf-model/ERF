@@ -1613,12 +1613,10 @@ ERF::InitData_post ()
             amrex::Vector<amrex::MultiFab*> olen_ptrs_urb(finest_level+1);
             for (int lev = 0; lev <= finest_level; ++lev) {
                 olen_ptrs_slm[lev] = lsm_flux[lev][lsm.Get_FluxIdx(lev, "olen")];
+                olen_ptrs_urb[lev] = nullptr;
             }
             /*
             if (solverChoice.urban_type == UrbanType::BEM_BEP) {
-                for (int lev = 0; lev <= finest_level; ++lev) {
-                    olen_ptrs_urb[lev] = nullptr;
-                }
                 m_SurfaceModel->register_field_map("tskin", {lsm.Get_DataIdx(0, "tsurf"), UrbanVar_BEP::tsk});
                 m_SurfaceModel->register_field_map("emiss", {lsm.Get_DataIdx(0, "emis_sfc"), UrbanVar_BEP::emiss});
                 m_SurfaceModel->register_field_map("albedo_vis", {lsm.Get_DataIdx(0, "alb_vis_sfc"), -1});
