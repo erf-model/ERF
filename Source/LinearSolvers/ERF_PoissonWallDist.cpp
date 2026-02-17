@@ -426,27 +426,7 @@ void ERF::poisson_wall_dist (int lev)
             dpdx = terrpoisson_flux_x(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0]);
             dpdy = terrpoisson_flux_y(i, j, k, phi_arr[b], zphys_arr[b], dxinv[1]);
             if (k == dom_lo.z) {
-                // Simplified gradient calc
-                // - assuming dirichlet (phi_klo==0)
-                Real phi_khi = 0.5 * (phi_arr[b](i,j,k) + phi_arr[b](i,j,k+1));
-                Real dz = 0.25 * ( zphys_arr[b](i  ,j  ,k+1) - zphys_arr[b](i  ,j  ,k)
-                                 + zphys_arr[b](i+1,j  ,k+1) - zphys_arr[b](i+1,j  ,k)
-                                 + zphys_arr[b](i  ,j+1,k+1) - zphys_arr[b](i  ,j+1,k)
-                                 + zphys_arr[b](i+1,j+1,k+1) - zphys_arr[b](i+1,j+1,k) );
-                Real pz = phi_khi / dz;
-                // - central diff in horizontal
-                Real px = 0.5 * (phi_arr[b](i+1,j,k) - phi_arr[b](i-1,j,k)); // * dxinv[0];
-                Real py = 0.5 * (phi_arr[b](i,j+1,k) - phi_arr[b](i,j-1,k)); // * dxinv[1];
-                // - account for skew
-                Real h_xi = 0.25 * ( zphys_arr[b](i+1,j  ,k  ) - zphys_arr[b](i,j  ,k  )
-                                   + zphys_arr[b](i+1,j+1,k  ) - zphys_arr[b](i,j+1,k  )
-                                   + zphys_arr[b](i+1,j  ,k+1) - zphys_arr[b](i,j  ,k+1)
-                                   + zphys_arr[b](i+1,j+1,k+1) - zphys_arr[b](i,j+1,k+1) ); // * dxinv[0];
-                Real h_eta = 0.25 * ( zphys_arr[b](i  ,j+1,k  ) - zphys_arr[b](i  ,j,k  )
-                                    + zphys_arr[b](i+1,j+1,k  ) - zphys_arr[b](i+1,j,k  )
-                                    + zphys_arr[b](i  ,j+1,k+1) - zphys_arr[b](i  ,j,k+1)
-                                    + zphys_arr[b](i+1,j+1,k+1) - zphys_arr[b](i+1,j,k+1) ); // * dxinv[1];
-                dpdz = pz - h_xi * px - h_eta * py;
+                dpdz = terrpoisson_flux_zlo_dir(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0], dxinv[1]);
             } else {
                 // This returns 0 at the wall, hence the need for the separate calc above
                 dpdz = terrpoisson_flux_z(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0], dxinv[1]);

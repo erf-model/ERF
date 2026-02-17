@@ -2,6 +2,8 @@
 max_step  = 50
 stop_time = 3600.0
 
+erf.init_type = MoistBaseState
+
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
@@ -89,7 +91,6 @@ erf.les_type        = "None"
 erf.pbl_type        = "None"
 erf.moisture_model  = "SuperDroplets"
 erf.buoyancy_type   = 1
-erf.use_moist_background = true
 
 erf.molec_diff_type  = "ConstantAlpha"
 erf.rho0_trans       = 1.0 # [kg/m^3], used to convert input diffusivities

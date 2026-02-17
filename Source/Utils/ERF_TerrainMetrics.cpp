@@ -557,8 +557,10 @@ make_J (const Geometry& geom,
  */
 void
 make_areas (const Geometry& geom,
-            MultiFab& z_phys_nd, MultiFab& ax,
-            MultiFab& ay, MultiFab& az)
+            MultiFab& z_phys_nd,
+            MultiFab& ax,
+            MultiFab& ay,
+            MultiFab& az)
 {
     const auto* dx = geom.CellSize();
     Real dzInv = 1.0/dx[2];

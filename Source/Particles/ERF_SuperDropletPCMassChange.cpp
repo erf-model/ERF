@@ -51,6 +51,7 @@ void SuperDropletPC::MassChange ( int                                         a_
     AMREX_ALWAYS_ASSERT(idx_vap >= 0);
     AMREX_ALWAYS_ASSERT(mat_density >= 0);
     const MaterialProperties vapour_mat(*(m_species_mat[idx_vap]));
+    const MaterialPropertiesCore& vapour_mat_core = vapour_mat;
 
     const bool log_unconverged = m_mass_change_logging;
     [[maybe_unused]] FILE* file_handle = m_mass_change_log;
@@ -176,6 +177,12 @@ void SuperDropletPC::MassChange ( int                                         a_
 
         auto cfl = m_mass_change_cfl;
         auto ti_choice = m_mass_change_ti;
+        AMREX_ASSERT_WITH_MESSAGE( ti_choice == SDMassChangeTIMethod::RK4 ||
+                                   ti_choice == SDMassChangeTIMethod::RK3BS ||
+                                   ti_choice == SDMassChangeTIMethod::BE ||
+                                   ti_choice == SDMassChangeTIMethod::CN ||
+                                   ti_choice == SDMassChangeTIMethod::DIRK2,
+                                   "ERROR: invalid time integrator choice!" );
 
         auto sp_i_arr = sp_ionization.data();
         auto sp_mw_arr = sp_mol_weight.data();
@@ -217,9 +224,9 @@ void SuperDropletPC::MassChange ( int                                         a_
                 }
             }
 
-            auto coeff_curv = vapour_mat.coeffCurv(temperature);
-            auto coeff_sol = vapour_mat.coeffVPSolute();
-            auto coeff_moldiff = vapour_mat.coeffMolecularDiffusion(temperature, pressure);
+            auto coeff_curv = vapour_mat_core.coeffCurv(temperature);
+            auto coeff_sol = vapour_mat_core.coeffVPSolute();
+            auto coeff_moldiff = vapour_mat_core.coeffMolecularDiffusion(temperature, pressure);
 
 #ifdef ERF_USE_ML_UPHYS_DIAGNOSTICS
             if (a_is_water) {
@@ -261,9 +268,6 @@ void SuperDropletPC::MassChange ( int                                         a_
                 ti.cn(r_sq, success);
             } else if (ti_choice == SDMassChangeTIMethod::DIRK2) {
                 ti.dirk212(r_sq, success);
-            } else {
-                printf("ERROR: invalid time integrator choice!\n");
-                return;
             }
 
             if (!success) {

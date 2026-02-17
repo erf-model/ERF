@@ -4,66 +4,25 @@
 #include <string>
 
 #include "AMReX_REAL.H"
-
 #include "ERF_ProbCommon.H"
 
 struct ProbParm : ProbParmDefaults {
-  amrex::Real rho_0 = 1.0;
-  amrex::Real u_0   = 0.0;
-  amrex::Real v_0   = 0.0;
-  amrex::Real w_0   = 0.0;
-  amrex::Real T_0   = 300.0;
-
-  // random initial perturbations
-  amrex::Real u_0_pert_mag = 0.0;
-  amrex::Real v_0_pert_mag = 0.0;
-  amrex::Real w_0_pert_mag = 0.0;
-  amrex::Real pert_lo = -1e34;
-  amrex::Real pert_hi =  1e34;
-
-  // divergence-free initial perturbations
-  amrex::Real pert_delta_u = 0.0;
-  amrex::Real pert_delta_v = 0.0;
-  amrex::Real pert_periods_u = 5.0;
-  amrex::Real pert_periods_v = 5.0;
-  amrex::Real aval;
-  amrex::Real bval;
-
-  int prob_type = -1;
-}; // namespace ProbParm
+  amrex::Real rho_0;
+  amrex::Real   T_0;
+};
 
 class Problem : public ProblemBase
 {
 public:
     Problem(const amrex::Real* problo, const amrex::Real* probhi);
 
-#include "Prob/ERF_InitConstantDensityHSE.H"
-
-    void init_custom_pert (
-        const amrex::Box&  bx,
-        const amrex::Box& xbx,
-        const amrex::Box& ybx,
-        const amrex::Box& zbx,
-        amrex::Array4<amrex::Real const> const& state,
-        amrex::Array4<amrex::Real      > const& state_pert,
-        amrex::Array4<amrex::Real      > const& x_vel_pert,
-        amrex::Array4<amrex::Real      > const& y_vel_pert,
-        amrex::Array4<amrex::Real      > const& z_vel_pert,
-        amrex::Array4<amrex::Real      > const& r_hse,
-        amrex::Array4<amrex::Real      > const& p_hse,
-        amrex::Array4<amrex::Real const> const& z_nd,
-        amrex::Array4<amrex::Real const> const& z_cc,
-        amrex::GeometryData const& geomdata,
-        amrex::Array4<amrex::Real const> const& mf_m,
-        amrex::Array4<amrex::Real const> const& mf_u,
-        amrex::Array4<amrex::Real const> const& mf_v,
-        const SolverChoice& sc,
-        const int lev) override;
-
-protected:
-
 private:
     ProbParm parms;
+
+public:
+
+#include "Prob/ERF_InitDensityHSE.H"
+#include "Prob/ERF_InitCustomPert.H"
 };
 
 #endif

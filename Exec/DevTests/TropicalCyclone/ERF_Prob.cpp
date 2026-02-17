@@ -32,30 +32,19 @@ Problem::Problem()
 }
 
 void
-Problem::init_custom_pert(
+Problem::init_custom_pert (
     const Box& bx,
-    const Box& xbx,
-    const Box& ybx,
-    const Box& /*zbx*/,
     Array4<Real const> const& /*state*/,
     Array4<Real      > const& state_pert,
-    Array4<Real      > const& x_vel_pert,
-    Array4<Real      > const& y_vel_pert,
-    Array4<Real      > const& /*z_vel_pert*/,
     Array4<Real> const& r_hse,
     Array4<Real> const&,
     Array4<Real const> const&,
     Array4<Real const> const&,
-    GeometryData const& geomdata,
+    GeometryData const& /*geomdata*/,
     Array4<Real const> const&,
-    Array4<Real const> const&,
-    Array4<Real const> const&,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
-    const Real fcor = sc.coriolis_factor * sc.sinphi;
-    amrex::Print() << "Initializing Rotunno-Emanuel vortex with f=" << fcor << std::endl;
-
     //
     // Background flow -- add perturbations to profiles from input_sounding
     // and/or set initial values for other scalars
@@ -67,6 +56,25 @@ Problem::init_custom_pert(
     {
         state_pert(i, j, k, RhoKE_comp) = r_hse(i,j,k) * KE_0;
     });
+}
+
+void
+Problem::init_custom_pert_vels (
+    const Box& xbx,
+    const Box& ybx,
+    const Box& /*zbx*/,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& /*z_vel_pert*/,
+    Array4<Real const> const&,
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice& sc,
+    const int /*lev*/)
+{
+    const Real fcor = sc.coriolis_factor * sc.sinphi;
+    amrex::Print() << "Initializing Rotunno-Emanuel vortex with f=" << fcor << std::endl;
 
     //
     // Initialize vortex (Rotunno & Emanuel 1987, JAS)

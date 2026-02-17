@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "Bubble"
 
+erf.init_type = Isentropic
+
 max_step = 999999
 stop_time = 900.0
 
@@ -58,9 +60,6 @@ erf.c_p    = 1004.0
 erf.molec_diff_type   = "ConstantAlpha"
 erf.dynamic_viscosity = 75.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s == diffusion coefficient from Straka
 erf.alpha_T           = 75.0 # [m^2/s]
-
-# INITIAL CONDITIONS
-erf.init_type = ""
 
 # PROBLEM PARAMETERS (optional)
 # cold bubble input from Straka et al, JNMF, vol 17, 1993

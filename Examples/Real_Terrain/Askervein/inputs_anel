@@ -47,13 +47,13 @@ ylo.dirichlet_file = "inflow_powerlaw.txt"
 xhi.type = "Outflow"
 yhi.type = "Outflow"
 
-erf.sponge_type = "input_sponge"
-erf.input_sponge_file = "inflow_powerlaw.txt"
-erf.sponge_strength = 0.2  # match rayleigh
-erf.use_xlo_sponge_damping = true
-erf.use_ylo_sponge_damping = true
-erf.xlo_sponge_end = -2750.0  # L = 250, match rayleigh
-erf.ylo_sponge_end = -2750.0
+#erf.sponge_type = "input_sponge"
+#erf.input_sponge_file = "inflow_powerlaw.txt"
+#erf.sponge_strength = 0.2  # match rayleigh
+#erf.use_xlo_sponge_damping = true
+#erf.use_ylo_sponge_damping = true
+#erf.xlo_sponge_end = -2750.0  # L = 250, match rayleigh
+#erf.ylo_sponge_end = -2750.0
 
 # INITIALIZATION
 erf.init_type = "input_sounding"
@@ -63,7 +63,7 @@ erf.input_sounding_file = "sounding_powerlaw.txt"
 #erf.fixed_dt = 0.5
 #erf.substepping_cfl = 0.5 # compressible (18 substeps)
 
-erf.cfl = 0.5
+erf.cfl = 0.45
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval    = 1       # timesteps between computing mass
@@ -86,8 +86,8 @@ erf.plot_per_1      = 60.0       # time interval between plotfiles
 erf.plot_vars_1     = x_velocity y_velocity z_velocity z_phys walldist KE Kmh Kmv
 
 erf.plot2d_file_1   = "plt2d_"
-erf.plot2d_per_1    = 10.0
-erf.plot2d_vars_1   = z_surf u_star
+erf.plot2d_int_1    = 10
+erf.plot2d_vars_1   = u_star
 
 # SOLVER CHOICE
 erf.dycore_horiz_adv_type  = "Upwind_5th"

@@ -1462,7 +1462,7 @@ Initialization
 
 The initialization in ERF has two steps: creation of the background state and creation of initial perturbations from the background state.
 
-The initialization strategy is determined at runtime by ``init_type``, which has six possible values.
+The initialization strategy is determined at runtime by ``init_type``, which has ten possible values.
 
 See :ref:`sec:Initialization` for more detail about how to provide initial conditions for an ERF simulation.
 
@@ -1476,11 +1476,15 @@ List of Parameters
 |                                  |                     | Values             |                       |
 +==================================+=====================+====================+=======================+
 | **erf.init_type**                | Initialization      | "None",            | "None"                |
-|                                  | type                | "WRFInput",        |                       |
+|                                  | type                | "Uniform"          |                       |
+|                                  |                     | "ConstantDensity", |                       |
+|                                  |                     | "Isentropic",      |                       |
+|                                  |                     | "MoistBaseState",  |                       |
 |                                  |                     | "Input_Sounding"   |                       |
+|                                  |                     | "Hindcast",        |                       |
+|                                  |                     | "WRFInput",        |                       |
 |                                  |                     | "Metgrid"          |                       |
 |                                  |                     | "NCFile"           |                       |
-|                                  |                     | "Uniform"          |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.input_sounding_file**      | Path to WRF-style   |  String            | "input_sounding"      |
 |                                  | input sounding      |                    |                       |

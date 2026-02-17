@@ -476,8 +476,8 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real Th2 = getThgivenRandT(R2,T2,rdOcp);
                              bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
                         });
-                  } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc" ||
-                             var_name == "ke") {
+                  } else if (var_name == "theta" || var_name == "ke" || var_name == "scalar" ||
+                             var_name == "qv"    || var_name == "qc") {
                     ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              Real R1 =  bndry_read_r_arr(i, j, k, 0);
@@ -506,8 +506,8 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real Th2 = getThgivenRandT(R2,T2,rdOcp);
                              bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
                         });
-                  } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc" ||
-                             var_name == "ke") {
+                  } else if (var_name == "theta" || var_name == "ke" || var_name == "scalar" ||
+                             var_name == "qv"    || var_name == "qc") {
                       ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              Real R1  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];

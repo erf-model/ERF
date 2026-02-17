@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "Particles Over Flat Ground"
 
+erf.init_type = Isentropic
+
 max_step =  80
 
 amrex.fpe_trap_invalid = 1

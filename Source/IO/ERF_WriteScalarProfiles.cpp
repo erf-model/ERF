@@ -117,8 +117,8 @@ ERF::sum_integrated_quantities (Real time)
            Print() << " PERT MASS  = " << mass_sl << '\n';
 #endif
            Print() << " RHO THETA  = " << rhth_sl << '\n';
-           Print() << " RHO SCALAR = " << scal_sl << '\n';
-           Print() << " RHO QTOTAL = " << mois_sl << '\n';
+           if (solverChoice.transport_scalar) { Print() << " RHO SCALAR = " << scal_sl << '\n'; }
+           if (solverChoice.moisture_type != MoistureType::None) { Print() << " RHO QTOTAL = " << mois_sl << '\n'; }
         } else {
 #if 1
            Print() << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
@@ -126,8 +126,8 @@ ERF::sum_integrated_quantities (Real time)
            Print() << " PERT MASS  SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #endif
            Print() << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
-           Print() << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n';
-           Print() << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n';
+           if (solverChoice.transport_scalar) { Print() << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n'; }
+           if (solverChoice.moisture_type != MoistureType::None) { Print() << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
         }
 
         // The first data log only holds scalars

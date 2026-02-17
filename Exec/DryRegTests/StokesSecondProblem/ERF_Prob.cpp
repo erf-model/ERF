@@ -19,23 +19,15 @@ Problem::Problem()
 }
 
 void
-Problem::init_custom_pert(
+Problem::init_custom_pert (
     const Box& bx,
-    const Box& xbx,
-    const Box& ybx,
-    const Box& zbx,
     Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
     Array4<Real      > const&,
     Array4<Real      > const& p_hse,
     Array4<Real const> const&,
     Array4<Real const> const&,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
-    Array4<Real const> const& /*mf_u*/,
-    Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc,
     const int /*lev*/)
 {
@@ -45,16 +37,27 @@ Problem::init_custom_pert(
     {
         // This version perturbs rho but not p -- TODO: CHECK THIS
         state(i, j, k, RhoTheta_comp) = std::pow(1.0,1.0/Gamma) * 101325.0 / 287.0 - p_hse(i,j,k);
-
-        // Set scalar = 0 everywhere
-        state(i, j, k, RhoScalar_comp) = 0.0;
-
-        if (use_moisture) {
-            state(i, j, k, RhoQ1_comp) = 0.0;
-            state(i, j, k, RhoQ2_comp) = 0.0;
-        }
     });
 
+    amrex::Gpu::streamSynchronize();
+}
+
+void
+Problem::init_custom_pert_vels (
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real      > const& state,
+    Array4<Real      > const& x_vel,
+    Array4<Real      > const& y_vel,
+    Array4<Real      > const& z_vel,
+    Array4<Real const> const&,
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice& sc,
+    const int /*lev*/)
+{
     // Set the x-velocity
     ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -74,7 +77,6 @@ Problem::init_custom_pert(
     });
 
     amrex::Gpu::streamSynchronize();
-
 }
 
 Real

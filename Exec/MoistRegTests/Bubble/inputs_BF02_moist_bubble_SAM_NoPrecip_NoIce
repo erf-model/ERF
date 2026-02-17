@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "Bubble"
 
+erf.init_type = MoistBaseState
+
 max_step  = 2000
 stop_time = 3600.0
 
@@ -56,17 +58,11 @@ erf.les_type        = "None"
 erf.pbl_type        = "None"
 erf.moisture_model  = "SAM_NoPrecip_NoIce"
 erf.buoyancy_type   = 1
-erf.use_moist_background = true
 
 erf.molec_diff_type   = "ConstantAlpha"
 erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
 erf.alpha_T           = 0.0 # [m^2/s]
 erf.alpha_C           = 0.0
-
-# INITIAL CONDITIONS
-#erf.init_type = "input_sounding"
-#erf.input_sounding_file = "BF02_moist_sounding"
-#erf.sounding_type = Ideal
 
 # PROBLEM PARAMETERS (optional)
 # warm bubble input

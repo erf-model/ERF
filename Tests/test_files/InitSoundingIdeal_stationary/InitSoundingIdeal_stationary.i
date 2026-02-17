@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Ideal Input Sounding"
+erf.prob_name = "Ideal Input Sounding"
 
 stop_time = 10.
 

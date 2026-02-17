@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Poiseuille Flow"
+erf.prob_name = "Poiseuille Flow"
+
+erf.init_type = Uniform
 
 max_step = 10
 
@@ -41,6 +43,8 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity
 # SOLVER CHOICE
 erf.use_gravity            = false
 
+erf.init_type = Uniform
+
 erf.les_type = "None"
 
 erf.molec_diff_type   = "Constant"
@@ -51,8 +55,6 @@ erf.alpha_C           = 0.0
 erf.use_coriolis = false
 erf.abl_driver_type   = "PressureGradient"
 erf.abl_pressure_grad = 0. -0.2  0.
-
-erf.init_type = "uniform"
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

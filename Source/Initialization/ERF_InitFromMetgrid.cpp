@@ -35,10 +35,6 @@ ERF::init_from_metgrid (int lev)
     // At least two met_em files are necessary to calculate tendency terms.
     AMREX_ALWAYS_ASSERT(ntimes >= 2);
 
-    // At least three points are necessary if there is a relaxation zone.
-    if (real_width > real_set_width)
-        AMREX_ALWAYS_ASSERT(real_width-real_set_width >= 3);
-
     // Ensure a reasonable value for the order of the vertical interpolation scheme.
     AMREX_ALWAYS_ASSERT(metgrid_order > 0 && metgrid_order <= 9);
 
@@ -506,12 +502,8 @@ ERF::init_from_metgrid (int lev)
         }
     }
 
-    // NOTE: We must guarantee one halo cell in the bdy file.
-    //       Otherwise, we make the total width match the set width.
-    if (real_width-1 <= real_set_width) real_width = real_set_width;
 #ifndef AMREX_USE_GPU
-    Print() << "Running with specification width: " << real_set_width
-            << " and relaxation width: " << real_width - real_set_width << std::endl;
+    Print() << "Running with relaxation width: " << real_width << std::endl;
 #endif
 }
 

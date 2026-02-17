@@ -497,6 +497,17 @@ public:
                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                                   bool regrid_forces_file_read);
 
+    void create_random_perturbations (const int lev,
+                                      amrex::MultiFab& cons_pert,
+                                      amrex::MultiFab& xvel_pert,
+                                      amrex::MultiFab& yvel_pert,
+                                      amrex::MultiFab& zvel_pert);
+
+    void apply_gaussian_smoothing_to_perturbations (const int lev,
+                                                    amrex::MultiFab& cons_pert,
+                                                    amrex::MultiFab& xvel_pert,
+                                                    amrex::MultiFab& yvel_pert,
+                                                    amrex::MultiFab& zvel_pert);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -537,26 +548,6 @@ public:
 
     void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
                               amrex::Real time);
-
-#ifdef ERF_USE_NETCDF
-    // Version in which we always set the velocity values but don't set theta
-    void fill_from_realbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
-                            amrex::Real time,
-                            bool cons_only,
-                            int icomp_cons,
-                            int ncomp_cons,
-                            amrex::IntVect ngvect_cons,
-                            amrex::IntVect ngvect_vels);
-
-    // Version in which we only set the boundary value if inflowing, includes theta
-    void fill_from_realbdy_upwind (const amrex::Vector<amrex::MultiFab*>& mfs,
-                                   amrex::Real time,
-                                   bool cons_only,
-                                   int icomp_cons,
-                                   int ncomp_cons,
-                                   amrex::IntVect ngvect_cons,
-                                   amrex::IntVect ngvect_vels);
-#endif
 
 #ifdef ERF_USE_NETCDF
     void init_from_wrfinput (int lev,
@@ -627,8 +618,6 @@ private:
     void init_phys_bcs (bool& rho_read, bool& read_prim_theta);
 
     void init_custom (int lev);
-
-    void init_uniform (int lev);
 
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                      amrex::Vector<amrex::MultiFab>& lev_new, amrex::Vector<amrex::MultiFab>& lev_old,
@@ -1143,7 +1132,7 @@ private:
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pressure", "pert_pres", "pert_dens",
-                                                    "eq_pot_temp",
+                                                    "eq_pot_temp", "VPD",
 #ifdef ERF_USE_WINDFARM
                                                     "num_turb", "SMark0", "SMark1",
 #endif
@@ -1263,7 +1252,6 @@ private:
     // NetCDF initialization (wrfbdy/met_em) file
     static std::string nc_bdy_file;
     int real_width{0};
-    int real_set_width{0};
     bool real_extrap_w{true};
 
     // NetCDF initialization of zlo boundary values

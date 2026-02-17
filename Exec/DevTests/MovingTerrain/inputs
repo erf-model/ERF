@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "Moving Terrain"
 
+erf.init_type = Isentropic
+
 stop_time = 120.
 max_step = 24000
 

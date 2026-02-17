@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Flow in a Box"
+erf.prob_name = "Flow in a Box"
 
 max_step = 10
 
@@ -7,7 +7,7 @@ amrex.fpe_trap_invalid = 1
 
 erf.anelastic = 1
 
-erf.init_type = "uniform"
+erf.init_type = Uniform
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 

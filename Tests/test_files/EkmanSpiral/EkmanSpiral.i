@@ -1,5 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Ekman Spiral"
+erf.prob_name = "Ekman Spiral"
+
+erf.init_type = Uniform
 
 max_step = 10
 stop_time = 1000.0
@@ -55,8 +57,6 @@ erf.abl_driver_type = "GeostrophicWind"
 erf.latitude = 90.
 erf.abl_geo_wind = 15.0 0.0 0.0
 erf.rotational_time_period = 86164.0900027328
-
-erf.init_type = "uniform"
 
 # PROBLEM PARAMETERS (optional)
 prob.rho_0 = 1.0

@@ -1048,6 +1048,7 @@ ERF::InitData_post ()
     if (!restart_chkfile.empty()) {
         restart();
     }
+
     //
     // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one and if two way coupling
     //
@@ -1377,24 +1378,6 @@ ERF::InitData_post ()
         int ncomp_cons = lev_new[Vars::cons].nComp();
         bool do_fb     = true;
 
-#ifdef ERF_USE_NETCDF
-        // We call this here because it is an ERF routine
-        if (solverChoice.use_real_bcs && (lev==0)) {
-            int icomp_cons = 0;
-            bool cons_only = false;
-            Vector<MultiFab*> mfs_vec = {&lev_new[Vars::cons],&lev_new[Vars::xvel],
-                                         &lev_new[Vars::yvel],&lev_new[Vars::zvel]};
-            if (solverChoice.upwind_real_bcs) {
-                fill_from_realbdy_upwind(mfs_vec,t_new[lev],cons_only,icomp_cons,
-                                         ncomp_cons,ngvect_cons,ngvect_vels);
-            } else {
-                fill_from_realbdy(mfs_vec,t_new[lev],cons_only,icomp_cons,
-                                  ncomp_cons,ngvect_cons,ngvect_vels);
-            }
-            do_fb = false;
-    }
-#endif
-
         (*physbcs_cons[lev])(lev_new[Vars::cons],lev_new[Vars::xvel],lev_new[Vars::yvel],0,ncomp_cons,
                              ngvect_cons,t_new[lev],BCVars::cons_bc,do_fb);
         (   *physbcs_u[lev])(lev_new[Vars::xvel],lev_new[Vars::xvel],lev_new[Vars::yvel],
@@ -1450,6 +1433,8 @@ ERF::InitData_post ()
             dz_min[lev] *= (*detJ_cc[lev]).min(0);
         }
     }
+
+    print_state(vars_new[0][Vars::cons], IntVect(10,0,0));
 
     // We don't need to recompute dt[lev] on restart because we read it in from the checkpoint file.
     if (restart_chkfile.empty()) {
@@ -1561,6 +1546,24 @@ ERF::InitData_post ()
    // send_to_ww3(my_lev);
 #endif
 
+    // Create wall distance field for RANS model
+    for (int lev = 0; lev <= finest_level; lev++) {
+        if (solverChoice.turbChoice[lev].rans_type != RANSType::None) {
+            // Handle bottom boundary
+            poisson_wall_dist(lev);
+
+            // Correct the wall distance for immersed bodies
+            if (solverChoice.advChoice.have_zero_flux_faces) {
+                thinbody_wall_dist(walldist[lev],
+                                   solverChoice.advChoice.zero_xflux,
+                                   solverChoice.advChoice.zero_yflux,
+                                   solverChoice.advChoice.zero_zflux,
+                                   geom[lev],
+                                   z_phys_cc[lev]);
+            }
+        }
+    }
+
     // Configure SurfaceLayer params if used
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
@@ -1584,6 +1587,7 @@ ERF::InitData_post ()
                                                         z_phys_nd,
                                                         solverChoice.mesh_type,
                                                         solverChoice.terrain_type,
+                                                        solverChoice.turbChoice[finest_level],
                                                         start_time, stop_time
 #ifdef ERF_USE_NETCDF
                                                         , bdy_time_interval
@@ -1652,7 +1656,10 @@ ERF::InitData_post ()
                 // it will change u* and theta* from their previous values
                 m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
                                             solverChoice.moisture_indices);
-                m_SurfaceLayer->update_fluxes(lev, time, vars_new[lev][Vars::cons], z_phys_nd[lev]);
+                m_SurfaceLayer->update_fluxes(lev, time,
+                                              vars_new[lev][Vars::cons],
+                                              z_phys_nd[lev],
+                                              walldist[lev]);
 
                 // Initialize tke(x,y,z) as a function of u*(x,y)
                 if (solverChoice.turbChoice[lev].init_tke_from_ustar) {
@@ -2217,26 +2224,26 @@ ERF::init_only (int lev, Real time)
         // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
-    } else if (solverChoice.init_type == InitType::Uniform) {
-        // Initialize a uniform background field and base state based on the
-        // problem-specified reference density and temperature
+    } else if ( (solverChoice.init_type == InitType::Uniform        ) ||
+                (solverChoice.init_type == InitType::ConstantDensity) ||
+                (solverChoice.init_type == InitType::Isentropic     ) ||
+                (solverChoice.init_type == InitType::HindCast       ) ||
+                (solverChoice.init_type == InitType::MoistBaseState ) ) {
+        // Initialize a uniform density/entropy background field and base state
+        // based on the problem-specified reference density and temperature
 
         // The physbc's need the terrain but are needed for initHSE
         make_physbcs(lev);
 
-        init_uniform(lev);
-        initHSE(lev);
-    } else {
-        // No background flow initialization specified, initialize the
-        // background field to be equal to the base state, calculated from the
-        // problem-specific erf_init_dens_hse
-
-        // The bc's need the terrain but are needed for initHSE
-        make_physbcs(lev);
-
         // We will initialize the state from the background state so must set that first
+        // The choice between constant rho and constant theta will be made inside initHSE
         initHSE(lev);
+
+        // Copy rho and rhotheta from rho_hse and p_hse
         init_from_hse(lev);
+
+    } else {
+        Abort("Unknown init_type!");
     }
 
     // Add problem-specific flow features
@@ -2622,9 +2629,8 @@ ERF::ReadParameters ()
         // Specify whether ingest boundary planes of data
         pp.query("input_bndry_planes", input_bndry_planes);
 
-        // Query the set and total widths for wrfbdy interior ghost cells
+        // Query the total width for wrfbdy interior ghost cells
         pp.query("real_width", real_width);
-        pp.query("real_set_width", real_set_width);
 
         // If using real boundaries, do we extrapolate w (or set to 0)
         pp.query("real_extrap_w", real_extrap_w);
@@ -2787,8 +2793,6 @@ ERF::ParameterSanityChecks ()
                         ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) );
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
-    AMREX_ALWAYS_ASSERT(real_set_width >= 0);
-    AMREX_ALWAYS_ASSERT(real_width >= real_set_width);
 
     if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
         Abort("You must set cf_width >= cf_set_width >= 0");
@@ -3166,7 +3170,7 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
         {
             const Real rho      = s_arr(i, j, k, Rho_comp);
             const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
-            const Real qv       = s_arr(i, j, k, RhoQ1_comp);
+            const Real qv       = s_arr(i, j, k, RhoQ1_comp) / rho;
 
             Real temp = getTgivenRandRTh(rho, rhotheta, qv);
 
@@ -3175,7 +3179,7 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
                 AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
 #else
                 printf("Temperature too low in cell: %d %d %d \n", i,j,k);
-                printf("Based on temp / rhotheta / rho %e %e %e \n", temp,rhotheta,rho);
+                printf("Based on temp / rhotheta / rho / qv %e %e %e %e \n", temp,rhotheta,rho,qv);
 #endif
                 //Abort();
                 amrex::Gpu::Atomic::LogicalOr(&(quit[0]), 1);

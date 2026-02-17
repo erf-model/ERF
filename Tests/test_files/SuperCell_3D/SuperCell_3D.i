@@ -1,5 +1,10 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Supercell"
+erf.prob_name = "Supercell"
+
+erf.init_type = MoistBaseState
+
+prob.use_empirical_psat = true
+prob.T_from_theta_in_moist_init = true
 
 max_step = 10
 
@@ -63,7 +68,6 @@ erf.alpha_T           = 33.33 # [m^2/s]
 erf.alpha_C           = 33.33
 
 erf.moisture_model = "Kessler"
-erf.use_moist_background = true
 
 # PROBLEM PARAMETERS (optional)
 prob.z_tr = 12000.0

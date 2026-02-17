@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "MultiSpecies Bubble"
 
+erf.init_type = Isentropic
+
 max_step  = 2000
 stop_time = 3600.0
 
@@ -55,7 +57,6 @@ erf.les_type        = "None"
 erf.pbl_type        = "None"
 erf.moisture_model  = "SuperDroplets"
 erf.buoyancy_type   = 1
-erf.use_moist_background = false
 
 erf.molec_diff_type  = "ConstantAlpha"
 erf.dynamicViscosity = 0.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s

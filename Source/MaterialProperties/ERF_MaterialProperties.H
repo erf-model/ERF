@@ -44,8 +44,7 @@ namespace saturation_funcs
                                            const amrex::MultiFab& );
 }
 
-/*! Class for material properties */
-struct MaterialProperties {
+struct MaterialPropertiesCore { // For GPU
 
     static constexpr amrex::Real s_N_av = 6.02214076e23; /*!< Avogadro's number */
     static constexpr amrex::Real s_kb   = 1.380649e-23; /*!< Boltzmann constant [J K^{-1}] */
@@ -57,7 +56,6 @@ struct MaterialProperties {
     /*! Temperature parameter for air [K] */
     static constexpr amrex::Real s_eps_air_k = 97;
 
-    Species::Name m_name = Species::Name::none; /*!< name */
     amrex::Real m_density = DBL_MAX; /*!< density */
     amrex::Real m_ionization = DBL_MAX; /*!< ionization */
     amrex::Real m_mol_weight = DBL_MAX; /*!< molecular weight (condensate) */
@@ -76,61 +74,6 @@ struct MaterialProperties {
                                         amrex::Real(DBL_MAX) };
     bool m_is_soluble = false; /*!< is soluble in water? */
     bool m_is_water = false; /*!< is this water? */
-    /*! pointer to function to compute saturation pressure */
-    decltype(saturation_funcs::compute_saturation_pressure_null)* m_saturation_pressure_func = nullptr;
-    /*! pointer to function to compute vapour fraction */
-    decltype(saturation_funcs::compute_saturation_vapfrac_null)* m_saturation_vapfrac_func = nullptr;
-
-    /*! \brief Constructor */
-    AMREX_GPU_HOST_DEVICE
-    MaterialProperties ( const Species::Name& a_name );
-
-    /*! \brief Copy constructor */
-    AMREX_GPU_HOST_DEVICE
-    MaterialProperties ( const MaterialProperties& a_matprop );
-
-    /*! \brief Default destructor */
-    AMREX_GPU_HOST_DEVICE
-    ~MaterialProperties () = default;
-
-    /*! \brief Print parameters */
-    AMREX_GPU_HOST
-    void print() const {
-        amrex::Print() << "Material properties of " << amrex::getEnumNameString(m_name) << ":\n";
-        amrex::Print() << "    density: " << m_density << "\n";
-        amrex::Print() << "    ionization: " << m_ionization << "\n";
-        amrex::Print() << "    mol. weight: " << m_mol_weight << "\n";
-        amrex::Print() << "    latent heat (vap.): " << m_lat_vap << "\n";
-        amrex::Print() << "    Rv: " << m_Rv << "\n";
-        amrex::Print() << "    Tc: " << m_Tc << "\n";
-        amrex::Print() << "    Tb: " << m_Tb << "\n";
-        amrex::Print() << "    N_av/mol.weight: " << m_Nav_by_molweight << "\n";
-        amrex::Print() << "    mol. Cp coeffs: ";
-        for (int i = 0; i < 7; i++) { amrex::Print() << m_mol_Cp_coeffs[i] << ", "; }
-        amrex::Print() << "\n";
-    }
-
-    /*! \brief Set this material to H20 */
-    AMREX_GPU_HOST_DEVICE
-    void setProperties_H2O();
-    /*! \brief Set this material to water */
-    AMREX_GPU_HOST_DEVICE
-    void setProperties_water();
-    /*! \brief Set this material to agua */
-    AMREX_GPU_HOST_DEVICE
-    void setProperties_agua();
-    /*! \brief Set this material to NaCl */
-    AMREX_GPU_HOST_DEVICE
-    void setProperties_NaCl();
-    /*! \brief Set this material to ammonium sulfate */
-    AMREX_GPU_HOST_DEVICE
-    void setProperties_NH42SO4();
-    /*! \brief Set this material to ammonium bisulfate */
-    AMREX_GPU_HOST_DEVICE
-    void setProperties_NH4HSO4();
-    /*! \brief Set this material to soil */
-    AMREX_GPU_HOST_DEVICE
-    void setProperties_soil();
 
     /*! \brief Return the molar heat capacity */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -211,6 +154,69 @@ struct MaterialProperties {
         }
     }
 
+};
+
+/*! Class for material properties */
+struct MaterialProperties : public MaterialPropertiesCore {
+
+    Species::Name m_name = Species::Name::none; /*!< name */
+
+    /*! pointer to function to compute saturation pressure */
+    decltype(saturation_funcs::compute_saturation_pressure_null)* m_saturation_pressure_func = nullptr;
+    /*! pointer to function to compute vapour fraction */
+    decltype(saturation_funcs::compute_saturation_vapfrac_null)* m_saturation_vapfrac_func = nullptr;
+
+    /*! \brief Constructor */
+    AMREX_GPU_HOST_DEVICE
+    MaterialProperties ( const Species::Name& a_name );
+
+    /*! \brief Copy constructor */
+    AMREX_GPU_HOST_DEVICE
+    MaterialProperties ( const MaterialProperties& a_matprop );
+
+    /*! \brief Default destructor */
+    AMREX_GPU_HOST_DEVICE
+    ~MaterialProperties () = default;
+
+    /*! \brief Print parameters */
+    AMREX_GPU_HOST
+    void print() const {
+        amrex::Print() << "Material properties of " << amrex::getEnumNameString(m_name) << ":\n";
+        amrex::Print() << "    density: " << m_density << "\n";
+        amrex::Print() << "    ionization: " << m_ionization << "\n";
+        amrex::Print() << "    mol. weight: " << m_mol_weight << "\n";
+        amrex::Print() << "    latent heat (vap.): " << m_lat_vap << "\n";
+        amrex::Print() << "    Rv: " << m_Rv << "\n";
+        amrex::Print() << "    Tc: " << m_Tc << "\n";
+        amrex::Print() << "    Tb: " << m_Tb << "\n";
+        amrex::Print() << "    N_av/mol.weight: " << m_Nav_by_molweight << "\n";
+        amrex::Print() << "    mol. Cp coeffs: ";
+        for (int i = 0; i < 7; i++) { amrex::Print() << m_mol_Cp_coeffs[i] << ", "; }
+        amrex::Print() << "\n";
+    }
+
+    /*! \brief Set this material to H20 */
+    AMREX_GPU_HOST_DEVICE
+    void setProperties_H2O();
+    /*! \brief Set this material to water */
+    AMREX_GPU_HOST_DEVICE
+    void setProperties_water();
+    /*! \brief Set this material to agua */
+    AMREX_GPU_HOST_DEVICE
+    void setProperties_agua();
+    /*! \brief Set this material to NaCl */
+    AMREX_GPU_HOST_DEVICE
+    void setProperties_NaCl();
+    /*! \brief Set this material to ammonium sulfate */
+    AMREX_GPU_HOST_DEVICE
+    void setProperties_NH42SO4();
+    /*! \brief Set this material to ammonium bisulfate */
+    AMREX_GPU_HOST_DEVICE
+    void setProperties_NH4HSO4();
+    /*! \brief Set this material to soil */
+    AMREX_GPU_HOST_DEVICE
+    void setProperties_soil();
+
     /*! \brief Compute saturation pressure */
     AMREX_GPU_HOST AMREX_FORCE_INLINE
     void computeSaturationPressure ( amrex::MultiFab& a_e, const amrex::MultiFab& a_T) const
@@ -226,7 +232,6 @@ struct MaterialProperties {
     {
         m_saturation_vapfrac_func(a_S, a_T, a_p);
     }
-
 };
 
 #endif
