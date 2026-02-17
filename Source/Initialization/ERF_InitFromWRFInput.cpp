@@ -904,7 +904,7 @@ ERF::init_from_wrfinput (int lev,
 
         bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                                   start_bdy_time);
+                                                   start_bdy_time, final_bdy_time);
 
         // *******************************************************************************************
         // We intentionally only read in the first three slices here ... we will read the rest in

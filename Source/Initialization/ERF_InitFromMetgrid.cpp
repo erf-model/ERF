@@ -119,6 +119,7 @@ ERF::init_from_metgrid (int lev)
 
     // Start at the earliest time in nc_init_file[lev].
     start_bdy_time = NC_epochTime[0];
+    final_bdy_time = NC_epochTime[ntimes-1];
 
     //
     // Note that t_new and t_old carry *elapsed* time, not total time

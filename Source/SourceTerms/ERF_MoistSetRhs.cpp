@@ -18,7 +18,7 @@ moist_set_rhs (const Geometry& geom,
                const Real& bdy_time_interval,
                const Real& time,
                const Real& dt,
-               const Real& stop_time_elapsed,
+               const Real& final_bdy_time_elapsed,
                const Real& nudge_factor,
                int  width,
                bool do_upwind,
@@ -50,7 +50,7 @@ moist_set_rhs (const Geometry& geom,
     Real oma   = 1.0 - alpha;
 
     int n_time_p1 = n_time + 1;
-    if ((time == stop_time_elapsed) && (alpha==0)) {
+    if ((time == final_bdy_time_elapsed) && (alpha==0)) {
         // stop time coincides with final bdy snapshot -- don't try to read in
         // another snapshot
         n_time_p1 = n_time;

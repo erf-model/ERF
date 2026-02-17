@@ -94,7 +94,7 @@ void
 realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     const Real& time,
                                     const Real& delta_t,
-                                    const Real& stop_time_elapsed,
+                                    const Real& final_bdy_time_elapsed,
                                     const Real& nudge_factor,
                                     int  width,
                                     bool do_upwind,
@@ -123,7 +123,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
     Real oma   = 1.0 - alpha;
 
     int n_time_p1 = n_time + 1;
-    if ((time == stop_time_elapsed) && (alpha==0)) {
+    if ((time == final_bdy_time_elapsed) && (alpha==0)) {
         // stop time coincides with final bdy snapshot -- don't try to read in
         // another snapshot
         n_time_p1 = n_time;

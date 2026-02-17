@@ -41,6 +41,7 @@ Real ERF::stop_time     = std::numeric_limits<amrex::Real>::max();
 
 #ifdef ERF_USE_NETCDF
 Real ERF::start_bdy_time     = 0.0;
+Real ERF::final_bdy_time     = -1.0;
 Real ERF::start_low_time     = 0.0;
 
 Real ERF::bdy_time_interval  = std::numeric_limits<amrex::Real>::max();
@@ -1079,7 +1080,7 @@ ERF::InitData_post ()
 
             bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                        bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                                       start_bdy_time);
+                                                       start_bdy_time, final_bdy_time);
             Real dT = bdy_time_interval;
 
             int n_time_old = static_cast<int>(t_new[0] /  dT);

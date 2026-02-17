@@ -727,6 +727,7 @@ private:
                            amrex::Vector<amrex::FArrayBox*> T_lateral);
 
     static amrex::Real start_bdy_time;
+    static amrex::Real final_bdy_time;
     static amrex::Real start_low_time;
 
     static amrex::Real bdy_time_interval;
