@@ -62,13 +62,13 @@ read_times_from_wrflow (const std::string& nc_low_file,
             epochTimes.push_back(epochTime);
 
             if (nt == 1) {
-                timeInterval = epochTimes[1] - epochTimes[0];
+                timeInterval = static_cast<Real>(epochTimes[1] - epochTimes[0]);
             } else if (nt >= 1) {
-                AMREX_ALWAYS_ASSERT(epochTimes[nt] - epochTimes[nt-1] == timeInterval);
+              AMREX_ALWAYS_ASSERT(static_cast<Real>(epochTimes[nt] - epochTimes[nt-1]) == timeInterval);
             }
         }
-        start_low_time = epochTimes[0];
-        final_low_time = epochTimes[ntimes-1];
+        start_low_time = static_cast<Real>(epochTimes[0]);
+        final_low_time = static_cast<Real>(epochTimes[ntimes-1]);
     }
 
     ParallelDescriptor::Bcast(&start_low_time,1,ioproc);
