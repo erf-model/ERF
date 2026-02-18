@@ -327,9 +327,14 @@
             const Real bdy_factor = solverChoice.bdy_nudge_factor;
             const bool do_upwind  = solverChoice.upwind_real_bcs;
             if (real_width>0) {
-                realbdy_compute_interior_ghost_rhs(bdy_time_interval,
-                                                   old_stage_time, slow_dt, final_bdy_time-start_bdy_time, bdy_factor,
-                                                   real_width, do_upwind, fine_geom,
+                //
+                // Note that old_stage_time is elapsed time, but (start_time+old_stage_time) is total time
+                //           start_bdy_time and final_bdy_time are total time
+                //
+                Real total_time = start_time + old_stage_time;
+                realbdy_compute_interior_ghost_rhs(total_time, slow_dt,
+                                                   start_bdy_time, final_bdy_time, bdy_time_interval,
+                                                   bdy_factor, real_width, do_upwind, fine_geom,
                                                    S_rhs, S_data,
                                                    bdy_data_xlo, bdy_data_xhi,
                                                    bdy_data_ylo, bdy_data_yhi);

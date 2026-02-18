@@ -77,24 +77,27 @@ realbdy_interior_bxs_xy (const Box& bx,
 /**
  * Compute the RHS in the relaxation zone
  *
+ * @param[in] time              current (total) time
+ * @param[in] delta_t           timestep
+ * @param[in] start_bdy_time    full time of the first time slice of boundary data
+ * @param[in] final_bdy_time    full time of the  last time slice of boundary data
  * @param[in] bdy_time_interval time interval between boundary condition time stamps
- * @param[in] time    current time
- * @param[in] delta_t timestep
- * @param[in] width   number of cells in (relaxation+specified) zone
- * @param[in] set_width number of cells in (specified) zone
- * @param[in] geom     container for geometric information
- * @param[out] S_rhs   RHS to be computed here
- * @param[in] S_data   current value of the solution
+ * @param[in] width             number of cells in (relaxation+specified) zone
+ * @param[in] set_width         number of cells in (specified) zone
+ * @param[in] geom              container for geometric information
+ * @param[out] S_rhs            RHS to be computed here
+ * @param[in] S_data            current value of the solution
  * @param[in] bdy_data_xlo boundary data on interior of low x-face
  * @param[in] bdy_data_xhi boundary data on interior of high x-face
  * @param[in] bdy_data_ylo boundary data on interior of low y-face
  * @param[in] bdy_data_yhi boundary data on interior of high y-face
  */
 void
-realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
-                                    const Real& time,
+realbdy_compute_interior_ghost_rhs (const Real& time,
                                     const Real& delta_t,
-                                    const Real& final_bdy_time_elapsed,
+                                    const Real& start_bdy_time,
+                                    const Real& final_bdy_time,
+                                    const Real& bdy_time_interval,
                                     const Real& nudge_factor,
                                     int  width,
                                     bool do_upwind,
@@ -108,22 +111,25 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 {
     BL_PROFILE_REGION("realbdy_compute_interior_ghost_RHS()");
 
+    //
+    // Note that time (= start_time+old_stage_time)  is measured as total time
+    //           start_bdy_time and final_bdy_time are also measured as total time
+    //
+
     // Relaxation constants
     Real F1 = 1./(nudge_factor*delta_t);
 
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    // NOTE: this is because we define "time" to be time since start_bdy_time
-    Real time_since_start = time;
+    int n_time = static_cast<int>( (time-start_bdy_time) /  dT);
+    Real alpha = ((time-start_bdy_time) - n_time * dT) / dT;
 
-    int n_time = static_cast<int>( time_since_start /  dT);
-    Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     Real oma   = 1.0 - alpha;
 
     int n_time_p1 = n_time + 1;
-    if ((time == final_bdy_time_elapsed) && (alpha==0)) {
+    if ((time >= final_bdy_time) && (alpha==0)) {
         // stop time coincides with final bdy snapshot -- don't try to read in
         // another snapshot
         n_time_p1 = n_time;
@@ -433,7 +439,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 /**
  * Compute the RHS in the fine relaxation zone
  *
- * @param[in]  time      current time
+ * @param[in]  time      current (elapsed) time
  * @param[in]  delta_t   timestep
  * @param[in]  width     number of cells in (relaxation+specified) zone
  * @param[in]  set_width number of cells in (specified) zone

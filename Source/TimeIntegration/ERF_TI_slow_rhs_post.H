@@ -55,8 +55,10 @@
                           z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level],
                           detJ_cc[level], new_detJ, stretched_dz_d[level], mapfac[level], EBFactory(level),
 #if defined(ERF_USE_NETCDF)
-                          moist_set_rhs, bdy_time_interval,
-                          old_stage_time, final_bdy_time-start_bdy_time, real_width,
+                          moist_set_rhs,
+                          start_time+old_stage_time,
+                          start_bdy_time, final_bdy_time, bdy_time_interval,
+                          real_width,
                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
 #ifdef ERF_USE_SHOC

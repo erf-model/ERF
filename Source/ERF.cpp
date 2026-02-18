@@ -37,6 +37,9 @@ Vector<AMRErrorTag> ERF::ref_tags;
 SolverChoice ERF::solverChoice;
 
 Real ERF::start_time    = 0.0;
+//
+// Note: stop_time is total time, NOT elapsed time
+//
 Real ERF::stop_time     = std::numeric_limits<amrex::Real>::max();
 
 #ifdef ERF_USE_NETCDF
@@ -578,11 +581,15 @@ ERF::Evolve ()
 {
     BL_PROFILE_VAR("ERF::Evolve()", evolve);
 
+    //
+    // cur_time = t_new is elapsed time, not total time
+    // stop_time is total time
+    //
     Real cur_time = t_new[0];
 
     // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
     //      for finer levels (with or without subcycling)
-    for (int step = istep[0]; step < max_step && start_time+cur_time < stop_time; ++step)
+    for (int step = istep[0]; (step < max_step) && (start_time+cur_time < stop_time); ++step)
     {
         if (use_datetime) {
             Print() << "\n" << getTimestamp(start_time+cur_time, datetime_format)
@@ -694,7 +701,7 @@ ERF::Evolve ()
         }
 #endif
 
-        if (cur_time >= stop_time - 1.e-6*dt[0]) break;
+        if (start_time+cur_time >= stop_time - 1.e-6*dt[0]) break;
     }
 
     // Write plotfiles at final time
@@ -1083,7 +1090,8 @@ ERF::InitData_post ()
                                                        start_bdy_time, final_bdy_time);
             Real dT = bdy_time_interval;
 
-            int n_time_old = static_cast<int>(t_new[0] /  dT);
+            Real time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
+            int n_time_old = static_cast<int>(time_since_start_bdy /  dT);
 
             int lev = 0;
 
@@ -1114,7 +1122,7 @@ ERF::InitData_post ()
 
             int n_time_old = static_cast<int>(t_new[0] /  dT);
 
-            int ntimes = std::min(n_time_old+2, static_cast<int>(low_data_zlo.size()));
+            int ntimes = std::min(n_time_old+3, static_cast<int>(low_data_zlo.size()));
 
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
@@ -2079,10 +2087,10 @@ ERF::restart ()
 // If we are restarting, the base state is read from the restart file, including
 // ghost cell data.
 void
-ERF::init_only (int lev, Real time)
+ERF::init_only (int lev, Real elapsed_time)
 {
-    t_new[lev] = time;
-    t_old[lev] = time - 1.e200;
+    t_new[lev] = elapsed_time;
+    t_old[lev] = elapsed_time - 1.e200;
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];

@@ -665,7 +665,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 }
 
 void
-ERF::init_zphys (int lev, Real time)
+ERF::init_zphys (int lev, Real elapsed_time)
 {
     if (solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid)
     {
@@ -701,7 +701,7 @@ ERF::init_zphys (int lev, Real time)
             //
             // Fill the values of the terrain height at k=0 only
             //
-            prob->init_terrain_surface(geom[lev],terrain_fab,time);
+            prob->init_terrain_surface(geom[lev],terrain_fab,elapsed_time);
         }
 
         for (MFIter mfi(*z_phys_nd[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -761,7 +761,7 @@ ERF::init_zphys (int lev, Real time)
 }
 
 void
-ERF::remake_zphys (int lev, Real /*time*/, std::unique_ptr<MultiFab>& temp_zphys_nd)
+ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
     if (solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid)
     {

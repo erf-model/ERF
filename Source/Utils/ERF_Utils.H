@@ -108,10 +108,11 @@ void realbdy_interior_bxs_xy (const amrex::Box& bx,
 /*
  * Compute relaxation region RHS with wrfbdy
  */
-void realbdy_compute_interior_ghost_rhs (const amrex::Real& bdy_time_interval,
-                                         const amrex::Real& time,
+void realbdy_compute_interior_ghost_rhs (const amrex::Real& total_time,
                                          const amrex::Real& delta_t,
-                                         const amrex::Real& final_bdy_time_elapsed,
+                                         const amrex::Real& start_bdy_time,
+                                         const amrex::Real& final_bdy_time,
+                                         const amrex::Real& bdy_time_interval,
                                          const amrex::Real& nudge_factor,
                                          int width,
                                          bool do_upwind,

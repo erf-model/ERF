@@ -15,10 +15,11 @@ moist_set_rhs (const Geometry& geom,
                const Box& tbx,
                const Array4<Real const>& new_cons,
                const Array4<Real      >& cell_rhs,
-               const Real& bdy_time_interval,
                const Real& time,
                const Real& dt,
-               const Real& final_bdy_time_elapsed,
+               const Real& start_bdy_time,
+               const Real& final_bdy_time,
+               const Real& bdy_time_interval,
                const Real& nudge_factor,
                int  width,
                bool do_upwind,
@@ -41,16 +42,14 @@ moist_set_rhs (const Geometry& geom,
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    // NOTE: This is because we define "time" to be time since start_bdy_time
-    Real time_since_start = time;
+    int n_time = static_cast<int>( (time-start_bdy_time) /  dT);
+    Real alpha = ((time-start_bdy_time) - n_time * dT) / dT;
 
-    int n_time = static_cast<int>( time_since_start /  dT);
-    Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     Real oma   = 1.0 - alpha;
 
     int n_time_p1 = n_time + 1;
-    if ((time == final_bdy_time_elapsed) && (alpha==0)) {
+    if ((time >= final_bdy_time) && (alpha==0)) {
         // stop time coincides with final bdy snapshot -- don't try to read in
         // another snapshot
         n_time_p1 = n_time;
