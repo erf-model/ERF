@@ -602,7 +602,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
             n_time_hi = n_time_lo;
         }
 
-        AMREX_ALWAYS_ASSERT( (n_time_lo >= 0) && (n_time_hi < (m_sst_lev[lev].size()-1)));
+        AMREX_ALWAYS_ASSERT( (n_time_lo >= 0) && (n_time_hi < m_sst_lev[lev].size()));
     } else {
         n_time_lo = 0;
         n_time_hi = 0;
