@@ -350,7 +350,8 @@ ERF::refinement_criteria_setup ()
 
             if (num_real_lo > 0) {
                 std::vector<Real> rbox_lo(3), rbox_hi(3);
-                ppr.get("max_level",lev_for_box);
+                lev_for_box = max_level;
+                ppr.query("max_level",lev_for_box);
                 if (lev_for_box <= max_level)
                 {
                     if (n_error_buf[0] != IntVect::TheZeroVector()) {
