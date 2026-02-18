@@ -1040,7 +1040,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
           bool use_morr_cpp_answer = true;
           pp.query("use_morr_cpp_answer", use_morr_cpp_answer);
-          Print() << "use_morr_cpp_answer" << use_morr_cpp_answer <<std::endl;
+          //Print() << "use_morr_cpp_answer" << use_morr_cpp_answer <<std::endl;
 
           bool run_morr_fort = !use_morr_cpp_answer;
 
