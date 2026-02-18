@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "Advecting Isentropic Vortex"
 
+erf.init_type = Uniform
+
 max_step = 800
 
 amrex.fpe_trap_invalid = 1

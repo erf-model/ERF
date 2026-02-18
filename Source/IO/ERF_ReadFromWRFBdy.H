@@ -18,7 +18,8 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                        amrex::Real& start_bdy_time);
+                        amrex::Real& start_bdy_time,
+                        amrex::Real& final_bdy_time);
 
 void
 read_from_wrfbdy (const int itime,

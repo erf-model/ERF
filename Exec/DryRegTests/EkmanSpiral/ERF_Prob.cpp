@@ -1,11 +1,10 @@
 #include "ERF_Prob.H"
+#include "ERF_DataStruct.H"
 
 using namespace amrex;
 
 std::unique_ptr<ProblemBase>
-amrex_probinit(
-    const amrex_real* /*problo*/,
-    const amrex_real* /*probhi*/)
+amrex_probinit( const amrex::Real* /*problo*/, const amrex::Real* /*probhi*/)
 {
     return std::make_unique<Problem>();
 }
@@ -21,25 +20,34 @@ Problem::Problem()
 }
 
 void
-Problem::init_custom_pert(
-    const Box& bx,
-    const Box& xbx,
-    const Box& ybx,
-    const Box& zbx,
+Problem::init_custom_pert (
+    const Box& /*bx*/,
     Array4<Real const> const& /*state*/,
-    Array4<Real      > const& state_pert,
-    Array4<Real      > const& x_vel_pert,
-    Array4<Real      > const& y_vel_pert,
-    Array4<Real      > const& z_vel_pert,
+    Array4<Real      > const& /*state_pert*/,
     Array4<Real      > const& /*r_hse*/,
     Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& /*z_cc*/,
-    GeometryData const& geomdata,
+    GeometryData const& /*geomdata*/,
     Array4<Real const> const& /*mf_m*/,
+    const SolverChoice& /*sc*/,
+    const int /*lev*/)
+{
+}
+
+void
+Problem::init_custom_pert_vels (
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
+    Array4<Real const> const& /*z_nd*/,
+    GeometryData const& geomdata,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
     //
@@ -50,24 +58,11 @@ Problem::init_custom_pert(
     //
 
     ParmParse pp("erf");
-    std::string init_type;
-    pp.query("init_type", init_type);
+    InitType init_type;
+    pp.query_enum_case_insensitive("init_type",init_type);
 
-    if (init_type == "uniform") {
-
-        const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            // Set scalar = 0 everywhere
-            state_pert(i, j, k, RhoScalar_comp) = 0.0;
-
-            if (use_moisture) {
-                state_pert(i, j, k, RhoQ1_comp) = 0.0;
-                state_pert(i, j, k, RhoQ2_comp) = 0.0;
-            }
-        });
-
+    if (init_type == InitType::Uniform)
+    {
         Real rot_time_period;
         pp.get("rotational_time_period", rot_time_period);
         Real coriolis_factor = 4.0 * PI / rot_time_period;

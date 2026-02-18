@@ -49,63 +49,64 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
 }
 
 void
-Problem::init_custom_pert(
+Problem::init_custom_pert (
     const amrex::Box&  bx,
-    const amrex::Box& xbx,
-    const amrex::Box& ybx,
-    const amrex::Box& zbx,
     amrex::Array4<amrex::Real const> const& /*state*/,
     amrex::Array4<amrex::Real      > const& state_pert,
-    amrex::Array4<amrex::Real      > const& x_vel_pert,
-    amrex::Array4<amrex::Real      > const& y_vel_pert,
-    amrex::Array4<amrex::Real      > const& z_vel_pert,
     amrex::Array4<amrex::Real      > const& /*r_hse*/,
     amrex::Array4<amrex::Real      > const& /*p_hse*/,
     amrex::Array4<amrex::Real const> const& /*z_nd*/,
     amrex::Array4<amrex::Real const> const& /*z_cc*/,
     amrex::GeometryData const& geomdata,
     amrex::Array4<amrex::Real const> const& /*mf_m*/,
-    amrex::Array4<amrex::Real const> const& /*mf_u*/,
-    amrex::Array4<amrex::Real const> const& /*mf_v*/,
-    const SolverChoice& sc,
+    const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
-    const bool use_moisture = (sc.moisture_type != MoistureType::None);
+    ParallelForRNG(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+        // Geometry
+        const Real* prob_lo = geomdata.ProbLo();
+        const Real* prob_hi = geomdata.ProbHi();
+        const Real* dx = geomdata.CellSize();
+        const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+        const Real y = prob_lo[1] + (j + 0.5) * dx[1];
+        const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-  ParallelForRNG(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-    // Geometry
-    const Real* prob_lo = geomdata.ProbLo();
-    const Real* prob_hi = geomdata.ProbHi();
-    const Real* dx = geomdata.CellSize();
-    const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+        // Define a point (xc,yc,zc) at the center of the domain
+        const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
+        const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
+        const Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
 
-    // Define a point (xc,yc,zc) at the center of the domain
-    const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
-    const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
-    const Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
+        const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
-    const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
+        // Add temperature perturbations
+        if ((z <= parms_d.pert_ref_height) && (parms_d.T_0_Pert_Mag != 0.0)) {
+            Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
+            state_pert(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms_d.T_0_Pert_Mag;
+        }
 
-    // Add temperature perturbations
-    if ((z <= parms_d.pert_ref_height) && (parms_d.T_0_Pert_Mag != 0.0)) {
-        Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-        state_pert(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms_d.T_0_Pert_Mag;
-    }
+        // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
+        state_pert(i, j, k, RhoScalar_comp) = parms_d.A_0 * exp(-10.*r*r);
 
-    // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-    state_pert(i, j, k, RhoScalar_comp) = parms_d.A_0 * exp(-10.*r*r);
+        // Set an initial value for KE
+        state_pert(i, j, k, RhoKE_comp) = parms_d.KE_0;
+    });
+}
 
-    // Set an initial value for KE
-    state_pert(i, j, k, RhoKE_comp) = parms_d.KE_0;
-
-    if (use_moisture) {
-        state_pert(i, j, k, RhoQ1_comp) = 0.0;
-        state_pert(i, j, k, RhoQ2_comp) = 0.0;
-    }
-  });
-
+void
+Problem::init_custom_pert_vels (
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
+    amrex::Array4<amrex::Real const> const& /*z_nd*/,
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice& /*sc*/,
+    const int /*lev*/)
+{
   // Set the x-velocity
   ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     const Real* prob_lo = geomdata.ProbLo();

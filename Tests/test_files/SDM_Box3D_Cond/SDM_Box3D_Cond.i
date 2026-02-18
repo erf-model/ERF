@@ -2,6 +2,8 @@
 max_step = 10
 stop_time = 5.0
 
+erf.init_type = Uniform
+
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
@@ -15,9 +17,6 @@ geometry.is_periodic = 1 1 1
 # TIME STEP CONTROL
 erf.fixed_dt       = 0.0002     # fixed time step [s]
 erf.substepping_type = "None"
-
-# initialization type
-erf.init_type = "uniform"
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -79,7 +78,6 @@ erf.les_type        = "None"
 erf.pbl_type        = "None"
 erf.moisture_model  = "SuperDroplets"
 erf.buoyancy_type   = 1
-erf.use_moist_background = true
 
 # Super Droplets Options
 super_droplets_moisture.stable_redistribute = true

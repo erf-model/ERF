@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_type = "Bubble Density Current"
+erf.prob_name = "Bubble Density Current"
 
 max_step = 10
 stop_time = 900.0

@@ -1,0 +1,3 @@
+CEXE_headers += ERF_InitDensityHSE.H
+CEXE_headers += ERF_InitCustomPert.H
+CEXE_headers += ERF_InitRayleighDamping.H

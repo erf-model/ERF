@@ -31,7 +31,8 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
                         Vector<Vector<FArrayBox>>& bdy_data_xhi,
                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
                         Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                        Real& start_bdy_time)
+                        Real& start_bdy_time,
+                        Real& final_bdy_time)
 {
     Print() << "Loading boundary data from NetCDF file " << std::endl;
 
@@ -79,9 +80,11 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
             }
         }
         start_bdy_time = epochTimes[0];
+        final_bdy_time = epochTimes[ntimes-1];
     }
 
     ParallelDescriptor::Bcast(&start_bdy_time,1,ioproc);
+    ParallelDescriptor::Bcast(&final_bdy_time,1,ioproc);
     ParallelDescriptor::Bcast(&ntimes,1,ioproc);
     ParallelDescriptor::Bcast(&timeInterval,1,ioproc);
 
