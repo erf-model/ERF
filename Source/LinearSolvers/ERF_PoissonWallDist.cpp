@@ -268,7 +268,7 @@ void ERF::poisson_wall_dist (int lev)
     MLABecLaplacian mlabec(geom_tmp, ba_tmp, dm_tmp, info);
 
     mlabec.setScalars(constA, constB);
-    mlabec.setACoeffs(lev, 0.0);
+    mlabec.setACoeffs(0, 0.0);
 #if 1
     // Set beta coefficients at faces
     Array<MultiFab, AMREX_SPACEDIM> beta;
@@ -299,7 +299,7 @@ void ERF::poisson_wall_dist (int lev)
         beta2_arr[b](i, j, k) = inv_h_zeta * (1 + h_xi*h_xi + h_eta*h_eta);
     });
 
-    mlabec.setBCoeffs(lev, GetArrOfConstPtrs(beta));
+    mlabec.setBCoeffs(0, GetArrOfConstPtrs(beta));
 
     // Set RHS := -h_zeta
     auto rhs_arr = rhs[0].arrays();
@@ -307,7 +307,7 @@ void ERF::poisson_wall_dist (int lev)
         rhs_arr[b](i, j, k) = -Compute_h_zeta_AtCellCenter(i, j, k, dxinv, zphys_arr[b]);
     });
 #else
-    mlabec.setBCoeffs(lev, 1.0);
+    mlabec.setBCoeffs(0, 1.0);
 #endif
 
     mlabec.setDomainBC(bc3d_lo, bc3d_hi);
