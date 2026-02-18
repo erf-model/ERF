@@ -599,7 +599,9 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
 
         // Do not over run the last sst file
         if (m_start_low_time + elapsed_time_since_start_low >= m_final_low_time) {
+            n_time_lo = m_sst_lev[lev].size()-1;
             n_time_hi = n_time_lo;
+            alpha     = 0.0;
         }
 
         AMREX_ALWAYS_ASSERT( (n_time_lo >= 0) && (n_time_hi < m_sst_lev[lev].size()));
