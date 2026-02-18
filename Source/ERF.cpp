@@ -43,9 +43,11 @@ Real ERF::start_time    = 0.0;
 Real ERF::stop_time     = std::numeric_limits<amrex::Real>::max();
 
 #ifdef ERF_USE_NETCDF
-Real ERF::start_bdy_time     = 0.0;
+Real ERF::start_bdy_time     =  0.0;
 Real ERF::final_bdy_time     = -1.0;
-Real ERF::start_low_time     = 0.0;
+
+Real ERF::start_low_time     =  0.0;
+Real ERF::final_low_time     = -1.0;
 
 Real ERF::bdy_time_interval  = std::numeric_limits<amrex::Real>::max();
 Real ERF::low_time_interval  = std::numeric_limits<amrex::Real>::max();
@@ -1088,10 +1090,9 @@ ERF::InitData_post ()
             bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                        bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                                        start_bdy_time, final_bdy_time);
-            Real dT = bdy_time_interval;
 
             Real time_since_start_bdy = t_new[0] + start_time - start_bdy_time;
-            int n_time_old = static_cast<int>(time_since_start_bdy /  dT);
+            int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
 
             int lev = 0;
 
@@ -1099,6 +1100,7 @@ ERF::InitData_post ()
 
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
+                amrex::Print() << "READING IN BDY " << itime << std::endl;
                 read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
                                  bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                  real_width);
@@ -1111,21 +1113,20 @@ ERF::InitData_post ()
 
         if (!nc_low_file.empty())
         {
-            low_time_interval = read_times_from_wrflow(nc_low_file,
-                                                       low_data_zlo,
-                                                       start_low_time);
-            Real dT = low_time_interval;
+            low_time_interval = read_times_from_wrflow(nc_low_file, low_data_zlo, start_low_time, final_low_time);
 
             int lev = 0;
             sst_lev[lev].resize(low_data_zlo.size());
             tsk_lev[lev].resize(low_data_zlo.size());
 
-            int n_time_old = static_cast<int>(t_new[0] /  dT);
+            Real time_since_start_low = t_new[0] + start_time - start_low_time;
+            int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(low_data_zlo.size()));
 
             for (int itime = n_time_old; itime < ntimes; itime++)
             {
+                amrex::Print() << "READING IN LOW " << itime << std::endl;
                 read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
 
                 // Need to read PSFC
@@ -1535,7 +1536,7 @@ ERF::InitData_post ()
                                                         solverChoice.turbChoice[finest_level],
                                                         start_time, stop_time
 #ifdef ERF_USE_NETCDF
-                                                        , bdy_time_interval
+                                                        , low_time_interval
 #endif
                                                         );
         // This call will allocate the arrays at each level. If we regrid later, either changing
@@ -1601,7 +1602,8 @@ ERF::InitData_post ()
                 // it will change u* and theta* from their previous values
                 m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
                                             solverChoice.moisture_indices);
-                m_SurfaceLayer->update_fluxes(lev, time,
+                Real elapsed_time_since_start_low = t_new[lev] + (start_time - start_low_time);
+                m_SurfaceLayer->update_fluxes(lev, elapsed_time_since_start_low,
                                               vars_new[lev][Vars::cons],
                                               z_phys_nd[lev],
                                               walldist[lev]);

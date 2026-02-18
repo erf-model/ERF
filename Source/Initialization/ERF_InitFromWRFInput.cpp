@@ -951,9 +951,7 @@ ERF::init_from_wrfinput (int lev,
     // *******************************************************************************************
     if ((lev == 0) && !nc_low_file.empty())
     {
-        low_time_interval = read_times_from_wrflow(nc_low_file,
-                                                   low_data_zlo,
-                                                   start_low_time);
+        low_time_interval = read_times_from_wrflow(nc_low_file, low_data_zlo, start_low_time, final_low_time);
 
         int ntimes = low_data_zlo.size();
         sst_lev[lev].resize(ntimes);

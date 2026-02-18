@@ -728,7 +728,9 @@ private:
 
     static amrex::Real start_bdy_time;
     static amrex::Real final_bdy_time;
+
     static amrex::Real start_low_time;
+    static amrex::Real final_low_time;
 
     static amrex::Real bdy_time_interval;
     static amrex::Real low_time_interval;

@@ -128,12 +128,18 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     Real oma   = 1.0 - alpha;
 
+    amrex::Print() << "IN UTILS " << time  << " " << start_bdy_time << " " << final_bdy_time << std::endl;
+    amrex::Print() << "ALPHA " << alpha << std::endl;
+
     int n_time_p1 = n_time + 1;
-    if ((time >= final_bdy_time) && (alpha==0)) {
-        // stop time coincides with final bdy snapshot -- don't try to read in
-        // another snapshot
+
+    //
+    // We choose to extrapolate from the final bdy slice if the run goes beyond final_bdy_time
+    //
+    if (time >= final_bdy_time) {
         n_time_p1 = n_time;
     }
+    amrex::Print() << "NTIME IN UTILS " << n_time  << " " << n_time_p1 << std::endl;
 
     /*
     // UNIT TEST DEBUG

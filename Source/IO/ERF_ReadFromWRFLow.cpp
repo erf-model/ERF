@@ -20,7 +20,7 @@ using namespace amrex;
 Real
 read_times_from_wrflow (const std::string& nc_low_file,
                         Vector<Vector<FArrayBox>>& low_data_zlo,
-                        Real& start_low_time)
+                        Real& start_low_time, Real& final_low_time)
 {
     Print() << "Loading lower boundary data from NetCDF file " << std::endl;
 
@@ -68,9 +68,11 @@ read_times_from_wrflow (const std::string& nc_low_file,
             }
         }
         start_low_time = epochTimes[0];
+        final_low_time = epochTimes[ntimes-1];
     }
 
     ParallelDescriptor::Bcast(&start_low_time,1,ioproc);
+    ParallelDescriptor::Bcast(&final_low_time,1,ioproc);
     ParallelDescriptor::Bcast(&ntimes,1,ioproc);
     ParallelDescriptor::Bcast(&timeInterval,1,ioproc);
 

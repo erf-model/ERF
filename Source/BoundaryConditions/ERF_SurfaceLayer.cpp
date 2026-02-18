@@ -10,7 +10,7 @@ using namespace amrex;
  */
 void
 SurfaceLayer::update_fluxes (const int& lev,
-                             const Real& time,
+                             const Real& elapsed_time_since_start_low,
                              MultiFab& cons_in,
                              const std::unique_ptr<MultiFab>& z_phys_nd,
                              const std::unique_ptr<MultiFab>& walldist,
@@ -18,12 +18,12 @@ SurfaceLayer::update_fluxes (const int& lev,
 {
     // Update with SST/TSK data if we have a valid pointer
     if (m_sst_lev[lev][0]) {
-        fill_tsurf_with_sst_and_tsk(lev, time);
+        fill_tsurf_with_sst_and_tsk(lev, elapsed_time_since_start_low);
     }
 
     // Apply heating rate if needed
     if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-        update_surf_temp(time);
+        update_surf_temp(elapsed_time_since_start_low);
     }
 
     // Update qsurf with qsat over sea
@@ -580,29 +580,35 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
 void
 SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
-                                           const Real& elapsed_time)
+                                           const Real& elapsed_time_since_start_low)
 {
     int n_times_in_sst = m_sst_lev[lev].size();
+
+    Real dT = m_low_time_interval;
 
     int n_time_lo, n_time_hi;
     Real alpha;
 
     if (n_times_in_sst > 1) {
-        // Time interpolation
-        Real dT = m_bdy_time_interval;
-        int n_time = static_cast<int>( elapsed_time /  dT);
-        n_time_lo = n_time;
-        n_time_hi = n_time+1;
-        alpha = (elapsed_time - n_time * dT) / dT;
-        if ((elapsed_time == m_stop_time-m_start_time) && (alpha==0)) {
-            // stop time coincides with final lowinp slice -- don't try to
-            // interpolate from the following time slice
-            n_time    -= 1;
-            n_time_lo -= 1;
-            n_time_hi -= 1;
-            alpha = 1.0;
+        int n_time_lo = static_cast<int>( elapsed_time_since_start_low /  dT);
+        Real alpha = (elapsed_time_since_start_low - n_time_lo * dT) / dT;
+
+        AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
+        Real oma   = 1.0 - alpha;
+
+        amrex::Print() << "IN SST " << time  << " " << m_start_time << " " << m_stop_time << std::endl;
+        amrex::Print() << "ALPHA " << alpha << std::endl;
+
+        int n_time_hi = n_time_lo + 1;
+
+        //
+        // We choose to extrapolate from the final bdy slice if the run goes beyond final_bdy_time
+        //
+        if (m_start_time + elapsed_time_since_start_low >= m_stop_time) {
+            n_time_hi = n_time_lo;
         }
-        AMREX_ALWAYS_ASSERT( (n_time >= 0) && (n_time < (m_sst_lev[lev].size()-1)));
+        amrex::Print() << "NTIME IN SST " << n_time_lo  << " " << n_time_hi << std::endl;
+        AMREX_ALWAYS_ASSERT( (n_time_lo >= 0) && (n_time_hi < (m_sst_lev[lev].size()-1)));
     } else {
         n_time_lo = 0;
         n_time_hi = 0;
@@ -618,6 +624,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     bool use_tsk = (m_tsk_lev[lev][0]);
     bool ignore_sst = m_ignore_sst;
 
+    amrex::Print() <<" ACCERSSSING SST AT TIMES " << n_time_lo << " " << n_time_hi << std::endl;
     // Populate t_surf
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {

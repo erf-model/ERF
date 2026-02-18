@@ -50,7 +50,7 @@ convert_all_wrfbdy_data (const int itime,
 amrex::Real
 read_times_from_wrflow (const std::string& nc_low_file,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& low_data_zlo,
-                        amrex::Real& start_low_time);
+                        amrex::Real& start_low_time, amrex::Real& final_low_time);
 
 void
 read_from_wrflow (const int itime,
