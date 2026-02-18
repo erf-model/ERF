@@ -959,7 +959,7 @@ ERF::init_from_wrfinput (int lev,
 
         // We can possibly run out of memory if we load all of wrfbdy and all of wrflow
         // Thus we only load the first two time slices here and load more only if needed
-        ntimes = amrex::min(ntimes, 2);
+        ntimes = amrex::min(ntimes, 3);
 
         for (int itime(0); itime < ntimes; ++itime) {
             read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);
