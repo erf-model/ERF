@@ -650,12 +650,18 @@ Diagnostic Outputs
 ==================
 
 If ``erf.v`` is set then one or more additional output files may be requested.
-These include (1) a surface time history file, (2) a history of mean profiles,
+These are **useful for idealized, horizontally homogeneous simulation domains**
+and include (1) a surface time history file, (2) a history of mean profiles,
 (3) a history of vertical flux profiles (i.e., variances and covariances), and
-(4) a history of modeled subgrid stresses. The number of specified output
-filenames dictates the level of output. E.g., specifying 3 filenames will give
-outputs (1), (2), and (3). Data files are only written if ``erf.profile_int >
-0``. This output functionality has not been implemented for terrain.
+(4) a history of modeled subgrid stresses. The profiles are calculated from
+planar averages.
+
+The number of output filenames specified through ``erf.data_log`` dictates the
+level of output. E.g., specifying 3 filenames will give outputs (1), (2), and (3).
+Data files are only written if ``erf.profile_int > 0``.
+
+This output functionality has not been implemented for terrain.
+For **real simulation domains**, users should use 2-D and 3-D :ref:`sec:Plotfiles`.
 
 .. _list-of-parameters-10a:
 
@@ -815,6 +821,19 @@ The requested output files have the following columns:
 
 Data Sampling Outputs
 =====================
+
+.. note::
+   **For WRF users**: The ERF analog of **wrfout** and **auxhist** history
+   files are AMReX-format :ref:`sec:Plotfiles`. Unlike WRF, which combines
+   2-D and 3-D field quantities into a single history file, ERF allows separate
+   outputs at different intervals.
+
+   To obtain history files in netcdf format, it is recommended to convert from
+   the native AMReX output using postprocessing tools provided in Exec/Tools if
+   using gmake, or with the ``ERF_ENABLE_TOOLS`` flag if using cmake.
+
+   The ERF analog of **tslist** output is the line sampling described in this
+   section.
 
 Data along query lines or planes may be output during the simulation if
 ``erf.do_line_sampling = true`` or  ``erf.do_plane_sampling = true``, respectively.
