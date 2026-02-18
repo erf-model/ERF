@@ -76,29 +76,30 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
     if (!nc_low_file.empty() && (lev==0))
     {
-        Real time_since_start_low = time + start_time - start_low_time;
-
-        int n_time_old = static_cast<int>( (time_since_start_low        ) /  low_time_interval);
-        int n_time_new = static_cast<int>( (time_since_start_low+dt[lev]) /  low_time_interval);
-
         int ntimes = low_data_zlo.size();
+        Real time_since_start_low = time + start_time - start_low_time;
+        int n_time_old = std::min(static_cast<int>( (time_since_start_low        ) /  low_time_interval), ntimes-1);
+        int n_time_new = std::min(static_cast<int>( (time_since_start_low+dt[lev]) /  low_time_interval), ntimes-1);
+
         for (int itime = 0; itime < ntimes; itime++)
         {
+            /*
             if (low_data_zlo[itime].size() > 0) {
                 amrex::Print() << "HAVE  LOW DATA AT TIME " << itime << std::endl;
             } else {
                 amrex::Print() << " NO   LOW DATA AT TIME " << itime << std::endl;
             }
+            */
 
             bool clear_itime = (itime < n_time_old);
 
             if (clear_itime && low_data_zlo[itime].size() > 0) {
                 low_data_zlo[itime].clear();
-                amrex::Print() << "CLEAR LOW DATA AT TIME " << itime << std::endl;
+                //amrex::Print() << "CLEAR LOW DATA AT TIME " << itime << std::endl;
             }
 
             bool need_itime = (itime >= n_time_old && itime <= n_time_new+1);
-            if (need_itime) amrex::Print()  << "NEED  LOW DATA AT TIME " << itime << std::endl;
+            //if (need_itime) { amrex::Print()  << "NEED  LOW DATA AT TIME " << itime << std::endl; }
 
             if (low_data_zlo[itime].size() == 0 && need_itime) {
                 read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
