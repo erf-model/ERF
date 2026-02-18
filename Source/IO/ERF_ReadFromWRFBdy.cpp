@@ -70,7 +70,6 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
         for (int nt(0); nt < ntimes; nt++) {
             std::string date(&timeStamps[nt][0], &timeStamps[nt][dateStrLen-1]+1);
             auto epochTime = getEpochTime(date, dateTimeFormat);
-            if (nt > 0) epochTime = epochTimes[0] + nt*6;
             Print() << "  wrfbdy datetime " << nt << " : " << date << " " << epochTime << std::endl;
             epochTimes.push_back(epochTime);
 
