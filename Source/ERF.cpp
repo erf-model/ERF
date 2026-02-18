@@ -1602,7 +1602,11 @@ ERF::InitData_post ()
                 // it will change u* and theta* from their previous values
                 m_SurfaceLayer->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
                                             solverChoice.moisture_indices);
+#ifdef ERF_USE_NETCDF
                 Real elapsed_time_since_start_low = t_new[lev] + (start_time - start_low_time);
+#else
+                Real elapsed_time_since_start_low = t_new[lev] + start_time;
+#endif
                 m_SurfaceLayer->update_fluxes(lev, elapsed_time_since_start_low,
                                               vars_new[lev][Vars::cons],
                                               z_phys_nd[lev],
