@@ -114,9 +114,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                                         solverChoice.moisture_indices);
 
 #ifdef ERF_USE_NETCDF
-            Real elapsed_time_since_start_low = t_new[lev] + (start_time - start_low_time);
+            Real elapsed_time_since_start_low = time + (start_time - start_low_time);
 #else
-            Real elapsed_time_since_start_low = t_new[lev] + start_time;
+            Real elapsed_time_since_start_low = time;
 #endif
             m_SurfaceLayer->update_fluxes(lev, elapsed_time_since_start_low,
                                           S_old, z_phys_nd[lev], walldist[lev]);
