@@ -42,18 +42,19 @@ moist_set_rhs (const Geometry& geom,
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    int n_time = static_cast<int>( (time-start_bdy_time) /  dT);
-    Real alpha = ((time-start_bdy_time) - n_time * dT) / dT;
+    int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
+    int n_time_p1 = n_time + 1;
+    Real alpha    = ((time-start_bdy_time) - n_time * dT) / dT;
+
+    // Do not over run the last bdy file
+    if (time >= final_bdy_time) {
+      n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
+      n_time_p1 = n_time;
+      alpha     = 0.0;
+    }
 
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     Real oma   = 1.0 - alpha;
-
-    int n_time_p1 = n_time + 1;
-    if ((time >= final_bdy_time) && (alpha==0)) {
-        // stop time coincides with final bdy snapshot -- don't try to read in
-        // another snapshot
-        n_time_p1 = n_time;
-    }
 
     /*
     // UNIT TEST DEBUG

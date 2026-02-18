@@ -590,24 +590,18 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     Real alpha;
 
     if (n_times_in_sst > 1) {
-        int n_time_lo = static_cast<int>( elapsed_time_since_start_low /  dT);
-        Real alpha = (elapsed_time_since_start_low - n_time_lo * dT) / dT;
+        n_time_lo = static_cast<int>( elapsed_time_since_start_low /  dT);
+        alpha = (elapsed_time_since_start_low - n_time_lo * dT) / dT;
 
         AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-        Real oma   = 1.0 - alpha;
 
-        amrex::Print() << "IN SST " << time  << " " << m_start_time << " " << m_stop_time << std::endl;
-        amrex::Print() << "ALPHA " << alpha << std::endl;
+        n_time_hi = n_time_lo + 1;
 
-        int n_time_hi = n_time_lo + 1;
-
-        //
-        // We choose to extrapolate from the final bdy slice if the run goes beyond final_bdy_time
-        //
+        // Do not over run the last sst file
         if (m_start_time + elapsed_time_since_start_low >= m_stop_time) {
             n_time_hi = n_time_lo;
         }
-        amrex::Print() << "NTIME IN SST " << n_time_lo  << " " << n_time_hi << std::endl;
+
         AMREX_ALWAYS_ASSERT( (n_time_lo >= 0) && (n_time_hi < (m_sst_lev[lev].size()-1)));
     } else {
         n_time_lo = 0;
@@ -624,7 +618,6 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     bool use_tsk = (m_tsk_lev[lev][0]);
     bool ignore_sst = m_ignore_sst;
 
-    amrex::Print() <<" ACCERSSSING SST AT TIMES " << n_time_lo << " " << n_time_hi << std::endl;
     // Populate t_surf
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {

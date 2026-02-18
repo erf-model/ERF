@@ -122,24 +122,19 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    int n_time = static_cast<int>( (time-start_bdy_time) /  dT);
-    Real alpha = ((time-start_bdy_time) - n_time * dT) / dT;
+    int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
+    int n_time_p1 = n_time + 1;
+    Real alpha    = ((time-start_bdy_time) - n_time * dT) / dT;
+
+    // Do not over run the last bdy file
+    if (time >= final_bdy_time) {
+      n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
+      n_time_p1 = n_time;
+      alpha     = 0.0;
+    }
 
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     Real oma   = 1.0 - alpha;
-
-    amrex::Print() << "IN UTILS " << time  << " " << start_bdy_time << " " << final_bdy_time << std::endl;
-    amrex::Print() << "ALPHA " << alpha << std::endl;
-
-    int n_time_p1 = n_time + 1;
-
-    //
-    // We choose to extrapolate from the final bdy slice if the run goes beyond final_bdy_time
-    //
-    if (time >= final_bdy_time) {
-        n_time_p1 = n_time;
-    }
-    amrex::Print() << "NTIME IN UTILS " << n_time  << " " << n_time_p1 << std::endl;
 
     /*
     // UNIT TEST DEBUG

@@ -33,19 +33,20 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     bool use_moist = (solverChoice.moisture_type != MoistureType::None);
     if (solverChoice.use_real_bcs && (lev==0))
     {
-        Real time_since_start_bdy = time + start_time - start_bdy_time;
-
-        int n_time_old = static_cast<int>( (time_since_start_bdy        ) /  bdy_time_interval);
-        int n_time_new = static_cast<int>( (time_since_start_bdy+dt[lev]) /  bdy_time_interval);
-
         int ntimes = bdy_data_xlo.size();
+        Real time_since_start_bdy = time + start_time - start_bdy_time;
+        int n_time_old = std::min(static_cast<int>( (time_since_start_bdy        ) /  bdy_time_interval), ntimes-1);
+        int n_time_new = std::min(static_cast<int>( (time_since_start_bdy+dt[lev]) /  bdy_time_interval), ntimes-1);
+
         for (int itime = 0; itime < ntimes; itime++)
         {
+            /*
             if (bdy_data_xlo[itime].size() > 0) {
                 amrex::Print() << "HAVE  BDY DATA AT TIME " << itime << std::endl;
             } else {
                 amrex::Print() << " NO   BDY DATA AT TIME " << itime << std::endl;
             }
+            */
 
             bool clear_itime = (itime < n_time_old);
 
@@ -54,11 +55,11 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                 bdy_data_xhi[itime].clear();
                 bdy_data_ylo[itime].clear();
                 bdy_data_yhi[itime].clear();
-                amrex::Print() << "CLEAR BDY DATA AT TIME " << itime << std::endl;
+                //amrex::Print() << "CLEAR BDY DATA AT TIME " << itime << std::endl;
             }
 
             bool need_itime = (itime >= n_time_old && itime <= n_time_new+1);
-            if (need_itime) amrex::Print()  << "NEED  BDY DATA AT TIME " << itime << std::endl;
+            //if (need_itime) { amrex::Print()  << "NEED  BDY DATA AT TIME " << itime << std::endl; }
 
             if (bdy_data_xlo[itime].size() == 0 && need_itime) {
                 read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
@@ -67,8 +68,8 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
                 convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                         *mf_MUB, *mf_C1H, *mf_C2H,
-                                    vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                    geom[lev], use_moist);
+                                        vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                        geom[lev], use_moist);
            }
         } // itime
     } // use_real_bcs && lev == 0

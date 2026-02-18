@@ -162,8 +162,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             //
             // Note that "time" here is elapsed time, and start_time is the start_time from wrfinput/metgrid files
             //
-            init_only(lev, start_time+time);
-            init_zphys(lev, start_time+time);
+            init_only(lev, time);
+            init_zphys(lev, time);
             update_terrain_arrays(lev);
             make_physbcs(lev);
         } else {
