@@ -380,3 +380,263 @@ void SurfaceModel::write_output(int lev, const amrex::Real time, const std::stri
 
     amrex::WriteSingleLevelPlotfile(plotfilename, fab, varnames, m_geom2d[lev], time, level_step);
 }
+
+// utility to skip to next line in Header
+//  -- taken from ERF_Checkpoint
+void
+SurfaceModel::GotoNextLine (std::istream& is)
+{
+    constexpr std::streamsize bl_ignore_max { 100000 };
+    is.ignore(bl_ignore_max, '\n');
+}
+
+void SurfaceModel::WriteCheckpoint(const std::string &checkpointname)
+{
+    auto check_start = amrex::second();
+
+    // write header
+    if (ParallelDescriptor::IOProcessor()) {
+
+        amrex::Print() << " Writing SurfaceModel checkpoint " << std::endl;
+
+        std::string HeaderFileName(checkpointname + "/SurfaceModel_Header");
+        VisMF::IO_Buffer io_buffer(VisMF::IO_Buffer_Size);
+        std::ofstream HeaderFile;
+        HeaderFile.rdbuf()->pubsetbuf(io_buffer.dataPtr(), io_buffer.size());
+        HeaderFile.open(HeaderFileName.c_str(), std::ofstream::out   |
+                                                std::ofstream::trunc |
+                                                std::ofstream::binary);
+        if(! HeaderFile.good()) {
+            FileOpenFailed(HeaderFileName);
+        }
+
+        HeaderFile.precision(17);
+
+        // write out title line
+        HeaderFile << "Checkpoint file for SurfaceModel\n";
+
+        // write out number of levels
+        HeaderFile << m_nlevs << "\n";
+
+        // write out flags
+        HeaderFile << m_use_urban << "\n";
+        HeaderFile << m_use_land << "\n";
+        HeaderFile << m_export_fluxes << "\n";
+        HeaderFile << m_weights_updated << "\n";
+        HeaderFile << "\n";
+
+        // Write box arrays
+        for (int lev = 0; lev < m_nlevs; lev++) {
+            m_ba[lev].writeOn(HeaderFile);
+            HeaderFile << '\n';
+
+        }
+        HeaderFile << '\n';
+        for (int lev = 0; lev < m_nlevs; lev++) {
+            m_ba2d[lev].writeOn(HeaderFile);
+            HeaderFile << '\n';
+        }
+        HeaderFile << '\n';
+
+        // Write out fields
+        // LSM fields
+        for (int i = 0; i < lsm_fields.size(); ++i) {
+            HeaderFile << lsm_fields[i] << " ";
+        }
+        HeaderFile << '\n';
+
+        // Urban fields
+        for (int i = 0; i < urban_fields.size(); ++i) {
+            HeaderFile << urban_fields[i] << " ";
+        }
+        HeaderFile << '\n';
+
+        // Field mapping
+        HeaderFile << '\n';
+        HeaderFile << fieldmap.size() << "\n";
+        for (auto &field : fieldmap) {
+            // pointer fields are reconstructed at load
+            HeaderFile << field.first << " " << field.second.mf_ind << " " << field.second.map.first << " " << field.second.map.second << " " << field.second.fill_bound << '\n';
+        }
+        HeaderFile << '\n';
+    }
+
+    amrex::ParallelDescriptor::Barrier();
+
+    const std::string prefix = "SurfaceModel_";
+
+    for (int lev = 0; lev < m_nlevs; lev++) {
+        IntVect ng(1,1,0);
+
+        {
+            MultiFab mf(m_ba2d[lev],m_dmap[lev],2,ng);
+            MultiFab::Copy(mf,*u_star[lev],0,0,2,ng);
+            VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "ustar"));
+
+            MultiFab::Copy(mf,*wavg[lev],0,0,2,ng);
+            VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "wavg"));
+        }
+
+        MultiFab mf(m_ba2d[lev],m_dmap[lev],1,ng);
+
+        MultiFab::Copy(mf,*t_star[lev],0,0,1,ng);
+        VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "tstar"));
+
+        MultiFab::Copy(mf,*q_star[lev],0,0,1,ng);
+        VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "qstar"));
+
+        MultiFab::Copy(mf,*t_surf[lev],0,0,1,ng);
+        VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "tsurf"));
+
+        for (auto &field : fieldmap) {
+            MultiFab::Copy(mf, *(fields[field.second.mf_ind][lev]), 0, 0, 1, ng);
+            VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "_f_" + field.first));
+        }
+    }
+
+    auto check_end = amrex::second() - check_start;
+    ParallelDescriptor::ReduceRealMax(check_end,ParallelDescriptor::IOProcessorNumber());
+    amrex::Print() << "    SurfaceModel Checkpoint write time = " << check_end << " seconds." << '\n';
+}
+
+void SurfaceModel::ReadCheckpoint(const std::string &checkpointname)
+{
+    auto check_start = amrex::second();
+
+    amrex::Print() << " Reading SurfaceModel checkpoint " << std::endl;
+
+    // Header
+    std::string File(checkpointname + "/SurfaceModel_Header");
+
+    VisMF::IO_Buffer io_buffer(VisMF::GetIOBufferSize());
+
+    Vector<char> fileCharPtr;
+    ParallelDescriptor::ReadAndBcastFile(File, fileCharPtr);
+    std::string fileCharPtrString(fileCharPtr.dataPtr());
+    std::istringstream is(fileCharPtrString, std::istringstream::in);
+
+    std::string line, word;
+
+    int chk_ncomp_cons, chk_ncomp;
+
+    // read in title line
+    std::getline(is, line);
+
+    // read in number of levels
+    is >> m_nlevs;
+
+    // read in flags
+    is >> m_use_urban;
+    is >> m_use_land;
+    is >> m_export_fluxes;
+    is >> m_weights_updated;
+    GotoNextLine(is);
+
+    // read in box arrays for each level
+    m_ba.resize(m_nlevs);
+    m_ba2d.resize(m_nlevs);
+    for (int lev = 0; lev < m_nlevs; ++lev) {
+        BoxArray ba;
+        ba.readFrom(is);
+        AMREX_ALWAYS_ASSERT(ba == m_ba[lev]);
+        GotoNextLine(is);
+    }
+    GotoNextLine(is);
+    for (int lev = 0; lev < m_nlevs; ++lev) {
+        BoxArray ba;
+        ba.readFrom(is);
+        AMREX_ALWAYS_ASSERT(ba == m_ba2d[lev]);
+        GotoNextLine(is);
+    }
+    GotoNextLine(is);
+
+    // Read in LSM fields
+    std::getline(is, line);
+    {
+        std::istringstream lis(line);
+        lsm_fields.clear();
+        while (lis >> word) {
+            lsm_fields.push_back(std::stoi(word));
+        }
+    }
+
+    // Read in Urban fields
+    std::getline(is, line);
+    {
+        std::istringstream lis(line);
+        urban_fields.clear();
+        while (lis >> word) {
+            urban_fields.push_back(std::stoi(word));
+        }
+    }
+    GotoNextLine(is);
+
+    // Read number of mapped fields
+    int nfields = 0;
+    is >> nfields;
+    GotoNextLine(is);
+
+    // Read any mapped fields
+    AMREX_ALWAYS_ASSERT(nfields == fieldmap.size());
+
+    // The field mapping should already be created before the restart, but verify consistency with the file
+    for (int i = 0; i < nfields; i++) {
+        std::getline(is, line);
+        std::istringstream lis(line);
+
+        std::string field_name;
+        int lsm_ind;
+        int urb_ind;
+        bool fill_bound;
+
+        lis >> field_name;
+        lis >> word; // mf_ind (ignored for restart)
+        lis >> word;
+        lsm_ind = std::stoi(word);
+        lis >> word;
+        urb_ind = std::stoi(word);
+        lis >> word;
+        fill_bound = static_cast<bool>(std::stoi(word));
+
+        AMREX_ALWAYS_ASSERT(fieldmap.find(field_name) != fieldmap.end());
+        const auto &field = fieldmap.at(field_name);
+        AMREX_ALWAYS_ASSERT(field.map.first == lsm_ind);
+        AMREX_ALWAYS_ASSERT(field.map.second == urb_ind);
+        AMREX_ALWAYS_ASSERT(field.fill_bound == fill_bound);
+        // skip checking mf_ind because the ordering could have changed
+    }
+
+    const std::string prefix = "SurfaceModel_";
+
+    IntVect ng = IntVect(1,1,0);
+    for (int lev = 0; lev < m_nlevs; lev++) {
+        {
+            MultiFab mf(m_ba2d[lev],m_dmap[lev],2,ng);
+            VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "ustar"));
+            MultiFab::Copy(*(u_star[lev]),mf,0,0,2,ng);
+
+            VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "wavg"));
+            MultiFab::Copy(*wavg[lev],mf,0,0,2,ng);
+        }
+
+        MultiFab mf(m_ba2d[lev],m_dmap[lev],1,ng);
+
+        VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "tstar"));
+        MultiFab::Copy(*t_star[lev],mf,0,0,1,ng);
+
+        VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "qstar"));
+        MultiFab::Copy(*q_star[lev],mf,0,0,1,ng);
+
+        VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "tsurf"));
+        MultiFab::Copy(*t_surf[lev],mf,0,0,1,ng);
+
+        for (auto &field : fieldmap) {
+            VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "_f_" + field.first));
+            MultiFab::Copy(*(fields[field.second.mf_ind][lev]), mf, 0, 0, 1, ng);
+        }
+    }
+
+    auto check_end = amrex::second() - check_start;
+    ParallelDescriptor::ReduceRealMax(check_end,ParallelDescriptor::IOProcessorNumber());
+    amrex::Print() << "    SurfaceModel Checkpoint load time = " << check_end << " seconds." << '\n';
+}

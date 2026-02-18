@@ -422,6 +422,10 @@ ERF::WriteCheckpointFile () const
 #endif
     } // for lev
 
+    if (m_SurfaceModel) {
+        m_SurfaceModel->WriteCheckpoint(checkpointname);
+    }
+
 #ifdef ERF_USE_PARTICLES
    particleData.Checkpoint(checkpointname);
 #endif

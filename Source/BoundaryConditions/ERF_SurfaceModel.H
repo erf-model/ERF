@@ -237,6 +237,14 @@ public:
         return rad_fields[lev];
     }
 
+    // utility to skip to next line in Header
+    //  -- taken from ERF_Checkpoint
+    static void GotoNextLine (std::istream& is);
+
+    void WriteCheckpoint(const std::string &checkpointname);
+
+    void ReadCheckpoint(const std::string &checkpointname);
+
 private:
 
     // Internal function to update weights using urban fraction

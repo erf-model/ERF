@@ -1648,6 +1648,11 @@ ERF::InitData_post ()
                 m_SurfaceModel->get_field("ustar", lev)->setVal(1.0E34);
             }
         }
+
+        if (restart_chkfile != "") {
+            // Update surface fields if needed (and available)
+            m_SurfaceModel->ReadCheckpoint(restart_chkfile);
+        }
     }
 
     // Configure SurfaceLayer params if used
