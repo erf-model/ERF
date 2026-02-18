@@ -1534,9 +1534,10 @@ ERF::InitData_post ()
                                                         solverChoice.mesh_type,
                                                         solverChoice.terrain_type,
                                                         solverChoice.turbChoice[finest_level],
-                                                        start_time, stop_time
 #ifdef ERF_USE_NETCDF
-                                                        , low_time_interval
+                                                        start_low_time, stop_low_time, low_time_interval
+#else
+                                                        0.0, 0.0
 #endif
                                                         );
         // This call will allocate the arrays at each level. If we regrid later, either changing
