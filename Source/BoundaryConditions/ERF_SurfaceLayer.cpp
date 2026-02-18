@@ -598,7 +598,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
         n_time_hi = n_time_lo + 1;
 
         // Do not over run the last sst file
-        if (m_start_time + elapsed_time_since_start_low >= m_stop_time) {
+        if (m_start_low_time + elapsed_time_since_start_low >= m_final_low_time) {
             n_time_hi = n_time_lo;
         }
 

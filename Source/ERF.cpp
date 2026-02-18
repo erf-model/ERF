@@ -1535,7 +1535,7 @@ ERF::InitData_post ()
                                                         solverChoice.terrain_type,
                                                         solverChoice.turbChoice[finest_level],
 #ifdef ERF_USE_NETCDF
-                                                        start_low_time, stop_low_time, low_time_interval
+                                                        start_low_time, final_low_time, low_time_interval
 #else
                                                         0.0, 0.0
 #endif
