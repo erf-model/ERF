@@ -196,6 +196,13 @@ update_sst_tsk (const int itime,
     if (itime > 0) {
         sst_lev[itime] = std::make_unique<MultiFab>(ba2d_lev,dm,1,ngv);
         tsk_lev[itime] = std::make_unique<MultiFab>(ba2d_lev,dm,1,ngv);
+
+        // NOTE: we assume that TSK was in the wrfinput file so it is defined
+        //       at the first time, but not in the wrflow file so not defined
+        //       at later times.  Here we fill the later time arrays by copying
+        //       from the initial time
+        MultiFab::Copy(*tsk_lev[itime],*tsk_lev[0],0,0,1,tsk_lev[0]->nGrowVect());
+
         if (SurfLayer) {
             SurfLayer->update_sst_ptr(0, itime, sst_lev[itime].get());
             SurfLayer->update_tsk_ptr(0, itime, tsk_lev[itime].get());
