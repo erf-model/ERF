@@ -437,7 +437,7 @@ public:
   // Model coefficients - YSU
   // TODO: Add parmparse for all of these above
   amrex::Real pbl_ysu_coriolis_freq =
-    1.0e-4; // 1e-4 is hardcoded in WRF, we let the user specify or tske the
+    1.0e-4; // 1e-4 is hardcoded in WRF, we let the user specify or take the
             // value from ERF coriolis forcing
   bool pbl_ysu_use_consistent_coriolis =
     false; // ignore input pbl_ysu_coriolis_freq, take value from ERF coriolis
