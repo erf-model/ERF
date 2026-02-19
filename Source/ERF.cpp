@@ -1575,7 +1575,6 @@ ERF::InitData_post ()
         // Note we don't fill ghost cells here because this is just for diagnostics
         for (int lev = 0; lev <= finest_level; ++lev)
         {
-            Real time  = t_new[lev];
             IntVect ng = Theta_prim[lev]->nGrowVect();
 
             MultiFab::Copy(  *Theta_prim[lev], vars_new[lev][Vars::cons], RhoTheta_comp, 0, 1, ng);
