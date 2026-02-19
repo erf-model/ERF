@@ -70,3 +70,6 @@ build_*.log
 *~
 \#*\#
 .#*
+
+# Python cache
+__pycache__
