@@ -432,7 +432,38 @@ ERF::refinement_criteria_setup ()
                     }
 
                     Box bx(IntVect(ilo,jlo,klo),IntVect(ihi,jhi,khi));
-                    if ( (ilo%ref_ratio[lev_for_box-1][0] != 0) || ((ihi+1)%ref_ratio[lev_for_box-1][0] != 0) ||
+                    // Error check for each index 
+                    if(ilo%ref_ratio[lev_for_box-1][0] != 0){
+                        amrex::Print()<< "Requested in_box_lo in x direction = " << rbox_lo[0] << " corresponds to ilo = " << ilo << std::endl;
+                        amrex::Print() << "ilo = " << ilo << " is not divisible by ref_ratio in x direction = " << ref_ratio[lev_for_box-1][0] << std::endl;
+                        amrex::Error("Adjust in_box_lo in x-direction to be divisible by ref_ratio and try again");
+                    }
+                    if((ihi+1)%ref_ratio[lev_for_box-1][0] != 0){
+                        amrex::Print()<< "Requested in_box_hi in x direction = " << rbox_hi[0] << " corresponds to ihi+1 = " << ihi+1 << std::endl;
+                        amrex::Print() << "ihi+1 = " << ihi+1 << " is not divisible by ref_ratio in x direction = " << ref_ratio[lev_for_box-1][0] << std::endl;
+                        amrex::Error("Adjust in_box_hi in x-direction to be divisible by ref_ratio and try again");
+                    }
+                     if(jlo%ref_ratio[lev_for_box-1][1] != 0){
+                        amrex::Print()<< "Requested in_box_lo in y direction = " << rbox_lo[1] << " corresponds to jlo = " << jlo << std::endl;
+                        amrex::Print() << "jlo = " << jlo << " is not divisible by ref_ratio in y direction = " << ref_ratio[lev_for_box-1][1] << std::endl;
+                        amrex::Error("Adjust in_box_lo in y-direction to be divisible by ref_ratio and try again");
+                    }
+                    if((jhi+1)%ref_ratio[lev_for_box-1][1] != 0){
+                        amrex::Print()<< "Requested in_box_hi in y direction = " << rbox_hi[1] << " corresponds to jhi+1 = " << jhi+1 << std::endl;
+                        amrex::Print() << "jhi+1 = " << jhi+1 << " is not divisible by ref_ratio in y direction = " << ref_ratio[lev_for_box-1][1] << std::endl;
+                        amrex::Error("Adjust in_box_hi in y-direction to be divisible by ref_ratio and try again");
+                    }
+                    if(klo%ref_ratio[lev_for_box-1][2] != 0){
+                        amrex::Print()<< "Requested in_box_lo in z direction = " << rbox_lo[2] << " corresponds to klo = " << klo << std::endl;
+                        amrex::Print() << "klo = " << klo << " is not divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
+                        amrex::Error("Adjust in_box_lo in z-direction to be divisible by ref_ratio and try again");
+                    }
+                    if((khi+1)%ref_ratio[lev_for_box-1][2] != 0){
+                        amrex::Print()<< "Requested in_box_hi in z direction = " << rbox_hi[2] << " corresponds to khi+1 = " << khi+1 << std::endl;
+                        amrex::Print() << "khi+1 = " << khi+1 << " is not divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
+                        amrex::Error("Adjust in_box_hi in z-direction to be divisible by ref_ratio and try again");
+                    }
+                    /*if ( (ilo%ref_ratio[lev_for_box-1][0] != 0) || ((ihi+1)%ref_ratio[lev_for_box-1][0] != 0) ||
                          (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) ||
                          (klo%ref_ratio[lev_for_box-1][2] != 0) || ((khi+1)%ref_ratio[lev_for_box-1][2] != 0) )
                     {
@@ -443,7 +474,7 @@ ERF::refinement_criteria_setup ()
                                        << jlo%ref_ratio[lev_for_box-1][1] << " " << (jhi+1)%ref_ratio[lev_for_box-1][1] << " "
                                        << klo%ref_ratio[lev_for_box-1][2] << " " << (khi+1)%ref_ratio[lev_for_box-1][2] << std::endl;
                         amrex::Error("Fine box is not legit with this ref_ratio");
-                    }
+                    }*/
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
@@ -478,11 +509,40 @@ ERF::refinement_criteria_setup ()
 
                     Print() << "Reading " << bx << " at level " << lev_for_box << std::endl;
                     num_boxes_at_level[lev_for_box] += 1;
-
-                    if ( (box_lo[0]%ref_ratio[lev_for_box-1][0] != 0) || ((box_hi[0]+1)%ref_ratio[lev_for_box-1][0] != 0) ||
+                    if(box_lo[0]%ref_ratio[lev_for_box-1][0] != 0){
+                        amrex::Print()<< "Requested ilo in x-direction : " << box_lo[0] << std::endl;
+                        amrex::Print() << "ilo = " << box_lo[0] << " is not divisible by ref_ratio in x direction = " << ref_ratio[lev_for_box-1][0] << std::endl;
+                        amrex::Error("Adjust in_box_lo_indices in x-direction to be divisible by ref_ratio and try again");
+                    }
+                    if((box_hi[0]+1)%ref_ratio[lev_for_box-1][0] != 0){
+                        amrex::Print()<< "Requested ihi in x-direction : " << box_hi[0] << std::endl;
+                        amrex::Print() << "ihi+1 = " << box_hi[0]+1 << " is not divisible by ref_ratio in x direction = " << ref_ratio[lev_for_box-1][0] << std::endl;
+                        amrex::Error("Adjust in_box_hi_indices in x-direction to be divisible by ref_ratio and try again");
+                    }
+                     if(box_lo[1]%ref_ratio[lev_for_box-1][1] != 0){
+                        amrex::Print()<< "Requested jlo in y-direction : " << box_lo[1] << std::endl;
+                        amrex::Print() << "jlo = " << box_lo[1] << " is not divisible by ref_ratio in y direction = " << ref_ratio[lev_for_box-1][1] << std::endl;
+                        amrex::Error("Adjust in_box_lo_indices in y-direction to be divisible by ref_ratio and try again");
+                    }
+                    if((box_hi[1]+1)%ref_ratio[lev_for_box-1][1] != 0){
+                        amrex::Print()<< "Requested jhi in y-direction : " << box_hi[1] << std::endl;
+                        amrex::Print() << "jhi+1 = " << box_hi[1]+1 << " is not divisible by ref_ratio in y direction = " << ref_ratio[lev_for_box-1][1] << std::endl;
+                        amrex::Error("Adjust in_box_hi_indices in y-direction to be divisible by ref_ratio and try again"); 
+                    }
+                    if(box_lo[2]%ref_ratio[lev_for_box-1][2] != 0){
+                        amrex::Print()<< "Requested klo in z-direction : " << box_lo[2] << std::endl;
+                        amrex::Print() << "klo = " << box_lo[2] << " is not   divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
+                        amrex::Error("Adjust in_box_lo_indices in z-direction to be divisible by ref_ratio and try again");
+                    }
+                    if((box_hi[2]+1)%ref_ratio[lev_for_box-1][2] != 0){
+                        amrex::Print()<< "Requested khi in z-direction : " << box_hi[2] << std::endl;
+                        amrex::Print() << "khi+1 = " << box_hi[2]+1 << " is not divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
+                        amrex::Error("Adjust in_box_hi_indices in z-direction to be divisible by ref_ratio and try again");
+                    }
+                    /*if ( (box_lo[0]%ref_ratio[lev_for_box-1][0] != 0) || ((box_hi[0]+1)%ref_ratio[lev_for_box-1][0] != 0) ||
                          (box_lo[1]%ref_ratio[lev_for_box-1][1] != 0) || ((box_hi[1]+1)%ref_ratio[lev_for_box-1][1] != 0) ||
                          (box_lo[2]%ref_ratio[lev_for_box-1][2] != 0) || ((box_hi[2]+1)%ref_ratio[lev_for_box-1][2] != 0) )
-                         amrex::Error("Fine box is not legit with this ref_ratio");
+                         amrex::Error("Fine box is not legit with this ref_ratio");*/
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
