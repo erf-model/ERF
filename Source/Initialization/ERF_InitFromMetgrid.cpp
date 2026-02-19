@@ -118,6 +118,7 @@ ERF::init_from_metgrid (int lev)
     for (int itime(1); itime < ntimes; itime++) AMREX_ALWAYS_ASSERT(NC_epochTime[itime] > NC_epochTime[itime-1]);
 
     // Start at the earliest time in nc_init_file[lev].
+    start_time     = NC_epochTime[0];
     start_bdy_time = NC_epochTime[0];
     final_bdy_time = NC_epochTime[ntimes-1];
 
