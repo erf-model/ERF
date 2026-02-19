@@ -99,8 +99,8 @@ factor 2 refinement, and the domain has 32x64x8 cells at level 0 covering the do
 
 The lo_indices should be divisible by the refinement ratio, and the hi_indices should be one less than a number divisible by the refinement ratio.
 The PBL models compute the height of the boundary layer and require that each box goes from the bottom of the domain to the top of the domain.
-So in that case the lo_indices should be 0 and the hi_indices should be one less than a number divisible by the refinement ratio in the vertical direction.
-An error message is generated if the indices specified do not meet these criteria.
+The lo/hi indices in the vertical direction should therefore be 0 and (number of cells in z direction - 1) respectively,
+and the number of cells in the z direction should be divisible by the refinement ratio in the vertical direction.
 
 Dynamic Mesh Refinement
 -----------------------

@@ -432,7 +432,7 @@ ERF::refinement_criteria_setup ()
                     }
 
                     Box bx(IntVect(ilo,jlo,klo),IntVect(ihi,jhi,khi));
-                    // Error check for each index 
+                    // Error check for each index
                     if(ilo%ref_ratio[lev_for_box-1][0] != 0){
                         amrex::Print()<< "Requested in_box_lo in x direction = " << rbox_lo[0] << " corresponds to ilo = " << ilo << std::endl;
                         amrex::Print() << "ilo = " << ilo << " is not divisible by ref_ratio in x direction = " << ref_ratio[lev_for_box-1][0] << std::endl;
@@ -463,18 +463,6 @@ ERF::refinement_criteria_setup ()
                         amrex::Print() << "khi+1 = " << khi+1 << " is not divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
                         amrex::Error("Adjust in_box_hi in z-direction to be divisible by ref_ratio and try again");
                     }
-                    /*if ( (ilo%ref_ratio[lev_for_box-1][0] != 0) || ((ihi+1)%ref_ratio[lev_for_box-1][0] != 0) ||
-                         (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) ||
-                         (klo%ref_ratio[lev_for_box-1][2] != 0) || ((khi+1)%ref_ratio[lev_for_box-1][2] != 0) )
-                    {
-                        amrex::Print() << "Box : " << bx << std::endl;
-                        amrex::Print() << "RealBox : " << realbox << std::endl;
-                        amrex::Print() << "ilo, ihi+1, jlo, jhi+1, klo, khi+1 by ref_ratio : "
-                                       << ilo%ref_ratio[lev_for_box-1][0] << " " << (ihi+1)%ref_ratio[lev_for_box-1][0] << " "
-                                       << jlo%ref_ratio[lev_for_box-1][1] << " " << (jhi+1)%ref_ratio[lev_for_box-1][1] << " "
-                                       << klo%ref_ratio[lev_for_box-1][2] << " " << (khi+1)%ref_ratio[lev_for_box-1][2] << std::endl;
-                        amrex::Error("Fine box is not legit with this ref_ratio");
-                    }*/
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
@@ -527,7 +515,7 @@ ERF::refinement_criteria_setup ()
                     if((box_hi[1]+1)%ref_ratio[lev_for_box-1][1] != 0){
                         amrex::Print()<< "Requested jhi in y-direction : " << box_hi[1] << std::endl;
                         amrex::Print() << "jhi+1 = " << box_hi[1]+1 << " is not divisible by ref_ratio in y direction = " << ref_ratio[lev_for_box-1][1] << std::endl;
-                        amrex::Error("Adjust in_box_hi_indices in y-direction to be divisible by ref_ratio and try again"); 
+                        amrex::Error("Adjust in_box_hi_indices in y-direction to be divisible by ref_ratio and try again");
                     }
                     if(box_lo[2]%ref_ratio[lev_for_box-1][2] != 0){
                         amrex::Print()<< "Requested klo in z-direction : " << box_lo[2] << std::endl;
@@ -539,10 +527,6 @@ ERF::refinement_criteria_setup ()
                         amrex::Print() << "khi+1 = " << box_hi[2]+1 << " is not divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
                         amrex::Error("Adjust in_box_hi_indices in z-direction to be divisible by ref_ratio and try again");
                     }
-                    /*if ( (box_lo[0]%ref_ratio[lev_for_box-1][0] != 0) || ((box_hi[0]+1)%ref_ratio[lev_for_box-1][0] != 0) ||
-                         (box_lo[1]%ref_ratio[lev_for_box-1][1] != 0) || ((box_hi[1]+1)%ref_ratio[lev_for_box-1][1] != 0) ||
-                         (box_lo[2]%ref_ratio[lev_for_box-1][2] != 0) || ((box_hi[2]+1)%ref_ratio[lev_for_box-1][2] != 0) )
-                         amrex::Error("Fine box is not legit with this ref_ratio");*/
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
