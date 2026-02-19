@@ -348,6 +348,14 @@ ERF::refinement_criteria_setup ()
                 amrex::Abort("Must only specify box for refinement using real OR index space");
             }
 
+            if(solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYJ         ||
+                solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNN25      ||
+                solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNNEDMF    ||
+                solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU ||
+                solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF) {
+                amrex::Abort("PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH");
+            }
+
             if (num_real_lo > 0) {
                 std::vector<Real> rbox_lo(3), rbox_hi(3);
                 ppr.get("max_level",lev_for_box);
@@ -371,6 +379,7 @@ ERF::refinement_criteria_setup ()
                         rbox_lo[2] = plo[2];
                         rbox_hi[2] = phi[2];
                     }
+
 
                     realbox = RealBox(&(rbox_lo[0]),&(rbox_hi[0]));
 
