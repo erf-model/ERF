@@ -348,14 +348,6 @@ ERF::refinement_criteria_setup ()
                 amrex::Abort("Must only specify box for refinement using real OR index space");
             }
 
-            if(solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYJ         ||
-                solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNN25      ||
-                solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNNEDMF    ||
-                solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU ||
-                solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF) {
-                amrex::Abort("PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH");
-            }
-
             if (num_real_lo > 0) {
                 std::vector<Real> rbox_lo(3), rbox_hi(3);
                 lev_for_box = max_level;
@@ -381,6 +373,14 @@ ERF::refinement_criteria_setup ()
                         rbox_hi[2] = phi[2];
                     }
 
+                    if(solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYJ         ||
+                        solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNN25      ||
+                        solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNNEDMF    ||
+                        solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU ||
+                        solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF &&
+                    (rbox_lo[2] > plo[2] || rbox_hi[2] < phi[2]) ) {
+                        amrex::Abort("PBL schemes require that the refinement box in z includes the surface and the top of the domain. Please set in_box_lo to geometry.prob_lo in z and in_box_hi to geometry.prob_hi in z and try again");
+                    }
 
                     realbox = RealBox(&(rbox_lo[0]),&(rbox_hi[0]));
 
@@ -499,11 +499,19 @@ ERF::refinement_criteria_setup ()
 
                     Box bx(IntVect(box_lo[0],box_lo[1],box_lo[2]),IntVect(box_hi[0],box_hi[1],box_hi[2]));
                     amrex::Print() << "BOX " << bx << std::endl;
-
-                    const auto* dx  = geom[lev_for_box].CellSize();
+                    const auto* dx  = geom[lev_for_box-1].CellSize();
                     const Real* plo = geom[lev_for_box].ProbLo();
+                    const Real* phi = geom[lev_for_box].ProbHi();
                     realbox = RealBox(plo[0]+ box_lo[0]   *dx[0], plo[1]+ box_lo[1]   *dx[1], plo[2]+ box_lo[2]   *dx[2],
                                       plo[0]+(box_hi[0]+1)*dx[0], plo[1]+(box_hi[1]+1)*dx[1], plo[2]+(box_hi[2]+1)*dx[2]);
+                    if(solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYJ         ||
+                        solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNN25      ||
+                        solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNNEDMF    ||
+                        solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU ||
+                        solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF &&
+                    (plo[2]+ box_lo[2]   *dx[2] > plo[2] || plo[2]+(box_hi[2]+1)*dx[2] < phi[2]) ) {
+                        amrex::Abort("PBL schemes require that the refinement box in z includes the surface and the top of the domain.Please set in_box_lo_indices to 0 in z and in_box_hi_indices to amr.n_cell-1 in z and try again");
+                    }
 
                     Print() << "Reading " << bx << " at level " << lev_for_box << std::endl;
                     num_boxes_at_level[lev_for_box] += 1;
