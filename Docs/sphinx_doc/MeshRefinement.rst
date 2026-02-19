@@ -75,8 +75,8 @@ It is possible to refine the box by multiple levels, and to have different level
           erf.box2.in_box_hi = 4000 4000 2048
           erf.box2.max_level = 2
 
-box1 is refined up to level 1, but box2 is refined up to level 2. Error messages are generated to help 
-users adjust the refinements to create a valid box at each level. 
+box1 is refined up to level 1, but box2 is refined up to level 2. Error messages are generated to help
+users adjust the refinements to create a valid box at each level.
 
 
 We note that instead of specifying the physical extent enclosed, we can instead specify the indices of
