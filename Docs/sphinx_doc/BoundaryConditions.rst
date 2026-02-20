@@ -173,20 +173,16 @@ Real Domain BCs
 ----------------------
 
 When using real lateral boundary conditions, time-dependent observation data is read
-from a file.  The observation data is utilized to directly set Dirichlet values on the
-lateral domain BCs as well as nudge the solution state towards the observation data.
-The user may specify (in the inputs file)
-the total width of the interior Dirichlet and relaxation region with
-``erf.real_width = <Int>`` (yellow + blue)
-and analogously the width of the interior Dirichlet region may be specified with
-``erf.real_set_width = <Int>`` (yellow).
-The real BCs are only imposed for :math:`\psi = \left\{ \theta; \; q_v; \; u; \; v \right\}`.
-Due to the staggering of scalars (cell center) and velocities (face center) with an Arakawa C grid,
-we reduce the relaxation width of the scalars :math:`\left\{ \rho; \; \rho \theta; \; \rho q_v \right\}` by 1
-to ensure the momentum updates at the last relaxation cell involve a pressure gradient that is computed with
-relaxed and non-relaxed data. Additionally, with the set region, the staggering of velocity and scalars
-means that velocity will be imposed on the domain face with a set region of 1 while the scalars
-will be imposed only in the ghost cells.
+from a file. In ERF, the observation data is utilized to nudge the solution state towards
+the observation data in the interior of the domain. We explicitly note that the wall normal
+velocity on a domain boundary is **not** nudged toward the observation data but is computed
+from a zero normal gradient (outflow) condition that uses a one-sided difference on the domain
+interior. Therefore, a key difference between real domain BCs in ERF and WRF is that ERF allows
+the normal velocity at a domain wall to adjust, given the nudged adjacent velocities, while
+WRF imposes a Dirichlet condition; see the yellow region in Figure 8 below.
+The user may specify (in the inputs file) the total width of the interior boundary region with
+``erf.real_width = <Int>`` (yellow + blue). The real BCs are only imposed for
+:math:`\psi = \left\{ \theta; \; q_v; \; u; \; v \right\}`.
 
 .. |wrfbdy| image:: figures/wrfbdy_BCs.png
            :width: 600
@@ -203,23 +199,19 @@ will be imposed only in the ghost cells.
 
 .. _`Skamarock et al. (2021)`: http://dx.doi.org/10.5065/1dfh-6p97
 
-Within the interior Dirichlet cells, the RHS is exactly :math:`\psi^{n} - \ps^{BDY} / \Delta t`
-and, as such, we directly impose this value in the yellow region.
-Within the relaxation region (blue), the RHS (:math:`F`) is given by the following:
+To nudge the state data towards the observation data, we add a source term (:math:`G`) to the RHS (:math:`F`)
+of the governing equations:
 
 .. math::
 
    \begin{align}
-   F &= G + R, \\
-   R &= \left[ H_{1} \left( \psi^{BDY} - \psi^{\*} \right) - H_{2} \Delta^2 \left( \psi^{BDY} - \psi^{\*} \right) \right] \exp \left(-C_{01} \left(n - {\rm SpecWidth}\right)  \right), \\
-   H_{1} &= \frac{1}{10 \Delta t} \frac{{\rm SpecWidth} + {\rm RelaxWidth} - n}{{\rm RelaxWidth} - 1}, \\
-   H_{2} &= \frac{1}{50 \Delta t} \frac{{\rm SpecWidth} + {\rm RelaxWidth} - n}{{\rm RelaxWidth} - 1},
+   G &= \frac{1}{A \Delta t} \xi^{2} \left( \psi^{BDY} - \psi^{*} \right),
    \end{align}
 
-where :math:`G` is the RHS of the Navier-Stokes equations, :math:`\psi^{*}` is the state variable at the
-current RK stage, :math:`\psi^{BDY}` is temporal interpolation of the observational data, :math:`C_{01} = -\ln(0.01) / ({\rm RealWidth - SpecWidth})`
-is a constant that ensure the exponential blending function obtains a value of 0.01 at the last relaxation cell,
-and :math:`n` is the minimum number of grid points from a lateral boundary.
+where :math:`A` is specified with ``erf.bdy_nudge_factor`` (defaults to 10.0),
+:math:`\psi^{*}` is the state variable at the current RK stage, :math:`\psi^{BDY}` is
+the temporal interpolation of the observational data, and :math:`xi` is a linear coordinate
+that is 1 at the domain boundary and 0 at the edge of the nudge region.
 
 
 Inflow turbulence generation

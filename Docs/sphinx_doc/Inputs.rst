@@ -1368,6 +1368,9 @@ List of Parameters
 | **erf.tau_nudging**                 | Time scale for         | Real              | 5.0                 |
 |                                     | nudging                |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.bdy_nudge_factor**            | Sets real bc nudging   | Real              | 10.0                 |
+|                                     | strength as 1/(VAL*dt) |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 
 If ``erf.nudging_from_input_sounding`` is true, it is expected that at least one input sounding
 file is available.  If there is only one, and no specification of time is made, it is assumed that
