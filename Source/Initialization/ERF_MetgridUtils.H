@@ -65,7 +65,7 @@ init_state_from_metgrid (const bool use_moisture,
                          amrex::FArrayBox& x_vel_fab,
                          amrex::FArrayBox& y_vel_fab,
                          amrex::FArrayBox& z_vel_fab,
-                         amrex::FArrayBox& z_phys_nd_fab,
+                         amrex::FArrayBox& z_phys_cc_fab,
                          const amrex::Vector<amrex::FArrayBox>& NC_hgt_fab,
                          const amrex::Vector<amrex::FArrayBox>& NC_ght_fab,
                          const amrex::Vector<amrex::FArrayBox>& NC_xvel_fab,
@@ -465,6 +465,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
                             const int& metgrid_force_sfc_k,
                             const int& i,
                             const int& j,
+                            const int& kmax,
                             const int& src_comp,
                             const int& itime,
                             char var_type,
@@ -491,7 +492,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
     int imax_orig = amrex::ubound(amrex::Box(orig_data)).x;
     int jmax_orig = amrex::ubound(amrex::Box(orig_data)).y;
     int kmax_orig = amrex::ubound(amrex::Box(orig_data)).z;
-    int kmax_new  = amrex::ubound(amrex::Box(new_z_full)).z;
+    int kmax_new  = kmax + 1;
 
     AMREX_ASSERT(kmax_orig < 256);
     AMREX_ASSERT(kmax_new  < 256);
