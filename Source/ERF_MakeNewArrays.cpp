@@ -53,7 +53,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     int ngrow = ComputeGhostCells(solverChoice) + 2;
     tmp_zphys_nd = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,ngrow));
 
-    z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
+    z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,2);
     init_default_zphys(lev, geom[lev], *tmp_zphys_nd, *z_phys_cc[lev]);
 
     if (solverChoice.terrain_type == TerrainType::MovingFittedMesh)
