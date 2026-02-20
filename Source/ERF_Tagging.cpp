@@ -341,19 +341,15 @@ ERF::refinement_criteria_setup ()
             AMREX_ALWAYS_ASSERT(num_real_lo == num_real_hi);
             AMREX_ALWAYS_ASSERT(num_indx_lo == num_indx_hi);
 
+            // Problem low and high (in real not index space) are the same at all levels
+            const Real* plo = geom[0].ProbLo();
+            const Real* phi = geom[0].ProbHi();
+
             if ( !((num_real_lo >= AMREX_SPACEDIM-1 && num_indx_lo == 0) ||
                    (num_indx_lo >= AMREX_SPACEDIM-1 && num_real_lo == 0) ||
                    (num_indx_lo ==              0   && num_real_lo == 0)) )
             {
                 amrex::Abort("Must only specify box for refinement using real OR index space");
-            }
-
-            if(solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYJ         ||
-                solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNN25      ||
-                solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNNEDMF    ||
-                solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU ||
-                solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF) {
-                amrex::Abort("PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH");
             }
 
             if (num_real_lo > 0) {
@@ -365,9 +361,6 @@ ERF::refinement_criteria_setup ()
                     if (n_error_buf[0] != IntVect::TheZeroVector()) {
                         amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
                     }
-
-                    const Real* plo = geom[lev_for_box].ProbLo();
-                    const Real* phi = geom[lev_for_box].ProbHi();
 
                     ppr.getarr("in_box_lo",rbox_lo,0,num_real_lo);
                     ppr.getarr("in_box_hi",rbox_hi,0,num_real_hi);
@@ -381,6 +374,7 @@ ERF::refinement_criteria_setup ()
                         rbox_hi[2] = phi[2];
                     }
 
+                    const Box& domain = geom[lev_for_box].Domain();
 
                     realbox = RealBox(&(rbox_lo[0]),&(rbox_hi[0]));
 
@@ -398,7 +392,6 @@ ERF::refinement_criteria_setup ()
                     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                         // Search for k indices corresponding to nominal grid
                         // AGL heights
-                        const Box& domain = geom[lev_for_box].Domain();
                         klo = domain.smallEnd(2) - 1;
                         khi = domain.smallEnd(2) - 1;
 
@@ -473,6 +466,19 @@ ERF::refinement_criteria_setup ()
                         amrex::Print() << "khi+1 = " << khi+1 << " is not divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
                         amrex::Error("Adjust in_box_hi in z-direction to be divisible by ref_ratio and try again");
                     }
+
+                    bool using_pbl = (solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYJ      ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNN25   ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNNEDMF ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU      ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF);
+
+                    if ( using_pbl && ( (rbox_lo[2] > plo[2]) || (rbox_hi[2] < phi[2]) ) ) {
+                        amrex::Print() << "PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH" << std::endl;
+                        amrex::Print() << "Please set in_box_lo to geometry.prob_lo in z and in_box_hi to geometry.prob_hi in z and try again" << std::endl;
+                        amrex::Abort();
+                    }
+
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
@@ -501,7 +507,6 @@ ERF::refinement_criteria_setup ()
                     amrex::Print() << "BOX " << bx << std::endl;
 
                     const auto* dx  = geom[lev_for_box].CellSize();
-                    const Real* plo = geom[lev_for_box].ProbLo();
                     realbox = RealBox(plo[0]+ box_lo[0]   *dx[0], plo[1]+ box_lo[1]   *dx[1], plo[2]+ box_lo[2]   *dx[2],
                                       plo[0]+(box_hi[0]+1)*dx[0], plo[1]+(box_hi[1]+1)*dx[1], plo[2]+(box_hi[2]+1)*dx[2]);
 
@@ -537,6 +542,21 @@ ERF::refinement_criteria_setup ()
                         amrex::Print() << "khi+1 = " << box_hi[2]+1 << " is not divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
                         amrex::Error("Adjust in_box_hi_indices in z-direction to be divisible by ref_ratio and try again");
                     }
+
+                    bool using_pbl = (solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYJ      ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNN25   ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNNEDMF ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU      ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF);
+
+                    const Box& domain = geom[lev_for_box].Domain();
+
+                    if ( using_pbl && ( (box_lo[2] > 0) || (box_hi[2] < domain.bigEnd(2)) ) ) {
+                        amrex::Print() << "PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH" << std::endl;
+                        amrex::Print() << "Please set in_box_lo_indices to 0 in z and in_box_hi_indices to amr.n_cell-1 in z and try again" << std::endl;
+                        amrex::Abort();
+                    }
+
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
