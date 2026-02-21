@@ -46,6 +46,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // If lev == 0 we have already FillPatched this in ERF::TimeStep
     //
     if (lev > 0) {
+        // Set ghost cells to bogus values so they aren't uninitialized
+        W_old.setBndry(1.234e20);
         FillPatchFineLevel(lev, time, {&S_old, &U_old, &V_old, &W_old},
                            {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
                            base_state[lev], base_state[lev]);
