@@ -52,6 +52,9 @@ make_terrain_fitted_coords (int lev, const Geometry& geom, MultiFab& z_phys_nd,
     int domlo_z = domain.smallEnd(2);
     int domhi_z = domain.bigEnd(2) + 1;
 
+    // Just in case ...
+    z_phys_nd.setDomainBndry(1.234e20,0,1,geom);
+
     // ****************************************************************************
 
     if (lev == 0) {
