@@ -8,6 +8,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_SurfaceLayer.H"
 #include "ERF_FillPatcher.H"
+#include "ERF_ReadBndryPlanes.H"
 
 /*
  * Create a new BoxArray in which every grid touches the bottom boundary
@@ -122,7 +123,8 @@ void realbdy_compute_interior_ghost_rhs (const amrex::Real& total_time,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+                                         std::unique_ptr<ReadBndryPlanes>& m_r2d);
 
 /*
  * Compute relaxation region RHS at fine-crse interface

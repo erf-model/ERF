@@ -266,7 +266,7 @@ ERF::FillPatchFineLevel (int lev, Real time,
 
     bool do_fb = true;
 
-    if (m_r2d) fill_from_bndryregs(mfs_vel,time);
+    if (m_r2d && !solverChoice.use_real_bcs) fill_from_bndryregs(mfs_vel,time);
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
     // Note that we call FillBoundary inside the physbcs call
@@ -352,7 +352,7 @@ ERF::FillPatchCrseLevel (int lev, Real time,
 
     bool do_fb = true;
 
-    if (m_r2d) fill_from_bndryregs(mfs_vel,time);
+    if (m_r2d && !solverChoice.use_real_bcs) fill_from_bndryregs(mfs_vel,time);
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
     // Note that we call FillBoundary inside the physbcs call

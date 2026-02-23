@@ -89,8 +89,10 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
             int growx = (geom[0].isPeriodic(0)) ? 1 : 0;
             int growy = (geom[0].isPeriodic(1)) ? 1 : 0;
             per_grown_domain.grow(IntVect(growx,growy,0));
+            /*
             if (!per_grown_domain.contains(gbx))
                 Error("WriteBndryPlanes: Requested box is too large to fill");
+            */
         }
 
         if (grids[ilev].contains(gbx)) bndry_lev = ilev;
@@ -247,7 +249,7 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
     // Writing time.dat
     if (ParallelDescriptor::IOProcessor()) {
         std::ofstream oftime(m_time_file, std::ios::out | std::ios::app);
-        oftime << t_step << ' ' << time << '\n';
+        oftime << std::setprecision(17) << t_step << ' ' << time << '\n';
         oftime.close();
     }
 }
