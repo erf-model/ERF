@@ -56,5 +56,6 @@ prob.A_0 = 0.0
 prob.B_0 = 1.0
 prob.U_0 = 0.0
 prob.V_0 = 0.0
+prob.T_0 = 1.0
 prob.prob_type = 10
 
