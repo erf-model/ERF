@@ -114,12 +114,15 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 
     // HACK HACK HACK
     // Get bndry data
-    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
-    const auto& bdatxlo = (*bndry_data[0])[0].const_array();
-    const auto& bdatylo = (*bndry_data[1])[0].const_array();
-    const auto& bdatxhi = (*bndry_data[3])[0].const_array();
-    const auto& bdatyhi = (*bndry_data[4])[0].const_array();
     Vector<int> ind_map2 = {BCVars::xvel_bc, BCVars::yvel_bc, BCVars::RhoTheta_bc_comp};
+    Array4<Real> bdatxlo, bdatxhi, bdatylo, bdatyhi;
+    if (m_r2d) {
+        Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+        bdatxlo = (*bndry_data[0])[0].array();
+        bdatylo = (*bndry_data[1])[0].array();
+        bdatxhi = (*bndry_data[3])[0].array();
+        bdatyhi = (*bndry_data[4])[0].array();
+    }
 
     //
     // Note that time (= start_time+old_stage_time)  is measured as total time
@@ -293,9 +296,11 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                                               + alpha * bdatxlo_np1(ii,jj,k,0) );
 
                 // HACK HACK HACK
-                int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
-                int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
-                arr_xlo(i,j,k) = rho_interp * bdatxlo(ii2,jj2,k,bdy_comp);
+                if (bdatxlo) {
+                    int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                    int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                    arr_xlo(i,j,k) = rho_interp * bdatxlo(ii2,jj2,k,bdy_comp);
+                }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -316,9 +321,11 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                                               + alpha * bdatxhi_np1(ii,jj,k,0) );
 
                 // HACK HACK HACK
-                int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
-                int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
-                arr_xhi(i,j,k) = rho_interp * bdatxhi(ii2,jj2,k,bdy_comp);
+                if (bdatxhi) {
+                    int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                    int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                    arr_xhi(i,j,k) = rho_interp * bdatxhi(ii2,jj2,k,bdy_comp);
+                }
             });
 
             ParallelFor(tbx_ylo, tbx_yhi,
@@ -341,9 +348,11 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                                              + alpha * bdatylo_np1(ii,jj,k,0) );
 
                 // HACK HACK HACK
-                int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
-                int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
-                arr_ylo(i,j,k) = rho_interp * bdatylo(ii2,jj2,k,bdy_comp);
+                if (bdatylo) {
+                    int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                    int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                    arr_ylo(i,j,k) = rho_interp * bdatylo(ii2,jj2,k,bdy_comp);
+                }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -364,9 +373,11 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                                               + alpha * bdatyhi_np1(ii,jj,k,0) );
 
                 // HACK HACK HACK
-                int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
-                int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
-                arr_yhi(i,j,k) = rho_interp * bdatyhi(ii2,jj2,k,bdy_comp);
+                if (bdatyhi) {
+                    int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                    int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                    arr_yhi(i,j,k) = rho_interp * bdatyhi(ii2,jj2,k,bdy_comp);
+                }
             });
         } // mfi
     } // ivar

@@ -30,14 +30,17 @@ moist_set_rhs (const Geometry& geom,
                Vector<Vector<FArrayBox>>& bdy_data_yhi,
                std::unique_ptr<ReadBndryPlanes>& m_r2d)
 {
-     // HACK HACK HACK
+    // HACK HACK HACK
     // Get bndry data
-    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
-    const auto& bdatxlo = (*bndry_data[0])[0].const_array();
-    const auto& bdatylo = (*bndry_data[1])[0].const_array();
-    const auto& bdatxhi = (*bndry_data[3])[0].const_array();
-    const auto& bdatyhi = (*bndry_data[4])[0].const_array();
     int bdy_comp = BCVars::RhoQ1_bc_comp;
+    Array4<Real> bdatxlo, bdatxhi, bdatylo, bdatyhi;
+    if (m_r2d) {
+        Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+        bdatxlo = (*bndry_data[0])[0].array();
+        bdatylo = (*bndry_data[1])[0].array();
+        bdatxhi = (*bndry_data[3])[0].array();
+        bdatyhi = (*bndry_data[4])[0].array();
+    }
 
     //
     // Note that time (= start_time+old_stage_time)  is measured as total time
@@ -164,7 +167,7 @@ moist_set_rhs (const Geometry& geom,
         }
 
         // HACK
-        arr_xlo(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatxlo(ii,jj,k,bdy_comp);
+        if (bdatxlo) {arr_xlo(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatxlo(ii,jj,k,bdy_comp); }
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -181,7 +184,7 @@ moist_set_rhs (const Geometry& geom,
         }
 
         // HACK
-        arr_xhi(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatxhi(ii,jj,k,bdy_comp);
+        if (bdatxhi) { arr_xhi(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatxhi(ii,jj,k,bdy_comp); }
     });
 
     ParallelFor(tbx_ylo, tbx_yhi,
@@ -194,7 +197,7 @@ moist_set_rhs (const Geometry& geom,
         v_ylo(i,j,k) = ( oma * bdatylo_n_v(ii,jj,k) + alpha * bdatylo_np1_v(ii,jj,k) );
 
         // HACK
-        arr_ylo(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatylo(ii,jj,k,bdy_comp);
+        if (bdatylo) {arr_ylo(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatylo(ii,jj,k,bdy_comp); }
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -207,7 +210,7 @@ moist_set_rhs (const Geometry& geom,
         v_yhi(i,j+1,k) = ( oma * bdatyhi_n_v(ii,jj+1,k) + alpha * bdatyhi_np1_v(ii,jj+1,k) );
 
         // HACK
-        arr_yhi(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatyhi(ii,jj,k,bdy_comp);
+        if (bdatyhi) { arr_yhi(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatyhi(ii,jj,k,bdy_comp); }
     });
 
 
