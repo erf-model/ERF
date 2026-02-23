@@ -13,22 +13,11 @@ amrex_probinit (
 
 Problem::Problem ()
 {
-  // Parse params
-  ParmParse pp("prob");
-  pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.T_0);
-  pp.query("U_0", parms.U_0);
-  pp.query("V_0", parms.V_0);
-  pp.query("W_0", parms.W_0);
+    ParmParse pp("prob");
+    Real rho_0 =   1.0; pp.query("rho_0", rho_0);
+    Real   T_0 = 300.0; pp.query("T_0", T_0);
 
-  pp.query("hmax", parms.hmax);
-  pp.query("L", parms.L);
-  pp.query("z_offset", parms.z_offset);
-
-  pp.query("dir", parms.dir);
-  pp.query("custom_terrain_type", parms.custom_terrain_type);
-
-  init_base_parms(parms.rho_0, parms.T_0);
+    init_base_parms(rho_0, T_0);
 }
 
 void
@@ -40,7 +29,7 @@ Problem::init_custom_pert (
     Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& /*z_cc*/,
-    GeometryData const& /*geomdata*/,
+    GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
     const SolverChoice& /*sc*/,
     const int /*lev*/)
@@ -62,16 +51,20 @@ Problem::init_custom_pert_vels (
     const SolverChoice& sc,
     const int /*lev*/)
 {
+    Real U_0 = 0.0;
+    Real V_0 = 0.0;
+
+    ParmParse pp("prob");
+    pp.query("U_0", U_0);
+    pp.query("V_0", V_0);
 
     // Set the x-velocity
-    auto U_0 = parms.U_0;
     ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         x_vel_pert(i, j, k) = U_0;
     });
 
     // Set the y-velocity
-    auto V_0 = parms.V_0;
     ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         y_vel_pert(i, j, k) = V_0;
@@ -79,9 +72,7 @@ Problem::init_custom_pert_vels (
 
     const auto dx = geomdata.CellSize();
     amrex::GpuArray<Real, AMREX_SPACEDIM> dxInv;
-    dxInv[0] = 1. / dx[0];
-    dxInv[1] = 1. / dx[1];
-    dxInv[2] = 1. / dx[2];
+    dxInv[0] = 1. / dx[0]; dxInv[1] = 1. / dx[1]; dxInv[2] = 1. / dx[2];
 
     // Set the z-velocity from impenetrable condition
     if (sc.terrain_type == TerrainType::StaticFittedMesh) {
@@ -90,11 +81,6 @@ Problem::init_custom_pert_vels (
             z_vel_pert(i, j, k) = WFromOmega(i, j, k, 0.0,
                                              x_vel_pert, y_vel_pert,
                                              mf_u, mf_v, z_nd, dxInv);
-        });
-    } else {
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            z_vel_pert(i, j, k) = 0.0;
         });
     }
 

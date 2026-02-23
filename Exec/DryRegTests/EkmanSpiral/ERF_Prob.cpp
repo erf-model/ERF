@@ -11,12 +11,12 @@ amrex_probinit( const amrex::Real* /*problo*/, const amrex::Real* /*probhi*/)
 
 Problem::Problem()
 {
-  // Parse params
-  ParmParse pp("prob");
-  pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.T_0);
+    ParmParse pp("prob");
 
-  init_base_parms(parms.rho_0, parms.T_0);
+    Real rho_0 =   1.0; pp.query("rho_0", rho_0);
+    Real   T_0 = 300.0; pp.query("T_0"  , T_0);
+
+    init_base_parms(rho_0, T_0);
 }
 
 void
@@ -61,6 +61,9 @@ Problem::init_custom_pert_vels (
     InitType init_type;
     pp.query_enum_case_insensitive("init_type",init_type);
 
+    ParmParse pp_prob("prob");
+    Real rho_0 =   1.0; pp_prob.query("rho_0", rho_0);
+
     if (init_type == InitType::Uniform)
     {
         Real rot_time_period;
@@ -69,7 +72,7 @@ Problem::init_custom_pert_vels (
 
         Real Az;
         pp.get("dynamic_viscosity", Az); // dynamic viscosity [kg-m/s]
-        Az = Az / parms.rho_0; // kinematic viscosity [m^2/s]
+        Az = Az / rho_0; // kinematic viscosity [m^2/s]
 
         Vector<Real> abl_geo_wind(3);
         pp.queryarr("abl_geo_wind",abl_geo_wind);

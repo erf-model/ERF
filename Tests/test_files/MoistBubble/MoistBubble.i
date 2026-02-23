@@ -44,7 +44,6 @@ erf.plot_vars_1     = density rhotheta rhoQ1 rhoQ2 rhoadv_0 x_velocity y_velocit
 
 # SOLVER CHOICES
 erf.use_gravity          = true
-erf.use_coriolis         = false
     
 erf.dycore_horiz_adv_type    = "Upwind_3rd"
 erf.dycore_vert_adv_type     = "Upwind_3rd"

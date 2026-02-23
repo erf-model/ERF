@@ -12,23 +12,14 @@ amrex_probinit (const amrex_real* problo,
     return std::make_unique<Problem>(problo, probhi);
 }
 
-Problem::Problem (const amrex::Real* problo,
-                  const amrex::Real* probhi)
+Problem::Problem (const Real* problo,
+                  const Real* probhi)
 {
-    // Parse params
     ParmParse pp("prob");
-    pp.query("rho_0", parms.rho_0);
-    pp.query("U_0", parms.U_0);
-    pp.query("U_0_Pert_Mag", parms.U_0_Pert_Mag);
-    pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
-    pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
-    pp.query("pert_ref_height", parms.pert_ref_height);
-    parms.aval = parms.pert_periods_U * 2.0 * PI / (probhi[1] - problo[1]);
-    parms.bval = parms.pert_periods_V * 2.0 * PI / (probhi[0] - problo[0]);
-    parms.ufac = parms.pert_deltaU * std::exp(0.5) / parms.pert_ref_height;
-    parms.vfac = parms.pert_deltaV * std::exp(0.5) / parms.pert_ref_height;
+    Real rho_0 = 1.2; pp.query("rho_0", rho_0);
+    Real T_0 = 300.0; pp.query("T_0", T_0);
 
-    init_base_parms(parms.rho_0, parms.T_0);
+    init_base_parms(rho_0, T_0);
 }
 
 void
@@ -62,10 +53,33 @@ Problem::init_custom_pert_vels (
     const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
+    ParmParse pp("prob");
+    Real U_0 = 0.0; pp.query("U_0", U_0);
+    Real V_0 = 0.0; pp.query("V_0", V_0);
+    Real U_0_Pert_Mag = 0.0; pp.query("U_0_Pert_Mag", U_0_Pert_Mag);
+    Real V_0_Pert_Mag = 0.0; pp.query("V_0_Pert_Mag", V_0_Pert_Mag);
+    Real W_0_Pert_Mag = 0.0; pp.query("W_0_Pert_Mag", W_0_Pert_Mag);
+    Real pert_deltaU = 0.0; pp.query("pert_deltaU", pert_deltaU);
+    Real pert_deltaV = 0.0; pp.query("pert_deltaV", pert_deltaV);
+    Real pert_periods_U  = 5.0; pp.query("pert_periods_U", pert_periods_U);
+    Real pert_periods_V  = 5.0; pp.query("pert_periods_V", pert_periods_V);;
+    Real pert_ref_height = 1.0; pp.query("pert_ref_height", pert_ref_height);
+
+    pp.query("pert_ref_height", pert_ref_height);
+
+    // Real aval = pert_periods_U * 2.0 * PI / (probhi[1] - problo[1]);
+    // Real ufac = pert_deltaU * std::exp(0.5) / pert_ref_height;
+
+    const Real* problo = geomdata.ProbLo();
+    const Real* probhi = geomdata.ProbHi();
+
+    Real bval = pert_periods_V * 2.0 * PI / (probhi[0] - problo[0]);
+    Real vfac = pert_deltaV * std::exp(0.5) / pert_ref_height;
+
     const bool use_terrain  = (SolverChoice::terrain_type != TerrainType::None);
 
     // Set the x-velocity
-    ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
@@ -74,16 +88,16 @@ Problem::init_custom_pert_vels (
             : prob_lo[2] + (k + 0.5) * dx[2];
 
         x_vel_pert(i, j, k) = 0.0;
-        if ((z <= parms_d.pert_ref_height) && (parms_d.U_0_Pert_Mag != 0.0))
+        if ((z <= pert_ref_height) && (U_0_Pert_Mag != 0.0))
         {
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-            Real x_vel_prime = (rand_double*2.0 - 1.0)*parms_d.U_0_Pert_Mag;
+            Real x_vel_prime = (rand_double*2.0 - 1.0)*U_0_Pert_Mag;
             x_vel_pert(i, j, k) += x_vel_prime;
         }
     });
 
     // Set the y-velocity
-    ParallelForRNG(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
@@ -94,18 +108,18 @@ Problem::init_custom_pert_vels (
 
         // Set the y-velocity
         y_vel_pert(i, j, k) = 0.0;
-        if ((z <= parms_d.pert_ref_height) && (parms_d.V_0_Pert_Mag != 0.0))
+        if ((z <= pert_ref_height) && (V_0_Pert_Mag != 0.0))
         {
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-            Real y_vel_prime = (rand_double*2.0 - 1.0)*parms_d.V_0_Pert_Mag;
+            Real y_vel_prime = (rand_double*2.0 - 1.0)*V_0_Pert_Mag;
             y_vel_pert(i, j, k) += y_vel_prime;
         }
-        if (parms_d.pert_deltaV != 0.0)
+        if (pert_deltaV != 0.0)
         {
-            const amrex::Real xl = x - prob_lo[0];
-            const amrex::Real zl = z / parms_d.pert_ref_height;
-            const amrex::Real damp = std::exp(-0.5 * zl * zl);
-            y_vel_pert(i, j, k) += parms_d.vfac * damp * z * std::cos(parms_d.bval * xl);
+            const Real xl = x - prob_lo[0];
+            const Real zl = z / pert_ref_height;
+            const Real damp = std::exp(-0.5 * zl * zl);
+            y_vel_pert(i, j, k) += vfac * damp * z * std::cos(bval * xl);
         }
     });
 
@@ -116,7 +130,7 @@ Problem::init_custom_pert_vels (
     dxInv[2] = 1. / dx[2];
 
     // Set the z-velocity from impenetrable condition
-    ParallelForRNG(zbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
         const int dom_lo_z = geomdata.Domain().smallEnd()[2];
         const int dom_hi_z = geomdata.Domain().bigEnd()[2];
@@ -126,10 +140,10 @@ Problem::init_custom_pert_vels (
         {
             z_vel_pert(i, j, k) = 0.0;
         }
-        else if (parms_d.W_0_Pert_Mag != 0.0)
+        else if (W_0_Pert_Mag != 0.0)
         {
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-            Real z_vel_prime = (rand_double*2.0 - 1.0)*parms_d.W_0_Pert_Mag;
+            Real z_vel_prime = (rand_double*2.0 - 1.0)*W_0_Pert_Mag;
             z_vel_pert(i, j, k) = z_vel_prime;
         }
     });

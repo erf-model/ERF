@@ -16,19 +16,10 @@ Problem::Problem()
 {
   // Parse params
   ParmParse pp("prob");
-  pp.query("T_0", parms.T_0);
-  pp.query("U_0", parms.U_0);
-  pp.query("x_c", parms.x_c);
-  pp.query("z_c", parms.z_c);
-  pp.query("x_r", parms.x_r);
-  pp.query("z_r", parms.z_r);
-  pp.query("T_pert", parms.T_pert);
+  Real T_0 = 300.0; pp.query("T_0", T_0);
+  Real rho_0 = 1.0; pp.query("rho_0", T_0);
 
-  pp.query("custom_terrain_type", parms.custom_terrain_type);
-
-  pp.query("dir", parms.dir);
-
-  init_base_parms(parms.rho_0, parms.T_0);
+  init_base_parms(rho_0, T_0);
 }
 
 void
@@ -45,11 +36,20 @@ Problem::init_custom_pert (
     const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
+  ParmParse pp("prob");
+  Real x_c =    0.0; pp.query("x_c", x_c);
+  Real z_c = 3000.0; pp.query("z_c", z_c);
+  Real x_r = 4000.0; pp.query("x_r", x_r);
+  Real z_r = 2000.0; pp.query("z_r", z_r);
+  Real T_pert = -15.0; pp.query("T_pert", T_pert);
+
+  // Overridden physical constants
+  Real C_p = 1004.0;
+
   const int khi = geomdata.Domain().bigEnd()[2];
 
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
-  const ProbParmCore& parms_d = parms;
   ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
@@ -62,14 +62,14 @@ Problem::init_custom_pert (
     const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
 
     Real L = std::sqrt(
-        std::pow((x - parms_d.x_c)/parms_d.x_r, 2) +
-        std::pow((z - parms_d.z_c)/parms_d.z_r, 2)
+        std::pow((x - x_c)/x_r, 2) +
+        std::pow((z - z_c)/z_r, 2)
     );
     if (L <= 1.0) {
-        Real dT = parms_d.T_pert * (std::cos(PI*L) + 1.0)/2.0;
+        Real dT = T_pert * (std::cos(PI*L) + 1.0)/2.0;
 
         // Note: dT is a temperature perturbation, theta_perturbed is base state + perturbation in theta
-        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/parms_d.C_p);
+        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/C_p);
 
         // This version perturbs rho but not p
         state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
@@ -93,22 +93,18 @@ Problem::init_custom_pert_vels (
     const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
+  ParmParse pp("prob");
+  Real U_0 = 0.0; pp.query("U_0",U_0);
+
   const int klo = geomdata.Domain().smallEnd()[2];
   const int khi = geomdata.Domain().bigEnd()[2];
 
   // Set the x-velocity
-  auto U_0 = parms.U_0;
   ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       Real ztop = z_nd(i,j,khi+1);
       Real zht  = z_nd(i,j,klo);
       x_vel_pert(i, j, k) = U_0 * ztop / (ztop - zht);
-  });
-
-  // Set the y-velocity
-  ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-      y_vel_pert(i, j, k) = 0.0;
   });
 
   const auto dx = geomdata.CellSize();

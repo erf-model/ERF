@@ -12,13 +12,11 @@ amrex_probinit(
 
 Problem::Problem(const Real* /*problo*/, const Real* /*probhi*/)
 {
-  // Parse params
-  ParmParse pp("prob");
+    ParmParse pp("prob");
+    Real rho_0 =   1.0; pp.query("rho_0", rho_0);
+    Real   T_0 = 300.0; pp.query("T_0"  , T_0);
 
-  pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.T_0);
-
-  init_base_parms(parms.rho_0, parms.T_0);
+    init_base_parms(rho_0, T_0);
 }
 
 void
@@ -52,15 +50,15 @@ Problem::init_custom_pert_vels (
     const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
-    Real u_0   = 0.0;
-    Real v_0   = 0.0;
-    Real w_0   = 0.0;
+    Real U_0   = 0.0;
+    Real V_0   = 0.0;
+    Real W_0   = 0.0;
 
     ParmParse pp("prob");
 
-    pp.query("u_0", u_0);
-    pp.query("v_0", v_0);
-    pp.query("w_0", w_0);
+    pp.query("U_0", U_0);
+    pp.query("V_0", V_0);
+    pp.query("W_0", W_0);
 
     int prob_type;
     pp.get("prob_type", prob_type);
@@ -92,18 +90,18 @@ Problem::init_custom_pert_vels (
             const auto *const prob_hi  = geomdata.ProbHi();
             const auto *const dx       = geomdata.CellSize();
             const Real z = (k + 0.5) * dx[2];
-            x_vel_pert(i, j, k) = u_0 * z / prob_hi[2];
+            x_vel_pert(i, j, k) = U_0 * z / prob_hi[2];
         });
 
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const auto *const prob_hi  = geomdata.ProbHi();
             const auto *const dx       = geomdata.CellSize();
             const Real z = (k + 0.5) * dx[2];
-            y_vel_pert(i, j, k) = v_0 * z / prob_hi[2];
+            y_vel_pert(i, j, k) = V_0 * z / prob_hi[2];
         });
 
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            z_vel_pert(i, j, k) = w_0;
+            z_vel_pert(i, j, k) = W_0;
         });
 
     // Poiseuille flow
@@ -158,7 +156,7 @@ Problem::init_custom_pert_vels (
             Real y_h = (prob_type == 20) ? 2.0 * (j + 0.5) * dx[1] / (prob_hi[1] - prob_lo[1]) - 1.0
                                                  : 2.0 * (z - prob_lo[2])  / (prob_hi[2] - prob_lo[2]) - 1.0;
 
-            x_vel_pert(i, j, k) = u_0 * (1.0 - y_h * y_h);
+            x_vel_pert(i, j, k) = U_0 * (1.0 - y_h * y_h);
 
             if (pert_delta_u != 0.0) {
                 const Real yl = (j + 0.5) * dx[1];

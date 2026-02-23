@@ -13,17 +13,11 @@ amrex_probinit(
 
 Problem::Problem()
 {
-  // Parse params
-  ParmParse pp("prob");
-  pp.query("T_0", parms.T_0);
-  pp.query("U_0", parms.U_0);
-  pp.query("x_c", parms.x_c);
-  pp.query("z_c", parms.z_c);
-  pp.query("x_r", parms.x_r);
-  pp.query("z_r", parms.z_r);
-  pp.query("T_pert", parms.T_pert);
+    ParmParse pp("prob");
+    Real rho_0 =   1.0; pp.query("rho_0", rho_0);
+    Real   T_0 = 300.0; pp.query("T_0", T_0);
 
-  init_base_parms(parms.rho_0, parms.T_0);
+    init_base_parms(rho_0, T_0);
 }
 
 void
@@ -40,15 +34,16 @@ Problem::init_custom_pert (
     const SolverChoice& sc,
     const int lev)
 {
+    // Parse params
+    ParmParse pp("prob");
+    Real x_c =      0.; pp.query("x_c", x_c);
+    Real z_c =   3000.; pp.query("z_c", z_c);
+    Real x_r =   4000.; pp.query("x_r", x_r);
+    Real z_r =   2000.; pp.query("z_r", z_r);
+    Real T_pert = -15.; pp.query("T_pert", T_pert);
+
     const bool const_rho    = (sc.fixed_density[lev] == 1);
 
-    const Real l_x_r = parms.x_r;
-    const Real l_x_c = parms.x_c;
-
-    const Real l_z_r = parms.z_r;
-    const Real l_z_c = parms.z_c;
-
-    const Real l_Tpt = parms.T_pert;
     const Real rdOcp = sc.rdOcp;
 
     if (z_cc) {
@@ -62,12 +57,12 @@ Problem::init_custom_pert (
         const Real z = z_cc(i,j,k);
 
         Real L = std::sqrt(
-            std::pow((x - l_x_c)/l_x_r, 2) +
-            std::pow((z - l_z_c)/l_z_r, 2));
+            std::pow((x - x_c)/x_r, 2) +
+            std::pow((z - z_c)/z_r, 2));
 
         if (L <= 1.0)
         {
-            Real dT = l_Tpt * (std::cos(PI*L) + 1.0)/2.0;
+            Real dT = T_pert * (std::cos(PI*L) + 1.0)/2.0;
             Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
 
             // Note: dT is a perturbation in temperature, theta_perturbed is base state + perturbation
@@ -92,11 +87,11 @@ Problem::init_custom_pert (
         const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
         Real L = std::sqrt(
-            std::pow((x - l_x_c)/l_x_r, 2) +
-            std::pow((z - l_z_c)/l_z_r, 2));
+            std::pow((x - x_c)/x_r, 2) +
+            std::pow((z - z_c)/z_r, 2));
         if (L <= 1.0)
         {
-            Real dT = l_Tpt * (std::cos(PI*L) + 1.0)/2.0;
+            Real dT = T_pert * (std::cos(PI*L) + 1.0)/2.0;
             Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
 
             // Note: dT is a perturbation in temperature, theta_perturbed is base state + perturbation
@@ -111,6 +106,7 @@ Problem::init_custom_pert (
         }
       });
     }
+
     amrex::Gpu::streamSynchronize();
 }
 
@@ -129,25 +125,20 @@ Problem::init_custom_pert_vels (
     const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
-  const Real u0 = parms.U_0;
+    ParmParse pp("prob");
+    Real U_0 = 0.; pp.query("U_0", U_0);
 
-  // Set the x-velocity
-  ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-      x_vel_pert(i, j, k) = u0;
-  });
+    // Set the x-velocity
+    ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        x_vel_pert(i, j, k) = U_0;
+    });
 
-  // Set the y-velocity
-  ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-      y_vel_pert(i, j, k) = 0.0;
-  });
+    // Set the y-velocity
+    ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        y_vel_pert(i, j, k) = 0.0;
+    });
 
-  // Set the z-velocity
-  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-      z_vel_pert(i, j, k) = 0.0;
-  });
-
-  amrex::Gpu::streamSynchronize();
+    amrex::Gpu::streamSynchronize();
 }

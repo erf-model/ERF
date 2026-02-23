@@ -3,13 +3,9 @@
 
 #include <string>
 
-#include <AMReX_REAL.H>
+#include "AMReX_REAL.H"
 
 #include "ERF_ProbCommon.H"
-
-struct ProbParm : ProbParmDefaults {
-  amrex::Real rho_0 = 1.2;
-}; // namespace ProbParm
 
 class Problem : public ProblemBase
 {
@@ -17,11 +13,7 @@ public:
     Problem();
 
 #include "Prob/ERF_InitDensityHSE.H"
-
-protected:
-
-private:
-    ProbParm parms;
+#include "Prob/ERF_InitCustomPert.H"
 };
 
 #endif
