@@ -236,7 +236,8 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
 #endif
         for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             // NOTE: Ghost cells needed for idx type mismatch between mask and data (do_upwind)
-            IntVect ng_vect(1,1,0);
+            IntVect ng_vect(0);
+            //IntVect ng_vect(1,1,0);
             Box gtbx = grow(mfi.tilebox(ixtype.toIntVect()),ng_vect);
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
             realbdy_interior_bxs_xy(gtbx, domain, width,
