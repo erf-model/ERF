@@ -874,7 +874,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
           time >= bndry_output_planes_start_time)
       {
          bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-         m_w2d->write_planes(istep[0], time, vars_new, is_moist);
+         m_w2d->write_planes(istep[0], time+start_time, vars_new, is_moist);
       }
     }
 
