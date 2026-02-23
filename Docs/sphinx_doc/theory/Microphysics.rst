@@ -390,7 +390,7 @@ where:
 Initialization from Condensate Density
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-An alternative initialization method (``initial_distribution_type = condensate_density``) allows super-droplet attributes to
+An alternative initialization method (``distribution_type = condensate_density``) allows super-droplet attributes to
 be set from a prescribed condensate mass density field. In this case, the multiplicity of each super-droplet is varied randomly
 around the mean value, and the mass per physical particle is computed to match the local condensate density. The radius is then
 determined from the mass assuming spherical water droplets.
@@ -722,7 +722,7 @@ All SDM parameters use the prefix ``super_droplets_moisture``:
    * - ``include_cold_processes``
      - ``true``
      - Enable/disable ice/snow/graupel formation (cold processes)
-   * - ``initial_distribution_type``
+   * - ``distribution_type``
      - ``uniform``
      - Initial distribution type (``uniform``, ``condensate_density``)
    * - ``radius_raindrop``
