@@ -147,6 +147,9 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
     // Get the radius inside the domain
     pp.query("in_rad",m_in_rad);
 
+    // Are we using real bcs?
+    pp.query("use_real_bcs", m_use_real_bcs);
+
     last_file_read = -1;
 
     m_tinterp = -1.;
@@ -398,6 +401,9 @@ void ReadBndryPlanes::read_file (const int idx,
           }
     }
 
+    // Expose for GPU
+    bool real_bcs = m_use_real_bcs;
+
     for (int ivar = 0; ivar < m_var_names.size(); ivar++)
     {
         std::string var_name = m_var_names[ivar];
@@ -478,10 +484,8 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real T2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
                              Real Th1 = getThgivenRandT(R1,T1,rdOcp);
                              Real Th2 = getThgivenRandT(R2,T2,rdOcp);
-                             bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
-
-                             // HACK
-                             bndry_mf_arr(i, j, k, 0) = bndry_read_arr(i, j, k, 0);
+                             bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
+                                                                     (0.5 * (R1*Th1 + R2*Th2);
                         });
                   } else if (var_name == "theta" || var_name == "ke" || var_name == "scalar" ||
                              var_name == "qv"    || var_name == "qc") {
@@ -489,22 +493,16 @@ void ReadBndryPlanes::read_file (const int idx,
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              Real R1 =  bndry_read_r_arr(i, j, k, 0);
                              Real R2 =  bndry_read_r_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
-                             bndry_mf_arr(i, j, k, 0) = 0.5 *
-                                  ( R1 * bndry_read_arr(i, j, k, 0) +
-                                    R2 * bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
-
-                             // HACK
-                             bndry_mf_arr(i, j, k, 0) = bndry_read_arr(i, j, k, 0);
+                             bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
+                                 0.5 * ( R1 * bndry_read_arr(i, j, k, 0) +
+                                         R2 * bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
                         });
                    } else if (var_name == "density") {
                     ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                             bndry_mf_arr(i, j, k, 0) = 0.5 *
-                                  ( bndry_read_arr(i, j, k, 0) +
-                                    bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
-
-                             // HACK
-                             bndry_mf_arr(i, j, k, 0) = bndry_read_arr(i, j, k, 0);
+                                bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
+                                    0.5 * ( bndry_read_arr(i, j, k, 0) +
+                                            bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
                         });
                    }
                 } else if (!ingested_density()) {
@@ -517,7 +515,8 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real T2  = bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0);
                              Real Th1 = getThgivenRandT(R1,T1,rdOcp);
                              Real Th2 = getThgivenRandT(R2,T2,rdOcp);
-                             bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
+                             bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
+                                                                     0.5 * (R1*Th1 + R2*Th2);
                         });
                   } else if (var_name == "theta" || var_name == "ke" || var_name == "scalar" ||
                              var_name == "qv"    || var_name == "qc") {
@@ -525,9 +524,9 @@ void ReadBndryPlanes::read_file (const int idx,
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              Real R1  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
                              Real R2  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
-                             bndry_mf_arr(i, j, k, 0) = 0.5 *
-                                (R1 * bndry_read_arr(i, j, k, 0) +
-                                 R2 * bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
+                             bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
+                                0.5 * (R1 * bndry_read_arr(i, j, k, 0) +
+                                       R2 * bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
                         });
                   }
                 }
@@ -536,12 +535,9 @@ void ReadBndryPlanes::read_file (const int idx,
                 if (var_name == "velocity") {
                     ParallelFor(
                         bx, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-                                bndry_mf_arr(i, j, k, n) = 0.5 *
-                                  (bndry_read_arr(i, j, k, n) +
-                                   bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], n));
-
-                                // HACK
-                                bndry_mf_arr(i, j, k, n) = bndry_read_arr(i, j, k, n);
+                                bndry_mf_arr(i, j, k, n) = (real_bcs) ? bndry_read_arr(i, j, k, n) :
+                                  0.5 * (bndry_read_arr(i, j, k, n) +
+                                         bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], n));
                         });
                 }
 
