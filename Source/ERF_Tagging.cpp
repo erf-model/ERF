@@ -347,12 +347,13 @@ ERF::refinement_criteria_setup ()
             // Problem low and high (in real not index space) are the same at all levels
             const Real* plo = geom[0].ProbLo();
             const Real* phi = geom[0].ProbHi();
-
             if ( !((num_real_lo >= AMREX_SPACEDIM-1 && num_indx_lo == 0 && num_indx_lo_wrf == 0) ||
                    (num_indx_lo >= AMREX_SPACEDIM-1 && num_real_lo == 0 && num_indx_lo_wrf == 0) ||
-                   (num_indx_lo ==              0   && num_real_lo == 0 && num_indx_lo_wrf == 0)) )
+                   (num_indx_lo ==              0   && num_real_lo == 0 && num_indx_lo_wrf == 0) ||
+                   (num_indx_lo_wrf >= AMREX_SPACEDIM-1 && num_real_lo == 0 && num_indx_lo == 0)
+                ) )
             {
-                amrex::Abort("Must only specify box for refinement using real OR index space OR WRF style coarse grid indices, and the number of low and high coordinates must match");
+                amrex::Abort("Must only specify box for refinement using real OR index space OR WRF style coarse grid indices");
             }
 
             if (num_real_lo > 0) {
