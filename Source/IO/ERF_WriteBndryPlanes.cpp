@@ -56,6 +56,9 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
 {
     ParmParse pp("erf");
 
+    // Get the radius inside the domain
+    pp.query("in_rad",m_in_rad);
+
     // User-specified region is given in physical coordinates, not index space
     std::vector<Real> box_lo(3), box_hi(3);
     pp.getarr("bndry_output_box_lo",box_lo,0,2);
@@ -64,8 +67,8 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
     // If the target area is contained at a finer level, use the finest data possible
     for (int ilev = 0; ilev < grids.size(); ilev++) {
 
-        const Real* xLo = m_geom[ilev].ProbLo();
-        auto const dxi  = geom[ilev].InvCellSizeArray();
+        const Real* xLo   = m_geom[ilev].ProbLo();
+        auto const dxi    = geom[ilev].InvCellSizeArray();
         const Box& domain = m_geom[ilev].Domain();
 
         // We create the smallest box that contains all of the cell centers

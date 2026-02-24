@@ -63,8 +63,8 @@ void ReadBndryPlanes::define_level_data (int /*lev*/)
             IntVect plo(lo);
             IntVect phi(hi);
             const int normal = ori.coordDir();
-            plo[normal] = ori.isHigh() ? hi[normal] - 4 : -1;
-            phi[normal] = ori.isHigh() ? hi[normal] + 1 :  4;
+            plo[normal] = ori.isHigh() ? hi[normal] - (m_in_rad - 1) : -m_out_rad;
+            phi[normal] = ori.isHigh() ? hi[normal] + (m_out_rad   )  :(m_in_rad - 1);
             const Box pbx(plo, phi);
             m_data_n[ori]->push_back(FArrayBox(pbx, ncomp));
             m_data_np1[ori]->push_back(FArrayBox(pbx, ncomp));
@@ -143,6 +143,9 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
     m_rdOcp(rdOcp_in)
 {
     ParmParse pp("erf");
+
+    // Get the radius inside the domain
+    pp.query("in_rad",m_in_rad);
 
     last_file_read = -1;
 

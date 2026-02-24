@@ -85,7 +85,7 @@ private:
     amrex::Vector<std::string> m_var_names;
 
     //! controls extents on native bndry output
-    const int m_in_rad  = 5;
+    const int m_in_rad  = 1;
     const int m_out_rad = 1;
     const int m_extent_rad = 0;
 
