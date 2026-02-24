@@ -139,6 +139,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool do_upwind        = solverChoice.upwind_real_bcs;
     const bool l_do_scalar      = (solverChoice.transport_scalar);
     amrex::ignore_unused(do_upwind);
+    amrex::ignore_unused(m_r2d);
 
     const Box& domain = geom.Domain();
 
