@@ -8,32 +8,33 @@ using namespace amrex;
 
 int main (int argc, char* argv[])
 {
-    amrex::Initialize(argc, argv);
+    Initialize(argc, argv);
 
     {
-        amrex::MultiFab mf;
+        MultiFab mf_coarse;
+        MultiFab mf_fine;
 
-        PlotFileData pf("plt000000");
+        PlotFileData pf_coarse("plotfile_coarse");
 
-        ReadPlotFile("vars.txt", pf, mf);
+        ReadPlotFile("vars.txt", pf_coarse, mf_coarse);
 
-        amrex::Print() << "MultiFab has "
-                       << mf.nComp() << " components\n";
+        PlotFileData pf_fine("plotfile_fine");
+        ReadPlotFile("vars.txt", pf_fine, mf_fine);
 
         Array<int,AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0,0,0)};
 
-        Geometry geom(pf.probDomain(0),
-              RealBox(pf.probLo(), pf.probHi()),
-              pf.coordSys(),
+        Geometry geom_coarse(pf_coarse.probDomain(0),
+              RealBox(pf_coarse.probLo(), pf_coarse.probHi()),
+              pf_coarse.coordSys(),
               is_periodic);
 
         // Read variable names
         Vector<std::string> varnames = ReadVarNames("vars.txt");
 
         // Write plotfile
-        WriteSingleLevelPlotfile("plt_new", mf, varnames, geom, 0.0, 0);
+        WriteSingleLevelPlotfile("plt_new", mf_coarse, varnames, geom_coarse, 0.0, 0);
 
     }
-    amrex::Finalize();
+    Finalize();
 }
 
