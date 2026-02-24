@@ -293,14 +293,14 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-                arr_xlo(i,j,k) = rho_interp * ( oma   * bdatxlo_n  (ii,jj,k,0)
-                                              + alpha * bdatxlo_np1(ii,jj,k,0) );
 
-                // HACK HACK HACK
                 if (bdatxlo) {
                     int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
                     int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
                     arr_xlo(i,j,k) = rho_interp * bdatxlo(ii2,jj2,k,bdy_comp);
+                } else {
+                    arr_xlo(i,j,k) = rho_interp * ( oma   * bdatxlo_n  (ii,jj,k,0)
+                                                  + alpha * bdatxlo_np1(ii,jj,k,0) );
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -318,14 +318,14 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-                arr_xhi(i,j,k) = rho_interp * ( oma   * bdatxhi_n  (ii,jj,k,0)
-                                              + alpha * bdatxhi_np1(ii,jj,k,0) );
 
-                // HACK HACK HACK
                 if (bdatxhi) {
                     int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
                     int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
                     arr_xhi(i,j,k) = rho_interp * bdatxhi(ii2,jj2,k,bdy_comp);
+                } else {
+                    arr_xhi(i,j,k) = rho_interp * ( oma   * bdatxhi_n  (ii,jj,k,0)
+                                                  + alpha * bdatxhi_np1(ii,jj,k,0) );
                 }
             });
 
@@ -345,14 +345,14 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-                arr_ylo(i,j,k) = rho_interp * ( oma  * bdatylo_n  (ii,jj,k,0)
-                                             + alpha * bdatylo_np1(ii,jj,k,0) );
 
-                // HACK HACK HACK
                 if (bdatylo) {
                     int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
                     int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
                     arr_ylo(i,j,k) = rho_interp * bdatylo(ii2,jj2,k,bdy_comp);
+                } else {
+                    arr_ylo(i,j,k) = rho_interp * ( oma  * bdatylo_n  (ii,jj,k,0)
+                                                  + alpha * bdatylo_np1(ii,jj,k,0) );
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -370,14 +370,14 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-                arr_yhi(i,j,k) = rho_interp * ( oma   * bdatyhi_n  (ii,jj,k,0)
-                                              + alpha * bdatyhi_np1(ii,jj,k,0) );
 
-                // HACK HACK HACK
                 if (bdatyhi) {
                     int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
                     int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
                     arr_yhi(i,j,k) = rho_interp * bdatyhi(ii2,jj2,k,bdy_comp);
+                } else {
+                    arr_yhi(i,j,k) = rho_interp * ( oma   * bdatyhi_n  (ii,jj,k,0)
+                                                  + alpha * bdatyhi_np1(ii,jj,k,0) );
                 }
             });
         } // mfi

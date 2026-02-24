@@ -485,7 +485,7 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real Th1 = getThgivenRandT(R1,T1,rdOcp);
                              Real Th2 = getThgivenRandT(R2,T2,rdOcp);
                              bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
-                                                                     (0.5 * (R1*Th1 + R2*Th2);
+                                                                     0.5 * (R1*Th1 + R2*Th2);
                         });
                   } else if (var_name == "theta" || var_name == "ke" || var_name == "scalar" ||
                              var_name == "qv"    || var_name == "qc") {

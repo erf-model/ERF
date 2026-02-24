@@ -157,24 +157,23 @@ moist_set_rhs (const Geometry& geom,
     {
         int ii = std::min(std::max(i , dom_lo.x), dom_lo.x+offset);
         int jj = std::min(std::max(j , dom_lo.y), dom_hi.y       );
-        arr_xlo(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxlo_n  (ii,jj,k)
-                                                    + alpha * bdatxlo_np1(ii,jj,k) );
+        arr_xlo(i,j,k) = (bdatxlo) ? new_cons(i,j,k,Rho_comp) * bdatxlo(ii,jj,k,bdy_comp) :
+            new_cons(i,j,k,Rho_comp) * ( oma   * bdatxlo_n  (ii,jj,k)
+                                       + alpha * bdatxlo_np1(ii,jj,k) );
         u_xlo(i,j,k) = ( oma * bdatxlo_n_u(ii,jj,k) + alpha * bdatxlo_np1_u(ii,jj,k) );
         v_xlo(i,j,k) = ( oma * bdatxlo_n_v(ii,jj,k) + alpha * bdatxlo_np1_v(ii,jj,k) );
         if (j == dom_hi.y) {
             v_xlo(i,dom_hi.y+1,k) = ( oma   * bdatxlo_n_v  (ii,dom_hi.y+1,k)
                                     + alpha * bdatxlo_np1_v(ii,dom_hi.y+1,k) );
         }
-
-        // HACK
-        if (bdatxlo) {arr_xlo(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatxlo(ii,jj,k,bdy_comp); }
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         int ii = std::min(std::max(i , dom_hi.x-offset), dom_hi.x);
         int jj = std::min(std::max(j , dom_lo.y       ), dom_hi.y);
-        arr_xhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
-                                                    + alpha * bdatxhi_np1(ii,jj,k) );
+        arr_xhi(i,j,k) = (bdatxhi) ? new_cons(i,j,k,Rho_comp) * bdatxhi(ii,jj,k,bdy_comp) :
+            new_cons(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
+                                       + alpha * bdatxhi_np1(ii,jj,k) );
         // NOTE: correct for idx type mismatch with u bdy data
         u_xhi(i+1,j,k) = ( oma * bdatxhi_n_u(ii+1,jj,k) + alpha * bdatxhi_np1_u(ii+1,jj,k) );
         v_xhi(i  ,j,k) = ( oma * bdatxhi_n_v(ii  ,jj,k) + alpha * bdatxhi_np1_v(ii,jj,k) );
@@ -182,9 +181,6 @@ moist_set_rhs (const Geometry& geom,
             v_xhi(i,dom_hi.y+1,k) = ( oma   * bdatxhi_n_v  (ii,dom_hi.y+1,k)
                                     + alpha * bdatxhi_np1_v(ii,dom_hi.y+1,k) );
         }
-
-        // HACK
-        if (bdatxhi) { arr_xhi(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatxhi(ii,jj,k,bdy_comp); }
     });
 
     ParallelFor(tbx_ylo, tbx_yhi,
@@ -192,25 +188,21 @@ moist_set_rhs (const Geometry& geom,
     {
         int ii = std::min(std::max(i , dom_lo.x), dom_hi.x       );
         int jj = std::min(std::max(j , dom_lo.y), dom_lo.y+offset);
-        arr_ylo(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatylo_n  (ii,jj,k)
-                                                    + alpha * bdatylo_np1(ii,jj,k) );
+        arr_ylo(i,j,k) = (bdatylo) ? new_cons(i,j,k,Rho_comp) * bdatylo(ii,jj,k,bdy_comp) :
+            new_cons(i,j,k,Rho_comp) * ( oma   * bdatylo_n  (ii,jj,k)
+                                       + alpha * bdatylo_np1(ii,jj,k) );
         v_ylo(i,j,k) = ( oma * bdatylo_n_v(ii,jj,k) + alpha * bdatylo_np1_v(ii,jj,k) );
-
-        // HACK
-        if (bdatylo) {arr_ylo(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatylo(ii,jj,k,bdy_comp); }
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         int ii = std::min(std::max(i , dom_lo.x       ), dom_hi.x);
         int jj = std::min(std::max(j , dom_hi.y-offset), dom_hi.y);
             jj = std::min(jj, dom_hi.y);
-        arr_yhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
-                                                    + alpha * bdatyhi_np1(ii,jj,k) );
+            arr_yhi(i,j,k) = (bdatyhi) ? new_cons(i,j,k,Rho_comp) * bdatyhi(ii,jj,k,bdy_comp) :
+                new_cons(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
+                                           + alpha * bdatyhi_np1(ii,jj,k) );
         // NOTE: correct for idx type mismatch with v bdy data
         v_yhi(i,j+1,k) = ( oma * bdatyhi_n_v(ii,jj+1,k) + alpha * bdatyhi_np1_v(ii,jj+1,k) );
-
-        // HACK
-        if (bdatyhi) { arr_yhi(i,j,k) = new_cons(i,j,k,Rho_comp) * bdatyhi(ii,jj,k,bdy_comp); }
     });
 
 
