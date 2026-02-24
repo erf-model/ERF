@@ -20,4 +20,20 @@ void ReadPlotFile(const std::string& var_filename,
                   amrex::PlotFileData& pf,
                   amrex::MultiFab& mf);
 
+void
+GetCoarseMultiFabOnFineDMap(const amrex::Geometry& geom_coarse,
+                            const amrex::Geometry& geom_fine,
+                            const amrex::MultiFab& multifab_coarse,
+                            const amrex::MultiFab& multifab_fine,
+                            amrex::MultiFab& coarse_multifab_on_fine_dmap);
+
+void
+CreateNodalMultiFabFromCellCenteredMultiFab (amrex::MultiFab& mf_nc,      // output nodal MF
+                    amrex::MultiFab& mf_cc,      // input cell-centered MF (coarse)
+                    const amrex::Geometry& geom);
+
+void
+CreateCellCenteredMultiFabFromNodalMultiFab(amrex::MultiFab& tmp_cc,   // cell-centered output
+                                            amrex::MultiFab& mf_nc);   // node-centered input
+
 #endif

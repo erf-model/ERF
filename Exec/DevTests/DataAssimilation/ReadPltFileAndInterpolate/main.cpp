@@ -11,15 +11,19 @@ int main (int argc, char* argv[])
     Initialize(argc, argv);
 
     {
-        MultiFab mf_coarse;
-        MultiFab mf_fine;
+        MultiFab mf_cc_coarse;
+        MultiFab mf_cc_fine;
 
-        PlotFileData pf_coarse("plotfile_coarse");
+        PlotFileData pf_coarse("plt_coarse");
 
-        ReadPlotFile("vars.txt", pf_coarse, mf_coarse);
+        ReadPlotFile("vars.txt", pf_coarse, mf_cc_coarse);
 
-        PlotFileData pf_fine("plotfile_fine");
-        ReadPlotFile("vars.txt", pf_fine, mf_fine);
+        PlotFileData pf_fine("plt_fine");
+
+        // Read variable names
+        Vector<std::string> varnames = ReadVarNames("vars.txt");
+
+        ReadPlotFile("vars.txt", pf_fine, mf_cc_fine);
 
         Array<int,AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0,0,0)};
 
@@ -28,11 +32,27 @@ int main (int argc, char* argv[])
               pf_coarse.coordSys(),
               is_periodic);
 
-        // Read variable names
-        Vector<std::string> varnames = ReadVarNames("vars.txt");
+        Geometry geom_fine(pf_fine.probDomain(0),
+              RealBox(pf_fine.probLo(), pf_fine.probHi()),
+              pf_fine.coordSys(),
+              is_periodic);
+
+        MultiFab mf_nc_coarse;
+        CreateNodalMultiFabFromCellCenteredMultiFab(mf_nc_coarse, mf_cc_coarse, geom_coarse);
+
+        MultiFab mf_cc_tmp;
+        CreateCellCenteredMultiFabFromNodalMultiFab(mf_cc_tmp, mf_nc_coarse);
+        WriteSingleLevelPlotfile("plt_1", mf_cc_tmp, varnames, geom_coarse, 0.0, 0);
+
+        MultiFab coarse_multifab_on_fine_dmap;
+        GetCoarseMultiFabOnFineDMap(geom_coarse, geom_fine, 
+                                    mf_nc_coarse, mf_cc_fine,
+                                    coarse_multifab_on_fine_dmap);
+
+        CreateCellCenteredMultiFabFromNodalMultiFab(mf_cc_tmp, coarse_multifab_on_fine_dmap);
 
         // Write plotfile
-        WriteSingleLevelPlotfile("plt_new", mf_coarse, varnames, geom_coarse, 0.0, 0);
+        WriteSingleLevelPlotfile("plt_2", mf_cc_tmp, varnames, geom_coarse, 0.0, 0);
 
     }
     Finalize();
