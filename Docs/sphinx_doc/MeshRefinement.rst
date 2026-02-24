@@ -99,10 +99,9 @@ factor 2 refinement, and the domain has 32x64x8 cells at level 0 covering the do
           erf.box1.max_level = 1
 
 There is also an option to specify the indices of the bounding box of the refined region in the index space of the coarser level, using
-``in_box_lo_indices_wrf`` and ``in_box_hi_indices_wrf``.  This is useful when the user has a particular region in mind that they want to refine,
+``in_box_lo_indices_crse`` and ``in_box_hi_indices_crse``.  This is useful when the user has a particular region in mind that they want to refine,
 and they know the indices of that region on the coarser level but not on the finer level.  In this case, the code will automatically adjust the
-indices to create a valid box at the finer level.  The same error messages will be generated if the specified indices cannot be adjusted to
-create a valid box at the finer level.
+indices to create a valid box at the finer level.
 
 ::
 
@@ -111,12 +110,13 @@ create a valid box at the finer level.
 
           erf.refinement_indicators = box1
 
-          erf.box1.in_box_lo_indices_wrf = 16 32  4
-          erf.box1.in_box_hi_indices_wrf = 47 95 11
+          erf.box1.in_box_lo_indices_crse = 16 32  4
+          erf.box1.in_box_hi_indices_crse = 47 95 11
           erf.box1.max_level = 1
 
 
-The lo_indices/lo_indices_wrf should be divisible by the refinement ratio, and the hi_indices/hi_indices_wrf should be one less than a number divisible by the refinement ratio.
+The lo_indices should be divisible by the refinement ratio, and the hi_indices should be one less than a number divisible by the refinement ratio.
+There are no such requirements for the coarse level indices, since the code will adjust them as needed to create a valid box at the finer level.
 The PBL models compute the height of the boundary layer and require that each box goes from the bottom of the domain to the top of the domain.
 The lo/hi indices in the vertical direction should therefore be 0 and (number of cells in z direction - 1) respectively,
 and the number of cells in the z direction should be divisible by the refinement ratio in the vertical direction.
