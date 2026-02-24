@@ -1380,7 +1380,6 @@ ERF::InitData_post ()
         }
     }
 
-    print_state(vars_new[0][Vars::cons], IntVect(10,0,0));
 
     // We don't need to recompute dt[lev] on restart because we read it in from the checkpoint file.
     if (restart_chkfile.empty()) {
