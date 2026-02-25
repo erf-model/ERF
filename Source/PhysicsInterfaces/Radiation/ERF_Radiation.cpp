@@ -506,9 +506,17 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             Real r_lo   = cons_arr(i,j,k-1,Rho_comp);
             Real rt_lo  = cons_arr(i,j,k-1,RhoTheta_comp);
             Real qv_lo  = (moist) ? cons_arr(i,j,k-1,RhoQ1_comp)/r_lo : 0.0;
-            Real r_avg  = 0.5 * (r  + r_lo);
-            Real rt_avg = 0.5 * (rt + rt_lo);
-            Real qv_avg = 0.5 * (qv + qv_lo);
+            Real dz_k   = (z_arr) ? 0.125 * ( (z_arr(i  ,j  ,k+1) - z_arr(i  ,j  ,k))
+                                            + (z_arr(i+1,j  ,k+1) - z_arr(i+1,j  ,k))
+                                            + (z_arr(i  ,j+1,k+1) - z_arr(i  ,j+1,k))
+                                              + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : 0.5*dz; // Dist from w-face to CC at k
+            Real dz_km1 = (z_arr) ? 0.125 * ( (z_arr(i  ,j  ,k  ) - z_arr(i  ,j  ,k-1))
+                                            + (z_arr(i+1,j  ,k  ) - z_arr(i+1,j  ,k-1))
+                                            + (z_arr(i  ,j+1,k  ) - z_arr(i  ,j+1,k-1))
+                                            + (z_arr(i+1,j+1,k  ) - z_arr(i+1,j+1,k-1)) ) : 0.5*dz; // Dist from w-face to CC at k-1
+            Real r_avg  = (dz_k*r  + dz_km1*r_lo ) / (dz_k + dz_km1);
+            Real rt_avg = (dz_k*rt + dz_km1*rt_lo) / (dz_k + dz_km1);
+            Real qv_avg = (dz_k*qv + dz_km1*qv_lo) / (dz_k + dz_km1);
 
             // Views at CC
             r_lay_tab(icol,ilay) = r;
