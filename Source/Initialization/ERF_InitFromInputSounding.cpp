@@ -31,7 +31,8 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                                          const Real& l_rdOcp,
                                          const bool& l_moist,
                                          InputSoundingData const &inputSoundingData,
-                                         const bool& l_isentropic);
+                                         const bool& l_isentropic,
+                                         const int& ngz);
 
 void
 init_bx_velocities_from_input_sounding (const Box &bx,
