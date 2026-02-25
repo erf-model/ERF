@@ -1797,11 +1797,11 @@ SLM::AdvanceSLM ()
         auto LAI_arr = LAI.const_array(mfi);
         auto precip_extinc_arr = precip_extinc.const_array(mfi);
 
-        auto mw_arr = mw.const_array(mfi);
+        auto mw_arr = mw.array(mfi);
         auto mws_arr = mws.const_array(mfi);
         auto mw_mx_arr = mw_mx.const_array(mfi);
 
-        auto mw_inc_arr = mw_inc.const_array(mfi);
+        auto mw_inc_arr = mw_inc.array(mfi);
 
         auto t_cas_arr = t_cas.array(mfi);
         auto q_cas_arr = q_cas.array(mfi);
@@ -1862,7 +1862,7 @@ SLM::AdvanceSLM ()
         auto flbv_arr  = lsm_fab_vars[LsmVar_SLM::flbv]->array(mfi);
         auto flbq_arr  = lsm_fab_vars[LsmVar_SLM::flbq]->array(mfi);
         auto flbt_arr  = lsm_fab_vars[LsmVar_SLM::flbt]->array(mfi);
-        auto prsfc_arr  = lsm_fab_vars[LsmVar_SLM::prsfc]->const_array(mfi);
+        auto prsfc_arr  = lsm_fab_vars[LsmVar_SLM::prsfc]->array(mfi);
 
         auto net_rad_arr = net_rad.const_array(mfi);
         auto wet_canop_arr = wet_canop.const_array(mfi);
@@ -2340,7 +2340,7 @@ void SLM::transfer_coeff(const amrex::MFIter &mfi)
     auto Bconst_arr = lsm_fab_vars[LsmVar_SLM::Bconst]->const_array(mfi);
 
     auto ustar_arr = lsm_fab_vars[LsmVar_SLM::ustar]->array(mfi);
-    auto tstar_arr = lsm_fab_vars[LsmVar_SLM::tstar]->const_array(mfi);
+    auto tstar_arr = lsm_fab_vars[LsmVar_SLM::tstar]->array(mfi);
 
     auto tref_arr  = lsm_fab_vars[LsmVar_SLM::tref]->const_array(mfi);
     auto ur_arr  = lsm_fab_vars[LsmVar_SLM::uref]->const_array(mfi);
@@ -2776,7 +2776,7 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
 
     auto precip_array  = lsm_fab_vars[LsmVar_SLM::precipref]->const_array(mfi);
 
-    auto mw_arr = mw.const_array(mfi);
+    auto mw_arr = mw.array(mfi);
     auto mw_mx_arr = mw_mx.const_array(mfi);
     auto mw_inc_arr = mw_inc.array(mfi);
     auto mws_arr = mws.const_array(mfi);
@@ -2789,7 +2789,7 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
     auto Bconst_arr = lsm_fab_vars[LsmVar_SLM::Bconst]->const_array(mfi);
     auto rootF_arr = lsm_fab_vars[LsmVar_SLM::rootF]->const_array(mfi);
     auto w_s_FC_arr = lsm_fab_vars[LsmVar_SLM::w_s_FC]->const_array(mfi);
-    auto t_canop_arr = t_canop.const_array(mfi);
+    auto t_canop_arr = t_canop.array(mfi);
 
     auto r_a_arr = r_a.const_array(mfi);
     auto r_b_arr = r_b.const_array(mfi);
@@ -2804,7 +2804,7 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
     
 	auto net_rad_arr = net_rad.const_array(mfi);
         
-	auto prsfc_arr  = lsm_fab_vars[LsmVar_SLM::prsfc]->const_array(mfi);
+	auto prsfc_arr  = lsm_fab_vars[LsmVar_SLM::prsfc]->array(mfi);
 
     ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int)
     {
@@ -3332,7 +3332,7 @@ void SLM::soil_water(const amrex::MFIter &mfi)
 			{ 
 			    drain = 0.;
 			}
-			slm_diag_arr(i, j, 0, SLM_Diag::drain) = drain
+			slm_diag_arr(i, j, 0, SLM_Diag::drain) = drain;
 
         }
     });
@@ -3367,7 +3367,7 @@ void SLM::soil_temperature(const amrex::MFIter &mfi)
 
     auto dst_vars = soilt_vars.array(mfi);
         
-	auto mws_arr = mws.const_array(mfi);
+	auto mws_arr = mws.array(mfi);
 
     // TODO: Refactor this whole loop for GPU
     ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int)
