@@ -653,12 +653,7 @@ void erf_substep_T (int step, int /*nrk*/,
             cur_zmom(i,j,k) = stage_zmom(i,j,k);
         });
 
-        if (lo.z == domlo.z) {
-            tbz.setSmall(2,domlo.z+1);
-        }
-        if (hi.z == domhi.z) {
-            tbz.setBig(2,domhi.z);
-        }
+
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),
