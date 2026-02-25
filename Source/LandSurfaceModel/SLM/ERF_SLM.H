@@ -138,6 +138,7 @@ namespace SLM_Diag {
      drain,
      drain_flux,
      evapo_wet,
+	 evapo_dry,
      grflux,
      NumVars
    };
@@ -535,7 +536,9 @@ public:
 
     void resistances(const amrex::MFIter &mfi);
 
-    void vapor_fluxes(const amrex::MFIter &mfi);
+    void fluxes_canopy(const amrex::MFIter &mfi);
+    
+	void fluxes_soil(const amrex::MFIter &mfi);
 
     void soil_water(const amrex::MFIter &mfi);
 
@@ -663,7 +666,8 @@ private:
 
     amrex::Real tabs_s = 0.0; // surface temperature (K)
     amrex::Real t00 = 300.0; // constant offset for sstxy
-    
+    amrex::Real t_canop_max = 343.; // maximum plant temperature
+
     bool use_terrain = false;
 
     //   TODO: implement reading these input files
@@ -686,32 +690,37 @@ private:
 
     static constexpr amrex::Real cp = 1004.0; // specific heat of air [J/kg/K]
     static constexpr amrex::Real cp_water = 4.1796e6; // heat capacity of water [J/m^3K]
-
-    static constexpr amrex::Real sigma = 5.67e-8; // Stefen-Boltzmann constant [W/m^2/K^4]
+    static constexpr amrex::Real leaf_thickness = 1.; // typical leaf thickness (mm) - used for heat capacity 
+    
+	static constexpr amrex::Real sigma = 5.67e-8; // Stefen-Boltzmann constant [W/m^2/K^4]
 
     // parameters for stomatal resistance
     amrex::Real Rc_max = 5000.0; // maximum stomatal resistance
     amrex::Real T_opt = 298.0; // optimum temperature for transpiration
-
+    amrex::Real sdew = 0.;
     amrex::Real zref = 0.5; // height of reference level (m), used in transer coef
     amrex::MultiFab zrefxy;
 
-    // Model variables
+    amrex::Real IR_emis_urban = 0.9;
+
+	// Model variables
     //   NOTE: these MultiFabs are defined over the grid only in X and Y (no Z component)
     amrex::MultiFab t_canop; // canopy leaf temperature
     amrex::MultiFab mw; // water storage on leaves, kg/m^2 = mm of water
     amrex::MultiFab mws; // water storage in puddle, kg/m^2 = mm of water
     amrex::MultiFab t_skin; // skin temperature, surface level viewed from atmosphere
-
+    amrex::MultiFab t_sfc; // 'surface' level temperature. for vegetated, t_sfc = t_cas, for non-vegetated = t_sfc=top soil t
+	amrex::MultiFab q_sfc; // 'surface' level specific humidity, for vegetated, q_sfc = q_cas, for non-vegetated = top soil specific humidity 
     amrex::MultiFab t_cas; // canopy air space temperature
     amrex::MultiFab q_cas; // canopy air space specific humidity
+    
+	amrex::MultiFab q_gr; // soil pore space specific humidity
 
     // TODO: placeholder landmask array - should probably use the one defined by ERF
     amrex::iMultiFab landmask;
     amrex::iMultiFab landtype; // IGBP landtype (1 to 16)
     amrex::MultiFab LAI; // leaf area index
     amrex::MultiFab SAI; // stem area index
-
     amrex::MultiFab sstxy;
 
     // Vegetation parameter lists
@@ -724,6 +733,7 @@ private:
     amrex::MultiFab phi_2;
     amrex::MultiFab IR_emis_vege; // vegetation emissivity for infrared radiation
     amrex::MultiFab IR_emis_soil; // soil emissivity for infrared radiation
+    amrex::MultiFab IR_emis_grnd; // ground emissivity for infrared radiation
     amrex::MultiFab ztop; // height of vegetation
     amrex::MultiFab disp_hgt; // displacement height
     amrex::MultiFab Rgl; // parameter for stomatal resistance
@@ -733,9 +743,11 @@ private:
     amrex::MultiFab root_a; // coef a for root density
     amrex::MultiFab root_b; // coef b for root density
     amrex::MultiFab precip_extinc; // precipitation extinction coef
+    amrex::MultiFab precip_sfc; // precipitation reaching to soil top through canopy
     amrex::MultiFab mw_mx; // max of mw
     amrex::MultiFab mws_mx; // max of mws
     amrex::MultiFab BAI; // Basal area index, sq.feet/acre
+    amrex::MultiFab IMPERV; 
 
     // Packed MF containing 1D arrays of variables used in soil temperature and soil water
     //  soilt: st_cond, st_capa, st_eff_cond, alpha, beta
@@ -765,6 +777,9 @@ private:
     amrex::MultiFab lhf_canop;
     amrex::MultiFab lhf_soil;
     amrex::MultiFab lhf_air;
+    amrex::MultiFab evp_canop;
+    amrex::MultiFab evp_soil;
+    amrex::MultiFab evp_air;
 
     // Albedos
     amrex::MultiFab albedovis_v, albedonir_v; // visible and NIR albedos for vegetation
