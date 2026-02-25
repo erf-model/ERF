@@ -31,8 +31,6 @@
     const Real* prob_lo = geomdata.ProbLo();
     const Real* prob_hi = geomdata.ProbHi();
 
-    const bool use_terrain  = (SolverChoice::terrain_type != TerrainType::None);
-
     if (KE_decay_height > 0) {
         amrex::Print() << "Initial KE profile (order " << KE_decay_order
                        << ") will extend up to " << KE_decay_height
