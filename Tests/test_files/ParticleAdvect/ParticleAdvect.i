@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "Particle Advection Test"
+erf.prob_name = "Particles Over Flat Ground"
 
 erf.init_type = Isentropic
 

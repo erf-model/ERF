@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "Rayleigh Damping Test"
+erf.prob_name = "Scalar Advection/Diffusion"
 
 erf.init_type = Uniform
 

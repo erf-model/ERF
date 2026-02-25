@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "Density Current With Moving Terrain"
+erf.prob_name = "Density Current"
 
 erf.init_type = Isentropic
 
