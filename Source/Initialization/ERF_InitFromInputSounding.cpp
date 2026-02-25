@@ -116,6 +116,8 @@ ERF::init_from_input_sounding (int lev)
     const Real l_rdOcp   = solverChoice.rdOcp;
     const bool l_moist   = (solverChoice.moisture_type != MoistureType::None);
 
+    int ngz = r_hse.nGrow(2);
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -143,7 +145,7 @@ ERF::init_from_input_sounding (int lev)
                 r_hse_arr, p_hse_arr, pi_hse_arr, th_hse_arr, qv_hse_arr,
                 geom[lev].data(), z_cc_arr,
                 l_gravity, l_rdOcp, l_moist, input_sounding_data,
-                l_isentropic);
+                l_isentropic, ngz);
         }
         else
         {
@@ -248,7 +250,8 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                                          const Real& l_rdOcp,
                                          const bool& l_moist,
                                          InputSoundingData const &inputSoundingData,
-                                         const bool& l_isentropic)
+                                         const bool& l_isentropic,
+                                         const int& ngz)
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d[0].dataPtr();
     const Real* rho_inp_sound   = inputSoundingData.rho_inp_sound_d.dataPtr();
@@ -274,7 +277,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
         const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
                                   : z_lo + (k + 0.5) * dz;
 
-        Real rho_k = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
+        Real rho_k   = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
         Real rhoTh_k = rho_k * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
 
         Real rho_k_base = rho_k;
@@ -333,14 +336,10 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
             AMREX_ALWAYS_ASSERT(std::abs(th_hse_arr(i,j,k) - theta_inp_sound[0]) < 1e-12);
         }
 
-        // TODO: we should be setting this to the number of ghost cells of base_state[lev]
-        //       instead of hard-wiring it here!
-        int ng = 3;
-
         // FOEXTRAP hse arrays
         if (k==kbot)
         {
-            for (int kk = 1; kk <= ng; kk++) {
+            for (int kk = 1; kk <= ngz; kk++) {
                  r_hse_arr(i, j, k-kk) =  r_hse_arr(i,j,k);
                  p_hse_arr(i, j, k-kk) =  p_hse_arr(i,j,k);
                 pi_hse_arr(i, j, k-kk) = pi_hse_arr(i,j,k);
@@ -350,10 +349,11 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
         }
         else if (k==ktop)
         {
-            for (int kk = 1; kk <= ng; kk++) {
+            for (int kk = 1; kk <= ngz; kk++) {
                  r_hse_arr(i, j, k+kk) =  r_hse_arr(i,j,k);
                  p_hse_arr(i, j, k+kk) =  p_hse_arr(i,j,k);
                 pi_hse_arr(i, j, k+kk) = pi_hse_arr(i,j,k);
+                th_hse_arr(i, k, k+kk) = th_hse_arr(i,j,k);
                 qv_hse_arr(i, j, k+kk) = qv_hse_arr(i,j,k);
             }
         }
