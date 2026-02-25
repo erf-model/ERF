@@ -65,7 +65,7 @@
         const Real* dx = geomdata.CellSize();
         const Real x = prob_lo[0] + (i + 0.5) * dx[0];
         const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-        const Real z = use_terrain ? z_cc(i,j,k) : prob_lo[2] + (k + 0.5) * dx[2];
+        const Real z = z_cc(i,j,k);
 
         // Define a point (xc,yc,zc) at the center of the domain
         const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
