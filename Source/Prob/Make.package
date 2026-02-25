@@ -1,3 +1,19 @@
 CEXE_headers += ERF_InitDensityHSE.H
 CEXE_headers += ERF_InitCustomPert.H
 CEXE_headers += ERF_InitRayleighDamping.H
+
+CEXE_headers += ERF_InitCustomPert_DensityCurrent.H
+CEXE_headers += ERF_InitCustomPert_IsentropicVortex.H
+CEXE_headers += ERF_InitCustomPert_ParticleTests.H
+CEXE_headers += ERF_InitCustomPert_ScalarAdvDiff.H
+CEXE_headers += ERF_InitCustomPert_StokesSecondProblem.H
+CEXE_headers += ERF_InitCustomPert_TaylorGreenVortex.H
+CEXE_headers += ERF_InitCustomPert_TurbulentInflow.H
+
+CEXE_headers += ERF_InitCustomPertVels_DensityCurrent.H
+CEXE_headers += ERF_InitCustomPertVels_IsentropicVortex.H
+CEXE_headers += ERF_InitCustomPertVels_ParticleTests.H
+CEXE_headers += ERF_InitCustomPertVels_ScalarAdvDiff.H
+CEXE_headers += ERF_InitCustomPertVels_StokesSecondProblem.H
+CEXE_headers += ERF_InitCustomPertVels_TaylorGreenVortex.H
+CEXE_headers += ERF_InitCustomPertVels_TurbulentInflow.H

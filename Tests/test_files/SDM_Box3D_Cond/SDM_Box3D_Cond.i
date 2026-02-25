@@ -71,7 +71,6 @@ erf.plot_vars_1     = density \
 
 # SOLVER CHOICES
 erf.use_gravity = false
-erf.use_coriolis = false
 
 # PHYSICS OPTIONS
 erf.les_type        = "None"
