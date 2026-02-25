@@ -138,7 +138,7 @@ namespace SLM_Diag {
      drain,
      drain_flux,
      evapo_wet,
-	 evapo_dry,
+     evapo_dry,
      grflux,
      NumVars
    };
@@ -538,7 +538,7 @@ public:
 
     void fluxes_canopy(const amrex::MFIter &mfi);
     
-	void fluxes_soil(const amrex::MFIter &mfi);
+    void fluxes_soil(const amrex::MFIter &mfi);
 
     void soil_water(const amrex::MFIter &mfi);
 
@@ -666,7 +666,7 @@ private:
 
     amrex::Real tabs_s = 0.0; // surface temperature (K)
     amrex::Real t00 = 300.0; // constant offset for sstxy
-    amrex::Real t_canop_max = 343.; // maximum plant temperature
+    static constexpr amrex::Real t_canop_max = 343.; // maximum plant temperature
 
     bool use_terrain = false;
 
@@ -692,16 +692,15 @@ private:
     static constexpr amrex::Real cp_water = 4.1796e6; // heat capacity of water [J/m^3K]
     static constexpr amrex::Real leaf_thickness = 1.; // typical leaf thickness (mm) - used for heat capacity 
     
-	static constexpr amrex::Real sigma = 5.67e-8; // Stefen-Boltzmann constant [W/m^2/K^4]
+    static constexpr amrex::Real sigma = 5.67e-8; // Stefen-Boltzmann constant [W/m^2/K^4]
 
     // parameters for stomatal resistance
     amrex::Real Rc_max = 5000.0; // maximum stomatal resistance
     amrex::Real T_opt = 298.0; // optimum temperature for transpiration
-    amrex::Real sdew = 0.;
     amrex::Real zref = 0.5; // height of reference level (m), used in transer coef
     amrex::MultiFab zrefxy;
 
-    amrex::Real IR_emis_urban = 0.9;
+    static constexpr amrex::Real IR_emis_urban = 0.9;
 
 	// Model variables
     //   NOTE: these MultiFabs are defined over the grid only in X and Y (no Z component)
@@ -715,6 +714,7 @@ private:
     amrex::MultiFab q_cas; // canopy air space specific humidity
     
 	amrex::MultiFab q_gr; // soil pore space specific humidity
+    amrex::MultiFab sdew; // soil dew condition
 
     // TODO: placeholder landmask array - should probably use the one defined by ERF
     amrex::iMultiFab landmask;
