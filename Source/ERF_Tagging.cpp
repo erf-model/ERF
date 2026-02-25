@@ -337,19 +337,23 @@ ERF::refinement_criteria_setup ()
             int num_indx_lo = ppr.countval("in_box_lo_indices");
             int num_real_hi = ppr.countval("in_box_hi");
             int num_indx_hi = ppr.countval("in_box_hi_indices");
+            int num_indx_lo_crse = ppr.countval("in_box_lo_indices_crse");
+            int num_indx_hi_crse = ppr.countval("in_box_hi_indices_crse");
 
             AMREX_ALWAYS_ASSERT(num_real_lo == num_real_hi);
             AMREX_ALWAYS_ASSERT(num_indx_lo == num_indx_hi);
+            AMREX_ALWAYS_ASSERT(num_indx_lo_crse == num_indx_hi_crse);
 
             // Problem low and high (in real not index space) are the same at all levels
             const Real* plo = geom[0].ProbLo();
             const Real* phi = geom[0].ProbHi();
-
-            if ( !((num_real_lo >= AMREX_SPACEDIM-1 && num_indx_lo == 0) ||
-                   (num_indx_lo >= AMREX_SPACEDIM-1 && num_real_lo == 0) ||
-                   (num_indx_lo ==              0   && num_real_lo == 0)) )
+            if ( !((num_real_lo >= AMREX_SPACEDIM-1 && num_indx_lo == 0 && num_indx_lo_crse == 0) ||
+                   (num_indx_lo >= AMREX_SPACEDIM-1 && num_real_lo == 0 && num_indx_lo_crse == 0) ||
+                   (num_indx_lo ==              0   && num_real_lo == 0 && num_indx_lo_crse == 0) ||
+                   (num_indx_lo_crse >= AMREX_SPACEDIM-1 && num_real_lo == 0 && num_indx_lo == 0)
+                ) )
             {
-                amrex::Abort("Must only specify box for refinement using real OR index space");
+                amrex::Abort("Must only specify box for refinement using real OR index space with fine/coarse grid indices");
             }
 
             if (num_real_lo > 0) {
@@ -568,7 +572,53 @@ ERF::refinement_criteria_setup ()
                     }
                 }
             }
+            else if (num_indx_lo_crse > 0) {
 
+                std::vector<int> box_lo(3), box_hi(3);
+                ppr.get("max_level",lev_for_box);
+                if (lev_for_box <= max_level)
+                {
+                    if (n_error_buf[0] != IntVect::TheZeroVector()) {
+                        amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
+                    }
+
+                    ppr.getarr("in_box_lo_indices_crse",box_lo,0,AMREX_SPACEDIM);
+                    ppr.getarr("in_box_hi_indices_crse",box_hi,0,AMREX_SPACEDIM);
+
+                    Box bx(IntVect(box_lo[0],box_lo[1],box_lo[2]),IntVect(box_hi[0],box_hi[1],box_hi[2]));
+                    amrex::Print() << "BOX " << bx << std::endl;
+
+                    const auto* dx  = geom[lev_for_box-1].CellSize();
+                    realbox = RealBox(plo[0]+ box_lo[0]   *dx[0], plo[1]+ box_lo[1]   *dx[1], plo[2]+ box_lo[2]   *dx[2],
+                                      plo[0]+(box_hi[0]+1)*dx[0], plo[1]+(box_hi[1]+1)*dx[1], plo[2]+(box_hi[2]+1)*dx[2]);
+
+                    Print() << "Reading " << bx << " at level " << lev_for_box << std::endl;
+                    num_boxes_at_level[lev_for_box] += 1;
+                    bool using_pbl = (solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYJ      ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNN25   ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNNEDMF ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU      ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF);
+
+                    const Box& domain = geom[lev_for_box].Domain();
+
+                    if ( using_pbl && ( (box_lo[2] > 0) || (box_hi[2] < domain.bigEnd(2)) ) ) {
+                        amrex::Print() << "PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH" << std::endl;
+                        amrex::Print() << "Please set in_box_lo_indices_crse to 0 in z and in_box_hi_indices_crse  to amr.n_cell-1 in z and try again" << std::endl;
+                        amrex::Abort();
+                    }
+
+                    boxes_at_level[lev_for_box].push_back(bx);
+                    Print() << "Saving in 'boxes at level' as " << bx << std::endl;
+                } // lev
+
+                if (solverChoice.init_type == InitType::WRFInput) {
+                    if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
+                        amrex::Error("Number of boxes doesn't match number of input files");
+
+                    }
+                }
+            }
             AMRErrorTagInfo info;
 
             if (realbox.ok()) {
