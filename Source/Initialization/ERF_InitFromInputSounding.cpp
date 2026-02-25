@@ -354,7 +354,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                  r_hse_arr(i, j, k+kk) =  r_hse_arr(i,j,k);
                  p_hse_arr(i, j, k+kk) =  p_hse_arr(i,j,k);
                 pi_hse_arr(i, j, k+kk) = pi_hse_arr(i,j,k);
-                th_hse_arr(i, k, k+kk) = th_hse_arr(i,j,k);
+                th_hse_arr(i, j, k+kk) = th_hse_arr(i,j,k);
                 qv_hse_arr(i, j, k+kk) = qv_hse_arr(i,j,k);
             }
         }
