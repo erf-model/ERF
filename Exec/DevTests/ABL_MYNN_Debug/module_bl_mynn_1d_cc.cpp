@@ -78,7 +78,7 @@ extern "C" void dmp_mf_cc(const int& kts, const int& kte, Real& dt, Real* zw, Re
 extern "C" void mym_turbulence_cc(int& kts, int& kte, Real& xland, Real& closure, Real* dz, Real& dx, Real* zw, Real* u, Real* v, Real* thl, Real* thetav, Real* ql, Real* qw, Real* qke, Real* tsq, Real* qsq, Real* cov, Real* vt, Real* vq, Real& rmo, Real& flt, Real& fltv, Real& flq, Real& zi, Real* theta, Real* sh, Real* sm, Real* el, Real* dfm, Real* dfh, Real* dfq, Real* tcd, Real* qcd, Real* pdk, Real* pdt, Real* pdq, Real* pdc, Real* qWT1D, Real* qSHEAR1D, Real* qBUOY1D, Real* qDISS1D, int& tke_budget, Real& Psig_bl, Real& Psig_shcu, Real* cldfra_bl1D, int& bl_mynn_mixlength, Real* edmf_w1, Real* edmf_a1, Real* TKEprodTD, int& spp_pbl, Real* rstoch_col, int& debug_code, Real& gtr, Real& tv0);
 
 extern "C" void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz, Real &dx, Real *zw, Real *u, Real *v, Real *thl, Real *qw,const Real &zi, Real *theta, Real *thetav, Real *sh, Real *sm,const Real& ust, const Real &rmo, Real* el, Real *qke, Real* tsq, Real* qsa, Real* cov, const Real& Psig_bl, Real *cldfra_bl1D, int &bl_mynn_mixlength, Real *edmf_w1, Real *edmf_a1, int &INITIALIZE_QKE, int &spp_pbl, Real *rstoch_col,const Real& karman,const Real& tv0,const Real& gtr);
-//----------------------------------------contstants-------------------------------------------
+//----------------------------------------constants-------------------------------------------
 
 // constants
 const Real no_threshold = 10.0;     // for anthropogenic sources
@@ -2200,7 +2200,7 @@ void mym_condensation_cc(
                 cldfra_bl1d[k] = std::max(0.0_rt, std::min(1.0_rt, 0.5_rt + 0.36_rt * std::atan(1.8_rt * (q1[k] + 0.2_rt))));
 
                 // Specify hydrometeors
-                // The cloud water formulatiosn are taken from CB02, Eq. 8
+                // The cloud water formulations are taken from CB02, Eq. 8
                 maxqc = std::max(qw[k] - qsat_tk, 0.0_rt);
                 if (q1k < 0.0_rt) {
                     ql_water = sgm[k] * std::exp(1.2_rt * q1k - 1.0_rt);
@@ -2228,7 +2228,7 @@ void mym_condensation_cc(
                 qc_bl1d[k] = liq_frac * ql_water;
                 qi_bl1d[k] = (1.0_rt - liq_frac) * ql_ice;
 
-                // Above tropopausel: eliminate subgrid clouds from CB schemes.
+                // Above tropopause: eliminate subgrid clouds from CB schemes.
                 if (k >= k_tropo) {
                     cldfra_bl1d[k] = 0.0_rt;
                     qc_bl1d[k] = 0.0_rt;
@@ -2999,7 +2999,7 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
 // original form. some additions include:
 //  -# scale-aware tapering as dx -> 0
 //  -# transport of tke (extra namelist option)
-//  -# chaboureau-bechtold cloud fraction & coupling to radiation (when icloud_bl > 0)
+//  -# Chaboureau-Bechtold cloud fraction & coupling to radiation (when icloud_bl > 0)
 //  -# some extra limits for numerical stability
 //
 // this scheme remains under development, so consider it experimental code.
@@ -3650,7 +3650,7 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
 // production terms for the turbulent quantities.
 //\section gen_mym_turbulence GSD mym_turbulence General Algorithm
 // Two subroutines mym_level2() and mym_length() are called within this
-//subrouine to collect variable to carry out successive calculations:
+//subroutine to collect variable to carry out successive calculations:
 // - mym_level2() calculates the level 2 nondimensional wind shear \f$G_M\f$
 // and vertical temperature gradient \f$G_H\f$ as well as the level 2 stability
 // functions \f$S_h\f$ and \f$S_m\f$.

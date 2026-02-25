@@ -39,8 +39,8 @@ Problem::init_custom_pert (
     const SolverChoice& sc,
     const int lev)
 {
-    ParmParse pp("erf");
-    std::string my_prob_name; pp.get("prob_name",my_prob_name);
+    ParmParse pp_erf("erf");
+    std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
 
     if (my_prob_name == "Density Current") {
 #include "Prob/ERF_InitCustomPert_DensityCurrent.H"

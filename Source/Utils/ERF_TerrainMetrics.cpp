@@ -276,7 +276,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
 
     case 1: // STF Method
     {
-        // Get Multifab spanning domain with 1 level of ghost cells
+        // Get MultiFab spanning domain with 1 level of ghost cells
         MultiFab h_mf(    z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow+1);
         MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow+1);
 

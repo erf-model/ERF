@@ -83,7 +83,7 @@ ConvertForProjection (const amrex::MultiFab& den_div, const amrex::MultiFab& den
                       const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
- * \brief Enforces solvablity by scaling outflow to match with inflow.
+ * \brief Enforces solvability by scaling outflow to match with inflow.
  *
  */
 void enforceInOutSolvability (int lev,

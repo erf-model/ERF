@@ -226,7 +226,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // These are just time averaged fields for diagnostics
     // ********************************************************************************************
 
-    // NOTE: We are not completing a fillpach call on the time averaged data;
+    // NOTE: We are not completing a fillpatch call on the time averaged data;
     //       which would copy on intersection and interpolate from coarse.
     //       Therefore, we are restarting the averaging when the ba changes,
     //       this may give poor statistics for dynamic mesh refinement.
