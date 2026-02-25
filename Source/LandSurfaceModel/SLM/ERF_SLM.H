@@ -134,7 +134,7 @@ namespace SLM_Diag {
      precip = 0,
      precip_in,
      precip_sfc, // saved in prsfc too, but 3D
-     run_off_sfc,
+     //run_off_sfc,
      drain,
      drain_flux,
      evapo_wet,
