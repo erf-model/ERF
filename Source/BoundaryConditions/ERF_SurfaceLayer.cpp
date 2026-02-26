@@ -288,7 +288,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
  * Wrapper to impose Monin Obukhov similarity theory fluxes by populating ghost cells.
  *
  * @param[in] lev Current level
- * @param[in,out] mfs Multifabs to populate
+ * @param[in,out] mfs MultiFabs to populate
  * @param[in] eddyDiffs Diffusion coefficients from turbulence model
  */
 void
@@ -349,7 +349,7 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
  * Function to calculate MOST fluxes for populating ghost cells.
  *
  * @param[in] lev Current level
- * @param[in,out] mfs Multifabs to populate
+ * @param[in,out] mfs MultiFabs to populate
  * @param[in] eddyDiffs Diffusion coefficients from turbulence model
  * @param[in] flux_comp structure to compute fluxes
  */

@@ -3570,7 +3570,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 
             //Deleted wrf-check, effc, and precr type data as not used by ERF
             /*
-            // NEED gpu-compatabile summation for rain_accum, check SAM or Kessler for better example
+            // NEED gpu-compatible summation for rain_accum, check SAM or Kessler for better example
             rain_accum_arr(i,j,k) = rain_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::precrt);
             snow_accum_arr(i,j,k) = snow_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::snowprt);
             graup_accum_arr(i,j,k) = graup_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::grplprt);*/

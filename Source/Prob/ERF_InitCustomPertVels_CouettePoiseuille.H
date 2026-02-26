@@ -2,28 +2,28 @@
     Real V_0   = 0.0;
     Real W_0   = 0.0;
 
-    ParmParse pp("prob");
+    ParmParse pp_for_pert_vels("prob");
 
-    pp.query("U_0", U_0);
-    pp.query("V_0", V_0);
-    pp.query("W_0", W_0);
+    pp_for_pert_vels.query("U_0", U_0);
+    pp_for_pert_vels.query("V_0", V_0);
+    pp_for_pert_vels.query("W_0", W_0);
 
     int prob_type;
-    pp.get("prob_type", prob_type);
+    pp_for_pert_vels.get("prob_type", prob_type);
 
     AMREX_ALWAYS_ASSERT (prob_type == 1 ||
                          prob_type == 10 || prob_type == 11 ||
                          prob_type == 20 || prob_type == 21);
 
 
-    Real pert_periods_u = 5.0; pp.query("pert_periods_u", pert_periods_u);
-    Real pert_periods_v = 5.0; pp.query("pert_periods_v", pert_periods_v);
+    Real pert_periods_u = 5.0; pp_for_pert_vels.query("pert_periods_u", pert_periods_u);
+    Real pert_periods_v = 5.0; pp_for_pert_vels.query("pert_periods_v", pert_periods_v);
 
-    Real pert_delta_u = 0.0; pp.query("pert_delta_u", pert_delta_u);
-    Real pert_delta_v = 0.0; pp.query("pert_delta_u", pert_delta_v);
+    Real pert_delta_u = 0.0; pp_for_pert_vels.query("pert_delta_u", pert_delta_u);
+    Real pert_delta_v = 0.0; pp_for_pert_vels.query("pert_delta_u", pert_delta_v);
 
-    Real pert_lo = -1e34; pp.query("pert_lo", pert_lo);
-    Real pert_hi =  1e34; pp.query("pert_hi", pert_hi);
+    Real pert_lo = -1e34; pp_for_pert_vels.query("pert_lo", pert_lo);
+    Real pert_hi =  1e34; pp_for_pert_vels.query("pert_hi", pert_hi);
 
     auto problo = geomdata.ProbLo();
     auto probhi = geomdata.ProbHi();

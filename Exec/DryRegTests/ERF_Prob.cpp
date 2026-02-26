@@ -39,8 +39,8 @@ Problem::init_custom_pert (
     const SolverChoice& sc,
     const int lev)
 {
-    ParmParse pp("erf");
-    std::string my_prob_name; pp.get("prob_name",my_prob_name);
+    ParmParse pp_erf("erf");
+    std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
 
     if (my_prob_name == "Density Current") {
 #include "Prob/ERF_InitCustomPert_DensityCurrent.H"
@@ -107,6 +107,10 @@ Problem::init_custom_pert_vels (
     }
     else if (my_prob_name == "Taylor-Green Vortex") {
 #include "Prob/ERF_InitCustomPertVels_TaylorGreenVortex.H"
+    }
+    else if ( (my_prob_name == "Terrain - 2D Cylinder") ||
+              (my_prob_name == "EB Square Cylinder"   ) ) {
+#include "Prob/ERF_InitCustomPertVels_ConstantU.H"
     }
     else if (my_prob_name == "Terrain - 3D Hemisphere") {
 #include "Prob/ERF_InitCustomPertVels_Terrain3DHemisphere.H"

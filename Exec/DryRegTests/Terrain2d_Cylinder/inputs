@@ -99,5 +99,5 @@ erf.alpha_T           = 0.0 # [m^2/s]
 # PROBLEM PARAMETERS
 prob.custom_terrain_type = "HalfCylinder"
 prob.T_0   = 300.0
-prob.U_0   = 0.0
+prob.U_0   = 10.0
 prob.rho_0 = 1.16

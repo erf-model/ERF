@@ -1,15 +1,15 @@
 
     amrex::Gpu::streamSynchronize();
-    ParmParse pp("prob");
-    Real U_0   = 0.0;  pp.query("U_0", U_0);
-    Real V_0   = 0.0;  pp.query("V_0", V_0);
-    Real W_0   = 0.0;  pp.query("W_0", W_0);
+    ParmParse pp_for_pert_vels("prob");
+    Real U_0   = 0.0;  pp_for_pert_vels.query("U_0", U_0);
+    Real V_0   = 0.0;  pp_for_pert_vels.query("V_0", V_0);
+    Real W_0   = 0.0;  pp_for_pert_vels.query("W_0", W_0);
 
-    Real z0    = 0.1;  pp.query("z0", z0);
-    Real zRef  = 80.0; pp.query("zRef", zRef);
-    Real uRef  = 0.0;  pp.query("uRef", uRef);
+    Real z0    = 0.1;  pp_for_pert_vels.query("z0", z0);
+    Real zRef  = 80.0; pp_for_pert_vels.query("zRef", zRef);
+    Real uRef  = 0.0;  pp_for_pert_vels.query("uRef", uRef);
 
-    int prob_type = -1; pp.query("prob_type", prob_type);
+    int prob_type = -1; pp_for_pert_vels.query("prob_type", prob_type);
 
     // Set the x-velocity
     ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept

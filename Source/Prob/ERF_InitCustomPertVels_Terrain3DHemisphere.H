@@ -1,18 +1,18 @@
 
     amrex::Gpu::streamSynchronize();
-    ParmParse pp("prob");
-    Real U_0 = 0.0; pp.query("U_0", U_0);
-    Real V_0 = 0.0; pp.query("V_0", V_0);
-    Real U_0_Pert_Mag = 0.0; pp.query("U_0_Pert_Mag", U_0_Pert_Mag);
-    Real V_0_Pert_Mag = 0.0; pp.query("V_0_Pert_Mag", V_0_Pert_Mag);
-    Real W_0_Pert_Mag = 0.0; pp.query("W_0_Pert_Mag", W_0_Pert_Mag);
-    Real pert_deltaU = 0.0; pp.query("pert_deltaU", pert_deltaU);
-    Real pert_deltaV = 0.0; pp.query("pert_deltaV", pert_deltaV);
-    Real pert_periods_U  = 5.0; pp.query("pert_periods_U", pert_periods_U);
-    Real pert_periods_V  = 5.0; pp.query("pert_periods_V", pert_periods_V);;
-    Real pert_ref_height = 1.0; pp.query("pert_ref_height", pert_ref_height);
+    ParmParse pp_for_pert_vels("prob");
+    Real U_0 = 0.0; pp_for_pert_vels.query("U_0", U_0);
+    Real V_0 = 0.0; pp_for_pert_vels.query("V_0", V_0);
+    Real U_0_Pert_Mag = 0.0; pp_for_pert_vels.query("U_0_Pert_Mag", U_0_Pert_Mag);
+    Real V_0_Pert_Mag = 0.0; pp_for_pert_vels.query("V_0_Pert_Mag", V_0_Pert_Mag);
+    Real W_0_Pert_Mag = 0.0; pp_for_pert_vels.query("W_0_Pert_Mag", W_0_Pert_Mag);
+    Real pert_deltaU = 0.0; pp_for_pert_vels.query("pert_deltaU", pert_deltaU);
+    Real pert_deltaV = 0.0; pp_for_pert_vels.query("pert_deltaV", pert_deltaV);
+    Real pert_periods_U  = 5.0; pp_for_pert_vels.query("pert_periods_U", pert_periods_U);
+    Real pert_periods_V  = 5.0; pp_for_pert_vels.query("pert_periods_V", pert_periods_V);;
+    Real pert_ref_height = 1.0; pp_for_pert_vels.query("pert_ref_height", pert_ref_height);
 
-    pp.query("pert_ref_height", pert_ref_height);
+    pp_for_pert_vels.query("pert_ref_height", pert_ref_height);
 
     // Real aval = pert_periods_U * 2.0 * PI / (probhi[1] - problo[1]);
     // Real ufac = pert_deltaU * std::exp(0.5) / pert_ref_height;

@@ -30,7 +30,7 @@ namespace MicVar_Morr {
       pres,  // pressure
       // non-precipitating vars
       qt,    // total cloud
-      qn,    // cloud condesnate (liquid + ice)
+      qn,    // cloud condensate (liquid + ice)
       qv,    // cloud vapor
       qcl,   // cloud water
       qci,   // cloud ice
