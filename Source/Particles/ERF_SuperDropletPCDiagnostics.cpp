@@ -32,13 +32,11 @@ Vector<std::string> SuperDropletPC::varNames () const
     for (int i = 0; i < m_num_species; i++) {
         retval.push_back(std::string("species_mass_"+getEnumNameString(m_species_mat[i]->m_name)));
     }
-    if (m_idx_i >= 0) {
-        retval.push_back("T_fz");
-        retval.push_back("a");
-        retval.push_back("c");
-        retval.push_back("m_rime");
-        retval.push_back("n_mono");
-    }
+    retval.push_back("T_fz");
+    retval.push_back("a");
+    retval.push_back("c");
+    retval.push_back("m_rime");
+    retval.push_back("n_mono");
     return retval;
 }
 

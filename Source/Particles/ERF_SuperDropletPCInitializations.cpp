@@ -29,11 +29,10 @@ void SuperDropletPC::add_superdroplet_attributes()
         AddRealComp(communicate_this_comp);
         count++;
     }
-    if (m_idx_i >= 0) {
-        for (int i = 0; i < SDIceRealIdxSoA_RT::ncomps; i++) {
-            AddRealComp(communicate_this_comp);
-            count++;
-        }
+    /* Always add ice comps so SoA layout matches varNames() and coalescence ptrs are valid when cold processes are off */
+    for (int i = 0; i < SDIceRealIdxSoA_RT::ncomps; i++) {
+        AddRealComp(communicate_this_comp);
+        count++;
     }
     Print() << "SuperDropletPC(" << m_name << "): added " << count << " real-type attribute(s).\n";
     return;

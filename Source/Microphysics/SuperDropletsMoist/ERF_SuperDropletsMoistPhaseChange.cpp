@@ -37,13 +37,13 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
     for (int substep = 0; substep < m_num_substeps_phase_change; substep++) {
 
         // freezing/melting (solid <--> liquid) -  water
-        phaseChange_SL_w(dt_s, a_z);
+        if (m_with_ice) { phaseChange_SL_w(dt_s, a_z); }
 
         // evaporation and condensation (vapour <--> liquid) - water
         phaseChange_LV_w(dt_s, a_z);
 
         // deposition and sublimation (vapour <--> solid) - water (ice)
-        phaseChange_SV_i(dt_s, a_z);
+        if (m_with_ice) { phaseChange_SV_i(dt_s, a_z); }
 
         // evaporation and condensation (vapour <--> liquid) - other species
         for (int is = m_istart_sp; is < m_num_species; is++) {

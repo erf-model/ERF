@@ -570,7 +570,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const auto rho_ice = (m_idx_i >= 0 ? m_species_mat[m_idx_i]->m_density : 0.0);
     const auto sp_idx_w = m_idx_w;
     const auto sp_idx_i = m_idx_i;
-    const auto mat_prop(*(m_species_mat[sp_idx_i]));
+    const auto mat_prop(*(m_species_mat[(sp_idx_i>=0?sp_idx_i:sp_idx_w)]));
 
     const int num_ae = m_num_aerosols;
     const int num_sp  = m_num_species;
@@ -790,7 +790,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     }
                 }
 
-            } else if ((phase_i == SDPhase::ice) && (phase_j == SDPhase::ice)) {
+            } else if ((phase_i == SDPhase::ice) && (phase_j == SDPhase::ice) && (sp_idx_i >= 0)) {
 
                 // aggregation between two ice particles
 
@@ -818,7 +818,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 // collision efficiency
                 k_val = 0.1 * (std::sqrt(area_i)+std::sqrt(area_j))*(std::sqrt(area_i)+std::sqrt(area_j)) * dvz;
 
-            } else {
+            } else if (sp_idx_i >= 0) {
 
                 // riming between a water droplet and an ice particle
                 AMREX_ALWAYS_ASSERT(    ((phase_i == SDPhase::ice) && (phase_j == SDPhase::water))
@@ -1014,7 +1014,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                      num_ae,
                                      ptrs.ae_mass_ptrs );
 
-            } else if ((phase_i == SDPhase::ice) && (phase_j == SDPhase::ice)) {
+            } else if ((phase_i == SDPhase::ice) && (phase_j == SDPhase::ice) && (sp_idx_i >= 0)) {
 
                 // aggregation between two ice particles
                 aggr_update_attribs( i, j,
@@ -1035,7 +1035,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                      num_ae,
                                      ptrs.ae_mass_ptrs );
 
-            } else {
+            } else if (sp_idx_i >= 0) {
 
                 // riming between a water droplet and an ice particle
                 AMREX_ALWAYS_ASSERT(    ((phase_i == SDPhase::ice) && (phase_j == SDPhase::water))

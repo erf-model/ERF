@@ -518,13 +518,12 @@ class SuperDropletPC : public ERFPC
             ptrs.v_ptr[2] = soa.GetRealData(SuperDropletsRealIdxSoA::vz).data();
             ptrs.vterm_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::term_vel).data();
             ptrs.mult_ptr = soa.GetRealData(rtoff_r + SuperDropletsRealIdxSoA_RT::multiplicity).data();
-            if (m_idx_i >= 0) {
-                ptrs.Tfz_ptr = soa.GetRealData(idx_ice_Tfz(m_num_aerosols, m_num_species)).data();
-                ptrs.a_ptr = soa.GetRealData(idx_ice_a(m_num_aerosols, m_num_species)).data();
-                ptrs.c_ptr = soa.GetRealData(idx_ice_c(m_num_aerosols, m_num_species)).data();
-                ptrs.mrime_ptr = soa.GetRealData(idx_ice_mrime(m_num_aerosols, m_num_species)).data();
-                ptrs.nmono_ptr = soa.GetRealData(idx_ice_nmono(m_num_aerosols, m_num_species)).data();
-            }
+            // Always set ice-related pointers: SoA always has these comps; water-only coalescence uses Tfz_ptr
+            ptrs.Tfz_ptr = soa.GetRealData(idx_ice_Tfz(m_num_aerosols, m_num_species)).data();
+            ptrs.a_ptr = soa.GetRealData(idx_ice_a(m_num_aerosols, m_num_species)).data();
+            ptrs.c_ptr = soa.GetRealData(idx_ice_c(m_num_aerosols, m_num_species)).data();
+            ptrs.mrime_ptr = soa.GetRealData(idx_ice_mrime(m_num_aerosols, m_num_species)).data();
+            ptrs.nmono_ptr = soa.GetRealData(idx_ice_nmono(m_num_aerosols, m_num_species)).data();
             setupMassPointers(soa, ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs);
             if (!m_device_props_initialized) {
                 const_cast<SuperDropletPC*>(this)->initializeDeviceProperties();
