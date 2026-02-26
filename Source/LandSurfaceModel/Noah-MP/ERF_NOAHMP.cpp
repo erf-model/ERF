@@ -227,6 +227,8 @@ NOAHMP::Advance_With_State (const int& lev,
 
     Print () << "Noah-MP driver started at time step: " << nstep+1 << std::endl;
 
+    bool is_moist = (cons_in.nComp() > RhoQ1_comp);
+
     // Loop over blocks to copy forcing data to Noahmp, drive the land model,
     // and copy data back to ERF Multifabs.
     int idb = 0;
@@ -240,6 +242,10 @@ NOAHMP::Advance_With_State (const int& lev,
 
         bx.makeSlab(2,domain.smallEnd(2));
         gbx.makeSlab(2,domain.smallEnd(2));
+
+        // For limiting when populating ghost cells
+        int i_lo = bx.smallEnd(0); int i_hi = bx.bigEnd(0);
+        int j_lo = bx.smallEnd(1); int j_hi = bx.bigEnd(1);
 
         NoahmpIO_type* noahmpio = &noahmpio_vect[idb];
 
@@ -300,10 +306,11 @@ NOAHMP::Advance_With_State (const int& lev,
         // Copy forcing data from ERF to Noahmp.
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
         {
+            Real qv                = (is_moist) ? CONS(i,j,0,RhoQ1_comp)/CONS(i,j,0,Rho_comp) : 0.0;
             tmp_u_phy_arr(i,j,0)   = 0.5*(U_PHY(i,j,0)+U_PHY(i+1,j  ,0));
             tmp_v_phy_arr(i,j,0)   = 0.5*(V_PHY(i,j,0)+V_PHY(i  ,j+1,0));
-            tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(CONS(i,j,0,Rho_comp),CONS(i,j,0,RhoTheta_comp));
-            tmp_qv_curr_arr(i,j,0) = CONS(i,j,0,RhoQ1_comp)/CONS(i,j,0,Rho_comp);
+            tmp_t_phy_arr(i,j,0)   = getTgivenRandRTh(CONS(i,j,0,Rho_comp),CONS(i,j,0,RhoTheta_comp),qv);
+            tmp_qv_curr_arr(i,j,0) = qv;
             tmp_p8w_arr(i,j,0)     = getPgivenRTh(CONS(i,j,0,RhoTheta_comp));
             tmp_swdown_arr(i,j,0)  = SWDOWN(i,j,0);
             tmp_glw_arr(i,j,0)     = GLW(i,j,0);
@@ -381,25 +388,29 @@ NOAHMP::Advance_With_State (const int& lev,
 
 
         // Copy forcing data from Noahmp to ERF
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
         {
+            // Limit indices to the valid box. FillBoundary will pick these up below.
+            int ii = std::min(std::max(i,i_lo),i_hi);
+            int jj = std::min(std::max(j,j_lo),j_hi);
+
             // SurfaceLayer fluxes at CC
-            t_flux_arr(i,j,0)    = tmp_hfx_arr(i,j,0)/(CONS(i,j,0,Rho_comp)*Cp_d);
-            q_flux_arr(i,j,0)    = tmp_lh_arr(i,j,0)/(CONS(i,j,0,Rho_comp)*L_v);
+            t_flux_arr(i,j,0)    = tmp_hfx_arr(ii,jj,0)/(CONS(ii,jj,0,Rho_comp)*Cp_d);
+            q_flux_arr(i,j,0)    = tmp_lh_arr(ii,jj,0)/(CONS(ii,jj,0,Rho_comp)*L_v);
 
             // NOTE: The following fluxes are nodal in xz/yz.
             //       The 2D MFs have 1 ghost cell so we can average these
             //       when using them in the surface layer class.
-            tau13_arr(i,j,0)  = tmp_tau_ew_arr(i,j,0)/CONS(i,j,0,Rho_comp);
-            tau23_arr(i,j,0)  = tmp_tau_ns_arr(i,j,0)/CONS(i,j,0,Rho_comp);
+            tau13_arr(i,j,0)  = tmp_tau_ew_arr(ii,jj,0)/CONS(ii,jj,0,Rho_comp);
+            tau23_arr(i,j,0)  = tmp_tau_ns_arr(ii,jj,0)/CONS(ii,jj,0,Rho_comp);
 
             // RRTMGP variables
-            TSK(i,j,0)           = tmp_tsk_arr(i,j,0);
-            EMISS(i,j,0)         = tmp_emiss_arr(i,j,0);
-            ALBSFCDIR_VIS(i,j,0) = tmp_albsfcdir_vis_arr(i,j,0);
-            ALBSFCDIR_NIR(i,j,0) = tmp_albsfcdir_nir_arr(i,j,0);
-            ALBSFCDIF_VIS(i,j,0) = tmp_albsfcdif_vis_arr(i,j,0);
-            ALBSFCDIF_NIR(i,j,0) = tmp_albsfcdif_nir_arr(i,j,0);
+            TSK(i,j,0)           = tmp_tsk_arr(ii,jj,0);
+            EMISS(i,j,0)         = tmp_emiss_arr(ii,jj,0);
+            ALBSFCDIR_VIS(i,j,0) = tmp_albsfcdir_vis_arr(ii,jj,0);
+            ALBSFCDIR_NIR(i,j,0) = tmp_albsfcdir_nir_arr(ii,jj,0);
+            ALBSFCDIF_VIS(i,j,0) = tmp_albsfcdif_vis_arr(ii,jj,0);
+            ALBSFCDIF_NIR(i,j,0) = tmp_albsfcdif_nir_arr(ii,jj,0);
         });
     }
 
