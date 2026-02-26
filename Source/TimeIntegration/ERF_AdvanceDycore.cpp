@@ -192,6 +192,15 @@ void ERF::advance_dycore (int level,
                                 z_nd, detJ_cc[level]->const_array(mfi), dxInv,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
                                 no_tau_corr_update_here, no_tau_corr_update_here);
+            } else if (solverChoice.mesh_type == MeshType::EB) {
+                ComputeStrain_EB(mfi, bxcc, tbxxy, tbxxz, tbxyz, domain,
+                                u, v, w,
+                                tau11, tau22, tau33,
+                                tau12, tau13, tau23,
+                                dxInv,
+                                bc_ptr_h,
+                                get_eb(level),
+                                no_tau_corr_update_here, no_tau_corr_update_here);
             } else {
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
