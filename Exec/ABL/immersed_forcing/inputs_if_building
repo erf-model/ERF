@@ -12,7 +12,7 @@ amr.n_cell           =    256     256    256
 
 geometry.is_periodic = 1 1 0
 
-zlo.type = "NoSlipWall" ### Does not matter when using immersed forcing
+zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
@@ -77,7 +77,6 @@ erf.rotational_time_period = 86400.0
 erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_wind = 8.0 0.0 0.0
 
-# Higher values of perturbations lead to instability
-# Instability seems to be coming from BC
+# Temperature pertubrations
 prob.T_0_Pert_Mag    = 0.5 # [K]
 prob.pert_ref_height = 500. # [m]
