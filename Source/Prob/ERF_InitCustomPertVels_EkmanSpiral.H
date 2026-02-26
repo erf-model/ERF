@@ -1,23 +1,23 @@
 
-    ParmParse pp("erf");
+    ParmParse pp_for_pert_vels("erf");
     InitType init_type;
-    pp.query_enum_case_insensitive("init_type",init_type);
+    pp_for_pert_vels.query_enum_case_insensitive("init_type",init_type);
 
-    ParmParse pp_prob("prob");
-    Real rho_0 =   1.0; pp_prob.query("rho_0", rho_0);
+    ParmParse pp_for_pert_vels_prob("prob");
+    Real rho_0 =   1.0; pp_for_pert_vels_prob.query("rho_0", rho_0);
 
     if (init_type == InitType::Uniform)
     {
         Real rot_time_period;
-        pp.get("rotational_time_period", rot_time_period);
+        pp_for_pert_vels.get("rotational_time_period", rot_time_period);
         Real coriolis_factor = 4.0 * PI / rot_time_period;
 
         Real Az;
-        pp.get("dynamic_viscosity", Az); // dynamic viscosity [kg-m/s]
+        pp_for_pert_vels.get("dynamic_viscosity", Az); // dynamic viscosity [kg-m/s]
         Az = Az / rho_0; // kinematic viscosity [m^2/s]
 
         Vector<Real> abl_geo_wind(3);
-        pp.queryarr("abl_geo_wind",abl_geo_wind);
+        pp_for_pert_vels.queryarr("abl_geo_wind",abl_geo_wind);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
                                          (amrex::Math::abs(abl_geo_wind[1]) < 1.0e-15) &&
                                          (amrex::Math::abs(abl_geo_wind[2]) < 1.0e-15),

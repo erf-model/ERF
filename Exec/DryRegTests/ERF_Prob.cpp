@@ -108,6 +108,10 @@ Problem::init_custom_pert_vels (
     else if (my_prob_name == "Taylor-Green Vortex") {
 #include "Prob/ERF_InitCustomPertVels_TaylorGreenVortex.H"
     }
+    else if ( (my_prob_name == "Terrain - 2D Cylinder") ||
+              (my_prob_name == "EB Square Cylinder"   ) ) {
+#include "Prob/ERF_InitCustomPertVels_ConstantU.H"
+    }
     else if (my_prob_name == "Terrain - 3D Hemisphere") {
 #include "Prob/ERF_InitCustomPertVels_Terrain3DHemisphere.H"
     }

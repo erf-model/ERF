@@ -10,6 +10,7 @@ CEXE_headers += ERF_InitCustomPert_StokesSecondProblem.H
 CEXE_headers += ERF_InitCustomPert_TaylorGreenVortex.H
 CEXE_headers += ERF_InitCustomPert_TurbulentInflow.H
 
+CEXE_headers += ERF_InitCustomPertVels_ConstantU.H
 CEXE_headers += ERF_InitCustomPertVels_DensityCurrent.H
 CEXE_headers += ERF_InitCustomPertVels_IsentropicVortex.H
 CEXE_headers += ERF_InitCustomPertVels_ParticleTests.H
