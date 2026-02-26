@@ -771,25 +771,25 @@ void SLM::slm_init()
                     LAI_arr(i, j, 0) = std::max(LAI_arr(i, j, 0), 0.001);
                 }
 
-                IR_emis_vege_arr(i, j, 0) = 0.97 * (1.0 - std::exp(-1.0 * (phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0)) * LAI_arr(i, j, 0)));
                 phi_1_arr(i, j, 0) = 0.5 - 0.633 * Khai_L_arr(i, j, 0) - 0.33 * (std::pow(Khai_L_arr(i, j, 0), 2));
                 phi_2_arr(i, j, 0) = 0.877 * (1.0 - 2.0 * phi_1_arr(i, j, 0));
+                IR_emis_vege_arr(i, j, 0) = 0.97 * (1.0 - std::exp(-1.0 * (phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0)) * LAI_arr(i, j, 0)));
                 precip_extinc_arr(i, j, 0) = phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0);
                 //mw_mx_arr(i, j, 0) = 0.1 * LAI_arr(i, j, 0);
                 //add the basal area to mw_mx. circumference of trunks per unit area = sqrt(4*PI*basal area), which then is converted from sq.feet/sq acre to m2/m2 by diving by 43560
-                mw_mx_arr(i, j, 0) = 0.1 * LAI_arr(i, j, 0) + ztop_arr(i, j, 0) * std::pow(4 * PI * BAI_arr(i, j, 0) / 43560., 0.5);
+                mw_mx_arr(i, j, 0) = 0.1 * LAI_arr(i, j, 0) + ztop_arr(i, j, 0) * std::pow(4.0 * PI * BAI_arr(i, j, 0) / 43560., 0.5);
+
+                if(landtype_arr(i, j, 0) == 13)
+                {
+                    IR_emis_grnd_arr(i, j, 0) = IR_emis_urban * IMPERV_arr(i, j, 0) + IR_emis_soil_arr(i, j, 0) * (1.-IMPERV_arr(i, j, 0)); // urban IR emissivity
+                }
+                else
+                {
+                    IR_emis_grnd_arr(i, j, 0) = IR_emis_soil_arr(i, j, 0);
+                }
             } else {
                 vege_YES_arr(i, j, 0) = 0.0;
                 veg_frac_arr(i, j, 0) = 0.0;
-            }
-        
-            if(landtype_arr(i, j, 0) == 13) 
-            {
-                IR_emis_grnd_arr(i, j, 0) = IR_emis_urban * IMPERV_arr(i, j, 0) + IR_emis_soil_arr(i, j, 0) * (1.-IMPERV_arr(i, j, 0)); // urban IR emissivity
-            }
-            else
-            {
-                IR_emis_grnd_arr(i, j, 0) = IR_emis_soil_arr(i, j, 0);
             }
         });
     }
@@ -1759,12 +1759,12 @@ void SLM::UpdateLAIParameters(const amrex::MFIter &mfi)
             // set minimum LAI for vegetated land
             LAI_arr(i, j, 0) = std::max(LAI_arr(i, j, 0), 0.001);
 
-            IR_emis_vege_arr(i, j, 0) = 0.97 * (1.0 - std::exp(-1.0 * LAI_arr(i, j, 0)));
             phi_1_arr(i, j, 0) = 0.5 - 0.633 * Khai_L_arr(i, j, 0) - 0.33 * (std::pow(Khai_L_arr(i, j, 0), 2));
             phi_2_arr(i, j, 0) = 0.877 * (1.0 - 2.0 * phi_1_arr(i, j, 0));
+            IR_emis_vege_arr(i, j, 0) = 0.97 * (1.0 - std::exp(-1.0 * (phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0)) * LAI_arr(i, j, 0)));
             precip_extinc_arr(i, j, 0) = phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0);
             //mw_mx_arr(i, j, 0) = 0.1 * LAI_arr(i, j, 0);
-            mw_mx_arr(i, j, 0) = 0.1 * LAI_arr(i, j, 0) + ztop_arr(i, j, 0) * std::pow(4 * PI * BAI_arr(i, j, 0) / 43560., 0.5);
+            mw_mx_arr(i, j, 0) = 0.1 * LAI_arr(i, j, 0) + ztop_arr(i, j, 0) * std::pow(4.0 * PI * BAI_arr(i, j, 0) / 43560., 0.5);
         }
     });
 }
@@ -1887,6 +1887,10 @@ SLM::AdvanceSLM ()
         
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
+            if (landmask_arr(i, j, 0) != 1) {
+                return;
+            }
+
             amrex::Real precip = 0.0;
             amrex::Real drain = 0.0;
             amrex::Real mws_inc = 0.0;
@@ -1957,7 +1961,7 @@ SLM::AdvanceSLM ()
                         fh = fh_calc(soilt_arr(i, j, d_khi_lsm), m_pot_sat_arr(i, j, d_khi_lsm), soilw_arr(i, j, d_khi_lsm), Bconst_arr(i, j, d_khi_lsm));
                         if ( fh > 0.99)
                         { 
-                            sdew_arr(i, j, 0) = 1;
+                            sdew_arr(i, j, 0) = 1.;
                         }
                         else
                         { 
@@ -1999,6 +2003,10 @@ SLM::AdvanceSLM ()
 
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
+            if (landmask_arr(i, j, 0) != 1) {
+                return;
+            }
+
             amrex::Real cp_vege_tot;
             amrex::Real q_gr;
 
@@ -2671,7 +2679,7 @@ void SLM::resistances(const amrex::MFIter &mfi)
             f_shade = 0.1 ; // fraction or radiation reaching shaded leaves (empirical)
 
             // partition LAI into sunlit and shaded components
-            lai_sun = std::max(1.e-6, (1. - std::exp(-1 * k_beer * LAI_arr(i, j, 0))) / k_beer);
+            lai_sun = std::max(1.e-6, (1. - std::exp(-1.0 * k_beer * LAI_arr(i, j, 0))) / k_beer);
             lai_shade = std::max(0., LAI_arr(i, j, 0) - lai_sun); 
 
             // Radiation reaching to sunlit and shaded leaves
@@ -2681,6 +2689,8 @@ void SLM::resistances(const amrex::MFIter &mfi)
             // compute radiation factors
             tmp_sun = 0.55 * sw_sun * 2. / Rgl_arr(i, j, 0) / lai_sun;
             tmp_shade = 0.55 * sw_shade * 2. / Rgl_arr(i, j, 0) / std::max(1.e-6, lai_shade);
+            rc_fac_sun   = (Rc_min_arr(i,j,0) / d_Rc_max + tmp_sun) / (1.0 + tmp_sun);
+            rc_fac_shade = (Rc_min_arr(i,j,0) / d_Rc_max + tmp_shade) / (1.0 + tmp_shade);
 
             // combine weighted by LAI
             rc_fac_rad = (lai_sun * rc_fac_sun + lai_shade * rc_fac_shade) / LAI_arr(i, j, 0);
@@ -2816,7 +2826,7 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
         }
         amrex::Real evapo_wet;
 
-        if (landmask_arr(i, j, 0) == 1)
+        if (vegetype_arr(i, j, 0) == 1)
         {
             amrex::Real shf0 = 0.;
             amrex::Real lhf0 = 0.;
@@ -3176,7 +3186,7 @@ void SLM::soil_water(const amrex::MFIter &mfi)
             // make saturated soil for wetlands
             if (landtype_arr(i, j, 0) == 11)
             {
-                for (int k = 0; k < d_nz_lsm -1; k++) {
+                for (int k = 0; k < d_nz_lsm; k++) {
                     const int lsm_k = d_khi_lsm - k;
                     soilw_arr(i, j, lsm_k) = w_s_FC_arr(i, j, lsm_k);
                 }
@@ -3197,14 +3207,14 @@ void SLM::soil_water(const amrex::MFIter &mfi)
                 }
             }
             // when there is a standing water (puddle) on top of soil, no soil top layer evaporation - gSAM + SLM 
-            amrex::Real evap = 0;
+            amrex::Real evap = 0.0;
             if (mws_arr(i, j, 0) > 0.) 
             {
-                evap = 0;
+                evap = 0.0;
             }
             else
             {   
-                evap = 1;
+                evap = 1.0;
             }   
 
             aa = 0.0;
@@ -3317,7 +3327,7 @@ void SLM::soil_water(const amrex::MFIter &mfi)
             }
             // fixing the issue with rain infiltration even if soil is completely saturated
             // move all the access to mws and modify the precip_in accordinally
-            if (dd > 0) {
+            if (dd > 0.0) {
                 // still some water left after saturating all the soil layers
                 // modify the precip_in so that the access of water is moved
                 // to the surface water
@@ -3326,7 +3336,7 @@ void SLM::soil_water(const amrex::MFIter &mfi)
             slm_diag_arr(i, j, 0, SLM_Diag::precip_in) = precip_in;
             mws_arr(i, j, 0) = std::max(0., mws_arr(i, j, 0) + (precip_sfc - precip_in)*dt);
 
-            amrex::Real drain = 0;
+            amrex::Real drain = 0.0;
             if(mws_arr(i, j, 0) > mws_mx_arr(i, j, 0))
             {
                 drain = (mws_arr(i, j, 0) - mws_mx_arr(i, j, 0))/dt;
