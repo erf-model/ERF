@@ -1,5 +1,5 @@
-  ParmParse pp("prob");
-  Real U_0 = 0.0; pp.query("U_0",U_0);
+  ParmParse pp_for_pert_vels("prob");
+  Real U_0 = 0.0; pp_for_pert_vels.query("U_0",U_0);
 
   const int klo = geomdata.Domain().smallEnd()[2];
   const int khi = geomdata.Domain().bigEnd()[2];

@@ -292,7 +292,7 @@ Examples are provided within ``Exec/RegTests/TurbulentInflow/`` to set up a turb
 
 Source type forcing
 -------------------
-By ignoring the advection and diffusion effects in the transport equation, the amplitude of the peturbation can be made through a proportionality ratio between the update time and change in the box temperature,
+By ignoring the advection and diffusion effects in the transport equation, the amplitude of the perturbation can be made through a proportionality ratio between the update time and change in the box temperature,
 
 .. math::
 

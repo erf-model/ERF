@@ -227,7 +227,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 }
 
                 // Following WRF, the stratification effects are applied to the vertical length scales
-                // in the case of anistropic mixing
+                // in the case of anisotropic mixing
                 Real length;
                 Real eps       = std::numeric_limits<Real>::epsilon();
                 if (stratification <= eps) {

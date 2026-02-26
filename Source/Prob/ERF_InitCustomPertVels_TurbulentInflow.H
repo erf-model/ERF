@@ -1,31 +1,31 @@
-    ParmParse pp("prob");
+    ParmParse pp_for_pert_vels("prob");
 
-    Real rho_0 = 1.0; pp.query("rho_0", rho_0);
-    Real T_0   = 300.0; pp.query("T_0", T_0);
+    Real rho_0 = 1.0; pp_for_pert_vels.query("rho_0", rho_0);
+    Real T_0   = 300.0; pp_for_pert_vels.query("T_0", T_0);
 
-    Real A_0   = 1.0; pp.query("A_0", A_0);
-    Real KE_0  = 0.1; pp.query("KE_0", KE_0);
+    Real A_0   = 1.0; pp_for_pert_vels.query("A_0", A_0);
+    Real KE_0  = 0.1; pp_for_pert_vels.query("KE_0", KE_0);
 
-    Real KE_decay_height = -1; pp.query("KE_decay_height", KE_decay_height);
-    Real KE_decay_order = 1; pp.query("KE_decay_order", KE_decay_order);
+    Real KE_decay_height = -1; pp_for_pert_vels.query("KE_decay_height", KE_decay_height);
+    Real KE_decay_order = 1; pp_for_pert_vels.query("KE_decay_order", KE_decay_order);
 
-    Real U_0 = 0.0; pp.query("U_0", U_0);
-    Real V_0 = 0.0; pp.query("V_0", V_0);
-    Real W_0 = 0.0; pp.query("W_0", W_0);
+    Real U_0 = 0.0; pp_for_pert_vels.query("U_0", U_0);
+    Real V_0 = 0.0; pp_for_pert_vels.query("V_0", V_0);
+    Real W_0 = 0.0; pp_for_pert_vels.query("W_0", W_0);
 
     // random initial perturbations (legacy code)
-    Real U_0_Pert_Mag = 0.0; pp.query("U_0_Pert_Mag", U_0_Pert_Mag);
-    Real V_0_Pert_Mag = 0.0; pp.query("V_0_Pert_Mag", V_0_Pert_Mag);
-    Real W_0_Pert_Mag = 0.0; pp.query("W_0_Pert_Mag", W_0_Pert_Mag);
-    Real T_0_Pert_Mag = 0.0; pp.query("T_0_Pert_Mag", T_0_Pert_Mag);
-    bool pert_rhotheta = true; pp.query("pert_rhotheta", pert_rhotheta);
+    Real U_0_Pert_Mag = 0.0; pp_for_pert_vels.query("U_0_Pert_Mag", U_0_Pert_Mag);
+    Real V_0_Pert_Mag = 0.0; pp_for_pert_vels.query("V_0_Pert_Mag", V_0_Pert_Mag);
+    Real W_0_Pert_Mag = 0.0; pp_for_pert_vels.query("W_0_Pert_Mag", W_0_Pert_Mag);
+    Real T_0_Pert_Mag = 0.0; pp_for_pert_vels.query("T_0_Pert_Mag", T_0_Pert_Mag);
+    bool pert_rhotheta = true; pp_for_pert_vels.query("pert_rhotheta", pert_rhotheta);
 
     // divergence-free initial perturbations
-    Real pert_deltaU = 0.0; pp.query("pert_deltaU", pert_deltaU);
-    Real pert_deltaV = 0.0; pp.query("pert_deltaV", pert_deltaV);
-    Real pert_periods_U = 5.0; pp.query("pert_periods_U", pert_periods_U);
-    Real pert_periods_V = 5.0; pp.query("pert_periods_V", pert_periods_V);
-    Real pert_ref_height = 100.0; pp.query("pert_ref_height", pert_ref_height);
+    Real pert_deltaU = 0.0; pp_for_pert_vels.query("pert_deltaU", pert_deltaU);
+    Real pert_deltaV = 0.0; pp_for_pert_vels.query("pert_deltaV", pert_deltaV);
+    Real pert_periods_U = 5.0; pp_for_pert_vels.query("pert_periods_U", pert_periods_U);
+    Real pert_periods_V = 5.0; pp_for_pert_vels.query("pert_periods_V", pert_periods_V);
+    Real pert_ref_height = 100.0; pp_for_pert_vels.query("pert_ref_height", pert_ref_height);
 
     const Real* prob_lo = geomdata.ProbLo();
     const Real* prob_hi = geomdata.ProbHi();

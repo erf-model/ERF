@@ -340,7 +340,7 @@ define( [[maybe_unused]] int const& a_level,
 
           eb_cut_cell_ lo_eb_cc(flag(iv_lo), lo_rbx, lo_point, lo_normal);
 
-          // cell iv_lo covered (regular) imples lo_eb_cc is covered (regular)
+          // cell iv_lo covered (regular) implies lo_eb_cc is covered (regular)
           // The inverse is not always true.
           AMREX_ASSERT( !lo_isCovered || lo_eb_cc.isCovered() );
           AMREX_ASSERT( !lo_isRegular || lo_eb_cc.isRegular() );
@@ -375,7 +375,7 @@ define( [[maybe_unused]] int const& a_level,
 
           eb_cut_cell_ hi_eb_cc(flag(iv_hi), hi_rbx, hi_point, hi_normal);
 
-          // cell iv_hi covered (regular) imples hi_eb_cc is covered (regular)
+          // cell iv_hi covered (regular) implies hi_eb_cc is covered (regular)
           // The inverse is not always true.
           AMREX_ASSERT( !hi_isCovered || hi_eb_cc.isCovered() );
           AMREX_ASSERT( !hi_isRegular || hi_eb_cc.isRegular() );
@@ -393,7 +393,7 @@ define( [[maybe_unused]] int const& a_level,
 
             eb_cut_cell_ hi_hi_eb_cc(flag(iv_hi), lo_rbx, hi_point, hi_normal);
 
-            // cell iv_hi covered (regular) imples hi_hi_eb_cc is covered (regular)
+            // cell iv_hi covered (regular) implies hi_hi_eb_cc is covered (regular)
             // The inverse is not always true.
 #ifndef AMREX_USE_GPU
             if ( !(!hi_isRegular || hi_hi_eb_cc.isRegular()) ||
@@ -952,7 +952,7 @@ define( [[maybe_unused]] int const& a_level,
       // and this slice is not filled by fillBoundary(), for higher levels.
       // (Lower level might be filled by fillBoundary().)
       // Fill the ghost region for the last slice at bigEnd(idim)
-      // by the value of the nearst point. And let fillBoundary() overwrite it.
+      // by the value of the nearest point. And let fillBoundary() overwrite it.
 
       Box upper_slab = makeSlab(bx_grown, a_idim, bx.bigEnd(a_idim)+1);
       Box bx_grown_1 = bx; bx_grown_1.grow(a_idim,1);

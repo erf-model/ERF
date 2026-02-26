@@ -24,6 +24,18 @@ USE_EB = TRUE
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs
 
 EBASE = ERF
+ifeq ($(USE_NETCDF), TRUE)
+  USERSuffix += .NC
+endif
+ifeq ($(USE_PARTICLES), TRUE)
+  USERSuffix += .PART
+endif
+ifeq ($(USE_FFT), TRUE)
+  USERSuffix += .FFT
+endif
+ifeq ($(USE_RADIATION), TRUE)
+  USERSuffix += .RAD
+endif
 
 ERF_SOURCE_DIR = $(ERF_HOME)/Source
 include $(ERF_SOURCE_DIR)/Make.package

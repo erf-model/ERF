@@ -34,8 +34,7 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
         for ( amrex::MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
         {
             amrex::Array4<amrex::Real      > rho_arr  = rho_hse.array(mfi);
-            amrex::Array4<amrex::Real const> z_cc_arr = (use_terrain) ?
-                                                 z_phys_cc->const_array(mfi) : amrex::Array4<amrex::Real const>{};
+            amrex::Array4<amrex::Real const> z_cc_arr = z_phys_cc->const_array(mfi);
 
             // Create a flat box with same horizontal extent but only one cell in vertical
             const amrex::Box& tbz = mfi.nodaltilebox(2);
