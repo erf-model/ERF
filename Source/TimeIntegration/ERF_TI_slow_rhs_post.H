@@ -64,7 +64,8 @@
 #ifdef ERF_USE_SHOC
                           shoc_interface[level],
 #endif
-                          fr_as_crse, fr_as_fine);
+                          fr_as_crse, fr_as_fine,
+                          m_r2d);
 
         // Apply state redistribution for cons states
 

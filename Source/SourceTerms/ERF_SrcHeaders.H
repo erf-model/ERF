@@ -8,6 +8,7 @@
 #include "ERF_InputSoundingData.H"
 #include "ERF_TurbPertStruct.H"
 #include "ERF_EB.H"
+#include "ERF_ReadBndryPlanes.H"
 
 /**
  * Function for computing the buoyancy term to be used in the evolution
@@ -137,7 +138,8 @@ moist_set_rhs (const amrex::Geometry& geom,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+               std::unique_ptr<ReadBndryPlanes>& m_r2d);
 #endif
 
 void ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
