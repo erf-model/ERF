@@ -21,6 +21,7 @@ public:
     Problem();
 
 #include "Prob/ERF_InitDensityHSE.H"
+#include "Prob/ERF_InitCustomPert.H"
 #include "Prob/ERF_InitRayleighDamping.H"
 
 protected:

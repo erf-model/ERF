@@ -19,3 +19,27 @@ Problem::Problem()
 
   init_base_parms(parms.rho_0, parms.T_0);
 }
+
+void
+Problem::init_custom_pert (
+    const Box& bx,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& r_hse,
+    Array4<Real      > const& p_hse,
+    Array4<Real const> const& /*z_nd*/,
+    Array4<Real const> const& z_cc,
+    GeometryData const& geomdata,
+    Array4<Real const> const&   mf_m,
+    const SolverChoice& sc,
+    const int lev)
+{
+    ParmParse pp_erf("erf");
+    std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+
+    if (my_prob_name == "WPS") {
+#include "Prob/ERF_InitCustomPert_KE.H"
+    }
+
+    amrex::Gpu::streamSynchronize();
+}
