@@ -1,9 +1,7 @@
 
     ParmParse pp("prob");
 
-    Real A_0   = 1.0; pp.query("A_0", A_0);
     Real KE_0  = 0.1; pp.query("KE_0", KE_0);
-
     Real KE_decay_height = -1; pp.query("KE_decay_height", KE_decay_height);
     Real KE_decay_order  =  1; pp.query("KE_decay_order" , KE_decay_order );
 
