@@ -64,7 +64,7 @@ void ReadBndryPlanes::define_level_data (int /*lev*/)
             IntVect phi(hi);
             const int normal = ori.coordDir();
             plo[normal] = ori.isHigh() ? hi[normal] - (m_in_rad - 1) : -m_out_rad;
-            phi[normal] = ori.isHigh() ? hi[normal] + (m_out_rad   )  :(m_in_rad - 1);
+            phi[normal] = ori.isHigh() ? hi[normal] + (m_out_rad   ) : (m_in_rad - 1);
             const Box pbx(plo, phi);
             m_data_n[ori]->push_back(FArrayBox(pbx, ncomp));
             m_data_np1[ori]->push_back(FArrayBox(pbx, ncomp));
@@ -442,9 +442,9 @@ void ReadBndryPlanes::read_file (const int idx,
             std::string facename1 = Concatenate(filename1 + '_', ori, 1);
             bndry[ori].read(facename1);
 
-            IntVect v_offset(0);
-            //const int normal = ori.coordDir();
-            //const IntVect v_offset = offset(ori.faceDir(), normal);
+            int normal = ori.coordDir();
+            IntVect v_offset = offset(ori.faceDir(), normal);
+            if (real_bcs) { v_offset = IntVect(0); }
 
             const auto& bbx = (*data_to_fill[ori])[lev].box();
 
