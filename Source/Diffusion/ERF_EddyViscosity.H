@@ -9,6 +9,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_Constants.H"
 #include "ERF_EOS.H"
+#include "ERF_EB.H"
 
 #ifdef ERF_USE_SHOC
 #include "ERF_ShocInterface.H"
@@ -36,6 +37,7 @@ ComputeTurbulentViscosity (amrex::Real dt,
                            const bool& use_moisture,
                            int level,
                            const amrex::BCRec* bc_ptr,
+                           const eb_& ebfact,
                            bool vert_only = false);
 
 void
@@ -54,6 +56,7 @@ ComputeTurbulentViscosityLES (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& T
                               const amrex::Real const_grav,
                               std::unique_ptr<SurfaceLayer>& SurfLayer,
                               const MoistureComponentIndices& moisture_indices,
+                              const eb_& ebfact,
                               const amrex::MultiFab* xvel = nullptr,
                               const amrex::MultiFab* yvel = nullptr);
 

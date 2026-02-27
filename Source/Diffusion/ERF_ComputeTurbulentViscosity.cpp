@@ -36,6 +36,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                   const TurbChoice& turbChoice, const Real const_grav,
                                   std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
                                   const MoistureComponentIndices& moisture_indices,
+                                  const eb_& ebfact,
                                   const MultiFab* xvel,
                                   const MultiFab* yvel)
 {
@@ -588,6 +589,7 @@ void ComputeTurbulentViscosity (Real dt,
                                 const bool& use_moisture,
                                 int level,
                                 const BCRec* bc_ptr,
+                                const eb_& ebfact,
                                 bool vert_only)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
@@ -620,7 +622,7 @@ void ComputeTurbulentViscosity (Real dt,
                                      geom, use_terrain_fitted_coords,
                                      mapfac, z_phys_nd, turbChoice, const_grav,
                                      SurfLayer, solverChoice.moisture_indices,
-                                     &xvel, &yvel);
+                                     ebfact, &xvel, &yvel);
     }
 
     if (turbChoice.rans_type != RANSType::None) {
