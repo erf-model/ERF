@@ -3130,7 +3130,18 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
         const Array4<Real> &s_arr  = S.array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            const Real rho      = s_arr(i, j, k, Rho_comp);
             const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
+
+            if (rho <= 0.) {
+#ifdef AMREX_USE_GPU
+                AMREX_DEVICE_PRINTF("Rho is negative at %d %d %d %e \n", i,j,k,rho);
+#else
+                printf("Rho is negative at %d %d %d %e \n", i,j,k,rho);
+                Abort("Bad rho in check_for_negative_theta");
+#endif
+            }
+
             if (rhotheta <= 0.) {
 #ifdef AMREX_USE_GPU
                 AMREX_DEVICE_PRINTF("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
@@ -3139,6 +3150,7 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
                 Abort("Bad theta in check_for_negative_theta");
 #endif
             }
+
             });
     } // mfi
 }
