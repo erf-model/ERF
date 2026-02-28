@@ -231,9 +231,13 @@ SurfaceLayer::compute_fluxes (const int& lev,
     const auto *const umm_ptr  = m_ma.get_average(lev,5); // horizontal velocity magnitude
     const auto *const zref_ptr = m_ma.get_zref(lev);     // reference height
 
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
     for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
 
         auto u_star_arr = u_star[lev]->array(mfi);
         auto t_star_arr = t_star[lev]->array(mfi);
