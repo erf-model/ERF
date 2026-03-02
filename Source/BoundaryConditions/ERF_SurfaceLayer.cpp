@@ -789,7 +789,7 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
     const int klo = m_geom[lev].Domain().smallEnd(2);
 
     // Handle vertical decomposition by copying into boxes not at klo
-    for (MFIter mfi_dst(*u_star[lev]); mfi.isValid(); ++mfi)
+    for (MFIter mfi_dst(*u_star[lev]); mfi_dst.isValid(); ++mfi_dst)
     {
         Box vbx_dst = mfi_dst.validbox();
 
@@ -797,20 +797,20 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
 
         Box vbx_tmp = vbx_dst; vbx_tmp.setRange(2,klo);
 
-        FArrayBox dst_fab = u_star[lev]->get(mfi_dst);
+        FArrayBox& dst_fab = u_star[lev]->get(mfi_dst);
 
-        for (MFIter mfi_src(*u_star[lev]); mfi.isValid(); ++mfi)
+        for (MFIter mfi_src(*u_star[lev]); mfi_src.isValid(); ++mfi_src)
         {
             Box vbx_src = mfi_src.validbox();
             if (vbx_src == vbx_tmp) {
-                FArrayBox src_fab = u_star[lev]->get(mfi_src);
+                FArrayBox& src_fab = u_star[lev]->get(mfi_src);
                 dst_fab.copy<RunOn::Device>(src_fab, vbx_src, 0, vbx_dst, 0, 1);
             }
         }
 
     }
 
-    // Now work on all boxes (ustar has been filled)
+    // Now work on all boxes (ustar has been filled above)
     constexpr Real small = 0.01;
     for (MFIter mfi(cons); mfi.isValid(); ++mfi)
     {
@@ -899,7 +899,6 @@ SurfaceLayer::read_custom_roughness (const int& lev,
             auto ProbLoArr = m_geom[lev].ProbLoArray();
             int ilo = m_geom[lev].Domain().smallEnd(0);
             int jlo = m_geom[lev].Domain().smallEnd(1);
-            int klo = 0;
             int ihi = m_geom[lev].Domain().bigEnd(0);
             int jhi = m_geom[lev].Domain().bigEnd(1);
 
