@@ -274,7 +274,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // Map factors
     // ********************************************************************************************
     BoxList bl2d_mf = ba.boxList();
-    for (auto& b : bl2d_mf) { b.setRange(2,b.smallEnd(2)); }
+    for (auto& b : bl2d_mf) { b.setRange(2,0); }
     BoxArray ba2d_mf(std::move(bl2d_mf));
 
     mapfac[lev].resize(MapFacType::num);
