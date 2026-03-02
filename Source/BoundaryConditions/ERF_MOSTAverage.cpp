@@ -97,9 +97,6 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     bool use_terrain_fitted_coords = ( (m_terrain_type == TerrainType::StaticFittedMesh) ||
                                        (m_terrain_type == TerrainType::MovingFittedMesh) );
 
-    int klo = m_geom[lev].Domain().smallEnd(2);
-    int khi = m_geom[lev].Domain().bigEnd(2);
-
     { // Nodal in x
         auto& mf = *vars_old[Vars::xvel];
         // Create a 2D ba, dm, & ghost cells
