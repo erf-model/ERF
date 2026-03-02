@@ -397,9 +397,7 @@ public:
       // Attributes for MFs and FABs
       //--------------------------------------------------------
       // Create a 2D ba, dm, & ghost cells
-      int klo = m_geom[lev].Domain().smallEnd(2);
-      int khi = m_geom[lev].Domain().bigEnd(2);
-      amrex::BoxArray ba = mf.boxArray();
+      amrex::BoxArray ba  = mf.boxArray();
       amrex::BoxList bl2d = ba.boxList();
       for (auto& b : bl2d) { b.setRange(2,b.smallEnd(2)); }
       amrex::BoxArray ba2d(std::move(bl2d));
