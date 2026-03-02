@@ -173,11 +173,14 @@ SurfaceLayer::update_fluxes (const int& lev,
     if (m_update_k_rans) {
         const bool use_ref_theta = (theta_ref > 0);
         const Real l_inv_theta0  = (use_ref_theta) ? 1.0 / theta_ref : 1.0;
-        const Real l_inv_Cmu2 = inv_Cmu2;
+        const Real l_inv_Cmu2    = inv_Cmu2;
+        const int klo = m_geom[lev].Domain().smallEnd(2);
 
         for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
         {
             Box gtbx = mfi.growntilebox();
+
+            if (gtbx.smallEnd(2) != klo) { continue; }
 
             auto cons_arr = cons_in.array(mfi);
             const auto& u_star_arr = u_star[lev]->const_array(mfi);
@@ -624,10 +627,14 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     bool use_tsk = (m_tsk_lev[lev][0]);
     bool ignore_sst = m_ignore_sst;
 
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
     // Populate t_surf
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
 
@@ -674,9 +681,12 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
 
     // Populate q_surf with qsat over water
     auto dz = m_geom[lev].CellSize(2);
+    const int klo = m_geom[lev].Domain().smallEnd(2);
     for (MFIter mfi(*q_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto q_surf_arr = q_surf[lev]->array(mfi);
@@ -708,9 +718,12 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
 void
 SurfaceLayer::get_lsm_tsurf (const int& lev)
 {
+    const int klo = m_geom[lev].Domain().smallEnd(2);
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
 
         // NOTE: LSM does not carry lateral ghost cells.
         //       This copies the valid box into the ghost cells.
@@ -773,21 +786,46 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
 {
     Print() << "Initializing TKE from surface layer ustar on level " << lev << std::endl;
 
-    constexpr Real small = 0.01;
+    const int klo = m_geom[lev].Domain().smallEnd(2);
 
+    // Handle vertical decomposition by copying into boxes not at klo
+    for (MFIter mfi_dst(*u_star[lev]); mfi.isValid(); ++mfi)
+    {
+        Box vbx_dst = mfi_dst.validbox();
+
+        if (vbx_dst.smallEnd(2) == klo) { continue; }
+
+        Box vbx_tmp = vbx_dst; vbx_tmp.setRange(2,klo);
+
+        FArrayBox dst_fab = u_star[lev]->get(mfi_dst);
+
+        for (MFIter mfi_src(*u_star[lev]); mfi.isValid(); ++mfi)
+        {
+            Box vbx_src = mfi_src.validbox();
+            if (vbx_src == vbx_tmp) {
+                FArrayBox src_fab = u_star[lev]->get(mfi_src);
+                dst_fab.copy<RunOn::Device>(src_fab, vbx_src, 0, vbx_dst, 0, 1);
+            }
+        }
+
+    }
+
+    // Now work on all boxes (ustar has been filled)
+    constexpr Real small = 0.01;
     for (MFIter mfi(cons); mfi.isValid(); ++mfi)
     {
-        Box gtbx = mfi.tilebox();
+        Box vbx  = mfi.validbox();
+        int kmin = vbx.smallEnd(2);
 
         auto const& u_star_arr = u_star[lev]->const_array(mfi);
         auto const& z_phys_arr = z_phys_nd->const_array(mfi);
 
         auto const& cons_arr   = cons.array(mfi);
 
-        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            Real rho = cons_arr(i, j, k, Rho_comp);
-            Real ust = u_star_arr(i, j, 0);
+            Real rho  = cons_arr(i, j, k, Rho_comp);
+            Real ust  = u_star_arr(i, j, kmin);
             Real tke0 = tkefac * ust * ust; // surface value
             Real zagl = Compute_Zrel_AtCellCenter(i, j, k, z_phys_arr);
 
@@ -848,9 +886,12 @@ SurfaceLayer::read_custom_roughness (const int& lev,
         Real* z0p = d_z0.data();
 
         // Each rank populates it's z_0[lev] MultiFab
+        const int klo = m_geom[lev].Domain().smallEnd(2);
         for (MFIter mfi(z_0[lev]); mfi.isValid(); ++mfi)
         {
             Box gtbx = mfi.growntilebox();
+
+            if (gtbx.smallEnd(2) != klo) { continue; }
 
             // Populate z_phys data
             Real tol = 1.0e-4;
