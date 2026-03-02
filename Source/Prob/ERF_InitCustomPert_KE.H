@@ -11,7 +11,7 @@
                        << std::endl;
     }
 
-    ParallelForRNG(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         // Set an initial value for SGS KE
         const Real z = z_cc(i,j,k);
