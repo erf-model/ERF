@@ -470,6 +470,25 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
            Define_ERFFillPatchers(lev);
     }
 
+    // ********************************************************************************************
+    // For anelastic levels created from coarse (either on restart or during a run), project the
+    // interpolated velocity to enforce the divergence-free constraint.  This:
+    //   1. Initializes gradp[lev] via the pressure projection, handling both the pure-anelastic
+    //      case and the hybrid case (compressible lev-1, anelastic lev) where there is no coarse
+    //      gradp to interpolate.
+    //   2. Corrects rW (z-momentum) to satisfy the divergence-free constraint rather than relying
+    //      on spatial interpolation, which can be physically inconsistent.
+    //   3. Re-runs VelocityToMomentum + FillBoundary on the coarse level before registering in
+    //      the FillPatcher, ensuring any lingering sentinel ghost cells in the coarse momentum do
+    //      not contaminate the fine-level data.
+    // FillPatchers must be constructed above before this call. pp_inc is scratch; zero afterward.
+    // ********************************************************************************************
+    if (solverChoice.anelastic[lev]) {
+        Real dummy_dt = 1.0;
+        project_initial_velocity(lev, time, dummy_dt);
+        pp_inc[lev].setVal(0.0);
+    }
+
     //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
