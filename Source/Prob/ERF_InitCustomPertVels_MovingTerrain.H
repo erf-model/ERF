@@ -1,6 +1,6 @@
-    ParmParse pp("prob");
-    Real Ampl = 0.;        pp.query("Ampl", Ampl);
-    Real wavelength = 1.0; pp.get("wavelength", wavelength);
+    ParmParse pp_prob("prob");
+    Real Ampl = 0.;        pp_prob.query("Ampl", Ampl);
+    Real wavelength = 1.0; pp_prob.get("wavelength", wavelength);
 
     Real H           = geomdata.ProbHi()[2];
     Real kp          = 2.0 * PI / wavelength;
