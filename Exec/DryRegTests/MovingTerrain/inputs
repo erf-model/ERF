@@ -65,4 +65,6 @@ erf.les_type        = "None"
 
 # PROBLEM PARAMETERS
 prob.custom_terrain_type = "MovingSineWave"
+prob.wavelength = 100.0;
 prob.Ampl = 0.16
+prob.T_0  = 300.;

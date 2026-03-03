@@ -80,7 +80,7 @@ prob.z_offset            = .0179687500
 
 prob.rho_0 = 100.0
 prob.T_0   = 1.0
-prob.u_0   = 0.0
+prob.U_0   = 0.0
 prob.A_0 = 1.0
 prob.prob_type = 11
 prob.xradius = 3.0

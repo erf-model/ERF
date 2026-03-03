@@ -65,6 +65,12 @@ Problem::init_custom_pert (
     else if (my_prob_name == "Turbulent Inflow") {
 #include "Prob/ERF_InitCustomPert_TurbulentInflow.H"
     }
+    else if (my_prob_name == "Moving Terrain") {
+#include "Prob/ERF_InitCustomPert_MovingTerrain.H"
+    }
+    else if (my_prob_name == "EB Poiseuille") {
+#include "Prob/ERF_InitCustomPert_EBPoiseuille.H"
+    }
 
     amrex::Gpu::streamSynchronize();
 }
@@ -109,7 +115,8 @@ Problem::init_custom_pert_vels (
 #include "Prob/ERF_InitCustomPertVels_TaylorGreenVortex.H"
     }
     else if ( (my_prob_name == "Terrain - 2D Cylinder") ||
-              (my_prob_name == "EB Square Cylinder"   ) ) {
+              (my_prob_name == "EB Square Cylinder"   ) ||
+              (my_prob_name == "EB Poiseuille"   ) ) {
 #include "Prob/ERF_InitCustomPertVels_ConstantU.H"
     }
     else if (my_prob_name == "Terrain - 3D Hemisphere") {
@@ -120,6 +127,9 @@ Problem::init_custom_pert_vels (
     }
     else if (my_prob_name == "Flow over Witch of Agnesi hill") {
 #include "Prob/ERF_InitCustomPertVels_WitchOfAgnesi.H"
+    }
+    else if (my_prob_name == "Moving Terrain") {
+#include "Prob/ERF_InitCustomPertVels_MovingTerrain.H"
     }
 
     amrex::Gpu::streamSynchronize();
