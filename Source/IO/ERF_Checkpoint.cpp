@@ -227,6 +227,14 @@ ERF::WriteCheckpointFile () const
             }
         }
 
+        // Write the radiation heating rates
+        if ((solverChoice.rad_type != RadiationType::None) && (qheating_rates[lev])) {
+            int nrad = qheating_rates[lev]->nComp();
+            MultiFab mf_rad(grids[lev],dmap[lev],nrad,0);
+            MultiFab::Copy(mf_rad,*qheating_rates[lev],0,0,nrad,0);
+            VisMF::Write(mf_rad, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qrad"));
+        }
+
         IntVect ng = mapfac[lev][MapFacType::m_x]->nGrowVect();
         BoxList bl2d_mf = ba2d[lev].boxList();
         for (auto& b : bl2d_mf) { b.setRange(2,0); }
@@ -765,6 +773,14 @@ ERF::ReadCheckpointFile ()
             }
         }
 
+        // Read the radiation heating rates
+        std::string RadFileName(restart_chkfile + "/Level_0/Qrad_H");
+        if ((solverChoice.rad_type != RadiationType::None) && amrex::FileExists(RadFileName)) {
+            int nrad = qheating_rates[lev]->nComp();
+            MultiFab mf_rad(grids[lev],dmap[lev],nrad,0);
+            VisMF::Read(mf_rad, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qrad"));
+            MultiFab::Copy(*qheating_rates[lev],mf_rad,0,0,nrad,0);
+        }
 
         IntVect ng = mapfac[lev][MapFacType::m_x]->nGrowVect();
         BoxList bl2d_mf = ba2d[lev].boxList();
