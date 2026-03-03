@@ -34,6 +34,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                   Vector<std::unique_ptr<MultiFab>>& mapfac,
                                   const std::unique_ptr<MultiFab>& z_phys_nd,
                                   const TurbChoice& turbChoice, const Real const_grav,
+                                  const SolverChoice& solverChoice,
                                   std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
                                   const MoistureComponentIndices& moisture_indices,
                                   const eb_& ebfact,
@@ -51,6 +52,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
     bool use_thetal_grad = (turbChoice.strat_type == StratType::thetal);
 
     bool isotropic = turbChoice.mix_isotropic;
+    bool l_use_eb = (solverChoice.terrain_type == TerrainType::EB);
+    
 
     // SMAGORINSKY: Fill Kturb for momentum in horizontal and vertical
     //***********************************************************************************
@@ -90,6 +93,18 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             Array4<Real const> u_arr = (l_has_xvel) ? xvel->const_array(mfi) : Array4<Real const>{};
             Array4<Real const> v_arr = (l_has_yvel) ? yvel->const_array(mfi) : Array4<Real const>{};
 
+            Array4<const EBCellFlag> c_cflag{};
+            Array4<const EBCellFlag> u_cflag{};
+            Array4<const EBCellFlag> v_cflag{};
+            Array4<const EBCellFlag> w_cflag{};
+            if (l_use_eb)
+            {
+                c_cflag = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+                u_cflag = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+                v_cflag = (ebfact.get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+                w_cflag = (ebfact.get_w_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
+            }
+
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // =====================================================================
@@ -99,7 +114,11 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 if (smag2d) {
                     SmnSmn = ComputeSmnSmn2D(i,j,k,tau11,tau22,tau12);
                 } else {
-                    SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
+                    if (l_use_eb) {
+                        SmnSmn = ComputeSmnSmn_EB(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,c_cflag,u_cflag,v_cflag,w_cflag);
+                    } else {
+                        SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
+                    }
                 }
                 Real strain_rate_magnitude = std::sqrt(2.0 * SmnSmn);
 
@@ -621,6 +640,7 @@ void ComputeTurbulentViscosity (Real dt,
                                      Hfx1, Hfx2, Hfx3, Diss,
                                      geom, use_terrain_fitted_coords,
                                      mapfac, z_phys_nd, turbChoice, const_grav,
+                                     solverChoice,
                                      SurfLayer, solverChoice.moisture_indices,
                                      ebfact, &xvel, &yvel);
     }
