@@ -37,7 +37,6 @@
         // Define ellipse parameters
         const Real r0   = rad_0 * (prob_hi[0] - prob_lo[0]);
         const Real r3d    = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
-        const Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
         const Real r2d_xz = std::sqrt((x-xc)*(x-xc) + (z-zc)*(z-zc));
         const Real r2d_xz_nd   = std::sqrt((x-xc)*(x-xc)/xradius/xradius
                                           +(z-zc)*(z-zc)/zradius/zradius);
