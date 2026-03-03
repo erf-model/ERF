@@ -449,7 +449,6 @@ struct SolverChoice {
 
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
-        pp.query("has_lat_lon", has_lat_lon);
         pp.query("variable_coriolis", variable_coriolis);
 
         // Include four stream radiation approximation
@@ -1203,7 +1202,6 @@ struct SolverChoice {
     std::string abl_geo_wind_table;
     bool have_geo_wind_profile {false};
 
-    bool has_lat_lon{false};
     bool variable_coriolis{false};
 
     int ave_plane {2};

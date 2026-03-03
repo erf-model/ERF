@@ -1,0 +1,90 @@
+diff --git a/Source/DataStructs/ERF_DataStruct.H b/Source/DataStructs/ERF_DataStruct.H
+index 89e5de37..0f2f8be4 100644
+--- a/Source/DataStructs/ERF_DataStruct.H
++++ b/Source/DataStructs/ERF_DataStruct.H
+@@ -449,7 +449,6 @@ struct SolverChoice {
+ 
+         // Include Coriolis forcing?
+         pp.query("use_coriolis", use_coriolis);
+-        pp.query("has_lat_lon", has_lat_lon);
+         pp.query("variable_coriolis", variable_coriolis);
+ 
+         // Include four stream radiation approximation
+@@ -1203,7 +1202,6 @@ struct SolverChoice {
+     std::string abl_geo_wind_table;
+     bool have_geo_wind_profile {false};
+ 
+-    bool has_lat_lon{false};
+     bool variable_coriolis{false};
+ 
+     int ave_plane {2};
+diff --git a/Source/IO/ERF_Checkpoint.cpp b/Source/IO/ERF_Checkpoint.cpp
+index fe8450e5..e0374716 100644
+--- a/Source/IO/ERF_Checkpoint.cpp
++++ b/Source/IO/ERF_Checkpoint.cpp
+@@ -357,7 +357,7 @@ ERF::WriteCheckpointFile () const
+         IntVect ngv = ng; ngv[2] = 0;
+ 
+         // Write lat/lon if it exists
+-        if (lat_m[lev] && lon_m[lev] && solverChoice.has_lat_lon) {
++        if (lat_m[lev] && lon_m[lev]) {
+             amrex::Print() << "Writing Lat/Lon variables at level " << lev << std::endl;
+             MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
+             MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
+@@ -901,7 +901,8 @@ ERF::ReadCheckpointFile ()
+         IntVect ngv = ng; ngv[2] = 0;
+ 
+         // Read lat/lon if it exists
+-        if (solverChoice.has_lat_lon) {
++        std::string LatFileName(restart_chkfile + "/Level_0/LAT_H");
++        if (amrex::FileExists(LatFileName)) {
+             amrex::Print() << "Reading Lat/Lon variables" << std::endl;
+             MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
+             MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
+@@ -915,7 +916,8 @@ ERF::ReadCheckpointFile ()
+ 
+ #ifdef ERF_USE_NETCDF
+         // Read sinPhi and cosPhi if it exists
+-        if (solverChoice.variable_coriolis) {
++        std::string VarCorFileName(restart_chkfile + "/Level_0/SinPhi_H");
++        if (amrex::FileExists(VarCorFileName)) {
+             amrex::Print() << "Reading Coriolis factors" << std::endl;
+             MultiFab sphi(ba2d[lev],dmap[lev],1,ngv);
+             MultiFab cphi(ba2d[lev],dmap[lev],1,ngv);
+diff --git a/Source/Initialization/ERF_InitFromMetgrid.cpp b/Source/Initialization/ERF_InitFromMetgrid.cpp
+index 46628c20..cc571cd7 100644
+--- a/Source/Initialization/ERF_InitFromMetgrid.cpp
++++ b/Source/Initialization/ERF_InitFromMetgrid.cpp
+@@ -230,7 +230,6 @@ ERF::init_from_metgrid (int lev)
+         }
+     }
+ 
+-    solverChoice.has_lat_lon = true;
+     lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+     sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+     cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+diff --git a/Source/Initialization/ERF_InitFromWRFInput.cpp b/Source/Initialization/ERF_InitFromWRFInput.cpp
+index b86b64ea..0467c807 100644
+--- a/Source/Initialization/ERF_InitFromWRFInput.cpp
++++ b/Source/Initialization/ERF_InitFromWRFInput.cpp
+@@ -420,7 +420,6 @@ ERF::init_from_wrfinput (int lev,
+ 
+           // Initialize Latitude & Coriolis factors
+           if ( var_name == "XLAT_V" ) {
+-              solverChoice.has_lat_lon = true;
+               lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+               sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+               cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+diff --git a/Source/SourceTerms/ERF_MakeMomSources.cpp b/Source/SourceTerms/ERF_MakeMomSources.cpp
+index 913ba3da..2fa858c5 100644
+--- a/Source/SourceTerms/ERF_MakeMomSources.cpp
++++ b/Source/SourceTerms/ERF_MakeMomSources.cpp
+@@ -348,7 +348,7 @@ void make_mom_sources (Real time,
+                     zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cphi_loc;
+                 });
+             }
+-            else if (var_coriolis && has_lat_lon) {
++            else if (var_coriolis && (sinPhi_mf) && (cosPhi_mf)) {
+                 ParallelFor(tbx, tby, tbz,
+                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                 {
