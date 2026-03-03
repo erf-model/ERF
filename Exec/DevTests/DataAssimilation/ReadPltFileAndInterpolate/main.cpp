@@ -15,14 +15,9 @@ int main (int argc, char* argv[])
         MultiFab mf_cc_fine;
 
         PlotFileData pf_coarse("plt_coarse");
-
         ReadPlotFile("vars.txt", pf_coarse, mf_cc_coarse);
 
         PlotFileData pf_fine("plt_fine");
-
-        // Read variable names
-        Vector<std::string> varnames = ReadVarNames("vars.txt");
-
         ReadPlotFile("vars.txt", pf_fine, mf_cc_fine);
 
         Array<int,AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0,0,0)};
@@ -42,6 +37,9 @@ int main (int argc, char* argv[])
 
         MultiFab mf_cc_tmp;
         CreateCellCenteredMultiFabFromNodalMultiFab(mf_cc_tmp, mf_nc_coarse);
+        // Read variable names
+        Vector<std::string> varnames = ReadVarNames("vars.txt");
+
         WriteSingleLevelPlotfile("plt_1", mf_cc_tmp, varnames, geom_coarse, 0.0, 0);
 
         MultiFab coarse_multifab_on_fine_dmap;

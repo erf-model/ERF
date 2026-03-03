@@ -293,31 +293,6 @@ for (const auto& b : bl_coarse) {
     return IntVect::TheZeroVector(); // unreachable if Abort
 }
 
-/*IntVect
-find_bound_idx(Real x, Real y, Real z,
-               const Geometry& geom,
-               BoundType bound_type)
-{
-    const auto prob_lo = geom.ProbLoArray();
-    const auto dx      = geom.CellSizeArray();
-    constexpr Real eps = 1.e-12;
-
-    auto map = [&](Real x, int d) {
-        Real r = (x - prob_lo[d]) / dx[d];
-        return (bound_type == BoundType::Lo)
-            ? static_cast<int>(std::floor(r + eps))
-            : static_cast<int>(std::floor(r - eps));
-    };
-
-    IntVect idx(map(x,0), map(y,1), map(z,2));
-
-    const Box& domain = geom.Domain();
-    idx = amrex::max(idx, domain.smallEnd());
-    idx = amrex::min(idx, domain.bigEnd());
-
-    return idx;
-}*/
-
 
 void 
 GetCoarseMultiFabOnFineDMap(const Geometry& geom_coarse,
@@ -359,6 +334,12 @@ GetCoarseMultiFabOnFineDMap(const Geometry& geom_coarse,
 
         b.setSmall(idx_lo);
         b.setBig(idx_hi);
+
+         /*Print() << "lo fine = " << lo_fine << std::endl;
+         Print() << "hi fine = " << hi_fine << std::endl;
+        Print() << " idx lo = " << idx_lo << std::endl;
+        Print() << "idx_hi = " << idx_hi << std::endl;*/
+        
     }
 
     BoxArray cba(std::move(bl_fine));
