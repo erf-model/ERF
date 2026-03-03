@@ -228,10 +228,10 @@ ERF::WriteCheckpointFile () const
         }
 
         IntVect ng = mapfac[lev][MapFacType::m_x]->nGrowVect();
-        BoxList bl2d_mf = ba2d[lev].boxList();
-        for (auto& b : bl2d_mf) { b.setRange(2,0); }
-        BoxArray ba2d_mf(std::move(bl2d_mf));
-        MultiFab mf_m(ba2d_mf,dmap[lev],1,ng);
+        BoxList bl2d_0 = ba2d[lev].boxList();
+        for (auto& b : bl2d_0) { b.setRange(2,0); }
+        BoxArray ba2d_0(std::move(bl2d_0));
+        MultiFab mf_m(ba2d_0,dmap[lev],1,ng);
         MultiFab::Copy(mf_m,*mapfac[lev][MapFacType::m_x],0,0,1,ng);
         VisMF::Write(mf_m, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_mx"));
 
@@ -243,7 +243,7 @@ ERF::WriteCheckpointFile () const
 #endif
 
         ng = mapfac[lev][MapFacType::u_x]->nGrowVect();
-        MultiFab mf_u(convert(ba2d_mf,IntVect(1,0,0)),dmap[lev],1,ng);
+        MultiFab mf_u(convert(ba2d_0,IntVect(1,0,0)),dmap[lev],1,ng);
         MultiFab::Copy(mf_u,*mapfac[lev][MapFacType::u_x],0,0,1,ng);
         VisMF::Write(mf_u, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_ux"));
 
@@ -255,7 +255,7 @@ ERF::WriteCheckpointFile () const
 #endif
 
         ng = mapfac[lev][MapFacType::v_x]->nGrowVect();
-        MultiFab mf_v(convert(ba2d_mf,IntVect(0,1,0)),dmap[lev],1,ng);
+        MultiFab mf_v(convert(ba2d_0,IntVect(0,1,0)),dmap[lev],1,ng);
         MultiFab::Copy(mf_v,*mapfac[lev][MapFacType::v_x],0,0,1,ng);
         VisMF::Write(mf_v, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_vx"));
 
@@ -359,8 +359,8 @@ ERF::WriteCheckpointFile () const
         // Write lat/lon if it exists
         if (lat_m[lev] && lon_m[lev] && solverChoice.has_lat_lon) {
             amrex::Print() << "Writing Lat/Lon variables at level " << lev << std::endl;
-            MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
-            MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
+            MultiFab lat(ba2d_0,dmap[lev],1,ngv);
+            MultiFab lon(ba2d_0,dmap[lev],1,ngv);
             MultiFab::Copy(lat,*lat_m[lev],0,0,1,ngv);
             MultiFab::Copy(lon,*lon_m[lev],0,0,1,ngv);
             VisMF::Write(lat, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LAT"));
@@ -372,8 +372,8 @@ ERF::WriteCheckpointFile () const
         // Write sinPhi and cosPhi if it exists
         if (cosPhi_m[lev] && sinPhi_m[lev] && solverChoice.variable_coriolis) {
             amrex::Print() << "Writing Coriolis factors at level " << lev << std::endl;
-            MultiFab sphi(ba2d[lev],dmap[lev],1,ngv);
-            MultiFab cphi(ba2d[lev],dmap[lev],1,ngv);
+            MultiFab sphi(ba2d_0,dmap[lev],1,ngv);
+            MultiFab cphi(ba2d_0,dmap[lev],1,ngv);
             MultiFab::Copy(sphi,*sinPhi_m[lev],0,0,1,ngv);
             MultiFab::Copy(cphi,*cosPhi_m[lev],0,0,1,ngv);
             VisMF::Write(sphi, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SinPhi"));
@@ -391,7 +391,7 @@ ERF::WriteCheckpointFile () const
                 MultiFab::Copy(tmp1d,*mf_C2H,0,0,1,0);
                 VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
 
-                MultiFab tmp2d(ba2d[0],dmap[0],1,mf_MUB->nGrowVect());
+                MultiFab tmp2d(ba2d_0,dmap[0],1,mf_MUB->nGrowVect());
 
                 MultiFab::Copy(tmp2d,*mf_MUB,0,0,1,mf_MUB->nGrowVect());
                 VisMF::Write(tmp2d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MUB"));
@@ -767,10 +767,10 @@ ERF::ReadCheckpointFile ()
 
 
         IntVect ng = mapfac[lev][MapFacType::m_x]->nGrowVect();
-        BoxList bl2d_mf = ba2d[lev].boxList();
-        for (auto& b : bl2d_mf) { b.setRange(2,0); }
-        BoxArray ba2d_mf(std::move(bl2d_mf));
-        MultiFab mf_m(ba2d_mf,dmap[lev],1,ng);
+        BoxList bl2d_0 = ba2d[lev].boxList();
+        for (auto& b : bl2d_0) { b.setRange(2,0); }
+        BoxArray ba2d_0(std::move(bl2d_0));
+        MultiFab mf_m(ba2d_0,dmap[lev],1,ng);
 
         std::string MapFacMFileName(restart_chkfile + "/Level_0/MapFactor_mx_H");
         if (amrex::FileExists(MapFacMFileName)) {
@@ -788,7 +788,7 @@ ERF::ReadCheckpointFile ()
 #endif
 
         ng = mapfac[lev][MapFacType::u_x]->nGrowVect();
-        MultiFab mf_u(convert(ba2d_mf,IntVect(1,0,0)),dmap[lev],1,ng);
+        MultiFab mf_u(convert(ba2d_0,IntVect(1,0,0)),dmap[lev],1,ng);
 
         std::string MapFacUFileName(restart_chkfile + "/Level_0/MapFactor_ux_H");
         if (amrex::FileExists(MapFacUFileName)) {
@@ -806,7 +806,7 @@ ERF::ReadCheckpointFile ()
 #endif
 
         ng = mapfac[lev][MapFacType::v_x]->nGrowVect();
-        MultiFab mf_v(convert(ba2d_mf,IntVect(0,1,0)),dmap[lev],1,ng);
+        MultiFab mf_v(convert(ba2d_0,IntVect(0,1,0)),dmap[lev],1,ng);
 
         std::string MapFacVFileName(restart_chkfile + "/Level_0/MapFactor_vx_H");
         if (amrex::FileExists(MapFacVFileName)) {
@@ -901,10 +901,11 @@ ERF::ReadCheckpointFile ()
         IntVect ngv = ng; ngv[2] = 0;
 
         // Read lat/lon if it exists
-        if (solverChoice.has_lat_lon) {
+        std::string LatFileName(restart_chkfile + "/Level_0/LAT_H");
+        if (amrex::FileExists(LMaskFileName)) {
             amrex::Print() << "Reading Lat/Lon variables" << std::endl;
-            MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
-            MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
+            MultiFab lat(ba2d_0,dmap[lev],1,ngv);
+            MultiFab lon(ba2d_0,dmap[lev],1,ngv);
             VisMF::Read(lat, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LAT"));
             VisMF::Read(lon, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LON"));
             lat_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ngv);
@@ -915,10 +916,11 @@ ERF::ReadCheckpointFile ()
 
 #ifdef ERF_USE_NETCDF
         // Read sinPhi and cosPhi if it exists
-        if (solverChoice.variable_coriolis) {
+        std::string VarCorFileName(restart_chkfile + "/Level_0/SinPhi_H");
+        if (amrex::FileExists(VarCorFileName)) {
             amrex::Print() << "Reading Coriolis factors" << std::endl;
-            MultiFab sphi(ba2d[lev],dmap[lev],1,ngv);
-            MultiFab cphi(ba2d[lev],dmap[lev],1,ngv);
+            MultiFab sphi(ba2d_0,dmap[lev],1,ngv);
+            MultiFab cphi(ba2d_0,dmap[lev],1,ngv);
             VisMF::Read(sphi, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SinPhi"));
             VisMF::Read(cphi, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "CosPhi"));
             sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ngv);

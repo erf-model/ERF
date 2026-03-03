@@ -271,28 +271,47 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     // ********************************************************************************************
+    // Build 1D BA and 2D BA
+    // ********************************************************************************************
+
+    // Build 2D BA with k==klo
+    BoxList bl2d = ba.boxList();
+    for (auto& b : bl2d) { b.setRange(2,b.smallEnd(2)); }
+    ba2d[lev]  = BoxArray(std::move(bl2d));
+
+    // Build SD BA with k==0
+    BoxList bl2d_0 = ba.boxList();
+    for (auto& b : bl2d_0) { b.setRange(2,0); }
+    BoxArray ba2d_0(std::move(bl2d_0));
+
+    // Build 1D BA with k==0
+    BoxList bl1d_0 = ba.boxList();
+    for (auto& b : bl1d_0) {
+        b.setRange(0,0);
+        b.setRange(1,0);
+    }
+    ba1d[lev]  = BoxArray(std::move(bl1d_0));
+
+    // ********************************************************************************************
     // Map factors
     // ********************************************************************************************
-    BoxList bl2d_mf = ba.boxList();
-    for (auto& b : bl2d_mf) { b.setRange(2,0); }
-    BoxArray ba2d_mf(std::move(bl2d_mf));
 
     mapfac[lev].resize(MapFacType::num);
-    mapfac[lev][MapFacType::m_x] = std::make_unique<MultiFab>(                        ba2d_mf,dm,1,IntVect(3,3,0));
-    mapfac[lev][MapFacType::u_x] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,IntVect(3,3,0));
-    mapfac[lev][MapFacType::v_x] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,IntVect(3,3,0));
+    mapfac[lev][MapFacType::m_x] = std::make_unique<MultiFab>(                        ba2d_0,dm,1,IntVect(3,3,0));
+    mapfac[lev][MapFacType::u_x] = std::make_unique<MultiFab>(convert(ba2d_0,IntVect(1,0,0)),dm,1,IntVect(3,3,0));
+    mapfac[lev][MapFacType::v_x] = std::make_unique<MultiFab>(convert(ba2d_0,IntVect(0,1,0)),dm,1,IntVect(3,3,0));
 
 #if 0
     // For now we comment this out to avoid CI failures but we will need to re-enable
     //     this if using non-conformal mappings
     if (MapFacType::m_y != MapFacType::m_x) {
-        mapfac[lev][MapFacType::m_y] = std::make_unique<MultiFab>(ba2d_mf,dm,1,IntVect(3,3,0));
+        mapfac[lev][MapFacType::m_y] = std::make_unique<MultiFab>(ba2d_0,dm,1,IntVect(3,3,0));
     }
     if (MapFacType::u_y != MapFacType::u_x) {
-        mapfac[lev][MapFacType::u_y] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,IntVect(3,3,0));
+        mapfac[lev][MapFacType::u_y] = std::make_unique<MultiFab>(convert(ba2d_0,IntVect(1,0,0)),dm,1,IntVect(3,3,0));
     }
     if (MapFacType::v_y != MapFacType::v_x) {
-        mapfac[lev][MapFacType::v_y] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,IntVect(3,3,0));
+        mapfac[lev][MapFacType::v_y] = std::make_unique<MultiFab>(convert(ba2d_0,IntVect(0,1,0)),dm,1,IntVect(3,3,0));
     }
 #endif
 
@@ -310,29 +329,18 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     // ********************************************************************************************
-    // Build 1D BA and 2D BA
+    // Build 1D and 2D WRF Vars
     // ********************************************************************************************
-    BoxList bl1d = ba.boxList();
-    for (auto& b : bl1d) {
-        b.setRange(0,0);
-        b.setRange(1,0);
-    }
-    ba1d[lev]  = BoxArray(std::move(bl1d));
-
-    // Build 2D BA
-    BoxList bl2d = ba.boxList();
-    for (auto& b : bl2d) { b.setRange(2,b.smallEnd(2)); }
-    ba2d[lev]  = BoxArray(std::move(bl2d));
 
     IntVect ng  = vars_new[lev][Vars::cons].nGrowVect();
 
     if (lev == 0) {
         mf_C1H = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
         mf_C2H = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
-        mf_MUB = std::make_unique<MultiFab>(ba2d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        mf_MUB = std::make_unique<MultiFab>(ba2d_0,dm,1,IntVect(ng[0],ng[1],ng[2]));
     }
 
-    mf_PSFC[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ng);
+    mf_PSFC[lev] = std::make_unique<MultiFab>(ba2d_0,dm,1,ng);
 
     //*********************************************************
     // Variables for Fitch model for windfarm parametrization
@@ -396,16 +404,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         solverChoice.hindcast_surface_bcs)
 
     {
-        const MultiFab& src = vars_new[lev][0];
-        BoxArray ba_hc = src.boxArray();
-        BoxList bl2d_hc = ba_hc.boxList();
-        for (auto& b : bl2d_hc) { b.setRange(2,b.smallEnd(2)); }
-        BoxArray ba2d_hc(std::move(bl2d_hc));
-        const amrex::DistributionMapping& dm_hc = src.DistributionMap();
-
-        surface_state_1[lev].define(ba2d_hc, dm_hc, 2, src.nGrow());
-        surface_state_2[lev].define(ba2d_hc, dm_hc, 2, src.nGrow());
-        surface_state_interp[lev].define(ba2d_hc, dm_hc, 2, src.nGrow());
+        surface_state_1[lev].define(ba2d_0, dm, 2, src.nGrow());
+        surface_state_2[lev].define(ba2d_0, dm, 2, src.nGrow());
+        surface_state_interp[lev].define(ba2d_0, dm, 2, src.nGrow());
 
         bool regrid_forces_file_read = true;
         SurfaceDataInterpolation(lev, t_new[0], z_phys_nd, regrid_forces_file_read);
@@ -462,15 +463,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.lsm_type != LandSurfaceType::None &&
         solverChoice.rad_type != RadiationType::None)
     {
-        BoxList m_bl = ba.boxList();
-        for (auto& b : m_bl) {
-            int kmin = b.smallEnd(2);
-            b.setRange(2,kmin);
-        }
-        BoxArray m_ba(std::move(m_bl));
-
-        sw_lw_fluxes[lev] = std::make_unique<MultiFab>(m_ba, dm, 6, 0); // DIR/DIF VIS/NIR (4), NET SW (1), LW (1)
-        solar_zenith[lev] = std::make_unique<MultiFab>(m_ba, dm, 1, 0);
+        sw_lw_fluxes[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 6, 0); // DIR/DIF VIS/NIR (4), NET SW (1), LW (1)
+        solar_zenith[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, 0);
 
         sw_lw_fluxes[lev]->setVal(0.);
         solar_zenith[lev]->setVal(0.);
@@ -494,29 +488,26 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // NOTE: the logic below will BREAK if we have any grids not touching the bottom boundary
     //
     {
-    lmask_lev[lev].resize(1);
-    auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
-    BoxList bl2d_mask = ba.boxList();
-    for (auto& b : bl2d_mask) { b.setRange(2,b.smallEnd(2)); }
-    BoxArray ba2d_mask(std::move(bl2d_mask));
-    lmask_lev[lev][0] = std::make_unique<iMultiFab>(ba2d_mask,dm,1,ngv);
-    lmask_lev[lev][0]->setVal(1);
-    lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+        lmask_lev[lev].resize(1);
+        auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
+        lmask_lev[lev][0] = std::make_unique<iMultiFab>(ba2d[lev],dm,1,ngv);
+        lmask_lev[lev][0]->setVal(1);
+        lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
 
-    land_type_lev[lev].resize(1);
-    land_type_lev[lev][0] = std::make_unique<iMultiFab>(ba2d_mask,dm,1,ngv);
-    land_type_lev[lev][0]->setVal(0);
-    land_type_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+        land_type_lev[lev].resize(1);
+        land_type_lev[lev][0] = std::make_unique<iMultiFab>(ba2d[lev],dm,1,ngv);
+        land_type_lev[lev][0]->setVal(0);
+        land_type_lev[lev][0]->FillBoundary(geom[lev].periodicity());
 
-    soil_type_lev[lev].resize(1);
-    soil_type_lev[lev][0] = std::make_unique<iMultiFab>(ba2d_mask,dm,1,ngv);
-    soil_type_lev[lev][0]->setVal(0);
-    soil_type_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+        soil_type_lev[lev].resize(1);
+        soil_type_lev[lev][0] = std::make_unique<iMultiFab>(ba2d[lev],dm,1,ngv);
+        soil_type_lev[lev][0]->setVal(0);
+        soil_type_lev[lev][0]->FillBoundary(geom[lev].periodicity());
 
-    urb_frac_lev[lev].resize(1);
-    urb_frac_lev[lev][0] = std::make_unique<MultiFab>(ba2d_mask,dm,1,ngv);
-    urb_frac_lev[lev][0]->setVal(1.0);
-    urb_frac_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+        urb_frac_lev[lev].resize(1);
+        urb_frac_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+        urb_frac_lev[lev][0]->setVal(1.0);
+        urb_frac_lev[lev][0]->FillBoundary(geom[lev].periodicity());
     }
 
     // Read in tables needed for windfarm simulations

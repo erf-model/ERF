@@ -418,12 +418,15 @@ ERF::init_from_wrfinput (int lev,
           int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
           int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
 
+          BoxList bl2d_0 = ba2d[lev].boxList();
+          for (auto& b : bl2d_0) { b.setRange(2,0); }
+          BoxArray ba2d_0(std::move(bl2d_0));
+
           // Initialize Latitude & Coriolis factors
           if ( var_name == "XLAT_V" ) {
-              solverChoice.has_lat_lon = true;
-              lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
-              sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
-              cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+              lat_m[lev]    = std::make_unique<MultiFab>(ba2d_0,dm,1,ngv);
+              sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d_0,dm,1,ngv);
+              cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d_0,dm,1,ngv);
               for ( MFIter mfi(*(lat_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                   Box gtbx = mfi.growntilebox();
                   const Array4<      Real>& sin_arr = (sinPhi_m[lev])->array(mfi);
@@ -445,7 +448,7 @@ ERF::init_from_wrfinput (int lev,
 
           // Initialize Longitude
           if ( var_name == "XLONG_U" ) {
-              lon_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
+              lon_m[lev] = std::make_unique<MultiFab>(ba2d_0,dm,1,ngv);
               for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                   Box gtbx = mfi.growntilebox();
                   const Array4<      Real>& dst_arr = (lon_m[lev])->array(mfi);

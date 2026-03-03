@@ -230,7 +230,6 @@ ERF::init_from_metgrid (int lev)
         }
     }
 
-    solverChoice.has_lat_lon = true;
     lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
     sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
     cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
