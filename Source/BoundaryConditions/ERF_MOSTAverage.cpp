@@ -1483,15 +1483,12 @@ MOSTAverage::write_k_indices (const int& lev)
 {
     // Peel back the level
     auto& fields   = m_fields[lev];
-    auto& averages = m_averages[lev];
     auto& k_indx   = m_k_indx[lev];
 
     // MFIter on CC
     int imf_cc = 2;
 
     int klo = m_geom[lev].Domain().smallEnd(2);
-
-    int navg = m_navg - 1;
 
     std::ofstream ofile;
     ofile.open ("MOST_k_indices.txt");
@@ -1533,7 +1530,6 @@ MOSTAverage::write_norm_indices (const int& lev)
 {
     // Peel back the level
     auto& fields   = m_fields[lev];
-    auto& averages = m_averages[lev];
     auto& k_indx   = m_k_indx[lev];
     auto& j_indx   = m_j_indx[lev];
     auto& i_indx   = m_i_indx[lev];
@@ -1542,8 +1538,6 @@ MOSTAverage::write_norm_indices (const int& lev)
     int imf_cc = 2;
 
     int klo = m_geom[lev].Domain().smallEnd(2);
-
-    int navg = m_navg - 1;
 
     std::ofstream ofile;
     ofile.open ("MOST_ijk_indices.txt");
