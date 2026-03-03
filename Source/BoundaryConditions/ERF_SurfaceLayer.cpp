@@ -137,17 +137,17 @@ SurfaceLayer::update_fluxes (const int& lev,
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
                 adiabatic_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                              cnk_a, cnk_visc);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 adiabatic_mod_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                                  depth);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::DONELAN) {
                 adiabatic_donelan most_flux(surf_temp_flux, surf_moist_flux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 adiabatic_wave_coupled most_flux(surf_temp_flux, surf_moist_flux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_sea");
             }
@@ -279,8 +279,8 @@ SurfaceLayer::compute_fluxes (const int& lev,
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
         {
-            if (( is_land && lmask_arr(i,j,k) == 1) ||
-                (!is_land && lmask_arr(i,j,k) == 0))
+            if (( is_land && lmask_arr(i,j,0) == 1) ||
+                (!is_land && lmask_arr(i,j,0) == 0))
             {
                 // NOTE: All 2D MFs so k index is always 0 from ba2d definition
                 most_flux.iterate_flux(i, j, 0, max_iters,
