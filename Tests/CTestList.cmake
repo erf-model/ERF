@@ -183,7 +183,7 @@ add_test_r(MSF_Sub_IsentropicVortexAdv       "DryRegTests"  "erf_dryregtests" "p
 add_test_r(ABL_MOST                          "ABL" "erf_abl" "plt00010")
 add_test_r(ABL_MYNN_PBL                      "ABL" "erf_abl" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1")
 add_test_r(ABL_InflowFile                    "ABL" "erf_abl" "plt00010")
-add_test_r(MoistBubble                       "MoistRegTests/Bubble" "erf_bubble" "plt00010")
+add_test_r(MoistBubble                       "MoistRegTests" "erf_moistregtests" "plt00010")
 add_test_r(SquallLine_2D                     "MoistRegTests/SquallLine_2D" "erf_squallline" "plt00010")
 add_test_r(SuperCell_3D                      "MoistRegTests/SuperCell_3D" "erf_supercell"   "plt00010")
 if(ERF_ENABLE_PARTICLES)
@@ -207,21 +207,21 @@ if(ERF_ENABLE_PARTICLES)
         # log-normal distribution for radius
         add_test_sdm(SDM_RICO3D_InitSampling         "DevTests/RICO"                    "erf_rico"     "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding")
         # mass-exponential distribution for mass
-        add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "MoistRegTests/Bubble"             "erf_bubble"   "plt00000" 1e-14 1e-14)
+        add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "MoistRegTests"  "erf_moistregtests"   "plt00000" 1e-14 1e-14)
         # column case to test condensation
         add_test_sdm(SDM_SineMassFlux                "DevTests/sinusoidal_mass_flux" "erf_sinusoidal_mass_flux" "plt00050" 1e-14 1e-14 INPUT_SOUNDING "input_sounding")
     endif()
 
     # passive advection of particles
-    add_test_sdm(SDM_Bubble2D_Adv                "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 1e-12 1e-12)
+    add_test_sdm(SDM_Bubble2D_Adv                "MoistRegTests" "erf_moistregtests"   "plt00050" 1e-12 1e-12)
     # passive advection of particles with injection
-    add_test_sdm(SDM_Bubble2D_Adv_wInjection     "MoistRegTests/Bubble" "erf_bubble"   "plt00050" 5e-12 5e-12)
+    add_test_sdm(SDM_Bubble2D_Adv_wInjection     "MoistRegTests" "erf_moistregtests"   "plt00050" 5e-12 5e-12)
     # condensation/evaporation
-    add_test_sdm(SDM_Box3D_Cond                  "MoistRegTests/Bubble" "erf_bubble"   "plt00010" 2e-12 3e-13)
+    add_test_sdm(SDM_Box3D_Cond                  "MoistRegTests" "erf_moistregtests"   "plt00010" 2e-12 3e-13)
     # terminal velocity
-    add_test_sdm(SDM_Box3D_VTerm                 "MoistRegTests/Bubble" "erf_bubble"   "plt00001" 5e-13 1e-14)
+    add_test_sdm(SDM_Box3D_VTerm                 "MoistRegTests" "erf_moistregtests"   "plt00001" 5e-13 1e-14)
     # recycling
-    add_test_sdm(SDM_Box3D_Recycling             "MoistRegTests/Bubble" "erf_bubble"   "plt00020" 5e-13 1e-14)
+    add_test_sdm(SDM_Box3D_Recycling             "MoistRegTests" "erf_moistregtests"   "plt00020" 5e-13 1e-14)
     # Congestus case
     add_test_sdm(SDM_Congestus3D                 "DevTests/TemperatureSourceSpatial"   "erf_abl_with_spatial_temperature_source" "plt00020" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
     # RICO case
