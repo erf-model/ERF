@@ -312,6 +312,12 @@ void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const urban_f
                 {
                     output_arr(i, j, k) = lsm_data_arr(i, j, k);
                 });
+            } else if (!valid_land && valid_urban) {
+                // use solely urban value
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    output_arr(i, j, k) = urban_data_arr(i, j, k);
+                });
             } else {
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
