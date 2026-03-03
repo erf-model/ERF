@@ -118,7 +118,6 @@ void make_mom_sources (Real time,
     auto cosphi               = solverChoice.cosphi;
     auto sinphi               = solverChoice.sinphi;
     auto var_coriolis         = solverChoice.variable_coriolis;
-    auto has_lat_lon          = solverChoice.has_lat_lon;
 
     // *****************************************************************************
     // Flag for Geostrophic forcing
@@ -348,7 +347,7 @@ void make_mom_sources (Real time,
                     zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cphi_loc;
                 });
             }
-            else if (var_coriolis && has_lat_lon) {
+            else if (var_coriolis && (sinPhi_mf) && (cosPhi_mf)) {
                 ParallelFor(tbx, tby, tbz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {

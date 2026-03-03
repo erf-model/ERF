@@ -397,11 +397,9 @@ public:
       // Attributes for MFs and FABs
       //--------------------------------------------------------
       // Create a 2D ba, dm, & ghost cells
-      amrex::BoxArray ba = mf.boxArray();
+      amrex::BoxArray ba  = mf.boxArray();
       amrex::BoxList bl2d = ba.boxList();
-      for (auto& b : bl2d) {
-          b.setRange(2, 0);
-      }
+      for (auto& b : bl2d) { b.setRange(2,b.smallEnd(2)); }
       amrex::BoxArray ba2d(std::move(bl2d));
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;

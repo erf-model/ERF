@@ -713,7 +713,7 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
    - ``perlmutter_erf.profile`` - NERSC Perlmutter (NVIDIA A100)
    - ``frontier_erf.profile`` - OLCF Frontier (AMD MI250X)
    - ``polaris_erf.profile`` - ALCF Polaris (NVIDIA A100)
-   - ``aurora_erf.profile`` - ALCF Aurora (Intel GPUs)
+   - ``aurora_erf.profile`` - ALCF Aurora (Intel GPUs); expects ``NETCDF_DIR`` for NetCDF-enabled builds
 
    These profiles are shell scripts that load required modules and set environment variables. Source them before running CMake. For detailed information, see :ref:`sec:build:hpc`.
 

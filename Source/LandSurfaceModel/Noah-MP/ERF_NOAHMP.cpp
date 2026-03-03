@@ -59,9 +59,7 @@ NOAHMP::Init (const int& lev,
     BoxArray ba = cons_in.boxArray();
     DistributionMapping dm = cons_in.DistributionMap();
     BoxList bl_lsm = ba.boxList();
-    for (auto& b : bl_lsm) {
-        b.setRange(2,0);
-    }
+    for (auto& b : bl_lsm) { b.setRange(2,b.smallEnd(2)); }
     BoxArray ba_lsm(std::move(bl_lsm));
 
     // Set up lsm geometry

@@ -274,9 +274,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // Map factors
     // ********************************************************************************************
     BoxList bl2d_mf = ba.boxList();
-    for (auto& b : bl2d_mf) {
-        b.setRange(2,0);
-    }
+    for (auto& b : bl2d_mf) { b.setRange(2,0); }
     BoxArray ba2d_mf(std::move(bl2d_mf));
 
     mapfac[lev].resize(MapFacType::num);
@@ -323,9 +321,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
     // Build 2D BA
     BoxList bl2d = ba.boxList();
-    for (auto& b : bl2d) {
-        b.setRange(2,0);
-    }
+    for (auto& b : bl2d) { b.setRange(2,b.smallEnd(2)); }
     ba2d[lev]  = BoxArray(std::move(bl2d));
 
     IntVect ng  = vars_new[lev][Vars::cons].nGrowVect();
@@ -403,9 +399,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         const MultiFab& src = vars_new[lev][0];
         BoxArray ba_hc = src.boxArray();
         BoxList bl2d_hc = ba_hc.boxList();
-        for (auto& b : bl2d_hc) {
-            b.setRange(2, 0);
-        }
+        for (auto& b : bl2d_hc) { b.setRange(2,b.smallEnd(2)); }
         BoxArray ba2d_hc(std::move(bl2d_hc));
         const amrex::DistributionMapping& dm_hc = src.DistributionMap();
 
@@ -421,9 +415,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // create a new BoxArray and DistributionMapping for a MultiFab with 1 box
     BoxArray ba_onegrid(geom[lev].Domain());
     BoxList bl2d_onegrid = ba_onegrid.boxList();
-    for (auto& b : bl2d_onegrid) {
-        b.setRange(2,0);
-    }
+    for (auto& b : bl2d_onegrid) { b.setRange(2,b.smallEnd(2)); }
     BoxArray ba2d_onegrid(std::move(bl2d_onegrid));
     Vector<int> pmap;
     pmap.resize(1);
@@ -435,9 +427,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     Lwave_onegrid[lev] = std::make_unique<MultiFab>(ba2d_onegrid,dm_onegrid,1,IntVect(1,1,0));
 
     BoxList bl2d_wave = ba.boxList();
-    for (auto& b : bl2d_wave) {
-        b.setRange(2,0);
-    }
+    for (auto& b : bl2d_wave) { b.setRange(2,b.smallEnd(2)); }
     BoxArray ba2d_wave(std::move(bl2d_wave));
 
     Hwave[lev] = std::make_unique<MultiFab>(ba2d_wave,dm,1,IntVect(3,3,0));
@@ -507,9 +497,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lmask_lev[lev].resize(1);
     auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
     BoxList bl2d_mask = ba.boxList();
-    for (auto& b : bl2d_mask) {
-        b.setRange(2,0);
-    }
+    for (auto& b : bl2d_mask) { b.setRange(2,b.smallEnd(2)); }
     BoxArray ba2d_mask(std::move(bl2d_mask));
     lmask_lev[lev][0] = std::make_unique<iMultiFab>(ba2d_mask,dm,1,ngv);
     lmask_lev[lev][0]->setVal(1);
