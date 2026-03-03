@@ -5,6 +5,7 @@ CEXE_headers += ERF_InitRayleighDamping.H
 CEXE_headers += ERF_InitCustomPert_KE.H
 CEXE_headers += ERF_InitCustomPert_DensityCurrent.H
 CEXE_headers += ERF_InitCustomPert_EB_Poiseuille.H
+CEXE_headers += ERF_InitCustomPert_FlowInABox.H
 CEXE_headers += ERF_InitCustomPert_IsentropicVortex.H
 CEXE_headers += ERF_InitCustomPert_MovingTerrain.H
 CEXE_headers += ERF_InitCustomPert_ParticleTests.H
