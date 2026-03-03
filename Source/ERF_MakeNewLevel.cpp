@@ -472,8 +472,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
     // ********************************************************************************************
     // For anelastic levels created from coarse (either on restart or during a run), project the
-    // interpolated velocity to enforce the divergence-free constraint. This Initializes gradp[lev] 
-    // via the pressure projection, handling both the pure-anelastic case and the hybrid case 
+    // interpolated velocity to enforce the divergence-free constraint. This Initializes gradp[lev]
+    // via the pressure projection, handling both the pure-anelastic case and the hybrid case
     // (compressible lev-1, anelastic lev) where there is no coarse gradp to interpolate.
     // FillPatchers must be constructed above before this call. pp_inc is scratch; zero afterward.
     // ********************************************************************************************
