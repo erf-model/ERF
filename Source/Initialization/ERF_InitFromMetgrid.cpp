@@ -922,7 +922,7 @@ init_state_from_metgrid (const int  lev,
             auto const orig_data = tmp_src_fab.const_array();
             auto const orig_z    = NC_ght_fab.const_array();
             auto       new_data  = state_fab.array();
-            auto const new_z     = z_phys_nd_fab.const_array();
+            auto const new_z     = z_phys_cc_fab.const_array();
 
             int kmax = ubound(tbxc).z;
 

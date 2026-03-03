@@ -10,7 +10,7 @@ using namespace amrex;
  */
 void
 SurfaceLayer::update_fluxes (const int& lev,
-                             const Real& time,
+                             const Real& elapsed_time_since_start_low,
                              MultiFab& cons_in,
                              const std::unique_ptr<MultiFab>& z_phys_nd,
                              const std::unique_ptr<MultiFab>& walldist,
@@ -18,12 +18,12 @@ SurfaceLayer::update_fluxes (const int& lev,
 {
     // Update with SST/TSK data if we have a valid pointer
     if (m_sst_lev[lev][0]) {
-        fill_tsurf_with_sst_and_tsk(lev, time);
+        fill_tsurf_with_sst_and_tsk(lev, elapsed_time_since_start_low);
     }
 
     // Apply heating rate if needed
     if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-        update_surf_temp(time);
+        update_surf_temp(elapsed_time_since_start_low);
     }
 
     // Update qsurf with qsat over sea
@@ -173,11 +173,14 @@ SurfaceLayer::update_fluxes (const int& lev,
     if (m_update_k_rans) {
         const bool use_ref_theta = (theta_ref > 0);
         const Real l_inv_theta0  = (use_ref_theta) ? 1.0 / theta_ref : 1.0;
-        const Real l_inv_Cmu2 = inv_Cmu2;
+        const Real l_inv_Cmu2    = inv_Cmu2;
+        const int klo = m_geom[lev].Domain().smallEnd(2);
 
         for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
         {
             Box gtbx = mfi.growntilebox();
+
+            if (gtbx.smallEnd(2) != klo) { continue; }
 
             auto cons_arr = cons_in.array(mfi);
             const auto& u_star_arr = u_star[lev]->const_array(mfi);
@@ -231,9 +234,13 @@ SurfaceLayer::compute_fluxes (const int& lev,
     const auto *const umm_ptr  = m_ma.get_average(lev,5); // horizontal velocity magnitude
     const auto *const zref_ptr = m_ma.get_zref(lev);     // reference height
 
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
     for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
 
         auto u_star_arr = u_star[lev]->array(mfi);
         auto t_star_arr = t_star[lev]->array(mfi);
@@ -288,7 +295,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
  * Wrapper to impose Monin Obukhov similarity theory fluxes by populating ghost cells.
  *
  * @param[in] lev Current level
- * @param[in,out] mfs Multifabs to populate
+ * @param[in,out] mfs MultiFabs to populate
  * @param[in] eddyDiffs Diffusion coefficients from turbulence model
  */
 void
@@ -349,7 +356,7 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
  * Function to calculate MOST fluxes for populating ghost cells.
  *
  * @param[in] lev Current level
- * @param[in,out] mfs Multifabs to populate
+ * @param[in,out] mfs MultiFabs to populate
  * @param[in] eddyDiffs Diffusion coefficients from turbulence model
  * @param[in] flux_comp structure to compute fluxes
  */
@@ -580,29 +587,31 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
 void
 SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
-                                           const Real& elapsed_time)
+                                           const Real& elapsed_time_since_start_low)
 {
     int n_times_in_sst = m_sst_lev[lev].size();
+
+    Real dT = m_low_time_interval;
 
     int n_time_lo, n_time_hi;
     Real alpha;
 
     if (n_times_in_sst > 1) {
-        // Time interpolation
-        Real dT = m_bdy_time_interval;
-        int n_time = static_cast<int>( elapsed_time /  dT);
-        n_time_lo = n_time;
-        n_time_hi = n_time+1;
-        alpha = (elapsed_time - n_time * dT) / dT;
-        if ((elapsed_time == m_stop_time-m_start_time) && (alpha==0)) {
-            // stop time coincides with final lowinp slice -- don't try to
-            // interpolate from the following time slice
-            n_time    -= 1;
-            n_time_lo -= 1;
-            n_time_hi -= 1;
-            alpha = 1.0;
+        n_time_lo = static_cast<int>( elapsed_time_since_start_low /  dT);
+        alpha = (elapsed_time_since_start_low - n_time_lo * dT) / dT;
+
+        AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
+
+        n_time_hi = n_time_lo + 1;
+
+        // Do not over run the last sst file
+        if (m_start_low_time + elapsed_time_since_start_low >= m_final_low_time) {
+            n_time_lo = m_sst_lev[lev].size()-1;
+            n_time_hi = n_time_lo;
+            alpha     = 0.0;
         }
-        AMREX_ALWAYS_ASSERT( (n_time >= 0) && (n_time < (m_sst_lev[lev].size()-1)));
+
+        AMREX_ALWAYS_ASSERT( (n_time_lo >= 0) && (n_time_hi < m_sst_lev[lev].size()));
     } else {
         n_time_lo = 0;
         n_time_hi = 0;
@@ -618,10 +627,14 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     bool use_tsk = (m_tsk_lev[lev][0]);
     bool ignore_sst = m_ignore_sst;
 
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
     // Populate t_surf
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
 
@@ -668,9 +681,12 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
 
     // Populate q_surf with qsat over water
     auto dz = m_geom[lev].CellSize(2);
+    const int klo = m_geom[lev].Domain().smallEnd(2);
     for (MFIter mfi(*q_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto q_surf_arr = q_surf[lev]->array(mfi);
@@ -702,9 +718,12 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
 void
 SurfaceLayer::get_lsm_tsurf (const int& lev)
 {
+    const int klo = m_geom[lev].Domain().smallEnd(2);
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
 
         // NOTE: LSM does not carry lateral ghost cells.
         //       This copies the valid box into the ghost cells.
@@ -767,21 +786,46 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
 {
     Print() << "Initializing TKE from surface layer ustar on level " << lev << std::endl;
 
-    constexpr Real small = 0.01;
+    const int klo = m_geom[lev].Domain().smallEnd(2);
 
+    // Handle vertical decomposition by copying into boxes not at klo
+    for (MFIter mfi_dst(*u_star[lev]); mfi_dst.isValid(); ++mfi_dst)
+    {
+        Box vbx_dst = mfi_dst.validbox();
+
+        if (vbx_dst.smallEnd(2) == klo) { continue; }
+
+        Box vbx_tmp = vbx_dst; vbx_tmp.setRange(2,klo);
+
+        FArrayBox& dst_fab = u_star[lev]->get(mfi_dst);
+
+        for (MFIter mfi_src(*u_star[lev]); mfi_src.isValid(); ++mfi_src)
+        {
+            Box vbx_src = mfi_src.validbox();
+            if (vbx_src == vbx_tmp) {
+                FArrayBox& src_fab = u_star[lev]->get(mfi_src);
+                dst_fab.copy<RunOn::Device>(src_fab, vbx_src, 0, vbx_dst, 0, 1);
+            }
+        }
+
+    }
+
+    // Now work on all boxes (ustar has been filled above)
+    constexpr Real small = 0.01;
     for (MFIter mfi(cons); mfi.isValid(); ++mfi)
     {
-        Box gtbx = mfi.tilebox();
+        Box vbx  = mfi.validbox();
+        int kmin = vbx.smallEnd(2);
 
         auto const& u_star_arr = u_star[lev]->const_array(mfi);
         auto const& z_phys_arr = z_phys_nd->const_array(mfi);
 
         auto const& cons_arr   = cons.array(mfi);
 
-        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            Real rho = cons_arr(i, j, k, Rho_comp);
-            Real ust = u_star_arr(i, j, 0);
+            Real rho  = cons_arr(i, j, k, Rho_comp);
+            Real ust  = u_star_arr(i, j, kmin);
             Real tke0 = tkefac * ust * ust; // surface value
             Real zagl = Compute_Zrel_AtCellCenter(i, j, k, z_phys_arr);
 
@@ -842,9 +886,12 @@ SurfaceLayer::read_custom_roughness (const int& lev,
         Real* z0p = d_z0.data();
 
         // Each rank populates it's z_0[lev] MultiFab
+        const int klo = m_geom[lev].Domain().smallEnd(2);
         for (MFIter mfi(z_0[lev]); mfi.isValid(); ++mfi)
         {
             Box gtbx = mfi.growntilebox();
+
+            if (gtbx.smallEnd(2) != klo) { continue; }
 
             // Populate z_phys data
             Real tol = 1.0e-4;
@@ -852,7 +899,6 @@ SurfaceLayer::read_custom_roughness (const int& lev,
             auto ProbLoArr = m_geom[lev].ProbLoArray();
             int ilo = m_geom[lev].Domain().smallEnd(0);
             int jlo = m_geom[lev].Domain().smallEnd(1);
-            int klo = 0;
             int ihi = m_geom[lev].Domain().bigEnd(0);
             int jhi = m_geom[lev].Domain().bigEnd(1);
 

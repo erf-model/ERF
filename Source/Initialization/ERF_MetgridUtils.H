@@ -465,6 +465,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
                             const int& metgrid_force_sfc_k,
                             const int& i,
                             const int& j,
+                            const int& kmax,
                             const int& src_comp,
                             const int& dst_comp,
                             const int& itime,
@@ -484,7 +485,7 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
     int jmin_orig = amrex::lbound(amrex::Box(orig_data)).y;
     int jmax_orig = amrex::ubound(amrex::Box(orig_data)).y;
     int kmax_orig = amrex::ubound(amrex::Box(orig_data)).z;
-    int kmax_new  = amrex::ubound(amrex::Box(new_z_full)).z;
+    int kmax_new  = kmax + 1;
 
     AMREX_ASSERT(kmax_orig < 256);
     AMREX_ASSERT(kmax_new  < 256);

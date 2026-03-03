@@ -77,24 +77,27 @@ realbdy_interior_bxs_xy (const Box& bx,
 /**
  * Compute the RHS in the relaxation zone
  *
+ * @param[in] time              current (total) time
+ * @param[in] delta_t           timestep
+ * @param[in] start_bdy_time    full time of the first time slice of boundary data
+ * @param[in] final_bdy_time    full time of the  last time slice of boundary data
  * @param[in] bdy_time_interval time interval between boundary condition time stamps
- * @param[in] time    current time
- * @param[in] delta_t timestep
- * @param[in] width   number of cells in (relaxation+specified) zone
- * @param[in] set_width number of cells in (specified) zone
- * @param[in] geom     container for geometric information
- * @param[out] S_rhs   RHS to be computed here
- * @param[in] S_data   current value of the solution
+ * @param[in] width             number of cells in (relaxation+specified) zone
+ * @param[in] set_width         number of cells in (specified) zone
+ * @param[in] geom              container for geometric information
+ * @param[out] S_rhs            RHS to be computed here
+ * @param[in] S_data            current value of the solution
  * @param[in] bdy_data_xlo boundary data on interior of low x-face
  * @param[in] bdy_data_xhi boundary data on interior of high x-face
  * @param[in] bdy_data_ylo boundary data on interior of low y-face
  * @param[in] bdy_data_yhi boundary data on interior of high y-face
  */
 void
-realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
-                                    const Real& time,
+realbdy_compute_interior_ghost_rhs (const Real& time,
                                     const Real& delta_t,
-                                    const Real& stop_time_elapsed,
+                                    const Real& start_bdy_time,
+                                    const Real& final_bdy_time,
+                                    const Real& bdy_time_interval,
                                     const Real& nudge_factor,
                                     int  width,
                                     bool do_upwind,
@@ -104,9 +107,27 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                     Vector<Vector<FArrayBox>>& bdy_data_xlo,
                                     Vector<Vector<FArrayBox>>& bdy_data_xhi,
                                     Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                                    Vector<Vector<FArrayBox>>& bdy_data_yhi)
+                                    Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                                    std::unique_ptr<ReadBndryPlanes>& m_r2d)
 {
     BL_PROFILE_REGION("realbdy_compute_interior_ghost_RHS()");
+
+    // HACK HACK HACK
+    // Get bndry data
+    Vector<int> ind_map2 = {BCVars::xvel_bc, BCVars::yvel_bc, BCVars::RhoTheta_bc_comp};
+    Array4<Real> bdatxlo, bdatxhi, bdatylo, bdatyhi;
+    if (m_r2d) {
+        Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+        bdatxlo = (*bndry_data[0])[0].array();
+        bdatylo = (*bndry_data[1])[0].array();
+        bdatxhi = (*bndry_data[3])[0].array();
+        bdatyhi = (*bndry_data[4])[0].array();
+    }
+
+    //
+    // Note that time (= start_time+old_stage_time)  is measured as total time
+    //           start_bdy_time and final_bdy_time are also measured as total time
+    //
 
     // Relaxation constants
     Real F1 = 1./(nudge_factor*delta_t);
@@ -114,20 +135,19 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
     // Time interpolation
     Real dT = bdy_time_interval;
 
-    // NOTE: this is because we define "time" to be time since start_bdy_time
-    Real time_since_start = time;
+    int n_time    = static_cast<int>( (time-start_bdy_time) /  dT);
+    int n_time_p1 = n_time + 1;
+    Real alpha    = ((time-start_bdy_time) - n_time * dT) / dT;
 
-    int n_time = static_cast<int>( time_since_start /  dT);
-    Real alpha = (time_since_start - n_time * dT) / dT;
+    // Do not over run the last bdy file
+    if (time >= final_bdy_time) {
+      n_time    = static_cast<int>( (final_bdy_time - start_bdy_time)/ dT);
+      n_time_p1 = n_time;
+      alpha     = 0.0;
+    }
+
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     Real oma   = 1.0 - alpha;
-
-    int n_time_p1 = n_time + 1;
-    if ((time == stop_time_elapsed) && (alpha==0)) {
-        // stop time coincides with final bdy snapshot -- don't try to read in
-        // another snapshot
-        n_time_p1 = n_time;
-    }
 
     /*
     // UNIT TEST DEBUG
@@ -165,7 +185,8 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
         domain.convert(ixtype);
 
         // NOTE: Ghost cells needed for idx type mismatch between mask and data (do_upwind)
-        IntVect ng_vect(1,1,0);
+        IntVect ng_vect(0);
+        //IntVect ng_vect(1,1,0);
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         realbdy_interior_bxs_xy(gdom, domain, width,
@@ -205,12 +226,18 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
 
+        // HACK HACK HACK
+        int bdy_comp = ind_map2[ivar];
+        const auto& dom_cc_lo = lbound(geom.Domain());
+        const auto& dom_cc_hi = ubound(geom.Domain());
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             // NOTE: Ghost cells needed for idx type mismatch between mask and data (do_upwind)
-            IntVect ng_vect(1,1,0);
+            IntVect ng_vect(0);
+            //IntVect ng_vect(1,1,0);
             Box gtbx = grow(mfi.tilebox(ixtype.toIntVect()),ng_vect);
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
             realbdy_interior_bxs_xy(gtbx, domain, width,
@@ -266,8 +293,15 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-                arr_xlo(i,j,k) = rho_interp * ( oma   * bdatxlo_n  (ii,jj,k,0)
-                                              + alpha * bdatxlo_np1(ii,jj,k,0) );
+
+                if (bdatxlo) {
+                    int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                    int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                    arr_xlo(i,j,k) = rho_interp * bdatxlo(ii2,jj2,k,bdy_comp);
+                } else {
+                    arr_xlo(i,j,k) = rho_interp * ( oma   * bdatxlo_n  (ii,jj,k,0)
+                                                  + alpha * bdatxlo_np1(ii,jj,k,0) );
+                }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -284,8 +318,15 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-                arr_xhi(i,j,k) = rho_interp * ( oma   * bdatxhi_n  (ii,jj,k,0)
-                                              + alpha * bdatxhi_np1(ii,jj,k,0) );
+
+                if (bdatxhi) {
+                    int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                    int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                    arr_xhi(i,j,k) = rho_interp * bdatxhi(ii2,jj2,k,bdy_comp);
+                } else {
+                    arr_xhi(i,j,k) = rho_interp * ( oma   * bdatxhi_n  (ii,jj,k,0)
+                                                  + alpha * bdatxhi_np1(ii,jj,k,0) );
+                }
             });
 
             ParallelFor(tbx_ylo, tbx_yhi,
@@ -304,8 +345,15 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-                arr_ylo(i,j,k) = rho_interp * ( oma  * bdatylo_n  (ii,jj,k,0)
-                                             + alpha * bdatylo_np1(ii,jj,k,0) );
+
+                if (bdatylo) {
+                    int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                    int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                    arr_ylo(i,j,k) = rho_interp * bdatylo(ii2,jj2,k,bdy_comp);
+                } else {
+                    arr_ylo(i,j,k) = rho_interp * ( oma  * bdatylo_n  (ii,jj,k,0)
+                                                  + alpha * bdatylo_np1(ii,jj,k,0) );
+                }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -322,8 +370,15 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                 } else {
                     rho_interp = r_arr(i,j,k);
                 }
-                arr_yhi(i,j,k) = rho_interp * ( oma   * bdatyhi_n  (ii,jj,k,0)
-                                              + alpha * bdatyhi_np1(ii,jj,k,0) );
+
+                if (bdatyhi) {
+                    int ii2 = std::min(std::max(i , dom_cc_lo.x), dom_cc_hi.x);
+                    int jj2 = std::min(std::max(j , dom_cc_lo.y), dom_cc_hi.y);
+                    arr_yhi(i,j,k) = rho_interp * bdatyhi(ii2,jj2,k,bdy_comp);
+                } else {
+                    arr_yhi(i,j,k) = rho_interp * ( oma   * bdatyhi_n  (ii,jj,k,0)
+                                                  + alpha * bdatyhi_np1(ii,jj,k,0) );
+                }
             });
         } // mfi
     } // ivar
@@ -433,7 +488,7 @@ realbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 /**
  * Compute the RHS in the fine relaxation zone
  *
- * @param[in]  time      current time
+ * @param[in]  time      current (elapsed) time
  * @param[in]  delta_t   timestep
  * @param[in]  width     number of cells in (relaxation+specified) zone
  * @param[in]  set_width number of cells in (specified) zone

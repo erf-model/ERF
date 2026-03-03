@@ -85,7 +85,6 @@ particles.disable_plt = true
 
 # SOLVER CHOICES
 erf.use_gravity = true
-erf.use_coriolis = false
 
 erf.moisture_model  = "SuperDroplets"
 erf.buoyancy_type   = 1

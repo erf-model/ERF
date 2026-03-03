@@ -25,6 +25,9 @@ using namespace amrex;
 void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                                    const DistributionMapping& dm_in)
 {
+    //
+    // Note that "time" here is elapsed time
+    //
     BoxArray ba;
     DistributionMapping dm;
     Box domain(Geom(0).Domain());
@@ -156,11 +159,17 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         if ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) )
         {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-            init_only(lev, start_time+time);
-            init_zphys(lev, start_time+time);
+            //
+            // Note that "time" here is elapsed time, and start_time is the start_time from wrfinput/metgrid files
+            //
+            init_only(lev, time);
+            init_zphys(lev, time);
             update_terrain_arrays(lev);
             make_physbcs(lev);
         } else {
+            //
+            // Note that "time" here is elapsed time, and start_time = 0 when not using wrfinput/metgrid
+            //
             init_zphys(lev, time);
             update_terrain_arrays(lev);
             // Note that for init_type != InitType::WRFInput and != InitType::Metgrid,
@@ -272,6 +281,9 @@ void
 ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                              const DistributionMapping& dm)
 {
+    //
+    // Note that "time" here is elapsed time
+    //
     AMREX_ALWAYS_ASSERT(lev > 0);
 
     if (verbose) {
@@ -302,6 +314,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // *******************************************************************************************
     init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev], base_state[lev], z_phys_nd[lev]);
 
+    //
+    // Note that t_new = time here is elapsed time
+    //
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
@@ -455,6 +470,19 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
            Define_ERFFillPatchers(lev);
     }
 
+    // ********************************************************************************************
+    // For anelastic levels created from coarse (either on restart or during a run), project the
+    // interpolated velocity to enforce the divergence-free constraint. This Initializes gradp[lev]
+    // via the pressure projection, handling both the pure-anelastic case and the hybrid case
+    // (compressible lev-1, anelastic lev) where there is no coarse gradp to interpolate.
+    // FillPatchers must be constructed above before this call. pp_inc is scratch; zero afterward.
+    // ********************************************************************************************
+    if (solverChoice.anelastic[lev]) {
+        Real dummy_dt = 1.0;
+        project_initial_velocity(lev, time, dummy_dt);
+        pp_inc[lev].setVal(0.0);
+    }
+
     //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
@@ -504,6 +532,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
+    //
+    // Note that "time" here is elapsed time
+    //
     if (verbose) {
         amrex::Print() <<" REMAKING WITH NEW BA AT LEVEL " << lev << " " << ba << std::endl;
     }
@@ -559,7 +590,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
         }
     }
-    remake_zphys(lev, time, temp_zphys_nd);
+    remake_zphys(lev, temp_zphys_nd);
     update_terrain_arrays(lev);
 
     // ********************************************************************************************
@@ -649,6 +680,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         std::swap(temp_lev_old[var_idx], vars_old[lev][var_idx]);
     }
 
+    //
+    // Note that t_new = time here is elapsed time
+    //
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 

@@ -31,20 +31,22 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     //     wrflowinp, we need to check whether it's time to read in more.
     //
     bool use_moist = (solverChoice.moisture_type != MoistureType::None);
-    if (solverChoice.use_real_bcs && (lev==0)) {
-        Real dT = bdy_time_interval;
-
-        int n_time_old = static_cast<int>( (time        ) /  dT);
-        int n_time_new = static_cast<int>( (time+dt[lev]) /  dT);
-
+    if (solverChoice.use_real_bcs && (lev==0))
+    {
         int ntimes = bdy_data_xlo.size();
+        Real time_since_start_bdy = time + start_time - start_bdy_time;
+        int n_time_old = std::min(static_cast<int>( (time_since_start_bdy        ) /  bdy_time_interval), ntimes-1);
+        int n_time_new = std::min(static_cast<int>( (time_since_start_bdy+dt[lev]) /  bdy_time_interval), ntimes-1);
+
         for (int itime = 0; itime < ntimes; itime++)
         {
-            //if (bdy_data_xlo[itime].size() > 0) {
-            //    amrex::Print() << "HAVE  DATA AT TIME " << itime << std::endl;
-            //} else {
-            //    amrex::Print() << " NO   DATA AT TIME " << itime << std::endl;
-            //}
+            /*
+            if (bdy_data_xlo[itime].size() > 0) {
+                amrex::Print() << "HAVE  BDY DATA AT TIME " << itime << std::endl;
+            } else {
+                amrex::Print() << " NO   BDY DATA AT TIME " << itime << std::endl;
+            }
+            */
 
             bool clear_itime = (itime < n_time_old);
 
@@ -57,7 +59,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
             }
 
             bool need_itime = (itime >= n_time_old && itime <= n_time_new+1);
-            //if (need_itime) amrex::Print()  << "NEED  BDY DATA AT TIME " << itime << std::endl;
+            //if (need_itime) { amrex::Print()  << "NEED  BDY DATA AT TIME " << itime << std::endl; }
 
             if (bdy_data_xlo[itime].size() == 0 && need_itime) {
                 read_from_wrfbdy(itime,nc_bdy_file,geom[0].Domain(),
@@ -66,21 +68,29 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
                 convert_all_wrfbdy_data(itime, geom[0].Domain(), bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                         *mf_MUB, *mf_C1H, *mf_C2H,
-                                    vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                    geom[lev], use_moist);
+                                        vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
+                                        geom[lev], use_moist);
            }
         } // itime
     } // use_real_bcs && lev == 0
 
-    if (!nc_low_file.empty() && (lev==0)) {
-        Real dT = low_time_interval;
+    if (!nc_low_file.empty() && (lev==0))
+    {
+        int ntimes = low_data_zlo.size();
+        Real time_since_start_low = time + start_time - start_low_time;
+        int n_time_old = std::min(static_cast<int>( (time_since_start_low        ) /  low_time_interval), ntimes-1);
+        int n_time_new = std::min(static_cast<int>( (time_since_start_low+dt[lev]) /  low_time_interval), ntimes-1);
 
-        int n_time_old = static_cast<int>( (time        ) /  dT);
-        int n_time_new = static_cast<int>( (time+dt[lev]) /  dT);
-
-        int ntimes = bdy_data_xlo.size();
         for (int itime = 0; itime < ntimes; itime++)
         {
+            /*
+            if (low_data_zlo[itime].size() > 0) {
+                amrex::Print() << "HAVE  LOW DATA AT TIME " << itime << std::endl;
+            } else {
+                amrex::Print() << " NO   LOW DATA AT TIME " << itime << std::endl;
+            }
+            */
+
             bool clear_itime = (itime < n_time_old);
 
             if (clear_itime && low_data_zlo[itime].size() > 0) {
@@ -89,7 +99,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
             }
 
             bool need_itime = (itime >= n_time_old && itime <= n_time_new+1);
-            //if (need_itime) amrex::Print()  << "NEED  LOW DATA AT TIME " << itime << std::endl;
+            //if (need_itime) { amrex::Print()  << "NEED  LOW DATA AT TIME " << itime << std::endl; }
 
             if (low_data_zlo[itime].size() == 0 && need_itime) {
                 read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);

@@ -40,14 +40,14 @@ public:
                          const MeshType& a_mesh_type,
                          const TerrainType& a_terrain_type,
                          const TurbChoice& a_turb_choice,
-                         amrex::Real start_time,
-                         amrex::Real stop_time,
-                         amrex::Real bdy_time_interval = 0.0)
+                         amrex::Real start_low_time,
+                         amrex::Real final_low_time,
+                         amrex::Real low_time_interval = 0.0)
   : m_geom(geom),
     m_rotate(use_rot_surface_flux),
-    m_start_time(start_time),
-    m_stop_time(stop_time),
-    m_bdy_time_interval(bdy_time_interval),
+    m_start_low_time(start_low_time),
+    m_final_low_time(final_low_time),
+    m_low_time_interval(low_time_interval),
     m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type)
   {
       // We have a moisture model if Qv_prim is a valid pointer
@@ -397,11 +397,9 @@ public:
       // Attributes for MFs and FABs
       //--------------------------------------------------------
       // Create a 2D ba, dm, & ghost cells
-      amrex::BoxArray ba = mf.boxArray();
+      amrex::BoxArray ba  = mf.boxArray();
       amrex::BoxList bl2d = ba.boxList();
-      for (auto& b : bl2d) {
-          b.setRange(2, 0);
-      }
+      for (auto& b : bl2d) { b.setRange(2,b.smallEnd(2)); }
       amrex::BoxArray ba2d(std::move(bl2d));
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
@@ -473,7 +471,7 @@ public:
 
   void
   update_fluxes (const int& lev,
-                 const amrex::Real& time,
+                 const amrex::Real& elapsed_time_since_start_low,
                  amrex::MultiFab& cons_in,
                  const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                  const std::unique_ptr<amrex::MultiFab>& walldist,
@@ -662,9 +660,9 @@ private:
   // Set in constructor
   amrex::Vector<amrex::Geometry> m_geom;
   bool m_rotate = false;
-  amrex::Real m_start_time;
-  amrex::Real m_stop_time;
-  amrex::Real m_bdy_time_interval;
+  amrex::Real m_start_low_time;
+  amrex::Real m_final_low_time;
+  amrex::Real m_low_time_interval;
 
   bool m_include_wstar = false;
   amrex::Real z0_const{0.1};

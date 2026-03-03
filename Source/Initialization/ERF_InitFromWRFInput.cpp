@@ -420,7 +420,6 @@ ERF::init_from_wrfinput (int lev,
 
           // Initialize Latitude & Coriolis factors
           if ( var_name == "XLAT_V" ) {
-              solverChoice.has_lat_lon = true;
               lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
@@ -904,7 +903,7 @@ ERF::init_from_wrfinput (int lev,
 
         bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                                   start_bdy_time);
+                                                   start_bdy_time, final_bdy_time);
 
         // *******************************************************************************************
         // We intentionally only read in the first three slices here ... we will read the rest in
@@ -951,9 +950,7 @@ ERF::init_from_wrfinput (int lev,
     // *******************************************************************************************
     if ((lev == 0) && !nc_low_file.empty())
     {
-        low_time_interval = read_times_from_wrflow(nc_low_file,
-                                                   low_data_zlo,
-                                                   start_low_time);
+        low_time_interval = read_times_from_wrflow(nc_low_file, low_data_zlo, start_low_time, final_low_time);
 
         int ntimes = low_data_zlo.size();
         sst_lev[lev].resize(ntimes);
@@ -961,7 +958,7 @@ ERF::init_from_wrfinput (int lev,
 
         // We can possibly run out of memory if we load all of wrfbdy and all of wrflow
         // Thus we only load the first two time slices here and load more only if needed
-        ntimes = amrex::min(ntimes, 2);
+        ntimes = amrex::min(ntimes, 3);
 
         for (int itime(0); itime < ntimes; ++itime) {
             read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);

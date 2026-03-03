@@ -8,6 +8,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_SurfaceLayer.H"
 #include "ERF_FillPatcher.H"
+#include "ERF_ReadBndryPlanes.H"
 
 /*
  * Create a new BoxArray in which every grid touches the bottom boundary
@@ -83,7 +84,7 @@ ConvertForProjection (const amrex::MultiFab& den_div, const amrex::MultiFab& den
                       const amrex::Box& domain, const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
- * \brief Enforces solvablity by scaling outflow to match with inflow.
+ * \brief Enforces solvability by scaling outflow to match with inflow.
  *
  */
 void enforceInOutSolvability (int lev,
@@ -108,10 +109,11 @@ void realbdy_interior_bxs_xy (const amrex::Box& bx,
 /*
  * Compute relaxation region RHS with wrfbdy
  */
-void realbdy_compute_interior_ghost_rhs (const amrex::Real& bdy_time_interval,
-                                         const amrex::Real& time,
+void realbdy_compute_interior_ghost_rhs (const amrex::Real& total_time,
                                          const amrex::Real& delta_t,
-                                         const amrex::Real& stop_time_elapsed,
+                                         const amrex::Real& start_bdy_time,
+                                         const amrex::Real& final_bdy_time,
+                                         const amrex::Real& bdy_time_interval,
                                          const amrex::Real& nudge_factor,
                                          int width,
                                          bool do_upwind,
@@ -121,7 +123,8 @@ void realbdy_compute_interior_ghost_rhs (const amrex::Real& bdy_time_interval,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                                          amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+                                         std::unique_ptr<ReadBndryPlanes>& m_r2d);
 
 /*
  * Compute relaxation region RHS at fine-crse interface
