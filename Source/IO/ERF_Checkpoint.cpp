@@ -357,7 +357,7 @@ ERF::WriteCheckpointFile () const
         IntVect ngv = ng; ngv[2] = 0;
 
         // Write lat/lon if it exists
-        if (lat_m[lev] && lon_m[lev] && solverChoice.has_lat_lon) {
+        if (lat_m[lev] && lon_m[lev]) {
             amrex::Print() << "Writing Lat/Lon variables at level " << lev << std::endl;
             MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
             MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
@@ -901,7 +901,8 @@ ERF::ReadCheckpointFile ()
         IntVect ngv = ng; ngv[2] = 0;
 
         // Read lat/lon if it exists
-        if (solverChoice.has_lat_lon) {
+        std::string LatFileName(restart_chkfile + "/Level_0/LAT_H");
+        if (amrex::FileExists(LatFileName)) {
             amrex::Print() << "Reading Lat/Lon variables" << std::endl;
             MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
             MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
@@ -915,7 +916,8 @@ ERF::ReadCheckpointFile ()
 
 #ifdef ERF_USE_NETCDF
         // Read sinPhi and cosPhi if it exists
-        if (solverChoice.variable_coriolis) {
+        std::string VarCorFileName(restart_chkfile + "/Level_0/SinPhi_H");
+        if (amrex::FileExists(VarCorFileName)) {
             amrex::Print() << "Reading Coriolis factors" << std::endl;
             MultiFab sphi(ba2d[lev],dmap[lev],1,ngv);
             MultiFab cphi(ba2d[lev],dmap[lev],1,ngv);
