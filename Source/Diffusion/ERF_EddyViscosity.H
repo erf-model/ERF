@@ -54,6 +54,7 @@ ComputeTurbulentViscosityLES (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& T
                               const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                               const TurbChoice& turbChoice,
                               const amrex::Real const_grav,
+                              const SolverChoice& solverChoice,
                               std::unique_ptr<SurfaceLayer>& SurfLayer,
                               const MoistureComponentIndices& moisture_indices,
                               const eb_& ebfact,
@@ -83,6 +84,100 @@ ComputeSmnSmn (int& i, int& j, int& k,
 
     amrex::Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
                        + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
+
+    return SmnSmn;
+}
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeSmnSmn_EB (int& i, int& j, int& k,
+               const amrex::Array4<amrex::Real const>& tau11,
+               const amrex::Array4<amrex::Real const>& tau22,
+               const amrex::Array4<amrex::Real const>& tau33,
+               const amrex::Array4<amrex::Real const>& tau12,
+               const amrex::Array4<amrex::Real const>& tau13,
+               const amrex::Array4<amrex::Real const>& tau23,
+               const amrex::Array4<const amrex::EBCellFlag>& c_cflag,
+               const amrex::Array4<const amrex::EBCellFlag>& u_cflag,
+               const amrex::Array4<const amrex::EBCellFlag>& v_cflag,
+               const amrex::Array4<const amrex::EBCellFlag>& w_cflag)
+{
+    amrex::Real SmnSmn = 0.0;
+    if (!c_cflag(i,j,k).isCovered()) {
+        amrex::Real s11bar = tau11(i,j,k);
+        amrex::Real s22bar = tau22(i,j,k);
+        amrex::Real s33bar = tau33(i,j,k);
+        amrex::Real s12bar = 0.0;
+        amrex::Real s13bar = 0.0;
+        amrex::Real s23bar = 0.0;
+
+        amrex::Real count_s12 = 0.0;
+        if (!u_cflag(i,j,k).isCovered() || !v_cflag(i,j,k).isCovered()) {
+            s12bar += tau12(i,j,k);
+            count_s12 += 1.0;
+        }
+        if (!u_cflag(i+1,j,k).isCovered() || !v_cflag(i,j,k).isCovered()) {
+            s12bar += tau12(i+1,j,k);
+            count_s12 += 1.0;
+        }
+        if (!u_cflag(i,j,k).isCovered() || !v_cflag(i,j+1,k).isCovered()) {
+            s12bar += tau12(i,j+1,k);
+            count_s12 += 1.0;
+        }
+        if (!u_cflag(i+1,j,k).isCovered() || !v_cflag(i,j+1,k).isCovered()) {
+            s12bar += tau12(i+1,j+1,k);
+            count_s12 += 1.0;
+        }
+        if (count_s12 > 0.0) {
+            s12bar /= count_s12;
+        }
+
+        amrex::Real count_s13 = 0.0;
+        if (!u_cflag(i,j,k).isCovered() || !w_cflag(i,j,k).isCovered()) {
+            s13bar += tau13(i, j, k);
+            count_s13 += 1.0;
+        }
+        if (!u_cflag(i,j,k).isCovered() || !w_cflag(i,j,k+1).isCovered()) {
+            s13bar += tau13(i, j, k+1);
+            count_s13 += 1.0;
+        }
+        if (!u_cflag(i+1,j,k).isCovered() || !w_cflag(i,j,k).isCovered()) {
+            s13bar += tau13(i+1, j, k);
+            count_s13 += 1.0;
+        }
+        if (!u_cflag(i+1,j,k).isCovered() || !w_cflag(i,j,k+1).isCovered()) {
+            s13bar += tau13(i+1, j, k+1);
+            count_s13 += 1.0;
+        }
+        if (count_s13 > 0.0) {
+            s13bar /= count_s13;
+        }
+
+        amrex::Real count_s23 = 0.0;
+        if (!v_cflag(i,j,k).isCovered() || !w_cflag(i,j,k).isCovered()) {
+            s23bar += tau23(i, j, k);
+            count_s23 += 1.0;
+        }
+        if (!v_cflag(i,j,k).isCovered() || !w_cflag(i,j,k+1).isCovered()) {
+            s23bar += tau23(i, j, k+1);
+            count_s23 += 1.0;
+        }
+        if (!v_cflag(i,j+1,k).isCovered() || !w_cflag(i,j,k).isCovered()) {
+            s23bar += tau23(i, j+1, k);
+            count_s23 += 1.0;
+        }
+        if (!v_cflag(i,j+1,k).isCovered() || !w_cflag(i,j,k+1).isCovered()) {
+            s23bar += tau23(i, j+1, k+1);
+            count_s23 += 1.0;
+        }
+        if (count_s23 > 0.0) {
+            s23bar /= count_s23;
+        }
+
+        SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
+               + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
+    }
 
     return SmnSmn;
 }
