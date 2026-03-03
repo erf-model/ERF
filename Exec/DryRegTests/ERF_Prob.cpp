@@ -50,7 +50,7 @@ Problem::init_custom_pert (
 #include "Prob/ERF_InitCustomPert_IsentropicVortex.H"
     }
     else if ( (my_prob_name == "Particles Over Flat Ground") ||
-         (my_prob_name == "Particles Over Witch of Agnesi Hill") ) {
+              (my_prob_name == "Particles Over Witch of Agnesi Hill") ) {
 #include "Prob/ERF_InitCustomPert_ParticleTests.H"
     }
     else if (my_prob_name == "Scalar Advection/Diffusion") {
@@ -70,6 +70,9 @@ Problem::init_custom_pert (
     }
     else if (my_prob_name == "EB Poiseuille") {
 #include "Prob/ERF_InitCustomPert_EBPoiseuille.H"
+    }
+    else if (my_prob_name == "Flow In A Box") {
+#include "Prob/ERF_InitCustomPert_FlowInABox.H"
     }
 
     amrex::Gpu::streamSynchronize();
@@ -101,11 +104,11 @@ Problem::init_custom_pert_vels (
 #include "Prob/ERF_InitCustomPertVels_EkmanSpiral.H"
     }
     else if ( (my_prob_name == "Advecting Isentropic Vortex") ||
-         (my_prob_name == "Stationary Isentropic Vortex") ) {
+              (my_prob_name == "Stationary Isentropic Vortex") ) {
 #include "Prob/ERF_InitCustomPertVels_IsentropicVortex.H"
     }
     else if ( (my_prob_name == "Particles Over Flat Ground") ||
-         (my_prob_name == "Particles Over Witch of Agnesi Hill") ) {
+              (my_prob_name == "Particles Over Witch of Agnesi Hill") ) {
 #include "Prob/ERF_InitCustomPertVels_ParticleTests.H"
     }
     else if (my_prob_name == "Scalar Advection/Diffusion") {
@@ -125,7 +128,8 @@ Problem::init_custom_pert_vels (
     else if (my_prob_name == "Turbulent Inflow") {
 #include "Prob/ERF_InitCustomPertVels_TurbulentInflow.H"
     }
-    else if (my_prob_name == "Flow over Witch of Agnesi hill") {
+    else if ( (my_prob_name == "Flow over Witch of Agnesi hill") ||
+              (my_prob_name == "Flow over Schar Mountain") ) {
 #include "Prob/ERF_InitCustomPertVels_WitchOfAgnesi.H"
     }
     else if (my_prob_name == "Moving Terrain") {

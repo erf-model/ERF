@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "Schar Mountain Test" 
+erf.prob_name = "Flow over Schar Mountain" 
 
 max_step = 20000
 
