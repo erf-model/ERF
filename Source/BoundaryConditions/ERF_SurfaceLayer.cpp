@@ -271,10 +271,15 @@ SurfaceLayer::update_fluxes (const int& lev,
             auto lsm_ustar_arr = Array4<Real> {};
             auto lsm_olen_arr  = Array4<Real> {};
             if (use_surface_model) {
-                lsm_tstar_arr = m_surf_model->get_field("tstar", lev)->array(mfi);
-                lsm_qstar_arr = m_surf_model->get_field("qstar", lev)->array(mfi);
-                lsm_ustar_arr = m_surf_model->get_field("ustar", lev)->array(mfi);
-                lsm_olen_arr = m_surf_model->get_field("olen", lev)->array(mfi);
+                auto mf = m_surf_model->get_field("tstar", lev);
+                lsm_tstar_arr = (mf) ? mf->array(mfi) : Array4<Real> {};
+                mf = m_surf_model->get_field("qstar", lev);
+                lsm_qstar_arr = (mf) ? mf->array(mfi) : Array4<Real> {};
+                mf = m_surf_model->get_field("ustar", lev);
+                lsm_ustar_arr = (mf) ? mf->array(mfi) : Array4<Real> {};
+                mf = m_surf_model->get_field("olen", lev);
+                lsm_olen_arr = (mf) ? mf->array(mfi) : Array4<Real> {};
+
             }
 
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept

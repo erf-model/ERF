@@ -223,10 +223,12 @@ public:
     void register_field_map(std::string name, amrex::Vector<amrex::MultiFab*> &lsm_lev_mf, amrex::Vector<amrex::MultiFab*> &urb_lev_mf, bool fill_boundary=false);
 
     amrex::MultiFab* get_field(const std::string &name, int lev = 0) {
-        auto &field = fieldmap.at(name);
-        AMREX_ASSERT(field.mf_ind != -1);
-
-        return fields[field.mf_ind][lev].get();
+        if (auto field = fieldmap.find(name); field != fieldmap.end()) {
+            AMREX_ASSERT(field->second.mf_ind != -1);
+            return fields[field->second.mf_ind][lev].get();
+        } else {
+            return nullptr;
+        }
     }
 
     const amrex::Vector<const amrex::MultiFab*> get_radiation_fields(int lev = 0) {
@@ -260,6 +262,9 @@ private:
             auto mf = get_field(radnames[i], lev);
             if (mf) {
                 rad_fields[lev].push_back(mf);
+            } else {
+                amrex::Print() << "     - WARNING: did not find radiation variable, setting to null to use default RRTMGP value!" << std::endl;
+                rad_fields[lev].push_back(nullptr);
             }
         }
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rad_fields[lev].size() == radnames.size(), "Did not find all radiation fields");

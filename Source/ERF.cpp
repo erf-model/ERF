@@ -1647,6 +1647,11 @@ ERF::InitData_post ()
                 m_SurfaceModel->get_field("olen", lev)->setVal(1.0E34);
                 m_SurfaceModel->get_field("ustar", lev)->setVal(1.0E34);
             }
+        } else if (solverChoice.lsm_type == LandSurfaceType::None && solverChoice.urban_type == UrbanType::BEM_BEP) {
+            // No LSM, but Urban model - register tsk, u*, and emissivity for radiation
+            m_SurfaceModel->register_field_map("tskin", {-1, UrbanVar_BEP::tsk});
+            m_SurfaceModel->register_field_map("emiss", {-1, UrbanVar_BEP::emiss});
+            m_SurfaceModel->register_field_map("ustar", {-1, UrbanVar_BEP::ustar}, true);
         }
 
         if (restart_chkfile != "") {
