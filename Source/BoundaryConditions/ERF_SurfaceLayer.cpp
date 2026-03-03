@@ -179,11 +179,11 @@ SurfaceLayer::update_fluxes (const int& lev,
 
         for (MFIter mfi(cons_in); mfi.isValid(); ++mfi)
         {
-            Box gpbx = mfi.tilebox(IntVect(0),ngc);
+            Box gpbx = mfi.tilebox(IntVect(0),ng);
 
-            if (pbx.smallEnd(2) != klo) { continue; }
+            if (gpbx.smallEnd(2) != klo) { continue; }
 
-            pbx.makeSlab(2,klo);
+            gpbx.makeSlab(2,klo);
 
             auto cons_arr = cons_in.array(mfi);
             const auto& u_star_arr = u_star[lev]->const_array(mfi);

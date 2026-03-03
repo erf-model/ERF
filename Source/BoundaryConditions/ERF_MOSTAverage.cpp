@@ -873,7 +873,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
             if (pbx.smallEnd(2) != klo) { continue; }
 
             // Make planar since mfiter is over fields
-            pbx.makeSlab(2,klo)
+            pbx.makeSlab(2,klo);
 
             // Avoid double counting nodal data by changing the high end when we are
             //     at the high side of the grid (not just of the tile)
@@ -965,7 +965,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     Real qv_interp{0};
                     trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                        &T_interp, T_mf_arr, z_phys_arr, plo, dxInv, 1);
-                    trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
+                    trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                        &qv_interp, qv_mf_arr, z_phys_arr, plo, dxInv, 1);
                     Real vfac;
                     if (qr_mf_arr) {
@@ -1058,7 +1058,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     Real v_interp{0};
                     trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                             &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
-                    trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
+                    trilinear_interp_T(x_pos_arr(i,j,0), y_pos_arr(i,j,0), z_pos_arr(i,j,0),
                                             &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
                     const Real val = std::sqrt(u_interp*u_interp + v_interp*v_interp + Vsg*Vsg);
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
@@ -1504,8 +1504,8 @@ MOSTAverage::write_k_indices (const int& lev)
 
         pbx.makeSlab(2,klo);
 
-        int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
-        int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
+        int il = pbx.smallEnd(0); int iu = pbx.bigEnd(0);
+        int jl = pbx.smallEnd(1); int ju = pbx.bigEnd(1);
 
         auto k_arr = k_indx->array(mfi);
 
@@ -1556,8 +1556,8 @@ MOSTAverage::write_norm_indices (const int& lev)
 
         pbx.makeSlab(2,klo);
 
-        int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
-        int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
+        int il = pbx.smallEnd(0); int iu = pbx.bigEnd(0);
+        int jl = pbx.smallEnd(1); int ju = pbx.bigEnd(1);
 
         auto k_arr = k_indx->array(mfi);
         auto j_arr = j_indx ? j_indx->array(mfi) : Array4<int> {};
@@ -1612,7 +1612,7 @@ MOSTAverage::write_xz_positions (const int& lev,
 
         pbx.makeSlab(2,klo);
 
-        int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
+        int il = pbx.smallEnd(0); int iu = pbx.bigEnd(0);
 
         auto x_pos_arr  = x_pos_mf->array(mfi);
         auto z_pos_arr  = z_pos_mf->array(mfi);
@@ -1655,8 +1655,8 @@ MOSTAverage::write_averages (const int& lev)
 
         pbx.makeSlab(2,klo);
 
-        int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
-        int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
+        int il = pbx.smallEnd(0); int iu = pbx.bigEnd(0);
+        int jl = pbx.smallEnd(1); int ju = pbx.bigEnd(1);
 
         for (int j(jl); j <= ju; ++j) {
             for (int i(il); i <= iu; ++i) {

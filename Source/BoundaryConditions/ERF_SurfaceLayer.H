@@ -480,6 +480,7 @@ public:
   template <typename FluxIter>
   void compute_fluxes (const int& lev,
                        const int& max_iters,
+                       amrex::MultiFab& cons_in,
                        const FluxIter& most_flux,
                        bool is_land);
 
