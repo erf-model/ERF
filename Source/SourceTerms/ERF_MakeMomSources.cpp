@@ -118,7 +118,6 @@ void make_mom_sources (Real time,
     auto cosphi               = solverChoice.cosphi;
     auto sinphi               = solverChoice.sinphi;
     auto var_coriolis         = solverChoice.variable_coriolis;
-    auto has_lat_lon          = solverChoice.has_lat_lon;
 
     // *****************************************************************************
     // Flag for Geostrophic forcing
