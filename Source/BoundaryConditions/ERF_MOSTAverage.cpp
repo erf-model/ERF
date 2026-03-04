@@ -559,7 +559,6 @@ MOSTAverage::set_norm_indices_T (const int& lev)
     IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
         Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
-        Box gtbx  = mfi.growntilebox(ng);
 
         if (npbx.smallEnd(2) != klo) { continue; }
 
