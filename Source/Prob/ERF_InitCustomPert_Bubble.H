@@ -18,8 +18,6 @@
 
     const int khi = geomdata.Domain().bigEnd()[2];
 
-    const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
     const Real dz        = geomdata.CellSize()[2];
