@@ -46,7 +46,7 @@ PopulateFineCellCenteredFromCoarseNodal(const amrex::Geometry& geom_coarse,
                                         const amrex::MultiFab& mf_cc_fine,
                                         amrex::MultiFab& mf_cc_from_coarse);
 
-void 
+void
 check_large_values(const amrex::MultiFab& mf);
 
 #endif

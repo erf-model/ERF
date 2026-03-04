@@ -17,7 +17,7 @@ using namespace amrex;
 // ------------------------------------------------------------
 // Read variable names from a file
 // ------------------------------------------------------------
-Vector<std::string> 
+Vector<std::string>
 ReadVarNames(const std::string& filename)
 {
     Vector<std::string> varnames;
@@ -294,7 +294,7 @@ for (const auto& b : bl_coarse) {
 }
 
 
-void 
+void
 GetCoarseMultiFabOnFineDMap(const Geometry& geom_coarse,
                             const Geometry& geom_fine,
                             const MultiFab& mf_nc_coarse,
@@ -324,7 +324,7 @@ GetCoarseMultiFabOnFineDMap(const Geometry& geom_coarse,
         Real z = prob_lo_fine[2] + lo_fine[2] * dx_fine[2];
 
         auto idx_lo = find_bound_idx(x, y, z, bl_coarse, geom_coarse, BoundType::Lo);
-        
+
 
         x = prob_lo_fine[0] + hi_fine[0] * dx_fine[0];
         y = prob_lo_fine[1] + hi_fine[1] * dx_fine[1];
@@ -339,7 +339,7 @@ GetCoarseMultiFabOnFineDMap(const Geometry& geom_coarse,
          Print() << "hi fine = " << hi_fine << std::endl;
         Print() << " idx lo = " << idx_lo << std::endl;
         Print() << "idx_hi = " << idx_hi << std::endl;*/
-        
+
     }
 
     BoxArray cba(std::move(bl_fine));

@@ -43,7 +43,7 @@ int main (int argc, char* argv[])
         WriteSingleLevelPlotfile("plt_1", mf_cc_tmp, varnames, geom_coarse, 0.0, 0);
 
         MultiFab coarse_multifab_on_fine_dmap;
-        GetCoarseMultiFabOnFineDMap(geom_coarse, geom_fine, 
+        GetCoarseMultiFabOnFineDMap(geom_coarse, geom_fine,
                                     mf_nc_coarse, mf_cc_fine,
                                     coarse_multifab_on_fine_dmap);
 
@@ -60,7 +60,7 @@ int main (int argc, char* argv[])
         MultiFab mf_cc_from_coarse;
         PopulateFineCellCenteredFromCoarseNodal(geom_coarse, geom_fine, coarse_multifab_on_fine_dmap,
                                                 mf_cc_fine, mf_cc_from_coarse);
-        
+
         WriteSingleLevelPlotfile("plt_final", mf_cc_from_coarse, varnames, geom_fine, 0.0, 0);
 
     }
