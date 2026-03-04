@@ -14,6 +14,8 @@
     bool perturb_rho = true; pp_prob.query("perturb_rho", perturb_rho);
 
     bool do_moist_bubble = false; pp_prob.query("do_moist_bubble", do_moist_bubble);
+    do_moist_bubble &= (sc.moisture_type != MoistureType::None);
+
     Real theta_pert  = 2.0; pp_prob.query("theta_pert", theta_pert);
 
     const int khi = geomdata.Domain().bigEnd()[2];
@@ -43,7 +45,7 @@
     bool use_empirical = false;
     pp_prob.query("use_empircal_psat",use_empirical);
 
-    if (do_moist_bubble && use_moisture) {
+    if (do_moist_bubble) {
         Vector<Real> h_r(khi+2);
         Vector<Real> h_p(khi+2);
         Vector<Real> h_t(khi+2);
@@ -68,10 +70,10 @@
 
         int moisture_type = 1;
 
-        if(sc.moisture_type == MoistureType::SAM) {
+        if (sc.moisture_type == MoistureType::SAM) {
             moisture_type = 1;
-        } else if(sc.moisture_type == MoistureType::SAM_NoIce ||
-                  sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
+        } else if (sc.moisture_type == MoistureType::SAM_NoIce ||
+                   sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
             moisture_type = 2;
         }
 
