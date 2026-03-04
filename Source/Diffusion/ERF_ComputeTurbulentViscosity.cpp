@@ -115,7 +115,13 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                     SmnSmn = ComputeSmnSmn2D(i,j,k,tau11,tau22,tau12);
                 } else {
                     if (l_use_eb) {
-                        SmnSmn = ComputeSmnSmn_EB(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,c_cflag,u_cflag,v_cflag,w_cflag);
+                        if (c_cflag(i,j,k).isRegular()) {
+                            SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
+                        } else if (c_cflag(i,j,k).isSingleValued()) {
+                            SmnSmn = ComputeSmnSmn_EB(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,c_cflag,u_cflag,v_cflag,w_cflag);
+                        } else {
+                            SmnSmn = 0.0;
+                        }
                     } else {
                         SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
                     }
