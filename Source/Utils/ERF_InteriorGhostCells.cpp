@@ -397,13 +397,15 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
         domain.convert(S_cur_data[ivar_idx].boxArray().ixType());
         IntVect ng_vect(0);
 
+        int width_to_use = (ivar==ivarT) ? width-1 : width;
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(S_cur_data[ivar_idx],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             Box tbx = mfi.tilebox();
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-            realbdy_interior_bxs_xy(tbx, domain, width,
+            realbdy_interior_bxs_xy(tbx, domain, width_to_use,
                                     tbx_xlo, tbx_xhi,
                                     tbx_ylo, tbx_yhi,
                                     ng_vect);
@@ -435,7 +437,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
             Array4<Real> v_ylo = V_ylo.array(); Array4<Real> v_yhi = V_yhi.array();
 
             realbdy_compute_relaxation(icomp, 1,
-                                       width, dx, ProbLo, ProbHi, F1, geom.Domain(),
+                                       width_to_use, dx, ProbLo, ProbHi, F1, geom.Domain(),
                                        tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                        arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
                                        u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,

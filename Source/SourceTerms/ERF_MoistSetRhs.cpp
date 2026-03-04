@@ -208,12 +208,12 @@ moist_set_rhs (const Geometry& geom,
 
     // Compute RHS in relaxation region
     //==========================================================
-    realbdy_interior_bxs_xy(tbx, domain, width,
+    realbdy_interior_bxs_xy(tbx, domain, width-1,
                             tbx_xlo, tbx_xhi,
                             tbx_ylo, tbx_yhi,
                             ng_vect);
     realbdy_compute_relaxation(RhoQ1_comp, 1,
-                               width, dx, ProbLo, ProbHi, F1, domain,
+                               width-1, dx, ProbLo, ProbHi, F1, domain,
                                tbx_xlo , tbx_xhi , tbx_ylo , tbx_yhi ,
                                arr_xlo , arr_xhi , arr_ylo , arr_yhi ,
                                u_xlo, u_xhi, v_xlo, v_xhi, v_ylo, v_yhi,
