@@ -129,13 +129,14 @@ Problem::init_custom_pert_vels (
     Array4<Real      > const& x_vel_pert,
     Array4<Real      > const& y_vel_pert,
     Array4<Real      > const& z_vel_pert,
-    Array4<Real      > const& r_hse,
+    amrex::Array4<amrex::Real const> const& z_nd,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& /*sc*/,
     const int /*lev*/)
 {
+    ignore_unused(z_nd);
     // --------------------------------------------------------
     // Per-ensemble perturbation controls
     // --------------------------------------------------------
@@ -143,6 +144,9 @@ Problem::init_custom_pert_vels (
     ParmParse pp_ens("ensemble_pert");
     pp_ens.query("amplitude", ens_pert_amplitude);
 
+    Real xc = parms.xc; Real yc = parms.yc;
+    Real R  = parms.R ; Real beta = parms.beta;
+    Real sigma = parms.sigma;
 
   // Set the x-velocity
   ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
