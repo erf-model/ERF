@@ -7,6 +7,37 @@
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
+
+#include "ERF_NCWpsFile.H"
+
+/**
+ * Reads start_time from the first metgrid file
+ *
+*/
+Real
+read_start_time_from_metgrid(int lev, const std::string& fname)
+{
+    std::string NC_dateTime;
+    Real        NC_epochTime;
+    if (ParallelDescriptor::IOProcessor()) {
+        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+
+        NC_dateTime = ncf.get_attr("SIMULATION_START_DATE");
+
+        const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
+        NC_epochTime = getEpochTime(NC_dateTime, dateTimeFormat);
+
+        ncf.close();
+
+        amrex::Print() << "Have read start_time string at level "<< lev << " is " << NC_dateTime << std::endl;
+        amrex::Print() << "Have read start_time number at level "<< lev << " is " << NC_epochTime << std::endl;
+    }
+
+    amrex::ParallelDescriptor::Bcast(&NC_epochTime,1,amrex::ParallelDescriptor::IOProcessorNumber());
+
+    return NC_epochTime;
+}
+
 /**
  * Initializes ERF data using metgrid data supplied by an external NetCDF file.
  *
@@ -220,7 +251,7 @@ ERF::init_from_metgrid (int lev)
         if (lev == 0) {
             if (itime == 0) {
                 // Start at the earliest time in nc_init_file[lev].
-                start_bdy_time = NC_epochTime[0];
+                start_bdy_time = NC_epochTime[itime];
 
                 //
                 // Note that t_new and t_old carry *elapsed* time, not total time
@@ -245,7 +276,16 @@ ERF::init_from_metgrid (int lev)
 #endif
                 if (NC_dt != bdy_time_interval) Error("Time interval between consecutive met_em files must be consistent.");
             } // itime==0
+
+            if (itime == ntimes-1) {
+                final_bdy_time = NC_epochTime[itime];
+#ifndef AMREX_USE_GPU
+                Print() << "final_bdy_time is " << std::setprecision(timeprecision) << final_bdy_time
+                        << " from metgrid file but note that time variable in simulation is elapsed time" << std::endl;
+#endif
+            }
         } // lev==0
+
 
         // Verify that the grid size and resolution from met_em file matches that in geom (from ERF inputs file).
         Real tol   = 1.0e-3;
@@ -337,7 +377,6 @@ ERF::init_from_metgrid (int lev)
         }
 
         if (itime == 0) {
-            solverChoice.has_lat_lon = true;
             lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
@@ -421,7 +460,7 @@ ERF::init_from_metgrid (int lev)
             FArrayBox &xvel_fab = lev_new[Vars::xvel][mfi];
             FArrayBox &yvel_fab = lev_new[Vars::yvel][mfi];
             FArrayBox &zvel_fab = lev_new[Vars::zvel][mfi];
-            FArrayBox &z_phys_cc_fab = (*z_phys_cc[lev])[mfi];
+            FArrayBox& z_phys_nd_fab = (*z_phys_nd[lev])[mfi];
 
             // FABs holding temporary vars on origin and ERF grids, respectively.
             FArrayBox &tmp_src_fab = tmp_src[mfi];
@@ -446,7 +485,7 @@ ERF::init_from_metgrid (int lev)
                                     metgrid_order, metgrid_force_sfc_k, l_rdOcp,
                                     tbxc, tbxu, tbxv,
                                     cons_fab, xvel_fab, yvel_fab, zvel_fab,
-                                    z_phys_cc_fab,
+                                    z_phys_nd_fab,
                                     NC_ght_fab, NC_xvel_fab,
                                     NC_yvel_fab, NC_temp_fab, NC_rhum_fab,
                                     NC_pres_fab,
@@ -687,7 +726,7 @@ init_state_from_metgrid (const int  lev,
         } else { // Vertical interpolation and quality control similar to that from WRF.
             interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, metgrid_exp_interp,
                                        metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                       metgrid_force_sfc_k, i, j, src_indx, dst_indx,
+                                       metgrid_force_sfc_k, i, j, kmax, src_indx, dst_indx,
                                        itime, 'U', 'X', orig_z, orig_data, new_z, new_data);
         }
     });
@@ -726,7 +765,7 @@ init_state_from_metgrid (const int  lev,
         } else {
             interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, metgrid_exp_interp,
                                        metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                       metgrid_force_sfc_k, i, j, src_indx, dst_indx,
+                                       metgrid_force_sfc_k, i, j, kmax, src_indx, dst_indx,
                                        itime, 'V', 'Y', orig_z, orig_data, new_z, new_data);
         }
     });
@@ -798,7 +837,7 @@ init_state_from_metgrid (const int  lev,
             } else { // Vertical interpolation and quality control similar to that from WRF.
                 interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, metgrid_exp_interp,
                                            metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                           metgrid_force_sfc_k, i, j, src_indx, dst_indx,
+                                           metgrid_force_sfc_k, i, j, kmax, src_indx, dst_indx,
                                            itime, 'T', 'M', orig_z, orig_data, new_z, new_data);
             }
         });
@@ -833,7 +872,7 @@ init_state_from_metgrid (const int  lev,
                 // This is akin to interpolating in pressure-space assuming a baroclinic atmosphere.
                 interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, true,
                                            metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                           metgrid_force_sfc_k, i, j, src_indx, dst_indx,
+                                           metgrid_force_sfc_k, i, j, kmax, src_indx, dst_indx,
                                            0, 'T', 'M', orig_z, orig_data, new_z, new_data);
             }
         });
@@ -867,7 +906,7 @@ init_state_from_metgrid (const int  lev,
                 // in LOG(p), regardless of requested default."
                 interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, false,
                                            metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                           metgrid_force_sfc_k, i, j, src_indx, dst_indx,
+                                           metgrid_force_sfc_k, i, j, kmax, src_indx, dst_indx,
                                            0, 'T', 'M', orig_z, orig_data, new_z, new_data);
             }
         });
@@ -922,7 +961,7 @@ init_state_from_metgrid (const int  lev,
             auto const orig_data = tmp_src_fab.const_array();
             auto const orig_z    = NC_ght_fab.const_array();
             auto       new_data  = state_fab.array();
-            auto const new_z     = z_phys_cc_fab.const_array();
+            auto const new_z     = z_phys_nd_fab.const_array();
 
             int kmax = ubound(tbxc).z;
 
@@ -942,7 +981,7 @@ init_state_from_metgrid (const int  lev,
                 } else { // Vertical interpolation and quality control similar to that from WRF.
                     interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, metgrid_exp_interp,
                                                metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                               metgrid_force_sfc_k, i, j, src_indx, dst_indx,
+                                               metgrid_force_sfc_k, i, j, kmax, src_indx, dst_indx,
                                                itime, 'Q', 'M', orig_z, orig_data, new_z, new_data);
                 }
             });
@@ -1083,7 +1122,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& pi_hse_fab,
                               FArrayBox& th_hse_fab,
                               FArrayBox& qv_hse_fab,
-                              FArrayBox& z_phys_cc_fab,
+                              FArrayBox& z_phys_nd_fab,
                               const FArrayBox& NC_psfc_fab)
 {
     int RhoQ_comp = RhoQ1_comp;
@@ -1122,7 +1161,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         valid_bx2d.setRange(2,0);
         auto const orig_psfc = NC_psfc_fab.const_array();
         auto       new_data  = state_fab.array();
-        auto const new_z     = z_phys_cc_fab.const_array();
+        auto const new_z     = z_phys_nd_fab.const_array();
 
         ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {

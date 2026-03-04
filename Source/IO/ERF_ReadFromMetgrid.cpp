@@ -27,17 +27,20 @@ read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio, i
             ncf.get_attr("parent_grid_ratio", attr); ratio = attr[0];
         }
         ncf.close();
+
 #ifndef AMREX_USE_GPU
         amrex::Print() << "Have read (parent_ilo,parent_jlo) = " << is << " " << js << std::endl;
         amrex::Print() << "Have read refinement ratio        = " << ratio << std::endl;
 #endif
+
     }
-    amrex::ParallelDescriptor::Bcast(&is   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
-    amrex::ParallelDescriptor::Bcast(&js   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
-    amrex::ParallelDescriptor::Bcast(&nx   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
-    amrex::ParallelDescriptor::Bcast(&ny   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
-    amrex::ParallelDescriptor::Bcast(&nz   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
-    amrex::ParallelDescriptor::Bcast(&ratio,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(&is   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(&js   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(&nx   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(&ny   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(&nz   ,1,amrex::ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(&ratio,1,amrex::ParallelDescriptor::IOProcessorNumber());
+
     return Box( IntVect(ratio*is, ratio*js, klo), IntVect(ratio*is+nx-1, ratio*js+ny-1, khi) );
 }
 
@@ -153,6 +156,7 @@ read_from_metgrid (int lev, int itime,
 #ifndef AMREX_USE_GPU
     Print() << "Building initial FABS from file " << fname << std::endl;
 #endif
+
     Vector<int> success; success.resize(NC_fabs.size());
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs, success);
     for (int i = 0; i < success.size(); i++) {
