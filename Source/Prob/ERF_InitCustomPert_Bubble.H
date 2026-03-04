@@ -45,7 +45,7 @@
     bool use_empirical = false;
     pp_prob.query("use_empircal_psat",use_empirical);
 
-    if (do_moist_bubble) {
+    if (do_moist_bubble && use_moisture) {
         Vector<Real> h_r(khi+2);
         Vector<Real> h_p(khi+2);
         Vector<Real> h_t(khi+2);
