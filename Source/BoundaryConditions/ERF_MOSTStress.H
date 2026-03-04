@@ -1788,11 +1788,11 @@ struct moeng_flux
         amrex::Real velx  = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
         amrex::Real vely  = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
 
-        amrex::Real qv_mean  = qvm_arr(i,j,k);
-        amrex::Real ustar    = u_star_arr(i,j,k);
-        amrex::Real qstar    = q_star_arr(i,j,k);
-        amrex::Real qv_surf  = q_surf_arr(i,j,k);
-        amrex::Real wsp_mean = umm_arr(i,j,k);
+        amrex::Real qv_mean  = qvm_arr(i,j,0);
+        amrex::Real ustar    = u_star_arr(i,j,0);
+        amrex::Real qstar    = q_star_arr(i,j,0);
+        amrex::Real qv_surf  = q_surf_arr(i,j,0);
+        amrex::Real wsp_mean = umm_arr(i,j,0);
         wsp_mean = std::max(wsp_mean, WSMIN);
 
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
@@ -1826,11 +1826,11 @@ struct moeng_flux
         amrex::Real velx  = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
         amrex::Real vely  = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
 
-        amrex::Real theta_mean  = tm_arr(i,j,k);
-        amrex::Real ustar       = u_star_arr(i,j,k);
-        amrex::Real tstar       = t_star_arr(i,j,k);
-        amrex::Real theta_surf  = t_surf_arr(i,j,k);
-        amrex::Real wsp_mean    = umm_arr(i,j,k);
+        amrex::Real theta_mean  = tm_arr(i,j,0);
+        amrex::Real ustar       = u_star_arr(i,j,0);
+        amrex::Real tstar       = t_star_arr(i,j,0);
+        amrex::Real theta_surf  = t_surf_arr(i,j,0);
+        amrex::Real wsp_mean    = umm_arr(i,j,0);
         wsp_mean = std::max(wsp_mean, WSMIN);
 
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
@@ -1862,9 +1862,9 @@ struct moeng_flux
                                    + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         amrex::Real rho   = 0.5  * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
-        amrex::Real umean    = um_arr(i,j,k);
-        amrex::Real ustar    = 0.5 * ( u_star_arr(i-1,j,k) + u_star_arr(i,j,k) );
-        amrex::Real wsp_mean = 0.5 * (    umm_arr(i-1,j,k) +    umm_arr(i,j,k) );
+        amrex::Real umean    = um_arr(i,j,0);
+        amrex::Real ustar    = 0.5 * ( u_star_arr(i-1,j,0) + u_star_arr(i,j,0) );
+        amrex::Real wsp_mean = 0.5 * (    umm_arr(i-1,j,0) +    umm_arr(i,j,0) );
         wsp_mean = std::max(wsp_mean, WSMIN);
 
         // Note: The surface mean shear stress is decomposed into tau_xz by
@@ -1899,9 +1899,9 @@ struct moeng_flux
         amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = 0.5  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
-        amrex::Real vmean     = vm_arr(i,j,k);
-        amrex::Real ustar     = 0.5 * ( u_star_arr(i,j-1,k) + u_star_arr(i,j,k) );
-        amrex::Real wsp_mean  = 0.5 * (    umm_arr(i,j-1,k) +    umm_arr(i,j,k) );
+        amrex::Real vmean     = vm_arr(i,j,0);
+        amrex::Real ustar     = 0.5 * ( u_star_arr(i,j-1,0) + u_star_arr(i,j,0) );
+        amrex::Real wsp_mean  = 0.5 * (    umm_arr(i,j-1,0) +    umm_arr(i,j,0) );
         wsp_mean = std::max(wsp_mean, WSMIN);
 
         // Note: The surface mean shear stress is decomposed into tau_yz by
@@ -1969,9 +1969,10 @@ struct donelan_flux
     {
         amrex::Real Ch          = 0.0012;
         amrex::Real rho         = cons_arr(i,j,k,Rho_comp);
-        amrex::Real theta_surf  = t_surf_arr(i,j,k);
-        amrex::Real theta_mean  =  tm_arr(i,j,k);
-        amrex::Real wsp_mean    = umm_arr(i,j,k);
+
+        amrex::Real theta_surf  = t_surf_arr(i,j,0);
+        amrex::Real theta_mean  =     tm_arr(i,j,0);
+        amrex::Real wsp_mean    =    umm_arr(i,j,0);
 
         // NOTE: this is rho*<T'w'> = -K dTdz
         amrex::Real moflux = -rho * Ch * wsp_mean * (theta_mean - theta_surf);
@@ -2000,7 +2001,7 @@ struct donelan_flux
         amrex::Real Cd       = 0.001;
         const amrex::Real c  = 7e-5;
         amrex::Real wsp      = sqrt(velx*velx+vely*vely);
-        amrex::Real wsp_mean = 0.5 * ( umm_arr(i-1,j,k) + umm_arr(i,j,k) );
+        amrex::Real wsp_mean = 0.5 * ( umm_arr(i-1,j,0) + umm_arr(i,j,0) );
         if (wsp_mean <= 5.0) {
             Cd = 0.001;
         } else if (wsp_mean < 25.0 && wsp_mean > 5.0) {
@@ -2036,7 +2037,7 @@ struct donelan_flux
         amrex::Real Cd       = 0.001;
         const amrex::Real c  = 7e-5;
         amrex::Real wsp      = sqrt(velx*velx+vely*vely);
-        amrex::Real wsp_mean = 0.5 * ( umm_arr(i,j-1,k) + umm_arr(i,j,k) );
+        amrex::Real wsp_mean = 0.5 * ( umm_arr(i,j-1,0) + umm_arr(i,j,0) );
         if (wsp_mean <= 5.0) {
             Cd = 0.001;
         } else if (wsp_mean < 25.0 && wsp_mean > 5.0) {
@@ -2081,7 +2082,7 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& /*q_surf_arr*/) const
     {
         amrex::Real rho   = (fluxes_include_rho) ? 1.0 : cons_arr(i,j,k,Rho_comp);
-        amrex::Real qstar = q_star_arr(i,j,k);
+        amrex::Real qstar = q_star_arr(i,j,0);
 
         // NOTE: this is rho*<q'w'> = -K dqdz
         amrex::Real moflux  = (std::abs(qstar) > eps) ? rho * qstar : 0.0;
@@ -2105,7 +2106,7 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/) const
     {
         amrex::Real rho   = (fluxes_include_rho) ? 1.0 : cons_arr(i,j,k,Rho_comp);
-        amrex::Real tstar = t_star_arr(i,j,k);
+        amrex::Real tstar = t_star_arr(i,j,0);
 
         // NOTE: this is rho*<T'w'> = -K dTdz
         amrex::Real moflux  = (std::abs(tstar) > eps) ? rho * tstar : 0.0;
@@ -2131,7 +2132,7 @@ struct custom_flux
                                    + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         amrex::Real rho   = (fluxes_include_rho) ? 1.0 : 0.5 * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
-        amrex::Real ustar   = 0.5 * ( u_star_arr(i-1,j,k) + u_star_arr(i,j,k) );
+        amrex::Real ustar   = 0.5 * ( u_star_arr(i-1,j,0) + u_star_arr(i,j,0) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
 
         // NOTE: this is rho*<u'w'> = -K dudz
@@ -2158,7 +2159,7 @@ struct custom_flux
         amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = (fluxes_include_rho) ? 1.0 : 0.5 * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
-        amrex::Real ustar   = 0.5 * ( u_star_arr(i,j-1,k) + u_star_arr(i,j,k) );
+        amrex::Real ustar   = 0.5 * ( u_star_arr(i,j-1,0) + u_star_arr(i,j,0) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
 
         // NOTE: this is rho*<v'w'> = -K dvdz
@@ -2204,7 +2205,7 @@ struct bulk_coeff_flux
     {
         amrex::Real rho    = cons_arr(i,j,k,Rho_comp);
         amrex::Real qv     = cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp);
-        amrex::Real qvsurf = q_surf_arr(i,j,k);
+        amrex::Real qvsurf = q_surf_arr(i,j,0);
         amrex::Real velx   = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
         amrex::Real vely   = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
         amrex::Real wsp    = sqrt(velx*velx+vely*vely);
@@ -2232,7 +2233,7 @@ struct bulk_coeff_flux
     {
         amrex::Real rho    = cons_arr(i,j,k,Rho_comp);
         amrex::Real th     = cons_arr(i,j,k,RhoTheta_comp)/cons_arr(i,j,k,Rho_comp);
-        amrex::Real thsurf = t_surf_arr(i,j,k);
+        amrex::Real thsurf = t_surf_arr(i,j,0);
         amrex::Real velx   = 0.5 * ( velx_arr(i,j,k) + velx_arr(i+1,j  ,k) );
         amrex::Real vely   = 0.5 * ( vely_arr(i,j,k) + vely_arr(i  ,j+1,k) );
         amrex::Real wsp    = sqrt(velx*velx+vely*vely);
@@ -2325,7 +2326,7 @@ struct rico_flux
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/) const
     {
         amrex::Real rho   = cons_arr(i,j,k,Rho_comp);
-        amrex::Real qstar = q_star_arr(i,j,k);
+        amrex::Real qstar = q_star_arr(i,j,0);
         amrex::Real q     = cons_arr(i, j, k, RhoQ1_comp) / rho;
 
         amrex::Real velx = 0.5 * (velx_arr(i,j,k) + velx_arr(i+1,j,k));
@@ -2354,7 +2355,7 @@ struct rico_flux
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/) const
     {
         amrex::Real rho   = cons_arr(i,j,k,Rho_comp);
-        amrex::Real tstar = t_star_arr(i, j, k);
+        amrex::Real tstar = t_star_arr(i, j, 0);
         amrex::Real theta = cons_arr(i, j, k, RhoTheta_comp) / rho;
 
         amrex::Real velx = 0.5 * (velx_arr(i,j,k) + velx_arr(i+1,j,k));
@@ -2385,7 +2386,7 @@ struct rico_flux
                                   + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
         amrex::Real rho  = 0.5 * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
-        amrex::Real ustar = 0.5 * ( u_star_arr(i-1,j,k) + u_star_arr(i,j,k) );
+        amrex::Real ustar = 0.5 * ( u_star_arr(i-1,j,0) + u_star_arr(i,j,0) );
         amrex::Real wsp   = sqrt(velx*velx+vely*vely);
 
         // NOTE: this is rho*<u'w'> = -K dudz
@@ -2412,7 +2413,7 @@ struct rico_flux
         amrex::Real vely  = vely_arr(i,j,k);
         amrex::Real rho   = 0.5 * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
 
-        amrex::Real ustar   = 0.5 * ( u_star_arr(i,j-1,k) + u_star_arr(i,j,k) );
+        amrex::Real ustar   = 0.5 * ( u_star_arr(i,j-1,0) + u_star_arr(i,j,0) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
 
         // NOTE: this is rho*<v'w'> = -K dvdz
@@ -2451,10 +2452,10 @@ struct rotate_flux
                     const amrex::Array4<const amrex::Real>& q_surf_arr) const
     {
         // NOTE: this is the total stress
-        amrex::Real qv_mean = qvm_arr(i,j,k);
-        amrex::Real qv_surf = q_surf_arr(i,j,k);
+        amrex::Real qv_mean = qvm_arr(i,j,0);
+        amrex::Real qv_surf = q_surf_arr(i,j,0);
         amrex::Real rho     = cons_arr(i,j,k,Rho_comp);
-        amrex::Real qstar   = q_star_arr(i,j,k);
+        amrex::Real qstar   = q_star_arr(i,j,0);
         amrex::Real moflux  = (std::abs(qstar) > eps) ? -rho * qstar * (qv_mean-qv_surf): 0.0;
 
         return moflux;
@@ -2476,10 +2477,10 @@ struct rotate_flux
                     const amrex::Array4<const amrex::Real>& t_surf_arr) const
     {
         // NOTE: this is the total stress
-        amrex::Real theta_mean = tm_arr(i,j,k);
-        amrex::Real theta_surf = t_surf_arr(i,j,k);
+        amrex::Real theta_mean = tm_arr(i,j,0);
+        amrex::Real theta_surf = t_surf_arr(i,j,0);
         amrex::Real rho        = cons_arr(i,j,k,Rho_comp);
-        amrex::Real tstar      = t_star_arr(i,j,k);
+        amrex::Real tstar      = t_star_arr(i,j,0);
         amrex::Real moflux = (std::abs(tstar) > eps) ? -rho * tstar * (theta_mean-theta_surf) : 0.0;
 
         return moflux;
@@ -2500,7 +2501,7 @@ struct rotate_flux
     {
         // NOTE: this is the total stress
         amrex::Real rho     = 0.5 *( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i  ,j,k,Rho_comp) );
-        amrex::Real ustar   = 0.5 * ( u_star_arr(i-1,j,k) + u_star_arr(i,j,k) );
+        amrex::Real ustar   = 0.5 * ( u_star_arr(i-1,j,0) + u_star_arr(i,j,0) );
         amrex::Real stressx = -rho * ustar * ustar;
 
         return stressx;

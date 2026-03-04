@@ -55,14 +55,14 @@ SurfaceLayer::update_fluxes (const int& lev,
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
             if (rough_type_land == RoughCalcType::CONSTANT) {
                 surface_flux most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
             }
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             if (rough_type_land == RoughCalcType::CONSTANT) {
                 surface_temp most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
             }
@@ -70,7 +70,7 @@ SurfaceLayer::update_fluxes (const int& lev,
                    (moist_type == MoistCalcType::ADIABATIC)) {
             if (rough_type_land == RoughCalcType::CONSTANT) {
                 adiabatic most_flux(surf_temp_flux, surf_moist_flux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
             }
@@ -94,19 +94,19 @@ SurfaceLayer::update_fluxes (const int& lev,
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
                 surface_flux_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                                 cnk_a, cnk_visc, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 surface_flux_mod_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                                     depth, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::DONELAN) {
                 surface_flux_donelan most_flux(surf_temp_flux, surf_moist_flux,
                                                cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 surface_flux_wave_coupled most_flux(surf_temp_flux, surf_moist_flux,
                                                     cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_sea");
             }
@@ -115,19 +115,19 @@ SurfaceLayer::update_fluxes (const int& lev,
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
                 surface_temp_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                                 cnk_a, cnk_visc, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 surface_temp_mod_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                                     depth, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::DONELAN) {
                 surface_temp_donelan most_flux(surf_temp_flux, surf_moist_flux,
                                                cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 surface_temp_wave_coupled most_flux(surf_temp_flux, surf_moist_flux,
                                                     cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_sea");
             }
@@ -137,17 +137,17 @@ SurfaceLayer::update_fluxes (const int& lev,
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
                 adiabatic_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                              cnk_a, cnk_visc);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 adiabatic_mod_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                                  depth);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::DONELAN) {
                 adiabatic_donelan most_flux(surf_temp_flux, surf_moist_flux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 adiabatic_wave_coupled most_flux(surf_temp_flux, surf_moist_flux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_sea");
             }
@@ -175,25 +175,28 @@ SurfaceLayer::update_fluxes (const int& lev,
         const Real l_inv_theta0  = (use_ref_theta) ? 1.0 / theta_ref : 1.0;
         const Real l_inv_Cmu2    = inv_Cmu2;
         const int klo = m_geom[lev].Domain().smallEnd(2);
+        IntVect ng = u_star[lev]->nGrowVect(); ng[2] = 0;
 
-        for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+        for (MFIter mfi(cons_in); mfi.isValid(); ++mfi)
         {
-            Box gtbx = mfi.growntilebox();
+            Box gpbx = mfi.tilebox(IntVect(0),ng);
 
-            if (gtbx.smallEnd(2) != klo) { continue; }
+            if (gpbx.smallEnd(2) != klo) { continue; }
+
+            gpbx.makeSlab(2,klo);
 
             auto cons_arr = cons_in.array(mfi);
             const auto& u_star_arr = u_star[lev]->const_array(mfi);
             const auto& t_star_arr = t_star[lev]->const_array(mfi);
-            const auto& dist_arr = walldist->const_array(mfi);
+            const auto& dist_arr   = walldist->const_array(mfi);
 
-            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 Real rho = cons_arr(i,j,k,Rho_comp);
-                if (t_star_arr(i,j,k) < -1e-8) {
+                if (t_star_arr(i,j,0) < -1e-8) {
                     // Only destabilizing buoyancy flux affects the boundary k
                     // tstar < 0 ==> B > 0
-                    Real B = -CONST_GRAV * l_inv_theta0 * u_star_arr(i,j,k) * t_star_arr(i,j,k);
+                    Real B = -CONST_GRAV * l_inv_theta0 * u_star_arr(i,j,0) * t_star_arr(i,j,0);
                     if (!use_ref_theta) {
                         B *= cons_arr(i,j,k,Rho_comp) /
                              cons_arr(i,j,k,RhoTheta_comp);
@@ -202,11 +205,11 @@ SurfaceLayer::update_fluxes (const int& lev,
                     // Axell & Liungman 2001, Eqn. 16
                     cons_arr(i,j,k,RhoKE_comp) = rho * l_inv_Cmu2 *
                         std::pow(
-                            u_star_arr(i,j,k) * u_star_arr(i,j,k) * u_star_arr(i,j,k)
+                            u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0)
                             + KAPPA * B * dist_arr(i,j,k),
                         2.0/3.0);
                 } else {
-                    cons_arr(i,j,k,RhoKE_comp) = rho * l_inv_Cmu2 * u_star_arr(i,j,k) * u_star_arr(i,j,k);
+                    cons_arr(i,j,k,RhoKE_comp) = rho * l_inv_Cmu2 * u_star_arr(i,j,0) * u_star_arr(i,j,0);
                 }
             });
         }
@@ -224,6 +227,7 @@ template <typename FluxIter>
 void
 SurfaceLayer::compute_fluxes (const int& lev,
                               const int& max_iters,
+                              MultiFab& cons_in,
                               const FluxIter& most_flux,
                               bool is_land)
 {
@@ -235,12 +239,15 @@ SurfaceLayer::compute_fluxes (const int& lev,
     const auto *const zref_ptr = m_ma.get_zref(lev);     // reference height
 
     const int klo = m_geom[lev].Domain().smallEnd(2);
+    IntVect ng = u_star[lev]->nGrowVect(); ng[2] = 0;
 
-    for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+    for (MFIter mfi(cons_in); mfi.isValid(); ++mfi)
     {
-        Box gtbx = mfi.growntilebox();
+        Box gtbx = mfi.tilebox(IntVect(0),ng);
 
         if (gtbx.smallEnd(2) != klo) { continue; }
+
+        gtbx.makeSlab(2,klo);
 
         auto u_star_arr = u_star[lev]->array(mfi);
         auto t_star_arr = t_star[lev]->array(mfi);
@@ -270,12 +277,13 @@ SurfaceLayer::compute_fluxes (const int& lev,
         auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
                                                        Array4<int> {};
 
-        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
         {
-            if (( is_land && lmask_arr(i,j,k) == 1) ||
-                (!is_land && lmask_arr(i,j,k) == 0))
+            if (( is_land && lmask_arr(i,j,0) == 1) ||
+                (!is_land && lmask_arr(i,j,0) == 0))
             {
-                most_flux.iterate_flux(i, j, k, max_iters,
+                // NOTE: All 2D MFs so k index is always 0 from ba2d definition
+                most_flux.iterate_flux(i, j, 0, max_iters,
                                        zref_arr,                            // set in most average
                                        z0_arr,                              // updated if(!is_land)
                                        umm_arr, tm_arr, tvm_arr, qvm_arr,
