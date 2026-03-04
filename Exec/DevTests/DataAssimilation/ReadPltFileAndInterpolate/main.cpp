@@ -47,10 +47,21 @@ int main (int argc, char* argv[])
                                     mf_nc_coarse, mf_cc_fine,
                                     coarse_multifab_on_fine_dmap);
 
+        Print() << "Checking for large values on coarse_multifab_on_fine_dmap" << std::endl;
+        //check_large_values(coarse_multifab_on_fine_dmap);
+
         CreateCellCenteredMultiFabFromNodalMultiFab(mf_cc_tmp, coarse_multifab_on_fine_dmap);
+        Print() << "Checking for large values on mf_cc_tmp" << std::endl;
+        //check_large_values(mf_cc_tmp);
 
         // Write plotfile
         WriteSingleLevelPlotfile("plt_2", mf_cc_tmp, varnames, geom_coarse, 0.0, 0);
+
+        MultiFab mf_cc_from_coarse;
+        PopulateFineCellCenteredFromCoarseNodal(geom_coarse, geom_fine, coarse_multifab_on_fine_dmap,
+                                                mf_cc_fine, mf_cc_from_coarse);
+        
+        WriteSingleLevelPlotfile("plt_final", mf_cc_from_coarse, varnames, geom_fine, 0.0, 0);
 
     }
     Finalize();

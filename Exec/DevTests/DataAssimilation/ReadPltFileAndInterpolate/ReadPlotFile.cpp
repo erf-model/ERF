@@ -347,3 +347,96 @@ GetCoarseMultiFabOnFineDMap(const Geometry& geom_coarse,
     coarse_multifab_on_fine_dmap.define(cba, mf_cc_fine.DistributionMap(), mf_nc_coarse.nComp(), 0);
     coarse_multifab_on_fine_dmap.ParallelCopy(mf_nc_coarse);
 }
+
+
+void
+PopulateFineCellCenteredFromCoarseNodal(const Geometry& geom_coarse,
+                                        const Geometry& geom_fine,
+                                        const MultiFab& coarse_multifab_on_fine_dmap,
+                                        const MultiFab& mf_cc_fine,
+                                        MultiFab& mf_cc_from_coarse)
+{
+    AMREX_ALWAYS_ASSERT(coarse_multifab_on_fine_dmap.ixType().nodeCentered());
+
+    if (!mf_cc_from_coarse.isDefined())
+    {
+        mf_cc_from_coarse.define(mf_cc_fine.boxArray(),
+                                 mf_cc_fine.DistributionMap(),
+                                 coarse_multifab_on_fine_dmap.nComp(),
+                                 0);
+    }
+
+    AMREX_ALWAYS_ASSERT(mf_cc_from_coarse.boxArray() == mf_cc_fine.boxArray());
+    AMREX_ALWAYS_ASSERT(mf_cc_from_coarse.DistributionMap() == mf_cc_fine.DistributionMap());
+    AMREX_ALWAYS_ASSERT(mf_cc_from_coarse.nComp() == coarse_multifab_on_fine_dmap.nComp());
+
+    const auto prob_lo_coarse = geom_coarse.ProbLoArray();
+    const auto dx_coarse = geom_coarse.CellSizeArray();
+
+    const auto prob_lo_fine = geom_fine.ProbLoArray();
+    const auto dx_fine = geom_fine.CellSizeArray();
+
+    Box nodal_domain = amrex::convert(geom_coarse.Domain(), IntVect::TheNodeVector());
+    const auto nd_lo = nodal_domain.smallEnd();
+    const auto nd_hi = nodal_domain.bigEnd();
+
+    int ncomp = mf_cc_from_coarse.nComp();
+
+    for (MFIter mfi(mf_cc_from_coarse, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& cbox = mfi.tilebox();
+        auto const& arr_cc = mf_cc_from_coarse.array(mfi);
+        auto const& arr_nc = coarse_multifab_on_fine_dmap.array(mfi);
+
+        ParallelFor(cbox, ncomp,
+        [=] AMREX_GPU_DEVICE(int i, int j, int k, int n)
+        {
+            Real x = prob_lo_fine[0] + (static_cast<Real>(i) + 0.5_rt) * dx_fine[0];
+            Real y = prob_lo_fine[1] + (static_cast<Real>(j) + 0.5_rt) * dx_fine[1];
+            Real z = prob_lo_fine[2] + (static_cast<Real>(k) + 0.5_rt) * dx_fine[2];
+
+            Real fx = (x - prob_lo_coarse[0]) / dx_coarse[0];
+            Real fy = (y - prob_lo_coarse[1]) / dx_coarse[1];
+            Real fz = (z - prob_lo_coarse[2]) / dx_coarse[2];
+
+            int i0 = static_cast<int>(amrex::Math::floor(fx));
+            int j0 = static_cast<int>(amrex::Math::floor(fy));
+            int k0 = static_cast<int>(amrex::Math::floor(fz));
+
+            Real wx = fx - static_cast<Real>(i0);
+            Real wy = fy - static_cast<Real>(j0);
+            Real wz = fz - static_cast<Real>(k0);
+
+            int i1 = i0 + 1;
+            int j1 = j0 + 1;
+            int k1 = k0 + 1;
+
+            i0 = amrex::max(nd_lo[0], amrex::min(i0, nd_hi[0]-1));
+            j0 = amrex::max(nd_lo[1], amrex::min(j0, nd_hi[1]-1));
+            k0 = amrex::max(nd_lo[2], amrex::min(k0, nd_hi[2]-1));
+
+            i1 = amrex::max(nd_lo[0], amrex::min(i1, nd_hi[0]));
+            j1 = amrex::max(nd_lo[1], amrex::min(j1, nd_hi[1]));
+            k1 = amrex::max(nd_lo[2], amrex::min(k1, nd_hi[2]));
+
+            Real c000 = arr_nc(i0,j0,k0,n);
+            Real c100 = arr_nc(i1,j0,k0,n);
+            Real c010 = arr_nc(i0,j1,k0,n);
+            Real c110 = arr_nc(i1,j1,k0,n);
+            Real c001 = arr_nc(i0,j0,k1,n);
+            Real c101 = arr_nc(i1,j0,k1,n);
+            Real c011 = arr_nc(i0,j1,k1,n);
+            Real c111 = arr_nc(i1,j1,k1,n);
+
+            Real c00 = c000 * (1.0_rt - wx) + c100 * wx;
+            Real c10 = c010 * (1.0_rt - wx) + c110 * wx;
+            Real c01 = c001 * (1.0_rt - wx) + c101 * wx;
+            Real c11 = c011 * (1.0_rt - wx) + c111 * wx;
+
+            Real c0 = c00 * (1.0_rt - wy) + c10 * wy;
+            Real c1 = c01 * (1.0_rt - wy) + c11 * wy;
+
+            arr_cc(i,j,k,n) = c0 * (1.0_rt - wz) + c1 * wz;
+        });
+    }
+}

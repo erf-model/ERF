@@ -36,4 +36,17 @@ void
 CreateCellCenteredMultiFabFromNodalMultiFab(amrex::MultiFab& tmp_cc,   // cell-centered output
                                             amrex::MultiFab& mf_nc);   // node-centered input
 
+// Populate a fine, cell-centered MultiFab from coarse nodal data using
+// trilinear interpolation at fine cell centers.
+// mf_cc_fine provides the fine BoxArray + DistributionMapping template.
+void
+PopulateFineCellCenteredFromCoarseNodal(const amrex::Geometry& geom_coarse,
+                                        const amrex::Geometry& geom_fine,
+                                        const amrex::MultiFab& coarse_multifab_on_fine_dmap,
+                                        const amrex::MultiFab& mf_cc_fine,
+                                        amrex::MultiFab& mf_cc_from_coarse);
+
+void 
+check_large_values(const amrex::MultiFab& mf);
+
 #endif
