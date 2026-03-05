@@ -794,15 +794,13 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
 {
     Print() << "Initializing TKE from surface layer ustar on level " << lev << std::endl;
 
-    const int klo = m_geom[lev].Domain().smallEnd(2);
-
     // Handle vertical decomposition by selectively copying into
     // a FArrayBox section on each rank. Then doing a reduce real sum
     // and broadcasting to each rank. No mask since all CC data
-    int klo = m_geom[lev].Domain().smallEnd(2);
+    const int klo = m_geom[lev].Domain().smallEnd(2);
     Box bx_lo = u_star[lev]->boxArray().minimalBox();
-    FArrayBox u_star_lo(bx_lo, 1); u_star_lo.setVal(0.);
-    FArrayBox z_surf_lo(bx_lo, 1); z_surf_lo.setVal(0.);
+    FArrayBox u_star_lo(bx_lo, 1); u_star_lo.setVal<RunOn::Device>(0.);
+    FArrayBox z_surf_lo(bx_lo, 1); z_surf_lo.setVal<RunOn::Device>(0.);
     Real* ustar_ptr = u_star_lo.dataPtr();
     Real* zsurf_ptr = z_surf_lo.dataPtr();
     for (MFIter mfi(cons); mfi.isValid(); ++mfi)
