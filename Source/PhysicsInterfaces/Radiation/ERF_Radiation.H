@@ -226,7 +226,7 @@ private:
     // Geometry at given level
     amrex::Geometry m_geom;
 
-    // Boxarray at given level
+    // BoxArray at given level
     amrex::BoxArray m_ba;
 
     // Are we updating radiation?

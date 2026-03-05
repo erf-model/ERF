@@ -139,7 +139,7 @@ Problem::init_custom_pert (
 }
 
 void
-Problem::init_custom_pert_vels(
+Problem::init_custom_pert_vels (
     const amrex::Box& xbx,
     const amrex::Box& ybx,
     const amrex::Box& zbx,

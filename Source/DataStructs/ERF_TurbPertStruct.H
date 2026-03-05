@@ -226,7 +226,7 @@ struct TurbulentPerturbation {
                           amrex::MultiFab& mf_yvel,
                           amrex::MultiFab& mf_cons)
     {
-        // Resettubg the net buoyant force value
+        // Resetting the net buoyant force value
         tpi_net_buoyant = 0.;
 
         // Setting random number generator for update interval
@@ -646,7 +646,7 @@ struct TurbulentPerturbation {
     int tpi_offset;                   // Cells to offset the start of the perturbation region
 
     amrex::Vector<int> tpi_boxDim;    // Dimensions of each perturbation box
-    amrex::Vector<int> tpi_direction; // Direction of the peturbation
+    amrex::Vector<int> tpi_direction; // Direction of the perturbation
 
     // Richardson Formulation
     amrex::Real tpi_nonDim;           // Richardson number

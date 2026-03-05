@@ -75,7 +75,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                       |          ^
                 1 error generated when compiling for gfx942.
 
-         * Need to understand what is going on. Not sure if it will give this error when compiline on other machines
+         * Need to understand what is going on. Not sure if it will give this error when compiling on other machines
          * with NetCDF support.
          */
 #endif

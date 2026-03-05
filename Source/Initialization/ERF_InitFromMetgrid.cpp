@@ -118,7 +118,9 @@ ERF::init_from_metgrid (int lev)
     for (int itime(1); itime < ntimes; itime++) AMREX_ALWAYS_ASSERT(NC_epochTime[itime] > NC_epochTime[itime-1]);
 
     // Start at the earliest time in nc_init_file[lev].
+    start_time     = NC_epochTime[0];
     start_bdy_time = NC_epochTime[0];
+    final_bdy_time = NC_epochTime[ntimes-1];
 
     //
     // Note that t_new and t_old carry *elapsed* time, not total time
@@ -228,7 +230,6 @@ ERF::init_from_metgrid (int lev)
         }
     }
 
-    solverChoice.has_lat_lon = true;
     lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
     sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
     cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
@@ -608,7 +609,7 @@ init_state_from_metgrid (const bool use_moisture,
                          FArrayBox& x_vel_fab,
                          FArrayBox& y_vel_fab,
                          FArrayBox& z_vel_fab,
-                         FArrayBox& z_phys_nd_fab,
+                         FArrayBox& z_phys_cc_fab,
                          const Vector<FArrayBox>& NC_hgt_fab,
                          const Vector<FArrayBox>& NC_ght_fab,
                          const Vector<FArrayBox>& NC_xvel_fab,
@@ -647,7 +648,7 @@ init_state_from_metgrid (const bool use_moisture,
         auto const orig_data = NC_xvel_fab[itime].const_array();
         auto const orig_z    = NC_ght_fab[itime].const_array();
         auto       new_data  = x_vel_fab.array();
-        auto const new_z     = z_phys_nd_fab.const_array();
+        auto const new_z     = z_phys_cc_fab.const_array();
 
         Box bx_xlo = fabs_for_bcs_xlo[itime][MetGridBdyVars::U].box();
         Box bx_xhi = fabs_for_bcs_xhi[itime][MetGridBdyVars::U].box();
@@ -682,7 +683,7 @@ init_state_from_metgrid (const bool use_moisture,
             } else { // Vertical interpolation and quality control similar to that from WRF.
                 interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, metgrid_exp_interp,
                                            metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                           metgrid_force_sfc_k, i, j, 0, itime, 'U', 'X',
+                                           metgrid_force_sfc_k, i, j, kmax, 0, itime, 'U', 'X',
                                            orig_z, orig_data, new_z, new_data, true,
                                            bc_data_xlo, bc_data_xhi, bc_data_ylo, bc_data_yhi,
                                            bx_xlo, bx_xhi, bx_ylo, bx_yhi, mask_u_arr);
@@ -703,7 +704,7 @@ init_state_from_metgrid (const bool use_moisture,
         auto const orig_data = NC_yvel_fab[itime].const_array();
         auto const orig_z    = NC_ght_fab[itime].const_array();
         auto       new_data  = y_vel_fab.array();
-        auto const new_z     = z_phys_nd_fab.const_array();
+        auto const new_z     = z_phys_cc_fab.const_array();
 
         Box bx_xlo = fabs_for_bcs_xlo[itime][MetGridBdyVars::V].box();
         Box bx_xhi = fabs_for_bcs_xhi[itime][MetGridBdyVars::V].box();
@@ -738,7 +739,7 @@ init_state_from_metgrid (const bool use_moisture,
             } else {
                 interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, metgrid_exp_interp,
                                            metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                           metgrid_force_sfc_k, i, j, 0, itime, 'V', 'Y',
+                                           metgrid_force_sfc_k, i, j, kmax, 0, itime, 'V', 'Y',
                                            orig_z, orig_data, new_z, new_data, true,
                                            bc_data_xlo, bc_data_xhi, bc_data_ylo, bc_data_yhi,
                                            bx_xlo, bx_xhi, bx_ylo, bx_yhi, mask_v_arr);
@@ -791,7 +792,7 @@ init_state_from_metgrid (const bool use_moisture,
             auto const orig_data = theta_fab.const_array();
             auto const orig_z    = NC_ght_fab[itime].const_array();
             auto       new_data  = state_fab.array();
-            auto const new_z     = z_phys_nd_fab.const_array();
+            auto const new_z     = z_phys_cc_fab.const_array();
 
             Box bx_xlo = fabs_for_bcs_xlo[itime][MetGridBdyVars::T].box();
             Box bx_xhi = fabs_for_bcs_xhi[itime][MetGridBdyVars::T].box();
@@ -826,7 +827,7 @@ init_state_from_metgrid (const bool use_moisture,
                 } else { // Vertical interpolation and quality control similar to that from WRF.
                     interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, metgrid_exp_interp,
                                                metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                               metgrid_force_sfc_k, i, j, RhoTheta_comp, itime, 'T', 'M',
+                                               metgrid_force_sfc_k, i, j, kmax, RhoTheta_comp, itime, 'T', 'M',
                                                orig_z, orig_data, new_z, new_data, true,
                                                bc_data_xlo, bc_data_xhi, bc_data_ylo, bc_data_yhi,
                                                bx_xlo, bx_xhi, bx_ylo, bx_yhi, mask_c_arr);
@@ -845,7 +846,7 @@ init_state_from_metgrid (const bool use_moisture,
             auto const orig_data = NC_pres_fab[itime].const_array();
             auto const orig_z    = NC_ght_fab[itime].const_array();
             auto       new_data  = p_interp_fab.array();
-            auto const new_z     = z_phys_nd_fab.const_array();
+            auto const new_z     = z_phys_cc_fab.const_array();
 
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
             const amrex::Array4<amrex::Real> bc_data_xlo, bc_data_xhi, bc_data_ylo, bc_data_yhi;
@@ -864,7 +865,7 @@ init_state_from_metgrid (const bool use_moisture,
                     // This is akin to interpolating in pressure-space assuming a baroclinic atmosphere.
                     interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, true,
                                                metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                               metgrid_force_sfc_k, i, j, 0, 0, 'T', 'M',
+                                               metgrid_force_sfc_k, i, j, kmax, 0, 0, 'T', 'M',
                                                orig_z, orig_data, new_z, new_data, false,
                                                bc_data_xlo, bc_data_xhi, bc_data_ylo, bc_data_yhi,
                                                bx_xlo, bx_xhi, bx_ylo, bx_yhi, mask_c_arr);
@@ -881,7 +882,7 @@ init_state_from_metgrid (const bool use_moisture,
             auto const orig_data = NC_temp_fab[itime].const_array();
             auto const orig_z    = NC_ght_fab[itime].const_array();
             auto       new_data  = t_interp_fab.array();
-            auto const new_z     = z_phys_nd_fab.const_array();
+            auto const new_z     = z_phys_cc_fab.const_array();
 
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
             const amrex::Array4<amrex::Real> bc_data_xlo, bc_data_xhi, bc_data_ylo, bc_data_yhi;
@@ -901,7 +902,7 @@ init_state_from_metgrid (const bool use_moisture,
                     // in LOG(p), regardless of requested default."
                     interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, false,
                                                metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                               metgrid_force_sfc_k, i, j, 0, 0, 'T', 'M',
+                                               metgrid_force_sfc_k, i, j, kmax, 0, 0, 'T', 'M',
                                                orig_z, orig_data, new_z, new_data, false,
                                                bc_data_xlo, bc_data_xhi, bc_data_ylo, bc_data_yhi,
                                                bx_xlo, bx_xhi, bx_ylo, bx_yhi, mask_c_arr);
@@ -968,7 +969,7 @@ init_state_from_metgrid (const bool use_moisture,
                 auto const orig_data = mxrat_fab.const_array();
                 auto const orig_z    = NC_ght_fab[itime].const_array();
                 auto       new_data  = state_fab.array();
-                auto const new_z     = z_phys_nd_fab.const_array();
+                auto const new_z     = z_phys_cc_fab.const_array();
 
                 Box bx_xlo = fabs_for_bcs_xlo[itime][MetGridBdyVars::QV].box();
                 Box bx_xhi = fabs_for_bcs_xhi[itime][MetGridBdyVars::QV].box();
@@ -1004,7 +1005,7 @@ init_state_from_metgrid (const bool use_moisture,
                     } else { // Vertical interpolation and quality control similar to that from WRF.
                         interpolate_column_metgrid(metgrid_use_below_sfc, metgrid_use_sfc, metgrid_exp_interp,
                                                    metgrid_retain_sfc, metgrid_proximity, metgrid_order,
-                                                   metgrid_force_sfc_k, i, j, state_indx, itime, 'Q', 'M',
+                                                   metgrid_force_sfc_k, i, j, kmax, state_indx, itime, 'Q', 'M',
                                                    orig_z, orig_data, new_z, new_data, true,
                                                    bc_data_xlo, bc_data_xhi, bc_data_ylo, bc_data_yhi,
                                                    bx_xlo, bx_xhi, bx_ylo, bx_yhi, mask_c_arr);

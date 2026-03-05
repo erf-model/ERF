@@ -52,7 +52,6 @@ erf.dynamic_viscosity = 0.1
 erf.alpha_T           = 0.0
 erf.alpha_C           = 0.0
 
-erf.use_coriolis = false
 erf.abl_driver_type = "PressureGradient"
 erf.abl_pressure_grad = -0.2 0. 0.
 

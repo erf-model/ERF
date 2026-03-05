@@ -131,7 +131,7 @@ Long SuperDropletPC::NumSDDeactivated ()
 
 /*! Computes the number density of the SDs over a mesh */
 void SuperDropletPC::SDNumberDensity ( MultiFab& a_mf,  /*!< Number density multifab */
-                                       const int a_comp /*!< Multifab component to fill with number density */) const
+                                       const int a_comp /*!< MultiFab component to fill with number density */) const
 {
     BL_PROFILE("SuperDropletPC::SDNumberDensity()");
 
@@ -164,7 +164,7 @@ void SuperDropletPC::SDNumberDensity ( MultiFab& a_mf,  /*!< Number density mult
 
 /*! Computes the number density of the particles over a mesh */
 void SuperDropletPC::numberDensity ( MultiFab& a_mf,  /*!< Number density multifab */
-                                     const int a_comp /*!< Multifab component to fill with number density */) const
+                                     const int a_comp /*!< MultiFab component to fill with number density */) const
 {
     BL_PROFILE("SuperDropletPC::numberDensity()");
 
@@ -200,7 +200,7 @@ void SuperDropletPC::numberDensity ( MultiFab& a_mf,  /*!< Number density multif
 /*! Computes the mass density of the particles over a mesh: this does
     include the aerosol mass*/
 void SuperDropletPC::massDensity ( MultiFab& a_mf,  /*!< Mass density multifab */
-                                   const int a_comp /*!< Multifab component to fill with mass density */) const
+                                   const int a_comp /*!< MultiFab component to fill with mass density */) const
 {
     BL_PROFILE("SuperDropletPC::massDensity()");
 
@@ -236,7 +236,7 @@ void SuperDropletPC::massDensity ( MultiFab& a_mf,  /*!< Mass density multifab *
 /*! Computes the particle velocity components over a mesh */
 void SuperDropletPC::massFlux ( MultiFab& a_mf,  /*!< Mass flux multifab */
                                 const int a_dim, /*!< Flux component */
-                                const int a_comp /*!< Multifab component to fill with mass density */) const
+                                const int a_comp /*!< MultiFab component to fill with mass density */) const
 {
     BL_PROFILE("SuperDropletPC::massFlux()");
 
@@ -277,7 +277,7 @@ void SuperDropletPC::massFlux ( MultiFab& a_mf,  /*!< Mass flux multifab */
 /*! Computes the aerosol mass density of the particles over a mesh */
 void SuperDropletPC::aerosolMassDensity ( MultiFab& a_mf,  /*!< Aerosol mass density multifab */
                                           const int a_idx, /*!< Aerosol index */
-                                          const int a_comp /*!< Multifab component to fill */) const
+                                          const int a_comp /*!< MultiFab component to fill */) const
 {
     BL_PROFILE("SuperDropletPC::aerosolMassDensity()");
 
@@ -318,7 +318,7 @@ void SuperDropletPC::aerosolMassDensity ( MultiFab& a_mf,  /*!< Aerosol mass den
 void SuperDropletPC::aerosolMassFlux ( MultiFab& a_mf,  /*!< Aerosol mass flux multifab */
                                        const int a_idx, /*!< Aerosol index */
                                        const int a_dim, /*!< Flux component */
-                                       const int a_comp /*!< Multifab component to fill */) const
+                                       const int a_comp /*!< MultiFab component to fill */) const
 {
     BL_PROFILE("SuperDropletPC::aerosolMassFlux()");
 
@@ -365,7 +365,7 @@ void SuperDropletPC::speciesMassDensity ( MultiFab&  a_mf,  /*!< Species mass de
                                           const int  a_idx, /*!< Species index */
                                           const Real a_rmin, /*!< minimum radius */
                                           const Real a_rmax, /*!< maximum radius */
-                                          const int  a_comp /*!< Multifab component to fill */) const
+                                          const int  a_comp /*!< MultiFab component to fill */) const
 {
     BL_PROFILE("SuperDropletPC::speciesMassDensity()");
 
@@ -411,7 +411,7 @@ void SuperDropletPC::speciesMassDensity ( MultiFab&  a_mf,  /*!< Species mass de
 void SuperDropletPC::speciesMassFlux ( MultiFab& a_mf,  /*!< Species mass flux multifab */
                                        const int a_idx, /*!< Species index */
                                        const int a_dim, /*!< Flux component */
-                                       const int a_comp /*!< Multifab component to fill */) const
+                                       const int a_comp /*!< MultiFab component to fill */) const
 {
     BL_PROFILE("SuperDropletPC::speciesMassFlux()");
 
@@ -455,7 +455,7 @@ void SuperDropletPC::speciesMassFlux ( MultiFab& a_mf,  /*!< Species mass flux m
 
 /*! Computes the effective radius of the particles over a mesh */
 void SuperDropletPC::effectiveRadius (  MultiFab& a_mf,  /*!< Effective radius multifab */
-                                        const int a_comp /*!< Multifab component to fill with number density */) const
+                                        const int a_comp /*!< MultiFab component to fill with number density */) const
 {
     BL_PROFILE("SuperDropletPC::effectiveRadius()");
 

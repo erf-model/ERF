@@ -129,7 +129,7 @@ void GeneralAD::compute_freestream_velocity (const MultiFab& cons_in,
 
             if(SMark_array(i,j,k,0) != -1.0) {
                 int turb_index = static_cast<int>(SMark_array(i,j,k,0));
-                Real phi = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
+                Real phi = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-direction
                 Gpu::Atomic::Add(&d_freestream_velocity_ptr[turb_index],std::pow(u_vel(i,j,k)*u_vel(i,j,k) + v_vel(i,j,k)*v_vel(i,j,k),0.5));
                 Gpu::Atomic::Add(&d_disk_cell_count_ptr[turb_index],1.0);
                 Gpu::Atomic::Add(&d_freestream_phi_ptr[turb_index],phi);

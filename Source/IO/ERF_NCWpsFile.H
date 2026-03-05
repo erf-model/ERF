@@ -44,7 +44,7 @@ enum class NC_Data_Dims_Type {
 // arrays, that read from the NetCDF file.
 //
 // The data read from NetCDF file are stored in a continuous memory, and the data layout is described
-// by using a vector (shape). AMRex Box can be constructed using the data shape information, and MultiFab
+// by using a vector (shape). AMReX Box can be constructed using the data shape information, and MultiFab
 // data array can be setup using the data that stored in the NDArray.
 //
 template <typename DataType>
