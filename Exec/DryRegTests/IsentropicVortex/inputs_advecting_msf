@@ -51,6 +51,10 @@ erf.les_type          = "None"
 erf.molec_diff_type   = "Constant"
 erf.dynamic_viscosity = 1.0
 
+# ADVECTION SCHEMES
+erf.dryscal_horiz_adv_type = "WENO5"
+erf.dryscal_vert_adv_type  = "WENO5"
+
 # PROBLEM PARAMETERS
 prob.p_inf = 1e5  # reference pressure [Pa]
 prob.T_inf = 300. # reference temperature [K]
