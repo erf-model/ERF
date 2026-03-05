@@ -49,7 +49,7 @@ void make_gradp_pert (int level,
         MultiFab p(S_data[Vars::cons].boxArray(), S_data[Vars::cons].DistributionMap(), 1, ngrow);
 
         // *****************************************************************************
-        // Compute pressure or perturbataional pressure
+        // Compute pressure or perturbational pressure
         // *****************************************************************************
         for ( MFIter mfi(S_data[Vars::cons]); mfi.isValid(); ++mfi)
         {

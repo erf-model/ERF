@@ -48,6 +48,11 @@ erf.rayleigh_damp_V = true
 erf.rayleigh_damp_W = true
 erf.rayleigh_damp_T = true
 
+prob.rayleigh_U_0 = 2.0
+prob.rayleigh_V_0 = 1.0
+prob.rayleigh_W_0 = 0.0
+prob.rayleigh_T_0 = 1.0
+
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
 
@@ -57,8 +62,8 @@ erf.init_type = "uniform"
 prob.rho_0 = 1.0
 prob.T_0   = 1.0
 prob.A_0   = 1.0
-prob.u_0   = 0.0
-prob.v_0   = 0.0
+prob.U_0   = 0.0
+prob.V_0   = 0.0
 prob.rad_0 = 0.25
 prob.z0    = 0.1
 prob.zRef  = 80.0

@@ -46,6 +46,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // If lev == 0 we have already FillPatched this in ERF::TimeStep
     //
     if (lev > 0) {
+        // Set ghost cells to bogus values so they aren't uninitialized
+        W_old.setBndry(1.234e20);
         FillPatchFineLevel(lev, time, {&S_old, &U_old, &V_old, &W_old},
                            {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
                            base_state[lev], base_state[lev]);
@@ -112,7 +114,14 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
             m_SurfaceLayer->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
             m_SurfaceLayer->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
                                         solverChoice.moisture_indices);
-            m_SurfaceLayer->update_fluxes(lev, time, S_old, z_phys_nd[lev], walldist[lev]);
+
+#ifdef ERF_USE_NETCDF
+            Real elapsed_time_since_start_low = time + (start_time - start_low_time);
+#else
+            Real elapsed_time_since_start_low = time;
+#endif
+            m_SurfaceLayer->update_fluxes(lev, elapsed_time_since_start_low,
+                                          S_old, z_phys_nd[lev], walldist[lev]);
         }
     }
 

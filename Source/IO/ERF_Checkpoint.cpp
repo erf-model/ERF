@@ -229,8 +229,19 @@ ERF::WriteCheckpointFile () const
             lsm.WriteCheckpoint(lev, checkpointname);
         }
 
+        // Write the radiation heating rates
+        if ((solverChoice.rad_type != RadiationType::None) && (qheating_rates[lev])) {
+            int nrad = qheating_rates[lev]->nComp();
+            MultiFab mf_rad(grids[lev],dmap[lev],nrad,0);
+            MultiFab::Copy(mf_rad,*qheating_rates[lev],0,0,nrad,0);
+            VisMF::Write(mf_rad, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Qrad"));
+        }
+
         IntVect ng = mapfac[lev][MapFacType::m_x]->nGrowVect();
-        MultiFab mf_m(ba2d[lev],dmap[lev],1,ng);
+        BoxList bl2d_mf = ba2d[lev].boxList();
+        for (auto& b : bl2d_mf) { b.setRange(2,0); }
+        BoxArray ba2d_mf(std::move(bl2d_mf));
+        MultiFab mf_m(ba2d_mf,dmap[lev],1,ng);
         MultiFab::Copy(mf_m,*mapfac[lev][MapFacType::m_x],0,0,1,ng);
         VisMF::Write(mf_m, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_mx"));
 
@@ -242,7 +253,7 @@ ERF::WriteCheckpointFile () const
 #endif
 
         ng = mapfac[lev][MapFacType::u_x]->nGrowVect();
-        MultiFab mf_u(convert(ba2d[lev],IntVect(1,0,0)),dmap[lev],1,ng);
+        MultiFab mf_u(convert(ba2d_mf,IntVect(1,0,0)),dmap[lev],1,ng);
         MultiFab::Copy(mf_u,*mapfac[lev][MapFacType::u_x],0,0,1,ng);
         VisMF::Write(mf_u, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_ux"));
 
@@ -254,7 +265,7 @@ ERF::WriteCheckpointFile () const
 #endif
 
         ng = mapfac[lev][MapFacType::v_x]->nGrowVect();
-        MultiFab mf_v(convert(ba2d[lev],IntVect(0,1,0)),dmap[lev],1,ng);
+        MultiFab mf_v(convert(ba2d_mf,IntVect(0,1,0)),dmap[lev],1,ng);
         MultiFab::Copy(mf_v,*mapfac[lev][MapFacType::v_x],0,0,1,ng);
         VisMF::Write(mf_v, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_vx"));
 
@@ -379,7 +390,7 @@ ERF::WriteCheckpointFile () const
         IntVect ngv = ng; ngv[2] = 0;
 
         // Write lat/lon if it exists
-        if (lat_m[lev] && lon_m[lev] && solverChoice.has_lat_lon) {
+        if (lat_m[lev] && lon_m[lev]) {
             amrex::Print() << "Writing Lat/Lon variables at level " << lev << std::endl;
             MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
             MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
@@ -793,9 +804,20 @@ ERF::ReadCheckpointFile ()
             lsm.ReadCheckpoint(lev, restart_chkfile);
         }
 
+        // Read the radiation heating rates
+        std::string RadFileName(restart_chkfile + "/Level_0/Qrad_H");
+        if ((solverChoice.rad_type != RadiationType::None) && amrex::FileExists(RadFileName)) {
+            int nrad = qheating_rates[lev]->nComp();
+            MultiFab mf_rad(grids[lev],dmap[lev],nrad,0);
+            VisMF::Read(mf_rad, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qrad"));
+            MultiFab::Copy(*qheating_rates[lev],mf_rad,0,0,nrad,0);
+        }
 
         IntVect ng = mapfac[lev][MapFacType::m_x]->nGrowVect();
-        MultiFab mf_m(ba2d[lev],dmap[lev],1,ng);
+        BoxList bl2d_mf = ba2d[lev].boxList();
+        for (auto& b : bl2d_mf) { b.setRange(2,0); }
+        BoxArray ba2d_mf(std::move(bl2d_mf));
+        MultiFab mf_m(ba2d_mf,dmap[lev],1,ng);
 
         std::string MapFacMFileName(restart_chkfile + "/Level_0/MapFactor_mx_H");
         if (amrex::FileExists(MapFacMFileName)) {
@@ -813,7 +835,7 @@ ERF::ReadCheckpointFile ()
 #endif
 
         ng = mapfac[lev][MapFacType::u_x]->nGrowVect();
-        MultiFab mf_u(convert(ba2d[lev],IntVect(1,0,0)),dmap[lev],1,ng);
+        MultiFab mf_u(convert(ba2d_mf,IntVect(1,0,0)),dmap[lev],1,ng);
 
         std::string MapFacUFileName(restart_chkfile + "/Level_0/MapFactor_ux_H");
         if (amrex::FileExists(MapFacUFileName)) {
@@ -831,7 +853,7 @@ ERF::ReadCheckpointFile ()
 #endif
 
         ng = mapfac[lev][MapFacType::v_x]->nGrowVect();
-        MultiFab mf_v(convert(ba2d[lev],IntVect(0,1,0)),dmap[lev],1,ng);
+        MultiFab mf_v(convert(ba2d_mf,IntVect(0,1,0)),dmap[lev],1,ng);
 
         std::string MapFacVFileName(restart_chkfile + "/Level_0/MapFactor_vx_H");
         if (amrex::FileExists(MapFacVFileName)) {
@@ -985,7 +1007,8 @@ ERF::ReadCheckpointFile ()
         IntVect ngv = ng; ngv[2] = 0;
 
         // Read lat/lon if it exists
-        if (solverChoice.has_lat_lon) {
+        std::string LatFileName(restart_chkfile + "/Level_0/LAT_H");
+        if (amrex::FileExists(LatFileName)) {
             amrex::Print() << "Reading Lat/Lon variables" << std::endl;
             MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
             MultiFab lon(ba2d[lev],dmap[lev],1,ngv);
@@ -999,7 +1022,8 @@ ERF::ReadCheckpointFile ()
 
 #ifdef ERF_USE_NETCDF
         // Read sinPhi and cosPhi if it exists
-        if (solverChoice.variable_coriolis) {
+        std::string VarCorFileName(restart_chkfile + "/Level_0/SinPhi_H");
+        if (amrex::FileExists(VarCorFileName)) {
             amrex::Print() << "Reading Coriolis factors" << std::endl;
             MultiFab sphi(ba2d[lev],dmap[lev],1,ngv);
             MultiFab cphi(ba2d[lev],dmap[lev],1,ngv);

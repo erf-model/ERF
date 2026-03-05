@@ -219,7 +219,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             Real qe2 = mynn.B1 * Lm*Lm * SM2 * (1.0-Rf) * shearProd;
             Real qe  = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2);
 
-            // Level 2 limiting intrdocued by Helfand and Labraga 1988 (NN09, Eqn. 42)
+            // Level 2 limiting introduced by Helfand and Labraga 1988 (NN09, Eqn. 42)
             Real alphac  = (qvel(i,j,k) >= qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
 //#if EXTRA_MYNN25_CHECKS
 #if 0

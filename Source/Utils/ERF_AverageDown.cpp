@@ -153,7 +153,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
     } // lev
 
     // Fill EB covered cells by old values
-    // (This won't be needed because EB_average_down copyies the covered value.)
+    // (This won't be needed because EB_average_down copies the covered value.)
     if (SolverChoice::terrain_type == TerrainType::EB) {
         for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
             for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {

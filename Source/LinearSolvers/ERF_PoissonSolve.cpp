@@ -82,8 +82,10 @@ void ERF::project_initial_velocity (int lev, Real time, Real l_dt)
         FPr_w[levc].RegisterCoarseData({&rW_new[levc], &rW_new[levc]}, {time, time+l_dt});
     }
 
-    Real l_time = 0.0;
-    project_momenta(lev, l_time, l_dt, tmp_mom);
+    // Use the same time that was registered in the FillPatcher above so that the
+    // FillSet assertion (time >= crse_times[0] && time <= crse_times[1]) is satisfied
+    // when called at non-zero simulation time (restart or mid-run regrid).
+    project_momenta(lev, time, l_dt, tmp_mom);
 
     MomentumToVelocity(vars_new[lev][Vars::xvel],
                        vars_new[lev][Vars::yvel],

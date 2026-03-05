@@ -32,10 +32,14 @@ ERF::ComputeDt (int step)
             }
         }
     }
-    // Limit dt's by the value of stop_time.
+    //
+    // Limit dt by the value of stop_time.
+    // Recall that stop_time is total time, but t_new is elapsed time,
+    //     so we must add start_time to t_new
+    //
     const Real eps = 1.e-3*dt_0;
-    if (t_new[0] + dt_0 > stop_time - eps) {
-        dt_0 = stop_time - t_new[0];
+    if (t_new[0] + dt_0 > (stop_time - start_time) - eps) {
+        dt_0 = (stop_time - start_time) - t_new[0];
     }
 
     dt[0] = dt_0;
