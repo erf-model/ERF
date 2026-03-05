@@ -1653,8 +1653,8 @@ ERF::InitData_post ()
             for (int lev = 0; lev <= finest_level; ++lev) {
                 // Set initial olen to > 0. Note: at initial MOST compute_fluxes call, urban fraction has not been set,
                 // so weight-avg olen would be 0 which causes issues in PBL
-                m_SurfaceModel->get_field("olen", lev)->setVal(1.0E34);
-                m_SurfaceModel->get_field("ustar", lev)->setVal(1.0E34);
+                m_SurfaceModel->get_field("olen", lev)->setVal(1.0E3);
+                //m_SurfaceModel->get_field("ustar", lev)->setVal(1.0E34);
             }
         } /*else if (solverChoice.lsm_type == LandSurfaceType::None && solverChoice.urban_type == UrbanType::BEM_BEP) {
             // No LSM, but Urban model - register tsk, u*, and emissivity for radiation
