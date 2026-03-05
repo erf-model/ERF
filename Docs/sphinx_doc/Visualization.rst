@@ -13,6 +13,10 @@ ERF currently generates plotfile in the native AMReX format or as NetCDF files; 
 There are several visualization tools that can be used for AMReX plotfiles, specifically
 ParaView, VisIt and yt.
 
+In addition, a new tool called "pltview" is available at https://github.com/wang1202/pltview;
+this is a lightweight X11 viewer for AMReX plotfiles.  See the `plotview README <https://github.com/wang1202/pltview/>`_
+for more details on how to download and install pltview.
+
 If NetCDF output is preferred, one suggestion is to write the plotfiles in the native AMReX
 format for efficient I/O performance, then to convert the plotfiles to NetCDF files using
 the executable you can build in Exec/Tools.

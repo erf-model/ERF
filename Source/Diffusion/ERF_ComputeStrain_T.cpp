@@ -585,7 +585,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         });
     }
 
-    // HO derivatives w/ Dirichlet BC (\partival <var> / \partial z from terrain transform)
+    // HO derivatives w/ Dirichlet BC (\partial <var> / \partial z from terrain transform)
     if (zl_u_dir && zl_v_dir) {
         Box planecc = bxcc; planecc.setBig(2, planecc.smallEnd(2) );
         bxcc.growLo(2,-1);

@@ -235,7 +235,7 @@ struct MYNNPBLH {
                 // Clip PBLH_TKE to more realistic values
                 //
                 // Note from WRF MYNN-EDMF: TKE-based PBLH can be very large in cells
-                //   with convective precipiation (> 8km!), so an artificial limit is
+                //   with convective precipitation (> 8km!), so an artificial limit is
                 //   imposed to not let PBLH_TKE exceed the theta_v-based PBL height
                 //   +/- 350 m. This has no impact on 98-99% of the domain, but is the
                 //   simplest patch that adequately addresses these extremely large

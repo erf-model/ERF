@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "Scalar Diffusion Test"
+erf.prob_name = "Scalar Advection/Diffusion"
 
 erf.init_type = Uniform
 
@@ -53,7 +53,8 @@ erf.alpha_C           = 1.0
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
 prob.B_0 = 0.0
-prob.u_0 = 0.0
-prob.v_0 = 0.0
+prob.U_0 = 0.0
+prob.V_0 = 0.0
+prob.T_0 = 1.0
 prob.uRef = 0.0
 prob.prob_type = 10

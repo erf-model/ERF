@@ -359,10 +359,10 @@ amrex::Real
 Compute_Z_AtCellCenter (const int &i, const int &j, const int &k,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
-    const amrex::Real z_cc = 0.125*(  z_nd(i  ,j  ,k  ) + z_nd(i  ,j  ,k+1) +
-                                    + z_nd(i+1,j  ,k  ) + z_nd(i  ,j  ,k+1)
+    const amrex::Real z_cc = 0.125*(  z_nd(i  ,j  ,k  ) + z_nd(i  ,j  ,k+1)
+                                    + z_nd(i+1,j  ,k  ) + z_nd(i+1,j  ,k+1)
                                     + z_nd(i  ,j+1,k  ) + z_nd(i  ,j+1,k+1)
-                                    + z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k+1));
+                                    + z_nd(i+1,j+1,k  ) + z_nd(i+1,j+1,k+1));
 
     return z_cc;
 }

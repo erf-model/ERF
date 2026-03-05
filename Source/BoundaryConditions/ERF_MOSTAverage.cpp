@@ -102,7 +102,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         // Create a 2D ba, dm, & ghost cells
         const BoxArray& ba = mf.boxArray();
         BoxList bl2d = ba.boxList();
-        for (auto& b : bl2d) b.setRange(2,0);
+        for (auto& b : bl2d) { b.setRange(2,b.smallEnd(2)); }
         BoxArray ba2d(std::move(bl2d));
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp = 1;
@@ -123,7 +123,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         // Create a 2D ba, dm, & ghost cells
         const BoxArray& ba = mf.boxArray();
         BoxList bl2d = ba.boxList();
-        for (auto& b : bl2d) b.setRange(2,0);
+        for (auto& b : bl2d) { b.setRange(2,b.smallEnd(2)); }
         BoxArray ba2d(std::move(bl2d));
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp = 1;
@@ -144,7 +144,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         // Create a 2D ba, dm, & ghost cells
         const BoxArray& ba = mf.boxArray();
         BoxList bl2d = ba.boxList();
-        for (auto& b : bl2d) b.setRange(2,0);
+        for (auto& b : bl2d) { b.setRange(2,b.smallEnd(2)); }
         BoxArray ba2d(std::move(bl2d));
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp  = 1;
@@ -461,6 +461,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
     Real zref_tmp = zref_default;
     auto read_z = pp.query("most.zref",zref_tmp);
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
+    int klo     = m_geom[lev].Domain().smallEnd(2);
 
     // Allow default zref
     if (!read_z) {
@@ -483,6 +484,9 @@ MOSTAverage::set_k_indices_T (const int& lev)
         int kmax = m_geom[lev].Domain().bigEnd(2);
         for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
             Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+
+            if (npbx.smallEnd(2) != klo) { continue; }
+
             const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
             auto k_arr = m_k_indx[lev]->array(mfi);
             auto zref_arr = m_zref[lev]->array(mfi);
@@ -531,6 +535,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
     if (!read_zref) {
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
     }
+    int klo = m_geom[lev].Domain().smallEnd(2);
 
     // Capture for device
     Real d_zref   = zref_tmp;
@@ -542,6 +547,9 @@ MOSTAverage::set_norm_indices_T (const int& lev)
     for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
         Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
         Box gpbx  = mfi.growntilebox(ng);
+
+        if (npbx.smallEnd(2) != klo) { continue; }
+
         const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
         auto i_arr = m_i_indx[lev]->array(mfi);
         auto j_arr = m_j_indx[lev]->array(mfi);
@@ -610,6 +618,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
     } else {
         m_zref[lev]->setVal(zref_tmp);
     }
+    int klo = m_geom[lev].Domain().smallEnd(2);
 
     // Capture for device
     Real d_zref = zref_tmp;
@@ -621,6 +630,9 @@ MOSTAverage::set_z_positions_T (const int& lev)
     for (MFIter mfi(*m_x_pos[lev], TileNoZ()); mfi.isValid(); ++mfi) {
         Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
         Box gpbx  = mfi.growntilebox(ng);
+
+        if (npbx.smallEnd(2) != klo) { continue; }
+
         RealBox grb{gpbx,dx.data(),base.dataPtr()};
 
         const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
@@ -659,6 +671,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
     if (!read_zref) {
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
     }
+    int klo = m_geom[lev].Domain().smallEnd(2);
 
     // Capture for device
     Real d_zref = zref_tmp;
@@ -672,6 +685,8 @@ MOSTAverage::set_norm_positions_T (const int& lev)
         Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
         Box gpbx  = mfi.growntilebox(ng);
         RealBox grb{gpbx,dx.data(),base.dataPtr()};
+
+        if (npbx.smallEnd(2) != klo) { continue; }
 
         const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
         auto x_pos_arr   = m_x_pos[lev]->array(mfi);
@@ -785,6 +800,8 @@ MOSTAverage::compute_plane_averages (const int& lev)
         d_fact_old = 0.0;
     }
 
+    int klo = m_geom[lev].Domain().smallEnd(2);
+
     // GPU array to accumulate averages into
     Gpu::DeviceVector<Real> pavg(plane_average.size(), 0.0);
     Real* plane_avg = pavg.data();
@@ -820,7 +837,11 @@ MOSTAverage::compute_plane_averages (const int& lev)
         for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
             Box vbx = mfi.validbox(); // This is the grid (not tile)
             Box pbx = mfi.tilebox();  // This is the tile (not grid)
-            pbx.setSmall(2,0); pbx.setBig(2,0);
+
+            if (pbx.smallEnd(2) != klo) { continue; }
+
+            // Make planar since mfiter is over fields
+            pbx.setSmall(2,klo); pbx.setBig(2,klo);
 
             // Avoid double counting nodal data by changing the high end when we are
             //     at the high side of the grid (not just of the tile)
@@ -888,7 +909,8 @@ MOSTAverage::compute_plane_averages (const int& lev)
         for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box pbx = mfi.tilebox();
-            pbx.setSmall(2,0); pbx.setBig(2,0);
+
+            if (pbx.smallEnd(2) != klo) { continue; }
 
             const Array4<Real const>& T_mf_arr = fields[2]->const_array(mfi);
             const Array4<Real const>& qv_mf_arr = (fields[3])? fields[3]->const_array(mfi) : Array4<const Real>{};
@@ -975,7 +997,8 @@ MOSTAverage::compute_plane_averages (const int& lev)
         for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box pbx = mfi.tilebox();
-            pbx.setSmall(2,0); pbx.setBig(2,0);
+
+            if (pbx.smallEnd(2) != klo) { continue; }
 
             // Last element is Umag and always cell centered
             auto u_mf_arr = (m_rotate) ? rot_fields[imf  ]->const_array(mfi) :
@@ -1057,6 +1080,8 @@ MOSTAverage::compute_region_averages (const int& lev)
     auto& j_indx   = m_j_indx[lev];
     auto& k_indx   = m_k_indx[lev];
 
+    int klo = m_geom[lev].Domain().smallEnd(2);
+
     // Set factors for time averaging
     Real d_fact_new, d_fact_old;
     if (m_t_avg && m_t_init[lev]) {
@@ -1087,7 +1112,12 @@ MOSTAverage::compute_region_averages (const int& lev)
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
+            Box pbx = mfi.tilebox();
+
+            if (pbx.smallEnd(2) != klo) { continue; }
+
+            // Make planar since mfiter is over fields
+            pbx.setSmall(2,klo); pbx.setBig(2,klo);
 
             auto mf_arr = (m_rotate) ? rot_fields[imf]->const_array(mfi) :
                                            fields[imf]->const_array(mfi);
@@ -1162,7 +1192,9 @@ MOSTAverage::compute_region_averages (const int& lev)
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
+            Box pbx = mfi.tilebox();
+
+            if (pbx.smallEnd(2) != klo) { continue; }
 
             const Array4<Real const>& T_mf_arr = fields[2]->const_array(mfi);
             const Array4<Real const>& qv_mf_arr = (fields[3])? fields[3]->const_array(mfi) : Array4<const Real>{};
@@ -1267,7 +1299,9 @@ MOSTAverage::compute_region_averages (const int& lev)
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
+            Box pbx = mfi.tilebox();
+
+            if (pbx.smallEnd(2) != klo) { continue; }
 
             auto u_mf_arr = (m_rotate) ? rot_fields[imf  ]->const_array(mfi) :
                                              fields[imf  ]->const_array(mfi);
@@ -1367,7 +1401,9 @@ MOSTAverage::compute_region_averages (const int& lev)
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
             for (MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
-                Box gpbx = mfi.growntilebox(ng); gpbx.setSmall(2,0); gpbx.setBig(2,0);
+                Box gpbx = mfi.growntilebox(ng);
+
+                if (gpbx.smallEnd(2) != klo) { continue; }
 
                 if (bnd_bx.contains(gpbx)) continue;
 
@@ -1402,6 +1438,7 @@ MOSTAverage::write_k_indices (const int& lev)
     // Peel back the level
     auto& averages = m_averages[lev];
     auto& k_indx   = m_k_indx[lev];
+    int klo = m_geom[lev].Domain().smallEnd(2);
 
     int navg = m_navg - 1;
 
@@ -1410,7 +1447,10 @@ MOSTAverage::write_k_indices (const int& lev)
     ofile << "K indices used to compute averages via MOSTAverages class:\n";
 
     for (MFIter mfi(*averages[navg], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box bx  = mfi.tilebox(); bx.setBig(2,0);
+        Box bx  = mfi.tilebox();
+
+        if(bx.smallEnd(2) != klo) { continue; }
+
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
         int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
 
@@ -1419,7 +1459,7 @@ MOSTAverage::write_k_indices (const int& lev)
         for (int j(jl); j <= ju; ++j) {
             for (int i(il); i <= iu; ++i) {
                 ofile << "(I,J): " << "(" << i << "," << j << ")" << "\n";
-                int k = 0;
+                int k = klo;
                 ofile << "K_ind: "
                       << k_arr(i,j,k) << "\n";
                 ofile << "\n";
@@ -1443,6 +1483,7 @@ MOSTAverage::write_norm_indices (const int& lev)
     auto& k_indx   = m_k_indx[lev];
     auto& j_indx   = m_j_indx[lev];
     auto& i_indx   = m_i_indx[lev];
+    int klo = m_geom[lev].Domain().smallEnd(2);
 
     int navg = m_navg - 1;
 
@@ -1451,7 +1492,10 @@ MOSTAverage::write_norm_indices (const int& lev)
     ofile << "IJK indices used to compute averages via MOSTAverages class:\n";
 
     for (MFIter mfi(*averages[navg], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box bx  = mfi.tilebox(); bx.setBig(2,0);
+        Box bx  = mfi.tilebox();
+
+        if(bx.smallEnd(2) != klo) { continue; }
+
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
         int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
 
@@ -1463,7 +1507,7 @@ MOSTAverage::write_norm_indices (const int& lev)
             for (int i(il); i <= iu; ++i) {
                 ofile << "(I1,J1,K1): " << "(" << i << "," << j << "," << 0 << ")" << "\n";
 
-                int k = 0;
+                int k  = klo;
                 int km = k_arr(i,j,k);
                 int jm = j_arr ? j_arr(i,j,k) : j;
                 int im = i_arr ? i_arr(i,j,k) : i;
@@ -1491,18 +1535,22 @@ MOSTAverage::write_xz_positions (const int& lev,
     // Peel back the level
     auto& x_pos_mf  = m_x_pos[lev];
     auto& z_pos_mf  = m_z_pos[lev];
+    int klo = m_geom[lev].Domain().smallEnd(2);
 
     std::ofstream ofile;
     ofile.open ("MOST_xz_positions.txt");
 
     for (MFIter mfi(*x_pos_mf, TileNoZ()); mfi.isValid(); ++mfi) {
-        Box bx  = mfi.tilebox(); bx.setBig(2,0);
+        Box bx  = mfi.tilebox();
+
+        if(bx.smallEnd(2) != klo) { continue; }
+
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
 
         auto x_pos_arr  = x_pos_mf->array(mfi);
         auto z_pos_arr  = z_pos_mf->array(mfi);
 
-        int k  = 0;
+        int k  = klo;
         for (int i(il); i <= iu; ++i)
             ofile << x_pos_arr(i,j,k) << ' ' << z_pos_arr(i,j,k) << "\n";
     }
@@ -1520,6 +1568,7 @@ MOSTAverage::write_averages (const int& lev)
 {
     // Peel back the level
     auto& averages = m_averages[lev];
+    int klo = m_geom[lev].Domain().smallEnd(2);
 
     int navg = m_navg - 1;
 
@@ -1528,14 +1577,17 @@ MOSTAverage::write_averages (const int& lev)
     ofile << "Averages computed via MOSTAverages class:\n";
 
     for (MFIter mfi(*averages[navg], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box bx  = mfi.tilebox(); bx.setBig(2,0);
+        Box bx  = mfi.tilebox();
+
+        if(bx.smallEnd(2) != klo) { continue; }
+
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
         int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
 
         for (int j(jl); j <= ju; ++j) {
             for (int i(il); i <= iu; ++i) {
                 ofile << "(I,J): " << "(" << i << "," << j << ")" << "\n";
-                int k = 0;
+                int k = klo;
                 for (int iavg(0); iavg <= navg; ++iavg) {
                     auto mf_arr = averages[iavg]->array(mfi);
                     ofile << "iavg val: "

@@ -277,7 +277,13 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             //
             Box zbx = surroundingNodes(bx,2); zbx.grow(nghost);
             if (zbx.smallEnd(2) < domain.smallEnd(2)) zbx.setSmall(2,domain.smallEnd(2));
-            if (zbx.bigEnd(2)   > domain.bigEnd(2))   zbx.setBig(2,domain.bigEnd(2)+1);
+            if (zbx.bigEnd(2)   > domain.bigEnd(2))   {
+                zbx.setBig(2,domain.bigEnd(2)+1);
+            } else if (zbx.bigEnd(2) > xvel[mfi].box().bigEnd(2)) {
+                // We do this so if a box at level > 0 doesn't reach the top boundary, we don't go out of bounds
+                // (Note xvel is chosen arbitrarily; we could have used yvel instead)
+                zbx.setBig(2,xvel[mfi].box().bigEnd(2));
+            }
 
             Array4<const Real> z_nd_arr;
             const Array4<const Real>& mf_u = m_mapfac_u->const_array(mfi);

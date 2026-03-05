@@ -666,7 +666,7 @@ public:
                        std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
                        amrex::Real /*zdamp*/)
     {
-        amrex::Error("Should never call erf_init_rayleigh for "+name()+" problem");
+        // Default which does no harm
     }
 
 protected:

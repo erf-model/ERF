@@ -1,0 +1,5 @@
+This inputs is for testing ERF coupled with WW3.
+
+In order to run the coupled code, we must build ERF with 
+
+USE_WW3_COUPLING = TRUE

@@ -487,7 +487,7 @@ rrtmgp_main (const int ncol, const int nlay,
     //Kokkos::deep_copy(cld_tau_lw_bnd, clouds_lw.tau);
 
     // Do subcolumn sampling to map bands -> gpoints based on cloud fraction and overlap assumption;
-    // This implements the Monte Carlo Independing Column Approximation by mapping only a single
+    // This implements the Monte Carlo Independent Column Approximation by mapping only a single
     // subcolumn (cloud state) to each gpoint.
     auto nswgpts = k_dist_sw_k->get_ngpt();
     auto clouds_sw_gpt = get_subsampled_clouds(ncol, nlay, nswbands, nswgpts,
