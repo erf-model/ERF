@@ -64,7 +64,6 @@ erf.plot_vars_1     = density \
 
 # SOLVER CHOICES
 erf.use_gravity          = true
-erf.use_coriolis         = false
 
 erf.dycore_horiz_adv_type    = "Upwind_3rd"
 erf.dycore_vert_adv_type     = "Upwind_3rd"

@@ -135,6 +135,22 @@ namespace MetGridBdyVars {
     };
 }
 
+namespace MetGridTmpSrcVars {
+    enum {
+        Theta = 0,
+        QV    = 1,
+        NumTypes
+    };
+}
+
+namespace MetGridTmpDstVars {
+    enum {
+        P = 0,
+        T = 1,
+        NumTypes
+    };
+}
+
 namespace Vars {
     enum {
         cons = 0,

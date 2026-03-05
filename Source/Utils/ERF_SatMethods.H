@@ -190,7 +190,7 @@ public:
     }
 
 
-    // Old CAM implementation, also labelled Goff & Gratch (1946)
+    // Old CAM implementation, also labeled Goff & Gratch (1946)
 
     // The water formula differs only due to compiler-dependent order of
     // operations, so differences are roundoff level, usually 0.

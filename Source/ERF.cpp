@@ -132,6 +132,7 @@ Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
 #ifdef ERF_USE_NETCDF
 Real read_start_time_from_wrfinput (int lev, const std::string& fname);
+Real read_start_time_from_metgrid  (int lev, const std::string& fname);
 #endif
 
 // constructor - reads in parameters from inputs file
@@ -604,7 +605,7 @@ ERF::Evolve ()
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_bndry_planes)
         {
-            m_r2d->read_input_files(cur_time,dt[0],m_bc_extdir_vals);
+            m_r2d->read_input_files(cur_time+start_time,dt[0],m_bc_extdir_vals);
         }
 
 #ifdef ERF_USE_PARTICLES
@@ -874,7 +875,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
           time >= bndry_output_planes_start_time)
       {
          bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-         m_w2d->write_planes(istep[0], time, vars_new, is_moist);
+         m_w2d->write_planes(istep[0], time+start_time, vars_new, is_moist);
       }
     }
 
@@ -1176,7 +1177,7 @@ ERF::InitData_post ()
 
         // We haven't populated dt yet, set to 0 to ensure assert doesn't crash
         Real dt_dummy = 0.0;
-        m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
+        m_r2d->read_input_files(t_new[0]+start_time,dt_dummy,m_bc_extdir_vals);
     }
 
     if (solverChoice.custom_rhotheta_forcing)
@@ -1303,10 +1304,10 @@ ERF::InitData_post ()
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
-        Real time = 0.;
-        if (time >= bndry_output_planes_start_time) {
+        Real tot_time = t_new[0]+start_time;
+        if (tot_time >= bndry_output_planes_start_time) {
             bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-            m_w2d->write_planes(0, time, vars_new, is_moist);
+            m_w2d->write_planes(0, tot_time, vars_new, is_moist);
         }
     }
 
@@ -1380,7 +1381,6 @@ ERF::InitData_post ()
         }
     }
 
-    print_state(vars_new[0][Vars::cons], IntVect(10,0,0));
 
     // We don't need to recompute dt[lev] on restart because we read it in from the checkpoint file.
     if (restart_chkfile.empty()) {
@@ -2616,6 +2616,15 @@ ERF::ReadParameters ()
                                        start_time_from_wrfinput << std::endl;
                     amrex::Abort();
                 }
+            } else if (solverChoice.init_type == InitType::Metgrid) {
+                // This is the start time as written in the metgrid file
+                Real start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
+                if (start_time != start_time_from_metgrid) {
+                    amrex::Print() << "start_datetime from inputs file = "       << start_time <<
+                                      " does not match SIMULATION START DATE from metgrid = " <<
+                                       start_time_from_metgrid << std::endl;
+                    amrex::Abort();
+                }
             }
 #endif
             Print() << "Start datetime   : " << start_datetime << std::endl;
@@ -2634,6 +2643,17 @@ ERF::ReadParameters ()
 
                 if (pp_no_prefix.query("start_time", start_time)) {
                     amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput" << std::endl;
+                    amrex::Abort();
+                }
+            } else if (solverChoice.init_type == InitType::Metgrid) {
+                // This is the start time as written in the metgrid file
+                Real start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
+                start_time = start_time_from_metgrid;
+
+                use_datetime = true;
+
+                if (pp_no_prefix.query("start_time", start_time)) {
+                    amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from metgrid" << std::endl;
                     amrex::Abort();
                 }
             }
@@ -2667,7 +2687,7 @@ ERF::ReadParameters ()
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&
                                        (solverChoice.init_type != InitType::Metgrid ) &&
                                        (solverChoice.init_type != InitType::NCFile  )  ),
-                                     "init_type cannot be 'WRFInput', 'MetGrid' or 'NCFile' if we don't build with netcdf!");
+                                     "init_type cannot be 'WRFInput', 'Metgrid' or 'NCFile' if we don't build with netcdf!");
 #endif
 
     // Query the canopy model file name
@@ -3131,7 +3151,18 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
         const Array4<Real> &s_arr  = S.array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            const Real rho      = s_arr(i, j, k, Rho_comp);
             const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
+
+            if (rho <= 0.) {
+#ifdef AMREX_USE_GPU
+                AMREX_DEVICE_PRINTF("Rho is negative at %d %d %d %e \n", i,j,k,rho);
+#else
+                printf("Rho is negative at %d %d %d %e \n", i,j,k,rho);
+                Abort("Bad rho in check_for_negative_theta");
+#endif
+            }
+
             if (rhotheta <= 0.) {
 #ifdef AMREX_USE_GPU
                 AMREX_DEVICE_PRINTF("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
@@ -3140,6 +3171,7 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
                 Abort("Bad theta in check_for_negative_theta");
 #endif
             }
+
             });
     } // mfi
 }

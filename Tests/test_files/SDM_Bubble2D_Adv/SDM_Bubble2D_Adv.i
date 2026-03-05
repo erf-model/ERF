@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Bubble"
+
 max_step  = 50
 stop_time = 3600.0
 
@@ -64,7 +66,6 @@ erf.plot_vars_1     = density \
 
 # SOLVER CHOICES
 erf.use_gravity          = true
-erf.use_coriolis         = false
 
 erf.dycore_horiz_adv_type    = "Upwind_3rd"
 erf.dycore_vert_adv_type     = "Upwind_3rd"

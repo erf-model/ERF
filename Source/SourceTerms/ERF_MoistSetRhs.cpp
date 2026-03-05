@@ -27,8 +27,26 @@ moist_set_rhs (const Geometry& geom,
                Vector<Vector<FArrayBox>>& bdy_data_xlo,
                Vector<Vector<FArrayBox>>& bdy_data_xhi,
                Vector<Vector<FArrayBox>>& bdy_data_ylo,
-               Vector<Vector<FArrayBox>>& bdy_data_yhi)
+               Vector<Vector<FArrayBox>>& bdy_data_yhi,
+               std::unique_ptr<ReadBndryPlanes>& m_r2d)
 {
+    // HACK HACK HACK
+    // Get bndry data
+    int bdy_comp = BCVars::RhoQ1_bc_comp;
+    Array4<Real> bdatxlo, bdatxhi, bdatylo, bdatyhi;
+    if (m_r2d) {
+        Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+        bdatxlo = (*bndry_data[0])[0].array();
+        bdatylo = (*bndry_data[1])[0].array();
+        bdatxhi = (*bndry_data[3])[0].array();
+        bdatyhi = (*bndry_data[4])[0].array();
+    }
+
+    //
+    // Note that time (= start_time+old_stage_time)  is measured as total time
+    //           start_bdy_time and final_bdy_time are also measured as total time
+    //
+
     // Relaxation constants
     Real F1 = 1./(nudge_factor*dt);
 
@@ -139,8 +157,9 @@ moist_set_rhs (const Geometry& geom,
     {
         int ii = std::min(std::max(i , dom_lo.x), dom_lo.x+offset);
         int jj = std::min(std::max(j , dom_lo.y), dom_hi.y       );
-        arr_xlo(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxlo_n  (ii,jj,k)
-                                                    + alpha * bdatxlo_np1(ii,jj,k) );
+        arr_xlo(i,j,k) = (bdatxlo) ? new_cons(i,j,k,Rho_comp) * bdatxlo(ii,jj,k,bdy_comp) :
+            new_cons(i,j,k,Rho_comp) * ( oma   * bdatxlo_n  (ii,jj,k)
+                                       + alpha * bdatxlo_np1(ii,jj,k) );
         u_xlo(i,j,k) = ( oma * bdatxlo_n_u(ii,jj,k) + alpha * bdatxlo_np1_u(ii,jj,k) );
         v_xlo(i,j,k) = ( oma * bdatxlo_n_v(ii,jj,k) + alpha * bdatxlo_np1_v(ii,jj,k) );
         if (j == dom_hi.y) {
@@ -152,8 +171,9 @@ moist_set_rhs (const Geometry& geom,
     {
         int ii = std::min(std::max(i , dom_hi.x-offset), dom_hi.x);
         int jj = std::min(std::max(j , dom_lo.y       ), dom_hi.y);
-        arr_xhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
-                                                    + alpha * bdatxhi_np1(ii,jj,k) );
+        arr_xhi(i,j,k) = (bdatxhi) ? new_cons(i,j,k,Rho_comp) * bdatxhi(ii,jj,k,bdy_comp) :
+            new_cons(i,j,k,Rho_comp) * ( oma   * bdatxhi_n  (ii,jj,k)
+                                       + alpha * bdatxhi_np1(ii,jj,k) );
         // NOTE: correct for idx type mismatch with u bdy data
         u_xhi(i+1,j,k) = ( oma * bdatxhi_n_u(ii+1,jj,k) + alpha * bdatxhi_np1_u(ii+1,jj,k) );
         v_xhi(i  ,j,k) = ( oma * bdatxhi_n_v(ii  ,jj,k) + alpha * bdatxhi_np1_v(ii,jj,k) );
@@ -168,8 +188,9 @@ moist_set_rhs (const Geometry& geom,
     {
         int ii = std::min(std::max(i , dom_lo.x), dom_hi.x       );
         int jj = std::min(std::max(j , dom_lo.y), dom_lo.y+offset);
-        arr_ylo(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatylo_n  (ii,jj,k)
-                                                    + alpha * bdatylo_np1(ii,jj,k) );
+        arr_ylo(i,j,k) = (bdatylo) ? new_cons(i,j,k,Rho_comp) * bdatylo(ii,jj,k,bdy_comp) :
+            new_cons(i,j,k,Rho_comp) * ( oma   * bdatylo_n  (ii,jj,k)
+                                       + alpha * bdatylo_np1(ii,jj,k) );
         v_ylo(i,j,k) = ( oma * bdatylo_n_v(ii,jj,k) + alpha * bdatylo_np1_v(ii,jj,k) );
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -177,8 +198,9 @@ moist_set_rhs (const Geometry& geom,
         int ii = std::min(std::max(i , dom_lo.x       ), dom_hi.x);
         int jj = std::min(std::max(j , dom_hi.y-offset), dom_hi.y);
             jj = std::min(jj, dom_hi.y);
-        arr_yhi(i,j,k) = new_cons(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
-                                                    + alpha * bdatyhi_np1(ii,jj,k) );
+            arr_yhi(i,j,k) = (bdatyhi) ? new_cons(i,j,k,Rho_comp) * bdatyhi(ii,jj,k,bdy_comp) :
+                new_cons(i,j,k,Rho_comp) * ( oma   * bdatyhi_n  (ii,jj,k)
+                                           + alpha * bdatyhi_np1(ii,jj,k) );
         // NOTE: correct for idx type mismatch with v bdy data
         v_yhi(i,j+1,k) = ( oma * bdatyhi_n_v(ii,jj+1,k) + alpha * bdatyhi_np1_v(ii,jj+1,k) );
     });

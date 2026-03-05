@@ -1,4 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Bubble"
 max_step = 10
 stop_time = 5.0
 
@@ -71,7 +72,6 @@ erf.plot_vars_1     = density \
 
 # SOLVER CHOICES
 erf.use_gravity = false
-erf.use_coriolis = false
 
 # PHYSICS OPTIONS
 erf.les_type        = "None"

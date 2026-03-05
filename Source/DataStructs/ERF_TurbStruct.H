@@ -146,7 +146,7 @@ public:
       }
     }
 
-    // Flags for QKE/TKE euation
+    // Flags for QKE/TKE equation
     if (pbl_type == PBLType::MYJ || pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
         // Add sources/sinks to QKE/TKE? (MYJ does this inline)
         if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
@@ -403,7 +403,7 @@ public:
   // - how to quantify stratification effects
   StratType strat_type = StratType::theta;
 
-  // Anistropic length scales
+  // Anisotropic length scales
   bool mix_isotropic = true;
 
   bool use_Ri_correction = true;

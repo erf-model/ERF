@@ -395,7 +395,7 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // 6. Add numerical diffuion for rho and (rho theta)
+        // 6. Add numerical diffusion for rho and (rho theta)
         // *************************************************************************************
         if (l_use_ndiff && is_slow_step) {
             int sc;
