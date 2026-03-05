@@ -110,7 +110,7 @@ ERF::init_custom (int lev)
     static std::string init_vels_from_checkpoint;
     ParmParse pp("erf");
     if (pp.query("init_vels_from_checkpoint",init_vels_from_checkpoint)) {
-        ReadVelsOnlyFromCheckpointFile(init_vels_from_checkpoint);
+        ReadVelsOnlyFromCheckpointFile(lev,init_vels_from_checkpoint);
     } else {
         MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
         MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());

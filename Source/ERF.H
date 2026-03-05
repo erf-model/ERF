@@ -586,7 +586,7 @@ public:
     void ReadCheckpointFile ();
 
     // Read only velocities from checkpoint file
-    void ReadVelsOnlyFromCheckpointFile (std::string& chkfile);
+    void ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile);
 
     // read checkpoint file from disk -- called after instantiating m_SurfaceLayer
     void ReadCheckpointFileSurfaceLayer ();
