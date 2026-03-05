@@ -10,8 +10,8 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_lo     = -12  -12  -1
-geometry.prob_hi     =  12   12   1
+geometry.prob_lo     = -5  -5  -5
+geometry.prob_hi     =  5   5   5
 amr.n_cell           =  48   48   4
 
 geometry.is_periodic = 1 1 0
@@ -51,10 +51,14 @@ erf.use_gravity = false
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
 
+# ADVECTION SCHEMES
+erf.dryscal_horiz_adv_type = "WENO5"
+erf.dryscal_vert_adv_type  = "WENO5"
+
 # PROBLEM PARAMETERS
 prob.p_inf = 1e5  # reference pressure [Pa]
 prob.T_inf = 300. # reference temperature [K]
-prob.M_inf = 1.1952286093343936  # freestream Mach number [-]
+prob.M_inf = 0.4073328203658579  # freestream Mach number [-] (Uinf=Vinf=100 m/s at alpha=pi/4)
 prob.alpha = 0.7853981633974483  # inflow angle, 0 --> x-aligned [rad]
 prob.beta  = 1.1088514254079065 # non-dimensional max perturbation strength [-]
 prob.R     = 1.0  # characteristic length scale for grid [m]
