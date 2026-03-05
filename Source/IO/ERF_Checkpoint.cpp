@@ -1124,7 +1124,7 @@ ERF::ReadVelsOnlyFromCheckpointFile (std::string& chkfile_for_vels)
     std::getline(is, line);
     {
         std::istringstream lis(line);
-        int i = 0;
+//      int i = 0;
         while (lis >> word) {
  //         istep[i++] = std::stoi(word);
         }
@@ -1134,7 +1134,7 @@ ERF::ReadVelsOnlyFromCheckpointFile (std::string& chkfile_for_vels)
     std::getline(is, line);
     {
         std::istringstream lis(line);
-        int i = 0;
+//      int i = 0;
         while (lis >> word) {
 //          dt[i++] = std::stod(word);
         }
@@ -1144,7 +1144,7 @@ ERF::ReadVelsOnlyFromCheckpointFile (std::string& chkfile_for_vels)
     std::getline(is, line);
     {
         std::istringstream lis(line);
-        int i = 0;
+//      int i = 0;
         while (lis >> word) {
 //          t_new[i++] = std::stod(word);
         }
