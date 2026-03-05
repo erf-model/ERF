@@ -815,10 +815,10 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
         auto const& z_phys_arr = z_phys_nd->const_array(mfi);
         auto        z_surf_all = z_surf_lo.array();
 
-        ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
         {
-            u_star_all(i,j,k) = u_star_arr(i,j,k);
-            z_surf_all(i,j,k) = 0.25 * ( z_phys_arr(i  ,j  ,klo) + z_phys_arr(i+1,j  ,klo)
+            u_star_all(i,j,0) = u_star_arr(i,j,0);
+            z_surf_all(i,j,0) = 0.25 * ( z_phys_arr(i  ,j  ,klo) + z_phys_arr(i+1,j  ,klo)
                                        + z_phys_arr(i  ,j+1,klo) + z_phys_arr(i+1,j+1,klo) );
         });
     }
