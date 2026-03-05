@@ -18,6 +18,23 @@ When not reading the initial data as described in the section below,
 the initialization in ERF has two steps: creation of the background state
 and creation of optionally non-zero initial perturbations from the background state.
 
+.. note::
+
+   You can optionally replace only the velocity fields (``u``, ``v``, ``w``)
+   by reading them from an existing checkpoint. This is useful when restarting
+   with updated thermodynamics or a new base state while keeping a prior wind
+   field.
+
+   Add a line such as the following to your inputs file:
+
+   .. code-block:: none
+
+      erf.init_vels_from_checkpoint = chk00010
+
+   The value should be the checkpoint directory name (relative to the run
+   directory or an absolute path). When set, ERF reads the velocity fields from
+   that checkpoint and uses the usual initialization pathway for all other fields.
+
 If **erf.init_type = Uniform** the user must provide values in the
 inputs file,  **prob.rho_0** and  **prob.T_0**, to
 specify the background density and temperature which will
@@ -147,4 +164,3 @@ For a summary of initialization strategies for real-data simulations, see the ta
      - Python tools
      - Python tools *(under development)*
      - ``erf_abl``
-

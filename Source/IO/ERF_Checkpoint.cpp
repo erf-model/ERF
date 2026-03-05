@@ -1070,6 +1070,107 @@ ERF::ReadCheckpointFile ()
 }
 
 /**
+ * ERF function for reading data from a checkpoint file during restart.
+ */
+void
+ERF::ReadVelsOnlyFromCheckpointFile (std::string& chkfile_for_vels)
+{
+    Print() << "Read vels only from native checkpoint " << chkfile_for_vels << "\n";
+
+    // Header
+    std::string File(chkfile_for_vels + "/Header");
+
+    VisMF::IO_Buffer io_buffer(VisMF::GetIOBufferSize());
+
+    Vector<char> fileCharPtr;
+    ParallelDescriptor::ReadAndBcastFile(File, fileCharPtr);
+    std::string fileCharPtrString(fileCharPtr.dataPtr());
+    std::istringstream is(fileCharPtrString, std::istringstream::in);
+
+    std::string line, word;
+
+    int chk_ncomp_cons, chk_ncomp;
+
+    // read in title line
+    std::getline(is, line);
+
+    // read in finest_level
+    is >> finest_level;
+    GotoNextLine(is);
+
+    // read the number of components
+    // for each variable we store
+
+    // conservative, cell-centered vars
+    is >> chk_ncomp_cons;
+    GotoNextLine(is);
+
+    // x-velocity on faces
+    is >> chk_ncomp;
+    GotoNextLine(is);
+    AMREX_ASSERT(chk_ncomp == 1);
+
+    // y-velocity on faces
+    is >> chk_ncomp;
+    GotoNextLine(is);
+    AMREX_ASSERT(chk_ncomp == 1);
+
+    // z-velocity on faces
+    is >> chk_ncomp;
+    GotoNextLine(is);
+    AMREX_ASSERT(chk_ncomp == 1);
+
+    // read in array of istep
+    std::getline(is, line);
+    {
+        std::istringstream lis(line);
+        int i = 0;
+        while (lis >> word) {
+ //         istep[i++] = std::stoi(word);
+        }
+    }
+
+    // read in array of dt
+    std::getline(is, line);
+    {
+        std::istringstream lis(line);
+        int i = 0;
+        while (lis >> word) {
+//          dt[i++] = std::stod(word);
+        }
+    }
+
+    // read in array of t_new
+    std::getline(is, line);
+    {
+        std::istringstream lis(line);
+        int i = 0;
+        while (lis >> word) {
+//          t_new[i++] = std::stod(word);
+        }
+    }
+
+    // Read in the MultiFab data
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
+        VisMF::Read(xvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "XFace"));
+        MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
+        vars_new[lev][Vars::xvel].setBndry(1.0e34);
+
+        MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
+        VisMF::Read(yvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "YFace"));
+        MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
+        vars_new[lev][Vars::yvel].setBndry(1.0e34);
+
+        MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
+        VisMF::Read(zvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "ZFace"));
+        MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
+        vars_new[lev][Vars::zvel].setBndry(1.0e34);
+    }
+}
+
+/**
  * ERF function for reading additional data for MOST from a checkpoint file during restart.
  *
  * This is called after the ABLMost object is instantiated.
