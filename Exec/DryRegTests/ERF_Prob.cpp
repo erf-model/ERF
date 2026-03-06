@@ -74,6 +74,9 @@ Problem::init_custom_pert (
     else if (my_prob_name == "Flow In A Box") {
 #include "Prob/ERF_InitCustomPert_FlowInABox.H"
     }
+    else if (my_prob_name == "UserDefined") {
+#include "Prob/ERF_InitCustomPert_UserDefined.H"
+    }
 
     amrex::Gpu::streamSynchronize();
 }
@@ -134,6 +137,9 @@ Problem::init_custom_pert_vels (
     }
     else if (my_prob_name == "Moving Terrain") {
 #include "Prob/ERF_InitCustomPertVels_MovingTerrain.H"
+    }
+    else if (my_prob_name == "UserDefined") {
+#include "Prob/ERF_InitCustomPertVels_UserDefined.H"
     }
 
     amrex::Gpu::streamSynchronize();

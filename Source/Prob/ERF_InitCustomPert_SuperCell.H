@@ -1,58 +1,19 @@
-#include "ERF_Prob.H"
-#include <ERF_Constants.H>
-#include <ERF_HSEUtils.H>
 
-using namespace amrex;
-
-std::unique_ptr<ProblemBase>
-amrex_probinit (
-    const amrex_real* /*problo*/,
-    const amrex_real* /*probhi*/)
-{
-    return std::make_unique<Problem>();
-}
-
-Problem::Problem ()
-{
-  // Parse params
-  amrex::ParmParse pp("prob");
-  pp.query("x_c", parms.x_c);
-  pp.query("y_c", parms.y_c);
-  pp.query("z_c", parms.z_c);
-  pp.query("x_r", parms.x_r);
-  pp.query("y_r", parms.y_r);
-  pp.query("z_r", parms.z_r);
-}
-
-void
-Problem::init_custom_pert (
-    const Box& bx,
-    Array4<Real const> const& /*state*/,
-    Array4<Real      > const& state_pert,
-    Array4<Real      > const& /*r_hse*/,
-    Array4<Real      > const& /*p_hse*/,
-    Array4<Real const> const& /*z_nd*/,
-    Array4<Real const> const& /*z_cc*/,
-    GeometryData const& geomdata,
-    Array4<Real const> const& /*mf_m*/,
-    const SolverChoice& sc,
-    const int /*lev*/)
-{
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
     const int khi = geomdata.Domain().bigEnd()[2];
 
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
-    ParmParse pp("prob");
+    ParmParse pp_prob("prob");
     Real q_t = 0.02;
-    pp.query("qt_init",q_t);
+    pp_prob.query("qt_init",q_t);
 
     Real eq_pot_temp = 320.0;
-    pp.query("eq_pot_temp",eq_pot_temp);
+    pp_prob.query("eq_pot_temp",eq_pot_temp);
 
     bool use_empirical = false;
-    pp.query("use_empirical_psat",use_empirical);
+    pp_prob.query("use_empirical_psat",use_empirical);
 
     // This is what we do at k = 0 -- note we assume p = p_0 and T = T_0 at z=0
     const amrex::Real& dz        = geomdata.CellSize()[2];
@@ -70,22 +31,25 @@ Problem::init_custom_pert (
     amrex::Gpu::DeviceVector<Real> d_q_v(khi+2);
 
     Real height =  1200.;
-    pp.query("height",height);
+    pp_prob.query("height",height);
 
     Real   z_tr = 12000.;
-    pp.query("z_tr",z_tr);
+    pp_prob.query("z_tr",z_tr);
 
-    Real theta_tr = 343;
-    pp.query("theta_tr",theta_tr);
+    Real x_c  = 0.0  ; pp_prob.query("x_c", x_c);
+    Real y_c  = 0.0  ; pp_prob.query("x_c", x_c);
+    Real z_c  = 1.5e3; pp_prob.query("z_c", z_c);
 
-    Real theta_0 = 300.;
-    pp.query("theta_0",theta_0);
+    Real r_c = 1.0;
 
-    Real theta_c = 3.0;
-    pp.query("theta_c",theta_c);
+    Real x_r  = 10.0e3; pp_prob.query("x_r", x_r);
+    Real y_r  = 10.0e3; pp_prob.query("y_r", y_r);
+    Real z_r  = 1.5e3; pp_prob.query("z_r", z_r);
 
-    Real T_tr = 213.0;
-    pp.query("T_tr",T_tr);
+    Real T_tr     = 213.0; pp_prob.query("T_tr", T_tr);
+    Real theta_tr = 343.0; pp_prob.query("theta_tr",theta_tr);
+    Real theta_c  =   3.0; pp_prob.query("theta_c", theta_c);
+    Real theta_0  = 300.0; pp_prob.query("theta_0",theta_0);
 
     HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(),h_q_v.data(),dz,khi,
                                              q_t,eq_pot_temp,use_empirical,true,height,z_tr,
@@ -98,8 +62,6 @@ Problem::init_custom_pert (
 
     Real* t   = d_t.data();
     Real* p   = d_p.data();
-
-    const Real x_c = parms.x_c, y_c = parms.y_c, z_c = parms.z_c, x_r = parms.x_r, y_r = parms.y_r,  z_r = parms.z_r, r_c = 1.0;
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -175,62 +137,3 @@ Problem::init_custom_pert (
         }
 
     });
-
-  Gpu::streamSynchronize();
-}
-
-void
-Problem::init_custom_pert_vels (
-    const Box& xbx,
-    const Box& ybx,
-    const Box& zbx,
-    Array4<Real      > const& x_vel_pert,
-    Array4<Real      > const& y_vel_pert,
-    Array4<Real      > const& z_vel_pert,
-    Array4<Real const> const& /*z_nd*/,
-    GeometryData const& geomdata,
-    Array4<Real const> const& /*mf_u*/,
-    Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& /*sc*/,
-    const int /*lev*/)
-{
-  const amrex::Real& dz        = geomdata.CellSize()[2];
-  const amrex::Real& prob_lo_z = geomdata.ProbLo()[2];
-
-  // Set the x-velocity
-  ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      const amrex::Real z = prob_lo_z + (k+0.5) * dz;
-      x_vel_pert(i,j,k) = -12.0*std::max(0.0, (2.5e3 - z)/2.5e3);
-  });
-
-  // Set the y-velocity
-  ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      y_vel_pert(i, j, k) = 0.0;
-  });
-
-  // Set the z-velocity
-  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      z_vel_pert(i, j, k) = 0.0;
-  });
-
-  Gpu::streamSynchronize();
-}
-
-void
-Problem::erf_init_rayleigh(
-    amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
-    amrex::Geometry      const& geom,
-    std::unique_ptr<MultiFab>& /*z_phys_nd*/,
-    amrex::Real /*zdamp*/)
-{
-  const int khi = geom.Domain().bigEnd()[2];
-
-  // We just use these values to test the Rayleigh damping
-  for (int k = 0; k <= khi; k++)
-  {
-      rayleigh_ptrs[Rayleigh::ubar][k]     = 2.0;
-      rayleigh_ptrs[Rayleigh::vbar][k]     = 1.0;
-      rayleigh_ptrs[Rayleigh::wbar][k]     = 0.0;
-      rayleigh_ptrs[Rayleigh::thetabar][k] = parms.T_0;
-  }
-}
