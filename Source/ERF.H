@@ -579,11 +579,14 @@ public:
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
 
-    // write checkpoint file to disk
+    // Write checkpoint file to disk
     void WriteCheckpointFile () const;
 
-    // read checkpoint file from disk
+    // Read checkpoint file from disk
     void ReadCheckpointFile ();
+
+    // Read only velocities from checkpoint file
+    void ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile);
 
     // read checkpoint file from disk -- called after instantiating m_SurfaceLayer
     void ReadCheckpointFileSurfaceLayer ();

@@ -1070,6 +1070,44 @@ ERF::ReadCheckpointFile ()
 }
 
 /**
+ * ERF function for reading data from a checkpoint file during restart.
+ */
+void
+ERF::ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile_for_vels)
+{
+    Print() << "Reading vels only from native checkpoint " << chkfile_for_vels << " at level " << lev_to_fill << "\n";
+
+    // Header
+    std::string File(chkfile_for_vels + "/Header");
+
+    VisMF::IO_Buffer io_buffer(VisMF::GetIOBufferSize());
+
+    Vector<char> fileCharPtr;
+    ParallelDescriptor::ReadAndBcastFile(File, fileCharPtr);
+    std::string fileCharPtrString(fileCharPtr.dataPtr());
+    std::istringstream is(fileCharPtrString, std::istringstream::in);
+
+    AMREX_ALWAYS_ASSERT(lev_to_fill >= 0 && lev_to_fill <= finest_level);
+
+    int lev = lev_to_fill;
+
+    MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
+    VisMF::Read(xvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "XFace"));
+    MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
+    vars_new[lev][Vars::xvel].setBndry(1.0e34);
+
+    MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
+    VisMF::Read(yvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "YFace"));
+    MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
+    vars_new[lev][Vars::yvel].setBndry(1.0e34);
+
+    MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
+    VisMF::Read(zvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "ZFace"));
+    MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
+    vars_new[lev][Vars::zvel].setBndry(1.0e34);
+}
+
+/**
  * ERF function for reading additional data for MOST from a checkpoint file during restart.
  *
  * This is called after the ABLMost object is instantiated.
