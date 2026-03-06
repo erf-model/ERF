@@ -169,6 +169,88 @@ ComputeN2(int i, int j, int k,
     return const_grav * inv_theta * dtheta_dz;
 }
 
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeN2_EB(int i, int j, int k,
+          const amrex::Array4<const amrex::EBCellFlag>& c_cflag,
+          amrex::Real dzInv,
+          amrex::Real const_grav,
+          const amrex::Array4<const amrex::Real>& cell_data,
+          const MoistureComponentIndices& moisture_indices)
+{
+    const int rho_comp       = Rho_comp;
+    const int rhoTheta_comp  = RhoTheta_comp;
+    const int qv_index = moisture_indices.qv;
+    const int qc_index = moisture_indices.qc;
+
+    amrex::Real rho = cell_data(i, j, k, rho_comp);
+
+    bool saturated = IsSaturated(i, j, k, cell_data, qc_index);
+
+    amrex::Real inv_theta;
+    amrex::Real dtheta_dz;
+
+    is_covered = c_cflag(i,j,k).isCovered();
+    is_covered_kp1 = c_cflag(i,j,k+1).isCovered();
+    is_covered_km1 = c_cflag(i,j,k-1).isCovered();
+
+    if (saturated && qc_index >= 0) {
+        amrex::Real theta_l    = GetThetal(i, j, k  , cell_data, moisture_indices);
+        amrex::Real theta_l_kp1= GetThetal(i, j, k+1, cell_data, moisture_indices);
+        amrex::Real theta_l_km1= GetThetal(i, j, k-1, cell_data, moisture_indices);
+
+        inv_theta = 1.0 / theta_l;
+
+        if (is_covered_kp1) {
+            amrex::Real theta_l_km2= GetThetal(i, j, k-2, cell_data, moisture_indices);
+            dtheta_dz = (3.*theta_l -4.*theta_l_km1 + theta_l_km2) * 0.5 * dzInv;
+        } else if (is_covered_km1) {
+            amrex::Real theta_l_kp2= GetThetal(i, j, k+2, cell_data, moisture_indices);
+            dtheta_dz = (-theta_l_kp2 + 4.*theta_l_kp1 - 3.*theta_l) * 0.5 * dzInv;
+        } else {
+            dtheta_dz = 0.5 * (theta_l_kp1 - theta_l_km1) * dzInv;
+        }
+
+    } else if (qv_index >= 0) {
+        amrex::Real theta_v    = GetThetav(i, j, k  , cell_data, moisture_indices);
+        amrex::Real theta_v_kp1= GetThetav(i, j, k+1, cell_data, moisture_indices);
+        amrex::Real theta_v_km1= GetThetav(i, j, k-1, cell_data, moisture_indices);
+
+        inv_theta = 1.0 / theta_v;
+
+        if (is_covered_kp1) {
+            amrex::Real theta_v_km2= GetThetav(i, j, k-2, cell_data, moisture_indices);
+            dtheta_dz = (3.*theta_v -4.*theta_v_km1 + theta_v_km2) * 0.5 * dzInv;
+        } else if (is_covered_km1) {
+            amrex::Real theta_v_kp2= GetThetav(i, j, k+2, cell_data, moisture_indices);
+            dtheta_dz = (-theta_v_kp2 + 4.*theta_v_kp1 - 3.*theta_v) * 0.5 * dzInv;
+        } else {
+            dtheta_dz = 0.5 * (theta_v_kp1 - theta_v_km1) * dzInv;
+        }
+
+    } else {
+        amrex::Real theta = cell_data(i, j, k, rhoTheta_comp) / rho;
+        amrex::Real theta_kp1 = cell_data(i, j, k+1, rhoTheta_comp) / cell_data(i, j, k+1, rho_comp);
+        amrex::Real theta_km1 = cell_data(i, j, k-1, rhoTheta_comp) / cell_data(i, j, k-1, rho_comp);
+
+        inv_theta = 1.0 / theta;
+
+        if (is_covered_kp1) {
+            amrex::Real theta_km2 = cell_data(i, j, k-2, rhoTheta_comp) / cell_data(i, j, k-2, rho_comp);
+            dtheta_dz = (3.*theta - 4.*theta_km1 + theta_km2) * 0.5 * dzInv;
+        } else if (is_covered_km1) {
+            amrex::Real theta_kp2 = cell_data(i, j, k+2, rhoTheta_comp) / cell_data(i, j, k+2, rho_comp);
+            dtheta_dz = (-theta_kp2 + 4.*theta_kp1 - 3.*theta) * 0.5 * dzInv;
+        } else {
+            dtheta_dz = 0.5 * (theta_kp1 - theta_km1) * dzInv;
+        }
+        dtheta_dz = 0.5 * (theta_kp1 - theta_km1) * dzInv;
+    }
+
+    return const_grav * inv_theta * dtheta_dz;
+}
+
 /**
  * Compute vertical shear squared (S²_vert).
  *

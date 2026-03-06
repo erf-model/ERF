@@ -159,10 +159,24 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 Real stability_factor = 1.0;
 
                 if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
-                    Real N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
-                    Real S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
-                    Real Ri = ComputeRichardson(N2, S2_vert);
-                    stability_factor = StabilityFunction(Ri, l_Ri_crit);
+                    if (l_use_eb) {
+                        if (c_cflag(i,j,k).isRegular()) {
+                            Real N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
+                            Real S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
+                            Real Ri = ComputeRichardson(N2, S2_vert);
+                            stability_factor = StabilityFunction(Ri, l_Ri_crit);
+                        } else if (c_cflag(i,j,k).isSingleValued()) {
+                            Real N2 = ComputeN2_EB(i, j, k, c_cflag, dzInv, l_abs_g, cell_data, moisture_indices);
+                            Real S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
+                            Real Ri = ComputeRichardson(N2, S2_vert);
+                            stability_factor = StabilityFunction(Ri, l_Ri_crit);
+                        }
+                    } else {
+                        Real N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
+                        Real S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
+                        Real Ri = ComputeRichardson(N2, S2_vert);
+                        stability_factor = StabilityFunction(Ri, l_Ri_crit);
+                    }
                 }
 
                 if (isotropic) {
