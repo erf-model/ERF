@@ -14,6 +14,7 @@ public:
 #include "Prob/ERF_InitDensityHSE.H"
 #include "Prob/ERF_InitCustomPert.H"
 #include "Prob/ERF_InitRayleighDamping.H"
+#include "Prob/ERF_UpdateSources.H"
 };
 
 #endif

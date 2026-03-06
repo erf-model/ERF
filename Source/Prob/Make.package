@@ -2,6 +2,7 @@ CEXE_headers += ERF_InitDensityHSE.H
 CEXE_headers += ERF_InitCustomPert.H
 CEXE_headers += ERF_InitRayleighDamping.H
 
+CEXE_headers += ERF_InitCustomPert_Bomex.H
 CEXE_headers += ERF_InitCustomPert_Bubble.H
 CEXE_headers += ERF_InitCustomPert_DensityCurrent.H
 CEXE_headers += ERF_InitCustomPert_EB_Poiseuille.H
@@ -11,16 +12,28 @@ CEXE_headers += ERF_InitCustomPert_KE.H
 CEXE_headers += ERF_InitCustomPert_MovingTerrain.H
 CEXE_headers += ERF_InitCustomPert_ParticleTests.H
 CEXE_headers += ERF_InitCustomPert_ScalarAdvDiff.H
+CEXE_headers += ERF_InitCustomPert_SquallLine.H
 CEXE_headers += ERF_InitCustomPert_StokesSecondProblem.H
+CEXE_headers += ERF_InitCustomPert_SuperCell.H
 CEXE_headers += ERF_InitCustomPert_TaylorGreenVortex.H
 CEXE_headers += ERF_InitCustomPert_TurbulentInflow.H
+CEXE_headers += ERF_InitCustomPert_UserDefined.H
 
+CEXE_headers += ERF_InitCustomPertVels_Bomex.H
 CEXE_headers += ERF_InitCustomPertVels_ConstantU.H
 CEXE_headers += ERF_InitCustomPertVels_DensityCurrent.H
 CEXE_headers += ERF_InitCustomPertVels_IsentropicVortex.H
 CEXE_headers += ERF_InitCustomPertVels_MovingTerrain.H
 CEXE_headers += ERF_InitCustomPertVels_ParticleTests.H
 CEXE_headers += ERF_InitCustomPertVels_ScalarAdvDiff.H
+CEXE_headers += ERF_InitCustomPertVels_SquallLine.H
 CEXE_headers += ERF_InitCustomPertVels_StokesSecondProblem.H
 CEXE_headers += ERF_InitCustomPertVels_TaylorGreenVortex.H
 CEXE_headers += ERF_InitCustomPertVels_TurbulentInflow.H
+CEXE_headers += ERF_InitCustomPertVels_UserDefined.H
+
+CEXE_headers += ERF_UpdateSources.H
+CEXE_headers += ERF_UpdateRhoThetaSources_Bomex.H
+CEXE_headers += ERF_UpdateRhoQtSources_Bomex.H
+CEXE_headers += ERF_UpdateWSubsidence_Bomex.H
+CEXE_headers += ERF_UpdateGeostrophicProfile_Bomex.H 

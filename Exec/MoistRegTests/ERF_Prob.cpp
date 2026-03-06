@@ -69,7 +69,7 @@ Real compute_dewpoint_temperature (const Real T_b, const Real RH)
 void
 Problem::init_custom_pert (
     const Box& bx,
-    Array4<Real const> const& /*state*/,
+    Array4<Real const> const& state,
     Array4<Real      > const& state_pert,
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
@@ -82,9 +82,16 @@ Problem::init_custom_pert (
 {
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
 
-    if (my_prob_name == "Bubble") {
+    if (my_prob_name_ci == "bubble") {
 #include "Prob/ERF_InitCustomPert_Bubble.H"
+    } else if  (my_prob_name_ci == "bomex") {
+#include "Prob/ERF_InitCustomPert_Bomex.H"
+    } else if  (my_prob_name_ci == "squallline") {
+#include "Prob/ERF_InitCustomPert_SquallLine.H"
+    } else if  (my_prob_name_ci == "supercell") {
+#include "Prob/ERF_InitCustomPert_SuperCell.H"
     }
 
     Gpu::streamSynchronize();
@@ -98,8 +105,8 @@ Problem::init_custom_pert_vels (
     Array4<Real      > const& x_vel_pert,
     Array4<Real      > const& y_vel_pert,
     Array4<Real      > const& z_vel_pert,
-    Array4<Real const> const& /*z_nd*/,
-    GeometryData const& /*geomdata*/,
+    Array4<Real const> const& z_nd,
+    GeometryData const& geomdata,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& /*sc*/,
@@ -107,10 +114,101 @@ Problem::init_custom_pert_vels (
 {
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
 
-    if (my_prob_name == "Bubble") {
+    if (my_prob_name_ci == "bubble") {
 #include "Prob/ERF_InitCustomPertVels_ConstantU.H"
+    } else if  (my_prob_name_ci == "bomex") {
+#include "Prob/ERF_InitCustomPertVels_Bomex.H"
+    } else if ( (my_prob_name_ci == "squallline") ||
+                (my_prob_name_ci == "supercell") ) {
+#include "Prob/ERF_InitCustomPertVels_SquallLine.H"
     }
 
     Gpu::streamSynchronize();
+}
+
+void
+Problem::update_rhotheta_sources (const Real& /*time*/,
+                                  amrex::MultiFab* src,
+                                  const Geometry& geom,
+                                  std::unique_ptr<MultiFab>& z_phys_cc)
+{
+    if (src->empty()) return;
+
+    const int khi       = geom.Domain().bigEnd()[2];
+
+    ParmParse pp_erf("erf");
+    std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
+
+    if (my_prob_name_ci == "bomex") {
+#include "Prob/ERF_UpdateRhoThetaSources_Bomex.H"
+    }
+}
+
+void
+Problem::update_rhoqt_sources (const Real& /*time*/,
+                               amrex::MultiFab* qsrc,
+                               const Geometry& geom,
+                               std::unique_ptr<MultiFab>& z_phys_cc)
+{
+    if (qsrc->empty()) return;
+
+    ParmParse pp_erf("erf");
+    std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
+
+    if  (my_prob_name_ci == "bomex") {
+#include "Prob/ERF_UpdateRhoQtSources_Bomex.H"
+    }
+}
+
+//=============================================================================
+// USER-DEFINED FUNCTION
+//=============================================================================
+void
+Problem::update_w_subsidence (const Real& /*time*/,
+                              Vector<Real>& wbar,
+                              Gpu::DeviceVector<Real>& d_wbar,
+                              const amrex::MultiFab& /* state */,
+                              const Geometry& geom,
+                              std::unique_ptr<MultiFab>& z_phys_nd)
+{
+    if (wbar.empty()) return;
+
+    const int khi       = geom.Domain().bigEnd()[2];
+
+    ParmParse pp_erf("erf");
+    std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
+
+    if  (my_prob_name_ci == "bomex") {
+#include "Prob/ERF_UpdateWSubsidence_Bomex.H"
+    }
+}
+
+//=============================================================================
+// USER-DEFINED FUNCTION
+//=============================================================================
+void
+Problem::update_geostrophic_profile (const Real& /*time*/,
+                                     Vector<Real>& u_geos,
+                                     Gpu::DeviceVector<Real>& d_u_geos,
+                                     Vector<Real>& v_geos,
+                                     Gpu::DeviceVector<Real>& d_v_geos,
+                                     const Geometry& geom,
+                                     std::unique_ptr<MultiFab>& z_phys_cc)
+{
+    if (u_geos.empty()) return;
+
+    const int khi       = geom.Domain().bigEnd()[2];
+
+    ParmParse pp_erf("erf");
+    std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
+
+    if  (my_prob_name_ci == "bomex") {
+#include "Prob/ERF_UpdateGeostrophicProfile_Bomex.H"
+    }
 }

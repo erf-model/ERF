@@ -68,4 +68,9 @@ prob.x_r = 4000.0
 prob.z_r = 1500.0
 prob.theta_c = 3.0
 
+prob.rayleigh_U_0 = 2.0
+prob.rayleigh_V_0 = 1.0
+prob.rayleigh_W_0 = 0.0
+prob.rayleigh_T_0 = 300.0
+
 prob.use_empirical_sat_pressure = true
