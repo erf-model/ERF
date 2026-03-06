@@ -135,8 +135,6 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
     if (src->empty()) return;
 
     const int khi       = geom.Domain().bigEnd()[2];
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx       = geom.CellSize();
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
@@ -153,10 +151,6 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
                                std::unique_ptr<MultiFab>& z_phys_cc)
 {
     if (qsrc->empty()) return;
-
-    const int khi       = geom.Domain().bigEnd()[2];
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx       = geom.CellSize();
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
@@ -180,8 +174,6 @@ Problem::update_w_subsidence (const Real& /*time*/,
     if (wbar.empty()) return;
 
     const int khi       = geom.Domain().bigEnd()[2];
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx       = geom.CellSize();
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
@@ -206,8 +198,6 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
     if (u_geos.empty()) return;
 
     const int khi       = geom.Domain().bigEnd()[2];
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx       = geom.CellSize();
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
