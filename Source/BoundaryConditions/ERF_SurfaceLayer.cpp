@@ -794,38 +794,45 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
 {
     Print() << "Initializing TKE from surface layer ustar on level " << lev << std::endl;
 
+    // Handle vertical decomposition by selectively copying into
+    // a FArrayBox section on each rank. Then doing a reduce real sum
+    // and broadcasting to each rank. No mask since all CC data
     const int klo = m_geom[lev].Domain().smallEnd(2);
-
-    // Handle vertical decomposition by copying into boxes not at klo
-    for (MFIter mfi_dst(*u_star[lev]); mfi_dst.isValid(); ++mfi_dst)
+    Box bx_lo = u_star[lev]->boxArray().minimalBox();
+    FArrayBox u_star_lo(bx_lo, 1); u_star_lo.setVal<RunOn::Device>(0.);
+    FArrayBox z_surf_lo(bx_lo, 1); z_surf_lo.setVal<RunOn::Device>(0.);
+    Real* ustar_ptr = u_star_lo.dataPtr();
+    Real* zsurf_ptr = z_surf_lo.dataPtr();
+    for (MFIter mfi(cons); mfi.isValid(); ++mfi)
     {
-        Box vbx_dst = mfi_dst.validbox();
+        Box vbx = mfi.validbox();
+        if (vbx.smallEnd(2) != klo) { continue; }
+        vbx.makeSlab(2,0);
 
-        if (vbx_dst.smallEnd(2) == klo) { continue; }
+        auto const& u_star_arr = u_star[lev]->const_array(mfi);
+        auto        u_star_all = u_star_lo.array();
 
-        Box vbx_tmp = vbx_dst; vbx_tmp.setRange(2,klo);
+        auto const& z_phys_arr = z_phys_nd->const_array(mfi);
+        auto        z_surf_all = z_surf_lo.array();
 
-        FArrayBox& dst_fab = u_star[lev]->get(mfi_dst);
-
-        for (MFIter mfi_src(*u_star[lev]); mfi_src.isValid(); ++mfi_src)
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
         {
-            Box vbx_src = mfi_src.validbox();
-            if (vbx_src == vbx_tmp) {
-                FArrayBox& src_fab = u_star[lev]->get(mfi_src);
-                dst_fab.copy<RunOn::Device>(src_fab, vbx_src, 0, vbx_dst, 0, 1);
-            }
-        }
-
+            u_star_all(i,j,0) = u_star_arr(i,j,0);
+            z_surf_all(i,j,0) = 0.25 * ( z_phys_arr(i  ,j  ,klo) + z_phys_arr(i+1,j  ,klo)
+                                       + z_phys_arr(i  ,j+1,klo) + z_phys_arr(i+1,j+1,klo) );
+        });
     }
+    ParallelDescriptor::ReduceRealSum(ustar_ptr, bx_lo.numPts());
+    ParallelDescriptor::ReduceRealSum(zsurf_ptr, bx_lo.numPts());
 
     // Now work on all boxes (ustar has been filled above)
     constexpr Real small = 0.01;
     for (MFIter mfi(cons); mfi.isValid(); ++mfi)
     {
         Box vbx  = mfi.validbox();
-        int kmin = vbx.smallEnd(2);
 
-        auto const& u_star_arr = u_star[lev]->const_array(mfi);
+        auto const& u_star_arr = u_star_lo.const_array();
+        auto const& z_surf_arr = z_surf_lo.const_array();
         auto const& z_phys_arr = z_phys_nd->const_array(mfi);
 
         auto const& cons_arr   = cons.array(mfi);
@@ -833,9 +840,9 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real rho  = cons_arr(i, j, k, Rho_comp);
-            Real ust  = u_star_arr(i, j, kmin);
+            Real ust  = u_star_arr(i, j, 0);
             Real tke0 = tkefac * ust * ust; // surface value
-            Real zagl = Compute_Zrel_AtCellCenter(i, j, k, z_phys_arr);
+            Real zagl = Compute_Z_AtCellCenter(i, j, k, z_phys_arr) - z_surf_arr(i,j,0);
 
             // linearly tapering profile --  following WRF, approximate top of
             // PBL as ustar * zscale
