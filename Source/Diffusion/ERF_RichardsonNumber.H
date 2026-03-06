@@ -191,9 +191,8 @@ ComputeN2_EB(int i, int j, int k,
     amrex::Real inv_theta;
     amrex::Real dtheta_dz;
 
-    is_covered = c_cflag(i,j,k).isCovered();
-    is_covered_kp1 = c_cflag(i,j,k+1).isCovered();
-    is_covered_km1 = c_cflag(i,j,k-1).isCovered();
+    bool is_covered_kp1 = c_cflag(i,j,k+1).isCovered();
+    bool is_covered_km1 = c_cflag(i,j,k-1).isCovered();
 
     if (saturated && qc_index >= 0) {
         amrex::Real theta_l    = GetThetal(i, j, k  , cell_data, moisture_indices);
@@ -245,7 +244,6 @@ ComputeN2_EB(int i, int j, int k,
         } else {
             dtheta_dz = 0.5 * (theta_kp1 - theta_km1) * dzInv;
         }
-        dtheta_dz = 0.5 * (theta_kp1 - theta_km1) * dzInv;
     }
 
     return const_grav * inv_theta * dtheta_dz;
@@ -293,6 +291,66 @@ ComputeVerticalShear2(int i, int j, int k,
 
     amrex::Real du_dz = 0.5 * (u_c_kp1 - u_c_km1) * dzInv;
     amrex::Real dv_dz = 0.5 * (v_c_kp1 - v_c_km1) * dzInv;
+
+    amrex::Real S2_vert = du_dz * du_dz + dv_dz * dv_dz;
+
+    return S2_vert;
+}
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeVerticalShear2_EB(int i, int j, int k,
+                      const amrex::Array4<const amrex::EBCellFlag>& c_cflag,
+                      const amrex::Array4<const amrex::Real>& u_vfrac,
+                      const amrex::Array4<const amrex::Real>& v_vfrac,
+                      amrex::Real dzInv,
+                      const amrex::Array4<const amrex::Real>& u,
+                      const amrex::Array4<const amrex::Real>& v)
+{
+    amrex::Real du_dz;
+    amrex::Real dv_dz;
+
+    amrex::Real u_c = ( u_vfrac(i,j,k) * u(i, j, k) + u_vfrac(i+1,j,k) * u(i+1, j, k) ) 
+                    / ( u_vfrac(i,j,k) + u_vfrac(i+1,j,k) );
+    amrex::Real v_c = ( v_vfrac(i,j,k) * v(i, j, k) + v_vfrac(i,j+1,k) * v(i, j+1, k) )
+                    / ( v_vfrac(i,j,k) + v_vfrac(i,j+1,k) );
+
+    if (c_cflag(i,j,k+1).isCovered()) {
+        amrex::Real u_c_km1 = ( u_vfrac(i,j,k-1) * u(i, j, k-1) + u_vfrac(i+1,j,k-1) * u(i+1, j, k-1) ) 
+                            / ( u_vfrac(i,j,k-1) + u_vfrac(i+1,j,k-1) );
+        amrex::Real u_c_km2 = ( u_vfrac(i,j,k-2) * u(i, j, k-2) + u_vfrac(i+1,j,k-2) * u(i+1, j, k-2) ) 
+                            / ( u_vfrac(i,j,k-2) + u_vfrac(i+1,j,k-2) );
+        amrex::Real v_c_km1 = ( v_vfrac(i,j,k-1) * v(i, j, k-1) + v_vfrac(i,j+1,k-1) * v(i, j+1, k-1) ) 
+                            / ( v_vfrac(i,j,k-1) + v_vfrac(i,j+1,k-1) );
+        amrex::Real v_c_km2 = ( v_vfrac(i,j,k-2) * v(i, j, k-2) + v_vfrac(i,j+1,k-2) * v(i, j+1, k-2) ) 
+                            / ( v_vfrac(i,j,k-2) + v_vfrac(i,j+1,k-2) );
+        du_dz = (3.*u_c - 4.*u_c_km1 + u_c_km2) * 0.5 * dzInv;
+        dv_dz = (3.*v_c - 4.*v_c_km1 + v_c_km2) * 0.5 * dzInv;
+
+    } else if (c_cflag(i,j,k-1).isCovered()) {
+        amrex::Real u_c_kp1 = ( u_vfrac(i,j,k+1) * u(i, j, k+1) + u_vfrac(i+1,j,k+1) * u(i+1, j, k+1) )
+                            / ( u_vfrac(i,j,k+1) + u_vfrac(i+1,j,k+1) );
+        amrex::Real u_c_kp2 = ( u_vfrac(i,j,k+2) * u(i, j, k+2) + u_vfrac(i+1,j,k+2) * u(i+1, j, k+2) )
+                            / ( u_vfrac(i,j,k+2) + u_vfrac(i+1,j,k+2) );
+        amrex::Real v_c_kp1 = ( v_vfrac(i,j,k+1) * v(i, j, k+1) + v_vfrac(i,j+1,k+1) * v(i, j+1, k+1) )
+                            / ( v_vfrac(i,j,k+1) + v_vfrac(i,j+1,k+1) );
+        amrex::Real v_c_kp2 = ( v_vfrac(i,j,k+2) * v(i, j, k+2) + v_vfrac(i,j+1,k+2) * v(i, j+1, k+2) )
+                            / ( v_vfrac(i,j,k+2) + v_vfrac(i,j+1,k+2) );
+        du_dz = (-u_c_kp2 + 4.*u_c_kp1 - 3.*u_c) * 0.5 * dzInv;
+        dv_dz = (-v_c_kp2 + 4.*v_c_kp1 - 3.*v_c) * 0.5 * dzInv;
+    } else {
+        amrex::Real u_c_km1 = ( u_vfrac(i,j,k-1) * u(i, j, k-1) + u_vfrac(i+1,j,k-1) * u(i+1, j, k-1) ) 
+                            / ( u_vfrac(i,j,k-1) + u_vfrac(i+1,j,k-1) );
+        amrex::Real u_c_kp1 = ( u_vfrac(i,j,k+1) * u(i, j, k+1) + u_vfrac(i+1,j,k+1) * u(i+1, j, k+1) )
+                            / ( u_vfrac(i,j,k+1) + u_vfrac(i+1,j,k+1) );
+        amrex::Real v_c_km1 = ( v_vfrac(i,j,k-1) * v(i, j, k-1) + v_vfrac(i,j+1,k-1) * v(i, j+1, k-1) )
+                            / ( v_vfrac(i,j,k-1) + v_vfrac(i,j+1,k-1) );
+        amrex::Real v_c_kp1 = ( v_vfrac(i,j,k+1) * v(i, j, k+1) + v_vfrac(i,j+1,k+1) * v(i, j+1, k+1) )
+                            / ( v_vfrac(i,j,k+1) + v_vfrac(i,j+1,k+1) );
+        du_dz = 0.5 * (u_c_kp1 - u_c_km1) * dzInv;
+        dv_dz = 0.5 * (v_c_kp1 - v_c_km1) * dzInv;
+    }
 
     amrex::Real S2_vert = du_dz * du_dz + dv_dz * dv_dz;
 
