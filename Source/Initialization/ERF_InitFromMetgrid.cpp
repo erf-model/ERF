@@ -137,11 +137,9 @@ ERF::init_from_metgrid (int lev)
 
     auto& lev_new = vars_new[lev];
 
-    std::unique_ptr<MultiFab>& z_phys = z_phys_nd[lev];
+    z_phys_nd[lev]->setVal(0.);
 
     AMREX_ALWAYS_ASSERT(SolverChoice::terrain_type != TerrainType::None);
-
-    z_phys->setVal(0.0);
 
     auto& dm = lev_new[Vars::cons].DistributionMap();
     auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
@@ -300,19 +298,19 @@ ERF::init_from_metgrid (int lev)
 
             for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                 // This defines only the z(i,j,0) values given the FAB filled from the NetCDF input
-                FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
+                FArrayBox& z_phys_nd_fab = (*z_phys_nd[lev])[mfi];
                 init_terrain_from_metgrid(z_phys_nd_fab, NC_hgt_fab);
             } // mf
 
             // This defines all the z(i,j,k) values given z(i,j,0) from above.
-            make_terrain_fitted_coords(lev, geom[lev], *z_phys, zlevels_stag[lev], phys_bc_type);
+            make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
 
             // This makes the Jacobian.
-            make_J(geom[lev], *z_phys, *detJ_cc[lev]);
-            make_areas(geom[lev], *z_phys, *ax[lev], *ay[lev], *az[lev]);
+            make_J(geom[lev], *z_phys_nd[lev], *detJ_cc[lev]);
+            make_areas(geom[lev], *z_phys_nd[lev], *ax[lev], *ay[lev], *az[lev]);
 
             // This defines z at w-cell faces.
-            make_zcc(geom[lev],*z_phys,*z_phys_cc[lev]);
+            make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
 
         } // itime==0
 
@@ -520,7 +518,7 @@ ERF::init_from_metgrid (int lev)
                 FArrayBox&    qv_hse_fab = qv_hse[mfi];
                 FArrayBox&     r_hse_fab = r_hse[mfi];
                 FArrayBox&      cons_fab = lev_new[Vars::cons][mfi];
-                FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
+                FArrayBox& z_phys_cc_fab = (*z_phys_cc[lev])[mfi];
 
                 // Fill base state data using origin data
                 //     p_hse     calculate moist hydrostatic pressure
@@ -532,7 +530,7 @@ ERF::init_from_metgrid (int lev)
                 init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc, l_rdOcp,
                                              valid_bx, flag_psfc,
                                              cons_fab, r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
-                                             qv_hse_fab, z_phys_nd_fab, NC_psfc_fab);
+                                             qv_hse_fab, z_phys_cc_fab, NC_psfc_fab);
             } // mf
 
         } // itime==0
@@ -1107,7 +1105,7 @@ init_state_from_metgrid (const int  lev,
  * @param pi_hse_fab FArrayBox object holding the hydrostatic base Exner pressure we are initializing
  * @param th_hse_fab FArrayBox object holding the base state potential temperature we are initializing
  * @param qv_hse_fab FArrayBox object holding the base state qv we are initializing
- * @param z_phys_nd_fab FArrayBox object holding nodal z coordinate data for terrain
+ * @param z_phys_cc_fab FArrayBox object holding cell center z heights for terrain
  * @param NC_psfc_fab FArrayBox object holding metgrid data for surface pressure
  */
 void
@@ -1122,7 +1120,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& pi_hse_fab,
                               FArrayBox& th_hse_fab,
                               FArrayBox& qv_hse_fab,
-                              FArrayBox& z_phys_nd_fab,
+                              FArrayBox& z_phys_cc_fab,
                               const FArrayBox& NC_psfc_fab)
 {
     int RhoQ_comp = RhoQ1_comp;
@@ -1161,7 +1159,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         valid_bx2d.setRange(2,0);
         auto const orig_psfc = NC_psfc_fab.const_array();
         auto       new_data  = state_fab.array();
-        auto const new_z     = z_phys_nd_fab.const_array();
+        auto const new_z     = z_phys_cc_fab.const_array();
 
         ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
@@ -1194,6 +1192,8 @@ init_base_state_from_metgrid (const bool use_moisture,
                 qv_lo     = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : 0.0;
                 rd_lo     = 0.0; // initial guess
                 thetad_lo = new_data(i,j,0,RhoTheta_comp);
+                // NOTE: The first iteration is from z=0 to z_cc(i,j,0) since the
+                //       reference pressure (psurf) is at the ground.
                 Real half_dz = z_lo;
                 Real qvf     = 1.0+(R_v/R_d)*qv_lo;
                 Real thetam  = thetad_lo*qvf;
