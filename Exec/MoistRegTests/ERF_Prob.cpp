@@ -82,14 +82,15 @@ Problem::init_custom_pert (
 {
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
 
-    if (my_prob_name == "Bubble") {
+    if (my_prob_name_ci == "bubble") {
 #include "Prob/ERF_InitCustomPert_Bubble.H"
-    } else if  (my_prob_name == "Bomex") {
+    } else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
-    } else if  (my_prob_name == "SquallLine") {
+    } else if  (my_prob_name_ci == "squallline") {
 #include "Prob/ERF_InitCustomPert_SquallLine.H"
-    } else if  (my_prob_name == "SuperCell") {
+    } else if  (my_prob_name_ci == "supercell") {
 #include "Prob/ERF_InitCustomPert_SuperCell.H"
     }
 
@@ -113,13 +114,14 @@ Problem::init_custom_pert_vels (
 {
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
 
-    if (my_prob_name == "Bubble") {
+    if (my_prob_name_ci == "bubble") {
 #include "Prob/ERF_InitCustomPertVels_ConstantU.H"
-    } else if  (my_prob_name == "Bomex") {
+    } else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
-    } else if ( (my_prob_name == "SquallLine") ||
-                (my_prob_name == "SuperCell") ) {
+    } else if ( (my_prob_name_ci == "squallline") ||
+                (my_prob_name_ci == "supercell") ) {
 #include "Prob/ERF_InitCustomPertVels_SquallLine.H"
     }
 
@@ -138,8 +140,9 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
 
-    if (my_prob_name == "Bomex") {
+    if (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_UpdateRhoThetaSources_Bomex.H"
     }
 }
@@ -154,8 +157,9 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
 
-    if  (my_prob_name == "Bomex") {
+    if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_UpdateRhoQtSources_Bomex.H"
     }
 }
@@ -177,8 +181,9 @@ Problem::update_w_subsidence (const Real& /*time*/,
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
 
-    if  (my_prob_name == "Bomex") {
+    if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_UpdateWSubsidence_Bomex.H"
     }
 }
@@ -201,8 +206,9 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
 
-    if  (my_prob_name == "Bomex") {
+    if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_UpdateGeostrophicProfile_Bomex.H"
     }
 }
