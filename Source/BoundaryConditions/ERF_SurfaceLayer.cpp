@@ -32,7 +32,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     }
 
     // Update land surface temp if we have a valid pointer
-    if (m_has_lsm_tsurf && time > 0.0) { get_lsm_tsurf(lev); }
+    if (m_has_lsm_tsurf && elapsed_time_since_start_low > 0.0) { get_lsm_tsurf(lev); }
 
     // Fill interior ghost cells
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
@@ -216,7 +216,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     {
         amrex::Real t0 = sfc[0][sfc_time_ind];
         amrex::Real t1 = sfc[0][sfc_time_ind+1];
-        while (time >= t1)
+        while (elapsed_time_since_start_low >= t1)
         {
             int prev_index = sfc_time_ind;
             // shift time index to next window
@@ -239,11 +239,11 @@ SurfaceLayer::update_fluxes (const int& lev,
             return x + (y - x) * dt;
         };
 
-        sfc_sst = linear_interp(t0, t1, time, sfc[1][sfc_time_ind], sfc[1][sfc_time_ind + 1]);
-        sfc_qflux = linear_interp(t0, t1, time, sfc[3][sfc_time_ind], sfc[3][sfc_time_ind + 1]);
-        sfc_tflux = linear_interp(t0, t1, time, sfc[2][sfc_time_ind], sfc[2][sfc_time_ind + 1]);
+        sfc_sst = linear_interp(t0, t1, elapsed_time_since_start_low, sfc[1][sfc_time_ind], sfc[1][sfc_time_ind + 1]);
+        sfc_qflux = linear_interp(t0, t1, elapsed_time_since_start_low, sfc[3][sfc_time_ind], sfc[3][sfc_time_ind + 1]);
+        sfc_tflux = linear_interp(t0, t1, elapsed_time_since_start_low, sfc[2][sfc_time_ind], sfc[2][sfc_time_ind + 1]);
 
-        amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time " << time << ": SHF = " << sfc_tflux << " LHF = " << sfc_qflux << " SST = " << sfc_sst << std::endl;
+        amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time " << elapsed_time_since_start_low << ": SHF = " << sfc_tflux << " LHF = " << sfc_qflux << " SST = " << sfc_sst << std::endl;
     
         // since no rho factors, these can be set here
         //t_star[lev]->setVal(sfc_tflux / Cp_d);
