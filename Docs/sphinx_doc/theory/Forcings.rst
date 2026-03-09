@@ -209,7 +209,7 @@ The following inputs are available when representing terrain using immersed forc
         erf.if_use_most                = BOOL
         erf.immersed_forcing_substep   = BOOL
 
-An example of using immersed forcing for a Witch of Agnesi hill is available in ``Exec/ABL/immersed_forcing``.
+An example of using immersed forcing for a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
 
 .. note:: When using fully compressible simulations, it is recommended to apply immersed forcing on the substep for numerical stability.
 
@@ -244,7 +244,7 @@ However, currently, the user must specify the z-coordinates using ``erf.terrain_
 In the future, this requirement will be removed.
 Note that the volume fraction is calculated prior to the grid transformation; therefore, building heights when located in steep terrain should be considered approximate.
 
-An example of immersed forcing for a building located on top of a Witch of Agnesi hill is available in ``Exec/ABL/immersed_forcing``.
+An example of immersed forcing for a building located on top of a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
 
 
 Problem-Specific Forcing
