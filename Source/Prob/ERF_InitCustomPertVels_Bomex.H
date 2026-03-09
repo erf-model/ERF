@@ -1,22 +1,22 @@
 
-    ParmParse pp("prob");
+    ParmParse pp_prob("prob");
 
-    Real U_0 = 0.0; pp.query("U_0", U_0);
-    Real V_0 = 0.0; pp.query("V_0", V_0);
-    Real W_0 = 0.0; pp.query("W_0", W_0);
+    Real U_0 = 0.0; pp_prob.query("U_0", U_0);
+    Real V_0 = 0.0; pp_prob.query("V_0", V_0);
+    Real W_0 = 0.0; pp_prob.query("W_0", W_0);
 
     // random initial perturbations (legacy code)
-    Real U_0_Pert_Mag  = 0.0; pp.query("U_0_Pert_Mag", U_0_Pert_Mag);
-    Real V_0_Pert_Mag  = 0.0; pp.query("V_0_Pert_Mag", V_0_Pert_Mag);
-    Real W_0_Pert_Mag  = 0.0; pp.query("W_0_Pert_Mag", W_0_Pert_Mag);
-    Real qv_0_Pert_Mag = 0.0; pp.query("qv_0_Pert_Mag", qv_0_Pert_Mag);
+    Real U_0_Pert_Mag  = 0.0; pp_prob.query("U_0_Pert_Mag", U_0_Pert_Mag);
+    Real V_0_Pert_Mag  = 0.0; pp_prob.query("V_0_Pert_Mag", V_0_Pert_Mag);
+    Real W_0_Pert_Mag  = 0.0; pp_prob.query("W_0_Pert_Mag", W_0_Pert_Mag);
+    Real qv_0_Pert_Mag = 0.0; pp_prob.query("qv_0_Pert_Mag", qv_0_Pert_Mag);
 
     // divergence-free initial perturbations
-    Real pert_deltaU     =   0.0; pp.query("pert_deltaU", pert_deltaU);
-    Real pert_deltaV     =   0.0; pp.query("pert_deltaV", pert_deltaV);
-    Real pert_periods_U  =   5.0; pp.query("pert_periods_U", pert_periods_U);
-    Real pert_periods_V  =   5.0; pp.query("pert_periods_V", pert_periods_V);
-    Real pert_ref_height = 100.0; pp.query("pert_ref_height", pert_ref_height);
+    Real pert_deltaU     =   0.0; pp_prob.query("pert_deltaU", pert_deltaU);
+    Real pert_deltaV     =   0.0; pp_prob.query("pert_deltaV", pert_deltaV);
+    Real pert_periods_U  =   5.0; pp_prob.query("pert_periods_U", pert_periods_U);
+    Real pert_periods_V  =   5.0; pp_prob.query("pert_periods_V", pert_periods_V);
+    Real pert_ref_height = 100.0; pp_prob.query("pert_ref_height", pert_ref_height);
 
    auto problo = geomdata.ProbLo();
    auto probhi = geomdata.ProbHi();
