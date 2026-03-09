@@ -10,8 +10,8 @@ originally developed by Timothy Sliwinski at CIRA/CSU/NOAA GSL:
 
 ERF allows for multiple methods of initializing the state of a simulation;
 see [Initialization Pathways](https://erf.readthedocs.io/en/latest/Initialization.html).
-For this demonstration, we adapted the [Isentropic Vortex](https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/IsentropicVortex) 
-problem. Here, the file `inputs` corresponds to the inputs file [inputs_advecting](https://github.com/erf-model/ERF/blob/development/Exec/DryRegTests/IsentropicVortex/inputs_advecting). It preserves the problem geometry and input parameters, but is modified to accept initialization from NetCDF (see instructions below). 
+For this demonstration, we adapted the [Isentropic Vortex](https://github.com/erf-model/ERF/tree/development/Exec/RegTests/IsentropicVortex) 
+problem. Here, the file `inputs` corresponds to the inputs file [inputs_advecting](https://github.com/erf-model/ERF/blob/development/Exec/RegTests/IsentropicVortex/inputs_advecting). It preserves the problem geometry and input parameters, but is modified to accept initialization from NetCDF (see instructions below). 
 The resulting plotfiles for the initial time step, i.e. `plt00000`, for these two problems and the respective inputs are
 expected to be the same up to the order of $10^{-8}$. 
 

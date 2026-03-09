@@ -9,7 +9,7 @@ velocity $u/u_\tau = 17.54$. This was determined by integrating the reference st
 profile. The corresponding Reynolds number based on channel height and bulk velocity is 13,900
 therefore the flow is expected to be fully turbulent.
 
-The solver executable is compiled in `Exec/DryRegTests/Couette_Poiseuille` and provides options for
+The solver executable is compiled in `Exec/RegTests/Couette_Poiseuille` and provides options for
 initializing to a parabolic velocity profile with divergence-free initial perturbations. Random
 perturbations were ineffective (flow remains laminar after simulating 20 nondimensional time units).
 

@@ -29,5 +29,5 @@ Bpack := ./Make.package
 Blocs := .
 
 ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DryRegTests
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests
 include $(ERF_HOME)/Exec/Make.ERF

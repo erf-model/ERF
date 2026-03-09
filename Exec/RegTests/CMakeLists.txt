@@ -1,4 +1,4 @@
-set(erf_exe_name erf_dryregtests)
+set(erf_exe_name erf_regtests)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}

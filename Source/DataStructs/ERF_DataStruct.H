@@ -33,7 +33,8 @@ enum TauType {
 };
 
 AMREX_ENUM(InitType,
-    None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform, ConstantDensity, Isentropic, MoistBaseState, HindCast
+    None, Input_Sounding, NCFile, WRFInput, Metgrid, Uniform, ConstantDensity, ConstantDensityLinearTheta,
+    Isentropic, MoistBaseState, HindCast
 );
 
 AMREX_ENUM(SoundingType,

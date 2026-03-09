@@ -5,5 +5,5 @@ JCP. Note that this problem is sensitive to the damping layer extent (Rayleigh d
 sponge regions at xlo, xhi) as well as the damping coefficient. We tuned the damping coefficient
 within the recommended range from Durran & Klemp 1983.
 
-The solver executable is compiled in Exec/DryRegTests/WitchOfAgnesi and provides the analytical
+The solver executable is compiled in Exec/RegTests/WitchOfAgnesi and provides the analytical
 surface geometry.

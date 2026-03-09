@@ -1,8 +1,6 @@
 #include "ERF_Prob.H"
-#include "ERF_MicrophysicsUtils.H"
-#include "ERF_Constants.H"
 #include "ERF_EOS.H"
-#include "ERF_HSEUtils.H"
+#include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
 
@@ -74,27 +72,67 @@ Problem::init_custom_pert (
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
     Array4<Real const> const& /*z_nd*/,
-    Array4<Real const> const& /*z_cc*/,
+    Array4<Real const> const& z_cc,
     GeometryData const& geomdata,
-    Array4<Real const> const& /*mf_m*/,
+    Array4<Real const> const&   mf_m,
     const SolverChoice& sc,
-    const int /*lev*/)
+    const int lev)
 {
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
     std::string my_prob_name_ci = amrex::toLower(my_prob_name);
 
-    if (my_prob_name_ci == "bubble") {
+    if (my_prob_name_ci == "abl") {
+#include "Prob/ERF_InitCustomPert_ABL.H"
+    } else if (my_prob_name_ci == "density current") {
+#include "Prob/ERF_InitCustomPert_DensityCurrent.H"
+    }
+    else if ( (my_prob_name_ci == "advecting isentropic vortex") ||
+              (my_prob_name_ci == "stationary isentropic vortex") ) {
+#include "Prob/ERF_InitCustomPert_IsentropicVortex.H"
+    }
+    else if ( (my_prob_name_ci == "particles over flat ground") ||
+              (my_prob_name_ci == "particles over witch of agnesi hill") ) {
+#include "Prob/ERF_InitCustomPert_ParticleTests.H"
+    }
+    else if (my_prob_name_ci == "scalar advection/diffusion") {
+#include "Prob/ERF_InitCustomPert_ScalarAdvDiff.H"
+    }
+    else if (my_prob_name_ci == "stokes second problem") {
+#include "Prob/ERF_InitCustomPert_StokesSecondProblem.H"
+    }
+    else if (my_prob_name_ci == "taylor-green vortex") {
+#include "Prob/ERF_InitCustomPert_TaylorGreenVortex.H"
+    }
+    else if (my_prob_name_ci == "turbulent inflow") {
+#include "Prob/ERF_InitCustomPert_TurbulentInflow.H"
+    }
+    else if (my_prob_name_ci == "moving terrain") {
+#include "Prob/ERF_InitCustomPert_MovingTerrain.H"
+    }
+    else if (my_prob_name_ci == "eb poiseuille") {
+#include "Prob/ERF_InitCustomPert_EBPoiseuille.H"
+    }
+    else if (my_prob_name_ci == "flow in a box") {
+#include "Prob/ERF_InitCustomPert_FlowInABox.H"
+    }
+    else if (my_prob_name_ci == "userdefined") {
+#include "Prob/ERF_InitCustomPert_UserDefined.H"
+    }
+    else if (my_prob_name_ci == "bubble") {
 #include "Prob/ERF_InitCustomPert_Bubble.H"
-    } else if  (my_prob_name_ci == "bomex") {
+    }
+    else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
-    } else if  (my_prob_name_ci == "squallline") {
+    }
+    else if  (my_prob_name_ci == "squallline") {
 #include "Prob/ERF_InitCustomPert_SquallLine.H"
-    } else if  (my_prob_name_ci == "supercell") {
+    }
+    else if  (my_prob_name_ci == "supercell") {
 #include "Prob/ERF_InitCustomPert_SuperCell.H"
     }
 
-    Gpu::streamSynchronize();
+    amrex::Gpu::streamSynchronize();
 }
 
 void
@@ -107,25 +145,72 @@ Problem::init_custom_pert_vels (
     Array4<Real      > const& z_vel_pert,
     Array4<Real const> const& z_nd,
     GeometryData const& geomdata,
-    Array4<Real const> const& /*mf_u*/,
-    Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& /*sc*/,
+    Array4<Real const> const& mf_u,
+    Array4<Real const> const& mf_v,
+    const SolverChoice& sc,
     const int /*lev*/)
 {
-    ParmParse pp_erf("erf");
-    std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
+    ParmParse pp("erf");
+    std::string my_prob_name; pp.get("prob_name",my_prob_name);
     std::string my_prob_name_ci = amrex::toLower(my_prob_name);
 
+    if (my_prob_name_ci == "abl") {
+#include "Prob/ERF_InitCustomPertVels_ABL.H"
+    }
+    else if ( (my_prob_name_ci == "couette flow") ||
+              (my_prob_name_ci == "poiseuille flow") ) {
+#include "Prob/ERF_InitCustomPertVels_CouettePoiseuille.H"
+    }
+    else if (my_prob_name_ci == "ekman spiral") {
+#include "Prob/ERF_InitCustomPertVels_EkmanSpiral.H"
+    }
+    else if ( (my_prob_name_ci == "advecting isentropic vortex") ||
+              (my_prob_name_ci == "stationary isentropic vortex") ) {
+#include "Prob/ERF_InitCustomPertVels_IsentropicVortex.H"
+    }
+    else if ( (my_prob_name_ci == "particles over flat ground") ||
+              (my_prob_name_ci == "particles over witch of agnesi hill") ) {
+#include "Prob/ERF_InitCustomPertVels_ParticleTests.H"
+    }
+    else if (my_prob_name_ci == "scalar advection/diffusion") {
+#include "Prob/ERF_InitCustomPertVels_ScalarAdvDiff.H"
+    }
+    else if (my_prob_name_ci == "taylor-green vortex") {
+#include "Prob/ERF_InitCustomPertVels_TaylorGreenVortex.H"
+    }
+    else if ( (my_prob_name_ci == "terrain - 2d cylinder") ||
+              (my_prob_name_ci == "eb square cylinder"   ) ||
+              (my_prob_name_ci == "eb poiseuille"   ) ) {
+#include "Prob/ERF_InitCustomPertVels_ConstantU.H"
+    }
+    else if (my_prob_name_ci == "terrain - 3d hemisphere") {
+#include "Prob/ERF_InitCustomPertVels_Terrain3DHemisphere.H"
+    }
+    else if (my_prob_name_ci == "turbulent inflow") {
+#include "Prob/ERF_InitCustomPertVels_TurbulentInflow.H"
+    }
+    else if ( (my_prob_name_ci == "flow over witch of agnesi hill") ||
+              (my_prob_name_ci == "flow over schar mountain") ) {
+#include "Prob/ERF_InitCustomPertVels_WitchOfAgnesi.H"
+    }
+    else if (my_prob_name_ci == "moving terrain") {
+#include "Prob/ERF_InitCustomPertVels_MovingTerrain.H"
+    }
     if (my_prob_name_ci == "bubble") {
 #include "Prob/ERF_InitCustomPertVels_ConstantU.H"
-    } else if  (my_prob_name_ci == "bomex") {
+    }
+    else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
-    } else if ( (my_prob_name_ci == "squallline") ||
-                (my_prob_name_ci == "supercell") ) {
+    }
+    else if ( (my_prob_name_ci == "squallline") ||
+              (my_prob_name_ci == "supercell") ) {
 #include "Prob/ERF_InitCustomPertVels_SquallLine.H"
     }
+    else if (my_prob_name_ci == "userdefined") {
+#include "Prob/ERF_InitCustomPertVels_UserDefined.H"
+    }
 
-    Gpu::streamSynchronize();
+    amrex::Gpu::streamSynchronize();
 }
 
 void
