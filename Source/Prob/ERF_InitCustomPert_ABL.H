@@ -43,12 +43,10 @@
         }
     }
 
+
     ParallelForRNG(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
-        const Real* prob_lo = geomdata.ProbLo();
-        const Real* prob_hi = geomdata.ProbHi();
         const Real* dx = geomdata.CellSize();
-
         const Real x = prob_lo[0] + (i + 0.5) * dx[0];
         const Real y = prob_lo[1] + (j + 0.5) * dx[1];
         const Real z = z_cc(i,j,k);
