@@ -64,6 +64,8 @@
     }
 #endif
 
+    const Real rdOcp   = sc.rdOcp;
+
     if (do_moist_bubble) {
         Vector<Real> h_r(khi+2);
         Vector<Real> h_p(khi+2);
@@ -166,6 +168,32 @@
 
             // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
             const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
+
+            // Note: theta_perturbed is theta PLUS perturbation in theta
+            Real theta_perturbed;
+            if (T_pert_is_airtemp) {
+                // dT is air temperature
+                theta_perturbed = (Tbar_hse + dT)*std::pow(p_0/p_hse(i,j,k), rdOcp);
+            } else {
+                // dT is potential temperature
+                theta_perturbed = Tbar_hse*std::pow(p_0/p_hse(i,j,k), rdOcp) + dT;
+            }
+
+            if (perturb_rho)
+            {
+                // this version perturbs rho but not p (i.e., rho*theta)
+                // - hydrostatic rebalance is needed (TODO: is this true?)
+                // - this is the approach taken in the density current problem
+                state_pert(i,j,k,RhoTheta_comp) = 0.0; // i.e., hydrostatically balanced pressure stays const
+                state_pert(i,j,k,Rho_comp     ) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
+            }
+            else
+            {
+                // this version perturbs rho*theta (i.e., p) but not rho
+                state_pert(i,j,k,Rho_comp)      = 0.0; // i.e., hydrostatically balanced density stays const
+                state_pert(i,j,k,RhoTheta_comp) = r_hse(i,j,k) * theta_perturbed - getRhoThetagivenP(p_hse(i,j,k));
+            }
+
         });
     } // do_moist_bubble
 
