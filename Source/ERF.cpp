@@ -1893,6 +1893,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
 #else
         // TODO: Fix if SST is provided without NETCDF
+        int n_time_old       = 0;
         int ntimes_to_interp = 1;
 #endif
         auto ngv = sst_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
@@ -1914,6 +1915,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
 #else
         // TODO: Fix if TSK is provided without NETCDF
+        int n_time_old       = 0;
         int ntimes_to_interp = 1;
 #endif
         auto ngv = tsk_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
@@ -1987,6 +1989,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
 #else
         // TODO: Fix if SST is provided without NETCDF
+        int n_time_old       = 0;
         int ntimes_to_interp = 1;
 #endif
         for (int n = n_time_old; n < ntimes_to_interp; n++) {
@@ -2009,6 +2012,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
 #else
         // TODO: Fix if TSK is provided without NETCDF
+        int n_time_old       = 0;
         int ntimes_to_interp = 1;
 #endif
         for (int n = n_time_old; n < ntimes_to_interp; n++) {
