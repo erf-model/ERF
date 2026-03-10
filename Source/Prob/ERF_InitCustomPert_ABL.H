@@ -19,10 +19,20 @@
     Real pert_deltaV = 0.0; pp.query("pert_deltaV", pert_deltaV);
     Real pert_ref_height = 100.0; pp.query("pert_ref_height", pert_ref_height);
 
+    // Capture by value for GPU
+    const Real dx = geomdata.CellSize(0);
+    const Real dy = geomdata.CellSize(1);
+    const Real prob_lo_x = geomdata.ProbLo(0);
+    const Real prob_lo_y = geomdata.ProbLo(1);
+    const Real prob_lo_z = geomdata.ProbLo(2);
+    const Real prob_hi_x = geomdata.ProbHi(0);
+    const Real prob_hi_y = geomdata.ProbHi(1);
+    const Real prob_hi_z = geomdata.ProbHi(2);
+
     // Define a point (xc,yc,zc) at the center of the domain
-    const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
-    const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
-    const Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
+    const Real xc = 0.5 * (prob_lo_x + prob_hi_x);
+    const Real yc = 0.5 * (prob_lo_y + prob_hi_y);
+    const Real zc = 0.5 * (prob_lo_z + prob_hi_z);
 
     if (KE_decay_height > 0) {
         amrex::Print() << "Initial KE profile (order " << KE_decay_order
@@ -44,11 +54,8 @@
 
     ParallelForRNG(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
-        const Real* dx = geomdata.CellSize();
-        const Real* prob_lo = geomdata.ProbLo();
-        const Real* prob_hi = geomdata.ProbHi();
-        const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-        const Real y = prob_lo[1] + (j + 0.5) * dx[1];
+        const Real x = prob_lo_x + (i + 0.5) * dx;
+        const Real y = prob_lo_y + (j + 0.5) * dy;
         const Real z = z_cc(i,j,k);
 
         const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
