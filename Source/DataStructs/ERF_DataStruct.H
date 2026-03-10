@@ -532,8 +532,8 @@ struct SolverChoice {
         pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
         pp.query("add_custom_moisture_forcing", custom_moisture_forcing);
         pp.query("add_custom_w_subsidence", custom_w_subsidence);
-        pp.query("add_do_theta_advection", do_theta_advection);
-        pp.query("add_do_mom_advection", do_mom_advection);
+        pp.query("add_do_theta_advection", do_theta_advection);  // If true, apply custom subsidence to (rho*theta) when add_custom_w_subsidence is used
+        pp.query("add_do_mom_advection", do_mom_advection);      // If true, apply custom subsidence to momentum when add_custom_w_subsidence is used
         pp.query("add_custom_geostrophic_profile", custom_geostrophic_profile);
         pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
         pp.query("spatial_rhotheta_forcing", spatial_rhotheta_forcing);
@@ -1157,8 +1157,8 @@ struct SolverChoice {
     bool custom_rhotheta_forcing  = false;
     bool custom_moisture_forcing  = false;
     bool custom_w_subsidence      = false;
-    bool do_theta_advection       = true;
-    bool do_mom_advection       = true;
+    bool do_theta_advection       = true;   // Apply custom vertical subsidence to (rho*theta) equation when using custom w subsidence
+    bool do_mom_advection         = true;  // Apply custom vertical subsidence to momentum equations when using custom w subsidence
     bool custom_geostrophic_profile = false;
     bool custom_forcing_prim_vars = false;
     bool spatial_rhotheta_forcing = false;
