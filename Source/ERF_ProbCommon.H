@@ -90,6 +90,15 @@ public:
     }
 
     virtual void
+    erf_init_const_dens_and_linear_th_hse (amrex::MultiFab& /*rho_hse*/, amrex::MultiFab& /* p_hse*/,
+                                           amrex::MultiFab& /* pi_hse*/, amrex::MultiFab& /*th_hse*/,
+                                           amrex::MultiFab& /* qv_hse*/, amrex::Real /*l_rdOcp*/,
+                                           std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+    {
+        amrex::Error("Should never call this version of erf_init_const_dens_and_linear_th_hse for "+name()+" problem");
+    }
+
+    virtual void
     erf_init_dens_hse_moist (amrex::MultiFab& /*rho_hse*/,
                              std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
                              amrex::Geometry const& /*geom*/)

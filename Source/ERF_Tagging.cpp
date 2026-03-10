@@ -14,6 +14,7 @@ using namespace amrex;
 #ifdef ERF_USE_NETCDF
 Box read_subdomain_from_wrfinput (int lev, const std::string& fname, int& ratio);
 Real read_start_time_from_wrfinput (int lev, const std::string& fname);
+Box read_subdomain_from_metgrid (int lev, const std::string& fname, int& ratio, int& klo, int& khi);
 #endif
 
 void
@@ -27,33 +28,50 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     const int   tagval = TagBox::SET;
 
 #ifdef ERF_USE_NETCDF
-    if (solverChoice.init_type == InitType::WRFInput) {
+    if ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) {
         int ratio;
         Box subdomain;
 
         if (!nc_init_file[levc+1].empty())
         {
             Real levc_start_time = read_start_time_from_wrfinput(levc  , nc_init_file[levc  ][0]);
-            amrex::Print() << " WRFInput       time at level " << levc << " is " << levc_start_time << std::endl;
+            if (solverChoice.init_type == InitType::WRFInput) {
+                amrex::Print() << " WRFInput       time at level " << levc << " is " << levc_start_time << std::endl;
+            } else if (solverChoice.init_type == InitType::Metgrid) {
+                amrex::Print() << " met_em         time at level " << levc << " is " << levc_start_time << std::endl;
+            }
 
             for (int isub = 0; isub < nc_init_file[levc+1].size(); isub++) {
                 if (!have_read_nc_init_file[levc+1][isub])
                 {
                     Real levf_start_time = read_start_time_from_wrfinput(levc+1, nc_init_file[levc+1][isub]);
-                    amrex::Print() << " WRFInput start_time at level " << levc+1 << " is " << levf_start_time << std::endl;
+                    if (solverChoice.init_type == InitType::WRFInput) {
+                        amrex::Print() << " WRFInput start_time at level " << levc+1 << " is " << levf_start_time << std::endl;
+                    } else if (solverChoice.init_type == InitType::Metgrid) {
+                        amrex::Print() << " met_em   start time at level " << levc+1 << " is " << levf_start_time << std::endl;
+                    }
 
                     // We assume there is only one subdomain at levc; otherwise we don't know
                     //     which one is the parent of the fine region we are trying to create
                     AMREX_ALWAYS_ASSERT(subdomains[levc].size() == 1);
 
-                    if ( (ref_ratio[levc][2]) != 1) {
+                    if ((solverChoice.init_type == InitType::WRFInput) && ((ref_ratio[levc][2]) != 1)) {
                         amrex::Abort("The ref_ratio specified in the inputs file must have 1 in the z direction; please use ref_ratio_vect rather than ref_ratio");
                     }
 
                     if ( levf_start_time <= (levc_start_time + t_new[levc]) ) {
-                        amrex::Print() << " WRFInput file to read: " << nc_init_file[levc+1][isub] << std::endl;
-                        subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][isub], ratio);
-                        amrex::Print() << " WRFInput subdomain " << isub << " at level " << levc+1 << " is " << subdomain << std::endl;
+                        if (solverChoice.init_type == InitType::WRFInput) {
+                            amrex::Print() << " WRFInput file to read: " << nc_init_file[levc+1][isub] << std::endl;
+                            subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][isub], ratio);
+                            amrex::Print() << " WRFInput subdomain " << isub << " at level " << levc+1 << " is " << subdomain << std::endl;
+                        } else if (solverChoice.init_type == InitType::Metgrid) {
+                            amrex::Print() << "met_em file to read: " << nc_init_file[levc+1][0] << std::endl;
+                            const Box& domain = geom[levc].Domain();
+                            int klo = domain.smallEnd(2);
+                            int khi = domain.bigEnd(2);
+                            subdomain = read_subdomain_from_metgrid(levc, nc_init_file[levc+1][0], ratio, klo, khi);
+                            amrex::Print() << " met_em subdomain at level " << levc+1 << " is " << subdomain << std::endl;
+                        }
 
                         if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
                             amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
@@ -61,7 +79,11 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                             amrex::Abort("These must be the same -- please edit your inputs file and try again.");
                         }
 
-                        subdomain.coarsen(IntVect(ratio,ratio,1));
+                        if (solverChoice.init_type == InitType::WRFInput) {
+                            subdomain.coarsen(IntVect(ratio,ratio,1));
+                        } else if (solverChoice.init_type == InitType::Metgrid) {
+                            subdomain.coarsen(ref_ratio[levc]);
+                        }
 
                         Box coarser_level(subdomains[levc][isub].minimalBox());
                         subdomain.shift(coarser_level.smallEnd());
@@ -70,7 +92,12 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                             amrex::Print() << " Crse subdomain to be tagged is" << subdomain << std::endl;
                         }
 
-                        Box new_fine(subdomain); new_fine.refine(IntVect(ratio,ratio,1));
+                        Box new_fine(subdomain);
+                        if (solverChoice.init_type == InitType::WRFInput) {
+                            new_fine.refine(IntVect(ratio,ratio,1));
+                        } else if (solverChoice.init_type == InitType::Metgrid) {
+                            new_fine.refine(ref_ratio[levc]);
+                        }
                         num_boxes_at_level[levc+1] = 1;
                         boxes_at_level[levc+1].push_back(new_fine);
 

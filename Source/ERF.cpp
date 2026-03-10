@@ -132,6 +132,7 @@ Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
 #ifdef ERF_USE_NETCDF
 Real read_start_time_from_wrfinput (int lev, const std::string& fname);
+Real read_start_time_from_metgrid  (int lev, const std::string& fname);
 #endif
 
 // constructor - reads in parameters from inputs file
@@ -499,8 +500,8 @@ ERF::ERF_shared ()
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
         std::string geometry ="terrain";
-        ParmParse pp("eb2");
-        pp.queryAdd("geometry", geometry);
+        ParmParse pp_eb2("eb2");
+        pp_eb2.queryAdd("geometry", geometry);
 
         constexpr int ngrow_for_eb = 4;  // This is the default in amrex but we need to explicitly pass it here since
                                // we want to also pass the build_coarse_level_by_coarsening argument
@@ -528,8 +529,8 @@ ERF::ERF_shared ()
         } else if (geometry == "box") {
             RealArray box_lo{0.0, 0.0, 0.0};
             RealArray box_hi{0.0, 0.0, 0.0};
-            pp.query("box_lo", box_lo);
-            pp.query("box_hi", box_hi);
+            pp_eb2.query("box_lo", box_lo);
+            pp_eb2.query("box_hi", box_hi);
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
             if (build_eb_for_multigrid) {
@@ -2615,6 +2616,15 @@ ERF::ReadParameters ()
                                        start_time_from_wrfinput << std::endl;
                     amrex::Abort();
                 }
+            } else if (solverChoice.init_type == InitType::Metgrid) {
+                // This is the start time as written in the metgrid file
+                Real start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
+                if (start_time != start_time_from_metgrid) {
+                    amrex::Print() << "start_datetime from inputs file = "       << start_time <<
+                                      " does not match SIMULATION START DATE from metgrid = " <<
+                                       start_time_from_metgrid << std::endl;
+                    amrex::Abort();
+                }
             }
 #endif
             Print() << "Start datetime   : " << start_datetime << std::endl;
@@ -2633,6 +2643,17 @@ ERF::ReadParameters ()
 
                 if (pp_no_prefix.query("start_time", start_time)) {
                     amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput" << std::endl;
+                    amrex::Abort();
+                }
+            } else if (solverChoice.init_type == InitType::Metgrid) {
+                // This is the start time as written in the metgrid file
+                Real start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
+                start_time = start_time_from_metgrid;
+
+                use_datetime = true;
+
+                if (pp_no_prefix.query("start_time", start_time)) {
+                    amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from metgrid" << std::endl;
                     amrex::Abort();
                 }
             }
@@ -2666,7 +2687,7 @@ ERF::ReadParameters ()
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&
                                        (solverChoice.init_type != InitType::Metgrid ) &&
                                        (solverChoice.init_type != InitType::NCFile  )  ),
-                                     "init_type cannot be 'WRFInput', 'MetGrid' or 'NCFile' if we don't build with netcdf!");
+                                     "init_type cannot be 'WRFInput', 'Metgrid' or 'NCFile' if we don't build with netcdf!");
 #endif
 
     // Query the canopy model file name
