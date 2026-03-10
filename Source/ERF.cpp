@@ -1885,6 +1885,8 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                               refRatio(lev-1), &cell_cons_interp,
                               domain_bcs_type, BCVars::cons_bc);
     }
+
+#ifdef ERF_USE_NETCDF
     if (sst_lev[lev-1][0] && !sst_lev[lev][0])
     {
         sst_lev[lev].resize(sst_lev[lev-1].size());
@@ -1924,6 +1926,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                                   domain_bcs_type, BCVars::cons_bc);
         }
     }
+#endif
 
     Real time_for_fp = 0.; // This is not actually used
     Vector<Real> ftime    = {time_for_fp, time_for_fp};
@@ -1976,6 +1979,8 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                            refRatio(lev-1), mapper, domain_bcs_type,
                            BCVars::cons_bc);
     } // cosPhi
+
+#ifdef ERF_USE_NETCDF
     if (sst_lev[lev][0])
     {
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
@@ -1994,7 +1999,8 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                                BCVars::cons_bc);
         } // ntimes
     } // sst_lev
-    if (tsk_lev[lev][0]) {
+    if (tsk_lev[lev][0])
+    {
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
         Real time_since_start_low = t_new[0] + start_time - start_low_time;
         int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
@@ -2011,6 +2017,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                                BCVars::cons_bc);
         } // ntimes
     } // tsk_lev
+#endif
 }
 
 // Initialize microphysics object
