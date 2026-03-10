@@ -1416,6 +1416,22 @@ function(s).
 |                                            | subsidence source |                   |             |
 |                                            | terms             |                   |             |
 +--------------------------------------------+-------------------+-------------------+-------------+
+| **erf.add_do_theta_advection**             | When using custom | true or false     | true        |
+|                                            | w subsidence,     |                   |             |
+|                                            | apply the         |                   |             |
+|                                            | subsidence source |                   |             |
+|                                            | term to the       |                   |             |
+|                                            | (rho*theta)       |                   |             |
+|                                            | equation          |                   |             |
++--------------------------------------------+-------------------+-------------------+-------------+
+| **erf.add_do_mom_advection**               | When using custom | true or false     | true        |
+|                                            | w subsidence,     |                   |             |
+|                                            | apply the         |                   |             |
+|                                            | subsidence source |                   |             |
+|                                            | terms to the      |                   |             |
+|                                            | momentum          |                   |             |
+|                                            | equations         |                   |             |
++--------------------------------------------+-------------------+-------------------+-------------+
 | **erf.add_custom_geostrophic_profile**     | Apply the         | true or false     | false       |
 |                                            | user-defined      |                   |             |
 |                                            | geostrophic wind  |                   |             |
