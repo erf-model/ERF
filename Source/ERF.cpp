@@ -364,7 +364,7 @@ ERF::ERF_shared ()
     // Stresses
     Tau.resize(nlevs_max);
     Tau_corr.resize(nlevs_max);
-    SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
+    SFS_hfx1_lev.resize(nlevs_max);  SFS_hfx2_lev.resize(nlevs_max);  SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
     SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
     SFS_q2fx3_lev.resize(nlevs_max);
@@ -476,6 +476,14 @@ ERF::ERF_shared ()
         sinPhi_m[lev] = nullptr;
         cosPhi_m[lev] = nullptr;
     }
+
+    // Rayleigh damping
+    h_rayleigh_ptrs.resize(nlevs_max);
+    d_rayleigh_ptrs.resize(nlevs_max);
+    h_sinesq_ptrs.resize(nlevs_max);
+    d_sinesq_ptrs.resize(nlevs_max);
+    h_sinesq_stag_ptrs.resize(nlevs_max);
+    d_sinesq_stag_ptrs.resize(nlevs_max);
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
@@ -1271,7 +1279,9 @@ ERF::InitData_post ()
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
         solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
-        initRayleigh();
+        for (int lev = 0; lev <= finest_level; lev++) {
+            initRayleigh_at_level(lev);
+        }
         if (solverChoice.init_type == InitType::Input_Sounding)
         {
             // Overwrite ubar, vbar, and thetabar with input profiles;
