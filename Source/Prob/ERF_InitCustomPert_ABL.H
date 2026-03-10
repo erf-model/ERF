@@ -19,9 +19,6 @@
     Real pert_deltaV = 0.0; pp.query("pert_deltaV", pert_deltaV);
     Real pert_ref_height = 100.0; pp.query("pert_ref_height", pert_ref_height);
 
-    auto prob_lo = geomdata.ProbLo();
-    auto prob_hi = geomdata.ProbHi();
-
     // Define a point (xc,yc,zc) at the center of the domain
     const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
     const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
@@ -48,6 +45,8 @@
     ParallelForRNG(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
         const Real* dx = geomdata.CellSize();
+        const Real* prob_lo = geomdata.ProbLo();
+        const Real* prob_hi = geomdata.ProbHi();
         const Real x = prob_lo[0] + (i + 0.5) * dx[0];
         const Real y = prob_lo[1] + (j + 0.5) * dx[1];
         const Real z = z_cc(i,j,k);
@@ -77,8 +76,8 @@
             }
             if (KE_decay_height > 0) {
                 // scale initial SGS kinetic energy with height
-                state_pert(i, j, k, RhoKE_comp) *= max(
-                    std::pow(1 - min(z/KE_decay_height,1.0), KE_decay_order),
+                state_pert(i, j, k, RhoKE_comp) *= amrex::max(
+                    std::pow(1 - amrex::min(z/KE_decay_height,1.0), KE_decay_order),
                     1e-12);
             }
         }
