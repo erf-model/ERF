@@ -10,6 +10,7 @@ CEXE_headers += ERF_InitCustomPert_FlowInABox.H
 CEXE_headers += ERF_InitCustomPert_IsentropicVortex.H
 CEXE_headers += ERF_InitCustomPert_KE.H
 CEXE_headers += ERF_InitCustomPert_MovingTerrain.H
+CEXE_headers += ERF_InitCustomPert_MultiSpeciesBubble.H
 CEXE_headers += ERF_InitCustomPert_ParticleTests.H
 CEXE_headers += ERF_InitCustomPert_ScalarAdvDiff.H
 CEXE_headers += ERF_InitCustomPert_SquallLine.H

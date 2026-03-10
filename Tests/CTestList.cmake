@@ -227,7 +227,7 @@ if(ERF_ENABLE_PARTICLES)
     # RICO case
     add_test_sdm(SDM_RICO3D                      "DevTests/RICO"        "erf_rico"     "plt00010" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
     # multispecies setup with dummy water species
-    add_test_sdm(SDM_MultiSpecies_Bubble2D       "DevTests/MultiSpeciesBubble" "erf_multispeciesbubble"     "plt00001" 5e-12 1e-12)
+    add_test_sdm(SDM_MultiSpecies_Bubble2D       "RegTests" "erf_regtests"   "plt00001" 5e-12 1e-12)
 endif()
 
 #=============================================================================
