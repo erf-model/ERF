@@ -122,6 +122,9 @@ Problem::init_custom_pert (
     else if (my_prob_name_ci == "bubble") {
 #include "Prob/ERF_InitCustomPert_Bubble.H"
     }
+    else if (my_prob_name_ci == "multispecies bubble") {
+#include "Prob/ERF_InitCustomPert_MultiSpeciesBubble.H"
+    }
     else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }

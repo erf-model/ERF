@@ -1,26 +1,28 @@
 
-    Real T_0 = 300.0; pp.query("T_0", T_0);
+    ParmParse pp_prob("prob");
+    Real T_0 = 300.0; pp_prob.query("T_0", T_0);
 
     // center of thermal perturbation
-    Real x_c = 0.0; pp.query("x_c", x_c);
-    Real y_c = 0.0; pp.query("y_c", y_c);
-    Real z_c = 0.0; pp.query("z_c", z_c);
+    Real x_c = 0.0; pp_prob.query("x_c", x_c);
+    Real y_c = 0.0; pp_prob.query("y_c", y_c);
+    Real z_c = 0.0; pp_prob.query("z_c", z_c);
 
     // radial extent of thermal perturbation
-    Real x_r = 0.0; pp.query("x_r", x_r);
-    Real y_r = 0.0; pp.query("y_r", y_r);
-    Real z_r = 0.0; pp.query("z_r", z_r);
+    Real x_r = 0.0; pp_prob.query("x_r", x_r);
+    Real y_r = 0.0; pp_prob.query("y_r", y_r);
+    Real z_r = 0.0; pp_prob.query("z_r", z_r);
 
     // perturbation temperature
-    Real T_pert            = -15.0; pp.query("T_pert", T_pert);
-    bool T_pert_is_airtemp = true ; pp.query("T_pert_is_airtemp", T_pert_is_airtemp);
-    bool perturb_rho = true       ; pp.query("perturb_rho", perturb_rho);
+    Real T_pert            = -15.0; pp_prob.query("T_pert", T_pert);
+    bool T_pert_is_airtemp = true ; pp_prob.query("T_pert_is_airtemp", T_pert_is_airtemp);
+    bool perturb_rho = true       ; pp_prob.query("perturb_rho", perturb_rho);
 
     // Moist bubble params
-    bool do_moist_bubble = false; pp.query("do_moist_bubble", do_moist_bubble);
-    amrex::Real theta_pert  = 2.0; pp.query("theta_pert", theta_pert);
-    amrex::Real eq_pot_temp = 320.0;
-    ParmParse pp("prob");
+    bool do_moist_bubble = false; pp_prob.query("do_moist_bubble", do_moist_bubble);
+    Real theta_pert  = 2.0; pp_prob.query("theta_pert", theta_pert);
+    Real eq_pot_temp = 320.0; pp_prob.query("eq_pot_temp",eq_pot_temp);
+    Real qt_init = 0.02; pp_prob.query("qt_init", qt_init);
+    bool use_empirical = false; pp_prob.query("use_empircal_psat",use_empirical);
 
     std::vector<std::string> m_species;
     int m_num_species = 0;
@@ -40,8 +42,6 @@
         }
     }
 
-    ParmParse pp_prob("prob");
-
     m_num_species = m_species.size();
 
     std::vector<amrex::Real> m_qv_init_species = std::vector<amrex::Real>(m_num_species,0.0);
@@ -54,19 +54,15 @@
 
     const auto khi     = geomdata.Domain().bigEnd()[2];
     const Real dz      = geomdata.CellSize()[2];
-    const Real rdOcp   = sc.rdOcp;
 
+#ifndef AMREX_USE_GPU
     if (T_0 <= 0)
     {
         amrex::Print() << "Ignoring T_0 = " << T_0
                        << ", background fields should have been initialized with erf.init_type"
                        << std::endl;
     }
-
-    Real qt_init = 0.02; pp_prob.query("qt_init", qt_init);
-
-    Real eq_pot_temp = 320.0; pp_prob.query("eq_pot_temp",eq_pot_temp);
-    bool use_empirical = false; pp_prob.query("use_empircal_psat",use_empirical);
+#endif
 
     if (do_moist_bubble) {
         Vector<Real> h_r(khi+2);
@@ -122,7 +118,7 @@
             theta_total  = theta_back[k]*(delta_theta/300.0 + 1);
             Real T = getTgivenPandTh(p_back[k], theta_total, (R_d/Cp_d));
             rho    = p_back[k]/(R_d*T*(1.0 + (R_v/R_d)*q_v_back[k]));
-            RH     = compute_relative_humidity();
+            RH     = 1.0; // compute_relative_humidity();
             Real q_v_hot = HSEutils::vapor_mixing_ratio(p_back[k], T, RH, use_empirical, which_zone);
 
             // Compute background quantities
@@ -147,8 +143,7 @@
             const Real y = prob_lo[1] + (j + 0.5) * dx[1];
             const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-            // perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
-            //                   parms_d, rdOcp,
+            // perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k), rdOcp,
             //                   state_pert(i, j, k, Rho_comp),
             //                   state_pert(i, j, k, RhoTheta_comp));
 
@@ -170,7 +165,7 @@
             }
 
             // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-            const Real Tbar_hse = p_hse / (R_d * r_hse);
+            const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
         });
     } // do_moist_bubble
 

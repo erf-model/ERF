@@ -24,6 +24,9 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
+# If running tests in ParticleTests or MultiSpeciesBubble, you must build with USE_PARTICLES = TRUE 
+#USE_PARTICLES = TRUE
+
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
