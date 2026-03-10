@@ -12,11 +12,11 @@ amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
 
 Problem::Problem(const Real* /*problo*/, const Real* /*probhi*/)
 {
-    ParmParse pp("prob");
-    Real rho_0 =   1.0; int found_rho0 = pp.query("rho_0", rho_0);
-    Real p_inf        ; int found_p0   = pp.query("p_inf", p_inf);
+    ParmParse pp_prob("prob");
+    Real rho_0 =   1.0; int found_rho0 = pp_prob.query("rho_0", rho_0);
+    Real p_inf        ; int found_p0   = pp_prob.query("p_inf", p_inf);
 
-    Real   T_0 = 300.0; pp.query("T_0", T_0);
+    Real   T_0 = 300.0; pp_prob.query("T_0", T_0);
 
     if (!found_rho0 && found_p0) {
         rho_0 = p_inf / (R_d * T_0);
@@ -122,6 +122,9 @@ Problem::init_custom_pert (
     else if (my_prob_name_ci == "bubble") {
 #include "Prob/ERF_InitCustomPert_Bubble.H"
     }
+    else if (my_prob_name_ci == "multispecies bubble") {
+#include "Prob/ERF_InitCustomPert_MultiSpeciesBubble.H"
+    }
     else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }
@@ -180,7 +183,8 @@ Problem::init_custom_pert_vels (
     }
     else if ( (my_prob_name_ci == "terrain - 2d cylinder") ||
               (my_prob_name_ci == "eb square cylinder"   ) ||
-              (my_prob_name_ci == "eb poiseuille"   ) ) {
+              (my_prob_name_ci == "eb poiseuille"        ) ||
+              (my_prob_name_ci == "multispecies bubble"  ) ) {
 #include "Prob/ERF_InitCustomPertVels_ConstantU.H"
     }
     else if (my_prob_name_ci == "terrain - 3d hemisphere") {

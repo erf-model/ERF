@@ -33,6 +33,7 @@
                        << std::endl;
     }
 
+#ifndef AMREX_USE_GPU
     if (pert_ref_height > 0) {
         if (T_0_Pert_Mag != 0.0) {
             if (pert_rhotheta) {
@@ -42,7 +43,7 @@
             }
         }
     }
-
+#endif
 
     ParallelForRNG(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {

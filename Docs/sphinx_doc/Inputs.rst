@@ -309,8 +309,6 @@ List of Parameters
 |                            | of a grid in   |                |                |
 |                            | any direction  |                |                |
 +----------------------------+----------------+----------------+----------------+
-| **amr.max_grid_size**      | maximum size   | Integer        | 32             |
-+----------------------------+----------------+----------------+----------------+
 | **amr.blocking_factor**    | grid size must | Integer > 0    | 2              |
 |                            | be a multiple  |                |                |
 |                            | of this        |                |                |
@@ -538,7 +536,7 @@ Notes
      acoustic substepping in time; this is determined by the value of **substepping_type**.
 
 -  | If **erf.substepping_type = None** there is only one time step to be calculated,
-     and **fixed_fast_dt** and **fixed_mri_dt_ratio** are not used.
+     and **erf.fixed_fast_dt** and **erf.fixed_mri_dt_ratio** are not used.
 
    * | If **erf.fixed_dt** is also specified, the timestep will be set to **fixed_dt**.
 
@@ -558,10 +556,10 @@ Notes
 
      * | If **erf.fixed_mri_dt_ratio** is specified but is not an even positive integer
 
-     * | If **erf.fixed_dt** and **erf.fast_fixed_dt** are specified and the ratio of **fixed_dt** to **fast_fixed_dt**
+     * | If **erf.fixed_dt** and **erf.fixed_fast_dt** are specified and the ratio of **fixed_dt** to **fixed_fast_dt**
          is not an even positive integer
 
-     * | If **erf.fixed_dt** and **erf.fast_fixed_dt** and **erf.fixed_mri_dt_ratio** are all specified but are inconsistent
+     * | If **erf.fixed_dt** and **erf.fixed_fast_dt** and **erf.fixed_mri_dt_ratio** are all specified but are inconsistent
 
    * | Once the slow timestep is set and the inputs are allowed per the above criteria,
        the fast timestep is computed in one of several ways:
@@ -596,11 +594,50 @@ Restart Capability
 
 See :ref:`sec:Checkpoint` for how to control the checkpoint/restart capability.
 
+Additional Checkpoint Controls
+------------------------------
+
+These are AMReX-level checkpoint controls that may be specified either with the
+``erf`` prefix or the ``amr`` prefix.
+
+List of Parameters
+~~~~~~~~~~~~~~~~~~
+
++--------------------+------------------------------+---------------------+---------+
+| Parameter          | Definition                   | Acceptable Values   | Default |
++====================+==============================+=====================+=========+
+| **amr.check_int**  | Checkpoint interval (steps)  | Integer >= 0        | -1      |
++--------------------+------------------------------+---------------------+---------+
+| **amr.check_per**  | Checkpoint interval (time)   | Real >= 0           | -1.0    |
++--------------------+------------------------------+---------------------+---------+
+
+Notes
+~~~~~
+
+- If both are specified, **amr.check_int** takes precedence and **amr.check_per**
+  is ignored.
+- These are in addition to the main checkpoint controls described in
+  :ref:`sec:Checkpoint`.
+
 PlotFiles
 ===============================
 
 See :ref:`sec:Plotfiles` for how to control the types and frequency of plotfile
 generation.
+
+Additional Plotfile Controls
+----------------------------
+
+List of Parameters
+~~~~~~~~~~~~~~~~~~
+
++-------------------------------------+------------------------------+---------------------+---------+
+| Parameter                           | Definition                   | Acceptable Values   | Default |
++=====================================+==============================+=====================+=========+
+| **erf.expand_plotvars_to_unif_rr**  | Expand plot variables to a   | true / false        | false   |
+|                                     | uniform refinement ratio     |                     |         |
+|                                     | for mixed-refinement cases   |                     |         |
++-------------------------------------+------------------------------+---------------------+---------+
 
 
 Screen Output
@@ -838,7 +875,8 @@ Data Sampling Outputs
 Data along query lines or planes may be output during the simulation if
 ``erf.do_line_sampling = true`` or  ``erf.do_plane_sampling = true``, respectively.
 The potential temperature and wind-speed will be written to native ``plt_line/plane``
-at the step frequency dictated by ``erf.sampler_interval = <int>``. For line sampling,
+at the step frequency dictated by ``erf.line_sampling_interval = <int>`` or
+``erf.plane_sampling_interval = <int>``. For line sampling,
 users must prescribe ``sample_line_lo`` and ``sample_line_hi`` inputs which are 3 integer
 values corresponding to the (i,j,k) indices at the beginning and end of the line.
 Additionally, users must specify ``sample_line_dir`` to prescribed the direction of
@@ -1151,7 +1189,7 @@ List of Parameters
 +-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_C1**                     | MYNN Constant C1   | Real                | 0.137       |
 +-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_C2**                     | MYNN Constant C1   | Real                | 0.75        |
+| **erf.pbl_mynn_C2**                     | MYNN Constant C2   | Real                | 0.75        |
 +-----------------------------------------+--------------------+---------------------+-------------+
 | **erf.pbl_mynn_C3**                     | MYNN Constant C3   | Real                | 0.352       |
 +-----------------------------------------+--------------------+---------------------+-------------+
@@ -1200,7 +1238,7 @@ List of Parameters
 | **erf.pbl_mrf_coriolis_freq**           | Coriolis frq. used | Real                | 1.0e-4      |
 |                                         | for MRF PBL Scheme |                     |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mrf__Ribcr**                  | Over land critical | Real                | 0.5         |
+| **erf.pbl_mrf_Ribcr**                   | Over land critical | Real                | 0.5         |
 |                                         | Richardson number  |                     |             |
 |                                         | for MRF PBL Scheme |                     |             |
 +-----------------------------------------+--------------------+---------------------+-------------+
@@ -1253,14 +1291,18 @@ List of Parameters
 | **erf.abl_pressure_grad**           | Pressure gradient      | 3 Reals           | (0.,0.,0.)          |
 |                                     | forcing term           |                   |                     |
 |                                     | (only if               |                   |                     |
-|                                     | abl.driver_type =      |                   |                     |
+|                                     | erf.abl_driver_type =  |                   |                     |
 |                                     | PressureGradient)      |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.abl_geo_wind**                | Geostrophic            | 3 Reals           | (0.,0.,0.)          |
 |                                     | forcing term           |                   |                     |
 |                                     | (only if               |                   |                     |
-|                                     | abl.driver_type =      |                   |                     |
+|                                     | erf.abl_driver_type =  |                   |                     |
 |                                     | GeostrophicWind)       |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.abl_geo_forcing**             | Constant body force    | 3 Reals           | (0.,0.,0.)          |
+|                                     | applied to momentum    |                   |                     |
+|                                     | equations              |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.abl_geo_wind_table**          | Path to text file      | String            | None                |
 |                                     | containing a           |                   |                     |
@@ -1356,13 +1398,13 @@ List of Parameters
 |                                     | initial sounding       |                   |                     |
 |                                     | profile                |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.input_sounding_file**         | Name(s) of the         | String(s)         | input_sounding_file |
+| **erf.input_sounding_file**         | Name(s) of the         | String(s)         | input_sounding      |
 |                                     | input sounding file(s) |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.forest_file**                 | Name(s) of the         | String            | None                |
 |                                     | canopy forest file     |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.input_sounding_time**         | Time(s) of the         | Real(s)           | false               |
+| **erf.input_sounding_time**         | Time(s) of the         | Real(s)           | 0.0                 |
 |                                     | input sounding file(s) |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.tau_nudging**                 | Time scale for         | Real              | 5.0                 |
@@ -1444,6 +1486,47 @@ with an ``erf.abl_geo_wind_table``.
 - Wind farm parameterization requires ``USE_WINDFARM=TRUE`` (gmake)
   or ``-DERF_ENABLE_WINDFARM`` (cmake) at build time.
   See :ref:`sec:WindFarmModels` for theory and examples.
+
+Boundary Plane I/O (Coupling Support)
+=====================================
+
+These options control writing and reading boundary-plane data for coupling
+workflows (e.g., AMR-Wind). See :ref:`CouplingToAMRWind` for examples.
+
+List of Parameters
+------------------
+
++--------------------------------------+---------------------------------+---------------------+---------+
+| Parameter                            | Definition                      | Acceptable Values   | Default |
++======================================+=================================+=====================+=========+
+| **erf.output_bndry_planes**          | Enable boundary-plane output    | 0 or 1              | 0       |
++--------------------------------------+---------------------------------+---------------------+---------+
+| **erf.input_bndry_planes**           | Enable boundary-plane input     | 0 or 1              | 0       |
++--------------------------------------+---------------------------------+---------------------+---------+
+| **erf.bndry_output_planes_interval** | Output interval (steps)         | Integer >= 0        | -1      |
++--------------------------------------+---------------------------------+---------------------+---------+
+| **erf.bndry_output_planes_per**      | Output interval (time)          | Real >= 0           | -1.0    |
++--------------------------------------+---------------------------------+---------------------+---------+
+| **erf.bndry_output_start_time**      | Start time for output           | Real >= 0           | 0.0     |
++--------------------------------------+---------------------------------+---------------------+---------+
+| **erf.bndry_output_planes_file**     | Output directory                | String              | None    |
++--------------------------------------+---------------------------------+---------------------+---------+
+| **erf.bndry_output_box_lo**          | Lower-left (x,y) of output box  | 2 Reals             | None    |
++--------------------------------------+---------------------------------+---------------------+---------+
+| **erf.bndry_output_box_hi**          | Upper-right (x,y) of output box | 2 Reals             | None    |
++--------------------------------------+---------------------------------+---------------------+---------+
+| **erf.bndry_output_var_names**       | Variables to write              | List of strings     | All     |
++--------------------------------------+---------------------------------+---------------------+---------+
+| **erf.bndry_file**                   | Input boundary-plane directory  | String              | None    |
++--------------------------------------+---------------------------------+---------------------+---------+
+| **erf.bndry_input_var_names**        | Variables to read               | List of strings     | All     |
++--------------------------------------+---------------------------------+---------------------+---------+
+
+Notes
+-----
+
+- If both interval controls are set, output occurs when either criterion is met.
+- Output is written for the finest level that fully contains the requested box.
 
 Numerical Stability
 ===================
@@ -1686,7 +1769,7 @@ Map Scale Factors
 =================
 
 Map scale factors are always present in the evolution equations, but the values default to one
-unless specified in the initialization when **erf.init_type = real**.
+unless specified in the initialization when **erf.init_type = WRFInput** or **erf.init_type = Metgrid**.
 
 There is an option to test the map scale factors by setting  **erf.test_mapfactor = true**; this
 arbitrarily sets the map factors to 0.5 in order to test the implementation.
@@ -1864,51 +1947,170 @@ Notes
 List of Parameters
 ------------------
 
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| Parameter                      | Definition               | Acceptable         | Default                           |
-|                                |                          | Values             |                                   |
-+================================+==========================+====================+===================================+
-| **erf.radiation_model**        | Enables radiation        | "None",            | "None"                            |
-|                                | transfer calculations    | "RRTMGP"           |                                   |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.rad_freq_in_steps**      | Number of steps between  |  int               |    1                              |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.rad_write_fluxes**       | Flag to write fluxes     |  Bool              |    false                          |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.rad_cons_lat**           | Constant latitude        |  Real              |    39.8                           |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.rad_cons_lon**           | Constant longitude       |  Real              |    -98.5                          |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.co2vmr**                 | CO2 volume mixing ratio  |  Real              | 388.717e-6                        |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.o3vmr**                  | O3 volume mixing ratio   |  Real              |   1.887e-7                        |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.n2ovmr**                 | N2O volume mixing ratio  |  Real              | 323.141e-9                        |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.covmr**                  | CO volume mixing ratio   |  Real              |   1.000e-7                        |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.ch4vmr**                 | CH4 volume mixing ratio  |  Real              |   1.807e-6                        |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.o2vmr**                  | O2 volume mixing ratio   |  Real              |   0.209                           |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.n2vmr**                  | N2 volume mixing ratio   |  Real              |   0.791                           |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.rrtmgp_file_path**       | path to NC files         |  String            |   "./"                            |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.rrtmgp_coeffs_sw**       | path to NC files         |  String            | rrtmgp-data-sw-g224-2018-12-04.nc |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.rrtmgp_coeffs_lw**       | path to NC files         |  String            | rrtmgp-data-lw-g256-2018-12-04.nc |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.rrtmgp_cloud_optics_sw** | path to NC files         |  String            | rrtmgp-cloud-optics-coeffs-sw.nc  |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
-| **erf.rrtmgp_cloud_optics_lw** | path to NC files         |  String            | rrtmgp-cloud-optics-coeffs-lw.nc  |
-+--------------------------------+--------------------------+--------------------+-----------------------------------+
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| Parameter                           | Definition                             | Acceptable Values | Default / Notes                   |
++=====================================+========================================+===================+===================================+
+| **erf.radiation_model**             | Enable radiation model                 | "None", "RRTMGP"  | "None"                            |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_t_sfc**                   | Surface temperature if no LSM          | Real              | Must be set without LSM           |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_freq_in_steps**           | Radiation update frequency (steps)     | Integer >= 1      | 1                                 |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_write_fluxes**            | Write radiation fluxes to plotfiles    | true / false      | false                             |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_do_subcol_sampling**      | Enable MCICA subcolumn sampling        | true / false      | true                              |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_orbital_year**            | Fixed orbital year for zenith calcs    | Integer           | < 0 uses timestamp year           |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_orbital_eccentricity**    | Override orbital eccentricity          | Real              | < 0 uses computed value           |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_orbital_obliquity**       | Override orbital obliquity             | Real              | < 0 uses computed value           |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_orbital_mvelp**           | Override mean longitude of perihelion  | Real              | < 0 uses computed value           |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_cons_lat**                | Constant latitude for idealized cases  | Real              | 39.809860                         |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_cons_lon**                | Constant longitude for idealized cases | Real              | -98.555183                        |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.fixed_total_solar_irradiance**| Fixed total solar irradiance (TOA)     | Real              | < 0 disables                      |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.fixed_solar_zenith_angle**    | Fixed solar zenith (passed as ``mu0``) | Real              | <= 0 disables                     |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.co2vmr**                      | CO2 volume mixing ratio                | Real              | 388.717e-6                        |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.o3vmr**                       | O3 volume mixing ratio profile         | Real or list      | From dataset if unset             |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.n2ovmr**                      | N2O volume mixing ratio                | Real              | 323.141e-9                        |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.covmr**                       | CO volume mixing ratio                 | Real              | 1.0e-7                            |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.ch4vmr**                      | CH4 volume mixing ratio                | Real              | 1807.851e-9                       |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.o2vmr**                       | O2 volume mixing ratio                 | Real              | 0.209448                          |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.n2vmr**                       | N2 volume mixing ratio                 | Real              | 0.7906                            |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_do_aerosol**              | Enable aerosol forcing in radiation    | true / false      | true                              |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_extra_clnclrsky_diag**    | Extra clean and clear-sky diagnostics  | true / false      | false                             |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rad_extra_clnsky_diag**       | Extra clean-sky diagnostics            | true / false      | false                             |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rrtmgp_file_path**            | Path to RRTMGP data files              | String            | "."                               |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rrtmgp_coeffs_sw**            | Shortwave k-distribution file          | String            | rrtmgp-data-sw-g224-2018-12-04.nc |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rrtmgp_coeffs_lw**            | Longwave k-distribution file           | String            | rrtmgp-data-lw-g256-2018-12-04.nc |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rrtmgp_cloud_optics_sw**      | Shortwave cloud optics file            | String            | rrtmgp-cloud-optics-coeffs-sw.nc  |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+| **erf.rrtmgp_cloud_optics_lw**      | Longwave cloud optics file             | String            | rrtmgp-cloud-optics-coeffs-lw.nc  |
++-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
+
+Notes
+=====
+
+- ``erf.fixed_solar_zenith_angle`` is passed directly as ``mu0`` (cosine of the zenith angle).
+- If ``erf.rad_orbital_year`` is negative, the orbital year is taken from the simulation timestamp.
+- When orbital parameters are negative, values are computed from the orbital year.
 
 The lookup data may be downloaded as a package from `here <https://doi.org/10.22002/ppv8a-4q131>`_.
 
 .. note::
 
    Using RRTMGP requires ``USE_RRTMGP=TRUE`` at build time. See :ref:`sec:building` for build instructions.
+
+SHOC
+======================
+
+SHOC inputs are provided under the ``erf.shoc`` prefix. These options control
+runtime tuning and diagnostics for the SHOC PBL scheme.
+
+List of Parameters
+------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 36 40 16 8
+
+   * - Parameter
+     - Definition
+     - Acceptable Values
+     - Default
+   * - **erf.shoc.lambda_low**
+     - Minimum stability correction
+     - Real
+     - 0.001
+   * - **erf.shoc.lambda_high**
+     - Maximum stability correction
+     - Real
+     - 0.04
+   * - **erf.shoc.lambda_slope**
+     - Slope from low to high correction
+     - Real
+     - 2.65
+   * - **erf.shoc.lambda_thresh**
+     - Stability threshold for correction
+     - Real
+     - 0.02
+   * - **erf.shoc.thl2tune**
+     - Temperature variance tuning factor
+     - Real
+     - 1.0
+   * - **erf.shoc.qw2tune**
+     - Moisture variance tuning factor
+     - Real
+     - 1.0
+   * - **erf.shoc.qwthl2tune**
+     - Temperature-moisture covariance tuning
+     - Real
+     - 1.0
+   * - **erf.shoc.w2tune**
+     - Vertical velocity variance tuning
+     - Real
+     - 1.0
+   * - **erf.shoc.length_fac**
+     - Length-scale factor
+     - Real
+     - 0.5
+   * - **erf.shoc.c_diag_3rd_mom**
+     - 3rd-moment vertical velocity damping
+     - Real
+     - 7.0
+   * - **erf.shoc.coeff_kh**
+     - Eddy diffusivity coefficient for heat
+     - Real
+     - 0.1
+   * - **erf.shoc.coeff_km**
+     - Eddy diffusivity coefficient for momentum
+     - Real
+     - 0.1
+   * - **erf.shoc.shoc_1p5tke**
+     - Reduce to 1.5 TKE closure
+     - true / false
+     - false
+   * - **erf.shoc.extra_shoc_diags**
+     - Enable extra SHOC diagnostics
+     - true / false
+     - false
+   * - **erf.shoc.apply_tms**
+     - Apply TMS (turbulent mountain stress)
+     - true / false
+     - false
+   * - **erf.shoc.check_flux_state**
+     - Flux state consistency check
+     - true / false
+     - false
+   * - **erf.shoc.column_conservation_check**
+     - Column conservation check
+     - true / false
+     - false
+
+Notes
+-----
+
+- Defaults are set in ``Source/PhysicsInterfaces/Shoc/ERF_ShocInterface.cpp`` and may
+  be adjusted in the inputs file using the ``erf.shoc`` prefix.
 
 Runtime Error Checking
 ======================
@@ -1939,3 +2141,57 @@ List of Parameters
 +-----------------------------+---------------------------+-------------------+------------+
 | **amrex.fpe_trap_overflow** | Raise errors for overflow |  0 / 1            | 0          |
 +-----------------------------+---------------------------+-------------------+------------+
+
+Reproducibility
+===============
+
+List of Parameters
+------------------
+
++--------------------------+-------------------------------+---------------------+---------+
+| Parameter                | Definition                    | Acceptable Values   | Default |
++==========================+===============================+=====================+=========+
+| **erf.fix_random_seed**  | Use a fixed random seed for   | 0 or 1              | 0       |
+|                          | reproducible runs             |                     |         |
++--------------------------+-------------------------------+---------------------+---------+
+
+Embedded Boundary (EB) Tuning
+=============================
+
+List of Parameters
+------------------
+
++------------------------+-----------------------------------------+---------------------+-----------+
+| Parameter              | Definition                              | Acceptable Values   | Default   |
++========================+=========================================+=====================+===========+
+| **eb2.small_volfrac**  | Volume-fraction threshold used          | Real > 0            | 1.0e-14   |
+|                        | to treat cells as effectively empty     |                     |           |
++------------------------+-----------------------------------------+---------------------+-----------+
+
+Particles
+=========
+
+List of Parameters
+------------------
+
++--------------------------+------------------------------+---------------------+---------+
+| Parameter                | Definition                   | Acceptable Values   | Default |
++==========================+==============================+=====================+=========+
+| **particles.disable_plt**| Disable particle plotfile    | true / false        | false   |
+|                          | output                       |                     |         |
++--------------------------+------------------------------+---------------------+---------+
+
+Ensemble Initialization
+=======================
+
+List of Parameters
+------------------
+
++-------------------------------------------+------------------------------+---------------------+---------+
+| Parameter                                 | Definition                   | Acceptable Values   | Default |
++===========================================+==============================+=====================+=========+
+| **ensemble.is_init_with_correlated_pert** | Use spatially correlated     | true / false        | false   |
+|                                           | perturbations at init        |                     |         |
++-------------------------------------------+------------------------------+---------------------+---------+
+| **ensemble.pert_correlated_radius**       | Correlation radius           | Real > 0            | None    |
++-------------------------------------------+------------------------------+---------------------+---------+
