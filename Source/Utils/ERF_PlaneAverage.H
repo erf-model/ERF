@@ -184,7 +184,7 @@ template <typename IndexSelector>
 void
 PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFab& mfab)
 {
-    amrex::Vector<amrex::Real> cnt_h(m_line_average.size(),0.);
+    amrex::Vector<amrex::Real> cnt_h(m_ncell_line,0.);
     amrex::AsyncArray<amrex::Real> cnt_d(cnt_h.data(), cnt_h.size());
     amrex::AsyncArray<amrex::Real> lavg(m_line_average.data(), m_line_average.size());
     amrex::Real* cnt_avg  = cnt_d.data();
@@ -223,12 +223,12 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
                 for (int j = lbx.smallEnd(1); j <= lbx.bigEnd(1); ++j) {
                     for (int i = lbx.smallEnd(0); i <= lbx.bigEnd(0); ++i) {
                         int ind = idxOp.getIndx(i, j, k) + offset;
+                        // NOTE: This factor is to avoid an if statement that will break
+                        //       the devicereducesum since all threads won't participate.
+                        //       This more performant than Gpu::Atomic::Add.
+                        amrex::Real fac = (mask_arr(i,j,k)) ? 1.0 : 0.0;
+                        amrex::Gpu::deviceReduceSum(&cnt_avg[ind], fac, handler);
                         for (int n = 0; n < ncomp; ++n) {
-                            // NOTE: This factor is to avoid an if statement that will break
-                            //       the devicereducesum since all threads won't participate.
-                            //       This more performant than Gpu::Atomic::Add.
-                            amrex::Real fac = (mask_arr(i,j,k)) ? 1.0 : 0.0;
-                            amrex::Gpu::deviceReduceSum(&cnt_avg[ind], fac, handler);
                             amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n],
                                                         fab_arr(i, j, k, n) * fac, handler);
                         }
@@ -242,8 +242,10 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
     lavg.copyToHost(m_line_average.data(), m_line_average.size());
     amrex::ParallelDescriptor::ReduceRealSum(cnt_h.data(), cnt_h.size());
     amrex::ParallelDescriptor::ReduceRealSum(m_line_average.data(), m_line_average.size());
-    for (int ind(0); ind<m_line_average.size(); ++ind) {
-        m_line_average[ind] /= cnt_h[ind];
+    for (int ind(0); ind<m_ncell_line; ++ind) {
+        for (int n(0); n<ncomp; ++n) {
+            m_line_average[ncomp*ind + n] /= cnt_h[ind];
+        }
     }
     m_ncell_plane = static_cast<int>(cnt_h[0]);
 }
