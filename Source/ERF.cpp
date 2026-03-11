@@ -538,8 +538,8 @@ ERF::ERF_shared ()
         } else if (geometry == "plane") {
             RealArray plane_point{0.0, 0.0, 0.0};
             RealArray plane_normal{0.0, 0.0, -1.0}; // pointing into the solid region
-            pp.query("plane_point", plane_point);
-            pp.query("plane_normal", plane_normal);
+            pp_eb2.query("plane_point", plane_point);
+            pp_eb2.query("plane_normal", plane_normal);
             EB2::PlaneIF implicit_fun(plane_point, plane_normal, false);
             auto gshop = EB2::makeShop(implicit_fun);
             if (build_eb_for_multigrid) {
