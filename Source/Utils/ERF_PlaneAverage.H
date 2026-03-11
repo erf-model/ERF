@@ -184,8 +184,8 @@ template <typename IndexSelector>
 void
 PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFab& mfab)
 {
-    amrex::Real cnt_h = 0.0;
-    amrex::AsyncArray<amrex::Real> cnt_d(&cnt_h, 1);
+    amrex::Vector<amrex::Real> cnt_h(m_line_average.size(),0.);
+    amrex::AsyncArray<amrex::Real> cnt_d(cnt_h.data(), cnt_h.size());
     amrex::AsyncArray<amrex::Real> lavg(m_line_average.data(), m_line_average.size());
     amrex::Real* cnt_avg  = cnt_d.data();
     amrex::Real* line_avg = lavg.data();
@@ -228,7 +228,7 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
                             //       the devicereducesum since all threads won't participate.
                             //       This more performant than Gpu::Atomic::Add.
                             amrex::Real fac = (mask_arr(i,j,k)) ? 1.0 : 0.0;
-                            amrex::Gpu::deviceReduceSum(&cnt_avg[0], fac, handler);
+                            amrex::Gpu::deviceReduceSum(&cnt_avg[ind], fac, handler);
                             amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n],
                                                         fab_arr(i, j, k, n) * fac, handler);
                         }
@@ -238,13 +238,13 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
         });
     }
 
-    cnt_d.copyToHost(&cnt_h, 1);
+    cnt_d.copyToHost(cnt_h.data(), cnt_h.size());
     lavg.copyToHost(m_line_average.data(), m_line_average.size());
-    amrex::ParallelDescriptor::ReduceRealSum(&cnt_h, 1);
+    amrex::ParallelDescriptor::ReduceRealSum(cnt_h.data(), cnt_h.size());
     amrex::ParallelDescriptor::ReduceRealSum(m_line_average.data(), m_line_average.size());
     for (int ind(0); ind<m_line_average.size(); ++ind) {
-        m_line_average[ind] /= cnt_h;
+        m_line_average[ind] /= cnt_h[ind];
     }
-    m_ncell_plane = static_cast<int>(cnt_h);
+    m_ncell_plane = static_cast<int>(cnt_h[0]);
 }
 #endif /* ERF_PlaneAverage.H */
