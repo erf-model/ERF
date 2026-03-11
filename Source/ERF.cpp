@@ -364,7 +364,7 @@ ERF::ERF_shared ()
     // Stresses
     Tau.resize(nlevs_max);
     Tau_corr.resize(nlevs_max);
-    SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
+    SFS_hfx1_lev.resize(nlevs_max);  SFS_hfx2_lev.resize(nlevs_max);  SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
     SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
     SFS_q2fx3_lev.resize(nlevs_max);
@@ -476,6 +476,14 @@ ERF::ERF_shared ()
         sinPhi_m[lev] = nullptr;
         cosPhi_m[lev] = nullptr;
     }
+
+    // Rayleigh damping
+    h_rayleigh_ptrs.resize(nlevs_max);
+    d_rayleigh_ptrs.resize(nlevs_max);
+    h_sinesq_ptrs.resize(nlevs_max);
+    d_sinesq_ptrs.resize(nlevs_max);
+    h_sinesq_stag_ptrs.resize(nlevs_max);
+    d_sinesq_stag_ptrs.resize(nlevs_max);
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
@@ -1271,7 +1279,9 @@ ERF::InitData_post ()
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
         solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
-        initRayleigh();
+        for (int lev = 0; lev <= finest_level; lev++) {
+            initRayleigh_at_level(lev);
+        }
         if (solverChoice.init_type == InitType::Input_Sounding)
         {
             // Overwrite ubar, vbar, and thetabar with input profiles;
@@ -1886,10 +1896,19 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                               domain_bcs_type, BCVars::cons_bc);
     }
     if (sst_lev[lev-1][0] && !sst_lev[lev][0]) {
-        int ntimes = sst_lev[lev-1].size();
-        sst_lev[lev].resize(ntimes);
+        sst_lev[lev].resize(sst_lev[lev-1].size());
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
+#else
+        // TODO: Fix if SST is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
         auto ngv = sst_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
-        for (int n = 0; n < ntimes; n++) {
+
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
             sst_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
             InterpFromCoarseLevel(*sst_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
                                   *sst_lev[lev-1][n], 0, 0, 1,
@@ -1899,10 +1918,19 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         }
     }
     if (tsk_lev[lev-1][0] && !tsk_lev[lev][0]) {
-        int ntimes = tsk_lev[lev-1].size();
-        tsk_lev[lev].resize(ntimes);
+        tsk_lev[lev].resize(tsk_lev[lev-1].size());
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
+#else
+        // TODO: Fix if TSK is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
         auto ngv = tsk_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
-        for (int n = 0; n < ntimes; n++) {
+
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
             tsk_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
             InterpFromCoarseLevel(*tsk_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
                                   *tsk_lev[lev-1][n], 0, 0, 1,
@@ -1965,8 +1993,16 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
     } // cosPhi
     if (sst_lev[lev][0]) {
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-    int ntimes = sst_lev[lev].size();
-    for (int n = 0; n < ntimes; n++) {
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
+#else
+        // TODO: Fix if SST is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
             Vector<MultiFab*> fmf = {sst_lev[lev  ][n].get(), sst_lev[lev  ][n].get()};
             Vector<MultiFab*> cmf = {sst_lev[lev-1][n].get(), sst_lev[lev-1][n].get()};
             IntVect ngv = sst_lev[lev][n]->nGrowVect(); ngv[2] = 0;
@@ -1980,8 +2016,16 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
     } // sst_lev
     if (tsk_lev[lev][0]) {
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-    int ntimes = tsk_lev[lev].size();
-    for (int n = 0; n < ntimes; n++) {
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
+#else
+        // TODO: Fix if TSK is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
             Vector<MultiFab*> fmf = {tsk_lev[lev  ][n].get(), tsk_lev[lev  ][n].get()};
             Vector<MultiFab*> cmf = {tsk_lev[lev-1][n].get(), tsk_lev[lev-1][n].get()};
             IntVect ngv = tsk_lev[lev][n]->nGrowVect(); ngv[2] = 0;

@@ -515,7 +515,8 @@ ERF::refinement_criteria_setup ()
                 } // lev
 
                 if (solverChoice.init_type == InitType::WRFInput) {
-                    if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
+                    if ( (num_files_at_level[lev_for_box] > 0) &&
+                         (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) ) {
                         amrex::Error("Number of boxes doesn't match number of input files");
 
                     }
@@ -593,7 +594,8 @@ ERF::refinement_criteria_setup ()
                 } // lev
 
                 if (solverChoice.init_type == InitType::WRFInput) {
-                    if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
+                    if ( (num_files_at_level[lev_for_box] > 0) &&
+                         (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) ) {
                         amrex::Error("Number of boxes doesn't match number of input files");
 
                     }
@@ -640,7 +642,8 @@ ERF::refinement_criteria_setup ()
                 } // lev
 
                 if (solverChoice.init_type == InitType::WRFInput) {
-                    if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
+                    if ( (num_files_at_level[lev_for_box] > 0) &&
+                         (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) ) {
                         amrex::Error("Number of boxes doesn't match number of input files");
 
                     }

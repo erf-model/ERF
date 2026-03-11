@@ -27,12 +27,13 @@
     Real pert_periods_V = 5.0; pp_for_pert_vels.query("pert_periods_V", pert_periods_V);
     Real pert_ref_height = 100.0; pp_for_pert_vels.query("pert_ref_height", pert_ref_height);
 
-    const Real* prob_lo = geomdata.ProbLo();
-    const Real* prob_hi = geomdata.ProbHi();
-
     // helper vars
-    Real aval = pert_periods_U * 2.0 * PI / (prob_hi[1] - prob_lo[1]);
-    Real bval = pert_periods_V * 2.0 * PI / (prob_hi[0] - prob_lo[0]);
+    const Real prob_lo_x = geomdata.ProbLo(0);
+    const Real prob_lo_y = geomdata.ProbLo(1);
+    const Real prob_hi_x = geomdata.ProbHi(0);
+    const Real prob_hi_y = geomdata.ProbHi(1);
+    Real aval = pert_periods_U * 2.0 * PI / (prob_hi_y - prob_lo_y);
+    Real bval = pert_periods_V * 2.0 * PI / (prob_hi_x - prob_lo_x);
     Real ufac = pert_deltaU * std::exp(0.5) / pert_ref_height;
     Real vfac = pert_deltaV * std::exp(0.5) / pert_ref_height;
 
