@@ -1,4 +1,5 @@
 #include <ERF_ParFunctions.H>
+#include <AMReX_ParmParse.H>
 
 /**
  * Initialize a Rayleigh damping layer with the same structure as in WRF, based
@@ -10,11 +11,11 @@ erf_init_rayleigh (amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
                    std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
                    amrex::Real /*zdamp*/) override
 {
-    amrex::ParmParse pp("prob");
-    amrex::Real U_0 =   0.0; pp.query("rayleigh_U_0", U_0);
-    amrex::Real V_0 =   0.0; pp.query("rayleigh_V_0", V_0);
-    amrex::Real W_0 =   0.0; pp.query("rayleigh_W_0", W_0);
-    amrex::Real T_0 = 300.0; pp.query("rayleigh_T_0", T_0);
+    amrex::ParmParse pp_prob("prob");
+    amrex::Real U_0 =   0.0; pp_prob.query("rayleigh_U_0", U_0);
+    amrex::Real V_0 =   0.0; pp_prob.query("rayleigh_V_0", V_0);
+    amrex::Real W_0 =   0.0; pp_prob.query("rayleigh_W_0", W_0);
+    amrex::Real T_0 = 300.0; pp_prob.query("rayleigh_T_0", T_0);
 
     const int khi = geom.Domain().bigEnd()[2];
 
@@ -24,5 +25,17 @@ erf_init_rayleigh (amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
         rayleigh_ptrs[Rayleigh::vbar][k]     = V_0;
         rayleigh_ptrs[Rayleigh::wbar][k]     = W_0;
         rayleigh_ptrs[Rayleigh::thetabar][k] = T_0;
+    }
+
+    amrex::ParmParse pp("erf");
+    std::string prob_name; pp.get("prob_name",prob_name);
+    if (prob_name == "Moving Terrain") {
+        for (int k = 60; k <= khi; k++)
+        {
+            rayleigh_ptrs[Rayleigh::ubar][k]     = 2.0;
+            rayleigh_ptrs[Rayleigh::vbar][k]     = 1.0;
+            rayleigh_ptrs[Rayleigh::wbar][k]     = 0.0;
+            rayleigh_ptrs[Rayleigh::thetabar][k] = T_0;
+        }
     }
 }

@@ -106,9 +106,16 @@ ERF::init_custom (int lev)
         }
     }
 
-    MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
-    MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
-    MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
+    // Should we initialize the velocities from a checkpoint file?
+    static std::string init_vels_from_checkpoint;
+    ParmParse pp("erf");
+    if (pp.query("init_vels_from_checkpoint",init_vels_from_checkpoint)) {
+        ReadVelsOnlyFromCheckpointFile(lev,init_vels_from_checkpoint);
+    } else {
+        MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
+        MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
+        MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
+    }
 }
 
 void

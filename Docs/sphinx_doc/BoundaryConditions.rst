@@ -263,7 +263,7 @@ Specification of the number of layers and the offset into the domain of the pert
 
 ::
 
-          erf.inlet_perturbation_type = "source"
+          erf.perturbation_type = "source"
 
           erf.perturbation_direction = 1 0 0 0 0 0
           erf.perturbation_box_dims = 8 8 4
@@ -308,7 +308,7 @@ and the perturbation amplitude is then computed through,
 
 ::
 
-          erf.inlet_perturbation_type = "source"
+          erf.perturbation_type = "source"
 
           erf.perturbation_direction = 1 0 0 0 0 0
           erf.perturbation_box_dims = 8 8 4
@@ -333,7 +333,7 @@ The ``direct`` method can also be used to effectively trip turbulence into the d
 To activate the ``direct`` type forcing, set the following inputs list.
 ::
 
-          erf.inlet_perturbation_type = "direct"
+          erf.perturbation_type = "direct"
 
           erf.perturbation_direction = 1 0 0 0 0 0
           erf.perturbation_box_dims = 16 16 8
@@ -379,7 +379,7 @@ Below is an example of the input tags necessary for a simulation with CPM:
 
 ::
 
-          erf.inlet_perturbation_type = "CPM"
+          erf.perturbation_type = "CPM"
 
           erf.perturbation_direction = 1 0 0 0 0 0
           erf.perturbation_box_dims = 8 8 3

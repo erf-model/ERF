@@ -16,7 +16,7 @@ This guide serves as a technical reference for developers and advanced users. Fo
 Directory Structure and Workflow
 ---------------------------------
 
-ERF builds executables in subdirectories within ``Exec``. With GNU Make, build in the specific problem directory. With CMake, configure once to build all executables listed in ``Exec/CMakeLists.txt``.
+ERF builds executables in ``Exec`` if using GNU Make. With CMake, configure once to build all executables listed in ``Exec/CMakeLists.txt``.
 
 The problem directories within ``Exec`` are organized by purpose:
 
@@ -24,16 +24,17 @@ The problem directories within ``Exec`` are organized by purpose:
 
    Exec/
    ├── ABL/                    # Atmospheric boundary layer (science runs)
-   ├── DryRegTests/            # Dry atmospheric regression tests
+   ├── RegTests/               # Fluid dynamical regression tests
    │   ├── IsentropicVortex/
    │   ├── TaylorGreenVortex/
-   │   └── ...
-   ├── MoistRegTests/          # Moist atmospheric regression tests
    │   ├── Bubble/
+   │   └── ...
+   ├── CanonicalFlows/         # Canonical atmospheric flows
+   │   ├── Bomex/
    │   ├── SquallLine/
    │   └── ...
    └── DevTests/               # Development and experimental features
-       ├── MovingTerrain/
+       ├── ...
        └── ...
 
 Each problem directory contains a README describing its purpose and functionality.
@@ -126,7 +127,7 @@ Then set ``USE_SHOC=TRUE`` or ``USE_P3=TRUE`` in your GNUmakefile (step 4).
 
 .. code-block:: bash
 
-   cd ERF/Exec/DryRegTests/IsentropicVortex/
+   cd ERF/Exec/RegTests/IsentropicVortex/
 
 **4. Edit GNUmakefile**
 
@@ -248,9 +249,9 @@ Set build variables in the ``GNUmakefile``:
    .. literalinclude:: ../../Exec/ABL/GNUmakefile
       :language: makefile
 
-   **Exec/DryRegTests/IsentropicVortex/GNUmakefile:**
+   **Exec/RegTests/IsentropicVortex/GNUmakefile:**
 
-   .. literalinclude:: ../../Exec/DryRegTests/IsentropicVortex/GNUmakefile
+   .. literalinclude:: ../../Exec/RegTests/IsentropicVortex/GNUmakefile
       :language: makefile
 
 **5. Build**
@@ -259,7 +260,7 @@ Set build variables in the ``GNUmakefile``:
 
    make
 
-The executable name encodes build characteristics (dimensionality, compiler, parallelization). For example, in ``Exec/DryRegTests/IsentropicVortex`` with ``COMP=gnu`` and ``USE_MPI=TRUE``, the executable is ``ERF3d.gnu.MPI.ex``. Multiple build configurations can coexist in the same directory.
+The executable name encodes build characteristics (dimensionality, compiler, parallelization). For example, in ``Exec/RegTests/IsentropicVortex`` with ``COMP=gnu`` and ``USE_MPI=TRUE``, the executable is ``ERF3d.gnu.MPI.ex``. Multiple build configurations can coexist in the same directory.
 
 **6. Verify Build (Optional)**
 
@@ -713,7 +714,7 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
    - ``perlmutter_erf.profile`` - NERSC Perlmutter (NVIDIA A100)
    - ``frontier_erf.profile`` - OLCF Frontier (AMD MI250X)
    - ``polaris_erf.profile`` - ALCF Polaris (NVIDIA A100)
-   - ``aurora_erf.profile`` - ALCF Aurora (Intel GPUs)
+   - ``aurora_erf.profile`` - ALCF Aurora (Intel GPUs); expects ``NETCDF_DIR`` for NetCDF-enabled builds
 
    These profiles are shell scripts that load required modules and set environment variables. Source them before running CMake. For detailed information, see :ref:`sec:build:hpc`.
 

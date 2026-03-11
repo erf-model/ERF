@@ -470,6 +470,19 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
            Define_ERFFillPatchers(lev);
     }
 
+    // ********************************************************************************************
+    // For anelastic levels created from coarse (either on restart or during a run), project the
+    // interpolated velocity to enforce the divergence-free constraint. This Initializes gradp[lev]
+    // via the pressure projection, handling both the pure-anelastic case and the hybrid case
+    // (compressible lev-1, anelastic lev) where there is no coarse gradp to interpolate.
+    // FillPatchers must be constructed above before this call. pp_inc is scratch; zero afterward.
+    // ********************************************************************************************
+    if (solverChoice.anelastic[lev]) {
+        Real dummy_dt = 1.0;
+        project_initial_velocity(lev, time, dummy_dt);
+        pp_inc[lev].setVal(0.0);
+    }
+
     //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
@@ -505,6 +518,15 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                                                    Hwave[lev].get(), Lwave[lev].get(), eddyDiffs_lev[lev].get(),
                                                    lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
                                                    sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+    }
+
+    // ********************************************************************************************
+    // Set up the Rayleigh damping vectors at this (new) level
+    // ********************************************************************************************
+    if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
+    {
+        initRayleigh_at_level(lev);
     }
 
 #ifdef ERF_USE_PARTICLES
@@ -774,6 +796,15 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                                                    Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
                                                    lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
                                                    sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+    }
+
+    // ********************************************************************************************
+    // Set up the Rayleigh damping vectors at this (new) level
+    // ********************************************************************************************
+    if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
+    {
+        initRayleigh_at_level(lev);
     }
 
 #ifdef ERF_USE_PARTICLES

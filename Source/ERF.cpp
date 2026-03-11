@@ -133,6 +133,7 @@ Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
 #ifdef ERF_USE_NETCDF
 Real read_start_time_from_wrfinput (int lev, const std::string& fname);
+Real read_start_time_from_metgrid  (int lev, const std::string& fname);
 #endif
 
 // constructor - reads in parameters from inputs file
@@ -364,7 +365,7 @@ ERF::ERF_shared ()
     // Stresses
     Tau.resize(nlevs_max);
     Tau_corr.resize(nlevs_max);
-    SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
+    SFS_hfx1_lev.resize(nlevs_max);  SFS_hfx2_lev.resize(nlevs_max);  SFS_hfx3_lev.resize(nlevs_max);
     SFS_diss_lev.resize(nlevs_max);
     SFS_q1fx1_lev.resize(nlevs_max); SFS_q1fx2_lev.resize(nlevs_max); SFS_q1fx3_lev.resize(nlevs_max);
     SFS_q2fx3_lev.resize(nlevs_max);
@@ -477,6 +478,14 @@ ERF::ERF_shared ()
         cosPhi_m[lev] = nullptr;
     }
 
+    // Rayleigh damping
+    h_rayleigh_ptrs.resize(nlevs_max);
+    d_rayleigh_ptrs.resize(nlevs_max);
+    h_sinesq_ptrs.resize(nlevs_max);
+    d_sinesq_ptrs.resize(nlevs_max);
+    h_sinesq_stag_ptrs.resize(nlevs_max);
+    d_sinesq_stag_ptrs.resize(nlevs_max);
+
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
@@ -500,8 +509,8 @@ ERF::ERF_shared ()
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
         std::string geometry ="terrain";
-        ParmParse pp("eb2");
-        pp.queryAdd("geometry", geometry);
+        ParmParse pp_eb2("eb2");
+        pp_eb2.queryAdd("geometry", geometry);
 
         constexpr int ngrow_for_eb = 4;  // This is the default in amrex but we need to explicitly pass it here since
                                // we want to also pass the build_coarse_level_by_coarsening argument
@@ -542,8 +551,8 @@ ERF::ERF_shared ()
         } else if (geometry == "box") {
             RealArray box_lo{0.0, 0.0, 0.0};
             RealArray box_hi{0.0, 0.0, 0.0};
-            pp.query("box_lo", box_lo);
-            pp.query("box_hi", box_hi);
+            pp_eb2.query("box_lo", box_lo);
+            pp_eb2.query("box_hi", box_hi);
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
             if (build_eb_for_multigrid) {
@@ -618,7 +627,7 @@ ERF::Evolve ()
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_bndry_planes)
         {
-            m_r2d->read_input_files(cur_time,dt[0],m_bc_extdir_vals);
+            m_r2d->read_input_files(cur_time+start_time,dt[0],m_bc_extdir_vals);
         }
 
 #ifdef ERF_USE_PARTICLES
@@ -888,7 +897,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
           time >= bndry_output_planes_start_time)
       {
          bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-         m_w2d->write_planes(istep[0], time, vars_new, is_moist);
+         m_w2d->write_planes(istep[0], time+start_time, vars_new, is_moist);
       }
     }
 
@@ -1190,7 +1199,7 @@ ERF::InitData_post ()
 
         // We haven't populated dt yet, set to 0 to ensure assert doesn't crash
         Real dt_dummy = 0.0;
-        m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
+        m_r2d->read_input_files(t_new[0]+start_time,dt_dummy,m_bc_extdir_vals);
     }
 
     if (solverChoice.custom_rhotheta_forcing)
@@ -1284,7 +1293,9 @@ ERF::InitData_post ()
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
         solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
-        initRayleigh();
+        for (int lev = 0; lev <= finest_level; lev++) {
+            initRayleigh_at_level(lev);
+        }
         if (solverChoice.init_type == InitType::Input_Sounding)
         {
             // Overwrite ubar, vbar, and thetabar with input profiles;
@@ -1317,10 +1328,10 @@ ERF::InitData_post ()
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
-        Real time = 0.;
-        if (time >= bndry_output_planes_start_time) {
+        Real tot_time = t_new[0]+start_time;
+        if (tot_time >= bndry_output_planes_start_time) {
             bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-            m_w2d->write_planes(0, time, vars_new, is_moist);
+            m_w2d->write_planes(0, tot_time, vars_new, is_moist);
         }
     }
 
@@ -1899,10 +1910,19 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                               domain_bcs_type, BCVars::cons_bc);
     }
     if (sst_lev[lev-1][0] && !sst_lev[lev][0]) {
-        int ntimes = sst_lev[lev-1].size();
-        sst_lev[lev].resize(ntimes);
+        sst_lev[lev].resize(sst_lev[lev-1].size());
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
+#else
+        // TODO: Fix if SST is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
         auto ngv = sst_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
-        for (int n = 0; n < ntimes; n++) {
+
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
             sst_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
             InterpFromCoarseLevel(*sst_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
                                   *sst_lev[lev-1][n], 0, 0, 1,
@@ -1912,10 +1932,19 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         }
     }
     if (tsk_lev[lev-1][0] && !tsk_lev[lev][0]) {
-        int ntimes = tsk_lev[lev-1].size();
-        tsk_lev[lev].resize(ntimes);
+        tsk_lev[lev].resize(tsk_lev[lev-1].size());
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
+#else
+        // TODO: Fix if TSK is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
         auto ngv = tsk_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
-        for (int n = 0; n < ntimes; n++) {
+
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
             tsk_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
             InterpFromCoarseLevel(*tsk_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
                                   *tsk_lev[lev-1][n], 0, 0, 1,
@@ -1978,8 +2007,16 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
     } // cosPhi
     if (sst_lev[lev][0]) {
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-    int ntimes = sst_lev[lev].size();
-    for (int n = 0; n < ntimes; n++) {
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
+#else
+        // TODO: Fix if SST is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
             Vector<MultiFab*> fmf = {sst_lev[lev  ][n].get(), sst_lev[lev  ][n].get()};
             Vector<MultiFab*> cmf = {sst_lev[lev-1][n].get(), sst_lev[lev-1][n].get()};
             IntVect ngv = sst_lev[lev][n]->nGrowVect(); ngv[2] = 0;
@@ -1993,8 +2030,16 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
     } // sst_lev
     if (tsk_lev[lev][0]) {
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-    int ntimes = tsk_lev[lev].size();
-    for (int n = 0; n < ntimes; n++) {
+#ifdef ERF_USE_NETCDF
+        Real time_since_start_low = t_new[0] + start_time - start_low_time;
+        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
+#else
+        // TODO: Fix if TSK is provided without NETCDF
+        int n_time_old       = 0;
+        int ntimes_to_interp = 1;
+#endif
+        for (int n = n_time_old; n < ntimes_to_interp; n++) {
             Vector<MultiFab*> fmf = {tsk_lev[lev  ][n].get(), tsk_lev[lev  ][n].get()};
             Vector<MultiFab*> cmf = {tsk_lev[lev-1][n].get(), tsk_lev[lev-1][n].get()};
             IntVect ngv = tsk_lev[lev][n]->nGrowVect(); ngv[2] = 0;
@@ -2629,6 +2674,15 @@ ERF::ReadParameters ()
                                        start_time_from_wrfinput << std::endl;
                     amrex::Abort();
                 }
+            } else if (solverChoice.init_type == InitType::Metgrid) {
+                // This is the start time as written in the metgrid file
+                Real start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
+                if (start_time != start_time_from_metgrid) {
+                    amrex::Print() << "start_datetime from inputs file = "       << start_time <<
+                                      " does not match SIMULATION START DATE from metgrid = " <<
+                                       start_time_from_metgrid << std::endl;
+                    amrex::Abort();
+                }
             }
 #endif
             Print() << "Start datetime   : " << start_datetime << std::endl;
@@ -2647,6 +2701,17 @@ ERF::ReadParameters ()
 
                 if (pp_no_prefix.query("start_time", start_time)) {
                     amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput" << std::endl;
+                    amrex::Abort();
+                }
+            } else if (solverChoice.init_type == InitType::Metgrid) {
+                // This is the start time as written in the metgrid file
+                Real start_time_from_metgrid = read_start_time_from_metgrid(0, nc_init_file[0][0]);
+                start_time = start_time_from_metgrid;
+
+                use_datetime = true;
+
+                if (pp_no_prefix.query("start_time", start_time)) {
+                    amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from metgrid" << std::endl;
                     amrex::Abort();
                 }
             }
@@ -2680,7 +2745,7 @@ ERF::ReadParameters ()
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(( (solverChoice.init_type != InitType::WRFInput) &&
                                        (solverChoice.init_type != InitType::Metgrid ) &&
                                        (solverChoice.init_type != InitType::NCFile  )  ),
-                                     "init_type cannot be 'WRFInput', 'MetGrid' or 'NCFile' if we don't build with netcdf!");
+                                     "init_type cannot be 'WRFInput', 'Metgrid' or 'NCFile' if we don't build with netcdf!");
 #endif
 
     // Query the canopy model file name
@@ -3144,7 +3209,18 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
         const Array4<Real> &s_arr  = S.array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            const Real rho      = s_arr(i, j, k, Rho_comp);
             const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
+
+            if (rho <= 0.) {
+#ifdef AMREX_USE_GPU
+                AMREX_DEVICE_PRINTF("Rho is negative at %d %d %d %e \n", i,j,k,rho);
+#else
+                printf("Rho is negative at %d %d %d %e \n", i,j,k,rho);
+                Abort("Bad rho in check_for_negative_theta");
+#endif
+            }
+
             if (rhotheta <= 0.) {
 #ifdef AMREX_USE_GPU
                 AMREX_DEVICE_PRINTF("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
@@ -3153,6 +3229,7 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
                 Abort("Bad theta in check_for_negative_theta");
 #endif
             }
+
             });
     } // mfi
 }

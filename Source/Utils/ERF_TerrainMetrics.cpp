@@ -287,9 +287,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
         MultiFab mf2d;
         {
             BoxList bl2d = h_mf.boxArray().boxList();
-            for (auto& b : bl2d) {
-                b.setRange(2,0);
-            }
+            for (auto& b : bl2d) { b.setRange(2,b.smallEnd(2)); }
             BoxArray ba2d(std::move(bl2d));
             mf2d = MultiFab(ba2d, h_mf.DistributionMap(), 1, ngrow, MFInfo().SetAlloc(false));
         }

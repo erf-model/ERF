@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-erf.prob_name = "Moving Terrain with Acoustic Substepping"
+erf.prob_name = "Moving Terrain"
 
 erf.init_type = Isentropic
 
@@ -68,3 +68,5 @@ erf.les_type   = "None"
 
 # PROBLEM PARAMETERS (optional)
 prob.Ampl = 0.16
+prob.wavelength = 100.0;
+prob.T_0  = 300.;

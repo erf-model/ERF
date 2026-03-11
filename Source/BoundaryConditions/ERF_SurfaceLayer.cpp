@@ -55,14 +55,14 @@ SurfaceLayer::update_fluxes (const int& lev,
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
             if (rough_type_land == RoughCalcType::CONSTANT) {
                 surface_flux most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
             }
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             if (rough_type_land == RoughCalcType::CONSTANT) {
                 surface_temp most_flux(surf_temp_flux, surf_moist_flux, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
             }
@@ -70,7 +70,7 @@ SurfaceLayer::update_fluxes (const int& lev,
                    (moist_type == MoistCalcType::ADIABATIC)) {
             if (rough_type_land == RoughCalcType::CONSTANT) {
                 adiabatic most_flux(surf_temp_flux, surf_moist_flux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_land");
             }
@@ -94,19 +94,19 @@ SurfaceLayer::update_fluxes (const int& lev,
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
                 surface_flux_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                                 cnk_a, cnk_visc, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 surface_flux_mod_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                                     depth, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::DONELAN) {
                 surface_flux_donelan most_flux(surf_temp_flux, surf_moist_flux,
                                                cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 surface_flux_wave_coupled most_flux(surf_temp_flux, surf_moist_flux,
                                                     cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_sea");
             }
@@ -115,19 +115,19 @@ SurfaceLayer::update_fluxes (const int& lev,
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
                 surface_temp_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                                 cnk_a, cnk_visc, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 surface_temp_mod_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                                     depth, cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::DONELAN) {
                 surface_temp_donelan most_flux(surf_temp_flux, surf_moist_flux,
                                                cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 surface_temp_wave_coupled most_flux(surf_temp_flux, surf_moist_flux,
                                                     cons_qflux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_sea");
             }
@@ -137,17 +137,17 @@ SurfaceLayer::update_fluxes (const int& lev,
             if (rough_type_sea == RoughCalcType::CHARNOCK) {
                 adiabatic_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                              cnk_a, cnk_visc);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
                 adiabatic_mod_charnock most_flux(surf_temp_flux, surf_moist_flux,
                                                  depth);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::DONELAN) {
                 adiabatic_donelan most_flux(surf_temp_flux, surf_moist_flux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
                 adiabatic_wave_coupled most_flux(surf_temp_flux, surf_moist_flux);
-                compute_fluxes(lev, max_iters, most_flux, is_land);
+                compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
             } else {
                 amrex::Abort("Unknown value for rough_type_sea");
             }
@@ -173,24 +173,30 @@ SurfaceLayer::update_fluxes (const int& lev,
     if (m_update_k_rans) {
         const bool use_ref_theta = (theta_ref > 0);
         const Real l_inv_theta0  = (use_ref_theta) ? 1.0 / theta_ref : 1.0;
-        const Real l_inv_Cmu2 = inv_Cmu2;
+        const Real l_inv_Cmu2    = inv_Cmu2;
+        const int klo = m_geom[lev].Domain().smallEnd(2);
+        IntVect ng = u_star[lev]->nGrowVect(); ng[2] = 0;
 
-        for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+        for (MFIter mfi(cons_in); mfi.isValid(); ++mfi)
         {
-            Box gtbx = mfi.growntilebox();
+            Box gpbx = mfi.tilebox(IntVect(0),ng);
+
+            if (gpbx.smallEnd(2) != klo) { continue; }
+
+            gpbx.makeSlab(2,klo);
 
             auto cons_arr = cons_in.array(mfi);
             const auto& u_star_arr = u_star[lev]->const_array(mfi);
             const auto& t_star_arr = t_star[lev]->const_array(mfi);
-            const auto& dist_arr = walldist->const_array(mfi);
+            const auto& dist_arr   = walldist->const_array(mfi);
 
-            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 Real rho = cons_arr(i,j,k,Rho_comp);
-                if (t_star_arr(i,j,k) < -1e-8) {
+                if (t_star_arr(i,j,0) < -1e-8) {
                     // Only destabilizing buoyancy flux affects the boundary k
                     // tstar < 0 ==> B > 0
-                    Real B = -CONST_GRAV * l_inv_theta0 * u_star_arr(i,j,k) * t_star_arr(i,j,k);
+                    Real B = -CONST_GRAV * l_inv_theta0 * u_star_arr(i,j,0) * t_star_arr(i,j,0);
                     if (!use_ref_theta) {
                         B *= cons_arr(i,j,k,Rho_comp) /
                              cons_arr(i,j,k,RhoTheta_comp);
@@ -199,11 +205,11 @@ SurfaceLayer::update_fluxes (const int& lev,
                     // Axell & Liungman 2001, Eqn. 16
                     cons_arr(i,j,k,RhoKE_comp) = rho * l_inv_Cmu2 *
                         std::pow(
-                            u_star_arr(i,j,k) * u_star_arr(i,j,k) * u_star_arr(i,j,k)
+                            u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0)
                             + KAPPA * B * dist_arr(i,j,k),
                         2.0/3.0);
                 } else {
-                    cons_arr(i,j,k,RhoKE_comp) = rho * l_inv_Cmu2 * u_star_arr(i,j,k) * u_star_arr(i,j,k);
+                    cons_arr(i,j,k,RhoKE_comp) = rho * l_inv_Cmu2 * u_star_arr(i,j,0) * u_star_arr(i,j,0);
                 }
             });
         }
@@ -221,6 +227,7 @@ template <typename FluxIter>
 void
 SurfaceLayer::compute_fluxes (const int& lev,
                               const int& max_iters,
+                              MultiFab& cons_in,
                               const FluxIter& most_flux,
                               bool is_land)
 {
@@ -231,9 +238,16 @@ SurfaceLayer::compute_fluxes (const int& lev,
     const auto *const umm_ptr  = m_ma.get_average(lev,5); // horizontal velocity magnitude
     const auto *const zref_ptr = m_ma.get_zref(lev);     // reference height
 
-    for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+    IntVect ng = u_star[lev]->nGrowVect(); ng[2] = 0;
+
+    for (MFIter mfi(cons_in); mfi.isValid(); ++mfi)
     {
-        Box gtbx = mfi.growntilebox();
+        Box gtbx = mfi.tilebox(IntVect(0),ng);
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
+
+        gtbx.makeSlab(2,klo);
 
         auto u_star_arr = u_star[lev]->array(mfi);
         auto t_star_arr = t_star[lev]->array(mfi);
@@ -263,12 +277,13 @@ SurfaceLayer::compute_fluxes (const int& lev,
         auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
                                                        Array4<int> {};
 
-        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
         {
-            if (( is_land && lmask_arr(i,j,k) == 1) ||
-                (!is_land && lmask_arr(i,j,k) == 0))
+            if (( is_land && lmask_arr(i,j,0) == 1) ||
+                (!is_land && lmask_arr(i,j,0) == 0))
             {
-                most_flux.iterate_flux(i, j, k, max_iters,
+                // NOTE: All 2D MFs so k index is always 0 from ba2d definition
+                most_flux.iterate_flux(i, j, 0, max_iters,
                                        zref_arr,                            // set in most average
                                        z0_arr,                              // updated if(!is_land)
                                        umm_arr, tm_arr, tvm_arr, qvm_arr,
@@ -620,10 +635,14 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     bool use_tsk = (m_tsk_lev[lev][0]);
     bool ignore_sst = m_ignore_sst;
 
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
     // Populate t_surf
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
 
@@ -670,9 +689,12 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
 
     // Populate q_surf with qsat over water
     auto dz = m_geom[lev].CellSize(2);
+    const int klo = m_geom[lev].Domain().smallEnd(2);
     for (MFIter mfi(*q_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto q_surf_arr = q_surf[lev]->array(mfi);
@@ -704,9 +726,12 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
 void
 SurfaceLayer::get_lsm_tsurf (const int& lev)
 {
+    const int klo = m_geom[lev].Domain().smallEnd(2);
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
 
         // NOTE: LSM does not carry lateral ghost cells.
         //       This copies the valid box into the ghost cells.
@@ -769,23 +794,55 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
 {
     Print() << "Initializing TKE from surface layer ustar on level " << lev << std::endl;
 
-    constexpr Real small = 0.01;
-
+    // Handle vertical decomposition by selectively copying into
+    // a FArrayBox section on each rank. Then doing a reduce real sum
+    // and broadcasting to each rank. No mask since all CC data
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+    Box bx_lo = u_star[lev]->boxArray().minimalBox();
+    FArrayBox u_star_lo(bx_lo, 1); u_star_lo.setVal<RunOn::Device>(0.);
+    FArrayBox z_surf_lo(bx_lo, 1); z_surf_lo.setVal<RunOn::Device>(0.);
+    Real* ustar_ptr = u_star_lo.dataPtr();
+    Real* zsurf_ptr = z_surf_lo.dataPtr();
     for (MFIter mfi(cons); mfi.isValid(); ++mfi)
     {
-        Box gtbx = mfi.tilebox();
+        Box vbx = mfi.validbox();
+        if (vbx.smallEnd(2) != klo) { continue; }
+        vbx.makeSlab(2,0);
 
         auto const& u_star_arr = u_star[lev]->const_array(mfi);
+        auto        u_star_all = u_star_lo.array();
+
+        auto const& z_phys_arr = z_phys_nd->const_array(mfi);
+        auto        z_surf_all = z_surf_lo.array();
+
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
+        {
+            u_star_all(i,j,0) = u_star_arr(i,j,0);
+            z_surf_all(i,j,0) = 0.25 * ( z_phys_arr(i  ,j  ,klo) + z_phys_arr(i+1,j  ,klo)
+                                       + z_phys_arr(i  ,j+1,klo) + z_phys_arr(i+1,j+1,klo) );
+        });
+    }
+    ParallelDescriptor::ReduceRealSum(ustar_ptr, bx_lo.numPts());
+    ParallelDescriptor::ReduceRealSum(zsurf_ptr, bx_lo.numPts());
+
+    // Now work on all boxes (ustar has been filled above)
+    constexpr Real small = 0.01;
+    for (MFIter mfi(cons); mfi.isValid(); ++mfi)
+    {
+        Box vbx  = mfi.validbox();
+
+        auto const& u_star_arr = u_star_lo.const_array();
+        auto const& z_surf_arr = z_surf_lo.const_array();
         auto const& z_phys_arr = z_phys_nd->const_array(mfi);
 
         auto const& cons_arr   = cons.array(mfi);
 
-        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            Real rho = cons_arr(i, j, k, Rho_comp);
-            Real ust = u_star_arr(i, j, 0);
+            Real rho  = cons_arr(i, j, k, Rho_comp);
+            Real ust  = u_star_arr(i, j, 0);
             Real tke0 = tkefac * ust * ust; // surface value
-            Real zagl = Compute_Zrel_AtCellCenter(i, j, k, z_phys_arr);
+            Real zagl = Compute_Z_AtCellCenter(i, j, k, z_phys_arr) - z_surf_arr(i,j,0);
 
             // linearly tapering profile --  following WRF, approximate top of
             // PBL as ustar * zscale
@@ -844,9 +901,12 @@ SurfaceLayer::read_custom_roughness (const int& lev,
         Real* z0p = d_z0.data();
 
         // Each rank populates it's z_0[lev] MultiFab
+        const int klo = m_geom[lev].Domain().smallEnd(2);
         for (MFIter mfi(z_0[lev]); mfi.isValid(); ++mfi)
         {
             Box gtbx = mfi.growntilebox();
+
+            if (gtbx.smallEnd(2) != klo) { continue; }
 
             // Populate z_phys data
             Real tol = 1.0e-4;
@@ -854,7 +914,6 @@ SurfaceLayer::read_custom_roughness (const int& lev,
             auto ProbLoArr = m_geom[lev].ProbLoArray();
             int ilo = m_geom[lev].Domain().smallEnd(0);
             int jlo = m_geom[lev].Domain().smallEnd(1);
-            int klo = 0;
             int ihi = m_geom[lev].Domain().bigEnd(0);
             int jhi = m_geom[lev].Domain().bigEnd(1);
 

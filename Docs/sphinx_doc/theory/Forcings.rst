@@ -144,7 +144,7 @@ ed in a problem-specific manner. The density and the :math:`x, y, z` velocities 
 
 Another way of specifying sponge zones is by providing the sponge zone data as a text file input. This is currently implemented only for forcing :math:`x` and :math:`y` velocities in the sponge zones.
 The sponge data is input as a text file with 3 columns containing :math:`z, u, v` values.
-An example can be found in ``Exec/DryRegTests/WitchOfAgnesi`` and a sample inputs list for using this feature is given below.
+An example can be found in ``Exec/CanonicalFlows/WitchOfAgnesi`` and a sample inputs list for using this feature is given below.
 This list specifies a sponge zone in the inlet in the x-direction.
 The :math:`u` and :math:`v` velocity forcing in the sponge zones will be read in from the text file -- `input_sponge_file.txt`.
 
@@ -209,7 +209,7 @@ The following inputs are available when representing terrain using immersed forc
         erf.if_use_most                = BOOL
         erf.immersed_forcing_substep   = BOOL
 
-An example of using immersed forcing for a Witch of Agnesi hill is available in ``Exec/ABL/immersed_forcing``.
+An example of using immersed forcing for a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
 
 .. note:: When using fully compressible simulations, it is recommended to apply immersed forcing on the substep for numerical stability.
 
@@ -244,7 +244,7 @@ However, currently, the user must specify the z-coordinates using ``erf.terrain_
 In the future, this requirement will be removed.
 Note that the volume fraction is calculated prior to the grid transformation; therefore, building heights when located in steep terrain should be considered approximate.
 
-An example of immersed forcing for a building located on top of a Witch of Agnesi hill is available in ``Exec/ABL/immersed_forcing``.
+An example of immersed forcing for a building located on top of a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
 
 
 Problem-Specific Forcing
