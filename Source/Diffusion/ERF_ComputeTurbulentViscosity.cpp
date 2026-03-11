@@ -131,7 +131,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 Real nu_turb_base_v = CsDeltaSqr_v * strain_rate_magnitude;
 
                 Real stability_factor = 1.0;
-                
+
                 if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
                     Real N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
                     Real S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
@@ -146,7 +146,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                     mu_turb(i, j, k, EddyDiff::Mom_h) = rho * nu_turb_base_h;
                     mu_turb(i, j, k, EddyDiff::Mom_v) = rho * nu_turb_base_v * stability_factor;
                 }
-                
+
                 Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                         - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
 
@@ -362,7 +362,7 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
     bool use_thetal_grad = (turbChoice.strat_type == StratType::thetal);
 
     bool isotropic = turbChoice.mix_isotropic;
-    
+
     AMREX_ASSERT(turbChoice.les_type == LESType::Smagorinsky);
 
     // SMAGORINSKY: Fill Kturb for momentum in horizontal and vertical
@@ -445,7 +445,7 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                 Real nu_turb_base_v = CsDeltaSqr_v * strain_rate_magnitude;
 
                 Real stability_factor = 1.0;
-                
+
                 if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
                     Real N2 = 0.0;
                     Real S2_vert = 0.0;
@@ -471,7 +471,7 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                 amrex::Real theta_km1 = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
                 amrex::Real theta_kp1 = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
                 Real dtheta_dz = 0.0;
-                
+
                 if (c_cflag(i,j,k).isRegular()) {
                     dtheta_dz = 0.5 * ( theta_kp1 - theta_km1 )*dzInv;
                 } else if (c_cflag(i,j,k).isSingleValued()) {

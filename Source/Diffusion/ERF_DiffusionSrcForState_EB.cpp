@@ -50,7 +50,7 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
                         const Array4<const Real>& ax_arr,
                         const Array4<const Real>& ay_arr,
                         const Array4<const Real>& az_arr,
-                        const Array4<const Real>& detJ,                        
+                        const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                         const Array4<const Real>& SmnSmn_a,
                         const Array4<const Real>& mf_mx,
@@ -238,7 +238,7 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
         if (!cfg_arr(i,j,k).isCovered()) {
             cell_rhs(i,j,k,qty_index) -= ((ax_arr(i+1,j,k) * xflux(i+1,j  ,k  ) - ax_arr(i,j,k) * xflux(i, j, k)) * dx_inv
                                         +(ay_arr(i,j+1,k) * yflux(i  ,j+1,k  ) - ay_arr(i,j,k) * yflux(i, j, k)) * dy_inv
-                                        +(az_arr(i,j,k+1) * zflux(i  ,j  ,k+1) - az_arr(i,j,k) * zflux(i, j, k)) * dz_inv) 
+                                        +(az_arr(i,j,k+1) * zflux(i  ,j  ,k+1) - az_arr(i,j,k) * zflux(i, j, k)) * dz_inv)
                                         / detJ(i,j,k);
         }
     });

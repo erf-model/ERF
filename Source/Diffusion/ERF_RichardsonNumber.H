@@ -311,19 +311,19 @@ ComputeVerticalShear2_EB(int i, int j, int k,
     amrex::Real du_dz;
     amrex::Real dv_dz;
 
-    amrex::Real u_c = ( u_vfrac(i,j,k) * u(i, j, k) + u_vfrac(i+1,j,k) * u(i+1, j, k) ) 
+    amrex::Real u_c = ( u_vfrac(i,j,k) * u(i, j, k) + u_vfrac(i+1,j,k) * u(i+1, j, k) )
                     / ( u_vfrac(i,j,k) + u_vfrac(i+1,j,k) );
     amrex::Real v_c = ( v_vfrac(i,j,k) * v(i, j, k) + v_vfrac(i,j+1,k) * v(i, j+1, k) )
                     / ( v_vfrac(i,j,k) + v_vfrac(i,j+1,k) );
 
     if (c_cflag(i,j,k+1).isCovered()) {
-        amrex::Real u_c_km1 = ( u_vfrac(i,j,k-1) * u(i, j, k-1) + u_vfrac(i+1,j,k-1) * u(i+1, j, k-1) ) 
+        amrex::Real u_c_km1 = ( u_vfrac(i,j,k-1) * u(i, j, k-1) + u_vfrac(i+1,j,k-1) * u(i+1, j, k-1) )
                             / ( u_vfrac(i,j,k-1) + u_vfrac(i+1,j,k-1) );
-        amrex::Real u_c_km2 = ( u_vfrac(i,j,k-2) * u(i, j, k-2) + u_vfrac(i+1,j,k-2) * u(i+1, j, k-2) ) 
+        amrex::Real u_c_km2 = ( u_vfrac(i,j,k-2) * u(i, j, k-2) + u_vfrac(i+1,j,k-2) * u(i+1, j, k-2) )
                             / ( u_vfrac(i,j,k-2) + u_vfrac(i+1,j,k-2) );
-        amrex::Real v_c_km1 = ( v_vfrac(i,j,k-1) * v(i, j, k-1) + v_vfrac(i,j+1,k-1) * v(i, j+1, k-1) ) 
+        amrex::Real v_c_km1 = ( v_vfrac(i,j,k-1) * v(i, j, k-1) + v_vfrac(i,j+1,k-1) * v(i, j+1, k-1) )
                             / ( v_vfrac(i,j,k-1) + v_vfrac(i,j+1,k-1) );
-        amrex::Real v_c_km2 = ( v_vfrac(i,j,k-2) * v(i, j, k-2) + v_vfrac(i,j+1,k-2) * v(i, j+1, k-2) ) 
+        amrex::Real v_c_km2 = ( v_vfrac(i,j,k-2) * v(i, j, k-2) + v_vfrac(i,j+1,k-2) * v(i, j+1, k-2) )
                             / ( v_vfrac(i,j,k-2) + v_vfrac(i,j+1,k-2) );
         du_dz = (3.*u_c - 4.*u_c_km1 + u_c_km2) * 0.5 * dzInv;
         dv_dz = (3.*v_c - 4.*v_c_km1 + v_c_km2) * 0.5 * dzInv;
@@ -340,7 +340,7 @@ ComputeVerticalShear2_EB(int i, int j, int k,
         du_dz = (-u_c_kp2 + 4.*u_c_kp1 - 3.*u_c) * 0.5 * dzInv;
         dv_dz = (-v_c_kp2 + 4.*v_c_kp1 - 3.*v_c) * 0.5 * dzInv;
     } else {
-        amrex::Real u_c_km1 = ( u_vfrac(i,j,k-1) * u(i, j, k-1) + u_vfrac(i+1,j,k-1) * u(i+1, j, k-1) ) 
+        amrex::Real u_c_km1 = ( u_vfrac(i,j,k-1) * u(i, j, k-1) + u_vfrac(i+1,j,k-1) * u(i+1, j, k-1) )
                             / ( u_vfrac(i,j,k-1) + u_vfrac(i+1,j,k-1) );
         amrex::Real u_c_kp1 = ( u_vfrac(i,j,k+1) * u(i, j, k+1) + u_vfrac(i+1,j,k+1) * u(i+1, j, k+1) )
                             / ( u_vfrac(i,j,k+1) + u_vfrac(i+1,j,k+1) );
