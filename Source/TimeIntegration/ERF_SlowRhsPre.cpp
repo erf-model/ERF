@@ -620,12 +620,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr,
-                                       dxInv, SmnSmn_a,
-                                       mf_mx, mf_ux, mf_vx,
-                                       mf_my, mf_uy, mf_vy,
-                                       hfx_z, q1fx_z, q2fx_z, diss,
+                                       dxInv,
+                                       hfx_z, q1fx_z, q2fx_z,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer);
+                                       bc_ptr_d, l_use_SurfLayer);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,

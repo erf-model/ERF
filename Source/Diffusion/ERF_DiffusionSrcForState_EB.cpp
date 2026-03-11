@@ -19,18 +19,12 @@ using namespace amrex;
  * @param[in]  yflux flux in y-dir
  * @param[in]  zflux flux in z-dir
  * @param[in]  cellSizeInv inverse cell size array
- * @param[in]  SmnSmn_a strain rate magnitude
- * @param[in]  mf_m map factor at cell center
- * @param[in]  mf_u map factor at x-face
- * @param[in]  mf_v map factor at y-face
  * @param[inout]  hfx_z heat flux in z-dir
  * @param[inout]  qfx1_z heat flux in z-dir
  * @param[out]    qfx2_z heat flux in z-dir
- * @param[in]  diss dissipation of TKE
  * @param[in]  mu_turb turbulent viscosity
  * @param[in]  diffChoice container of diffusion parameters
  * @param[in]  turbChoice container of turbulence parameters
- * @param[in]  tm_arr theta mean array
  * @param[in]  grav_gpu gravity vector
  * @param[in]  bc_ptr container with boundary conditions
  * @param[in]  use_SurfLayer whether we have turned on subgrid diffusion
@@ -52,22 +46,12 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
                         const Array4<const Real>& az_arr,
                         const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                        const Array4<const Real>& SmnSmn_a,
-                        const Array4<const Real>& mf_mx,
-                        const Array4<const Real>& mf_ux,
-                        const Array4<const Real>& mf_vx,
-                        const Array4<const Real>& mf_my,
-                        const Array4<const Real>& mf_uy,
-                        const Array4<const Real>& mf_vy,
-                              Array4<      Real>& hfx_z,
-                              Array4<      Real>& qfx1_z,
-                              Array4<      Real>& qfx2_z,
-                              Array4<      Real>& diss,
+                        [[maybe_unused]] Array4<Real>& hfx_z,
+                        [[maybe_unused]] Array4<Real>& qfx1_z,
+                        [[maybe_unused]] Array4<Real>& qfx2_z,
                         const Array4<const Real>& mu_turb,
                         const SolverChoice &solverChoice,
                         const int level,
-                        const Array4<const Real>& tm_arr,
-                        const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const BCRec* bc_ptr,
                         const bool use_SurfLayer)
 {
@@ -112,11 +96,11 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
             if (ext_dir_on_xlo) {
                 xflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i-1, j, k, prim_index)
                                                  + 3. * cell_prim(i  , j, k, prim_index)
-                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
+                                            - (1./3.) * cell_prim(i+1, j, k, prim_index) ) * dx_inv;
             } else if (ext_dir_on_xhi) {
                 xflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i  , j, k, prim_index)
                                                  - 3. * cell_prim(i-1, j, k, prim_index)
-                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv * mf_ux(i,j,0)/mf_uy(i,j,0);
+                                            + (1./3.) * cell_prim(i-2, j, k, prim_index) ) * dx_inv;
             } else {
                 if (cfg_arr(i,j,k).isCovered()) {
                     xflux(i,j,k) = -rhoAlpha * ( cell_prim(i-3, j, k, prim_index)
@@ -154,11 +138,11 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
             if (ext_dir_on_ylo) {
                 yflux(i,j,k) = -rhoAlpha * ( -(8./3.) * cell_prim(i, j-1, k, prim_index)
                                                  + 3. * cell_prim(i, j  , k, prim_index)
-                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
+                                            - (1./3.) * cell_prim(i, j+1, k, prim_index) ) * dy_inv;
             } else if (ext_dir_on_yhi) {
                 yflux(i,j,k) = -rhoAlpha * (  (8./3.) * cell_prim(i, j  , k, prim_index)
                                                  - 3. * cell_prim(i, j-1, k, prim_index)
-                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv * mf_vy(i,j,0)/mf_vx(i,j,0);
+                                            + (1./3.) * cell_prim(i, j-2, k, prim_index) ) * dy_inv;
             } else {
                 if (cfg_arr(i,j,k).isCovered()) {
                     yflux(i,j,k) = -rhoAlpha * ( cell_prim(i, j-3, k, prim_index)

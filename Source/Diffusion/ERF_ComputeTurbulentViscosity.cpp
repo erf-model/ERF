@@ -335,12 +335,12 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
 
 void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                    const MultiFab& cons_in, MultiFab& eddyViscosity,
-                                   MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
-                                  const Geometry& geom, bool use_terrain_fitted_coords,
+                                   MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3,
+                                  const Geometry& geom,
                                   Vector<std::unique_ptr<MultiFab>>& mapfac,
                                   const std::unique_ptr<MultiFab>& z_phys_nd,
                                   const TurbChoice& turbChoice, const Real const_grav,
-                                  const SolverChoice& solverChoice,
+                                  [[maybe_unused]] const SolverChoice& solverChoice,
                                   std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
                                   const MoistureComponentIndices& moisture_indices,
                                   const eb_& ebfact,
@@ -358,9 +358,6 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
     Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
 
-    bool use_thetav_grad = (turbChoice.strat_type == StratType::thetav);
-    bool use_thetal_grad = (turbChoice.strat_type == StratType::thetal);
-
     bool isotropic = turbChoice.mix_isotropic;
 
     AMREX_ASSERT(turbChoice.les_type == LESType::Smagorinsky);
@@ -370,7 +367,6 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
     if (turbChoice.les_type == LESType::Smagorinsky)
     {
         Real Cs = turbChoice.Cs;
-        bool smag2d = turbChoice.smag2d;
 
         // Define variables required inside device lambdas (scalars only)
         Real l_abs_g = const_grav;
@@ -398,7 +394,6 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
             Array4<Real const> tau23 = Tau_lev[TauType::tau23]->array(mfi);
             Array4<Real const> mf_u = mapfac[MapFacType::u_x]->const_array(mfi);
             Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
-            Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
 
             Array4<Real const> u_arr = (l_has_xvel) ? xvel->const_array(mfi) : Array4<Real const>{};
             Array4<Real const> v_arr = (l_has_yvel) ? yvel->const_array(mfi) : Array4<Real const>{};
@@ -838,8 +833,8 @@ void ComputeTurbulentViscosity (Real dt,
         if (solverChoice.terrain_type == TerrainType::EB) {
             ComputeTurbulentViscosityLES_EB(Tau_lev,
                                         cons_in, eddyViscosity,
-                                        Hfx1, Hfx2, Hfx3, Diss,
-                                        geom, use_terrain_fitted_coords,
+                                        Hfx1, Hfx2, Hfx3,
+                                        geom,
                                         mapfac, z_phys_nd, turbChoice, const_grav,
                                         solverChoice,
                                         SurfLayer, solverChoice.moisture_indices,
