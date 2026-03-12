@@ -520,6 +520,15 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                                                    sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
     }
 
+    // ********************************************************************************************
+    // Set up the Rayleigh damping vectors at this (new) level
+    // ********************************************************************************************
+    if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
+    {
+        initRayleigh_at_level(lev);
+    }
+
 #ifdef ERF_USE_PARTICLES
     // particleData.Redistribute();
 #endif
@@ -787,6 +796,15 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                                                    Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
                                                    lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
                                                    sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+    }
+
+    // ********************************************************************************************
+    // Set up the Rayleigh damping vectors at this (new) level
+    // ********************************************************************************************
+    if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
+        solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
+    {
+        initRayleigh_at_level(lev);
     }
 
 #ifdef ERF_USE_PARTICLES

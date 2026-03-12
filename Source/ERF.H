@@ -689,8 +689,8 @@ private:
     void initHSE ();
     void initHSE (int lev);
 
-    //! Initialize Rayleigh damping profiles
-    void initRayleigh ();
+    //! Initialize Rayleigh damping profiles at a level
+    void initRayleigh_at_level (const int& lev);
 
     //! Initialize sponge profiles
     void initSponge ();

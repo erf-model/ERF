@@ -210,7 +210,7 @@ of the governing equations:
 
 where :math:`A` is specified with ``erf.bdy_nudge_factor`` (defaults to 10.0),
 :math:`\psi^{*}` is the state variable at the current RK stage, :math:`\psi^{BDY}` is
-the temporal interpolation of the observational data, and :math:`xi` is a linear coordinate
+the temporal interpolation of the observational data, and :math:`\xi` is a linear coordinate
 that is 1 at the domain boundary and 0 at the edge of the nudge region.
 
 
