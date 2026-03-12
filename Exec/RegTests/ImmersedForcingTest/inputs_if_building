@@ -13,7 +13,7 @@ amr.n_cell           =  128     128    128
 
 geometry.is_periodic = 1 1 0
 
-zlo.type = "NoSlipWall" ### Does not matter when using immersed forcing
+zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
