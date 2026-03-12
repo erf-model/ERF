@@ -68,7 +68,6 @@ ComputeTurbulentViscosityLES_EB (amrex::Vector<std::unique_ptr<amrex::MultiFab>>
                               amrex::MultiFab& Hfx3,
                               const amrex::Geometry& geom,
                               amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
-                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                               const TurbChoice& turbChoice,
                               const amrex::Real const_grav,
                               const SolverChoice& solverChoice,
