@@ -84,14 +84,14 @@ field(s) are set to the sounding values.
 
 In any of these cases, the user can specify any perturbations from the
 base state by editing the routines that live in the ``Source/Prob`` directory
-and are called in **ERF_Prob.cpp**
+and are called in **Exec/ERF_Prob.cpp**
 
 Initialization From Real Data
 ----------------------------------
 
 There are three options for ingesting the full 3D initial data from a NetCDF file.
 In these cases, no additional initial conditions must be supplied by the user but the
-file **ERF_Prob.cpp** must still be present for the build.
+file **Exec/ERF_Prob.cpp** must still be present for the build.
 
 * **erf.init_type = WRFInput**
 

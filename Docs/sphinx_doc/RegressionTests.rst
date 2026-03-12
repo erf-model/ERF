@@ -533,7 +533,7 @@ Test Location: `Tests/test_files/DensityCurrent`_
 
 Problem Location: `Exec/RegTests/DensityCurrent`_
 
-.. _`Exec/CanonicalFlows/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Exec/CanonicalFlows/DensityCurrent
+.. _`Exec/CanonicalTests/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Exec/CanonicalTests/DensityCurrent
 
 Ekman Spiral
 ---------------------------
@@ -545,6 +545,6 @@ Test Location: `Tests/test_files/EkmanSpiral`_
 
 .. _`Tests/test_files/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/EkmanSpiral
 
-Problem Location: `Exec/CanonicalFlows/EkmanSpiral`_
+Problem Location: `Exec/CanonicalTests/EkmanSpiral`_
 
-.. _`Exec/CanonicalFlows/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/CanonicalFlows/EkmanSpiral
+.. _`Exec/CanonicalTests/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/CanonicalTests/EkmanSpiral

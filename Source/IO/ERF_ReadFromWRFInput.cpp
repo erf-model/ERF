@@ -39,9 +39,9 @@ read_subdomain_from_wrfinput(int /*lev*/, const std::string& fname, int& ratio)
 
 void
 read_from_wrfinput (int lev,
-                    const Box& subdomain,
+                    const Box& subdomain_to_read,
                     const std::string& fname,
-                    FArrayBox& NC_fab,
+                    FArrayBox& NC_fab_to_read,
                     const std::string& NC_name,
                     Geometry& geom,
                     int& use_theta_m,
@@ -108,7 +108,7 @@ read_from_wrfinput (int lev,
         } // lev == 0
     } // IOProc
 
-    Vector<FArrayBox*> NC_fabs; NC_fabs.push_back(&NC_fab);
+    Vector<FArrayBox*> NC_fabs_to_read; NC_fabs_to_read.push_back(&NC_fab_to_read);
     Vector<std::string> NC_names; NC_names.push_back(NC_name);
     Vector<enum NC_Data_Dims_Type> NC_dim_types;
     Vector<int> successes; successes.resize(NC_names.size());
@@ -146,7 +146,7 @@ read_from_wrfinput (int lev,
     }
 
     // Read the netcdf file and fill these FABs
-    BuildFABsFromNetCDFFile<FArrayBox,Real>(subdomain, fname, NC_names, NC_dim_types, NC_fabs, successes);
+    BuildFABsFromNetCDFFile<FArrayBox,Real>(subdomain_to_read, fname, NC_names, NC_dim_types, NC_fabs_to_read, successes);
 
     // Success was already broadcast in ERF_NCWpsFile.H
     success = successes[0];

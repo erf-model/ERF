@@ -97,7 +97,3 @@ sets the x-component of velocity at time coordinate 0 and spatial coordinate `i,
 
 **Note**: NetCDF input is expected to use the convention
 `t, z, y, x` for space-time coordinates. In this example, we populated our data arrays in `x, y, z` format for clarity, but this requires a call to `numpy.swapaxes()` to rearrange the data into the expected format.
-
-### Create files `ERF_Prob.H` and `ERF_Prob.cpp`
-
-As usual, it is necessary to create your own `class Problem` which inherits from `ProblemBase` and defines a constructor. In this case, though, no additional setup is required in the constructor override, as all of our problem setup has been taken care of in our NetCDF file.
