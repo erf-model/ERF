@@ -16,7 +16,7 @@ This guide serves as a technical reference for developers and advanced users. Fo
 Directory Structure and Workflow
 ---------------------------------
 
-ERF builds executables in ``Exec`` if using GNU Make. With CMake, configure once to build all executables listed in ``Exec/CMakeLists.txt``.
+ERF builds executables in ``Exec`` if using GNU Make. With CMake, configure once to build the core libraries and the shared test executable in ``Exec`` (e.g., ``erf_regtests``). Input decks for regression and canonical tests live under ``Exec/RegTests`` and ``Exec/CanonicalTests`` and are run with that shared executable.
 
 The problem directories within ``Exec`` are organized by purpose:
 
@@ -24,17 +24,15 @@ The problem directories within ``Exec`` are organized by purpose:
 
    Exec/
    ├── ABL/                    # Atmospheric boundary layer (science runs)
-   ├── RegTests/               # Fluid dynamical regression tests
+   ├── RegTests/               # Fluid dynamical regression test input decks
    │   ├── IsentropicVortex/
    │   ├── TaylorGreenVortex/
    │   ├── Bubble/
    │   └── ...
-   ├── CanonicalFlows/         # Canonical atmospheric flows
-   │   ├── Bomex/
-   │   ├── SquallLine/
-   │   └── ...
-   └── DevTests/               # Development and experimental features
-       ├── ...
+   ├── CanonicalTests/         # Canonical atmospheric flow input decks
+       ├── Bomex/
+       ├── SquallLine/
+       ├── SuperCell/
        └── ...
 
 Each problem directory contains a README describing its purpose and functionality.
@@ -244,14 +242,9 @@ Set build variables in the ``GNUmakefile``:
 
    Typical ``GNUmakefile`` examples:
 
-   **Exec/ABL/GNUmakefile:**
+   **Exec/GNUmakefile:**
 
-   .. literalinclude:: ../../Exec/ABL/GNUmakefile
-      :language: makefile
-
-   **Exec/RegTests/IsentropicVortex/GNUmakefile:**
-
-   .. literalinclude:: ../../Exec/RegTests/IsentropicVortex/GNUmakefile
+   .. literalinclude:: ../../Exec/GNUmakefile
       :language: makefile
 
 **5. Build**
@@ -260,7 +253,7 @@ Set build variables in the ``GNUmakefile``:
 
    make
 
-The executable name encodes build characteristics (dimensionality, compiler, parallelization). For example, in ``Exec/RegTests/IsentropicVortex`` with ``COMP=gnu`` and ``USE_MPI=TRUE``, the executable is ``ERF3d.gnu.MPI.ex``. Multiple build configurations can coexist in the same directory.
+The executable name encodes build characteristics (dimensionality, compiler, parallelization). For example, in ``Exec`` with ``COMP=gnu`` and ``USE_MPI=TRUE``, the executable is ``ERF3d.gnu.MPI.ex``. Multiple build configurations can coexist in the same directory.
 
 **6. Verify Build (Optional)**
 
@@ -401,7 +394,7 @@ ERF supports multiple CMake workflows. The main difference is directory structur
          cd Build
          ./cmake.sh
 
-      **Executable locations:** ``Build/Exec/ABL/erf_abl``, ``Build/Exec/RegTests/Bubble/erf_bubble``, etc.
+      **Executable locations:** ``Build/Exec/erf_abl``, ``Build/Exec/erf_regtests``, etc.
 
       **Cleanup for rebuild:**
 
