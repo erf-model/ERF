@@ -184,12 +184,14 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
         auto ixtype  = S_cur_data[ivar_idx].boxArray().ixType();
         domain.convert(ixtype);
 
+        int width_to_use = (ivar==ivarT) ? width-1 : width;
+
         // NOTE: Ghost cells needed for idx type mismatch between mask and data (do_upwind)
         IntVect ng_vect(0);
         //IntVect ng_vect(1,1,0);
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-        realbdy_interior_bxs_xy(gdom, domain, width,
+        realbdy_interior_bxs_xy(gdom, domain, width_to_use,
                                 bx_xlo, bx_xhi,
                                 bx_ylo, bx_yhi,
                                 ng_vect, true);
@@ -226,10 +228,12 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
 
-        // HACK HACK HACK
+        // BndryReg idx and limiting
         int bdy_comp = ind_map2[ivar];
         const auto& dom_cc_lo = lbound(geom.Domain());
         const auto& dom_cc_hi = ubound(geom.Domain());
+
+        int width_to_use = (ivar==ivarT) ? width-1 : width;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -240,7 +244,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
             //IntVect ng_vect(1,1,0);
             Box gtbx = grow(mfi.tilebox(ixtype.toIntVect()),ng_vect);
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-            realbdy_interior_bxs_xy(gtbx, domain, width,
+            realbdy_interior_bxs_xy(gtbx, domain, width_to_use,
                                     tbx_xlo, tbx_xhi,
                                     tbx_ylo, tbx_yhi,
                                     ng_vect, true);
@@ -274,7 +278,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
             Array4<Real> r_arr = S_cur_data[IntVars::cons].array(mfi);
 
             // Limiting offset
-            int offset = width - 1;
+            int offset = width_to_use - 1;
 
             // Populate with interpolation (protect from ghost cells)
             ParallelFor(tbx_xlo, tbx_xhi,

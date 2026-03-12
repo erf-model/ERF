@@ -79,6 +79,8 @@ moist_set_rhs (const Geometry& geom,
     oma = 1.0; alpha = 0.0;
     */
 
+    int width_to_use = width-1;
+
     // NOTE: The sizing of the temporary BDY FABS is
     //       GLOBAL and occurs over the entire BDY region.
 
@@ -88,7 +90,7 @@ moist_set_rhs (const Geometry& geom,
     IntVect ng_vect(0);
     Box gdom(domain); gdom.grow(ng_vect);
     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-    realbdy_interior_bxs_xy(gdom, domain, width,
+    realbdy_interior_bxs_xy(gdom, domain, width_to_use,
                             bx_xlo, bx_xhi,
                             bx_ylo, bx_yhi,
                             ng_vect, true);
@@ -143,13 +145,13 @@ moist_set_rhs (const Geometry& geom,
 
     Box gtbx = grow(tbx,ng_vect);
     Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-    realbdy_interior_bxs_xy(gtbx, domain, width,
+    realbdy_interior_bxs_xy(gtbx, domain, width_to_use,
                             tbx_xlo, tbx_xhi,
                             tbx_ylo, tbx_yhi,
                             ng_vect, true);
 
     // Limiting offset
-    int offset = width - 1;
+    int offset = width_to_use - 1;
 
     // Populate with interpolation (protect from ghost cells)
     ParallelFor(tbx_xlo, tbx_xhi,
@@ -208,7 +210,7 @@ moist_set_rhs (const Geometry& geom,
 
     // Compute RHS in relaxation region
     //==========================================================
-    realbdy_interior_bxs_xy(tbx, domain, width-1,
+    realbdy_interior_bxs_xy(tbx, domain, width_to_use,
                             tbx_xlo, tbx_xhi,
                             tbx_ylo, tbx_yhi,
                             ng_vect);
