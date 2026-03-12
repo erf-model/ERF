@@ -226,7 +226,7 @@ realbdy_compute_interior_ghost_rhs (const Real& time,
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
 
-        // HACK HACK HACK
+        // BndryReg idx and limiting
         int bdy_comp = ind_map2[ivar];
         const auto& dom_cc_lo = lbound(geom.Domain());
         const auto& dom_cc_hi = ubound(geom.Domain());

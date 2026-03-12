@@ -2224,7 +2224,7 @@ ERF::init_only (int lev, Real elapsed_time)
                 (solverChoice.init_type == InitType::ConstantDensity) ||
                 (solverChoice.init_type == InitType::Isentropic     ) ||
                 (solverChoice.init_type == InitType::ConstantDensityLinearTheta     ) ||
-		(solverChoice.init_type == InitType::HindCast       ) ||
+        (solverChoice.init_type == InitType::HindCast       ) ||
                 (solverChoice.init_type == InitType::MoistBaseState ) ) {
         // Initialize a uniform density/entropy background field and base state
         // based on the problem-specified reference density and temperature
