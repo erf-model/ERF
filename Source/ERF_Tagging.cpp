@@ -93,7 +93,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                         subdomain.shift(coarser_level.smallEnd());
 
                         if (verbose > 0) {
-                            amrex::Print() << " Crse subdomain to be tagged is" << subdomain << std::endl;
+                            amrex::Print() << " Crse version of subdomain available for tagging is" << subdomain << std::endl;
                         }
 
                         Box new_fine(subdomain);
@@ -102,11 +102,14 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                         } else if (solverChoice.init_type == InitType::Metgrid) {
                             new_fine.refine(ref_ratio[levc]);
                         }
-                        if (nb_prespecified > 0) {
-                            num_boxes_at_level[levc+1] = 1;
+                        if (nb_prespecified == 0) {
+                            num_boxes_at_level[levc+1] += 1;
                             boxes_at_level[levc+1].push_back(new_fine);
                         } else {
                             if (!new_fine.contains(boxes_at_level[levc+1][isub])) {
+                                amrex::Print() << "\n";
+                                amrex::Print() << "Box available in wrfinputs file             " << new_fine << std::endl;
+                                amrex::Print() << "Box requested for refinement in inputs file " << boxes_at_level[levc+1][isub] << std::endl;
                                 amrex::Abort("Specified boxes must be contained within boxes specified in wrfinput at this level");
                             }
                         }
@@ -370,16 +373,17 @@ ERF::refinement_criteria_setup ()
             RealBox realbox;
             int lev_for_box;
 
-            int num_real_lo = ppr.countval("in_box_lo");
-            int num_indx_lo = ppr.countval("in_box_lo_indices");
-            int num_real_hi = ppr.countval("in_box_hi");
-            int num_indx_hi = ppr.countval("in_box_hi_indices");
+            int num_real_lo      = ppr.countval("in_box_lo");
+            int num_indx_lo      = ppr.countval("in_box_lo_indices");
             int num_indx_lo_crse = ppr.countval("in_box_lo_indices_crse");
+
+            int num_real_hi      = ppr.countval("in_box_hi");
+            int num_indx_hi      = ppr.countval("in_box_hi_indices");
             int num_indx_hi_crse = ppr.countval("in_box_hi_indices_crse");
 
-            AMREX_ALWAYS_ASSERT(num_real_lo == num_real_hi);
-            AMREX_ALWAYS_ASSERT(num_indx_lo == num_indx_hi);
-            AMREX_ALWAYS_ASSERT(num_indx_lo_crse == num_indx_hi_crse);
+            AMREX_ALWAYS_ASSERT( (num_real_lo      == num_real_hi)      && (num_real_lo      == 0 || num_real_lo      >= 2) );
+            AMREX_ALWAYS_ASSERT( (num_indx_lo      == num_indx_hi)      && (num_indx_lo      == 0 || num_indx_lo      >= 2) );
+            AMREX_ALWAYS_ASSERT( (num_indx_lo_crse == num_indx_hi_crse) && (num_indx_lo_crse == 0 || num_indx_lo_crse >= 2) );
 
             // Problem low and high (in real not index space) are the same at all levels
             const Real* plo = geom[0].ProbLo();
@@ -542,11 +546,23 @@ ERF::refinement_criteria_setup ()
                         amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
                     }
 
-                    ppr.getarr("in_box_lo_indices",box_lo,0,AMREX_SPACEDIM);
-                    ppr.getarr("in_box_hi_indices",box_hi,0,AMREX_SPACEDIM);
+                    ppr.getarr("in_box_lo_indices",box_lo,0,num_indx_lo);
+                    ppr.getarr("in_box_hi_indices",box_hi,0,num_indx_hi);
+
+                    if (num_indx_lo < AMREX_SPACEDIM) {
+                        box_lo[2] = geom[lev_for_box].Domain().smallEnd(2);
+                        box_hi[2] = geom[lev_for_box].Domain().bigEnd(2);
+                    }
 
                     Box bx(IntVect(box_lo[0],box_lo[1],box_lo[2]),IntVect(box_hi[0],box_hi[1],box_hi[2]));
-                    amrex::Print() << "BOX " << bx << std::endl;
+                    const Box& domain = geom[lev_for_box].Domain();
+
+                    if (!domain.contains(bx)) {
+                        amrex::Print() << "\n";
+                        amrex::Print() << "Box specified       is " << bx << std::endl;
+                        amrex::Print() << "But domain at level is " << domain << std::endl;
+                        amrex::Error("Specified box doesn't fit in the domain");
+                    }
 
                     const auto* dx  = geom[lev_for_box].CellSize();
                     realbox = RealBox(plo[0]+ box_lo[0]   *dx[0], plo[1]+ box_lo[1]   *dx[1], plo[2]+ box_lo[2]   *dx[2],
@@ -598,8 +614,6 @@ ERF::refinement_criteria_setup ()
                                       solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU      ||
                                       solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF);
 
-                    const Box& domain = geom[lev_for_box].Domain();
-
                     if ( using_pbl && ( (box_lo[2] > 0) || (box_hi[2] < domain.bigEnd(2)) ) ) {
                         amrex::Print() << "PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH" << std::endl;
                         amrex::Print() << "Please set in_box_lo_indices to 0 in z and in_box_hi_indices to amr.n_cell-1 in z and try again" << std::endl;
@@ -628,13 +642,27 @@ ERF::refinement_criteria_setup ()
                         amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
                     }
 
-                    ppr.getarr("in_box_lo_indices_crse",box_lo,0,AMREX_SPACEDIM);
-                    ppr.getarr("in_box_hi_indices_crse",box_hi,0,AMREX_SPACEDIM);
+                    ppr.getarr("in_box_lo_indices_crse",box_lo,0,num_indx_lo_crse);
+                    ppr.getarr("in_box_hi_indices_crse",box_hi,0,num_indx_hi_crse);
+
+                    if (num_indx_lo_crse < AMREX_SPACEDIM) {
+                        box_lo[2] = geom[lev_for_box-1].Domain().smallEnd(2);
+                        box_hi[2] = geom[lev_for_box-1].Domain().bigEnd(2);
+                    }
 
                     Box bx(IntVect(box_lo[0],box_lo[1],box_lo[2]),IntVect(box_hi[0],box_hi[1],box_hi[2]));
-                    amrex::Print() << "BOX " << bx << std::endl;
+
+                    if (!geom[lev_for_box-1].Domain().contains(bx)) {
+                        amrex::Print() << "\n";
+                        amrex::Print() << "(Coarse) Box specified       is " << bx << std::endl;
+                        amrex::Print() << "But (coarse) domain at level is " << geom[lev_for_box-1].Domain() << std::endl;
+                        amrex::Error("Specified box doesn't fit in the domain");
+                    }
+
+                    bx.refine(ref_ratio[lev_for_box-1]);
 
                     const auto* dx  = geom[lev_for_box-1].CellSize();
+
                     realbox = RealBox(plo[0]+ box_lo[0]   *dx[0], plo[1]+ box_lo[1]   *dx[1], plo[2]+ box_lo[2]   *dx[2],
                                       plo[0]+(box_hi[0]+1)*dx[0], plo[1]+(box_hi[1]+1)*dx[1], plo[2]+(box_hi[2]+1)*dx[2]);
 
@@ -647,7 +675,6 @@ ERF::refinement_criteria_setup ()
                                       solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF);
 
                     const Box& domain = geom[lev_for_box].Domain();
-
                     if ( using_pbl && ( (box_lo[2] > 0) || (box_hi[2] < domain.bigEnd(2)) ) ) {
                         amrex::Print() << "PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH" << std::endl;
                         amrex::Print() << "Please set in_box_lo_indices_crse to 0 in z and in_box_hi_indices_crse  to amr.n_cell-1 in z and try again" << std::endl;

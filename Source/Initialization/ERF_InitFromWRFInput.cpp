@@ -195,6 +195,8 @@ ERF::init_from_wrfinput (int lev,
             auto var_name = NC_names[ivar];
             auto& var_fab_from_file = NC_fab_var[idx][ivar];
 
+            // This shift occurs only when the coarser grid is at least at level 1,
+            // because the indices are always given relative to that coarser "domain"
             if (lev > 1) {
                 Box shift_by_box(subdomains[lev][0].minimalBox());
                 IntVect shift_by(shift_by_box.smallEnd());
@@ -204,7 +206,7 @@ ERF::init_from_wrfinput (int lev,
                 var_fab_from_file.shift(shift_by);
             }
 
-            Box subdomain_to_fill_typed(convert(subdomain_to_fill,subdomain_to_read.ixType()));
+            Box subdomain_to_fill_typed(convert(subdomain_to_fill,var_fab_from_file.box().ixType()));
 #ifdef AMREX_USE_GPU
             FArrayBox var_fab(subdomain_to_fill_typed,1,amrex::The_Pinned_Arena());
 #else
