@@ -205,11 +205,11 @@ if(ERF_ENABLE_PARTICLES)
     # These tests require machine-specific gold files due to platform-dependent initial sampling
     if(ERF_TEST_ENABLE_EXTRA_SDM_TESTS)
         # log-normal distribution for radius
-        add_test_sdm(SDM_RICO3D_InitSampling         "DevTests/RICO"                    "erf_rico"     "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding")
+        add_test_sdm(SDM_RICO3D_InitSampling         "../.Exec_dev/RICO"                    "erf_rico"     "plt00000" 1e-14 2e-13 INPUT_SOUNDING "input_sounding")
         # mass-exponential distribution for mass
         add_test_sdm(SDM_Bubble2D_Adv_InitSampling   "RegTests"  "erf_regtests"   "plt00000" 1e-14 1e-14)
         # column case to test condensation
-        add_test_sdm(SDM_SineMassFlux                "DevTests/sinusoidal_mass_flux" "erf_sinusoidal_mass_flux" "plt00050" 1e-14 1e-14 INPUT_SOUNDING "input_sounding")
+        add_test_sdm(SDM_SineMassFlux                "../.Exec_dev/sinusoidal_mass_flux" "erf_sinusoidal_mass_flux" "plt00050" 1e-14 1e-14 INPUT_SOUNDING "input_sounding")
     endif()
 
     # passive advection of particles
@@ -223,9 +223,9 @@ if(ERF_ENABLE_PARTICLES)
     # recycling
     add_test_sdm(SDM_Box3D_Recycling             "RegTests" "erf_regtests"   "plt00020" 5e-13 1e-14)
     # Congestus case
-    add_test_sdm(SDM_Congestus3D                 "DevTests/TemperatureSourceSpatial"   "erf_abl_with_spatial_temperature_source" "plt00020" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
+    add_test_sdm(SDM_Congestus3D                 "../.Exec_dev/TemperatureSourceSpatial"   "erf_abl_with_spatial_temperature_source" "plt00020" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
     # RICO case
-    add_test_sdm(SDM_RICO3D                      "DevTests/RICO"        "erf_rico"     "plt00010" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
+    add_test_sdm(SDM_RICO3D                      "../.Exec_dev/RICO"        "erf_rico"     "plt00010" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
     # multispecies setup with dummy water species
     add_test_sdm(SDM_MultiSpecies_Bubble2D       "RegTests" "erf_regtests"   "plt00001" 5e-12 1e-12)
 endif()

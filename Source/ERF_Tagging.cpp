@@ -3,14 +3,6 @@
 
 using namespace amrex;
 
-/**
- * Function to tag cells for refinement -- this overrides the pure virtual function in AmrCore
- *
- * @param[in] levc level of refinement at which we tag cells (0 is coarsest level)
- * @param[out] tags array of tagged cells
- * @param[in] time current time
-*/
-
 #ifdef ERF_USE_NETCDF
 Box read_subdomain_from_wrfinput (int lev, const std::string& fname, int& ratio);
 Real read_start_time_from_wrfinput (int lev, const std::string& fname);
@@ -21,6 +13,15 @@ void
 tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
                          const Real eye_x, const Real eye_y, const Real rad_tag);
 
+
+/**
+ * Function to tag cells for refinement -- this overrides the pure virtual function in AmrCore
+ *
+ * @param[in ] levc level of refinement at which we tag cells (0 is coarsest level)
+ * @param[out] tags array of tagged cells
+ * @param[in ] time current time
+ * @param[in ] ngrow number of ghost cells (not used here)
+*/
 void
 ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 {
@@ -31,6 +32,12 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     if ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) {
         int ratio;
         Box subdomain;
+
+        // This is the number of boxes that may have already been defined in the refinement_criteria_setup routine.
+        // If nb == 0 then no boxes have been specified in the inputs file, and we will use the boxes given in wrfinput_d*
+        // If nb >  0 then    boxes have been specified in the inputs file, and we will use the specified boxes as long
+        //    as we can ensure that they are contained inside the boxes given in wrfinput_d*
+        int nb_prespecified = num_boxes_at_level[levc+1];
 
         if (!nc_init_file[levc+1].empty())
         {
@@ -79,13 +86,10 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                             amrex::Abort("These must be the same -- please edit your inputs file and try again.");
                         }
 
-                        if (solverChoice.init_type == InitType::WRFInput) {
-                            subdomain.coarsen(IntVect(ratio,ratio,1));
-                        } else if (solverChoice.init_type == InitType::Metgrid) {
-                            subdomain.coarsen(ref_ratio[levc]);
-                        }
+                        subdomain.coarsen(ref_ratio[levc]);
 
-                        Box coarser_level(subdomains[levc][isub].minimalBox());
+                        // Recall we asserted that there is only one box at level levc
+                        Box coarser_level(subdomains[levc][0].minimalBox());
                         subdomain.shift(coarser_level.smallEnd());
 
                         if (verbose > 0) {
@@ -98,8 +102,14 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                         } else if (solverChoice.init_type == InitType::Metgrid) {
                             new_fine.refine(ref_ratio[levc]);
                         }
-                        num_boxes_at_level[levc+1] = 1;
-                        boxes_at_level[levc+1].push_back(new_fine);
+                        if (nb_prespecified > 0) {
+                            num_boxes_at_level[levc+1] = 1;
+                            boxes_at_level[levc+1].push_back(new_fine);
+                        } else {
+                            if (!new_fine.contains(boxes_at_level[levc+1][isub])) {
+                                amrex::Abort("Specified boxes must be contained within boxes specified in wrfinput at this level");
+                            }
+                        }
 
                         for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
                             auto tag_arr = tags.array(mfi);  // Get device-accessible array
@@ -544,34 +554,41 @@ ERF::refinement_criteria_setup ()
 
                     Print() << "Reading " << bx << " at level " << lev_for_box << std::endl;
                     num_boxes_at_level[lev_for_box] += 1;
+
                     if(box_lo[0]%ref_ratio[lev_for_box-1][0] != 0){
                         amrex::Print()<< "Requested ilo in x-direction : " << box_lo[0] << std::endl;
-                        amrex::Print() << "ilo = " << box_lo[0] << " is not divisible by ref_ratio in x direction = " << ref_ratio[lev_for_box-1][0] << std::endl;
+                        amrex::Print() << "ilo = " << box_lo[0] << " is not divisible by ref_ratio in x direction = " <<
+                                          ref_ratio[lev_for_box-1][0] << std::endl;
                         amrex::Error("Adjust in_box_lo_indices in x-direction to be divisible by ref_ratio and try again");
                     }
                     if((box_hi[0]+1)%ref_ratio[lev_for_box-1][0] != 0){
                         amrex::Print()<< "Requested ihi in x-direction : " << box_hi[0] << std::endl;
-                        amrex::Print() << "ihi+1 = " << box_hi[0]+1 << " is not divisible by ref_ratio in x direction = " << ref_ratio[lev_for_box-1][0] << std::endl;
+                        amrex::Print() << "ihi+1 = " << box_hi[0]+1 << " is not divisible by ref_ratio in x direction = " <<
+                                          ref_ratio[lev_for_box-1][0] << std::endl;
                         amrex::Error("Adjust in_box_hi_indices in x-direction to be divisible by ref_ratio and try again");
                     }
                      if(box_lo[1]%ref_ratio[lev_for_box-1][1] != 0){
                         amrex::Print()<< "Requested jlo in y-direction : " << box_lo[1] << std::endl;
-                        amrex::Print() << "jlo = " << box_lo[1] << " is not divisible by ref_ratio in y direction = " << ref_ratio[lev_for_box-1][1] << std::endl;
+                        amrex::Print() << "jlo = " << box_lo[1] << " is not divisible by ref_ratio in y direction = " <<
+                                          ref_ratio[lev_for_box-1][1] << std::endl;
                         amrex::Error("Adjust in_box_lo_indices in y-direction to be divisible by ref_ratio and try again");
                     }
                     if((box_hi[1]+1)%ref_ratio[lev_for_box-1][1] != 0){
                         amrex::Print()<< "Requested jhi in y-direction : " << box_hi[1] << std::endl;
-                        amrex::Print() << "jhi+1 = " << box_hi[1]+1 << " is not divisible by ref_ratio in y direction = " << ref_ratio[lev_for_box-1][1] << std::endl;
+                        amrex::Print() << "jhi+1 = " << box_hi[1]+1 << " is not divisible by ref_ratio in y direction = " <<
+                                          ref_ratio[lev_for_box-1][1] << std::endl;
                         amrex::Error("Adjust in_box_hi_indices in y-direction to be divisible by ref_ratio and try again");
                     }
                     if(box_lo[2]%ref_ratio[lev_for_box-1][2] != 0){
                         amrex::Print()<< "Requested klo in z-direction : " << box_lo[2] << std::endl;
-                        amrex::Print() << "klo = " << box_lo[2] << " is not   divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
+                        amrex::Print() << "klo = " << box_lo[2] << " is not   divisible by ref_ratio in z direction = " <<
+                                          ref_ratio[lev_for_box-1][2] << std::endl;
                         amrex::Error("Adjust in_box_lo_indices in z-direction to be divisible by ref_ratio and try again");
                     }
                     if((box_hi[2]+1)%ref_ratio[lev_for_box-1][2] != 0){
                         amrex::Print()<< "Requested khi in z-direction : " << box_hi[2] << std::endl;
-                        amrex::Print() << "khi+1 = " << box_hi[2]+1 << " is not divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
+                        amrex::Print() << "khi+1 = " << box_hi[2]+1 << " is not divisible by ref_ratio in z direction = " <<
+                                          ref_ratio[lev_for_box-1][2] << std::endl;
                         amrex::Error("Adjust in_box_hi_indices in z-direction to be divisible by ref_ratio and try again");
                     }
 

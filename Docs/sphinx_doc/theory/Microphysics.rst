@@ -1175,13 +1175,13 @@ Realistic Test Cases
 
 **SDM_RICO3D**: 3D simulation of the Rain In Cumulus Over the Ocean (RICO) case, a precipitating shallow cumulus benchmark.
 Tests full SDM microphysics including condensation, coalescence, and sedimentation in a realistic cloud environment. Source
-located in ``Exec/DevTests/RICO``. Inputs with NH4HSO4 aerosol located in  ``Tests/test_files/SDM_RICO3D/``.
+located in ``Exec/CanonicalTests/RICO``. Inputs with NH4HSO4 aerosol located in  ``Tests/test_files/SDM_RICO3D/``.
 
 **SDM_RICO3D_InitSampling**: RICO case with sampling-based initialization for improved size distribution representation.
-Source located in ``Exec/DevTests/RICO``. Inputs located in ``Tests/test_files/SDM_RICO3D_InitSampling/``.
+Source located in ``Exec/CanonicalTests/RICO``. Inputs located in ``Tests/test_files/SDM_RICO3D_InitSampling/``.
 
 **SDM_Congestus3D**: 3D simulation of congestus clouds, testing SDM in a deeper convective environment.
-Source located in ``Exec/DevTests/TemperatureSourceSpatial``. Inputs located in ``Tests/test_files/SDM_Congestus3D/``.
+Source located in ``.Exec_dev/TemperatureSourceSpatial``. Inputs located in ``Tests/test_files/SDM_Congestus3D/``.
 
 Example Problems
 ^^^^^^^^^^^^^^^^^
@@ -1191,10 +1191,10 @@ the ``inputs_BF02_moist_bubble_SDM_multi_injections_unimodal_NaCl`` demonstrates
 two moving box regions with opposing velocities and one time-limited bubble injection. This example is useful for understanding injection
 configuration and moving source regions.
 
-**RICO DevTest**: ``Exec/DevTests/RICO/`` contains multiple input files for the RICO case with different microphysics models,
+**RICO DevTest**: ``Exec/CanonicalTests/RICO/`` contains multiple input files for the RICO case with different microphysics models,
 including SDM configurations with various aerosol species (``input_sdm``).
 
-**Temperature Source Tests**: ``Exec/DevTests/TemperatureSourceSpatial/`` and ``Exec/DevTests/sinusoidal_mass_flux/`` include
+**Temperature Source Tests**: ``.Exec_dev/TemperatureSourceSpatial/`` and ``.Exec_dev/sinusoidal_mass_flux/`` include
 SDM configurations for testing particle behavior with prescribed temperature and mass flux forcing.
 
 Verification

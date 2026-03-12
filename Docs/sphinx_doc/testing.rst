@@ -31,7 +31,7 @@ Building the Tests
 ~~~~~~~~~~~~~~~~~~
 
 Once the user has performed the CMake configure step, the ``make`` command will build
-every executable required for each test.
+the ERF executable(s) required for each test (for example, the shared ``erf_regtests`` binary).
 In this step, it is highly beneficial for the user to use the ``-j`` option for ``make``
 to build source files in parallel.
 
@@ -40,6 +40,9 @@ Running the Tests
 
 Once the test executables are built, CTest also creates working directories for each test within the ``Build`` directory
 where plot files will be output, etc. This directory is analogous to the source location of the tests in ``Tests/test_files``.
+
+**Where is the executable?** With the CMake workflow, the shared test executable is built under the build tree in ``Exec``
+(for example, ``Build/Exec/erf_regtests``), and all regression/canonical test input decks are run using that binary.
 
 To run the test suite, run ``ctest`` in the ``Build`` directory. CTest will run the tests and report their exit status.
 Useful options for CTest are ``-VV`` which runs in a verbose mode where the output of each test can be seen. ``-R``
@@ -53,8 +56,9 @@ Adding Tests
 Developers are encouraged to add tests to ERF and in this section we describe how the tests are organized in the
 CTest framework. The locations (relative to the ERF code base) of the tests are in ``Tests``. To add a test, first
 create a problem directory with a name in ``Exec/RegTests/<prob_name>``
-(for problems to be used as regression tests)
-or ``Exec/DevTests/<prob_name>`` (for problems testing features under development),
+(for problems to be used as regression tests),
+``Exec/CanonicalTests/<prob_name>`` (for canonical test cases),
+or ``.Exec_dev/<prob_name>`` (for problems testing features under development),
 depending on which type of test is being added.  Prepare a suitable input file.
 As an example, the ``TaylorGreenVortex`` problem with input file ``Exec/RegTests/TaylorGreenVortex/inputs_ex``
 solves a simple advection-diffusion problem. The corresponding regression tests are driven by the input files
@@ -64,7 +68,7 @@ solves a simple advection-diffusion problem. The corresponding regression tests 
 Any file in the test directory will be copied during CMake configure to the test's working directory.
 The input files meant for regression test run only until a few time steps. The reference solution that the
 regression test will refer to should be placed in ``Tests/ERFGoldFiles/<test_name>``. Next, edit the
-``Exec/CMakeLists.txt`` and ``Tests/CTestList.cmake`` files, add the problem and the corresponding tests
+``Tests/CTestList.cmake`` file, add the problem and the corresponding tests
 to the list. Note that there are different categories of tests and if your test falls outside of these
 categories, a new function to add the test will need to be created. After these steps, your test will be
 automatically added to the test suite database when doing the CMake configure with the testing suite enabled.
