@@ -615,6 +615,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
+            } else if (solverChoice.terrain_type == TerrainType::EB) {
+                DiffusionSrcForState_EB(bx, domain, n_start, n_comp, u, v,
+                                       cell_data, cell_prim, cell_rhs,
+                                       diffflux_x, diffflux_y, diffflux_z,
+                                       cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr,
+                                       dxInv,
+                                       hfx_z, q1fx_z, q2fx_z,
+                                       mu_turb, solverChoice, level,
+                                       bc_ptr_d, l_use_SurfLayer);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,

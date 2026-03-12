@@ -7,8 +7,8 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  1280     1280    1280
-amr.n_cell           =    256     256    256
+geometry.prob_extent =  640     640    640
+amr.n_cell           =  128     128    128
 
 geometry.is_periodic = 1 1 0
 
@@ -38,7 +38,7 @@ erf.check_int       = -1        # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt       # prefix of plotfile name
-erf.plot_int_1      = 600        # number of timesteps between plotfiles
+erf.plot_int_1      = 60        # number of timesteps between plotfiles
 erf.plot_vars_1     = density terrain_IB_mask rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # SOLVER CHOICE
@@ -63,7 +63,7 @@ erf.input_sounding_file = "input_sounding_CBL"
 
 ## TERRRAIN GRID TYPE
 erf.terrain_type      = ImmersedForcing
-erf.terrain_file_name = WoA_dx5m_h100m.txt
+erf.terrain_file_name = WoA_dx5m_h100m_128x128.txt
 erf.immersed_forcing_substep = true
 erf.if_use_most = true
 #erf.if_init_surf_temp = 292.0

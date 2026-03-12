@@ -15,6 +15,7 @@
 #include "AMReX_WriteEBSurface.H"
 #include "AMReX_EB2_IF_Box.H"
 #include "AMReX_EB2_IF_Sphere.H"
+#include "AMReX_EB2_IF_Plane.H"
 
 #include "ERF_EpochTime.H"
 #include "ERF_Utils.H"
@@ -527,6 +528,19 @@ ERF::ERF_shared ()
             Real dummy_time = 0.0;
             prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
             TerrainIF implicit_fun(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
+            auto gshop = EB2::makeShop(implicit_fun);
+            if (build_eb_for_multigrid) {
+                EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
+                            ngrow_for_eb, build_coarse_level_by_coarsening);
+            } else {
+                EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+            }
+        } else if (geometry == "plane") {
+            RealArray plane_point{0.0, 0.0, 0.0};
+            RealArray plane_normal{0.0, 0.0, -1.0}; // pointing into the solid region
+            pp_eb2.query("plane_point", plane_point);
+            pp_eb2.query("plane_normal", plane_normal);
+            EB2::PlaneIF implicit_fun(plane_point, plane_normal, false);
             auto gshop = EB2::makeShop(implicit_fun);
             if (build_eb_for_multigrid) {
                 EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
@@ -2209,7 +2223,8 @@ ERF::init_only (int lev, Real elapsed_time)
     } else if ( (solverChoice.init_type == InitType::Uniform        ) ||
                 (solverChoice.init_type == InitType::ConstantDensity) ||
                 (solverChoice.init_type == InitType::Isentropic     ) ||
-                (solverChoice.init_type == InitType::HindCast       ) ||
+                (solverChoice.init_type == InitType::ConstantDensityLinearTheta     ) ||
+		(solverChoice.init_type == InitType::HindCast       ) ||
                 (solverChoice.init_type == InitType::MoistBaseState ) ) {
         // Initialize a uniform density/entropy background field and base state
         // based on the problem-specified reference density and temperature

@@ -7,8 +7,9 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  1280     1280    1280
-amr.n_cell           =    256     256    256
+geometry.prob_extent =  640     640    640
+amr.n_cell           =  128     128    128
+
 
 geometry.is_periodic = 1 1 0
 
@@ -38,8 +39,8 @@ erf.check_int       = -1        # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt       # prefix of plotfile name
-erf.plot_int_1      = 600       # number of timesteps between plotfiles
-erf.plot_vars_1     = density terrain_IB_mask rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
+erf.plot_int_1      = 60       # number of timesteps between plotfiles
+erf.plot_vars_1     = z_phys density terrain_IB_mask rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # SOLVER CHOICE
 erf.use_gravity = true
@@ -63,7 +64,7 @@ erf.input_sounding_file = "input_sounding_CBL"
 
 ## TERRRAIN GRID TYPE
 erf.buildings_type = ImmersedForcing
-erf.buildings_file_name = skyscraper_5m.txt
+erf.buildings_file_name = skyscraper_5m_128x128.txt
 erf.immersed_forcing_substep = true
 erf.if_Cd_momentum = 500.0
 erf.if_Cd_scalar   =  50.0
@@ -77,6 +78,7 @@ erf.rotational_time_period = 86400.0
 erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_wind = 8.0 0.0 0.0
 
-# Temperature pertubrations
+# Higher values of perturbations lead to instability
+# Instability seems to be coming from BC
 prob.T_0_Pert_Mag    = 0.5 # [K]
 prob.pert_ref_height = 500. # [m]

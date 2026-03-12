@@ -193,13 +193,24 @@ void ERF::advance_dycore (int level,
                                 mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
                                 no_tau_corr_update_here, no_tau_corr_update_here);
             } else {
-                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
-                                u, v, w,
-                                tau11, tau22, tau33,
-                                tau12, tau13, tau23,
-                                dxInv,
-                                mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
-                                no_tau_corr_update_here, no_tau_corr_update_here);
+                if (solverChoice.terrain_type == TerrainType::EB) {
+                    ComputeStrain_EB(mfi, bxcc, tbxxy, tbxxz, tbxyz, domain,
+                                    u, v, w,
+                                    tau11, tau22, tau33,
+                                    tau12, tau13, tau23,
+                                    dxInv,
+                                    bc_ptr_h,
+                                    get_eb(level),
+                                    no_tau_corr_update_here, no_tau_corr_update_here);
+                } else {
+                    ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
+                                    u, v, w,
+                                    tau11, tau22, tau33,
+                                    tau12, tau13, tau23,
+                                    dxInv,
+                                    mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy, bc_ptr_h,
+                                    no_tau_corr_update_here, no_tau_corr_update_here);
+                }
             }
         } // mfi
     } // l_use_diff
@@ -241,7 +252,8 @@ void ERF::advance_dycore (int level,
                                   z_phys_nd[level], solverChoice,
                                   m_SurfaceLayer, z_0, l_use_terrain_fitted_coords,
                                   l_use_moisture, level,
-                                  bc_ptr_h);
+                                  bc_ptr_h,
+                                  get_eb(level));
     }
 
     // ***********************************************************************************************

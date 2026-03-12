@@ -240,7 +240,7 @@ erf_init_const_dens_and_linear_th_hse (amrex::MultiFab& rho_hse, amrex::MultiFab
         const amrex::Box& gbx = mfi.growntilebox(1);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            th_hse_arr(i,j,k) = T_0 + dtheta_dz * z_arr(i,j,k);
+            th_hse_arr(i,j,k) = T_0 + dtheta_dz * (z_arr(i,j,k)- z_arr(i,j,0));
              p_hse_arr(i,j,k) = getPgivenRTh(rho_0*th_hse_arr(i,j,k));
             pi_hse_arr(i,j,k) = getExnergivenRTh(rho_0*th_hse_arr(i,j,k), l_rdOcp);
         });
