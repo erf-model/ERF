@@ -16,7 +16,7 @@ This guide serves as a technical reference for developers and advanced users. Fo
 Directory Structure and Workflow
 ---------------------------------
 
-ERF builds executables in ``Exec`` if using GNU Make. With CMake, configure once to build the core libraries and the shared test executable in ``Exec`` (e.g., ``erf_regtests``). Input decks for regression and canonical tests live under ``Exec/RegTests`` and ``Exec/CanonicalTests`` and are run with that shared executable.
+ERF builds executables in ``Exec`` if using GNU Make. With CMake, configure once to build the core libraries and the shared test executable in ``Exec`` (e.g., ``erf_exec``). Input decks for regression and canonical tests live under ``Exec/RegTests`` and ``Exec/CanonicalTests`` and are run with that shared executable.
 
 The problem directories within ``Exec`` are organized by purpose:
 
@@ -394,7 +394,7 @@ ERF supports multiple CMake workflows. The main difference is directory structur
          cd Build
          ./cmake.sh
 
-      **Executable locations:** ``Build/Exec/erf_abl``, ``Build/Exec/erf_regtests``, etc.
+      **Executable locations:** ``Build/Exec/erf_abl``, ``Build/Exec/erf_exec``, etc.
 
       **Cleanup for rebuild:**
 
