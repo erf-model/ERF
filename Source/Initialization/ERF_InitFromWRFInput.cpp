@@ -214,9 +214,9 @@ ERF::init_from_wrfinput (int lev,
 #endif
             Box intersection = var_fab.box() & var_fab_from_file.box();
             if (intersection.ok()) {
-                var_fab.copy(var_fab_from_file,intersection,0,intersection,0,1);
-            } else {
-                amrex::Print() << " REGION WE WANT NOT CONTAINED IN REGION WE HAVE " << std::endl;
+                var_fab.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
+            } else if (success) {
+                amrex::Error("ERF::init_from_wrfinput: Region we want not contained in region we have");
             }
 
             // Initialize rho =  1/(ALB + AL)
