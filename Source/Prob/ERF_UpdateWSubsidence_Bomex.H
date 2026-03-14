@@ -21,12 +21,12 @@
 
     wbar[0]     = 0.0;
 
-    for (int k = 1; k <= khi; k++) {
-        const Real z_nd = zlevels[k];
-        if (z_nd <= wbar_cutoff_max) {
-            wbar[k] = slope1 * (z_nd - z_0);
-        } else if (z_nd <= wbar_cutoff_min) {
-            wbar[k] = slope2 * (z_nd - wbar_cutoff_max) + wbar_sub_max;
+    for (int k = 1; k <= khi+1; k++) {
+        const Real z = zlevels[k];
+        if (z <= wbar_cutoff_max) {
+            wbar[k] = slope1 * (z - z_0);
+        } else if (z <= wbar_cutoff_min) {
+            wbar[k] = slope2 * (z - wbar_cutoff_max) + wbar_sub_max;
         } else {
             wbar[k] = 0.0;
         }

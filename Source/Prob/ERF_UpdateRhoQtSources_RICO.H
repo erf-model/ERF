@@ -2,7 +2,6 @@
 
     Real advection_moisture_rate      = 0.0; pp_prob.query("advection_moisture_rate", advection_moisture_rate);
     Real moisture_cutoff            = 500.0; pp_prob.query("moisture_source_cutoff", moisture_cutoff);
-    Real moisture_cutoff_transition =  50.0; pp_prob.query("moisture_source_cutoff_transition", moisture_cutoff_transition);
 
     Vector<Real> zlevels;
     Gpu::DeviceVector<Real> d_zlevels;
@@ -29,12 +28,9 @@
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real z_cc = d_zlevels_arr[k];
                 if (z_cc < moisture_cutoff) {
-                    qsrc_arr(i, j, k) = advection_moisture_rate;
-                } else if (z_cc < moisture_cutoff+moisture_cutoff_transition) {
-                    Real slope = -advection_moisture_rate / moisture_cutoff_transition;
-                    qsrc_arr(i, j, k) = (z_cc-moisture_cutoff) * slope + advection_moisture_rate;
+                    qsrc_arr(i, j, k) =  5.226199353716133e-12*z_cc + advection_moisture_rate;
                 } else {
-                    qsrc_arr(i, j, k) = 0.0;
+                    qsrc_arr(i, j, k) = 5.226199353716133e-12*2980.0 + advection_moisture_rate;
                 }
             });
         }

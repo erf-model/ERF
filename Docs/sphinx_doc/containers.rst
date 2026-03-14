@@ -102,7 +102,7 @@ Submit the following slurm batch script in order to use the image in a job
 
   srun -N 1 -n 4 -c 32 --ntasks-per-node=4 --gpus-per-node=4 ./device_wrapper \
   podman-hpc run --rm --mpi --gpu -v /pscratch/sd/u/user/erf/abl:/run -w /run erf:1.00 \
-  /app/erf/ERF-24.06/MyBuild/Exec/ABL/erf_abl inputs_smagorinsky amrex.use_gpu_aware_mpi=0
+  /app/erf/ERF-24.06/MyBuild/Exec/erf_exec CanonicalTests/ABL/inputs_smagorinsky amrex.use_gpu_aware_mpi=0
 
 ``device_wrapper`` script:
 
@@ -121,7 +121,7 @@ Arguments for ``podman-hpc run`` used above
 * ``-v /pscratch/sd/u/user/erf/abl:/run`` mounts ``/pscratch/sd/u/user/erf/abl`` on Perlmutter onto ``/run`` in the container
 * ``-w /run`` makes the ``/run`` directory inside the container the working directory, i.e. any output from the ERF run will be written to the ``/run`` directory in the container, which will appear in the ``/pscratch/sd/u/user/erf/abl`` directory on Perlmutter.
 * ``erf:1.00`` container name and tag
-* ``/app/erf/ERF-24.06/MyBuild/Exec/ABL/erf_abl`` ERF binary in container
+* ``/app/erf/ERF-24.06/MyBuild/Exec/erf_exec`` ERF binary in container
 
 The remaining arguments are the normal ERF command line arguments.
 
@@ -174,7 +174,7 @@ Submit the following slurm batch script in order to use the image in a job
 
   srun -N 1 -n 4 -c 32 --ntasks-per-node=4 --gpus-per-node=4 ./device_wrapper \
   shifter \
-  /app/erf/ERF-24.06/MyBuild/Exec/ABL/erf_abl inputs_smagorinsky amrex.use_gpu_aware_mpi=0
+  /app/erf/ERF-24.06/MyBuild/Exec/erf_exec CanonicalTests/ABL/inputs_smagorinsky amrex.use_gpu_aware_mpi=0
 
 
 

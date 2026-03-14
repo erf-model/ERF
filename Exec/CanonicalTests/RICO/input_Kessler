@@ -28,7 +28,6 @@ erf.most.qstar  = 0.001133 # Cq
 erf.most.z0     = 0.1 # from BOMEX
 erf.most.zref   = 20.0 # from BOMEX
 
-erf.use_explicit_most   = 1
 erf.most.rico.theta_z0 = 300.0
 erf.most.rico.qsat_z0 = 0.022
 
@@ -48,7 +47,6 @@ zhi.type = "SlipWall"
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.3 # fixed time step depending on grid resolution
 erf.fixed_mri_dt_ratio = 4
-erf.use_mono_adv       = true
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -67,13 +65,9 @@ erf.check_int       = 2000    # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
 erf.plot_int_1      = 2000    # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat qrain rain_accum rel_humidity super_droplets_moisture_number_density
-particles.disable_plt = true
-
+erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat qrain rain_accum
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
 
 erf.use_coriolis    = true
@@ -87,48 +81,17 @@ erf.dryscal_vert_adv_type    = Upwind_3rd
 erf.moistscal_horiz_adv_type = Upwind_3rd
 erf.moistscal_vert_adv_type  = Upwind_3rd
 
-erf.moisture_model  = "SuperDroplets"
+erf.moisture_model  = "Kessler"
 erf.buoyancy_type   = 1
-
-#sdm parameters
-super_droplets_moisture.initial_distribution_type = "uniform"
-super_droplets_moisture.diagnostics_interval = 100
-super_droplets_moisture.coalescence_kernel = "Halls"
-super_droplets_moisture.aerosols = NH4HSO4
-super_droplets_moisture.num_initializations = 2
-super_droplets_moisture.density_scaling = true
-
-super_droplets_moisture.0.initial_aerosol_distribution_type_NH4HSO4 = "radius_log_normal"
-super_droplets_moisture.0.initial_aerosol_mean_radius_NH4HSO4 = 30.0e-9 #kg (0.03 mu-m)
-#super_droplets_moisture.0.initial_aerosol_mean_radius_NH4HSO4 = 1.5440783508342682e-07 #kg (0.03 mu-m)
-super_droplets_moisture.0.initial_aerosol_std_radius_NH4HSO4 = 0.2468600779315258
-super_droplets_moisture.0.initial_number_density = 9.0e7 #m^{-3}
-super_droplets_moisture.0.initial_particles_per_cell = 64
-
-super_droplets_moisture.1.initial_aerosol_distribution_type_NH4HSO4 = "radius_log_normal"
-super_droplets_moisture.1.initial_aerosol_mean_radius_NH4HSO4 = 140.0e-9 #kg (0.14 mu-m)
-#super_droplets_moisture.1.initial_aerosol_mean_radius_NH4HSO4 = 2.993331986277269e-06
-super_droplets_moisture.1.initial_aerosol_std_radius_NH4HSO4 = 0.5596157879354227
-super_droplets_moisture.1.initial_number_density = 1.5e7 #m^{-3}
-super_droplets_moisture.1.initial_particles_per_cell = 64
 
 erf.molec_diff_type = "None"
 
-erf.les_type        = "Smagorinsky"
-erf.Cs              = 0.17
-
-#erf.les_type = "Deardorff"
-#erf.Ck       = 0.1
-#erf.sigma_k  = 1.0
-#erf.Ce       = 0.1
-
+erf.les_type  = "Smagorinsky"
+erf.Cs        = 0.17
 erf.Pr_t      = 0.33333333333333
 erf.Sc_t      = 0.33333333333333
 
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
-
-#erf.restart = chk160000
 
 erf.add_custom_rhotheta_forcing        = true
 erf.add_custom_moisture_forcing        = true

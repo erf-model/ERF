@@ -17,7 +17,6 @@ zhi.type = "SlipWall"
 
 # INITIALIZATION
 erf.init_type = input_sounding
-erf.init_sounding_ideal = true
 
 # TIME STEP CONTROL
 erf.fixed_dt                    = 0.1

@@ -1,5 +1,4 @@
 # Dev executables
-add_subdirectory(RICO)
 add_subdirectory(Shoc)
 add_subdirectory(TemperatureSourceSpatial)
 add_subdirectory(TropicalCyclone)
