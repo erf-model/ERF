@@ -6,13 +6,6 @@
     Real wbar_cutoff_min = 2100.0; pp_prob.query("wbar_cutoff_min", wbar_cutoff_min);
     AMREX_ASSERT_WITH_MESSAGE(wbar_cutoff_min > wbar_cutoff_max, "ERROR: wbar_cutoff_min < wbar_cutoff_max");
 
-    // If the z coordinate varies in time and or space, then the the height
-    // needs to be calculated at each time step. Here, we assume that only
-    // grid stretching exists.
-    Vector<Real> zlevels;
-    zlevels.resize(khi+1);
-    reduce_to_max_per_height(zlevels, z_phys_nd);
-
     // Linearly increase wbar to the cutoff_max and then linearly decrease to cutoff_min
     Real z_0    = zlevels[0];
 

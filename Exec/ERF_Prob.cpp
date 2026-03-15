@@ -239,6 +239,21 @@ Problem::update_rhotheta_sources (const Real& time,
 
     const int khi       = geom.Domain().bigEnd()[2];
 
+    // If the z coordinate varies in time and or space, then the the height
+    // needs to be calculated at each time step. Here, we assume that only
+    // grid stretching exists.
+
+    Vector<Real> zlevels;
+    zlevels.resize(khi+1);
+
+    Gpu::DeviceVector<Real> d_zlevels;
+    d_zlevels.resize(khi+1);
+
+    reduce_to_max_per_height(zlevels, z_phys_cc);
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
+
+    const Real* d_zlevels_arr = d_zlevels.dataPtr();
+
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
     std::string my_prob_name_ci = amrex::toLower(my_prob_name);
@@ -259,6 +274,23 @@ Problem::update_rhoqt_sources (const Real& time,
                                std::unique_ptr<MultiFab>& z_phys_cc)
 {
     if (qsrc->empty()) return;
+
+    const int khi       = geom.Domain().bigEnd()[2];
+
+    // If the z coordinate varies in time and or space, then the the height
+    // needs to be calculated at each time step. Here, we assume that only
+    // grid stretching exists.
+
+    Vector<Real> zlevels;
+    zlevels.resize(khi+1);
+
+    Gpu::DeviceVector<Real> d_zlevels;
+    d_zlevels.resize(khi+1);
+
+    reduce_to_max_per_height(zlevels, z_phys_cc);
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
+
+    const Real* d_zlevels_arr = d_zlevels.dataPtr();
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
@@ -288,6 +320,13 @@ Problem::update_w_subsidence (const Real& /*time*/,
 
     const int khi       = geom.Domain().bigEnd()[2];
 
+    // If the z coordinate varies in time and or space, then the the height
+    // needs to be calculated at each time step. Here, we assume that only
+    // grid stretching exists.
+    Vector<Real> zlevels;
+    zlevels.resize(khi+2);
+    reduce_to_max_per_height(zlevels, z_phys_nd);
+
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
     std::string my_prob_name_ci = amrex::toLower(my_prob_name);
@@ -315,6 +354,13 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
 
     const int khi       = geom.Domain().bigEnd()[2];
 
+    // If the z coordinate varies in time and or space, then the the height
+    // needs to be calculated at each time step. Here, we assume that only
+    // grid stretching exists.
+    Vector<Real> zlevels;
+    zlevels.resize(khi+1);
+    reduce_to_max_per_height(zlevels, z_phys_cc);
+
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
     std::string my_prob_name_ci = amrex::toLower(my_prob_name);
@@ -324,4 +370,8 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
     } else if  (my_prob_name_ci == "rico") {
 #include "Prob/ERF_UpdateGeostrophicProfile_RICO.H"
     }
+
+    // Copy from host version to device version
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, u_geos.begin(), u_geos.end(), d_u_geos.begin());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, v_geos.begin(), v_geos.end(), d_v_geos.begin());
 }

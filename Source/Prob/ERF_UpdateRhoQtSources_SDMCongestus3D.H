@@ -6,22 +6,13 @@
     auto prob_lo = geom.ProbLoArray();
     auto prob_hi = geom.ProbHiArray();
     auto dx = geom.CellSizeArray();
-    const int khi = geom.Domain().bigEnd()[2];
-
-    Vector<Real> zlevels;
-    Gpu::DeviceVector<Real> d_zlevels;
-
-    zlevels.resize(khi+1);
-    reduce_to_max_per_height(zlevels, z_phys_cc);
-    d_zlevels.resize(khi+1);
-    Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
 
     // Define a point (xc,yc,zc) at the center of the domain
     auto xc = 0.5 * (prob_lo[0] + prob_hi[0]);
     auto yc = 0.5 * (prob_lo[1] + prob_hi[1]);
 
     // Only apply temperature source below nominal inversion height
-    for ( amrex::MFIter mfi(*qsrc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    for (MFIter mfi(*qsrc, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const auto &box = mfi.tilebox();
         const Array4<Real>& qsrc_arr = qsrc->array(mfi);
