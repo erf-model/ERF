@@ -442,7 +442,7 @@ ERF supports multiple CMake workflows. The main difference is directory structur
          cd ERF
          ./Build/cmake_with_kokkos_many.sh
 
-      **Executable locations:** ``$ERF_BUILD_DIR/Exec/erf_exec`` and ``$ERF_INSTALL_DIR/bin/erf_exec`` (defaults: ``./Exec/ABL/erf_exec`` and ``install/bin/erf_exec``)
+      **Executable locations:** ``$ERF_BUILD_DIR/Exec/erf_exec`` and ``$ERF_INSTALL_DIR/bin/erf_exec`` (defaults: ``./Exec/erf_exec`` and ``install/bin/erf_exec``)
 
       **Cleanup for rebuild:**
 

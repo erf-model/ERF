@@ -1174,14 +1174,17 @@ Realistic Test Cases
 ^^^^^^^^^^^^^^^^^^^^^
 
 **SDM_RICO3D**: 3D simulation of the Rain In Cumulus Over the Ocean (RICO) case, a precipitating shallow cumulus benchmark.
-Tests full SDM microphysics including condensation, coalescence, and sedimentation in a realistic cloud environment. Source
-located in ``Exec/CanonicalTests/RICO``. Inputs with NH4HSO4 aerosol located in  ``Tests/test_files/SDM_RICO3D/``.
+Tests full SDM microphysics including condensation, coalescence, and sedimentation in a realistic cloud environment.
+Source files located in ``Source/Prob/ERF*RICO3D.H``.
+Inputs with NH4HSO4 aerosol located in  ``Tests/test_files/SDM_RICO3D/``.
 
 **SDM_RICO3D_InitSampling**: RICO case with sampling-based initialization for improved size distribution representation.
-Source located in ``Exec/CanonicalTests/RICO``. Inputs located in ``Tests/test_files/SDM_RICO3D_InitSampling/``.
+Source files located in ``Source/Prob/ERF*SDM_RICO3D.H``.
+Inputs located in ``Tests/test_files/SDM_RICO3D_InitSampling/``.
 
 **SDM_Congestus3D**: 3D simulation of congestus clouds, testing SDM in a deeper convective environment.
-Source located in ``.Exec_dev/TemperatureSourceSpatial``. Inputs located in ``Tests/test_files/SDM_Congestus3D/``.
+Source files located in ``Source/Prob/ERF*SDM_Congestus3D.H``.
+Inputs located in ``Tests/test_files/SDM_Congestus3D/``.
 
 Example Problems
 ^^^^^^^^^^^^^^^^^
@@ -1194,8 +1197,8 @@ configuration and moving source regions.
 **RICO DevTest**: ``Exec/CanonicalTests/RICO/`` contains multiple input files for the RICO case with different microphysics models,
 including SDM configurations with various aerosol species (``input_sdm``).
 
-**Temperature Source Tests**: ``.Exec_dev/TemperatureSourceSpatial/`` and ``.Exec_dev/sinusoidal_mass_flux/`` include
-SDM configurations for testing particle behavior with prescribed temperature and mass flux forcing.
+**Temperature Source Tests**: ``Exec_dev/RegTests/SDM_Congestus3D`` and ``.Exec_dev/sinusoidal_mass_flux/``
+include SDM configurations for testing particle behavior with prescribed temperature and mass flux forcing.
 
 Verification
 ^^^^^^^^^^^^

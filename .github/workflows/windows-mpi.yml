@@ -84,7 +84,7 @@ jobs:
 
           ## Running the Executable
 
-          Navigate to the executable directory (e.g., `Exec\ABL\Debug\` or `Exec\ABL\Release\`) and run:
+          Navigate to the executable directory (e.g., `Exec\Debug\` or `Exec\Release\`) and run:
 
           ``````powershell
           # Single process

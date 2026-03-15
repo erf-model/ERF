@@ -216,17 +216,17 @@ if(ERF_ENABLE_PARTICLES)
     endif()
 
     # passive advection of particles
-    add_test_sdm(SDM_Bubble2D_Adv                "" "erf_exec"   "plt00050" 1e-12 1e-12)
+    add_test_sdm(SDM_Bubble2D_Adv                "" "erf_exec"  "plt00050" 1e-12 1e-12)
     # passive advection of particles with injection
-    add_test_sdm(SDM_Bubble2D_Adv_wInjection     "" "erf_exec"   "plt00050" 5e-12 5e-12)
+    add_test_sdm(SDM_Bubble2D_Adv_wInjection     "" "erf_exec"  "plt00050" 5e-12 5e-12)
     # condensation/evaporation
-    add_test_sdm(SDM_Box3D_Cond                  "" "erf_exec"   "plt00010" 2e-12 3e-13)
+    add_test_sdm(SDM_Box3D_Cond                  "" "erf_exec"  "plt00010" 2e-12 3e-13)
     # terminal velocity
-    add_test_sdm(SDM_Box3D_VTerm                 "" "erf_exec"   "plt00001" 5e-13 1e-14)
+    add_test_sdm(SDM_Box3D_VTerm                 "" "erf_exec"  "plt00001" 5e-13 1e-14)
     # recycling
-    add_test_sdm(SDM_Box3D_Recycling             "" "erf_exec"   "plt00020" 5e-13 1e-14)
+    add_test_sdm(SDM_Box3D_Recycling             "" "erf_exec"  "plt00020" 5e-13 1e-14)
     # Congestus case
-    add_test_sdm(SDM_Congestus3D                 "../.Exec_dev/TemperatureSourceSpatial"   "erf_abl_with_spatial_temperature_source" "plt00020" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
+    add_test_sdm(SDM_Congestus3D                 "" "erf_exec"  "plt00020" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
     # RICO case
     add_test_sdm(SDM_RICO3D                      "" "erf_exec"  "plt00010" 5e-13 5e-13 INPUT_SOUNDING "input_sounding")
     # multispecies setup with dummy water species
