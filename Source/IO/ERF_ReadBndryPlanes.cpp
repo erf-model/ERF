@@ -310,8 +310,8 @@ void ReadBndryPlanes::read_input_files (Real time,
     // Compute the index such that time falls between times[idx] and times[idx+1]
     const int idx = closest_index(m_in_times, time);
 
-    // Now we need to read another file
-    if (idx >= last_file_read-1 && last_file_read != m_in_times.size()-1) {
+    // Advance the read window until it spans the requested time.
+    while (idx >= last_file_read-1 && last_file_read != m_in_times.size()-1) {
         int new_read = last_file_read+1;
 
         // We need to change which data the pointers point to before we read in the new data
