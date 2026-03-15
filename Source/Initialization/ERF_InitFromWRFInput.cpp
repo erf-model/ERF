@@ -206,17 +206,19 @@ ERF::init_from_wrfinput (int lev,
                 var_fab_from_file.shift(shift_by);
             }
 
+
             // In the case where the array is 1D in the z-direction, the destination box needs to also
             //    be 1D in the z-direction, but with (i,j) corresponding to the low corner of the box
             //    to be filled
             int nx = var_fab_from_file.box().length(0);
             int ny = var_fab_from_file.box().length(1);
+            Box subdomain_tmp(subdomain_to_fill);
             if (nx == 1 and ny == 1) {
-                subdomain_to_fill.setBig(0,subdomain_to_fill.smallEnd(0));
-                subdomain_to_fill.setBig(1,subdomain_to_fill.smallEnd(1));
+                subdomain_tmp.setBig(0,subdomain_tmp.smallEnd(0));
+                subdomain_tmp.setBig(1,subdomain_tmp.smallEnd(1));
             }
 
-            Box subdomain_to_fill_typed(convert(subdomain_to_fill,var_fab_from_file.box().ixType()));
+            Box subdomain_to_fill_typed(convert(subdomain_tmp,var_fab_from_file.box().ixType()));
 #ifdef AMREX_USE_GPU
             FArrayBox var_fab(subdomain_to_fill_typed,1,amrex::The_Pinned_Arena());
 #else
