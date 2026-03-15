@@ -57,11 +57,11 @@ int main (int argc, char* argv[])
         // Write plotfile
         WriteSingleLevelPlotfile("plt_2", mf_cc_tmp, varnames, geom_coarse, 0.0, 0);
 
-        MultiFab mf_cc_from_coarse;
+        MultiFab mf_cc_fine_from_coarse;
         PopulateFineCellCenteredFromCoarseNodal(geom_coarse, geom_fine, coarse_multifab_on_fine_dmap,
-                                                mf_cc_fine, mf_cc_from_coarse);
+                                                mf_cc_fine, mf_cc_fine_from_coarse);
 
-        WriteSingleLevelPlotfile("plt_final", mf_cc_from_coarse, varnames, geom_fine, 0.0, 0);
+        WriteSingleLevelPlotfile("plt_final", mf_cc_fine_from_coarse, varnames, geom_fine, 0.0, 0);
 
     }
     Finalize();
