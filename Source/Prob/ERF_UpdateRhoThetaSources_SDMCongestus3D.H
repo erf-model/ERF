@@ -6,7 +6,6 @@
     auto prob_lo = geom.ProbLoArray();
     auto prob_hi = geom.ProbHiArray();
     auto dx = geom.CellSizeArray();
-    const int khi = geom.Domain().bigEnd()[2];
 
     // Define a point (xc,yc,zc) at the center of the domain
     const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
