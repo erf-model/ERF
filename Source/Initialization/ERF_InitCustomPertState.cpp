@@ -42,10 +42,14 @@ ERF::init_custom (int lev)
     yvel_pert.setVal(0.);
     zvel_pert.setVal(0.);
 
-    // If the initial condition needs to have spatially correlated perturbations superimposed onto
-    // the base state, then populate the "pert" multifabs with random perturbations,
-    // and then apply a Gaussian smoothing to make the perturbations spatially correlated
-    if(solverChoice.is_init_with_correlated_pert) {
+    // If initializing for enembls simluations, then
+    // 1. read in the coarse background state from a plotfile 
+    // 2. interpolate the state data onto the current mesh
+    // 3. Create spatially correlated perturbations 
+    // 4. Add the perturbations to the background state and then populate the "pert variables
+
+    if(solverChoice.is_init_for_ensemble) {
+        create_background_state (); 
         create_random_perturbations(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert);
         apply_gaussian_smoothing_to_perturbations(lev, cons_pert, xvel_pert, yvel_pert, zvel_pert);
     }

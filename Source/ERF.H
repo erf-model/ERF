@@ -167,6 +167,8 @@ public:
                                    surface_state_2,
                                    surface_state_interp;
 
+    amrex::Vector<amrex::Vector<amrex::MultiFab>> bckgnd_state;
+
     std::string MakeVTKFilename(int nstep);
     std::string MakeVTKFilename_TrackerCircle(int nstep);
     std::string MakeVTKFilename_EyeTracker_xy(int nstep);
@@ -495,6 +497,8 @@ public:
                                   const amrex::Real time,
                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                                   bool regrid_forces_file_read);
+
+    void create_background_state_for_ensemble ();
 
     void create_random_perturbations (const int lev,
                                       amrex::MultiFab& cons_pert,
