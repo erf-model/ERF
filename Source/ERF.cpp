@@ -3128,23 +3128,19 @@ ERF::writeNow(const Real cur_time, const int nstep, const int plot_int, const Re
 void
 ERF::check_state_for_nans(MultiFab const& S)
 {
-    int ncomp = S.nComp();
-    for (int lev = 0; lev <= finest_level; lev++)
-    {
-        //
-        // Test at the end of every full timestep whether the solution data contains NaNs
-        //
-        bool any_have_nans = false;
-        for (int i = 0; i < ncomp; i++) {
-            if (S.contains_nan(i,1,0))
-            {
-                amrex::Print() << "Component " << i << " of conserved variables contains NaNs" << '\n';
-                any_have_nans = true;
-            }
+    bool any_have_nans = false;
+
+    for (int i = 0; i < S.nComp(); i++) {
+
+        if (S.contains_nan(i,1,0))
+        {
+            amrex::Print() << "Component " << i << " of conserved variables contains NaNs" << '\n';
+            any_have_nans = true;
         }
-        if (any_have_nans) {
-            exit(0);
-        }
+    }
+
+    if (any_have_nans) {
+        exit(0);
     }
 }
 
