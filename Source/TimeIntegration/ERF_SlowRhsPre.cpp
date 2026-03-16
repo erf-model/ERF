@@ -224,17 +224,25 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #else
         // This is computed pre step in Advance if we use SHOC
         if (l_use_SurfLayer) {
-            // Set surface shear stresses, update heat and moisture fluxes
-            // (fluxes will be later applied in the diffusion source update)
-            Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
-            SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
-                                               Hfx1, Hfx2, Hfx3,
-                                               Q1fx1, Q1fx2, Q1fx3,
-                                               &z_phys_nd);
+            if (!l_use_eb) {
+                // Set surface shear stresses, update heat and moisture fluxes
+                // (fluxes will be later applied in the diffusion source update)
+                Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
+                SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
+                                                Hfx1, Hfx2, Hfx3,
+                                                Q1fx1, Q1fx2, Q1fx3,
+                                                &z_phys_nd);
 
-            //if (l_vert_implicit_fac > 0 && solverChoice.implicit_momentum_diffusion) {
-            //    copy_surface_tau_for_implicit(Tau_lev, Tau_corr_lev);
-            //}
+                //if (l_vert_implicit_fac > 0 && solverChoice.implicit_momentum_diffusion) {
+                //    copy_surface_tau_for_implicit(Tau_lev, Tau_corr_lev);
+                //}                
+            } else {
+                Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
+                SurfLayer->impose_SurfaceLayer_bcs_EB(level, mfs, Tau_lev,
+                                                   Hfx1, Hfx2, Hfx3,
+                                                   Q1fx1, Q1fx2, Q1fx3,
+                                                   ebfact);
+            }
         }
 #endif
     } // l_use_diff

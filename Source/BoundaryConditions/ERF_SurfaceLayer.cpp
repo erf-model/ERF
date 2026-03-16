@@ -319,6 +319,7 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                        const MultiFab* z_phys)
 {
     if (flux_type == FluxCalcType::MOENG) {
+        Print() << "SK: impose_SurfaceLayer_bcs: flux_type == FluxCalcType::MOENG " << std::endl;
         moeng_flux flux_comp;
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
@@ -359,6 +360,36 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
     }
 }
 
+/**
+ * Wrapper to impose Monin Obukhov similarity theory fluxes by populating ghost cells.
+ *
+ * @param[in] lev Current level
+ * @param[in,out] mfs MultiFabs to populate
+ * @param[in] eddyDiffs Diffusion coefficients from turbulence model
+ */
+void
+SurfaceLayer::impose_SurfaceLayer_bcs_EB (const int& lev,
+                                       Vector<const MultiFab*> mfs,
+                                       Vector<std::unique_ptr<MultiFab>>& Tau_lev,
+                                       MultiFab* xheat_flux,
+                                       MultiFab* yheat_flux,
+                                       MultiFab* zheat_flux,
+                                       MultiFab* xqv_flux,
+                                       MultiFab* yqv_flux,
+                                       MultiFab* zqv_flux,
+                                       const eb_& ebfact)
+{
+    if (flux_type == FluxCalcType::MOENG) {
+        Print() << "SK: impose_SurfaceLayer_bcs: flux_type == FluxCalcType::MOENG " << std::endl;
+        moeng_flux flux_comp;
+        compute_SurfaceLayer_bcs_EB(lev, mfs, Tau_lev,
+                                 xheat_flux, yheat_flux, zheat_flux,
+                                 xqv_flux, yqv_flux, zqv_flux,
+                                 ebfact, flux_comp);
+    } else {
+        amrex::Abort("Not implemented surface layer flux calculation type for EB");
+    }
+}
 
 /**
  * Function to calculate MOST fluxes for populating ghost cells.
@@ -590,6 +621,213 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                      t23_arr, t32_arr);
             });
         }
+    } // mfiter
+}
+
+/**
+ * Function to calculate MOST fluxes for populating ghost cells.
+ *
+ * @param[in] lev Current level
+ * @param[in,out] mfs MultiFabs to populate
+ * @param[in] eddyDiffs Diffusion coefficients from turbulence model
+ * @param[in] flux_comp structure to compute fluxes
+ */
+template <typename FluxCalc>
+void
+SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
+                                        Vector<const MultiFab*> mfs,
+                                        Vector<std::unique_ptr<MultiFab>>& Tau_lev,
+                                        MultiFab* xheat_flux,
+                                        MultiFab* yheat_flux,
+                                        MultiFab* zheat_flux,
+                                        MultiFab* xqv_flux,
+                                        MultiFab* yqv_flux,
+                                        MultiFab* zqv_flux,
+                                        const eb_& ebfact,
+                                        const FluxCalc& flux_comp)
+{
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+    const auto& dxInv = m_geom[lev].InvCellSizeArray();
+    for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
+    {
+        // Get field arrays
+        const auto cons_arr  = mfs[Vars::cons]->array(mfi);
+        const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
+        const auto vely_arr  = mfs[Vars::yvel]->array(mfi);
+        const auto velz_arr  = mfs[Vars::zvel]->array(mfi);
+
+        // Diffusive stress vars
+        auto t13_arr =  Tau_lev[TauType::tau13]->array(mfi);
+        auto t31_arr = (Tau_lev[TauType::tau31]) ? Tau_lev[TauType::tau31]->array(mfi) : Array4<Real>{};
+
+        auto t23_arr =  Tau_lev[TauType::tau23]->array(mfi);
+        auto t32_arr = (Tau_lev[TauType::tau32]) ? Tau_lev[TauType::tau32]->array(mfi) : Array4<Real>{};
+
+        auto hfx3_arr = zheat_flux->array(mfi);
+        auto qfx3_arr = (zqv_flux)  ? zqv_flux->array(mfi)   : Array4<Real>{};
+
+        // Rotated stress vars
+        auto t11_arr = (m_rotate) ? Tau_lev[TauType::tau11]->array(mfi) : Array4<Real>{};
+        auto t22_arr = (m_rotate) ? Tau_lev[TauType::tau22]->array(mfi) : Array4<Real>{};
+        auto t33_arr = (m_rotate) ? Tau_lev[TauType::tau33]->array(mfi) : Array4<Real>{};
+        auto t12_arr = (m_rotate) ? Tau_lev[TauType::tau12]->array(mfi) : Array4<Real>{};
+        auto t21_arr = (m_rotate) ? Tau_lev[TauType::tau21]->array(mfi) : Array4<Real>{};
+
+        auto hfx1_arr = (m_rotate) ? xheat_flux->array(mfi) : Array4<Real>{};
+        auto hfx2_arr = (m_rotate) ? yheat_flux->array(mfi) : Array4<Real>{};
+        auto qfx1_arr = (m_rotate && xqv_flux) ? xqv_flux->array(mfi) : Array4<Real>{};
+        auto qfx2_arr = (m_rotate && yqv_flux) ? yqv_flux->array(mfi) : Array4<Real>{};
+
+        // Terrain
+        const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
+
+        // Get average arrays
+        const auto *const u_mean     = m_ma.get_average(lev,0);
+        const auto *const v_mean     = m_ma.get_average(lev,1);
+        const auto *const t_mean     = m_ma.get_average(lev,2);
+        const auto *const q_mean     = m_ma.get_average(lev,3);
+        const auto *const u_mag_mean = m_ma.get_average(lev,5);
+
+        const auto um_arr  = u_mean->array(mfi);
+        const auto vm_arr  = v_mean->array(mfi);
+        const auto tm_arr  = t_mean->array(mfi);
+        const auto qm_arr  = q_mean->array(mfi);
+        const auto umm_arr = u_mag_mean->array(mfi);
+
+        // Get derived arrays
+        const auto u_star_arr = u_star[lev]->array(mfi);
+        const auto t_star_arr = t_star[lev]->array(mfi);
+        const auto q_star_arr = q_star[lev]->array(mfi);
+        const auto t_surf_arr = t_surf[lev]->array(mfi);
+        const auto q_surf_arr = q_surf[lev]->array(mfi);
+
+        // Get LSM fluxes
+        auto lmask_arr      = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                      Array4<int> {};
+        auto lsm_t_flux_arr = Array4<Real> {};
+        auto lsm_q_flux_arr = Array4<Real> {};
+        auto lsm_tau13_arr  = Array4<Real> {};
+        auto lsm_tau23_arr  = Array4<Real> {};
+        for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
+            if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+        }
+
+
+        // Rho*Theta flux
+        //============================================================================
+        Box bx = mfi.tilebox();
+        if (bx.smallEnd(2) != klo) { continue; }
+        bx.makeSlab(2,klo);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            // Valid theta flux from LSM and over land
+            Real Tflux;
+            int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
+            if (lsm_t_flux_arr && is_land) {
+                Tflux = lsm_t_flux_arr(i,j,k);
+            } else {
+                Tflux = flux_comp.compute_t_flux(i, j, k,
+                                                 cons_arr, velx_arr, vely_arr,
+                                                 umm_arr, tm_arr, u_star_arr,
+                                                 t_star_arr, t_surf_arr);
+
+            }
+            hfx3_arr(i,j,klo) = Tflux;
+        });
+
+        // // Rho*Qv flux
+        // //============================================================================
+        // if (use_moisture) {
+        //     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        //     {
+        //         // Valid qv flux from LSM and over land
+        //         Real Qflux;
+        //         int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
+        //         if (lsm_q_flux_arr && is_land) {
+        //             Qflux = lsm_q_flux_arr(i,j,k);
+        //         } else {
+        //             Qflux = flux_comp.compute_q_flux(i, j, k,
+        //                                              cons_arr, velx_arr, vely_arr,
+        //                                              umm_arr, qm_arr, u_star_arr,
+        //                                              q_star_arr, q_surf_arr);
+        //         }
+
+        //         // Do scalar flux rotations?
+        //         if (rotate) {
+        //             rotate_scalar_flux(i, j, k, Qflux, dxInv, zphys_arr,
+        //                                qfx1_arr, qfx2_arr, qfx3_arr);
+        //         } else {
+        //             qfx3_arr(i,j,k) = Qflux;
+        //         }
+        //     });
+        // } // custom
+
+        // Rho*u flux
+        //============================================================================
+        Box bxx = surroundingNodes(bx,0);
+        ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            // Valid tau13 from LSM and over land
+            Real stressx;
+            int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,klo) : 1;
+            int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,klo) : 1;
+            if (lsm_tau13_arr && (is_land_hi || is_land_lo)) {
+                stressx = 0.;
+                if (!is_land_hi || !is_land_lo) {
+                    stressx += 0.5 * flux_comp.compute_u_flux(i, j, k,
+                                                                cons_arr, velx_arr, vely_arr,
+                                                                umm_arr, um_arr, u_star_arr);
+                }
+                if (is_land_hi) {
+                    stressx += 0.5 * lsm_tau13_arr(i  ,j,k);
+                }
+                if (is_land_lo) {
+                    stressx += 0.5 * lsm_tau13_arr(i-1,j,k);
+                }
+            } else {
+                stressx = flux_comp.compute_u_flux(i, j, k,
+                                                    cons_arr, velx_arr, vely_arr,
+                                                    umm_arr, um_arr, u_star_arr);
+            }
+
+            t13_arr(i,j,k) = stressx;
+            if (t31_arr) { t31_arr(i,j,k) = stressx; }
+        });
+
+        // Rho*v flux
+        //============================================================================
+        Box bxy = surroundingNodes(bx,1);
+        ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            // Valid tau13 from LSM and over land
+            Real stressy;
+            int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,klo) : 1;
+            int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,klo) : 1;
+            if (lsm_tau23_arr && (is_land_hi || is_land_lo)) {
+                stressy = 0.;
+                if (!is_land_hi || !is_land_lo) {
+                    stressy += 0.5 * flux_comp.compute_v_flux(i, j, k,
+                                                                cons_arr, velx_arr, vely_arr,
+                                                                umm_arr, vm_arr, u_star_arr);
+                }
+                if (is_land_hi) {
+                    stressy += 0.5 * lsm_tau23_arr(i,j  ,k);
+                }
+                if (is_land_lo) {
+                    stressy += 0.5 * lsm_tau23_arr(i,j-1,k);
+                }
+            } else {
+                stressy = flux_comp.compute_v_flux(i, j, k,
+                                                    cons_arr, velx_arr, vely_arr,
+                                                    umm_arr, vm_arr, u_star_arr);
+            }
+
+            t23_arr(i,j,k) = stressy;
+            if (t32_arr) { t32_arr(i,j,k) = stressy; }
+        });
     } // mfiter
 }
 
