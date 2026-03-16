@@ -61,8 +61,8 @@ ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff
                             + vfrac(i-1,j-1,k) * cell_data(i-1, j-1, k, Rho_comp)
                             + vfrac(i,j-1,k) * cell_data(i, j-1, k, Rho_comp) ) / vol_sum;
             } else {
-                rho_bar = 0.25*( cell_data(i-1, j  , k, Rho_comp) + vfrac(i,j,k) * cell_data(i, j  , k, Rho_comp)
-                            + cell_data(i-1, j-1, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
+                rho_bar = 0.25*( cell_data(i-1, j  , k, Rho_comp) + cell_data(i, j  , k, Rho_comp)
+                               + cell_data(i-1, j-1, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             }
             tau12(i,j,k) *= -rho_bar * mu_eff;
         },
