@@ -154,6 +154,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
                             ( (l_anelastic && nrk == 1) || (!l_anelastic && nrk == 2) ) );
 
+    const bool l_use_eb = (solverChoice.terrain_type == TerrainType::EB);
+
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real* dx = geom.CellSize();
 
@@ -166,7 +168,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     // **************************************************************************************
     // If doing advection with EB we need the extra values for tangential interpolation
     // **************************************************************************************
-    if (solverChoice.terrain_type == TerrainType::EB) {
+    if (l_use_eb) {
         S_data[IntVars::xmom].FillBoundary(geom.periodicity());
         S_data[IntVars::ymom].FillBoundary(geom.periodicity());
         S_data[IntVars::zmom].FillBoundary(geom.periodicity());
@@ -179,7 +181,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const BoxArray& ba            = S_data[IntVars::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();
 
-    int nGhost = (solverChoice.terrain_type == TerrainType::EB) ? 2 : 1;
+    int nGhost = (l_use_eb) ? 2 : 1;
     MultiFab Omega(convert(ba,IntVect(0,0,1)), dm, 1, nGhost);
 
     std::unique_ptr<MultiFab> expr;
@@ -247,7 +249,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     bool already_on_centroids = false;
     Vector<iMultiFab> physbnd_mask;
     physbnd_mask.resize(IntVars::NumTypes);
-    if (solverChoice.terrain_type == TerrainType::EB) {
+    if (l_use_eb) {
         physbnd_mask[IntVars::cons].define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
         physbnd_mask[IntVars::cons].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
         // physbnd_mask[IntVars::cons].FillBoundary(geom.periodicity());
@@ -273,7 +275,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Vector<Box> tbx_grown(AMREX_SPACEDIM);
         Vector<Box> tby_grown(AMREX_SPACEDIM);
         Vector<Box> tbz_grown(AMREX_SPACEDIM);
-        if (solverChoice.terrain_type == TerrainType::EB) {
+        if (l_use_eb) {
             for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
                 tbx_grown[dir] = tbx;
                 tby_grown[dir] = tby;
@@ -369,7 +371,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         std::array<FArrayBox,AMREX_SPACEDIM> flux_w;
 
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            if (solverChoice.terrain_type != TerrainType::EB) {
+            if (!l_use_eb) {
                 flux[dir].resize(surroundingNodes(bx,dir),2,The_Async_Arena());
             } else {
                 flux[dir].resize(surroundingNodes(bx,dir).grow(1),2,The_Async_Arena());
@@ -384,7 +386,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_v_arr{};
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_w_arr{};
 
-        if (solverChoice.terrain_type == TerrainType::EB) {
+        if (l_use_eb) {
             for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
                 flux_u[dir].resize(tbx_grown[dir],1,The_Async_Arena());
                 flux_v[dir].resize(tby_grown[dir],1,The_Async_Arena());
@@ -403,7 +405,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         {
         BL_PROFILE("slow_rhs_making_omega");
-            IntVect nGrowVect = (solverChoice.terrain_type == TerrainType::EB)
+            IntVect nGrowVect = (l_use_eb)
                                 ? IntVect(AMREX_D_DECL(2, 2, 2)) : IntVect(AMREX_D_DECL(1, 1, 1));
             Box gbxo = surroundingNodes(bx,2); gbxo.grow(nGrowVect);
             //
@@ -504,7 +506,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Array4<const Real> fcz_arr{};
         Array4<const Real> detJ_arr{};
 
-        if (solverChoice.terrain_type == TerrainType::EB)
+        if (l_use_eb)
         {
             EBCellFlagFab const& cfg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi];
             cfg_arr  = cfg.const_array();
@@ -615,7 +617,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_use_SurfLayer, l_vert_implicit_fac);
-            } else if (solverChoice.terrain_type == TerrainType::EB) {
+            } else if (l_use_eb) {
                 DiffusionSrcForState_EB(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
@@ -683,7 +685,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // viscosity") means that there is no contribution from a
             // turbulence model. However, whether this field truly is constant
             // depends on whether MolecDiffType is Constant or ConstantAlpha.
-            if (solverChoice.terrain_type != TerrainType::EB) {
+            if (!l_use_eb) {
                 DiffusionSrcForMom(tbx, tby, tbz,
                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                     tau11, tau22, tau33,
