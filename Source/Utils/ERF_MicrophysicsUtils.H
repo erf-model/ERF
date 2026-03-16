@@ -16,6 +16,8 @@ amrex::Real erf_gammafff (amrex::Real x){
     return std::exp(lgamma(x));
 }
 
+// Saturation vapor pressure of ice [mbar]
+//
 // From Flatau et al. (1992):
 // https://doi.org/10.1175/1520-0450(1992)031<1507:PFTSVP>2.0.CO;2
 // Coefficients come from Table 4 and the data is valid over a
@@ -33,7 +35,7 @@ amrex::Real erf_esati (amrex::Real t) {
     amrex::Real const a8 = 0.252751365e-14;
 
     amrex::Real dtt = t-273.16;
-    AMREX_ALWAYS_ASSERT(dtt>-85);
+    AMREX_ALWAYS_ASSERT(dtt>-90);
 
     amrex::Real esati;
     if (dtt > 0.0) {
@@ -56,28 +58,35 @@ amrex::Real erf_esatw_cc (amrex::Real t) {
     return esatw;
 }
 
+// Saturation vapor pressure of water vapor [mbar]
+//
 // From Flatau et al. (1992):
 // https://doi.org/10.1175/1520-0450(1992)031<1507:PFTSVP>2.0.CO;2
 // Coefficients come from Table 4 and the data is valid over a
 // temperature range of [-85  70] C. Assert we are in this temp range.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real erf_esatw (amrex::Real t) {
-    amrex::Real const a0 = 6.11239921;
-    amrex::Real const a1 = 0.443987641;
-    amrex::Real const a2 = 0.142986287e-1;
-    amrex::Real const a3 = 0.264847430e-3;
-    amrex::Real const a4 = 0.302950461e-5;
-    amrex::Real const a5 = 0.206739458e-7;
-    amrex::Real const a6 = 0.640689451e-10;
-    amrex::Real const a7 = -0.952447341e-13;
-    amrex::Real const a8 = -0.976195544e-15;
-
-    amrex::Real dtt = t-273.16;
+amrex::Real erf_esatw (amrex::Real t, bool use_empirical=false)
+{
     amrex::Real esatw;
-    if (dtt>-85 && dtt<70.0) {
-        esatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
+    if (use_empirical) {
+        esatw = exp(34.494 - 4924.99/(t - 273.15 + 237.1)) / std::pow(t - 273.15 + 105.0,1.57);
     } else {
-        esatw = erf_esatw_cc(t);
+        amrex::Real const a0 = 6.11239921;
+        amrex::Real const a1 = 0.443987641;
+        amrex::Real const a2 = 0.142986287e-1;
+        amrex::Real const a3 = 0.264847430e-3;
+        amrex::Real const a4 = 0.302950461e-5;
+        amrex::Real const a5 = 0.206739458e-7;
+        amrex::Real const a6 = 0.640689451e-10;
+        amrex::Real const a7 = -0.952447341e-13;
+        amrex::Real const a8 = -0.976195544e-15;
+
+        amrex::Real dtt = t-273.16;
+        if (dtt>-85 && dtt<70.0) {
+            esatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
+        } else {
+            esatw = erf_esatw_cc(t);
+        }
     }
     return esatw;
 }
@@ -137,7 +146,7 @@ amrex::Real erf_dtesatw (amrex::Real t) {
     amrex::Real const a7 = -0.792933209e-14;
     amrex::Real const a8 = -0.599634321e-17;
 
-    amrex::Real dtt = t-273.16;
+    amrex::Real dtt = t-273.16; // Goff-Gratch
     amrex::Real dtesatw;
     if (dtt>-85.0 && dtt<70.) {
         dtesatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
@@ -154,6 +163,10 @@ void erf_qsati (amrex::Real t, amrex::Real p, amrex::Real &qsati) {
     qsati = Rd_on_Rv*esati/std::max(esati,p-esati);
 }
 
+/* saturated water vapor mixing ratio
+ * t: temperature [K]
+ * p: pressure [mbar]
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_qsatw (amrex::Real t, amrex::Real p, amrex::Real &qsatw) {
     amrex::Real esatw;
@@ -163,21 +176,27 @@ void erf_qsatw (amrex::Real t, amrex::Real p, amrex::Real &qsatw) {
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_dtqsati (amrex::Real t, amrex::Real p, amrex::Real &dtqsati) {
-    dtqsati = Rd_on_Rv*erf_dtesati(t)/p;
+    amrex::Real esati   = erf_esati(t);
+    amrex::Real dtesati = erf_dtesati(t);
+    amrex::Real denom   = p - esati;
+    dtqsati = Rd_on_Rv * dtesati * p / (denom * denom);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_dtqsatw (amrex::Real t, amrex::Real p, amrex::Real &dtqsatw) {
-    dtqsatw = Rd_on_Rv*erf_dtesatw(t)/p;
+    amrex::Real esatw   = erf_esatw(t);
+    amrex::Real dtesatw = erf_dtesatw(t);
+    amrex::Real denom   = p - esatw;
+    dtqsatw = Rd_on_Rv * dtesatw * p / (denom * denom);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void z0_est (amrex::Real z, amrex::Real bflx, amrex::Real wnd, amrex::Real ustar, amrex::Real &z0) {
     amrex::Real vonk = 0.4;
-    amrex::Real eps = 1.0e-10;
-    amrex::Real am = 4.8;
-    amrex::Real bm = 19.3;
-    amrex::Real c1 = 3.14159/2.0 - 3.0*log(2.0);
+    amrex::Real eps  = 1.0e-10;
+    amrex::Real am   = 4.8;
+    amrex::Real bm   = 19.3;
+    amrex::Real c1   = 3.14159/2.0 - 3.0*log(2.0);
     amrex::Real rlmo = -bflx*vonk/(ustar*ustar*ustar+eps);
     amrex::Real zeta = std::min(1.0,z*rlmo);
     amrex::Real x;

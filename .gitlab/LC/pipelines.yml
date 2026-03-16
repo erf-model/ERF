@@ -1,0 +1,35 @@
+dane-build-and-test:
+  variables:
+    CI_MACHINE: "dane"
+    ON_DANE: "ON"
+  extends: [.build-and-test]
+  rules:
+    # Runs except if we explicitly deactivate this system
+    - if: $ON_DANE == "ON"
+
+matrix-build-and-test:
+  variables:
+    CI_MACHINE: "matrix"
+    ON_MATRIX: "ON"
+  extends: [.build-and-test]
+  rules:
+    # Runs except if we explicitly deactivate this system
+    - if: $ON_MATRIX == "ON"
+
+tioga-build-and-test:
+  variables:
+    CI_MACHINE: "tioga"
+    ON_TIOGA: "ON"
+  extends: [.build-and-test]
+  rules:
+    # Runs except if we explicitly deactivate this system
+    - if: $ON_TIOGA == "ON"
+
+tuolumne-build-and-test:
+  variables:
+    CI_MACHINE: "tuolumne"
+    ON_TUOLUMNE: "ON"
+  extends: [.build-and-test]
+  rules:
+    # Runs except if we explicitly deactivate this system
+    - if: $ON_TUOLUMNE == "ON"

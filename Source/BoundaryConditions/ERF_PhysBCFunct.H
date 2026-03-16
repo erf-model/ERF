@@ -61,12 +61,14 @@ public:
                                   const amrex::Array4<amrex::Real const>& xvel_arr,
                                   const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
-                                  int icomp, int ncomp, amrex::IntVect ng);
+                                  int icomp, int ncomp, amrex::IntVect ng,
+                                  const amrex::Real time);
     void impose_vertical_cons_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
-                                   int icomp, int ncomp, bool do_terrain_adjustment = true);
+                                   int icomp, int ncomp, const amrex::Real time,
+                                   bool do_terrain_adjustment = true);
 
 private:
     int                  m_lev;
@@ -118,7 +120,8 @@ public:
                                   const amrex::Array4<amrex::Real const>& xvel_arr,
                                   const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
-                                  int bccomp);
+                                  int bccomp,
+                                  const amrex::Real time);
     void impose_vertical_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
@@ -178,12 +181,14 @@ public:
                                   const amrex::Array4<amrex::Real const>& xvel_arr,
                                   const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
-                                  int bccomp);
+                                  int bccomp,
+                                  const amrex::Real time);
     void impose_vertical_yvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
-                                   int bccomp);
+                                   int bccomp,
+                                   const amrex::Real time);
 
 private:
     int                  m_lev;
@@ -221,7 +226,7 @@ public:
           m_w_bc_data(w_bc_data)
     {
           m_mapfac_u = mapfac_lev[MapFacType::u_x].get();
-          m_mapfac_v = mapfac_lev[MapFacType::v_x].get();
+          m_mapfac_v = mapfac_lev[MapFacType::v_y].get();
     }
 
     ~ERFPhysBCFunct_w () {}
@@ -248,7 +253,8 @@ public:
                                   const amrex::Array4<amrex::Real const>& mf_v,
                                   const amrex::Array4<amrex::Real const>& z_nd,
                                   const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
-                                  TerrainType terrain_type, int bccomp);
+                                  TerrainType terrain_type, int bccomp,
+                                  const amrex::Real time);
     void impose_vertical_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Array4<amrex::Real const>& xvel_arr,
                                    const amrex::Array4<amrex::Real const>& yvel_arr,
@@ -258,7 +264,8 @@ public:
                                    const amrex::Array4<amrex::Real const>& z_nd,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                                    int bccomp_u, int bccomp_v, int bccomp_w,
-                                   TerrainType terrain_type);
+                                   TerrainType terrain_type,
+                                   const amrex::Real time);
 
 private:
     int                  m_lev;
@@ -281,11 +288,13 @@ public:
     ERFPhysBCFunct_base (const int lev,
                          const amrex::Geometry& geom, const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                          const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
+                         std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                          bool moving_terrain)
         : m_lev(lev), m_geom(geom),
           m_moving_terrain(moving_terrain),
           m_domain_bcs_type(domain_bcs_type),
-          m_domain_bcs_type_d(domain_bcs_type_d)
+          m_domain_bcs_type_d(domain_bcs_type_d),
+          m_z_phys_nd(z_phys_nd.get())
     {}
 
     ~ERFPhysBCFunct_base () {}
@@ -305,6 +314,7 @@ public:
                                        const amrex::Box& bx, const amrex::Box& domain,
                                        int ncomp, const amrex::IntVect& nghost);
     void impose_vertical_basestate_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                        const amrex::Array4<amrex::Real const>& z_nd,
                                         const amrex::Box& bx, const amrex::Box& domain,
                                         int ncomp, const amrex::IntVect& nghost);
 
@@ -314,6 +324,7 @@ private:
     bool                 m_moving_terrain;
     amrex::Vector<amrex::BCRec>            m_domain_bcs_type;
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
+    amrex::MultiFab*     m_z_phys_nd;
 };
 
 #endif

@@ -118,7 +118,7 @@ namespace WRFBdyVars {
         U  = 0,
         V  = 1,
         T  = 2,
-        QV    , // water vapor
+        QV = 3, // water vapor
         MU    , // bdy perturbation dry air mass in column (we will get mub from the initial data)
         PC    , // p_s - p_top = dry hydrostatic pressure difference between the surface and the model top
         NumTypes
@@ -127,10 +127,26 @@ namespace WRFBdyVars {
 
 namespace MetGridBdyVars {
     enum {
-        U = 0,
-        V = 1,
-        T = 2,
-        QV,
+        U  = 0,
+        V  = 1,
+        T  = 2,
+        QV = 3,
+        NumTypes
+    };
+}
+
+namespace MetGridTmpSrcVars {
+    enum {
+        Theta = 0,
+        QV    = 1,
+        NumTypes
+    };
+}
+
+namespace MetGridTmpDstVars {
+    enum {
+        P = 0,
+        T = 1,
         NumTypes
     };
 }
@@ -219,18 +235,19 @@ enum mathematicalBndryTypes : int {
 }
 
 enum struct AdvType : int {
-    Centered_2nd = 101,
-    Upwind_3rd   = 102,
-    Centered_4th = 103,
-    Upwind_5th   = 104,
-    Centered_6th = 105,
-    Weno_3        = 106,
-    Weno_3Z       = 107,
-    Weno_5        = 108,
-    Weno_5Z       = 109,
-    Weno_3MZQ     = 110,
-    Weno_7        = 111,
-    Weno_7Z       = 112,
-    Unknown       = 113
+    Centered_2nd  = 101,
+    Upwind_3rd    = 102,
+    Upwind_3rd_SL = 103,
+    Centered_4th  = 104,
+    Upwind_5th    = 105,
+    Centered_6th  = 106,
+    Weno_3        = 107,
+    Weno_3Z       = 108,
+    Weno_5        = 109,
+    Weno_5Z       = 110,
+    Weno_3MZQ     = 111,
+    Weno_7        = 112,
+    Weno_7Z       = 113,
+    Unknown       = 114
 };
 #endif

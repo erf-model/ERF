@@ -1,3 +1,5 @@
+erf.prob_name = "Tornado"
+
 #stop_time = 36000.
 max_step = 12000
 
@@ -8,7 +10,6 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent = 195000. 	143000. 	20500.
 amr.n_cell           = 195   	143   		69
-#amr.blocking_factor  = 1
 
 geometry.is_periodic = 0 0 0
 
@@ -17,11 +18,15 @@ xhi.type = "Outflow"
 ylo.type = "Outflow"
 yhi.type = "Outflow"
 
-zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
+zlo.type = "surface_layer"
+erf.most.z0   = 0.1
+erf.most.zref = 10.0
+
 # TIME STEP CONTROL
-erf.fixed_dt           = 3.0  # fixed time step depending on grid resolution
+erf.fixed_dt           = 1.0  # fixed time step depending on grid resolution
+erf.fixed_fast_dt      = 0.25
     
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -46,17 +51,16 @@ erf.plot_vars_1     = density rhoQ1 x_velocity y_velocity z_velocity pressure te
 #erf.plot_vars_2     = density rhoQ1 x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys qt qp qv qc
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
 
-erf.use_terrain = true
+erf.terrain_type = StaticFittedMesh
 
 erf.moisture_model = "Kessler"
 
-erf.les_type         = "None"
-erf.molec_diff_type  = "Constant"
-erf.dynamicViscosity = 5.0
+erf.molec_diff_type  = "None"
+erf.pbl_type = "MYNN25"
+erf.les_type = "Smagorinsky2D"
+erf.Cs = 0.15
 
 #erf.use_coriolis = true
 #erf.abl_driver_type = "GeostrophicWind"
@@ -66,11 +70,14 @@ erf.dynamicViscosity = 5.0
 
 # PROBLEM PARAMETERS (optional)
 prob.rho_0 = 1.0
-prob.T_0 = 300.0
+prob.T_0   = 300.0
+prob.KE_0  = 0.5  # [m2/s2]
+prob.KE_decay_height = 250. # [m]
+prob.KE_decay_order  = 3
 
 # INITIALIZATION WITH ATM DATA
-erf.real_width     = 0
-erf.real_set_width = 0
+erf.real_width     = 1
+erf.real_set_width = 1
 erf.init_type      = WRFInput
 erf.nc_init_file_0 = "wrfinput_tornado_d01"
 erf.nc_bdy_file    = "wrfbdy_tornado_d01"

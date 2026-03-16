@@ -21,7 +21,8 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                                                 const Array4<Real const>& mf_v,
                                                 const Array4<Real const>& z_phys_nd,
                                                 const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                                TerrainType terrain_type, int bccomp)
+                                                TerrainType terrain_type, int bccomp,
+                                                const Real /*time*/)
 {
     BL_PROFILE_VAR("impose_lateral_zvel_bcs()",impose_lateral_zvel_bcs);
     const auto& dom_lo = lbound(domain);
@@ -187,7 +188,8 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
                                                  const Array4<Real const>& z_phys_nd,
                                                  const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                                  int bccomp_u, int bccomp_v, int bccomp_w,
-                                                 TerrainType terrain_type)
+                                                 TerrainType terrain_type,
+                                                 const Real /*time*/)
 {
     BL_PROFILE_VAR("impose_vertical_zvel_bcs()",impose_vertical_zvel_bcs);
     const auto& dom_lo = lbound(domain);

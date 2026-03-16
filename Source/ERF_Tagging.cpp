@@ -11,11 +11,131 @@ using namespace amrex;
  * @param[in] time current time
 */
 
+#ifdef ERF_USE_NETCDF
+Box read_subdomain_from_wrfinput (int lev, const std::string& fname, int& ratio);
+Real read_start_time_from_wrfinput (int lev, const std::string& fname);
+Box read_subdomain_from_metgrid (int lev, const std::string& fname, int& ratio, int& klo, int& khi);
+#endif
+
+void
+tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
+                         const Real eye_x, const Real eye_y, const Real rad_tag);
+
 void
 ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 {
     const int clearval = TagBox::CLEAR;
     const int   tagval = TagBox::SET;
+
+#ifdef ERF_USE_NETCDF
+    if ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) {
+        int ratio;
+        Box subdomain;
+
+        if (!nc_init_file[levc+1].empty())
+        {
+            Real levc_start_time = read_start_time_from_wrfinput(levc  , nc_init_file[levc  ][0]);
+            if (solverChoice.init_type == InitType::WRFInput) {
+                amrex::Print() << " WRFInput       time at level " << levc << " is " << levc_start_time << std::endl;
+            } else if (solverChoice.init_type == InitType::Metgrid) {
+                amrex::Print() << " met_em         time at level " << levc << " is " << levc_start_time << std::endl;
+            }
+
+            for (int isub = 0; isub < nc_init_file[levc+1].size(); isub++) {
+                if (!have_read_nc_init_file[levc+1][isub])
+                {
+                    Real levf_start_time = read_start_time_from_wrfinput(levc+1, nc_init_file[levc+1][isub]);
+                    if (solverChoice.init_type == InitType::WRFInput) {
+                        amrex::Print() << " WRFInput start_time at level " << levc+1 << " is " << levf_start_time << std::endl;
+                    } else if (solverChoice.init_type == InitType::Metgrid) {
+                        amrex::Print() << " met_em   start time at level " << levc+1 << " is " << levf_start_time << std::endl;
+                    }
+
+                    // We assume there is only one subdomain at levc; otherwise we don't know
+                    //     which one is the parent of the fine region we are trying to create
+                    AMREX_ALWAYS_ASSERT(subdomains[levc].size() == 1);
+
+                    if ((solverChoice.init_type == InitType::WRFInput) && ((ref_ratio[levc][2]) != 1)) {
+                        amrex::Abort("The ref_ratio specified in the inputs file must have 1 in the z direction; please use ref_ratio_vect rather than ref_ratio");
+                    }
+
+                    if ( levf_start_time <= (levc_start_time + t_new[levc]) ) {
+                        if (solverChoice.init_type == InitType::WRFInput) {
+                            amrex::Print() << " WRFInput file to read: " << nc_init_file[levc+1][isub] << std::endl;
+                            subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][isub], ratio);
+                            amrex::Print() << " WRFInput subdomain " << isub << " at level " << levc+1 << " is " << subdomain << std::endl;
+                        } else if (solverChoice.init_type == InitType::Metgrid) {
+                            amrex::Print() << "met_em file to read: " << nc_init_file[levc+1][0] << std::endl;
+                            const Box& domain = geom[levc].Domain();
+                            int klo = domain.smallEnd(2);
+                            int khi = domain.bigEnd(2);
+                            subdomain = read_subdomain_from_metgrid(levc, nc_init_file[levc+1][0], ratio, klo, khi);
+                            amrex::Print() << " met_em subdomain at level " << levc+1 << " is " << subdomain << std::endl;
+                        }
+
+                        if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
+                            amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
+                            amrex::Print() << "The inputs file has refinement ratio = " << ref_ratio[levc] << std::endl;
+                            amrex::Abort("These must be the same -- please edit your inputs file and try again.");
+                        }
+
+                        if (solverChoice.init_type == InitType::WRFInput) {
+                            subdomain.coarsen(IntVect(ratio,ratio,1));
+                        } else if (solverChoice.init_type == InitType::Metgrid) {
+                            subdomain.coarsen(ref_ratio[levc]);
+                        }
+
+                        Box coarser_level(subdomains[levc][isub].minimalBox());
+                        subdomain.shift(coarser_level.smallEnd());
+
+                        if (verbose > 0) {
+                            amrex::Print() << " Crse subdomain to be tagged is" << subdomain << std::endl;
+                        }
+
+                        Box new_fine(subdomain);
+                        if (solverChoice.init_type == InitType::WRFInput) {
+                            new_fine.refine(IntVect(ratio,ratio,1));
+                        } else if (solverChoice.init_type == InitType::Metgrid) {
+                            new_fine.refine(ref_ratio[levc]);
+                        }
+                        num_boxes_at_level[levc+1] = 1;
+                        boxes_at_level[levc+1].push_back(new_fine);
+
+                        for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
+                            auto tag_arr = tags.array(mfi);  // Get device-accessible array
+
+                            Box bx = mfi.validbox(); bx &= subdomain;
+
+                            if (!bx.isEmpty()) {
+                                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                                    tag_arr(i,j,k) = TagBox::SET;
+                                });
+                            }
+                        }
+                    } // time is right
+                } else {
+                    // Re-tag this region
+                    for (MFIter mfi(tags); mfi.isValid(); ++mfi)
+                    {
+                        auto tag_arr = tags.array(mfi);  // Get device-accessible array
+
+                        Box existing_bx_coarsened(boxes_at_level[levc+1][isub]);
+                        existing_bx_coarsened.coarsen(ref_ratio[levc]);
+
+                        Box bx = mfi.validbox(); bx &= existing_bx_coarsened;
+
+                        if (!bx.isEmpty()) {
+                            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                                tag_arr(i,j,k) = TagBox::SET;
+                            });
+                        }
+                    }
+                } // has file been read?
+            } // isub
+            return;
+        } // file not empty
+    }
+#endif
 
     //
     // Make sure the ghost cells of the level we are tagging at are filled
@@ -28,12 +148,12 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     MultiFab& W_new = vars_new[levc][Vars::zvel];
     //
     if (levc == 0) {
-        FillPatch(levc, time, {&S_new, &U_new, &V_new, &W_new});
+        FillPatchCrseLevel(levc, time, {&S_new, &U_new, &V_new, &W_new});
     } else {
-        FillPatch(levc, time, {&S_new, &U_new, &V_new, &W_new},
-                              {&S_new, &rU_new[levc], &rV_new[levc], &rW_new[levc]},
-                              base_state[levc], base_state[levc],
-                              false, true);
+        FillPatchFineLevel(levc, time, {&S_new, &U_new, &V_new, &W_new},
+                           {&S_new, &rU_new[levc], &rV_new[levc], &rW_new[levc]},
+                           base_state[levc], base_state[levc],
+                           false, true);
     }
 
     for (int j=0; j < ref_tags.size(); ++j)
@@ -42,6 +162,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         // This mf must have ghost cells because we may take differences between adjacent values
         //
         std::unique_ptr<MultiFab> mf = std::make_unique<MultiFab>(grids[levc], dmap[levc], 1, 1);
+        mf->setVal(0.0);
 
         // This allows dynamic refinement based on the value of the density
         if (ref_tags[j].Field() == "density")
@@ -98,22 +219,41 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     (ref_tags[j].Field() == "terrain_blanking") )
         {
             MultiFab::Copy(*mf,*terrain_blanking[levc],0,0,1,1);
-        } else if (ref_tags[j].Field() == "velmag") {
-            mf->setVal(0.0);
+        }
+        else if (ref_tags[j].Field() == "velmag")
+        {
             ParmParse pp(pp_prefix);
             Vector<std::string> refinement_indicators;
             pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
-            Real velmag_threshold = 1e10;
+            Real velmag_threshold;
+            bool is_hurricane_tracker = false;
             for (int i=0; i<refinement_indicators.size(); ++i)
             {
-                if(refinement_indicators[i]=="hurricane_tracker"){
+                if (refinement_indicators[i]=="hurricane_tracker") {
+                    is_hurricane_tracker = true;
                     std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
                     ParmParse ppr(ref_prefix);
-                    ppr.get("value_greater",velmag_threshold);
+                    ppr.get("value_greater", velmag_threshold);
                     break;
                 }
             }
-            HurricaneTracker(levc, U_new, V_new, W_new, velmag_threshold, false, &tags);
+
+            Vector<MultiFab> mf_cc_vel(1);
+            mf_cc_vel[0].define(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
+            average_face_to_cellcenter(mf_cc_vel[0],0,Array<const MultiFab*,3>{&U_new, &V_new, &W_new});
+
+            if (is_hurricane_tracker) {
+                HurricaneTracker(levc, time, mf_cc_vel[0], velmag_threshold, &tags);
+            } else {
+                for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    auto& dfab = (*mf)[mfi];
+                    auto& sfab = mf_cc_vel[0][mfi];
+                    derived::erf_dermagvel(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
+                }
+            }
+
 #ifdef ERF_USE_PARTICLES
         } else {
             //
@@ -155,6 +295,48 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         ref_tags[j](tags,mf.get(),clearval,tagval,time,levc,geom[levc]);
     } // loop over j
+
+    // ********************************************************************************************
+    // Refinement based on 2d distance from the "eye" which is defined here as the (x,y) location of
+    //    the integrated qv
+    // ********************************************************************************************
+    ParmParse pp(pp_prefix);
+    Vector<std::string> refinement_indicators;
+    pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
+    for (int i=0; i<refinement_indicators.size(); ++i)
+    {
+        if ( (refinement_indicators[i]=="storm_tracker") && (solverChoice.moisture_type != MoistureType::None) )
+        {
+            std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
+            ParmParse ppr(ref_prefix);
+
+            Real ref_start_time = -1.0;
+            ppr.query("start_time",ref_start_time);
+
+            if (time >= ref_start_time) {
+
+                Real max_radius = -1.0;
+                ppr.get("max_radius", max_radius);
+
+                // Create the volume-weighted sum of (rho qv) in each column
+                MultiFab mf_qv_int(ba2d[levc], dmap[levc], 1, 0); mf_qv_int.setVal(0.);
+
+                // Define the 2D MultiFab holding the column-integrated (rho qv)
+                volWgtColumnSum(levc, S_new, RhoQ1_comp, mf_qv_int, *detJ_cc[levc]);
+
+                // Find the max value in the domain
+                IntVect eye = mf_qv_int.maxIndex(0);
+
+                const auto dx      = geom[levc].CellSizeArray();
+                const auto prob_lo = geom[levc].ProbLoArray();
+
+                Real eye_x = prob_lo[0] + (eye[0] + 0.5) * dx[0];
+                Real eye_y = prob_lo[1] + (eye[1] + 0.5) * dx[1];
+
+                tag_on_distance_from_eye(geom[levc], &tags, eye_x, eye_y, max_radius);
+            }
+        }
+    }
 }
 
 /**
@@ -182,28 +364,34 @@ ERF::refinement_criteria_setup ()
             int num_indx_lo = ppr.countval("in_box_lo_indices");
             int num_real_hi = ppr.countval("in_box_hi");
             int num_indx_hi = ppr.countval("in_box_hi_indices");
+            int num_indx_lo_crse = ppr.countval("in_box_lo_indices_crse");
+            int num_indx_hi_crse = ppr.countval("in_box_hi_indices_crse");
 
             AMREX_ALWAYS_ASSERT(num_real_lo == num_real_hi);
             AMREX_ALWAYS_ASSERT(num_indx_lo == num_indx_hi);
+            AMREX_ALWAYS_ASSERT(num_indx_lo_crse == num_indx_hi_crse);
 
-            if ( !((num_real_lo >= AMREX_SPACEDIM-1 && num_indx_lo == 0) ||
-                   (num_indx_lo >= AMREX_SPACEDIM-1 && num_real_lo == 0) ||
-                   (num_indx_lo ==              0   && num_real_lo == 0)) )
+            // Problem low and high (in real not index space) are the same at all levels
+            const Real* plo = geom[0].ProbLo();
+            const Real* phi = geom[0].ProbHi();
+            if ( !((num_real_lo >= AMREX_SPACEDIM-1 && num_indx_lo == 0 && num_indx_lo_crse == 0) ||
+                   (num_indx_lo >= AMREX_SPACEDIM-1 && num_real_lo == 0 && num_indx_lo_crse == 0) ||
+                   (num_indx_lo ==              0   && num_real_lo == 0 && num_indx_lo_crse == 0) ||
+                   (num_indx_lo_crse >= AMREX_SPACEDIM-1 && num_real_lo == 0 && num_indx_lo == 0)
+                ) )
             {
-                amrex::Abort("Must only specify box for refinement using real OR index space");
+                amrex::Abort("Must only specify box for refinement using real OR index space with fine/coarse grid indices");
             }
 
             if (num_real_lo > 0) {
                 std::vector<Real> rbox_lo(3), rbox_hi(3);
-                ppr.get("max_level",lev_for_box);
+                lev_for_box = max_level;
+                ppr.query("max_level",lev_for_box);
                 if (lev_for_box <= max_level)
                 {
                     if (n_error_buf[0] != IntVect::TheZeroVector()) {
                         amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
                     }
-
-                    const Real* plo = geom[lev_for_box].ProbLo();
-                    const Real* phi = geom[lev_for_box].ProbHi();
 
                     ppr.getarr("in_box_lo",rbox_lo,0,num_real_lo);
                     ppr.getarr("in_box_hi",rbox_hi,0,num_real_hi);
@@ -216,6 +404,8 @@ ERF::refinement_criteria_setup ()
                         rbox_lo[2] = plo[2];
                         rbox_hi[2] = phi[2];
                     }
+
+                    const Box& domain = geom[lev_for_box].Domain();
 
                     realbox = RealBox(&(rbox_lo[0]),&(rbox_hi[0]));
 
@@ -233,7 +423,6 @@ ERF::refinement_criteria_setup ()
                     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
                         // Search for k indices corresponding to nominal grid
                         // AGL heights
-                        const Box& domain = geom[lev_for_box].Domain();
                         klo = domain.smallEnd(2) - 1;
                         khi = domain.smallEnd(2) - 1;
 
@@ -277,23 +466,57 @@ ERF::refinement_criteria_setup ()
                     }
 
                     Box bx(IntVect(ilo,jlo,klo),IntVect(ihi,jhi,khi));
-                    if ( (ilo%ref_ratio[lev_for_box-1][0] != 0) || ((ihi+1)%ref_ratio[lev_for_box-1][0] != 0) ||
-                         (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) ||
-                         (klo%ref_ratio[lev_for_box-1][2] != 0) || ((khi+1)%ref_ratio[lev_for_box-1][2] != 0) )
-                    {
-                        amrex::Print() << "Box : " << bx << std::endl;
-                        amrex::Print() << "RealBox : " << realbox << std::endl;
-                        amrex::Print() << "ilo, ihi+1, jlo, jhi+1, klo, khi+1 by ref_ratio : "
-                                       << ilo%ref_ratio[lev_for_box-1][0] << " " << (ihi+1)%ref_ratio[lev_for_box-1][0] << " "
-                                       << jlo%ref_ratio[lev_for_box-1][1] << " " << (jhi+1)%ref_ratio[lev_for_box-1][1] << " "
-                                       << klo%ref_ratio[lev_for_box-1][2] << " " << (khi+1)%ref_ratio[lev_for_box-1][2] << std::endl;
-                        amrex::Error("Fine box is not legit with this ref_ratio");
+                    // Error check for each index
+                    if(ilo%ref_ratio[lev_for_box-1][0] != 0){
+                        amrex::Print()<< "Requested in_box_lo in x direction = " << rbox_lo[0] << " corresponds to ilo = " << ilo << std::endl;
+                        amrex::Print() << "ilo = " << ilo << " is not divisible by ref_ratio in x direction = " << ref_ratio[lev_for_box-1][0] << std::endl;
+                        amrex::Error("Adjust in_box_lo in x-direction to be divisible by ref_ratio and try again");
                     }
+                    if((ihi+1)%ref_ratio[lev_for_box-1][0] != 0){
+                        amrex::Print()<< "Requested in_box_hi in x direction = " << rbox_hi[0] << " corresponds to ihi+1 = " << ihi+1 << std::endl;
+                        amrex::Print() << "ihi+1 = " << ihi+1 << " is not divisible by ref_ratio in x direction = " << ref_ratio[lev_for_box-1][0] << std::endl;
+                        amrex::Error("Adjust in_box_hi in x-direction to be divisible by ref_ratio and try again");
+                    }
+                     if(jlo%ref_ratio[lev_for_box-1][1] != 0){
+                        amrex::Print()<< "Requested in_box_lo in y direction = " << rbox_lo[1] << " corresponds to jlo = " << jlo << std::endl;
+                        amrex::Print() << "jlo = " << jlo << " is not divisible by ref_ratio in y direction = " << ref_ratio[lev_for_box-1][1] << std::endl;
+                        amrex::Error("Adjust in_box_lo in y-direction to be divisible by ref_ratio and try again");
+                    }
+                    if((jhi+1)%ref_ratio[lev_for_box-1][1] != 0){
+                        amrex::Print()<< "Requested in_box_hi in y direction = " << rbox_hi[1] << " corresponds to jhi+1 = " << jhi+1 << std::endl;
+                        amrex::Print() << "jhi+1 = " << jhi+1 << " is not divisible by ref_ratio in y direction = " << ref_ratio[lev_for_box-1][1] << std::endl;
+                        amrex::Error("Adjust in_box_hi in y-direction to be divisible by ref_ratio and try again");
+                    }
+                    if(klo%ref_ratio[lev_for_box-1][2] != 0){
+                        amrex::Print()<< "Requested in_box_lo in z direction = " << rbox_lo[2] << " corresponds to klo = " << klo << std::endl;
+                        amrex::Print() << "klo = " << klo << " is not divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
+                        amrex::Error("Adjust in_box_lo in z-direction to be divisible by ref_ratio and try again");
+                    }
+                    if((khi+1)%ref_ratio[lev_for_box-1][2] != 0){
+                        amrex::Print()<< "Requested in_box_hi in z direction = " << rbox_hi[2] << " corresponds to khi+1 = " << khi+1 << std::endl;
+                        amrex::Print() << "khi+1 = " << khi+1 << " is not divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
+                        amrex::Error("Adjust in_box_hi in z-direction to be divisible by ref_ratio and try again");
+                    }
+
+                    bool using_pbl = (solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYJ      ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNN25   ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNNEDMF ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU      ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF);
+
+                    if ( using_pbl && ( (rbox_lo[2] > plo[2]) || (rbox_hi[2] < phi[2]) ) ) {
+                        amrex::Print() << "PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH" << std::endl;
+                        amrex::Print() << "Please set in_box_lo to geometry.prob_lo in z and in_box_hi to geometry.prob_hi in z and try again" << std::endl;
+                        amrex::Abort();
+                    }
+
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
+
                 if (solverChoice.init_type == InitType::WRFInput) {
-                    if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
+                    if ( (num_files_at_level[lev_for_box] > 0) &&
+                         (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) ) {
                         amrex::Error("Number of boxes doesn't match number of input files");
 
                     }
@@ -316,28 +539,116 @@ ERF::refinement_criteria_setup ()
                     amrex::Print() << "BOX " << bx << std::endl;
 
                     const auto* dx  = geom[lev_for_box].CellSize();
-                    const Real* plo = geom[lev_for_box].ProbLo();
                     realbox = RealBox(plo[0]+ box_lo[0]   *dx[0], plo[1]+ box_lo[1]   *dx[1], plo[2]+ box_lo[2]   *dx[2],
                                       plo[0]+(box_hi[0]+1)*dx[0], plo[1]+(box_hi[1]+1)*dx[1], plo[2]+(box_hi[2]+1)*dx[2]);
 
                     Print() << "Reading " << bx << " at level " << lev_for_box << std::endl;
                     num_boxes_at_level[lev_for_box] += 1;
+                    if(box_lo[0]%ref_ratio[lev_for_box-1][0] != 0){
+                        amrex::Print()<< "Requested ilo in x-direction : " << box_lo[0] << std::endl;
+                        amrex::Print() << "ilo = " << box_lo[0] << " is not divisible by ref_ratio in x direction = " << ref_ratio[lev_for_box-1][0] << std::endl;
+                        amrex::Error("Adjust in_box_lo_indices in x-direction to be divisible by ref_ratio and try again");
+                    }
+                    if((box_hi[0]+1)%ref_ratio[lev_for_box-1][0] != 0){
+                        amrex::Print()<< "Requested ihi in x-direction : " << box_hi[0] << std::endl;
+                        amrex::Print() << "ihi+1 = " << box_hi[0]+1 << " is not divisible by ref_ratio in x direction = " << ref_ratio[lev_for_box-1][0] << std::endl;
+                        amrex::Error("Adjust in_box_hi_indices in x-direction to be divisible by ref_ratio and try again");
+                    }
+                     if(box_lo[1]%ref_ratio[lev_for_box-1][1] != 0){
+                        amrex::Print()<< "Requested jlo in y-direction : " << box_lo[1] << std::endl;
+                        amrex::Print() << "jlo = " << box_lo[1] << " is not divisible by ref_ratio in y direction = " << ref_ratio[lev_for_box-1][1] << std::endl;
+                        amrex::Error("Adjust in_box_lo_indices in y-direction to be divisible by ref_ratio and try again");
+                    }
+                    if((box_hi[1]+1)%ref_ratio[lev_for_box-1][1] != 0){
+                        amrex::Print()<< "Requested jhi in y-direction : " << box_hi[1] << std::endl;
+                        amrex::Print() << "jhi+1 = " << box_hi[1]+1 << " is not divisible by ref_ratio in y direction = " << ref_ratio[lev_for_box-1][1] << std::endl;
+                        amrex::Error("Adjust in_box_hi_indices in y-direction to be divisible by ref_ratio and try again");
+                    }
+                    if(box_lo[2]%ref_ratio[lev_for_box-1][2] != 0){
+                        amrex::Print()<< "Requested klo in z-direction : " << box_lo[2] << std::endl;
+                        amrex::Print() << "klo = " << box_lo[2] << " is not   divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
+                        amrex::Error("Adjust in_box_lo_indices in z-direction to be divisible by ref_ratio and try again");
+                    }
+                    if((box_hi[2]+1)%ref_ratio[lev_for_box-1][2] != 0){
+                        amrex::Print()<< "Requested khi in z-direction : " << box_hi[2] << std::endl;
+                        amrex::Print() << "khi+1 = " << box_hi[2]+1 << " is not divisible by ref_ratio in z direction = " << ref_ratio[lev_for_box-1][2] << std::endl;
+                        amrex::Error("Adjust in_box_hi_indices in z-direction to be divisible by ref_ratio and try again");
+                    }
 
-                    if ( (box_lo[0]%ref_ratio[lev_for_box-1][0] != 0) || ((box_hi[0]+1)%ref_ratio[lev_for_box-1][0] != 0) ||
-                         (box_lo[1]%ref_ratio[lev_for_box-1][1] != 0) || ((box_hi[1]+1)%ref_ratio[lev_for_box-1][1] != 0) ||
-                         (box_lo[2]%ref_ratio[lev_for_box-1][2] != 0) || ((box_hi[2]+1)%ref_ratio[lev_for_box-1][2] != 0) )
-                         amrex::Error("Fine box is not legit with this ref_ratio");
+                    bool using_pbl = (solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYJ      ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNN25   ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNNEDMF ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU      ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF);
+
+                    const Box& domain = geom[lev_for_box].Domain();
+
+                    if ( using_pbl && ( (box_lo[2] > 0) || (box_hi[2] < domain.bigEnd(2)) ) ) {
+                        amrex::Print() << "PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH" << std::endl;
+                        amrex::Print() << "Please set in_box_lo_indices to 0 in z and in_box_hi_indices to amr.n_cell-1 in z and try again" << std::endl;
+                        amrex::Abort();
+                    }
+
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
+
                 if (solverChoice.init_type == InitType::WRFInput) {
-                    if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
+                    if ( (num_files_at_level[lev_for_box] > 0) &&
+                         (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) ) {
                         amrex::Error("Number of boxes doesn't match number of input files");
 
                     }
                 }
             }
+            else if (num_indx_lo_crse > 0) {
 
+                std::vector<int> box_lo(3), box_hi(3);
+                ppr.get("max_level",lev_for_box);
+                if (lev_for_box <= max_level)
+                {
+                    if (n_error_buf[0] != IntVect::TheZeroVector()) {
+                        amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
+                    }
+
+                    ppr.getarr("in_box_lo_indices_crse",box_lo,0,AMREX_SPACEDIM);
+                    ppr.getarr("in_box_hi_indices_crse",box_hi,0,AMREX_SPACEDIM);
+
+                    Box bx(IntVect(box_lo[0],box_lo[1],box_lo[2]),IntVect(box_hi[0],box_hi[1],box_hi[2]));
+                    amrex::Print() << "BOX " << bx << std::endl;
+
+                    const auto* dx  = geom[lev_for_box-1].CellSize();
+                    realbox = RealBox(plo[0]+ box_lo[0]   *dx[0], plo[1]+ box_lo[1]   *dx[1], plo[2]+ box_lo[2]   *dx[2],
+                                      plo[0]+(box_hi[0]+1)*dx[0], plo[1]+(box_hi[1]+1)*dx[1], plo[2]+(box_hi[2]+1)*dx[2]);
+
+                    Print() << "Reading " << bx << " at level " << lev_for_box << std::endl;
+                    num_boxes_at_level[lev_for_box] += 1;
+                    bool using_pbl = (solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYJ      ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNN25   ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MYNNEDMF ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU      ||
+                                      solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF);
+
+                    const Box& domain = geom[lev_for_box].Domain();
+
+                    if ( using_pbl && ( (box_lo[2] > 0) || (box_hi[2] < domain.bigEnd(2)) ) ) {
+                        amrex::Print() << "PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH" << std::endl;
+                        amrex::Print() << "Please set in_box_lo_indices_crse to 0 in z and in_box_hi_indices_crse  to amr.n_cell-1 in z and try again" << std::endl;
+                        amrex::Abort();
+                    }
+
+                    boxes_at_level[lev_for_box].push_back(bx);
+                    Print() << "Saving in 'boxes at level' as " << bx << std::endl;
+                } // lev
+
+                if (solverChoice.init_type == InitType::WRFInput) {
+                    if ( (num_files_at_level[lev_for_box] > 0) &&
+                         (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) ) {
+                        amrex::Error("Number of boxes doesn't match number of input files");
+
+                    }
+                }
+            }
             AMRErrorTagInfo info;
 
             if (realbox.ok()) {
@@ -380,64 +691,54 @@ ERF::refinement_criteria_setup ()
             else if (realbox.ok())
             {
                 ref_tags.push_back(AMRErrorTag(info));
-            } else {
+            } else if (refinement_indicators[i] != "storm_tracker") {
                 Abort(std::string("Unrecognized refinement indicator for " + refinement_indicators[i]).c_str());
             }
         } // loop over criteria
     } // if max_level > 0
 }
 
-void
-ERF::HurricaneTracker(int levc,
-                      const MultiFab& U_new,
-                      const MultiFab& V_new,
-                      const MultiFab& W_new,
-                      const Real velmag_threshold,
-                      const bool is_track_io,
-                      TagBoxArray* tags)
+bool
+ERF::FindInitialEye(int levc,
+                    const MultiFab& mf_cc_vel,
+                    const Real velmag_threshold,
+                    Real& eye_x, Real& eye_y)
 {
     const auto dx = geom[levc].CellSizeArray();
     const auto prob_lo = geom[levc].ProbLoArray();
 
-    const int ncomp = AMREX_SPACEDIM; // Number of components (3 for 3D)
+    Gpu::DeviceVector<Real> d_coords(2, 0.0);
+    Gpu::DeviceVector<int>  d_found(1,0);
 
-    Gpu::DeviceVector<Real> d_coords(3, 0.0); // Initialize to -1
-    Real* d_coords_ptr = d_coords.data(); // Get pointer to device vector
-    Gpu::DeviceVector<int> d_found(1,0);
-    int* d_found_ptr = d_found.data();
+    Real* d_coords_ptr = d_coords.data();
+    int*   d_found_ptr = d_found.data();
 
-    MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
-    average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
+    for (MFIter mfi(mf_cc_vel); mfi.isValid(); ++mfi)
+    {
+        const Box& box = mfi.validbox();
+        const Array4<const Real>& vel_arr = mf_cc_vel.const_array(mfi);
 
-    // Loop through MultiFab using MFIter
-    for (MFIter mfi(mf_cc_vel); mfi.isValid(); ++mfi) {
-        const Box& box = mfi.validbox(); // Get the valid box for the current MFIter
-        const Array4<const Real>& vel_arr = mf_cc_vel.const_array(mfi); // Get the array for this MFIter
+        ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+        {
+            Real magnitude = std::sqrt(vel_arr(i,j,k,0) * vel_arr(i,j,k,0) +
+                                       vel_arr(i,j,k,1) * vel_arr(i,j,k,1) +
+                                       vel_arr(i,j,k,2) * vel_arr(i,j,k,2));
 
-        // ParallelFor loop to check velocity magnitudes on the GPU
-        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-            // Access velocity components using ncomp
-            Real magnitude = 0.0; // Initialize magnitude
+            magnitude *= 3.6;
 
-            for (int comp = 0; comp < ncomp; ++comp) {
-                Real vel = vel_arr(i, j, k, comp); // Access the component for each (i, j, k)
-                magnitude += vel * vel; // Sum the square of the components
-            }
-
-            magnitude = std::sqrt(magnitude)*3.6; // Calculate magnitude
-            Real x = prob_lo[0] + (i + 0.5) * dx[0];
-            Real y = prob_lo[1] + (j + 0.5) * dx[1];
             Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
             // Check if magnitude exceeds threshold
-            if (z < 2.0e3 && magnitude > velmag_threshold) {
+            if (z < 2000. && magnitude > velmag_threshold) {
                 // Use atomic operations to set found flag and store coordinates
                 Gpu::Atomic::Add(&d_found_ptr[0], 1); // Mark as found
+
+                Real x = prob_lo[0] + (i + 0.5) * dx[0];
+                Real y = prob_lo[1] + (j + 0.5) * dx[1];
 
                 // Store coordinates
                 Gpu::Atomic::Add(&d_coords_ptr[0],x); // Store x index
                 Gpu::Atomic::Add(&d_coords_ptr[1],y); // Store x index
-                Gpu::Atomic::Add(&d_coords_ptr[2],z); // Store x index
             }
         });
     }
@@ -447,51 +748,78 @@ ERF::HurricaneTracker(int levc,
 
     Vector<int> h_found(1,0);
     Gpu::copy(Gpu::deviceToHost, d_found.begin(), d_found.end(), h_found.begin());
-    ParallelAllReduce::Sum(h_found.data(),
-                           h_found.size(),
-                           ParallelContext::CommunicatorAll());
+    ParallelAllReduce::Sum(h_found.data(), h_found.size(), ParallelContext::CommunicatorAll());
 
-    Real eye_x, eye_y;
     // Broadcast coordinates if found
     if (h_found[0] > 0) {
-        Vector<Real> h_coords(3,-1e10);
+        Vector<Real> h_coords(2,-1e10);
         Gpu::copy(Gpu::deviceToHost, d_coords.begin(), d_coords.end(), h_coords.begin());
 
-        ParallelAllReduce::Sum(h_coords.data(),
-                               h_coords.size(),
-                               ParallelContext::CommunicatorAll());
+        ParallelAllReduce::Sum(h_coords.data(), h_coords.size(), ParallelContext::CommunicatorAll());
 
         eye_x = h_coords[0]/h_found[0];
         eye_y = h_coords[1]/h_found[0];
 
-        // Data structure to hold the hurricane track for I/O
-        if (amrex::ParallelDescriptor::IOProcessor() and is_track_io) {
-            hurricane_track_xy.push_back({eye_x, eye_y});
-        }
+    } else {
+        // Random large negative numbers so we don't trigger refinement in this case
+        eye_x = -1.e20;
+        eye_y = -1.e20;
+    }
 
-        if(is_track_io) {
-            return;
-        }
+    return (h_found[0] > 0);
+}
 
-        Real rad_tag = 3e5*std::pow(2, max_level-1-levc);
+void
+tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
+                         const Real eye_x, const Real eye_y, const Real rad_tag)
+{
+    const auto dx      = cgeom.CellSizeArray();
+    const auto prob_lo = cgeom.ProbLoArray();
 
-        for (MFIter mfi(*tags); mfi.isValid(); ++mfi) {
-            TagBox& tag = (*tags)[mfi];
-            auto tag_arr = tag.array();  // Get device-accessible array
+    for (MFIter mfi(*tags); mfi.isValid(); ++mfi) {
+        TagBox& tag = (*tags)[mfi];
+        auto tag_arr = tag.array();  // Get device-accessible array
 
-            const Box& tile_box = mfi.tilebox(); // The box for this tile
+        const Box& tile_box = mfi.tilebox(); // The box for this tile
 
-            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                // Compute cell center coordinates
-                Real x = prob_lo[0] + (i + 0.5) * dx[0];
-                Real y = prob_lo[1] + (j + 0.5) * dx[1];
+        ParallelFor(tile_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+            // Compute cell center coordinates
+            Real x = prob_lo[0] + (i + 0.5) * dx[0];
+            Real y = prob_lo[1] + (j + 0.5) * dx[1];
 
-                Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
+            Real dist = std::sqrt((x - eye_x)*(x - eye_x) + (y - eye_y)*(y - eye_y));
 
-                if (dist < rad_tag) {
-                    tag_arr(i,j,k) = TagBox::SET;
-                }
-            });
-        }
+            if (dist < rad_tag) {
+                tag_arr(i,j,k) = TagBox::SET;
+            } else {
+                tag_arr(i,j,k) = TagBox::CLEAR;
+            }
+        });
+    }
+}
+
+void
+ERF::HurricaneTracker(int levc,
+                      Real time,
+                      const MultiFab& mf_cc_vel,
+                      const Real velmag_threshold,
+                      TagBoxArray* tags)
+{
+    bool is_found;
+
+    Real eye_x, eye_y;
+
+    if (time==0.0) {
+        is_found = FindInitialEye(levc, mf_cc_vel, velmag_threshold, eye_x, eye_y);
+    } else {
+        is_found = true;
+        const auto& last = hurricane_eye_track_xy.back();
+        eye_x = last[0];
+        eye_y = last[1];
+    }
+
+    if (is_found) {
+        Real rad_tag = 4.e5 * std::pow(2, max_level-1-levc);
+        tag_on_distance_from_eye(geom[levc], tags, eye_x, eye_y, rad_tag);
     }
 }

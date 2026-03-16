@@ -1,0 +1,8 @@
+tioga_hip_5.7.1:
+  variables:
+    MODULE_LIST: cmake/3.29.2 ninja/1.10.2 rocm/6.1.2 rocmcc/6.1.2-cce-18.0.0-magic craype-accel-amd-gfx90a
+    ERF_ENABLE_HIP: "ON"
+    AMD_ARCH: "gfx90a"
+    # NOTE: Running with Debug build type causes AMD linking errors with AMReX plotfiles=ON
+    BUILD_TYPE: "RelWithDebInfo"
+  extends: .job_on_tioga

@@ -2,6 +2,7 @@
 #include <ERF_Constants.H>
 
 #include "ERF_Interpolation_Bilinear.H"
+#include "ERF_ReadCustomBinaryIC.H"
 
 using namespace amrex;
 
@@ -15,103 +16,32 @@ amrex_probinit (
 
 Problem::Problem ()
 {
-  // Parse params
-  amrex::ParmParse pp("prob");
-}
-
-void
-Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
-                                  std::unique_ptr<MultiFab>& z_phys_nd,
-                                  Geometry const& geom)
-{
-    const Real prob_lo_z = geom.ProbLo()[2];
-    const Real dz        = geom.CellSize()[2];
-    const int khi        = geom.Domain().bigEnd()[2];
-
-    // use_terrain = 1
-    if (z_phys_nd) {
-
-        if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
-
-        for ( MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
-        {
-            Array4<Real      > rho_arr  = rho_hse.array(mfi);
-            //Array4<Real const> z_cc_arr = z_phys_cc->const_array(mfi);
-
-            // Create a flat box with same horizontal extent but only one cell in vertical
-            const Box& tbz = mfi.nodaltilebox(2);
-            Box b2d = tbz; // Copy constructor
-            b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
-            b2d.setRange(2,0);
-
-            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-              Array1D<Real,0,255> r;
-
-              //init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
-
-              for (int k = 0; k <= khi; k++) {
-                 rho_arr(i,j,k) = r(k);
-              }
-              rho_arr(i,j,   -1) = rho_arr(i,j,0);
-              rho_arr(i,j,khi+1) = rho_arr(i,j,khi);
-            });
-        } // mfi
-    } else { // use_terrain = 0
-
-        // These are at cell centers (unstaggered)
-        Vector<Real> h_r(khi+2);
-        Vector<Real> h_p(khi+2);
-        Vector<Real> h_t(khi+2);
-        Vector<Real> h_q_v(khi+2);
-
-        amrex::Gpu::DeviceVector<Real> d_r(khi+2);
-
-        amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
-
-        Real* r     = d_r.data();
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-          for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-          {
-              const Box& bx = mfi.growntilebox(1);
-              const Array4<Real> rho_hse_arr   = rho_hse[mfi].array();
-              ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-              {
-                  int kk = std::max(k,0);
-                  rho_hse_arr(i,j,k) = 0.0;//r[kk];
-              });
-          } // mfi
-    } // no terrain
 }
 
 void
 Problem::init_custom_pert (
     const Box& bx,
-    const Box& xbx,
-    const Box& ybx,
-    const Box& zbx,
     Array4<Real const> const& /*state*/,
     Array4<Real      > const& state_pert,
-    Array4<Real      > const& x_vel_pert,
-    Array4<Real      > const& y_vel_pert,
-    Array4<Real      > const& z_vel_pert,
     Array4<Real      > const& /*r_hse*/,
     Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& /*z_cc*/,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
-    Array4<Real const> const& /*mf_u*/,
-    Array4<Real const> const& /*mf_v*/,
-    const SolverChoice& sc)
+    const SolverChoice& sc,
+    const int /*lev*/)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
     const int khi = geomdata.Domain().bigEnd()[2];
 
+    if(bx.length()[2] != khi+1){
+        Print() << "The unequal values are " << bx.length()[2] << " " << khi+1 << "\n";
+    }
+
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
+
 
   // This is what we do at k = 0 -- note we assume p = p_0 and T = T_0 at z=0
   const amrex::Real& dz        = geomdata.CellSize()[2];
@@ -137,103 +67,44 @@ Problem::init_custom_pert (
     Real* t   = d_t.data();
     Real* p   = d_p.data();
 
- // File to read
-
-    // Parse params
-    //const std::string filename = "ERF_IC_gdas1.fnl0p25.2021081906.f00.bin";
+    // File to read
     std::string filename;
     ParmParse pp("erf");
-    pp.query("IC_file", filename);
+    pp.query("hindcast_IC_filename", filename);
 
     if (filename.empty()) {
-        amrex::Abort("Error: IC_file is not specified in the input file.");
+        if ( (sc.init_type == InitType::WRFInput) ||
+             (sc.init_type == InitType::Metgrid)  ||
+             (sc.init_type == InitType::NCFile) ) {
+            return;
+        } else {
+            amrex::Abort("Error: IC_file is not specified in the input file.");
+        }
     }
 
-    // Open the binary file in input mode
-    std::ifstream infile(filename, std::ios::binary);
-    if (!infile) {
-        std::cerr << "Error: Could not open file " << filename << std::endl;
-    }
-
-
-    int nx, ny, nz, ndata;
-    float value;
-
+    Vector<Real> latvec_h, lonvec_h;
     Vector<Real> xvec_h, yvec_h, zvec_h;
-
-    // Read the four integers
-    infile.read(reinterpret_cast<char*>(&nx), sizeof(int));
-    infile.read(reinterpret_cast<char*>(&ny), sizeof(int));
-    infile.read(reinterpret_cast<char*>(&nz), sizeof(int));
-    infile.read(reinterpret_cast<char*>(&ndata), sizeof(int));
-
-    amrex::Gpu::DeviceVector<Real> xvec_d(nx*ny*nz), yvec_d(nx*ny*nz), zvec_d(nx*ny*nz);
-    for(int i=0; i<nx; i++) {
-        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-        xvec_h.emplace_back(value);
-    }
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xvec_h.begin(), xvec_h.end(), xvec_d.begin());
-
-    for(int j=0; j<ny; j++) {
-        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-        yvec_h.emplace_back(value);
-    }
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yvec_h.begin(), yvec_h.end(), yvec_d.begin());
-
-    for(int k=0; k<nz; k++) {
-        infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-        zvec_h.emplace_back(value);
-    }
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zvec_h.begin(), zvec_h.end(), zvec_d.begin());
-
-    // Vector to store the data
     Vector<Real> rho_h, uvel_h, vvel_h, wvel_h, theta_h, qv_h, qc_h, qr_h;
 
-    Vector<Real>* data_h = nullptr; // Declare pointer outside the loop
+    ReadCustomBinaryIC(filename, latvec_h, lonvec_h,
+                       xvec_h, yvec_h, zvec_h,
+                       rho_h, uvel_h, vvel_h, wvel_h,
+                       theta_h, qv_h, qc_h, qr_h);
 
-    Real* xvec_d_ptr = xvec_d.data();
-    Real* yvec_d_ptr = yvec_d.data();
-    Real* zvec_d_ptr = zvec_d.data();
+    int nx = xvec_h.size();
+    int ny = yvec_h.size();
+    int nz = zvec_h.size();
 
-    Real dxvec = (xvec_h[nx-1]-xvec_h[0])/(nx-1);
-    Real dyvec = (yvec_h[ny-1]-yvec_h[0])/(ny-1);
+    amrex::Real dxvec = (xvec_h[nx-1]-xvec_h[0])/(nx-1);
+    amrex::Real dyvec = (yvec_h[ny-1]-yvec_h[0])/(ny-1);
 
-    // Read the file
-    for(int idx=0; idx<ndata; idx++){
-        if(idx == 0){
-            data_h = &rho_h;
-        } else if (idx==1) {
-            data_h = &uvel_h;
-        } else if (idx==2) {
-            data_h = &vvel_h;
-        } else if (idx==3) {
-            data_h = &wvel_h;
-        } else if(idx==4) {
-            data_h = &theta_h;
-        } else if(idx==5) {
-            data_h = &qv_h;
-        } else if(idx==6) {
-            data_h = &qc_h;
-        } else if(idx==7) {
-            data_h = &qr_h;
-        }
-        for(int k=0; k<nz; k++) {
-            for(int j=0; j<ny; j++) {
-                for(int i=0; i<nx; i++) {
-                    infile.read(reinterpret_cast<char*>(&value), sizeof(float));
-                    //if(idx == 3) {
-                        //printf("theta is %0.15g, %0.15g, %0.15g %0.15g\n", xvec_h[i], yvec_h[j], zvec_h[k], value);
-                    //}
-                    data_h->emplace_back(value);
-                }
-            }
-        }
-    }
-
-    infile.close();
-
+    amrex::Gpu::DeviceVector<Real> xvec_d(nx*ny*nz), yvec_d(nx*ny*nz), zvec_d(nx*ny*nz);
     amrex::Gpu::DeviceVector<Real> rho_d(nx*ny*nz), uvel_d(nx*ny*nz), vvel_d(nx*ny*nz), wvel_d(nx*ny*nz),
                                    theta_d(nx*ny*nz), qv_d(nx*ny*nz), qc_d(nx*ny*nz), qr_d(nx*ny*nz);
+
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xvec_h.begin(), xvec_h.end(), xvec_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yvec_h.begin(), yvec_h.end(), yvec_d.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, zvec_h.begin(), zvec_h.end(), zvec_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, uvel_h.begin(), uvel_h.end(), uvel_d.begin());
@@ -243,6 +114,9 @@ Problem::init_custom_pert (
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, qr_h.begin(), qr_h.end(), qr_d.begin());
 
+    Real* xvec_d_ptr = xvec_d.data();
+    Real* yvec_d_ptr = yvec_d.data();
+    Real* zvec_d_ptr = zvec_d.data();
     Real* rho_d_ptr   = rho_d.data();
     Real* uvel_d_ptr  = uvel_d.data();
     Real* vvel_d_ptr  = vvel_d.data();
@@ -307,60 +181,78 @@ Problem::init_custom_pert (
            }
     });
 
-  // Set the x-velocity
-  ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      const auto prob_lo  = geomdata.ProbLo();
-    const auto dx       = geomdata.CellSize();
-    const Real x        = prob_lo[0] + i * dx[0];
-    const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
+    Gpu::streamSynchronize();
+}
 
-    Real tmp_uvel;
-    bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
-                             dxvec, dyvec,
-                             nx, ny, nz,
-                             x, y, z,
-                             uvel_d_ptr, tmp_uvel);
-    x_vel_pert(i,j,k) = tmp_uvel;
-  });
+void
+Problem::init_custom_pert_vels (
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
+    Array4<Real      > const& r_hse,
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice& sc,
+    const int /*lev*/)
+{
+    // Set the x-velocity
+    ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        const auto prob_lo  = geomdata.ProbLo();
+        const auto dx       = geomdata.CellSize();
+        const Real x        = prob_lo[0] + i * dx[0];
+        const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
+        const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
 
-  // Set the y-velocity
-  ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const auto prob_lo  = geomdata.ProbLo();
-    const auto dx       = geomdata.CellSize();
-    const Real x        = prob_lo[0] + (i+0.5) * dx[0];
-    const Real y        = prob_lo[1] + j * dx[1];
-    const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
+        Real tmp_uvel;
+        bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                                 dxvec, dyvec,
+                                 nx, ny, nz,
+                                 x, y, z,
+                                 uvel_d_ptr, tmp_uvel);
+        x_vel_pert(i,j,k) = tmp_uvel;
+    });
 
-    Real tmp_vvel;
-    bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
-                           dxvec, dyvec,
-                           nx, ny, nz,
-                           x, y, z,
-                           vvel_d_ptr, tmp_vvel);
+    // Set the y-velocity
+    ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        const auto prob_lo  = geomdata.ProbLo();
+        const auto dx       = geomdata.CellSize();
+        const Real x        = prob_lo[0] + (i+0.5) * dx[0];
+        const Real y        = prob_lo[1] + j * dx[1];
+        const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
 
-      y_vel_pert(i, j, k) = tmp_vvel;
-  });
+        Real tmp_vvel;
+        bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                               dxvec, dyvec,
+                               nx, ny, nz,
+                               x, y, z,
+                               vvel_d_ptr, tmp_vvel);
 
-  // Set the z-velocity
-  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const auto prob_lo  = geomdata.ProbLo();
-    const auto dx       = geomdata.CellSize();
-    const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
-    const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z        = prob_lo[2] + k * dx[2];
+        y_vel_pert(i, j, k) = tmp_vvel;
+    });
 
-    Real tmp_wvel;
-    bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
-                           dxvec, dyvec,
-                           nx, ny, nz,
-                           x, y, z,
-                           wvel_d_ptr, tmp_wvel);
+    // Set the z-velocity
+    ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        const auto prob_lo  = geomdata.ProbLo();
+        const auto dx       = geomdata.CellSize();
+        const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
+        const Real y        = prob_lo[1] + (j + 0.5) * dx[1];
+        const Real z        = prob_lo[2] + k * dx[2];
 
-      z_vel_pert(i, j, k) = tmp_wvel;
-  });
+        Real tmp_wvel;
+        bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
+                               dxvec, dyvec,
+                               nx, ny, nz,
+                               x, y, z,
+                               wvel_d_ptr, tmp_wvel);
 
-  Gpu::streamSynchronize();
+        z_vel_pert(i, j, k) = tmp_wvel;
+    });
+
+    Gpu::streamSynchronize();
 }
 
 void

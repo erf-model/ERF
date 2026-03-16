@@ -22,26 +22,71 @@ If **erf.init_type = Uniform** the user must provide values in the
 inputs file,  **prob.rho_0** and  **prob.T_0**, to
 specify the background density and temperature which will
 be assumed to be constant in space throughout the domain.
+Base state pressure is computed from the EOS.
+
+If **erf.init_type = ConstantDensity** the user must provide
+**prob.rho_0** to specify the background density which will
+be assumed to be constant in space throughout the domain.
 If gravity is set to be non-zero then the density will be vertically
 integrated to generate the background pressure
-as described in :ref:`sec:BaseState`.
+as described in :ref:`sec:BaseState`.  Once density and pressure are
+known, the base state potential temperature will be computed from the EOS.
 
-If **erf.init_type = InputSounding** is specified and
-**erf.init_sounding_ideal = false** (the default)
-then the hydrostatically stratified background state
-is reconstructed from 1-D input sounding data
-as described in :ref:`sec:BaseState`.
+If **erf.init_type = Isentropic**, the background state is computed by
+iterating to find base state pressure and density which satisfy both the
+dry EOS and hydrostatic equilibrium (HSE).
 
-If **erf.init_type = InputSounding** is specified and
-**erf.init_sounding_ideal = true** in the inputs file,
-then the base state is initialized by integrating vertically
-through the values of potential temperature and water vapor
-provided in the input_sounding file.
+If **erf.init_type = MoistBaseState**, the background state is computed by
+iterating to find base state pressure and density which satisfy both the
+moist EOS and hydrostatic equilibrium (HSE).
+
+If **erf.init_type = InputSounding**, then the thermodynamic profiles in the
+provided **erf.input_sounding_file** are used to set initial conditions and the
+base state depending on **erf.sounding_type**.
+For an ``Ideal`` sounding (default), a stratified, hydrostatically balanced base
+state is reconstructed from the 1-D input sounding data as described in
+:ref:`sec:BaseState`. The initial fields match the base state. This
+configuration corresponds to WRF's ideal.exe initialization.
+
+If the sounding is ``Isentropic`` or ``DryIsentropic``, a set of
+thermodynamically consistent, isentropic (constant :math:`\theta`) conditions
+are determined. An initial pressure profile is calculated by integrating
+:math:`p_{surf}` and :math:`\theta_{surf}` from the surface; the resulting
+base-state pressure profile is related to :math:`\rho\theta_d` through the
+equation of state. This reference profile may or may not take into account the
+input water vapor mixing ratio profile, depending the choice of isentropic or
+dry isentropic, respectively. Using the input profiles of potential temperature
+and water vapor mixing ratio, we determine the initial dry air density. These
+three quantities are used to initialize the solution fields. Note that the base
+state corresponds to the integrated :math:`p(z)` and
+:math:`\theta(z)=\theta_{surf}`.
+
+If the sounding is ``ConstantDensity``, then the initial density field is
+uniformly set to 1.0; the potential temperature (and water vapor mixing ratio)
+field(s) are set to the sounding values.
+
+.. note::
+
+   You can optionally replace only the velocity fields (``u``, ``v``, ``w``)
+   by reading them from an existing checkpoint. This is useful when restarting
+   with updated thermodynamics or a new base state while keeping a prior wind
+   field.
+
+   Add a line such as the following to your inputs file:
+
+   .. code-block:: none
+
+      erf.init_vels_from_checkpoint = chk00010
+
+   The value should be the checkpoint directory name (relative to the run
+   directory or an absolute path). When set, ERF reads the velocity fields from
+   that checkpoint and uses the usual initialization pathway for all other fields.
 
 In any of these cases, the user can specify any perturbations from the
-base state by editing the routines in **ERF_Prob.cpp**
+base state by editing the routines that live in the ``Source/Prob`` directory
+and are called in **ERF_Prob.cpp**
 
-Initialization From NetCDF Files
+Initialization From Real Data
 ----------------------------------
 
 There are three options for ingesting the full 3D initial data from a NetCDF file.
@@ -58,6 +103,9 @@ file **ERF_Prob.cpp** must still be present for the build.
     specified using ``erf.nc_bdy_file``
     and time-varying sea surface temperatures can be read from a NetCDF file
     specified using ``erf.nc_low_file``.
+    We also note that wrfinput files that have later start times than the base level
+    can be read and the new level will be initialized once the start time of the finer
+    level has been reached.
 
 * **erf.init_type = Metgrid**
 
@@ -74,6 +122,46 @@ file **ERF_Prob.cpp** must still be present for the build.
 
   - In this case the base state defaults to zero and the full state is read in from
     a much simplified NetCDF file.  Right now, only the density, horizontal and
-    vertical velocity components, and temperature (or potential temperature) can
+    vertical velocity components, potential temperature, and water vapor mixing ratio can
     be read in.  This case is designed for idealized problems and does not allow
-    for terrain-fitted coordinates, map factors or a non-zero base state.
+    for terrain-fitted coordinates or map factors.
+    The variables in the NC file should have dimensions of (Time, bottom_top, south_north, west_east).
+    Variable names include ``RHO``, ``U``, ``V``, ``W``, ``T``, and ``QV``.
+    Optional HSE variables include ``RHO_HSE``, ``T_HSE``, and ``P_HSE``; the base state will be
+    calculated if it is not specified.
+
+Workflows
+--------------------
+For a summary of initialization strategies for real-data simulations, see the table below.
+
+.. list-table:: Simulation Workflows
+   :header-rows: 1
+
+   * -
+     - Large-Scale Data (reanalysis, HRRR, ...)
+     - Intermediate Processing
+     - Weather Simulation
+   * - WRF
+     - Manual download
+     - WPS + ``real.exe``
+     - ``wrf.exe``
+   * - WRF --> ERF
+     - Manual download
+     - WPS + ``real.exe``
+     - ``erf_abl`` (init from wrfinput)
+   * -
+     - Manual download
+     - ``ndown.exe``
+     - ``erf_abl`` (init from wrfinput)
+   * - WPS --> ERF
+     - Manual download
+     - WPS
+     - ``erf_abl`` (init from metgrid)
+   * - E3SM --> ERF
+     - ``run_e3sm``
+     -  *Under development*
+     - ``erf_abl``
+   * - ERF standalone
+     - Python tools
+     - Python tools *(under development)*
+     - ``erf_abl``

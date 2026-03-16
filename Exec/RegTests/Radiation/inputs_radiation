@@ -1,0 +1,77 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "Radiation Test"
+
+max_step  = 100
+stop_time = 100.0
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     =      0.   0.     0.
+geometry.prob_hi     =  15000. 400. 50000.
+amr.n_cell           =     42    4     42
+
+# Periodic in x and y
+geometry.is_periodic = 1 1 0
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.fixed_dt       = 1.0      # fixed time step [s]
+erf.fixed_fast_dt  = 0.25     # fixed time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 10000       # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt        # root name of plotfile
+erf.plot_int_1      = 1         # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhotheta rhoQ1 rhoQ2 x_velocity y_velocity z_velocity pressure theta temp qv qc
+
+# SOLVER CHOICE
+erf.use_gravity     = true
+erf.use_coriolis    = false
+erf.moisture_model  = "SatAdj"
+erf.molec_diff_type = "Constant"
+erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
+erf.alpha_T = 0.0 # [m^2/s]
+erf.alpha_C = 0.0 # [m^2/s]
+erf.init_type = "input_sounding"
+erf.input_sounding_file = "input_sounding_moist"
+erf.sounding_type = Ideal
+    
+# RADIATION INPUTS
+start_datetime             = "2010-01-01 18:00:00" # UTC is 6 hrs ahead of MT time
+erf.radiation_model        = "RRTMGP"
+erf.rad.datalog            = "radiation"
+erf.profile_rad_int        = 1
+erf.rad_freq_in_steps      = 1
+erf.rad_do_subcol_sampling = true
+erf.rad_write_fluxes       = false
+erf.rad_orbital_year       = 2010
+erf.rad_cons_lat           =  40.0
+erf.rad_cons_lon           = -99.0
+erf.rad_t_sfc              = 305.0
+erf.co2vmr                 = 0.00036
+erf.o3vmr                  = 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 4.0e-8 4.25e-8 4.5e-8 4.9e-8 5.4e-8 6.0e-8 6.9e-8 8.0e-8 9.25e-8 1.07e-7 1.25e-7 1.63e-7 2.7e-7 5.4e-7 1.0e-6 1.7e-6 2.6e-6 4.0e-6 5.75e-6 7.5e-6 9.0e-6 9.6e-6 9.34e-6 7.83e-6 5.4e-6 3.3e-6 1.9e-6 9.1e-7 
+erf.n2ovmr                 = 3.2e-7
+erf.covmr                  = 1.5e-7
+erf.ch4vmr                 = 1.7e-6
+erf.o2vmr                  = 0.209
+erf.n2vmr                  = 0.7906 
+erf.rrtmgp_file_path       = /home/alattanz/git/data-files
+erf.rrtmgp_coeffs_sw       = rrtmgp-gas-sw-g112.nc #rrtmgp-data-sw-g224-2018-12-04.nc
+erf.rrtmgp_coeffs_lw       = rrtmgp-gas-lw-g128.nc #rrtmgp-data-lw-g256-2018-12-04.nc
+erf.rrtmgp_cloud_optics_sw = rrtmgp-cloud-optics-coeffs-sw.nc
+erf.rrtmgp_cloud_optics_lw = rrtmgp-cloud-optics-coeffs-lw.nc

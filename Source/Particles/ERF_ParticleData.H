@@ -63,7 +63,7 @@ class ParticleData
                 for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
                     auto name( m_namelist[i] );
                     auto particles( m_particle_species.at(name) );
-                    particles->Checkpoint( a_fname, name, true, particles->varNames() );
+                    particles->WritePlotFile(a_fname, name, particles->varNames());
                 }
             }
         }
@@ -128,6 +128,18 @@ class ParticleData
         }
 
         /*! Get species of a given name */
+        inline bool HasSpecies ( const std::string& a_name )
+        {
+            BL_PROFILE("ParticleData::HasSpecies()");
+            ParticleSpeciesMap::iterator it (m_particle_species.find(a_name));
+            if (it == m_particle_species.end()) {
+                return false;
+            } else {
+                return true;
+            }
+        }
+
+        /*! Get species of a given name */
         inline ERFPC* GetSpecies ( const std::string& a_name )
         {
             BL_PROFILE("ParticleData::GetSpecies()");
@@ -185,7 +197,7 @@ class ParticleData
 
         /*! Add a particle species to this container */
         inline void pushBack (const std::string&  a_name,
-                             ERFPC* const        a_pc )
+                              ERFPC* const        a_pc )
         {
             BL_PROFILE("ParticleData::pushBack()");
             AMREX_ASSERT(!contains(a_name));

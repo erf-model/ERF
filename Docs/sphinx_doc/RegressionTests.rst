@@ -244,9 +244,9 @@ Test Location: `Tests/test_files/ScalarAdvectionUniformU`_
 
 .. _`Tests/test_files/ScalarAdvectionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
 
-Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/DryRegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a2| image:: figures/tests/scalar_advec_uniform_u_start.png
         :width: 200
@@ -254,7 +254,7 @@ Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
 .. |b2| image:: figures/tests/scalar_advec_uniform_u_end.png
         :width: 200
 
-.. _fig:scalar_advection_uniform_u
+.. _fig:scalar_advection_uniform_u:
 
 .. table:: X-Y slice of a 2-d cylindrical blob in a uniform velocity field (10,5,0)
 
@@ -272,9 +272,9 @@ Test Location: `Tests/test_files/ScalarAdvectionShearedU`_
 
 .. _`Tests/test_files/ScalarAdvectionShearedU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionShearedU
 
-Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/DryRegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a3| image:: figures/tests/scalar_advec_sheared_u_start.png
         :width: 200
@@ -282,7 +282,7 @@ Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
 .. |b3| image:: figures/tests/scalar_advec_sheared_u_end.png
         :width: 200
 
-.. _fig:scalar_advection_sheared_u
+.. _fig:scalar_advection_sheared_u:
 
 .. table:: X-Z slice of a 2-d cylindrical blob in a uniform shearing velocity field (8 log( (z+z0)/z0 ) / log ( (zref+z0)/z0 )
    with z0 = 0.1 and zref = 80 in a triply periodic domain 8x8x8
@@ -301,9 +301,9 @@ Test Location: `Tests/test_files/ScalarDiffusionGaussian`_
 
 .. _`Tests/test_files/ScalarDiffusionGaussian`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionGaussian
 
-Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/DryRegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a5| image:: figures/tests/scalar_diff_start.png
         :width: 300
@@ -311,7 +311,7 @@ Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
 .. |b5| image:: figures/tests/scalar_diff_end.png
         :width: 300
 
-.. _fig:scalar_diffusion_gaussian
+.. _fig:scalar_diffusion_gaussian:
 
 .. table:: Diffusion of a spherical blob of scalar
 
@@ -329,9 +329,9 @@ Test Location: `Tests/test_files/ScalarDiffusionSine`_
 
 .. _`Tests/test_files/ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionSine
 
-Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/DryRegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a6| image:: figures/tests/scalar_diff_sine_start.png
         :width: 300
@@ -339,7 +339,7 @@ Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
 .. |b6| image:: figures/tests/scalar_diff_sine_end.png
         :width: 300
 
-.. _fig:scalar_diffusion_sine
+.. _fig:scalar_diffusion_sine:
 
 .. table:: Diffusion of a scalar initialized as sin(x)
 
@@ -358,9 +358,9 @@ Test Location (for 2nd order): `Tests/test_files/ScalarAdvDiff_order2`_
 
 .. _`Tests/test_files/ScalarAdvDiff_order2`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvDiff_order2
 
-Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/DryRegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a7| image:: figures/tests/scalar_advec_diff_start.png
         :width: 300
@@ -368,7 +368,7 @@ Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
 .. |b7| image:: figures/tests/scalar_advec_diff_end.png
         :width: 300
 
-.. _fig:scalar_diffusion_sine
+.. _fig:scalar_diffusion_uniform:
 
 .. table:: Advection and diffusion of a spherical blob in a uniform velocity field (100,0,0)
 
@@ -388,9 +388,9 @@ Test Location: `Tests/test_files/RayleighDamping`_
 
 .. _`Tests/test_files/RayleighDamping`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/RayleighDamping
 
-Problem Location: `Exec/DryRegTests/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/DryRegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 
 Isentropic Vortex: Stationary
@@ -401,9 +401,9 @@ Test Location: `Tests/test_files/IsentropicVortexStationary`_
 
 .. _`Tests/test_files/IsentropicVortexStationary`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IsentropicVortexStationary
 
-Problem Location: `Exec/DryRegTests/IsentropicVortex`_
+Problem Location: `Exec/RegTests/IsentropicVortex`_
 
-.. _`Exec/DryRegTests/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/IsentropicVortex
+.. _`Exec/RegTests/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/IsentropicVortex
 
 Isentropic Vortex: Advecting
 ----------------------------
@@ -413,9 +413,9 @@ Test Location: `Tests/test_files/IsentropicVortexAdvecting`_
 
 .. _`Tests/test_files/IsentropicVortexAdvecting`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IsentropicVortexAdvecting
 
-Problem Location: `Exec/DryRegTests/IsentropicVortex`_
+Problem Location: `Exec/RegTests/IsentropicVortex`_
 
-.. _`Exec/DryRegTests/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/IsentropicVortex
+.. _`Exec/RegTests/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/IsentropicVortex
 
 Taylor Green Vortex: Advection
 ------------------------------------------------
@@ -425,9 +425,9 @@ Test Location: `Tests/test_files/TaylorGreenAdvecting`_
 
 .. _`Tests/test_files/TaylorGreenAdvecting`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TaylorGreenAdvecting
 
-Problem Location: `Exec/DryRegTests/TaylorGreenVortex`_
+Problem Location: `Exec/RegTests/TaylorGreenVortex`_
 
-.. _`Exec/DryRegTests/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/TaylorGreenVortex
+.. _`Exec/RegTests/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/TaylorGreenVortex
 
 Taylor Green Vortex: Advection and Diffusion
 ------------------------------------------------
@@ -437,9 +437,9 @@ Test Location: `Tests/test_files/TaylorGreenAdvectingDiffusing`_
 
 .. _`Tests/test_files/TaylorGreenAdvectingDiffusing`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TaylorGreenAdvectingDiffusing
 
-Problem Location: `Exec/DryRegTests/TaylorGreenVortex`_
+Problem Location: `Exec/RegTests/TaylorGreenVortex`_
 
-.. _`Exec/DryRegTests/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/TaylorGreenVortex
+.. _`Exec/RegTests/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/TaylorGreenVortex
 
 .. |a8| image:: figures/tests/TGV_start.png
         :width: 300
@@ -447,7 +447,7 @@ Problem Location: `Exec/DryRegTests/TaylorGreenVortex`_
 .. |b8| image:: figures/tests/TGV_end.png
         :width: 300
 
-.. _fig:taylor_green_vortex
+.. _fig:taylor_green_vortex:
 
 .. table:: Scalar concentration
 
@@ -467,11 +467,11 @@ the velocity is specified to be :math:`U = (2,0,0)`.   The steady solution for t
 
 Test Location: `Tests/test_files/CouetteFlow_x`_
 
-.. _`Tests/test_files/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_x
+.. _`Tests/test_files/CouetteFlow_x`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_x
 
-Problem Location: `Exec/DryRegTests/CouetteFlow_x`_
+Problem Location: `Exec/RegTests/CouetteFlow_x`_
 
-.. _`Exec/DryRegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/Couette_Poiseuille
+.. _`Exec/RegTests/CouetteFlow_x`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
 
 Couette Flow (y-direction)
 ---------------------------
@@ -483,11 +483,11 @@ the velocity is specified to be :math:`U = (0,2,0)`.   The steady solution for t
 
 Test Location: `Tests/test_files/CouetteFlow_y`_
 
-.. _`Tests/test_files/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_y
+.. _`Tests/test_files/CouetteFlow_y`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_y
 
-Problem Location: `Exec/DryRegTests/CouetteFlow_y`_
+Problem Location: `Exec/RegTests/CouetteFlow_y`_
 
-.. _`Exec/DryRegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/Couette_Poiseuille
+.. _`Exec/RegTests/CouetteFlow_y`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
 
 Poiseuille Flow (x-direction)
 -----------------------------
@@ -501,9 +501,9 @@ Test Location: `Tests/test_files/PoiseuilleFlow_x`_
 
 .. _`Tests/test_files/PoiseuilleFlow_x`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/PoiseuilleFlow_x
 
-Problem Location: `Exec/DryRegTests/PoiseuilleFlow_x`_
+Problem Location: `Exec/RegTests/PoiseuilleFlow_x`_
 
-.. _`Exec/DryRegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/Couette_Poiseuille
+.. _`Exec/RegTests/PoiseuilleFlow_x`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
 
 Poiseuille Flow (y-direction)
 -----------------------------
@@ -517,9 +517,9 @@ Test Location: `Tests/test_files/PoiseuilleFlow_y`_
 
 .. _`Tests/test_files/PoiseuilleFlow_y`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/PoiseuilleFlow_y
 
-Problem Location: `Exec/DryRegTests/PoiseuilleFlow_y`_
+Problem Location: `Exec/RegTests/PoiseuilleFlow_y`_
 
-.. _`Exec/DryRegTests/Couette_Poiseuille`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/Couette_Poiseuille
+.. _`Exec/RegTests/PoiseuilleFlow_y`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/Couette_Poiseuille
 
 Nonlinear Density Current
 ---------------------------
@@ -531,9 +531,9 @@ Test Location: `Tests/test_files/DensityCurrent`_
 
 .. _`Tests/test_files/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/DensityCurrent
 
-Problem Location: `Exec/DryRegTests/DensityCurrent`_
+Problem Location: `Exec/RegTests/DensityCurrent`_
 
-.. _`Exec/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/DensityCurrent
+.. _`Exec/CanonicalFlows/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Exec/CanonicalFlows/DensityCurrent
 
 Ekman Spiral
 ---------------------------
@@ -545,6 +545,6 @@ Test Location: `Tests/test_files/EkmanSpiral`_
 
 .. _`Tests/test_files/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/EkmanSpiral
 
-Problem Location: `Exec/DryRegTests/EkmanSpiral`_
+Problem Location: `Exec/CanonicalFlows/EkmanSpiral`_
 
-.. _`Exec/DryRegTests/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/DryRegTests/EkmanSpiral
+.. _`Exec/CanonicalFlows/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/CanonicalFlows/EkmanSpiral

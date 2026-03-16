@@ -100,7 +100,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
             if (icell==ncells_u_horz) {
                 interp_u_horz.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
             } else {
-                if (icell==1) {
+                if (icell<=1) {
                     interp_u_CEN2.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
                 } else if (icell==2) {
                     interp_u_UPW3.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
@@ -147,7 +147,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
             if (jcell==ncells_u_horz) {
                 interp_u_horz.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
             } else {
-                if (jcell==1) {
+                if (jcell<=1) {
                     interp_u_CEN2.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
                 } else if (jcell==2) {
                     interp_u_UPW3.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
@@ -194,7 +194,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
             if (kcell==ncells_u_vert) {
                 interp_u_vert.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
             } else {
-                if (kcell==1) {
+                if (kcell<=1) {
                     interp_u_CEN2.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 } else if (kcell==2) {
                     interp_u_UPW3.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
@@ -247,7 +247,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
             if (icell==ncells_v_horz) {
                 interp_v_horz.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
             } else {
-                if (icell==1) {
+                if (icell<=1) {
                     interp_v_CEN2.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
                 } else if (icell==2) {
                     interp_v_UPW3.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
@@ -275,6 +275,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     if (v_cflag(i,j-jj-1,k).isCovered()) {
                         break;
                     }
+                    jcell++;
                 }
             }
             else if (rho_v_avg<0.)
@@ -283,6 +284,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     if (v_cflag(i,j+jj,k).isCovered()) {
                         break;
                     }
+                    jcell++;
                 }
             }
 
@@ -292,7 +294,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
             if (jcell==ncells_v_horz) {
                 interp_v_horz.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
             } else {
-                if (jcell==1) {
+                if (jcell<=1) {
                     interp_v_CEN2.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
                 } else if (jcell==2) {
                     interp_v_UPW3.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
@@ -339,7 +341,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
             if (kcell==ncells_v_vert) {
                 interp_v_vert.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
             } else {
-                if (kcell==1) {
+                if (kcell<=1) {
                     interp_v_CEN2.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 } else if (kcell==2) {
                     interp_v_UPW3.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
@@ -392,7 +394,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
             if (icell==ncells_w_horz) {
                 interp_w_horz.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
             } else {
-                if (icell==1) {
+                if (icell<=1) {
                     interp_w_CEN2.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
                 } else if (icell==2) {
                     interp_w_UPW3.InterpolateInX(i,j,k,0,interpx,rho_u_avg);
@@ -439,7 +441,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
             if (jcell==ncells_w_horz) {
                 interp_w_horz.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
             } else {
-                if (jcell==1) {
+                if (jcell<=1) {
                     interp_w_CEN2.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
                 } else if (jcell==2) {
                     interp_w_UPW3.InterpolateInY(i,j,k,0,interpy,rho_v_avg);
@@ -499,7 +501,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 if (kcell==ncells_w_vert) {
                     interp_w_vert.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 } else {
-                    if (kcell==1) {
+                    if (kcell<=1) {
                         interp_w_CEN2.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                     } else if (kcell==2) {
                         interp_w_UPW3.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);

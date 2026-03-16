@@ -352,7 +352,7 @@ ERF::derive_diag_profiles(Real /*time*/,
             const Array4<Real>& w_cc_arr =  w_cc.array(mfi);
             const Array4<Real>&   p0_arr = p_hse.array(mfi);
 
-            int rhoqr_comp = solverChoice.RhoQr_comp;
+            int rhoqr_comp = solverChoice.moisture_indices.qr;
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -570,69 +570,24 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
     }
 }
 
-std::string
-ERF::MakeVTKFilename(int nstep) {
-    // Ensure output directory exists
-    const std::string dir = "Output_HurricaneTracker";
-    if (!fs::exists(dir)) {
-        fs::create_directory(dir);
-    }
-
-    // Construct filename with zero-padded step
-    std::ostringstream oss;
-    if(nstep==0){
-        oss << dir << "/hurricane_track_" << std::setw(7) << std::setfill('0') << nstep << ".vtk";
-    } else {
-        oss << dir << "/hurricane_track_" << std::setw(7) << std::setfill('0') << nstep+1 << ".vtk";
-    }
-
-    return oss.str();
-}
-
 void
-ERF::WriteVTKPolyline(const std::string& filename,
-                      Vector<std::array<Real, 2>>& points_xy)
+ERF::WriteLinePlot(const std::string& filename,
+                   Vector<std::array<Real, 2>>& points_xy)
 {
-    std::ofstream vtkfile(filename);
-    if (!vtkfile.is_open()) {
-        std::cerr << "Error: Cannot open file " << filename << std::endl;
+    std::ofstream ofs(filename);
+    if (!ofs.is_open()) {
+        amrex::Print() << "Error: Could not open file " << filename << " for writing.\n";
         return;
     }
 
-    int num_points = points_xy.size();
-    if (num_points == 0) {
-        vtkfile << "# vtk DataFile Version 3.0\n";
-        vtkfile << "Hurricane Track\n";
-        vtkfile << "ASCII\n";
-        vtkfile << "DATASET POLYDATA\n";
-        vtkfile << "POINTS " << num_points << " float\n";
-        vtkfile.close();
-        return;
-    }
-    if (num_points < 2) {
-        points_xy.push_back(points_xy[0]);
-    }
-    num_points = points_xy.size();
+    ofs << std::setprecision(10) << std::scientific;
+    ofs << "# x y\n";
 
-    vtkfile << "# vtk DataFile Version 3.0\n";
-    vtkfile << "Hurricane Track\n";
-    vtkfile << "ASCII\n";
-    vtkfile << "DATASET POLYDATA\n";
-
-    // Write points (Z=0 assumed)
-    vtkfile << "POINTS " << num_points << " float\n";
-    for (const auto& pt : points_xy) {
-        vtkfile << pt[0] << " " << pt[1] << " 10000.0\n";
+    for (const auto& p : points_xy) {
+        ofs << p[0] << " " << p[1] << "\n";
     }
 
-    // Write polyline connectivity
-    vtkfile << "LINES 1 " << num_points + 1 << "\n";
-    vtkfile << num_points << " ";
-    for (int i = 0; i < num_points; ++i) {
-        vtkfile << i << " ";
-    }
-    vtkfile << "\n";
+    ofs.close();
 
-    vtkfile.close();
+    amrex::Print() << "Line plot data written to " << filename << "\n";
 }
-

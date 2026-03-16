@@ -4,15 +4,22 @@
 #define ERF_EDDY_VISCOSITY_H_
 
 #include "AMReX_BCRec.H"
-
 #include "ERF_SurfaceLayer.H"
 #include "ERF_DataStruct.H"
+#include "ERF_IndexDefines.H"
+#include "ERF_Constants.H"
+#include "ERF_EOS.H"
+
+#ifdef ERF_USE_SHOC
+#include "ERF_ShocInterface.H"
+#endif
 
 void
-ComputeTurbulentViscosity (const amrex::MultiFab& xvel ,
+ComputeTurbulentViscosity (amrex::Real dt,
+                           const amrex::MultiFab& xvel ,
                            const amrex::MultiFab& yvel ,
                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
-                           const amrex::MultiFab& cons_in,
+                           amrex::MultiFab& cons_in,
                            const amrex::MultiFab& wdist,
                            amrex::MultiFab& eddyViscosity,
                            amrex::MultiFab& Hfx1,
@@ -24,12 +31,31 @@ ComputeTurbulentViscosity (const amrex::MultiFab& xvel ,
                            const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                            const SolverChoice& solverChoice,
                            std::unique_ptr<SurfaceLayer>& SurfLayer,
-                           const amrex::FArrayBox* z_0,
+                           const amrex::MultiFab* z_0,
                            const bool& use_terrain_fitted_coords,
                            const bool& use_moisture,
                            int level,
                            const amrex::BCRec* bc_ptr,
                            bool vert_only = false);
+
+void
+ComputeTurbulentViscosityLES (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
+                              const amrex::MultiFab& cons_in,
+                              amrex::MultiFab& eddyViscosity,
+                              amrex::MultiFab& Hfx1,
+                              amrex::MultiFab& Hfx2,
+                              amrex::MultiFab& Hfx3,
+                              amrex::MultiFab& Diss,
+                              const amrex::Geometry& geom,
+                              bool use_terrain_fitted_coords,
+                              amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
+                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                              const TurbChoice& turbChoice,
+                              const amrex::Real const_grav,
+                              std::unique_ptr<SurfaceLayer>& SurfLayer,
+                              const MoistureComponentIndices& moisture_indices,
+                              const amrex::MultiFab* xvel = nullptr,
+                              const amrex::MultiFab* yvel = nullptr);
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE

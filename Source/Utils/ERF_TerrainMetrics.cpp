@@ -52,6 +52,9 @@ make_terrain_fitted_coords (int lev, const Geometry& geom, MultiFab& z_phys_nd,
     int domlo_z = domain.smallEnd(2);
     int domhi_z = domain.bigEnd(2) + 1;
 
+    // Just in case ...
+    z_phys_nd.setDomainBndry(1.234e20,0,1,geom);
+
     // ****************************************************************************
 
     if (lev == 0) {
@@ -141,13 +144,14 @@ make_terrain_fitted_coords (int lev, const Geometry& geom, MultiFab& z_phys_nd,
         // Note that domhi_z is already nodal in the z-direction
         if (nd_bx.bigEnd(2) >= domhi_z) {
             // Grown box with no z range
-            Box xybx = mfi.growntilebox(ngrow);
-            xybx.setRange(2,0);
+            Box bx_zhi = mfi.growntilebox(ngrow);
+            bx_zhi.setSmall(2,domhi_z+1);
             Array4<Real> const& z_arr = z_phys_nd.array(mfi);
 
             // Extrapolate top layer
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int ) {
-                z_arr(i,j,domhi_z+1) = 2.0*z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1);
+            ParallelFor(bx_zhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                z_arr(i,j,k) = z_arr(i,j,domhi_z)
+                             + (k-domhi_z) * (z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1));
             });
         }
     }
@@ -272,7 +276,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
 
     case 1: // STF Method
     {
-        // Get Multifab spanning domain with 1 level of ghost cells
+        // Get MultiFab spanning domain with 1 level of ghost cells
         MultiFab h_mf(    z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow+1);
         MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow+1);
 
@@ -283,9 +287,7 @@ init_which_terrain_grid (int lev, Geometry const& geom, MultiFab& z_phys_nd,
         MultiFab mf2d;
         {
             BoxList bl2d = h_mf.boxArray().boxList();
-            for (auto& b : bl2d) {
-                b.setRange(2,0);
-            }
+            for (auto& b : bl2d) { b.setRange(2,b.smallEnd(2)); }
             BoxArray ba2d(std::move(bl2d));
             mf2d = MultiFab(ba2d, h_mf.DistributionMap(), 1, ngrow, MFInfo().SetAlloc(false));
         }
@@ -556,8 +558,10 @@ make_J (const Geometry& geom,
  */
 void
 make_areas (const Geometry& geom,
-            MultiFab& z_phys_nd, MultiFab& ax,
-            MultiFab& ay, MultiFab& az)
+            MultiFab& z_phys_nd,
+            MultiFab& ax,
+            MultiFab& ay,
+            MultiFab& az)
 {
     const auto* dx = geom.CellSize();
     Real dzInv = 1.0/dx[2];
@@ -638,4 +642,27 @@ make_zcc (const Geometry& geom,
        });
     }
     z_phys_cc.FillBoundary(geom.periodicity());
+}
+
+
+/**
+ * Computation min dz at cell-center
+ */
+Real
+get_dzmin_terrain (MultiFab& z_phys_nd)
+{
+    auto const& ma_z_nd_arr = z_phys_nd.const_arrays();
+    GpuTuple<Real> min = ParReduce(TypeList<ReduceOpMin>{},
+                                   TypeList<Real>{},
+                                   z_phys_nd, IntVect(0),
+                                   [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+                                   -> GpuTuple<Real>
+                                   {
+                                       amrex::Real dz = Compute_Z_AtWFace(i,j,k+1,ma_z_nd_arr[box_no]) -
+                                                        Compute_Z_AtWFace(i,j,k  ,ma_z_nd_arr[box_no]);
+                                       return { dz };
+                                   });
+    Real r = (get<0>(min) + std::numeric_limits<amrex::Real>::epsilon());
+    ParallelDescriptor::ReduceRealMin(r);
+    return r;
 }

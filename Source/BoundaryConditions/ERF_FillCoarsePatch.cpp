@@ -30,16 +30,16 @@ ERF::FillCoarsePatch (int lev, Real time)
     //
     bool cons_only = false;
     if (lev == 1) {
-        FillPatch(lev-1, time, {&vars_new[lev-1][Vars::cons], &vars_new[lev-1][Vars::xvel],
-                                &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
-                                cons_only);
+        FillPatchCrseLevel(lev-1, time, {&vars_new[lev-1][Vars::cons], &vars_new[lev-1][Vars::xvel],
+                           &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
+                           cons_only);
     } else {
-        FillPatch(lev-1, time, {&vars_new[lev-1][Vars::cons], &vars_new[lev-1][Vars::xvel],
-                                &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
-                               {&vars_new[lev-1][Vars::cons],
-                                &rU_new[lev-1], &rV_new[lev-1], &rW_new[lev-1]},
-                                base_state[lev-1], base_state[lev-1],
-                                false, cons_only);
+        FillPatchFineLevel(lev-1, time, {&vars_new[lev-1][Vars::cons], &vars_new[lev-1][Vars::xvel],
+                           &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
+                          {&vars_new[lev-1][Vars::cons],
+                           &rU_new[lev-1], &rV_new[lev-1], &rW_new[lev-1]},
+                           base_state[lev-1], base_state[lev-1],
+                           false, cons_only);
     }
 
     //
@@ -47,6 +47,11 @@ ERF::FillCoarsePatch (int lev, Real time)
     // Convert velocity to momentum at the COARSE level
     // ************************************************
     //
+    const MultiFab* c_vfrac = nullptr;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+    }
+
     VelocityToMomentum(vars_new[lev-1][Vars::xvel], IntVect{0},
                        vars_new[lev-1][Vars::yvel], IntVect{0},
                        vars_new[lev-1][Vars::zvel], IntVect{0},
@@ -55,7 +60,20 @@ ERF::FillCoarsePatch (int lev, Real time)
                          rV_new[lev-1],
                          rW_new[lev-1],
                        Geom(lev).Domain(),
-                       domain_bcs_type);
+                       domain_bcs_type, c_vfrac);
+
+    // Fill ghost cells of coarse momentum before interpolation to fine level.
+    // VelocityToMomentum above fills only valid cells (IntVect{0} grow).  On restart
+    // from a non-AMR checkpoint, init_stuff initialises rU/rV/rW_new[lev-1] with large
+    // sentinel values for ALL cells including ghost cells; the checkpoint read then
+    // overwrites only valid cells.  InterpFromCoarseLevel (see comments below) ASSUMES
+    // ghost cells at lev-1 are already filled and uses them in its stencil near periodic
+    // boundaries.  Without this FillBoundary, those sentinel ghost cells contaminate the
+    // fine-level interpolation, producing unphysical velocities that blow up WENO5.
+    rU_new[lev-1].FillBoundary(geom[lev-1].periodicity());
+    rV_new[lev-1].FillBoundary(geom[lev-1].periodicity());
+    rW_new[lev-1].FillBoundary(geom[lev-1].periodicity());
+
     //
     // *****************************************************************
     // Interpolate all cell-centered variables from coarse to fine level
@@ -67,7 +85,7 @@ ERF::FillCoarsePatch (int lev, Real time)
     //
     //************************************************************************************************
     // Interpolate cell-centered data from coarse to fine level
-    // with InterpFromCoarseLevel which ASSUMES that all ghost cells have already been filled
+    // with InterpFromCoarseLevel which ASSUMES that all ghost cells at lev-1 have already been filled
     // ************************************************************************************************
     IntVect ngvect_cons = vars_new[lev][Vars::cons].nGrowVect();
     int      ncomp_cons = vars_new[lev][Vars::cons].nComp();
@@ -86,7 +104,7 @@ ERF::FillCoarsePatch (int lev, Real time)
     //
     //************************************************************************************************
     // Interpolate x-momentum from coarse to fine level
-    // with InterpFromCoarseLevel which ASSUMES that all ghost cells have already been filled
+    // with InterpFromCoarseLevel which ASSUMES that all ghost cells at lev-1 have already been filled
     // ************************************************************************************************
     //
     InterpFromCoarseLevel(rU_new[lev], IntVect{0}, IntVect{0}, rU_new[lev-1], 0, 0, 1,
@@ -96,7 +114,7 @@ ERF::FillCoarsePatch (int lev, Real time)
     //
     //************************************************************************************************
     // Interpolate y-momentum from coarse to fine level
-    // with InterpFromCoarseLevel which ASSUMES that all ghost cells have already been filled
+    // with InterpFromCoarseLevel which ASSUMES that all ghost cells at lev-1 have already been filled
     // ************************************************************************************************
     //
     InterpFromCoarseLevel(rV_new[lev], IntVect{0}, IntVect{0}, rV_new[lev-1], 0, 0, 1,
@@ -105,7 +123,7 @@ ERF::FillCoarsePatch (int lev, Real time)
 
     //************************************************************************************************
     // Interpolate z-momentum from coarse to fine level
-    // with InterpFromCoarseLevel which ASSUMES that all ghost cells have already been filled
+    // with InterpFromCoarseLevel which ASSUMES that all ghost cells at lev-1 have already been filled
     // ************************************************************************************************
     InterpFromCoarseLevel(rW_new[lev],  IntVect{0}, IntVect{0}, rW_new[lev-1], 0, 0, 1,
                           geom[lev-1], geom[lev],
@@ -117,6 +135,11 @@ ERF::FillCoarsePatch (int lev, Real time)
     //
     for (int which_lev = lev-1; which_lev <= lev; which_lev++)
     {
+        c_vfrac = nullptr;
+        if (solverChoice.terrain_type == TerrainType::EB) {
+            c_vfrac = &((get_eb(which_lev).get_const_factory())->getVolFrac());
+        }
+
         MomentumToVelocity(vars_new[which_lev][Vars::xvel],
                            vars_new[which_lev][Vars::yvel],
                            vars_new[which_lev][Vars::zvel],
@@ -124,8 +147,8 @@ ERF::FillCoarsePatch (int lev, Real time)
                              rU_new[which_lev],
                              rV_new[which_lev],
                              rW_new[which_lev],
-                           Geom(lev).Domain(),
-                           domain_bcs_type);
+                           Geom(which_lev).Domain(),
+                           domain_bcs_type, c_vfrac);
     }
 
     // ***************************************************************************

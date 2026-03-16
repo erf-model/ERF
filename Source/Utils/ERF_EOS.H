@@ -15,7 +15,7 @@
  * @params[  out]       potential temperature
 */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getThgivenPandT(const amrex::Real T, const amrex::Real P, const amrex::Real rdOcp)
+amrex::Real getThgivenTandP(const amrex::Real T, const amrex::Real P, const amrex::Real rdOcp)
 {
     return T * std::pow(p_0/P, rdOcp);
 }
@@ -45,13 +45,10 @@ amrex::Real getTgivenPandTh(const amrex::Real P, const amrex::Real th, const amr
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getTgivenRandRTh(const amrex::Real rho, const amrex::Real rhotheta, const amrex::Real qv=0.0)
 {
-    // rho and rhotheta are dry values. We should be using moist value of theta when using moisture
+    // rho and rhotheta are dry values. We use moist theta when using moisture
     // theta_m = theta * (1 + R_v/R_d*qv)
     amrex::Real p_loc = p_0 * std::pow(R_d * rhotheta * (1.0 + R_v/R_d*qv) * ip_0, Gamma);
-
-    // p = rho_d * R_d * T_v (not T)
-    // T_v = T * (1 + R_v/R_d*qv)
-    return p_loc / (R_d * rho * (1.0 + R_v/R_d*qv) );
+    return p_loc / (R_d * rho * (1.0 + R_v/R_d*qv));
 }
 
 /**

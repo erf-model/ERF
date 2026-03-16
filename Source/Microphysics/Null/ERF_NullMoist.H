@@ -84,6 +84,15 @@ public:
         amrex::Abort("NullMoist::GetPlotVar() should never be called.");
     }
 
+    virtual
+    void
+    Set_dzmin (const amrex::Real /*dz_min*/) { }
+
+    virtual
+    void
+    Set_RealWidth (const int /*real_width*/) { }
+
+
 private:
     int m_qmoist_size = 0;
     int m_qstate_moist_size = 0;

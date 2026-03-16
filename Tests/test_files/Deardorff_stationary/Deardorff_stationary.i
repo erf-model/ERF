@@ -1,4 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "ABL"
+
 stop_time = 999.9
 max_step = 10
 
@@ -49,7 +51,6 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta rh
 
 # SOLVER CHOICES
 erf.use_gravity = false
-erf.use_coriolis = false
 
 erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_wind = 0. 0. 0.  # no background pressure gradient
@@ -65,6 +66,7 @@ erf.theta_ref = 290.0 # used in buoyancy term
 # INITIAL PROFILES
 erf.init_type = "input_sounding"
 erf.input_sounding_file = "input_sounding" # with linear wind profile
+erf.sounding_type = ConstantDensity
 
 # exact soln in uniform density field
 #   e = Ck/Ce*(dUdz*delta)**2,

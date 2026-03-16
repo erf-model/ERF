@@ -20,9 +20,9 @@ for any quantity :math:`\phi`). PBL schemes may be used in
 conjunction with an LES model that specifies horizontal turbulent transport, in
 which case the vertical component of the LES model is ignored.
 
-Right now, the only PBL scheme supported in ERF is the Mellor-Yamada-Nakanishi-Niino
-Level 2.5 model, largely matching the original forumulation proposed by Nakanishi and
-Niino in a series of papers from 2001 to 2009.
+Right now, ERF supports several PBL schemes: MYNN Level 2.5, MYJ, SHOC, MRF, and YSU.
+
+The MYNN Level 2.5 model is the Mellor-Yamada-Nakanishi-Niino Level 2.5 model, largely matching the original forumulation proposed by Nakanishi and Niino in a series of papers from 2001 to 2009.
 
 .. _MYNN25:
 
@@ -68,7 +68,7 @@ coefficients are then applied in evaluating the vertical component of turbulent
 fluxes in a similar manner as is described for the
 :ref:`Smagorinsky LES model<SmagorinskyModel>`. Computation of the stability parameters
 and lengthscale depend on the Obukhov length and surface heat flux, which are
-obtained from the :ref:`sec:MOST`. Further detail on these
+obtained from the :ref:`sec:MOST<sec:surface_layer>`. Further detail on these
 computations can be found in the cited works. Several model coefficients are
 required, with default values in ERF taken from the work of Nakanishi and Niino.
 
@@ -121,7 +121,192 @@ the implementation of MYNN PBL models in ERF.
 MYNN-EDMF Level 2.5 PBL Model
 -----------------------------
 
+.. warning::
+
+   Implementation is in progress with basic support.
+
 More recent advancements that add significant complexity to the MYNN scheme have been incorporated into WRF, as described in Olson et al. 2019. These advancements are not included in ERF, but may be in the future.
+
+.. _MYJ:
+
+MYJ PBL Model
+-------------
+
+.. warning::
+
+   Implementation is in progress with basic support.
+
+The Mellor-Yamada-Janjic (MYJ) scheme is a 1.5-order turbulence closure that solves
+a prognostic equation for turbulent kinetic energy (TKE). It uses a local closure approach
+with no counter-gradient terms, making it particularly effective for stable and neutral boundary layers.
+
+The turbulent fluxes are computed using gradient diffusion:
+
+.. math::
+   \overline{w'\phi'} = -K_\phi \frac{\partial \phi}{\partial z}
+
+The vertical turbulent transport coefficients are computed from TKE and a master length scale:
+
+.. math::
+   K_{m,v} = \rho L q S_m, \quad K_{\theta,v} = \rho L q S_h, \quad K_{q,v} = \rho L q S_h
+
+where :math:`q = \sqrt{2\cdot\text{TKE}}`, :math:`L` is the master length scale, and
+:math:`S_m`, :math:`S_h` are stability functions that account for buoyancy effects and depend on
+the gradient Richardson number. The master length scale :math:`L` is diagnosed based on the
+PBL height, von Kármán's constant, and height above the surface within the PBL, transitioning
+to a local mixing length in the free atmosphere.
+
+The prognostic TKE equation includes production by shear and buoyancy, and dissipation:
+
+.. math::
+   \frac{\partial \text{TKE}}{\partial t} + \nabla \cdot (\mathbf{u} \text{TKE})
+   = P_s + P_b - \epsilon + \nabla \cdot (K_q \nabla \text{TKE})
+
+where :math:`P_s` is shear production, :math:`P_b` is buoyancy production, and
+:math:`\epsilon` is dissipation.
+
+Closure coefficients are taken from Janjić (2002) NCEP Office Note 437. The implementation in ERF follows Janjić (1994, 2002) and uses the Mellor-Yamada (1982) length scale formulation.
+
+References
+~~~~~~~~~~
+
+* Janjić, Z. I. (1994): "The Step-Mountain Eta Coordinate Model: Further developments
+  of the convection, viscous sublayer, and turbulence closure schemes",
+  *Monthly Weather Review*, 122(5), 927-945.
+* Janjić, Z. I. (2002): "Nonsingular implementation of the Mellor-Yamada Level 2.5 Scheme
+  in the NCEP Meso model", NCEP Office Note No. 437.
+* Mellor, G. L., & Yamada, T. (1982): "Development of a turbulence closure model for
+  geophysical fluid problems", *Reviews of Geophysics*, 20(4), 851-875.
+
+.. _SHOC:
+
+SHOC PBL Model
+--------------
+
+.. warning::
+
+   Implementation is in progress with basic support.
+
+The Simplified Higher-Order Closure (SHOC) is a unified parameterization that represents
+both turbulent mixing and shallow convection in a single framework. Originally developed for
+the Community Atmosphere Model (CAM) and now used in E3SM, SHOC uses prognostic TKE with
+diagnostic second and third-order moments and assumed probability density functions (PDFs)
+to represent subgrid-scale variability.
+
+SHOC computes vertical turbulent fluxes for momentum, heat, and moisture, along with
+subgrid-scale cloud fraction and liquid water content. The assumed PDFs allow the scheme
+to predict partial cloudiness and transitions between clear and cloudy conditions. The
+implementation uses higher-order closure equations to diagnose eddy diffusivities and
+turbulent fluxes, with special treatment for cloud-top entrainment.
+
+References
+~~~~~~~~~~
+
+* Golaz, J.-C., et al. (2002): "A PDF-based model for boundary layer clouds. Part I:
+  Method and model description", *Journal of the Atmospheric Sciences*, 59(24), 3540-3551.
+* Bogenschutz, P. A., & Krueger, S. K. (2013): "A simplified PDF parameterization of
+  subgrid-scale clouds and turbulence for cloud-resolving models",
+  *Journal of Advances in Modeling Earth Systems*, 5(2), 195-211.
+* E3SM SHOC Documentation: https://github.com/E3SM-Project/E3SM/tree/master/components/eamxx/src/physics/shoc
+
+.. _MRFPBL:
+
+MRF PBL Model
+-------------
+
+.. warning::
+
+   Implementation is in progress with basic support. Need to be tuned in future for real flows.
+
+The Medium Range Forecast (MRF) PBL model is a nonlocal PBL scheme that was originally developed for the MRF model,
+which was used in the NCEP global forecast system. It is a nonlocal scheme that uses a countergradient diffusion approach
+to model vertical turbulent transport within the PBL.
+
+The turbulent diffusion for prognostic variables (:math:`C= u, v, \theta, q_k`), where :math:`q_k` includes all moisture
+variables is given by
+
+.. math::
+   \frac{\partial C}{\partial t}
+   = \frac{\partial}{\partial z} \left[
+   K_c \left( \frac{\partial C}{\partial z} - \gamma_c \right)
+   \right]
+
+Here :math:`K_c` is the turbulent diffusion coefficient, and :math:`\gamma_c` is the countergradient correction term.
+
+The turbulent diffusion coefficient in the mixed layer is given by:
+
+.. math::
+   K_m = \kappa w_s z \left( 1- \frac{z}{h} \right)^2
+
+.. math::
+   w_s = \frac{u_*}{\phi_m}
+
+where :math:`\kappa` is the von Karman constant, :math:`w_s` is a representative velocity scale in the mixed layer,
+and :math:`h` is the PBL height. The stability function :math:`\phi_m` is computed to be consistent with the surface layer
+bottom. For unstable regime (:math:`u_*\theta_* < 0`), it is calculated as follows:
+
+.. math::
+   \phi_m = \left(1 - 8 sf \frac{h}{L}\right)^{-1/3}
+
+.. math::
+   \phi_{t,q} = \left(1 - 16 sf \frac{h}{L}\right)^{-1/2}
+
+and for stable regime (:math:`u_*\theta_* > 0`), it is calculated as:
+
+.. math::
+   \phi_{m,t,q} = \left(1 + 5 sf \frac{h}{L}\right)
+
+where :math:`sf`  is a fraction of the surface layer and  atmospheric boundary layer height and  :math:`L`
+is the Monin-Obukhov length,  which is computed from the surface heat fluxes. The turbulent coefficient for
+temperature and moisture is given by:
+
+.. math::
+   K_t = K_q = \frac{K_m}{Pr}
+
+.. math::
+   Pr = \left(\frac{\phi_t}{\phi_m}+ b \kappa sf\right)
+
+where :math:`K_t` is the turbulent diffusion coefficient for temperature, :math:`K_q` is the turbulent diffusion coefficient for moisture
+and :math:`Pr` is the Prandtl number.
+
+The turbulent diffusion coefficient in the free atmosphere is computed from the YSU model as the MRF
+expressions showed oscillations in the canonical stable boundary layer tests.
+
+.. math::
+   K_{m,t} = l^2 f_{m,t}(Rig)\left|\frac{\partial U}{\partial z}\right|
+
+.. math::
+   l = \frac{\kappa z \lambda}{\kappa z + \lambda}
+
+where :math:`l` is the length scale, :math:`f_{m,t}` is a stability function for momentum and temperature (or moisture),
+:math:`Rig` is the gradient Richardson number,  and :math:`U` is the horizontal wind speed. The gradient Richardson
+number is computed as:
+
+.. math::
+   Rig = \frac{g}{\theta_v}\left[\frac{\partial \theta_v}{\partial z} \left(\frac{\partial z}{\partial U}\right)^2\right]
+
+A different expression is used for the stability function :math:`f_{m,t}` for stable and unstable regimes. For stable regime we have,
+
+.. math::
+   f_t = f_m (1+2.1 Rig) = \frac{1}{\left(1 + 5 Rig\right)^2}
+
+For the unstable regime, we have:
+
+.. math::
+   f_t = 1 - \frac{8 Rig}{1+1.286\sqrt{-Rig}}
+
+.. math::
+   f_m = 1 - \frac{8 Rig}{1+1.746\sqrt{-Rig}}
+
+
+The countergradient correction term is given by:
+
+.. math::
+   \gamma_c = b \frac{ u_* \theta_*}{w_s}
+
+where :math:`b=7.8` is a constant, :math:`u_*` is the surface frictional velocity scale, :math:`\theta_*` is the
+surface potential temperature scale.
+
 
 .. _YSUPBL:
 
@@ -218,7 +403,7 @@ Within the PBL (:math:`z \leq h`),
 Useful References
 ~~~~~~~~~~~~~~~~~
 
-The following references have informed the implementation of the YSU model in ERF:
+The following references have informed the implementation of the MRF and YSU model in ERF:
 
 .. _HP96: https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
 
